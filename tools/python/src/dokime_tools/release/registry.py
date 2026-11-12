@@ -31,7 +31,7 @@ from ..process import spawn_flags
 
 # isort: split
 from .. import policy
-from ..build import paths
+from ..build import paths, wheel
 from ..package import changelog
 from . import notices, pins
 
@@ -127,22 +127,18 @@ def crate_published(name: str, version: str | None = None) -> bool:
 def python(directory: Path, settings: dict, *, dry_run: bool) -> None:
     """Upload The Release Python Packages: PyPI For GitHub Products, The Project Registry On GitLab."""
     profile = policy.profile()
-    selected = []
-    for target in settings["targets"]:
-        root = paths.output(directory, "package", profile, target) / "python"
-        if not root.is_dir():
-            continue
-        wheels = sorted(root.glob("*.whl"))
-        if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
-            raise policy.ToolError(f"expected one native abi3 wheel for {target}")
-        selected.append(wheels[0].relative_to(directory).as_posix())
-    if not selected:
-        raise policy.ToolError(f"release:publish:python has no {profile} Python packages")
+    root = paths.output(directory, "package", profile, "any") / "python"
+    selected = wheel.distributions(directory, root, policy.config(directory)["version"]["value"])
+    command = ["uv", "publish"]
     if dry_run:
-        # Build and check only: uv validates every file without credentials or upload.
-        policy.execute(directory, ["uv", "publish", "--dry-run", "--trusted-publishing", "never", *selected])
-        return
-    raise policy.ToolError("native Python publication requires the owner to settle the PyPI and import name")
+        command += ["--dry-run", "--trusted-publishing", "never"]
+    elif settings["provider"] == "github":
+        command += ["--trusted-publishing", "always"]
+    else:
+        project = urllib.parse.quote(str(settings.get("project_id", os.environ.get("CI_PROJECT_ID", ""))), safe="")
+        base = os.environ.get("CI_API_V4_URL", settings.get("api_url", "https://gitlab.com/api/v4"))
+        command += ["--publish-url", f"{base}/projects/{project}/packages/pypi", "--trusted-publishing", "never"]
+    policy.execute(directory, [*command, *(path.relative_to(directory).as_posix() for path in selected)])
 
 
 def request(

@@ -559,15 +559,12 @@ run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
 [tasks."package:python"]
 hide = true
-description = "Package the Built Client Distributions"
+description = "Package the Pure Python SDK Distributions"
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--target <target>" default="native"
+flag "--target <target>" default="any"
 '''
-run = [
-  "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}",
-  "{{vars.tools}} dokime_tools.release.notices --profile {{usage.profile}} --target {{usage.target}} --python",
-]
+run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target any"
 
 [tasks."package:rust"]
 hide = true
@@ -666,7 +663,6 @@ run = "{{vars.tools}} dokime_tools.release.run publish"
 [tasks."release:publish:dry"]
 hide = true
 description = "Dry-Run Every Publication"
-depends = ["generate"]
 run = [
   "{{vars.tools}} dokime_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",

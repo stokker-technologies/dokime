@@ -54,13 +54,7 @@ jobs:
         bootstrap: '[]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-unix
-        path: target/ci
-        run-id: ${{ inputs.build-run || github.run_id }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-python-windows
+        name: package-${{ env.PROFILE }}-python-any
         path: target/ci
         run-id: ${{ inputs.build-run || github.run_id }}
         github-token: ${{ github.token }}
@@ -113,7 +107,7 @@ jobs:
       CI_TRANSPORT: 'true'
       RELEASE_PROFILE: ${{ inputs.profile }}
       RELEASE_TARGET_SHA: ''
-      CI_INPUT_ARCHIVES: '["target/ci/package-{profile}-python-unix.tar.zst","target/ci/package-{profile}-python-windows.tar.zst","target/ci/package-{profile}-rust-{platform}.tar.zst"]'
+      CI_INPUT_ARCHIVES: '["target/ci/package-{profile}-python-any.tar.zst","target/ci/package-{profile}-rust-{platform}.tar.zst"]'
     environment: ${{ inputs.channel == 'stable' && 'release' || 'nightly' }}
     permissions:
       contents: read

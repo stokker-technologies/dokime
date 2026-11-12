@@ -37,7 +37,9 @@ Implementation decisions: updater fields remain at the index root for Tauri’s
 native parser; `downloads` and `plugins` are named sections. SHA256SUMS covers
 the index, so the download inventory excludes itself and SHA256SUMS. Local
 signing’s internal latest.json remains a package input, never a published asset.
-Native wheels and cargo-dokime archives remain as agreed.
+The pure Python SDK wheel `dokime-<version>-py3-none-any.whl` and source
+distribution `dokime-<version>.tar.gz` each ship once under `any/`.
+The cargo-dokime archives remain as agreed.
 
 Shared validation now lives in `validate-*.yml`; `publish.yml` and `verify.yml`
 take the channel, profile and validated review metadata. Release retains signing

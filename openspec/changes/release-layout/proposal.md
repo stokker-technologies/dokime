@@ -37,8 +37,9 @@ benchmarks.json                                       Nightly only: latest bench
   read; they move in the same change.
 - `dokime-plugins` replaces `dokime-sidecars`.
 - `cargo-dokime` archives stop when the single command-line tool of `grpc-plugins` lands.
-- Python wheels stop being release assets when the pure Python SDK of `grpc-plugins` is published
-  to the registry. Until then they remain, two files.
+- The pure Python SDK of `grpc-plugins` ships one `dokime-<version>-py3-none-any.whl`
+  and one `dokime-<version>.tar.gz` per release, shared by all platforms. Both are
+  release downloads and are uploaded together once to the registry.
 - Nightly attaches `dokime-reports-<version>.zip`: benchmark results per suite with the baseline
   they were compared to, and coverage per language as a summary and the raw report. The Nightly
   release notes gain a short table: coverage per language, benchmarks that moved beyond their
