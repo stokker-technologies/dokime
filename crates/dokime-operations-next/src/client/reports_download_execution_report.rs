@@ -53,15 +53,25 @@ pub async fn handle(
 ) -> Result<Output<v1::ReportsDownloadExecutionReportOutput>> {
     super::complete(ID, context.settings.read_timeout, async {
         let snapshot = context.host.store().read(&request.execution_id)?;
-        let html = super::projection::report(&snapshot);
-        let bytes = html.into_bytes();
+        let published = context.host.store().reports(&request.execution_id)?.into_iter().next();
+        let (bytes, identifier, origin, metadata) = if let Some(report) = published {
+            (report.html, report.identifier, v1::ReportOrigin::Sealed, report.document.and_then(|document| document.metadata))
+        } else {
+            if snapshot.state != dokime_storage::ExecutionState::Sealed {
+                return Err(crate::Error::Invalid("Render Report: Select a Sealed Execution Snapshot".into()));
+            }
+            let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
+            let counts = super::projection::counts(&outcomes);
+            (super::projection::report(&snapshot, &counts).into_bytes(), request.execution_id.clone(), v1::ReportOrigin::Current, None)
+        };
         let digest = sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let size_bytes = bytes.len() as u64;
         let metadata = v1::ReportMetadata {
             test_cycle_id: snapshot.execution.cycle.clone(),
             test_execution_id: Some(request.execution_id.clone()),
-            identifier: request.execution_id,
-            origin: v1::ReportOrigin::Current as i32,
+            identifier,
+            origin: origin as i32,
+            metadata,
             ..Default::default()
         };
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);

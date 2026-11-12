@@ -50,7 +50,7 @@ pub async fn handle(context: &Context, request: v1::QueryListExecutionsRequest) 
         let mut rows = Vec::new();
         for identifier in context.host.store().identifiers()? {
             let snapshot = context.host.store().read(&identifier)?;
-            let row = super::projection::summary(&snapshot);
+            let row = super::projection::summary(&snapshot, context.host.controls(&identifier)?);
             if let Some(selection) = &request.selection {
                 if selection.started_at.is_some() || selection.archive.is_some() { return Err(Error::Invalid("ListExecutions Time and Archive Filters Are Not Yet Served by the New Host".into())); }
                 if !selection.cycle_ids.is_empty() && !selection.cycle_ids.contains(&snapshot.execution.cycle) { continue; }
@@ -60,7 +60,9 @@ pub async fn handle(context: &Context, request: v1::QueryListExecutionsRequest) 
             rows.push(row);
         }
         super::projection::bounded(rows.len(), context.settings.page_items)?;
-        Ok(v1::ExecutionPage { rows, complete: true, ..Default::default() })
+        let outcomes = rows.iter().map(|row| row.outcome.clone().unwrap_or_default()).collect::<Vec<_>>();
+        let outcome_counts = super::projection::counts(&outcomes);
+        Ok(v1::ExecutionPage { rows, outcome_counts: Some(outcome_counts), complete: true, ..Default::default() })
     }).await
 }
 

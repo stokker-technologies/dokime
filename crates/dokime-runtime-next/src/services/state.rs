@@ -41,6 +41,7 @@ use dokime_storage::{ExecutionState, Store};
 
 pub(super) struct State {
     pub host: Host,
+    pub render_settings: crate::RenderSettings,
     pub identity: v1::BackendIdentity,
     pub urls: Mutex<HashMap<String, String>>,
     pub progress: Mutex<HashMap<String, watch::Receiver<Progress>>>,
@@ -63,6 +64,22 @@ impl ClientHost for State {
     fn identity(&self) -> v1::BackendIdentity {
         self.identity.clone()
     }
+    fn controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
+        let capabilities = self.host.capabilities(execution).map_err(convert)?;
+        Ok(v1::ExecutionControls {
+            can_start: capabilities.start,
+            can_rerun: capabilities.rerun,
+            can_cancel: capabilities.cancel,
+            can_inspect: capabilities.inspect,
+            can_export: capabilities.export,
+            ..Default::default()
+        })
+    }
+    fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report> {
+        let snapshot = self.host.snapshot(execution).map_err(convert)?;
+        let output = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
+        self.host.publish_report(&output).map_err(convert)
+    }
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin> {
         let entry = self.host.add_remote(url).await.map_err(convert)?;
         lock(&self.urls).map_err(convert)?.insert(entry.clone(), url.into());
@@ -78,12 +95,19 @@ impl ClientHost for State {
     fn plugins(&self) -> Result<Vec<v1::Plugin>> {
         let urls = lock(&self.urls).map_err(convert)?;
         let mut entries = Vec::new();
-        for (entry, url) in urls.iter() {
+        for (entry, state) in self.host.plugin_entries().map_err(convert)? {
+            let state = match state {
+                crate::EntryState::Starting => v1::PluginState::Starting,
+                crate::EntryState::Connecting => v1::PluginState::Connecting,
+                crate::EntryState::Ready => v1::PluginState::Ready,
+                crate::EntryState::Failed => v1::PluginState::Failed,
+                crate::EntryState::Unavailable => v1::PluginState::Unavailable,
+            };
             entries.push(v1::Plugin {
                 entry: entry.clone(),
-                placement: Some(v1::plugin::Placement::Remote(v1::RemotePlugin { url: url.clone() })),
-                state: v1::PluginState::Ready as i32,
-                description: Some(self.host.description(entry).map_err(convert)?),
+                placement: urls.get(&entry).map(|url| v1::plugin::Placement::Remote(v1::RemotePlugin { url: url.clone() })),
+                state: state as i32,
+                description: Some(self.host.description(&entry).map_err(convert)?),
                 ..Default::default()
             });
         }

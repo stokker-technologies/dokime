@@ -2,6 +2,7 @@ syntax = "proto3";
 package dokime.v1;
 
 import "dokime/v1/client_types.proto";
+import "dokime/v1/documents.proto";
 
 message ReportsDownloadCycleReportRequest {
   string cycle_id = 1;
@@ -75,7 +76,32 @@ message ReportsMaterializeReportRunOutput {
   }
 }
 
+message ReportsPublishExecutionReportRequest {
+  string execution_id = 1;
+  Document document = 2;
+}
+
+message ReportsPublishExecutionReportRunInput {
+  oneof value {
+    ReportsPublishExecutionReportRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ReportsPublishExecutionReportRunOutput {
+  oneof value {
+    ReportMetadata response = 2;
+  }
+}
+
 service Reports {
+  // Public. Explicitly render and durably publish a document from a sealed execution snapshot.
+  // Rendering or downloading alone never publishes. A rendering failure publishes nothing.
+  rpc PublishExecutionReport (.dokime.v1.ReportsPublishExecutionReportRequest) returns (.dokime.v1.ReportMetadata);
+  // Public. Request first; finish or cancel; await settlement and final status.
+  rpc RunPublishExecutionReport (stream .dokime.v1.ReportsPublishExecutionReportRunInput)
+      returns (stream .dokime.v1.ReportsPublishExecutionReportRunOutput);
   // Public. dokime.reports.download_cycle_report. Output items precede the final response; require successful
   // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution.
   // Metadata precedes ordered chunks and digest completion. Downloading observes the selected report and does not

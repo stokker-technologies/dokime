@@ -30,6 +30,7 @@ pub mod prompts_list_pending;
 pub mod prompts_respond;
 pub mod query_list_executions;
 pub mod reports_download_execution_report;
+pub mod reports_publish_execution_report;
 pub mod telemetry_list_samples;
 
 /* === Re-Exports === */
@@ -68,6 +69,7 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Evidence/ListRecords",
     "/dokime.v1.Telemetry/ListSamples",
     "/dokime.v1.Reports/DownloadExecutionReport",
+    "/dokime.v1.Reports/PublishExecutionReport",
     "/dokime.v1.Health/ListHealth",
     "/dokime.v1.Backend/GetAvailability",
     "/dokime.v1.Backend/GetHealth",
@@ -118,6 +120,8 @@ pub trait Host: Send + Sync {
     fn store(&self) -> Store;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> v1::BackendIdentity;
+    fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
+    fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;
     fn suites(&self) -> Result<Vec<(String, v1::Suite)>>;

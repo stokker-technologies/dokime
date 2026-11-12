@@ -153,6 +153,10 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     };
     let state = state::State {
         host: host.clone(),
+        render_settings: crate::RenderSettings {
+            page_size: std::num::NonZeroUsize::new(settings.page_items).unwrap(),
+            display_points: std::num::NonZeroUsize::new(settings.page_items).unwrap(),
+        },
         identity,
         urls: Mutex::new(std::collections::HashMap::new()),
         progress: Mutex::new(std::collections::HashMap::new()),

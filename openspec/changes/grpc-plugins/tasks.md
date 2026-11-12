@@ -251,6 +251,20 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
-  - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport.
+  - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.
   - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.
+
+## New Host Branch Convergence
+
+Source inventory: both local host branches; new storage, operations and runtime crates;
+additive client proto fields and regenerated Rust protocol output; Rust system stories
+and shared test settings; execution-host and tooling guides; the existing SDK execution
+fixture. Other SDK language sources remain with their owner.
+
+- [x] Merge the services and feature branches, retaining both module trees, stories and contracts.
+- [x] Expose execution capabilities, attributed outcomes and separate counts through detail/list reads; retain plugin state and interrupted evidence after restart.
+- [x] Add explicit report publication, read published bytes without publishing during rendering, and prove the lifecycle over the wire.
+- [x] Extend the Rust client story with two executions in one cycle and isolated record reads; prove interrupted reads over the same services.
+- [x] Give every system story one shared support-owned hang guard with no literal story deadlines.
+- [ ] Run format, the twelve-story target twice, three focused crate check builds and repository checking; verify locked offline metadata on the committed head.

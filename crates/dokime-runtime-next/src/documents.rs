@@ -40,6 +40,7 @@ use dokime_storage::{Execution, ExecutionCut, ExecutionState, Report, Sample, St
 pub struct FixedSnapshot {
     store: Store,
     cut: ExecutionCut,
+    counts: dokime_storage::OutcomeCounts,
 }
 
 #[derive(Clone, Copy)]
@@ -83,7 +84,13 @@ impl Host {
         if cut.state != ExecutionState::Sealed {
             return Err(Error::Invalid("Render Document: Select a Sealed Execution for Its Fixed Snapshot".into()));
         }
-        Ok(FixedSnapshot { store: self.inner.store.clone(), cut })
+        let outcomes = self.inner.store.cycle_outcomes(&cut.execution.cycle)?;
+        let counts = dokime_storage::OutcomeCounts::from_outcomes(&outcomes);
+        Ok(FixedSnapshot {
+            store: self.inner.store.clone(),
+            cut,
+            counts,
+        })
     }
     pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
         let mut output = NamedTempFile::with_prefix("dokime-render-")?;
@@ -93,6 +100,12 @@ impl Host {
             "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>{}</title><body><h1>{}</h1>",
             escape(title),
             escape(title)
+        )?;
+        let counts = &snapshot.counts;
+        write!(
+            output,
+            "<dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl>",
+            counts.evaluated, counts.not_evaluated, counts.declared
         )?;
         let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
         let pool = DescriptorPool::from_file_descriptor_set(

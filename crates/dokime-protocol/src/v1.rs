@@ -6937,8 +6937,23 @@ pub struct ExecutionControls {
 /// Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
 /// capability.
 #[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutionOutcomeCounts {
+    #[prost(uint64, tag = "1")]
+    pub evaluated_count: u64,
+    #[prost(uint64, tag = "2")]
+    pub not_evaluated_count: u64,
+    #[prost(uint64, tag = "3")]
+    pub declared_count: u64,
+    #[prost(enumeration = "ResultStatus", optional, tag = "4")]
+    pub result_status: ::core::option::Option<i32>,
+}
+#[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionDetail {
+    /// Counts and evaluated-only verdict for all executions in this cycle.
+    #[prost(message, optional, tag = "19")]
+    pub cycle_counts: ::core::option::Option<ExecutionOutcomeCounts>,
     /// Verified digest of the sealed immutable execution and evidence.
     #[prost(bytes = "vec", tag = "18")]
     pub seal: ::prost::alloc::vec::Vec<u8>,
@@ -7188,6 +7203,9 @@ pub struct ExecutionOrder {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionPage {
+    /// Counts cover the complete filtered selection.
+    #[prost(message, optional, tag = "7")]
+    pub outcome_counts: ::core::option::Option<ExecutionOutcomeCounts>,
     #[prost(message, repeated, tag = "1")]
     pub rows: ::prost::alloc::vec::Vec<ExecutionSummary>,
     #[prost(message, optional, tag = "2")]
@@ -7277,6 +7295,8 @@ pub struct ExecutionStep {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionSummary {
+    #[prost(message, optional, tag = "7")]
+    pub controls: ::core::option::Option<ExecutionControls>,
     #[prost(string, tag = "1")]
     pub execution_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -39435,6 +39455,53 @@ pub mod reports_materialize_report_run_output {
         Response(super::MaterializedReport),
     }
 }
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReportsPublishExecutionReportRequest {
+    #[prost(string, tag = "1")]
+    pub execution_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub document: ::core::option::Option<Document>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReportsPublishExecutionReportRunInput {
+    #[prost(
+        oneof = "reports_publish_execution_report_run_input::Value",
+        tags = "1, 3, 4"
+    )]
+    pub value: ::core::option::Option<reports_publish_execution_report_run_input::Value>,
+}
+/// Nested message and enum types in `ReportsPublishExecutionReportRunInput`.
+pub mod reports_publish_execution_report_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::ReportsPublishExecutionReportRequest),
+        #[prost(message, tag = "3")]
+        Cancel(super::ClientEmpty),
+        #[prost(message, tag = "4")]
+        Finish(super::ClientEmpty),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReportsPublishExecutionReportRunOutput {
+    #[prost(oneof = "reports_publish_execution_report_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<
+        reports_publish_execution_report_run_output::Value,
+    >,
+}
+/// Nested message and enum types in `ReportsPublishExecutionReportRunOutput`.
+pub mod reports_publish_execution_report_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::ReportMetadata),
+    }
+}
 /// Generated client implementations.
 pub mod reports_client {
     #![allow(
@@ -39525,6 +39592,60 @@ pub mod reports_client {
         pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
+        }
+        /// Public. Explicitly render and durably publish a document from a sealed execution snapshot.
+        /// Rendering or downloading alone never publishes. A rendering failure publishes nothing.
+        pub async fn publish_execution_report(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ReportsPublishExecutionReportRequest>,
+        ) -> std::result::Result<tonic::Response<super::ReportMetadata>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Reports/PublishExecutionReport",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Reports", "PublishExecutionReport"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Public. Request first; finish or cancel; await settlement and final status.
+        pub async fn run_publish_execution_report(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::ReportsPublishExecutionReportRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<
+                tonic::codec::Streaming<super::ReportsPublishExecutionReportRunOutput>,
+            >,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Reports/RunPublishExecutionReport",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("dokime.v1.Reports", "RunPublishExecutionReport"),
+                );
+            self.inner.streaming(req, path, codec).await
         }
         /// Public. dokime.reports.download_cycle_report. Output items precede the final response; require successful
         /// final status. Cancelling this call does not undo committed mutations or cancel an admitted execution.
@@ -39720,6 +39841,31 @@ pub mod reports_server {
     /// Generated trait containing gRPC methods that should be implemented for use with ReportsServer.
     #[async_trait]
     pub trait Reports: std::marker::Send + std::marker::Sync + 'static {
+        /// Public. Explicitly render and durably publish a document from a sealed execution snapshot.
+        /// Rendering or downloading alone never publishes. A rendering failure publishes nothing.
+        async fn publish_execution_report(
+            &self,
+            request: tonic::Request<super::ReportsPublishExecutionReportRequest>,
+        ) -> std::result::Result<tonic::Response<super::ReportMetadata>, tonic::Status>;
+        /// Server streaming response type for the RunPublishExecutionReport method.
+        type RunPublishExecutionReportStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::ReportsPublishExecutionReportRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        /// Public. Request first; finish or cancel; await settlement and final status.
+        async fn run_publish_execution_report(
+            &self,
+            request: tonic::Request<
+                tonic::Streaming<super::ReportsPublishExecutionReportRunInput>,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunPublishExecutionReportStream>,
+            tonic::Status,
+        >;
         /// Server streaming response type for the DownloadCycleReport method.
         type DownloadCycleReportStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<
@@ -39905,6 +40051,110 @@ pub mod reports_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
+                "/dokime.v1.Reports/PublishExecutionReport" => {
+                    #[allow(non_camel_case_types)]
+                    struct PublishExecutionReportSvc<T: Reports>(pub Arc<T>);
+                    impl<
+                        T: Reports,
+                    > tonic::server::UnaryService<
+                        super::ReportsPublishExecutionReportRequest,
+                    > for PublishExecutionReportSvc<T> {
+                        type Response = super::ReportMetadata;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::ReportsPublishExecutionReportRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Reports>::publish_execution_report(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = PublishExecutionReportSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Reports/RunPublishExecutionReport" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunPublishExecutionReportSvc<T: Reports>(pub Arc<T>);
+                    impl<
+                        T: Reports,
+                    > tonic::server::StreamingService<
+                        super::ReportsPublishExecutionReportRunInput,
+                    > for RunPublishExecutionReportSvc<T> {
+                        type Response = super::ReportsPublishExecutionReportRunOutput;
+                        type ResponseStream = T::RunPublishExecutionReportStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<
+                                    super::ReportsPublishExecutionReportRunInput,
+                                >,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Reports>::run_publish_execution_report(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunPublishExecutionReportSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/dokime.v1.Reports/DownloadCycleReport" => {
                     #[allow(non_camel_case_types)]
                     struct DownloadCycleReportSvc<T: Reports>(pub Arc<T>);

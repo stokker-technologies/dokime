@@ -105,7 +105,7 @@ pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &v1::Ope
     }
     Err(Error::Invalid("Read Prompt Definition: Declare the Prompt in the Frozen Catalog".into()))
 }
-pub(super) fn summary(snapshot: &ExecutionSnapshot) -> v1::ExecutionSummary {
+pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: v1::ExecutionControls) -> v1::ExecutionSummary {
     let state = match snapshot.state {
         ExecutionState::Open => v1::ExecutionState::Open,
         ExecutionState::Closed => v1::ExecutionState::Closed,
@@ -115,7 +115,17 @@ pub(super) fn summary(snapshot: &ExecutionSnapshot) -> v1::ExecutionSummary {
         execution_id: snapshot.execution.identifier.clone(),
         state: state as i32,
         outcome: snapshot.execution.outcome.clone(),
+        controls: Some(controls),
         ..Default::default()
+    }
+}
+pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> v1::ExecutionOutcomeCounts {
+    let counts = dokime_storage::OutcomeCounts::from_outcomes(outcomes);
+    v1::ExecutionOutcomeCounts {
+        evaluated_count: counts.evaluated,
+        not_evaluated_count: counts.not_evaluated,
+        declared_count: counts.declared,
+        result_status: counts.verdict.map(|verdict| verdict as i32),
     }
 }
 pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas> {
@@ -226,7 +236,7 @@ pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, v1
         .find(|(execution, question)| prompt_id(execution, &question.prompt) == identifier)
         .ok_or_else(|| Error::Invalid(format!("Read or Answer Pending Prompt {identifier}: Prompt Is Not Pending")))
 }
-pub(super) fn report(snapshot: &ExecutionSnapshot) -> String {
+pub(super) fn report(snapshot: &ExecutionSnapshot, counts: &v1::ExecutionOutcomeCounts) -> String {
     let identifier = escape(&snapshot.execution.identifier);
     let mut html = format!(
         "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Execution {identifier}</title><h1>Execution {identifier}</h1>"
@@ -248,7 +258,10 @@ pub(super) fn report(snapshot: &ExecutionSnapshot) -> String {
     for sample in &snapshot.samples {
         html.push_str(&format!("<tr><td>{}</td><td>{}</td><td>{}</td></tr>", escape(&sample.stream), sample.sequence, sample.source_ns));
     }
-    html.push_str("</table></html>");
+    html.push_str(&format!(
+        "</table><dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl></html>",
+        counts.evaluated_count, counts.not_evaluated_count, counts.declared_count
+    ));
     html
 }
 pub(super) fn report_frame(kind: v1::report_html_frame_payload::Kind) -> v1::ReportsDownloadExecutionReportOutput {

@@ -1269,7 +1269,16 @@ message ExecutionControls {
 // Evidence identity, origin, outcome, schemas and capabilities are independent of optional live manager state.
 // Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
 // capability.
+message ExecutionOutcomeCounts {
+  uint64 evaluated_count = 1;
+  uint64 not_evaluated_count = 2;
+  uint64 declared_count = 3;
+  optional ResultStatus result_status = 4;
+}
+
 message ExecutionDetail {
+  // Counts and evaluated-only verdict for all executions in this cycle.
+  ExecutionOutcomeCounts cycle_counts = 19;
   // Verified digest of the sealed immutable execution and evidence.
   bytes seal = 18;
   ReportStatus report = 1;
@@ -1454,6 +1463,8 @@ enum ExecutionOrderKey {
 
 // Source: crates/dokime-domain/src/model/query/page.rs
 message ExecutionPage {
+  // Counts cover the complete filtered selection.
+  ExecutionOutcomeCounts outcome_counts = 7;
   repeated ExecutionSummary rows = 1;
   Schema schema = 2;
   Snapshot snapshot = 3;
@@ -1513,6 +1524,7 @@ message ExecutionStep {
 
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message ExecutionSummary {
+  ExecutionControls controls = 7;
   string execution_id = 1;
   string case_id = 2;
   uint64 ordinal = 3;

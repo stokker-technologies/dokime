@@ -1604,6 +1604,11 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.ExecutionControls").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::v1::ExecutionOutcomeCounts {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.ExecutionOutcomeCounts").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::v1::ExecutionDetail {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.ExecutionDetail").expect("generated protocol descriptor")
@@ -4452,6 +4457,21 @@ crate::descriptor_pool().get_message_by_name("dokime.v1.ReportsMaterializeReport
 impl prost_reflect::ReflectMessage for crate::v1::ReportsMaterializeReportRunOutput {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.ReportsMaterializeReportRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::ReportsPublishExecutionReportRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.ReportsPublishExecutionReportRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::ReportsPublishExecutionReportRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.ReportsPublishExecutionReportRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::ReportsPublishExecutionReportRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.ReportsPublishExecutionReportRunOutput").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::v1::RuntimeGetHealthRequest {

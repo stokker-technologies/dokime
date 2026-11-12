@@ -49,7 +49,7 @@ The first served methods are Plugins Add/List; Catalog ListSuites/GetSuite;
 Planning MaterializeTemplate; Execution CreateCycle/GetExecution; Observation
 WatchExecutionProgress; Prompts ListPending/GetPrompt/Respond; Query
 ListExecutions; Evidence ListRecords; Telemetry ListSamples; Reports
-DownloadExecutionReport; Health ListHealth; and Backend identity, health and
+DownloadExecutionReport/PublishExecutionReport; Health ListHealth; and Backend identity, health and
 availability. Backend availability advertises only these methods. Other methods
 return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
@@ -61,9 +61,20 @@ response followed by successful status. Cancelling a watch does not cancel the
 execution. Pending prompt IDs combine execution identity and the plugin's prompt
 name to keep concurrent executions distinct. Exact record and sample payloads
 can be decoded using the catalog descriptors frozen in ExecutionDetail.schemas.
-ExecutionDetail also exposes the verified seal. Reports render a snapshot and
-stream metadata, ordered chunks, SHA-256 completion and the terminal response;
-durable document/report publication remains the execution-feature owner's work.
+ExecutionDetail exposes the verified seal and cycle outcome counts; both detail
+and execution listings carry backend-owned action capabilities. Listings count
+evaluated, not-evaluated and declared outcomes separately, folding only evaluated
+results into the verdict. Plugin listings retain unavailable descriptions after
+restart and return Ready after explicit reattachment. Interrupted evidence uses
+the same detail, listing, record, telemetry and progress reads.
+
+Reports stream metadata, ordered chunks, SHA-256 completion and the terminal
+response. Downloading reads an existing sealed report or renders a read-only
+snapshot; neither path publishes. `Reports.PublishExecutionReport` explicitly
+selects an execution and document, renders the fixed sealed snapshot, then stores
+the frozen document, execution seal and independently sealed HTML. Rendering
+failure publishes nothing. Subsequent downloads return the published bytes,
+including after restart.
 
 Build prerequisites and run the client stories through the focused task:
 
@@ -79,7 +90,12 @@ mise run test -- --package dokime-runtime-next --target system --exact python_cl
 The Rust story uses the generated clients reexported by `sdk/rust`'s `dokime`
 package. The Python story uses the built pure wheel in the root `.venv/`;
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
-builds artifacts, polls, or sleeps on the wall clock.
+builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
+two executions in one cycle, answers their prompts differently and independently
+reads their records through the client. The system target contains twelve stories,
+including publication and interrupted recovery through real client services.
+Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
+policies retain their own deadlines.
 
 ## Evidence and Recovery
 

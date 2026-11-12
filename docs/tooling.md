@@ -337,7 +337,8 @@ The test runner passes these values to nextest, pytest and Vitest. Script lanes,
 including native desktop system tests, also have a whole-lane process-tree timeout
 using the same configured deadline. These guards terminate hangs; completed story
 durations remain measurements and never change a runner's pass/fail result.
-Rust fixture operations and in-story waits
+New execution-host system stories use the single `SYSTEM_HANG_GUARD` in
+`crates/dokime-runtime-next/tests/support/settings.rs`. Rust fixture operations and in-story waits
 share `STORY_BOUND` and `FIXTURE_POLICY` in
 `crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
 waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.

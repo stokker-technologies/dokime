@@ -798,7 +798,11 @@ The listener binds before announcing its URL, closes explicitly, and the process
 FrozenSchemas carries the original Harmos catalog so clients can decode exact payloads after all plugins disconnect or the host restarts.
 Backend identity is storage-root scoped, boot epoch is process scoped, and availability lists only routed methods.
 Client operation policies own finite read/mutation deadlines and configured page/message bounds; progress waits on prompt and completion events without polling.
-Reports render a read-only snapshot with ordered chunks and SHA-256 completion; publication remains the execution-feature owner's responsibility.
+Reports download a read-only snapshot or an already published report with ordered chunks and SHA-256 completion.
+`Reports.PublishExecutionReport` explicitly renders a selected document from a sealed execution and publishes only after rendering succeeds; downloads never publish.
+Execution detail and listing expose host-owned controls, attributed outcomes and separate evaluated, not-evaluated and declared counts; only evaluated outcomes set the headline verdict.
+Persisted plugin descriptions project their actual entry state after restart, and interrupted executions remain readable over the same services.
+The merged system target has twelve stories, each guarded by the one support-owned `SYSTEM_HANG_GUARD` setting.
 
 Executions run concurrently within and across cycles; each unary invocation inherits only its execution's resources and persists operation/attempt evidence.
 Exhausted plugin-operation retries attribute an evaluated Failed outcome after cleanup; cancellation, interruption and empty criterion sets stay not-evaluated.

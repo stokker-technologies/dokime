@@ -39,6 +39,22 @@ use dokime_protocol::v1;
 
 #[tonic::async_trait]
 impl v1::reports_server::Reports for Services {
+    async fn publish_execution_report(
+        &self, request: tonic::Request<v1::ReportsPublishExecutionReportRequest>,
+    ) -> Result<tonic::Response<v1::ReportMetadata>, tonic::Status> {
+        let reply = dokime_operations_next::client::reports_publish_execution_report::handle(&self.context, request.into_inner())
+            .await
+            .map_err(dokime_operations_next::client::status)?;
+        Ok(tonic::Response::new(reply))
+    }
+
+    type RunPublishExecutionReportStream = dokime_operations_next::client::Output<v1::ReportsPublishExecutionReportRunOutput>;
+    async fn run_publish_execution_report(
+        &self, request: tonic::Request<tonic::Streaming<v1::ReportsPublishExecutionReportRunInput>>,
+    ) -> Result<tonic::Response<Self::RunPublishExecutionReportStream>, tonic::Status> {
+        let _ = request;
+        Err(tonic::Status::unimplemented("Reports.RunPublishExecutionReport: Not Yet Served by the New Host"))
+    }
     type DownloadCycleReportStream = dokime_operations_next::client::Output<v1::ReportsDownloadCycleReportOutput>;
     async fn download_cycle_report(
         &self, request: tonic::Request<v1::ReportsDownloadCycleReportRequest>,

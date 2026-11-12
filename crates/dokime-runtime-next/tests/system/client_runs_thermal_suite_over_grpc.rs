@@ -63,6 +63,11 @@ impl HostProcess {
         assert!(url.starts_with("http://127.0.0.1:"));
         Ok(Self { child, url })
     }
+    pub(super) async fn kill(mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.child.kill().await?;
+        assert!(!self.child.wait().await?.success());
+        Ok(())
+    }
     pub(super) async fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
         drop(self.child.stdin.take());
         assert!(self.child.wait().await?.success());
@@ -78,7 +83,7 @@ impl HostProcess {
 
 #[tokio::test]
 async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host Process and the Shared Thermal Plugin
         let root = tempfile::tempdir()?;
         let settings = super::support::settings();
@@ -122,6 +127,7 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
             })
         }).await?.into_inner();
         assert_eq!(planned.cases.len(), 1);
+        let isolation_origins = planned.cases.iter().map(|case| case.origin.clone().unwrap()).collect::<Vec<_>>();
         let cycle = execution.create_cycle(v1::ExecutionCreateCycleRequest {
             origins: planned.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
             continue_automatically: true, ..Default::default()
@@ -202,6 +208,65 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         use sha2::Digest;
         assert_eq!(completion.sha256, sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
         assert!(String::from_utf8(bytes)?.contains(&execution_id));
+
+        // Start Two Executions in One Cycle and Read Their Records Separately
+        let cycle = execution.create_cycle(v1::ExecutionCreateCycleRequest {
+            origins: vec![isolation_origins[0].clone(), isolation_origins[0].clone()],
+            continue_automatically: true, ..Default::default()
+        }).await?.into_inner();
+        assert_eq!(cycle.execution_ids.len(), 2);
+        assert_ne!(cycle.execution_ids[0], cycle.execution_ids[1]);
+        let mut watches = Vec::new();
+        for (identifier, closed) in cycle.execution_ids.iter().zip([true, false]) {
+            let mut progress = observation.watch_execution_progress(v1::ObservationWatchExecutionProgressRequest {
+                test_execution_id: identifier.clone()
+            }).await?.into_inner();
+            let mut prompted = false;
+            while let Some(frame) = progress.message().await? {
+                if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value {
+                    if frame.progress.unwrap().phase == "prompt" { prompted = true; break; }
+                }
+            }
+            assert!(prompted);
+            let running = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
+            let controls = running.controls.unwrap();
+            assert!(controls.can_cancel && controls.can_inspect);
+            assert!(!controls.can_start && !controls.can_rerun && !controls.can_export);
+            let pending = prompts.list_pending(v1::PromptsListPendingRequest { execution_id: Some(identifier.clone()), ..Default::default() }).await?.into_inner();
+            prompts.respond(v1::PromptsRespondRequest {
+                prompt_id: pending.prompts[0].prompt_id.clone(), action: if closed { "yes" } else { "no" }.into(),
+                accepted: true, ..Default::default()
+            }).await?;
+            watches.push(progress);
+        }
+        for mut progress in watches {
+            let mut terminal = false;
+            while let Some(frame) = progress.message().await? {
+                if matches!(frame.value, Some(v1::observation_watch_execution_progress_output::Value::Response(_))) { terminal = true; }
+            }
+            assert!(terminal);
+        }
+        let mut record_ids = Vec::new();
+        for (identifier, closed) in cycle.execution_ids.iter().zip([true, false]) {
+            let records = evidence.list_records(v1::EvidenceListRecordsRequest {
+                selection: Some(v1::CapturedRecordSelection {
+                    scope: Some(v1::EvidenceScope { execution_id: Some(identifier.clone()), ..Default::default() }),
+                    ..Default::default()
+                }), ..Default::default()
+            }).await?.into_inner();
+            assert_eq!(records.records.len(), 1);
+            let record = &records.records[0];
+            assert_eq!(record.scope.as_ref().unwrap().execution_id.as_deref(), Some(identifier.as_str()));
+            let door = prost_reflect::DynamicMessage::decode(pool.get_message_by_name("thermal.v1.Door").unwrap(), record.payload.as_slice())?;
+            assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(closed));
+            record_ids.push(record.record_id.clone());
+            let sealed = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
+            let controls = sealed.controls.unwrap();
+            assert!(controls.can_rerun && controls.can_export && controls.can_inspect);
+            assert!(!controls.can_start && !controls.can_cancel);
+            assert_eq!(sealed.cycle_counts.unwrap().evaluated_count, 2);
+        }
+        assert_ne!(record_ids[0], record_ids[1]);
 
         // Refuse Unsupported Operations by Name
         let refused = plugins.reload(v1::PluginsReloadRequest::default()).await.unwrap_err();

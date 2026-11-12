@@ -48,7 +48,7 @@ use tokio::process::Command;
 
 #[tokio::test]
 async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
         let root = tempfile::tempdir()?;
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

@@ -145,9 +145,7 @@ impl Store {
         let mut outcomes = Vec::new();
         for payload in bytes {
             let execution = Execution::decode(payload.as_slice())?;
-            if let Some(outcome) = execution.outcome {
-                outcomes.push(outcome);
-            }
+            outcomes.push(execution.outcome.unwrap_or_default());
         }
         Ok(outcomes)
     }
