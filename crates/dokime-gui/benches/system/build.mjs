@@ -33,6 +33,14 @@ await build({
           }
         }
         if (path.endsWith("/lib/rpc/ipc.ts")) {
+          for (const owner of [
+            "fromBinary,",
+            "frames.push(new Uint8Array(message));",
+            "const payload = await call.next();",
+            "const frame = frames.shift();",
+          ]) {
+            if (!source.includes(owner)) throw new Error(`Missing benchmark IPC instrumentation owner: ${owner}`);
+          }
           source = source.replace("fromBinary,", "fromBinary as decodeBinary,");
           source += `\nconst fromBinary = (...args: Parameters<typeof decodeBinary>) => {
           const started = performance.now();
@@ -58,9 +66,12 @@ await build({
           );
         }
         if (path.endsWith("/components/document/PlotGroupGrid.tsx")) {
+          for (const owner of ["<VisiblePlotCard", "viewportMode={viewportMode}\n    />"]) {
+            if (!source.includes(owner)) throw new Error(`Missing benchmark card instrumentation owner: ${owner}`);
+          }
           source = source.replace(
             "<VisiblePlotCard",
-            "<div key={descriptor.plot_id} data-bench-plot={descriptor.plot_id} data-bench-ready={Boolean(liveStates[descriptor.plot_id]?.payload)} data-bench-revision={globalThis.__desktopBench.frame(liveStates[descriptor.plot_id]?.payload)}><VisiblePlotCard",
+            '<div key={descriptor.plot_id} data-bench-plot={descriptor.plot_id} data-bench-error={liveStates[descriptor.plot_id]?.status === "error"} data-bench-ready={Boolean(liveStates[descriptor.plot_id]?.payload)} data-bench-revision={globalThis.__desktopBench.frame(liveStates[descriptor.plot_id]?.payload)}><VisiblePlotCard',
           );
           source = source.replace("viewportMode={viewportMode}\n    />", "viewportMode={viewportMode}\n    /></div>");
         }

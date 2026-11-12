@@ -19,8 +19,8 @@ from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.test import desktop_bench
 from dokime_tools.release import reports
+from dokime_tools.test import desktop_bench, run
 
 # Type Checking Imports
 
@@ -34,6 +34,20 @@ from dokime_tools.release import reports
 
 
 class DesktopBench(unittest.TestCase):
+    def test_failed_preflight_does_not_publish_cached_measurements(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            previous = root / "target/benchmarks/benchmarks-rust-desktop.json"
+            previous.parent.mkdir(parents=True)
+            previous.write_text(json.dumps({"benchmarks": [{"name": "previous"}]}))
+            with (
+                patch.object(run.policy, "load"),
+                patch.object(run, "_preflight", side_effect=run.policy.TestError("missing")),
+                self.assertRaises(run.policy.TestError),
+            ):
+                run.bench(root, "system", "rust", ".", False, [], binary="system-desktop")
+            self.assertFalse(previous.exists())
+
     def test_stage_totals_quantiles_and_refusals(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -77,6 +91,7 @@ class DesktopBench(unittest.TestCase):
                     "frameMisses": 0,
                 }
             )
+            samples.append({**samples[0], "condition": "live", "outcome": "partial", "errors": ["plot_unavailable"]})
             (home / "observations.json").write_text(json.dumps({"results": samples, "fixture": {"rows": 2_073_600}}))
             with patch.object(desktop_bench.policy, "execute", return_value="candidate"):
                 desktop_bench.collect(root, home, {}, 10, refresh=True, success=True)
@@ -88,6 +103,8 @@ class DesktopBench(unittest.TestCase):
             self.assertNotIn("desktop/100/warm/firstVisibleMs/p50", rows)
             self.assertEqual(rows["desktop/100/warm/refusals"]["value"], 1)
             self.assertEqual(rows["desktop/100/warm/refusals"]["failures"], ["limit_exceeded"])
+            partial = rows["desktop/30/live/refusals"]
+            self.assertEqual((partial["value"], partial["partial_samples"], partial["failures"]), (0, 1, ["plot_unavailable"]))
             self.assertNotIn("desktop/30/warm/cpuSeconds/p50", rows)
             self.assertIn("cpuSeconds", rows["desktop/30/warm/refusals"]["missing_measurements"])
             nightly = root / "target/nightly-reports/desktop"

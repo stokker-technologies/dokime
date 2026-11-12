@@ -169,7 +169,7 @@ pub fn execution_id() -> dokime::TestExecutionId {
     dokime::TestExecutionId::from_seed("pipeline-execution")
 }
 
-pub fn batch(first: usize, count: usize, late: bool, cycle: &dokime::TestCycleId) -> TelemetryBatch {
+pub fn batch(first: usize, count: usize, late: bool, publication: usize, cycle: &dokime::TestCycleId) -> TelemetryBatch {
     let stream = Identifier::new(STREAM).unwrap();
     let samples = (first..first + count)
         .map(|index| {
@@ -187,7 +187,7 @@ pub fn batch(first: usize, count: usize, late: bool, cycle: &dokime::TestCycleId
                 y2: values[2],
             };
             let mut sample = TelemetrySample::new(
-                dokime::domain::model::identity::TelemetrySampleId::from_seed(format!("pipeline:{index}:{late}")),
+                dokime::domain::model::identity::TelemetrySampleId::from_seed(format!("pipeline:{index}:{late}:{publication}")),
                 stream.clone(),
                 0,
                 timestamp,
@@ -206,7 +206,7 @@ pub fn batch(first: usize, count: usize, late: bool, cycle: &dokime::TestCycleId
         })
         .collect();
     TelemetryBatch::new(
-        dokime::domain::model::identity::TelemetryBatchId::from_seed(format!("pipeline:{first}:{count}:{late}")),
+        dokime::domain::model::identity::TelemetryBatchId::from_seed(format!("pipeline:{first}:{count}:{late}:{publication}")),
         stream,
         samples,
     )

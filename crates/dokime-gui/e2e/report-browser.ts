@@ -72,6 +72,7 @@ export class ReportBrowser {
         "--disable-gpu",
         "--no-sandbox",
         "--no-first-run",
+        ...(process.platform === "win32" ? ["--edge-skip-compat-layer-relaunch"] : []),
         `--user-data-dir=${join(root, "report-browser")}`,
         `--remote-debugging-port=${port}`,
         "about:blank",

@@ -33,7 +33,7 @@ use criterion::Criterion;
 // Local Imports
 use dokime::Runtime;
 use dokime_server::grpc::{Config, Service};
-use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{Layer, filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt};
 
 /* === Constants === */
 
@@ -124,31 +124,45 @@ fn host() {
     let executor = tokio::runtime::Runtime::new().unwrap();
     let directory = std::env::var_os("DOKIME_DESKTOP_BENCH_FIXTURES").expect("fixture directory under target");
     std::fs::create_dir_all(&directory).unwrap();
-    let root = tempfile::tempdir_in(directory).unwrap();
+    let restored = std::env::var_os("DOKIME_DESKTOP_BENCH_RESTORE").filter(|path| !path.is_empty());
+    let restoring = restored.is_some();
+    let root = restored.map_or_else(|| tempfile::tempdir_in(&directory).unwrap().keep(), std::path::PathBuf::from);
+    assert!(root.canonicalize().unwrap().starts_with(std::fs::canonicalize(&directory).unwrap()), "owned fixture root");
     let queries = QueryTimes::default();
-    tracing_subscriber::registry().with(queries.clone()).init();
+    let probe = queries
+        .clone()
+        .with_filter(filter_fn(|metadata| matches!(metadata.name(), "plot.query" | "plot.watch.frames" | "plot.watch.send")));
+    tracing_subscriber::registry().with(probe).init();
     let prepared = Service::prepare(Config::local()).unwrap();
     let hold = Arc::new(fixture::Hold { entered: tokio::sync::Notify::new() });
     let mut owner = executor
-        .block_on(Runtime::with_execution_fixture(prepared.configuration(fixture::config(root.path())), "bench_pipeline", hold.clone()))
+        .block_on(Runtime::with_execution_fixture(prepared.configuration(fixture::config(&root)), "bench_pipeline", hold.clone()))
         .unwrap();
     let handle = owner.handle();
-    let cycle = executor.block_on(async {
-        let cycle = fixture::register_execution(&handle, &hold).await;
-        for first in (0..fixture::ROWS).step_by(4096) {
-            let count = (fixture::ROWS - first).min(4096);
-            let receipt = handle.publish_telemetry_batch(fixture::batch(first, count, false, &cycle)).await.unwrap();
-            assert_eq!(receipt.accepted, count as u64, "{receipt:?}");
-            assert_eq!(receipt.dropped, 0, "{receipt:?}");
-        }
-        handle.storage().flush().await.unwrap();
+    let manifest = root.join("bench-fixture.json");
+    let cycle: dokime::TestCycleId = if restoring {
+        let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+        serde_json::from_value(saved["cycle"].clone()).unwrap()
+    } else {
+        let cycle = executor.block_on(async {
+            let cycle = fixture::register_execution(&handle, &hold).await;
+            for first in (0..fixture::ROWS).step_by(4096) {
+                let count = (fixture::ROWS - first).min(4096);
+                let receipt = handle.publish_telemetry_batch(fixture::batch(first, count, false, first, &cycle)).await.unwrap();
+                assert_eq!(receipt.accepted, count as u64, "{receipt:?}");
+                assert_eq!(receipt.dropped, 0, "{receipt:?}");
+            }
+            handle.storage().flush().await.unwrap();
+            cycle
+        });
+        std::fs::write(&manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle.clone()})).unwrap()).unwrap();
         cycle
-    });
+    };
     let server = executor.block_on(async { prepared.ready().await.unwrap().listen().await.unwrap() });
     println!(
         "{}",
         serde_json::json!({"endpoint":server.local_endpoint(), "execution":fixture::execution_id().to_string(),
-        "cycle": cycle.to_string(), "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S, "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
+        "cycle": cycle.to_string(), "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S, "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
     );
     std::io::stdout().flush().unwrap();
     let mut sequence = fixture::ROWS;
@@ -157,8 +171,9 @@ fn host() {
         if line == "live" || line == "late" {
             executor.block_on(async {
                 let first = if line == "late" { fixture::ROWS - 480 + (sequence - fixture::ROWS) % 400 } else { sequence };
+                let publication = sequence;
                 sequence += 8;
-                let receipt = handle.publish_telemetry_batch(fixture::batch(first, 8, line == "late", &cycle)).await.unwrap();
+                let receipt = handle.publish_telemetry_batch(fixture::batch(first, 8, line == "late", publication, &cycle)).await.unwrap();
                 assert_eq!(receipt.accepted, 8, "{receipt:?}");
                 handle.storage().flush().await.unwrap();
             });

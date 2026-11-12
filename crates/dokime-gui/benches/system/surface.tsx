@@ -20,6 +20,12 @@ type Observation = {
   firstVisibleMs: number | null;
   allVisibleMs: number | null;
   errors: string[];
+  loadedPlots: number;
+  failedPlots: number;
+  visibleFailures: number;
+  visibleReady: number;
+  target: string | null;
+  scene: number;
   painted: Set<string>;
   previous: Map<string, string>;
   opportunities: Map<string, number>;
@@ -45,6 +51,12 @@ const observation: Observation = {
   firstVisibleMs: null,
   allVisibleMs: null,
   errors: [],
+  loadedPlots: 0,
+  failedPlots: 0,
+  visibleFailures: 0,
+  visibleReady: 0,
+  target: null,
+  scene: 0,
   painted: new Set(),
   previous: new Map(),
   opportunities: new Map(),
@@ -102,13 +114,21 @@ for (const method of [
 
 const kinds: DocumentPlotType[] = ["frequency_series", "xy", "trajectory", "contour", "grid_chart", "bar", "pie", "histogram", "box_plot"];
 let previousFrame = performance.now();
+let nextScene = 0;
 function presented(now: number) {
   if (now - previousFrame > 25) observation.frameMisses += Math.max(1, Math.round((now - previousFrame) / (1000 / 60)) - 1);
   previousFrame = now;
+  if (document.querySelector<HTMLElement>("main")?.dataset.benchScene !== String(observation.scene)) {
+    requestAnimationFrame(presented);
+    return;
+  }
   const cards = [...document.querySelectorAll<HTMLElement>("[data-bench-plot]")].filter((card) => {
+    if (observation.target && card.dataset.benchPlot !== observation.target) return false;
     const bounds = card.getBoundingClientRect();
     return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
   });
+  observation.visibleFailures = cards.filter((card) => card.dataset.benchError === "true").length;
+  observation.visibleReady = cards.filter((card) => card.dataset.benchReady === "true" && card.dataset.benchError !== "true").length;
   for (const card of cards) {
     if (card.dataset.benchReady !== "true" || card.querySelector('[data-testid="plot-placeholder"]')) continue;
     const canvases = [...card.querySelectorAll("canvas")];
@@ -136,6 +156,8 @@ function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordS
     observation.errors = Object.values(states)
       .filter((state) => state.status === "error")
       .map((state) => state.error ?? "Unknown plot failure");
+    observation.loadedPlots = Object.values(states).filter((state) => state.payload && state.status !== "error").length;
+    observation.failedPlots = Object.values(states).filter((state) => state.status === "error").length;
     const started = performance.now();
     requestAnimationFrame(() => requestAnimationFrame(() => observation.sample("presentation_opportunity", performance.now() - started)));
   }, [states]);
@@ -152,6 +174,8 @@ function Surface({ session }: { session: ConnectedSession }) {
       ]),
     );
     observation.stages = {};
+    observation.target = condition === "zoom" ? "desktop.plot.0" : null;
+    if (condition === "resize") observation.previous.clear();
     observation.bytes = 0;
     observation.queueDepth = 0;
     observation.frameMisses = 0;
@@ -159,13 +183,18 @@ function Surface({ session }: { session: ConnectedSession }) {
     observation.allVisibleMs = null;
     observation.painted.clear();
     observation.opportunities.clear();
-    observation.errors = [];
+    observation.visibleFailures = 0;
+    observation.visibleReady = 0;
     observation.started = performance.now();
     previousFrame = observation.started;
     observation.stallUntil = condition === "stalled" ? performance.now() + 1500 : 0;
   };
   globalThis.desktopCase = (count, condition, execution, cycle, from, to) => {
     globalThis.desktopBegin(condition);
+    observation.errors = [];
+    observation.loadedPlots = 0;
+    observation.failedPlots = 0;
+    observation.scene = ++nextScene;
     observation.previous.clear();
     const field = (name: string) => ({ source: { type: "telemetry", stream: "bench.pipeline", field: name }, transforms: [] });
     const plots = Array.from(
@@ -204,23 +233,31 @@ function Surface({ session }: { session: ConnectedSession }) {
       ]),
     );
     useSummaryWindowStore.setState({ windows });
-    setSelection({ plots, scope: { test_cycle_id: cycle, test_execution_id: execution }, key: Date.now() });
+    setSelection({ plots, scope: { test_cycle_id: cycle, test_execution_id: execution }, key: observation.scene });
   };
   globalThis.desktopAction = (condition, from, to) => {
     globalThis.desktopBegin(condition);
     if (condition === "zoom") useSummaryWindowStore.getState().setSummaryWindow("desktop.plot.0", { from, to });
     if (condition === "navigation") {
       const retained = selection;
+      const scene = ++nextScene;
+      observation.scene = scene;
       observation.previous.clear();
       setSelection(null);
       setTimeout(() => {
         window.scrollTo(0, 0);
-        setSelection(retained ? { ...retained, key: Date.now() } : null);
+        setSelection(retained ? { ...retained, key: scene } : null);
       }, 0);
     }
   };
   globalThis.desktopResult = (statusOnly = false) => ({
     errors: observation.errors,
+    loadedPlots: observation.loadedPlots,
+    failedPlots: observation.failedPlots,
+    visibleFailures: observation.visibleFailures,
+    visibleReady: observation.visibleReady,
+    paintedCount: observation.painted.size,
+    target: observation.target,
     firstVisibleMs: observation.firstVisibleMs,
     allVisibleMs: observation.allVisibleMs,
     ...(statusOnly
@@ -237,7 +274,7 @@ function Surface({ session }: { session: ConnectedSession }) {
   return (
     <Connection.Provider value={session}>
       <QueryClientProvider client={session.queryClient}>
-        <main className="grid grid-cols-2 gap-2 p-2" style={{ width: "100%" }}>
+        <main data-bench-scene={selection?.key} className="grid grid-cols-2 gap-2 p-2" style={{ width: "100%" }}>
           {selection && <Workspace key={selection.key} plots={selection.plots} scope={selection.scope} />}
         </main>
       </QueryClientProvider>

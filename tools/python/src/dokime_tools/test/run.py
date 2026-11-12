@@ -216,6 +216,11 @@ def bench(
     """Measure one benchmark layer and compare it with the `dev` baseline."""
     rules = policy.load(directory)
     measure = category in ("integration", "system")
+    if language == "rust" and category == "system" and binary in (None, "system-desktop"):
+        previous = directory / report.BENCHMARKS / "benchmarks-rust-desktop.json"
+        if previous.is_symlink() or not previous.resolve().is_relative_to(directory.resolve()):
+            raise policy.TestError("desktop benchmark report escapes the repository")
+        previous.unlink(missing_ok=True)
     _preflight(directory, category, language, "bench")
     identity = {
         "platform": [
@@ -550,6 +555,10 @@ def _bench_rust(
         since = time.time()
         environment = dict(os.environ, CRITERION_HOME=str(home.resolve()))
         environment.pop("TEST_REPORT_DIR", None)
+        environment.pop("DOKIME_TEST_TRACE_DIR", None)
+        if name == "system-desktop":
+            (home / "desktop/observations.json").unlink(missing_ok=True)
+            (home / "desktop/completion.json").unlink(missing_ok=True)
         with desktop_bench.native(directory, environment) if name == "system-desktop" else nullcontext():
             code, peak = _measured(
                 [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
@@ -623,6 +632,7 @@ def _bench_python(
     cwd = directory / project
     environment = pytest.environment(directory)
     environment.pop("TEST_REPORT_DIR", None)
+    environment.pop("DOKIME_TEST_TRACE_DIR", None)
     status, peak = _measured(pytest.bench(cwd, category, output, extra), cwd, environment)
     if not output.is_file():
         raise policy.TestError("pytest-benchmark wrote no results")

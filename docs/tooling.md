@@ -141,11 +141,13 @@ with three numeric fields. Each document has 30 or 100 plots: respectively 21 or
 workspace at the product's existing limit. The 100-plot case therefore records
 the actual refusal; it never splits or raises the limit. Histories and disposable
 native profiles live under `target/desktop-bench-fixtures/` and close before
-removal. Fixture admission and initial persistence precede measurement.
+removal. Fixture admission and initial persistence precede measurement. Allow
+additional disk headroom for admission's write-ahead log and a closed cold-history copy.
 
 Criterion measures cold/warm, live ingest, late samples, zoom, resize, navigation
-and stalled-consumer cases. Cold restarts the WebView and JavaScript state; it
-does not claim an empty OS disk cache. Warm retains the host and storage caches.
+and stalled-consumer cases. Cold opens a closed history copy with a fresh backend
+and desktop; it does not claim an empty OS disk cache. Warm preloads that history
+and retains the host and storage caches. Live scenarios use a new active fixture.
 Live and late cases publish through the real runtime and saved telemetry path.
 The receive queue is stalled for 1.5 seconds while ingestion continues. Native
 Windows needs the same interactive account, WebView2 and matching prepared Edge
@@ -165,7 +167,8 @@ observations never become wall-clock/resource tests.
 
 `firstVisibleMs` and `allVisibleMs` observe populated cards intersecting the
 viewport at animation opportunities. They do not infer drawing from snapshot
-arrival. `presentation_opportunity` is two animation frames after a retained-model
+arrival. Zoom awaits the changed plot; resize awaits fresh canvas drawing at the
+new size. `presentation_opportunity` is two animation frames after a retained-model
 commit, not physical display presentation. `canvas_draw` measures real canvas API
 calls; DOM/SVG kinds still participate in visible-card observation. Backend query,
 framing and send spans are inclusive of their existing owners. Native transport

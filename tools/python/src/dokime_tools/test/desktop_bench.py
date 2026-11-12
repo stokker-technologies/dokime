@@ -105,6 +105,7 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
                 ("firstVisibleMs", "ms"),
                 ("allVisibleMs", "ms"),
                 ("durationMs", "ms"),
+                ("resourceWindowMs", "ms"),
                 ("cpuSeconds", "s"),
                 ("peakMemoryBytes", "bytes"),
                 ("bytes", "bytes"),
@@ -144,11 +145,16 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
                 "revision": revision,
                 "threshold_percent": threshold,
                 "failures": sorted({error for sample in samples for error in sample["errors"]}),
+                "partial_samples": sum(sample["outcome"] == "partial" for sample in samples),
                 "missing_measurements": [
                     metric
                     for metric in (
                         "backend_query",
+                        "plot.watch.frames",
+                        "plot.watch.send",
+                        "transport_bridge_wait",
                         "protobuf_decode",
+                        "native_frame_adaptation",
                         "retained_update",
                         "canvas_draw",
                         "presentation_opportunity",
@@ -165,7 +171,7 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
                     "os_cache_cold",
                     "native_server_queue_depth",
                 ],
-                "fixture": current["fixture"],
+                "fixture": samples[0].get("fixture", current["fixture"]),
             }
         )
     summary = {
@@ -175,7 +181,7 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
         "unavailable": [
             "Physical display presentation (double requestAnimationFrame measures only a presentation opportunity)",
             "Exclusive encoding and native bridge time (transport_bridge_wait includes backend work and idle wait)",
-            "OS disk-cache-cold reads (cold restarts the WebView only)",
+            "OS disk-cache-cold reads (cold reopens a closed history with a fresh backend and desktop)",
             "Native bridge/server queue depth (queueDepth observes the actual WebView receive queue)",
         ],
     }

@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -17,15 +17,25 @@ const output = resolve(process.env.CRITERION_HOME, "desktop");
 const fixtureRoot = join(root, "target/desktop-bench-fixtures");
 await mkdir(fixtureRoot, { recursive: true });
 await mkdir(output, { recursive: true });
-const work = await mkdtemp(join(fixtureRoot, "run-"));
+const resolvedFixtureRoot = await realpath(fixtureRoot);
+const work = await realpath(await mkdtemp(join(fixtureRoot, "run-")));
+assert.ok(work.toLowerCase().startsWith(`${resolvedFixtureRoot}${sep}`.toLowerCase()), "Owned fixture stays inside its target directory");
 const results = [];
 const resources = [];
+const captured = new Set();
 let desktop;
 let cleanup;
 let host;
 let sampler;
 let finished = false;
 let failure;
+let fixture;
+let nativeRoot;
+let seedRoot;
+let backendMode;
+let epoch = 0;
+let warmReady;
+let resizeWidth = 1920;
 
 async function command(line) {
   const pending = hostLines.next();
@@ -51,39 +61,106 @@ const samplerCode =
     : null;
 
 let hostLines;
-try {
-  // Prepare The Native Harness And Millions Of Real Stored Sample Rows.
-  cleanup = await prepareNativeFixture(work, output);
+
+async function closeNative() {
+  const errors = [];
+  for (const close of [
+    async () => {
+      await terminate(sampler);
+      sampler = undefined;
+    },
+    async () => {
+      if (!desktop) return;
+      try {
+        await desktop.close();
+      } finally {
+        await terminate(desktop.process);
+        desktop = undefined;
+      }
+    },
+    async () => {
+      if (!host) return;
+      const child = host;
+      child.stdin.end();
+      if (child.exitCode === null) await Promise.race([once(child, "exit"), delay(10000)]);
+      if (child.exitCode === null) await terminate(child);
+      host = undefined;
+      if (child.exitCode !== 0) throw new Error(`Fixture host exited ${child.exitCode}`);
+    },
+  ]) {
+    try {
+      await close();
+    } catch (error) {
+      errors.push(String(error));
+    }
+  }
+  if (errors.length) throw new Error(errors.join("; "));
+}
+
+async function waitReady() {
+  const deadline = performance.now() + 600000;
+  while (true) {
+    const status = await desktop.execute("return {ready: typeof desktopCase === 'function', failure: window.desktopFailure ?? null}");
+    if (status.failure) throw new Error(`Benchmark frontend failed: ${status.failure}`);
+    if (status.ready) return;
+    if (performance.now() > deadline) throw new Error("Benchmark frontend did not initialize");
+    await delay(100);
+  }
+}
+
+async function waitDrawing(count, condition) {
+  const deadline = performance.now() + 600000;
+  while (true) {
+    const observation = await desktop.execute("return desktopResult(true)");
+    const refused = observation.failedPlots === count && observation.loadedPlots === 0;
+    const partial =
+      observation.visibleFailures > 0 &&
+      observation.loadedPlots + observation.failedPlots === count &&
+      observation.paintedCount >= observation.visibleReady;
+    if (refused || partial || observation.allVisibleMs !== null) return desktop.execute("return desktopResult()");
+    if (performance.now() > deadline) throw new Error(`${count}/${condition}: no completed drawing or explicit refusal`);
+    await delay(25);
+  }
+}
+
+async function resourceBoundary(endedMs) {
+  const deadline = performance.now() + 5000;
+  while (
+    sampler?.exitCode === null &&
+    performance.now() < deadline &&
+    !resources.some((sample) => sample.epoch === epoch && sample.time_ms >= endedMs)
+  ) {
+    await delay(25);
+  }
+}
+
+async function startNative(mode) {
+  // Close Every Reader Before Copying Its Durable Checkpoint.
+  await closeNative();
+  if (nativeRoot && seedRoot && !seedRoot.startsWith(`${nativeRoot}${sep}`)) {
+    assert.ok(nativeRoot.startsWith(`${work}${sep}`), "Owned native profile stays inside its fixture directory");
+    await rm(nativeRoot, { recursive: true, force: true });
+  }
+  nativeRoot = await realpath(await mkdtemp(join(work, "native-")));
+  const restored = mode === "saved" ? join(nativeRoot, "data") : "";
+  if (restored) await cp(seedRoot, restored, { recursive: true, errorOnExist: true, force: false });
   host = spawn(process.env.DOKIME_DESKTOP_BENCH_HOST, ["--fixture-host"], {
-    env: { ...process.env, DOKIME_DESKTOP_BENCH_FIXTURES: work },
+    env: { ...process.env, DOKIME_DESKTOP_BENCH_FIXTURES: nativeRoot, DOKIME_DESKTOP_BENCH_RESTORE: restored },
     stdio: ["pipe", "pipe", "inherit"],
     windowsHide: true,
   });
   hostLines = createInterface({ input: host.stdout })[Symbol.asyncIterator]();
   const ready = await hostLines.next();
   assert.ok(!ready.done, "fixture host is ready");
-  const fixture = JSON.parse(ready.value);
-  await writeFile(
-    join(output, "fixture.json"),
-    JSON.stringify({ ...fixture, native, rowsPerSecond: 8, historyDays: 3, kinds: 10 }, null, 2),
-  );
-  desktop = await startSession(work, fixture.endpoint, output, undefined, { startLocal: false });
-  const waitReady = async () => {
-    const deadline = performance.now() + 600000;
-    while (!(await desktop.execute("return typeof desktopCase === 'function'"))) {
-      if (performance.now() > deadline) throw new Error("Benchmark frontend did not initialize");
-      await delay(100);
-    }
-  };
-  const waitDrawing = async (count, condition) => {
-    const deadline = performance.now() + 600000;
-    while (true) {
-      const observation = await desktop.execute("return desktopResult(true)");
-      if (observation.errors.length || observation.allVisibleMs !== null) return desktop.execute("return desktopResult()");
-      if (performance.now() > deadline) throw new Error(`${count}/${condition}: no completed drawing or explicit refusal`);
-      await delay(25);
-    }
-  };
+  const { root: storage, ...metadata } = JSON.parse(ready.value);
+  const storageRoot = await realpath(storage);
+  assert.ok(storageRoot.toLowerCase().startsWith(`${nativeRoot}${sep}`.toLowerCase()), "Owned storage stays inside its native fixture");
+  seedRoot ??= storageRoot;
+  fixture = metadata;
+  backendMode = mode;
+  warmReady = undefined;
+  epoch += 1;
+  desktop = await startSession(nativeRoot, fixture.endpoint, output, undefined, { startLocal: false });
   await waitReady();
   await desktop.executeAsync(`const done = arguments[arguments.length - 1];
     const invoke = globalThis.__TAURI_INTERNALS__.invoke;
@@ -92,6 +169,7 @@ try {
       done({maximized});
     }).catch(error => done({error: String(error)}));`);
   await desktop.resize(1920, 1000);
+  resizeWidth = 1920;
   fixture.viewport = await desktop.execute("return {width: innerWidth, height: innerHeight, deviceScale: devicePixelRatio}");
   if (samplerCode) {
     sampler = spawn("pwsh", ["-NoProfile", "-Command", samplerCode], {
@@ -108,18 +186,39 @@ try {
       },
     );
   }
-  const sampled = createInterface({ input: sampler.stdout });
-  sampled.on("line", (line) => resources.push(JSON.parse(line)));
+  const generation = epoch;
+  createInterface({ input: sampler.stdout }).on("line", (line) => resources.push({ ...JSON.parse(line), epoch: generation }));
+  await resourceBoundary(Date.now());
+  await writeFile(
+    join(output, "fixture.json"),
+    JSON.stringify({ ...fixture, native, rowsPerSecond: 8, historyDays: 3, kinds: 10 }, null, 2),
+  );
+}
+
+try {
+  // Prepare The Native Harness And Millions Of Real Stored Sample Rows.
+  cleanup = await prepareNativeFixture(work, output);
+  await startNative("active");
   process.stdout.write("ready\n");
   for await (const line of createInterface({ input: process.stdin })) {
     const [countText, condition, repetitions] = line.split(" ");
     const count = Number(countText);
     let elapsed = 0;
     for (let iteration = 0; iteration < Number(repetitions); iteration++) {
-      // Cold Means A Fresh WebView/JS State, Not A Claim Of Evicted OS Disk Caches.
-      if (condition === "cold") {
-        await desktop.request("POST", "/refresh", {});
-        await waitReady();
+      // Cold Uses A Fresh Backend And Desktop Over The Same Closed History.
+      const desired = ["cold", "warm"].includes(condition) ? "saved" : "active";
+      if (condition === "cold" || backendMode !== desired) await startNative(desired);
+      if (condition === "warm" && warmReady !== count) {
+        await desktop.execute("desktopCase(...arguments)", [
+          count,
+          "warm",
+          fixture.execution,
+          fixture.cycle,
+          fixture.origin_s,
+          fixture.end_s + 600,
+        ]);
+        await waitDrawing(count, "warm-up");
+        warmReady = count;
       }
       await command("drain");
       let resourceStart = Date.now();
@@ -130,7 +229,7 @@ try {
       // Live And Late Publications Cross The Same Runtime Admission And Save Path.
       if (count === 30 && ["live", "late", "stalled", "zoom", "resize", "navigation"].includes(condition)) {
         const initial = await waitDrawing(count, "prepare");
-        if (!initial.errors.length) {
+        if (initial.loadedPlots > 0) {
           await command("drain");
           resourceStart = Date.now();
           started = performance.now();
@@ -144,27 +243,49 @@ try {
           }
         }
       }
-      if (condition === "resize") await desktop.resize(iteration % 2 ? 1600 : 1920, 1000);
+      if (count === 100 && ["live", "late", "stalled"].includes(condition)) {
+        await command(condition === "late" ? "late" : "live");
+        if (condition === "stalled") {
+          for (let batch = 0; batch < 12; batch++) {
+            await command("live");
+            await delay(100);
+          }
+        }
+      }
+      if (condition === "resize") {
+        resizeWidth = resizeWidth === 1920 ? 1600 : 1920;
+        await desktop.resize(resizeWidth, 1000);
+      }
       const observation = await waitDrawing(count, condition);
       const queries = await command("drain");
       const durationMs = performance.now() - started;
       elapsed += durationMs / 1000;
-      const samples = resources.filter((sample) => sample.time_ms >= resourceStart);
-      const boundary = resources.findLast((sample) => sample.time_ms <= resourceStart);
+      await resourceBoundary(Date.now());
+      const samples = resources.filter((sample) => sample.epoch === epoch && sample.time_ms >= resourceStart);
+      const boundary = resources.findLast((sample) => sample.epoch === epoch && sample.time_ms <= resourceStart);
       if (boundary) samples.unshift(boundary);
       results.push({
         count,
         condition,
         iteration,
+        epoch,
+        backendMode,
+        fixture: { ...fixture },
         ...observation,
         durationMs,
         queryMs: queries.stages["plot.query"] ?? [],
         backendStages: queries.stages,
         peakMemoryBytes: samples.length ? Math.max(...samples.map((sample) => sample.memory_bytes)) : null,
         cpuSeconds: samples.length > 1 ? Math.max(0, samples.at(-1).cpu_s - samples[0].cpu_s) : null,
-        outcome: observation.errors.length ? "refused" : "drawn",
+        outcome: observation.errors.length ? (observation.loadedPlots > 0 ? "partial" : "refused") : "drawn",
         resourceSamples: samples.length,
+        resourceWindowMs: samples.length > 1 ? samples.at(-1).time_ms - samples[0].time_ms : null,
       });
+      const capture = `${count}-${condition}`;
+      if (!captured.has(capture)) {
+        await desktop.screenshot(capture);
+        captured.add(capture);
+      }
     }
     await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));
     process.stdout.write(`${elapsed}\n`);
@@ -174,33 +295,25 @@ try {
   failure = error;
 } finally {
   const errors = [];
-  for (const close of [
-    () => terminate(sampler),
-    async () => {
-      if (!desktop) return;
-      try {
-        await desktop.close();
-      } finally {
-        await terminate(desktop.process);
-      }
-    },
-    async () => {
-      if (!host) return;
-      host.stdin.end();
-      if (host.exitCode === null) await Promise.race([once(host, "exit"), delay(10000)]);
-      if (host.exitCode === null) await terminate(host);
-    },
-    async () => cleanup?.(),
-  ]) {
+  for (const close of [closeNative, async () => cleanup?.()]) {
     try {
       await close();
     } catch (error) {
       errors.push(String(error));
     }
   }
-  await writeFile(join(output, "completion.json"), JSON.stringify({ finished, results: results.length, errors }));
   // Heavy Fixtures Are Owned, Disposable And Kept Under Target Until Processes Close.
-  if (!errors.length) await rm(work, { recursive: true, force: true });
+  if (!errors.length) {
+    try {
+      await rm(work, { recursive: true, force: true });
+    } catch (error) {
+      errors.push(String(error));
+    }
+  }
+  await writeFile(
+    join(output, "completion.json"),
+    JSON.stringify({ finished, results: results.length, errors, failure: failure?.stack ?? null }),
+  );
   if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
 }
 if (failure) throw failure;
