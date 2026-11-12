@@ -270,8 +270,10 @@ descriptor against that dependency as well. `mise run generate -- --protocol --c
 same drift check without regenerating committed source. Existing GUI/client
 contract generation continues separately through the ordinary `generate` task.
 
-Python generates its complete surface at wheel build time. C#/C++ own their
-message generation and focused builder checks:
+Python generates its complete surface at wheel build time. C# builds messages
+and service stubs from the proto files with Grpc.Tools; see [C# SDK](sdk-csharp.md)
+for scoped build, check, package and focused test tasks. C++ owns its message
+generation and focused builder checks:
 
 ```sh
 mise -C sdk/csharp run test:builders

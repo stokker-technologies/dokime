@@ -75,7 +75,7 @@ structure, so you can use any instrument library.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust and Python (remote); C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust and Python (remote); C# SDK preview; C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
 | **Maturity** | Young | Established | Established | Industry standard |
 
@@ -176,6 +176,17 @@ install on startup without replacing newer installed versions. An optional
 Apache-2.0 license. See the
 [installer guide](docs/product-guide.md#native-installers)
 for packaging options.
+
+### C#
+
+The development [C# SDK](docs/sdk-csharp.md) builds the `Dokime` NuGet package for
+managed and remote gRPC plugins on .NET 10. It includes composed authoring and
+canonical plot/document builders; generated client services await the protocol definitions.
+
+#### Examples
+
+Build the package-consuming [executable starter](sdk/csharp/starter/) with
+`mise -C sdk/csharp run build:starter` after building and packing the SDK.
 
 ## Quick Start
 

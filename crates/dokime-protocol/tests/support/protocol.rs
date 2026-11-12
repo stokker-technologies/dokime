@@ -142,9 +142,8 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     embedded.push_str("];\n");
     fs::write(output.join("sources.rs"), embedded)?;
     let python = output.join("python");
-    let csharp = output.join("csharp");
     let cpp = output.join("cpp");
-    for path in [&python, &csharp, &cpp] {
+    for path in [&python, &cpp] {
         fs::create_dir_all(path)?;
     }
     // Prove the Complete Source Set Is Consumable by Every SDK Toolchain.
@@ -154,7 +153,6 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     config.protoc_executable(compiler);
     config.out_dir(sdk_messages);
     config.protoc_arg(format!("--python_out={}", python.display()));
-    config.protoc_arg(format!("--csharp_out={}", csharp.display()));
     config.protoc_arg(format!("--cpp_out={}", cpp.display()));
     inputs.push(proto.join("harmos/v1/plugin.proto"));
     config.compile_protos(&inputs, &[proto, includes])?;
