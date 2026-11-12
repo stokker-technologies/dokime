@@ -1,7 +1,7 @@
 # Operation Grammar Design
 
-Status: proposed, not locked. Owner decisions are dated 2026-11-12; every other
-target choice is proposed. Current-source observations are not target decisions.
+Status: locked by the owner on 2026-11-12. Target decisions are Owner.
+Current-source observations are not target decisions.
 See proposal.md for the decision register and motivation.
 
 ## Context
@@ -31,22 +31,26 @@ protocol, SDKs and conformance suite remain self-sufficient, with no product voc
 The following shared text uses the supplied decisions and both reports' Shared
 Vocabulary sections. Product-specific meanings belong in the next section.
 
-- **Names (owner):** symmetric, predictable `VerbResource`; singular for one
+- **Names (Owner):** symmetric, predictable `VerbResource`; singular for one
   resource and plural for collections. Requests are `<Method>Request`, replies
-  are `<Method>Response`. **Proposed:** always the response wrapper, never a bare
-  resource. Operation IDs are namespaced and derive mechanically from the method;
-  their exact namespace/group layout remains proposed, not a second authored alias.
-- **Ordinary verbs (proposed):** the closed set is Get, List, Watch, Set, Create,
+  are `<Method>Response`, always the response wrapper, never a bare resource.
+  Operation IDs are namespaced and derive mechanically from the method;
+  their namespace/group follows the owning service, with no second authored alias.
+- **Ordinary verbs (Owner):** the closed set is Get, List, Watch, Set, Create,
   Delete and Append. Get observes one identified or derived value; List enumerates
   one bounded selection; Watch opens that selection and follows changes; Set
   establishes writable value fields; Create admits a lifecycle resource; Delete
   removes or releases it; Append adds ordered immutable data such as records,
-  samples and log lines. Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan,
-  Inspect and Register are not verbs in this grammar.
-- **Set (proposed):** Set takes an optional field mask; absent means the whole
-  value; an expected revision guards it where the resource has revisions.
+  samples, log lines and upload bytes. Update, Read, Browse, Put, Edit, Add,
+  Remove, Follow, Scan, Inspect and Register are not verbs in this grammar.
+- **Set (Owner):** Set carries the whole writable value and the expected revision
+  returned by its matching Get. Get returns that same writable value and revision;
+  stale writes fail with a conflict naming the action: get again and retry.
+  Field masks were rejected because they add path validation, nested-path rules, per-language helpers and subtle errors for small writable parts; a revision guard already prevents lost updates.
+  If whole-value replacement is unreasonable, split the writable part into
+  separately settable sub-resources, each with its own Get, Set and revision.
   Read-only and runtime-owned facts do not acquire a Set merely for symmetry.
-- **Domain verbs (proposed):** use a domain verb only where a standard verb would
+- **Domain verbs (Owner):** use a domain verb only where a standard verb would
   hide a side effect, and state its one meaning. Start activates; Stop finishes at
   a safe boundary; Cancel interrupts; Restart replaces an activation; Seal closes
   an evidence lifecycle; Publish commits prepared visibility; Import admits an
@@ -55,83 +59,87 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   freezes external data; Finish completes a production; Abandon terminates a
   production with different retained-data guarantees. Plugin lifecycle verbs keep
   their distinct meanings. The clock wait keeps the name Sleep.
-- **Operation and invocation (proposed):** an operation is a declaration, an
+- **Operation and invocation (Owner):** an operation is a declaration, an
   invocation is one execution of it, and an attempt is one retry attempt.
-- **Identifiers and scope (proposed):** opaque resource and `*_id` strings;
+- **Identifiers and scope (Owner):** opaque resource and `*_id` strings;
   `name` identifies a full resource, `parent` its ownership. Invocation and child
   IDs are correlation identities, never authorization or deduplication tokens.
   Scope is optional opaque caller-bound context, inherited unchanged; neither a
   grant nor a payload field from which authority is inferred. Requiring it is an
   operation's decision.
-- **Position (proposed):** `(history, sequence)` within one ordered history.
+- **Position (Owner):** `(history, sequence)` within one ordered history.
   History includes store identity and epoch. Never compare positions from different
   histories. A position is not wall time, a process epoch or a page token.
-- **Cut (proposed):** an atomic read selection, potentially containing several
+- **Cut (Owner):** an atomic read selection, potentially containing several
   positions/revisions. A cut is not a timestamp, page token, process epoch, snapshot
   lease or seal digest. A scalar sequence alone cannot represent a composite cut.
-- **Reads (owner):** one read path per kind of data; optional position `at`;
+- **Reads (Owner):** one read path per kind of data; optional position `at`;
   absent resolves to latest; the reply states `resolved_at`; paging and watches
   follow the same rule. Accept `at` only as a position a previous reply returned
   for consistency, or a product-defined terminal boundary. Arbitrary earlier
   positions are not offered. The product decides what latest and its terminal
   boundary mean; the library does not define product lifecycles.
-- **Latest and durability (owner, conditional on the measured bound):** latest
-  resolves once, at read/watch opening, to the latest durable position without waiting. It does not wait for
-  accepted data that is not yet saved. A caller that needs its own write visible
+- **Latest and durability (Owner):** latest
+  resolves once, at read/watch opening, to the latest durable position without
+  waiting for accepted data that is not yet saved. A caller that needs its own write visible
   passes the durable position from that write's receipt as `at`. Durable lag must
-  stay within a stated p95 bound independent of payload size (250 ms proposed;
-  owner sets the final number). Benchmark small, multi-megabyte and mixed loads;
+  stay within 250 ms at the 95th percentile independent of payload size.
+  Benchmark small, multi-megabyte and mixed loads;
   accepted-data snapshots are the fallback if smaller, size-triggered flushes
   cannot meet the bound, not work to build now.
-- **Paging (proposed):** `page_size`, `max_bytes`, `page_token`, `next_page_token`,
+- **Paging (Owner):** `page_size`, `max_bytes`, `page_token`, `next_page_token`,
   `resolved_at`; tokens bind selection, ordering, cut and schema/projection revision.
   Stable ordering has an identifier tie-breaker and exclusive continuation. Bound
   rows and bytes; work bounds remain separate. Expired or mismatched tokens fail
   explicitly, never restart silently at latest.
-- **Watching (proposed):** opening returns a boundary/snapshot at the resolved
+- **Watching (Owner):** opening returns a boundary/snapshot at the resolved
   cut, then changes strictly after it. Explicit `at` fixes the starting snapshot,
   not an eternal frozen subscription; gap detection and explicit resynchronization
   are mandatory. Filters can advance progress without emitting matching rows.
-- **Time (proposed):** protobuf Timestamp for instants and Duration for elapsed
+- **Time (Owner):** protobuf Timestamp for instants and Duration for elapsed
   budgets; host evidence time and optional source time remain distinct. Acceptance
   and saved time are separate. Source-time windows are half-open filters, separate
   from ingestion positions.
-- **Failures (proposed):** one Failure vocabulary: classification, stable code,
+- **Failures (Owner):** one Failure vocabulary: classification, stable code,
   message, action, operation, plugin, cause and safe details; preserve causes and
   map consistently to canonical gRPC status/details. Diagnostics remain separate.
   Missing evidence, gaps and unavailable positions cannot become empty success.
-- **Receipts (proposed):** admission, application and durability are separate
+- **Receipts (Owner):** admission, application and durability are separate
   facts. Receipts identify the semantic mutation and accepted/durable positions;
   accepted is not durable. Same key and same normalized request replay the original
   outcome; changed payload conflicts. Declare deduplication lifetime; expired keys
   fail rather than silently repeat irreversible work.
-- **Retry policy (proposed):** one policy vocabulary for invocation budget,
+- **Retry policy (Owner):** one policy vocabulary for invocation budget,
   per-attempt budget, cancellation grace, total attempts, backoff and replay safety.
   Total attempts includes the first attempt. Backoff has one fixed/exponential
   representation with an explicit jitter choice. Retry only explicitly replay-safe
   operations; correlation IDs do not deduplicate. A per-call override changes only
-  that call. Exact field names and defaults remain proposed until lock.
-- **Uploads (proposed; recommendation accepted by owner):** resumable unary
-  upload sessions replace streaming uploads; one mechanism serves clients and
-  plugins because plugin operations are unary.
-- **Streaming (proposed):** never generate streaming twins automatically. Use
-  unary calls plus Get and Watch on the resource. One managed streaming method
-  replaces the ordinary route only where a cooperative final result after
-  cancellation is actually promised. Native gRPC cancellation abandons observation
-  and cannot promise that final response; accepted durable work survives lost
-  observers. Bounded output streaming does not require a managed twin.
+  that call. Declarations own field defaults; per-call overrides do not change them.
+- **Transfers (Owner):** uploads and downloads are unary, ranged and resumable,
+  using one mechanism for clients and plugins. Create an upload session, Append
+  ordered chunks at stated offsets, Get status to resume, Publish to make content
+  visible, and Delete to abandon. Identical chunk replay succeeds; different bytes
+  at an accepted offset conflict. Download by repeated GetContent calls with
+  offset and maximum bytes; each response states total length and content digest.
+  Configuration bounds chunk and range sizes. Measure large-file throughput in a
+  Nightly benchmark case before deleting streaming transfers.
+- **Streaming (Owner):** never generate twins automatically. Server streaming is
+  reserved for Watch; the plugin protocol retains its own carriers. A managed
+  stream exists only for an actual cooperative final-result promise after
+  cancellation, replacing the ordinary gRPC method. Native gRPC cancellation abandons
+  observation and cannot promise that final response; admitted durable work
+  survives observer loss. Downloads, documents and diagnostics use bounded unary
+  replies, with content bytes read through ranged GetContent.
 
 ### Shared Shape Sketch
 
-All snippets are proposed public shapes, not generated code or assigned wire
+Snippets illustrate the locked public shapes, not generated code or assigned wire
 numbers. Supporting payload definitions are omitted. Message presence distinguishes
-absent `at` and absent masks; an explicitly empty mask is rejected rather than
-being confused with whole-value Set. Mask paths select writable fields only.
+absent `at`. Every Set has a matching Get of the whole writable value and revision.
 
 ```proto
 syntax = "proto3";
 import "google/protobuf/duration.proto";
-import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
 message History { string store = 1; string epoch = 2; }
@@ -176,15 +184,14 @@ through the same resource reads. A cut must still bind execution state, seal,
 evidence frontier, mutable presentation, membership, schemas and document revisions
 atomically. Retaining a returned live cut for paging is not arbitrary time travel.
 
-**Owner, conditional on the measured bound:** the live frontier is the latest
-durable frontier. Reads do not wait for accepted unsaved writes. A durable write receipt can supply `at` for
+**Owner:** the live frontier is the latest durable frontier. Reads do not wait
+for accepted unsaved writes. A durable write receipt can supply `at` for
 read-your-write; an accepted-only receipt cannot. Resource Get/Watch must expose
 the later durable receipt without inventing an implicit read barrier. Watches use
 the same durable visibility rule for subsequent changes, not an accepted-data tail.
 
 The newest durable position must trail the newest accepted data by no more than
-an explicitly stated bound at the 95th percentile, independent of payload size.
-The proposed bound is 250 ms; the owner sets the final number. A live view may
+250 ms at the 95th percentile, independent of payload size. A live view may
 therefore lag accepted data by a small interval, including for large payloads.
 
 Library source confirms `crates/harmos-storage/src/config.rs::FLUSH_INTERVAL` is
@@ -194,13 +201,14 @@ to the cadence and grows with the bytes written: batches target 1 MB and are cap
 at 16 MB, each committed synchronously. Nothing measures durable lag today, so
 100 ms is not proof of the required bound. The new product `dokime-storage` is
 independent of `harmos-storage`; the library cadence is not proof of the new host's
-latency. Agree which component supplies the durable frontier before lock.
+latency. The product store supplies the product durable frontier; the library
+supplies its own.
 
 Add a durable-lag benchmark case to the Nightly benchmark set using the stable
 case naming convention of the storage benches. Report p50, p95 and maximum lag
 under small samples at a high rate, multi-megabyte batches and a mix. Make the
 case reusable by a consumer against its own backend, including the independent
-product store. Compare measured p95 for each load with the owner-set bound.
+product store. Compare measured p95 for each load with the 250 ms p95 bound.
 These are benchmark measurements, never wall-clock assertions in tests. Test the
 mechanism deterministically: flush work is bounded in bytes and large input is
 split so no single commit exceeds the configured size.
@@ -212,7 +220,7 @@ of accepted data; do not build that fallback now. A per-read durability barrier
 was considered and not chosen because it puts flush/commit latency on reads.
 An accepted-data snapshot adds snapshot/retention ownership and unsaved-data
 semantics, but remains the fallback rather than a rejected alternative. This
-conditional owner decision replaces the reports' accepted-frontier and
+owner decision replaces the reports' accepted-frontier and
 per-read-barrier suggestions, not a claim that current code already meets it.
 
 ### Representative Resource 1: Execution
@@ -221,19 +229,24 @@ per-read-barrier suggestions, not a claim that current code already meets it.
 addresses only a running execution; queued cancellation fails with an action-named
 error. Stop waits for a safe scheduling boundary; Cancel interrupts the active
 invocation, retaining required cleanup. Neither is a generic writable status.
-**Proposed:** merge pause/resume, label and archive into masked Set of their
-writable value, retaining revision conflicts and lifecycle admission rules.
+**Owner:** merge pause/resume, label, archive and cycle policy into whole-value
+Set of each resource's small writable part, retaining revision conflicts and
+lifecycle admission rules. Get returns that part separately from runtime facts.
 
 ```proto
 message GetExecutionRequest { string name = 1; Position at = 2; }
-message GetExecutionResponse { Execution execution = 1; Position resolved_at = 2; }
+message ExecutionWritable { string label = 1; bool paused = 2; bool archived = 3; }
+message GetExecutionResponse {
+  Execution execution = 1; Position resolved_at = 2;
+  ExecutionWritable value = 3; bytes revision = 4;
+}
 message SetExecutionRequest {
-  Execution execution = 1;
-  google.protobuf.FieldMask update_mask = 2;
+  string name = 1;
+  ExecutionWritable value = 2;
   bytes expected_revision = 3;
   string request_id = 4;
 }
-message SetExecutionResponse { Execution execution = 1; Receipt receipt = 2; }
+message SetExecutionResponse { ExecutionWritable value = 1; bytes revision = 2; Receipt receipt = 3; }
 message CancelExecutionRequest { string name = 1; string request_id = 2; }
 message CancelExecutionResponse { Execution execution = 1; Receipt receipt = 2; }
 service Executions {
@@ -245,7 +258,7 @@ service Executions {
 
 ### Representative Resource 2: Records
 
-**Proposed:** plugin publication becomes AppendRecords, not CreateRecord. Its
+**Owner:** plugin publication becomes AppendRecords, not CreateRecord. Its
 acknowledgement retains the existing promised stored-record semantics; the receipt
 must state the durable position when that promise completes. Records and samples
 retain produced/captured ownership, source time and schema identity.
@@ -278,33 +291,61 @@ service Evidence {
 }
 ```
 
-### Representative Resource 3: Upload
+### Representative Resource 3: Transfers
 
-**Proposed; recommendation accepted by owner:** CreateUpload, GetUpload,
-SetUploadChunk, DeleteUpload and PublishUpload are unary for every caller.
-SetUploadChunk sets one identified byte range: replaying identical bytes is safe;
-conflicting bytes fail. GetUpload reports committed ranges and session state for
-resume. PublishUpload verifies completeness, length and digest before exposing
-immutable content. CreateArtifact or CreatePlugin then references that content.
+**Owner:** CreateUpload, GetUpload, AppendUploadBytes, DeleteUpload and
+PublishUpload are unary for every caller. AppendUploadBytes appends ordered bytes
+at the stated next offset. Replaying an identical accepted chunk succeeds;
+different bytes at an accepted offset conflict; gaps and out-of-order new chunks
+are refused. GetUpload reports the accepted offset, length, digest and session
+state to resume. PublishUpload verifies complete bytes, length and digest before
+exposing immutable content. CreateArtifact or CreatePlugin then references it.
 Sessions are caller-bound, bounded and expire explicitly; expiry cannot silently
-start another upload. Transport loss never publishes a partial artifact.
+start another upload. DeleteUpload abandons it. Transport loss never publishes
+partial content. Chunk and range maxima are configuration-owned limits.
+
+GetContent returns a bounded range, repeated by the caller to resume downloads.
+The content identity and digest bind every range to the same representation,
+including a scoped evidence archive at a returned cut. There is no separate
+streaming archive download gRPC method. Measure large-file upload/download throughput
+in the Nightly benchmark set before deleting the superseded streaming transfers;
+throughput is a benchmark measurement, never a correctness-test assertion.
 
 ```proto
 message CreateUploadRequest {
   string parent = 1; uint64 size_bytes = 2; bytes sha256 = 3; string request_id = 4;
 }
 message CreateUploadResponse { Upload upload = 1; Receipt receipt = 2; }
-message SetUploadChunkRequest {
+message GetUploadRequest { string name = 1; Position at = 2; }
+message GetUploadResponse { Upload upload = 1; Position resolved_at = 2; }
+message AppendUploadBytesRequest {
   string name = 1; uint64 offset = 2; bytes data = 3; string request_id = 4;
 }
-message SetUploadChunkResponse { Upload upload = 1; Receipt receipt = 2; }
+message AppendUploadBytesResponse { Upload upload = 1; Receipt receipt = 2; }
 message PublishUploadRequest { string name = 1; string request_id = 2; }
 message PublishUploadResponse { PublishedContent content = 1; Receipt receipt = 2; }
+message DeleteUploadRequest { string name = 1; string request_id = 2; }
+message DeleteUploadResponse { Receipt receipt = 1; }
+message GetContentRequest {
+  string name = 1; Position at = 2; uint64 offset = 3; uint64 max_bytes = 4;
+}
+message GetContentResponse {
+  bytes data = 1; uint64 offset = 2; uint64 total_length = 3;
+  bytes sha256 = 4; Position resolved_at = 5;
+}
+service Content {
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse);
+  rpc GetUpload(GetUploadRequest) returns (GetUploadResponse);
+  rpc AppendUploadBytes(AppendUploadBytesRequest) returns (AppendUploadBytesResponse);
+  rpc PublishUpload(PublishUploadRequest) returns (PublishUploadResponse);
+  rpc DeleteUpload(DeleteUploadRequest) returns (DeleteUploadResponse);
+  rpc GetContent(GetContentRequest) returns (GetContentResponse);
+}
 ```
 
 ### Representative Resource 4: Plugin
 
-**Proposed:** one entry describes managed or remote placement. Availability is a
+**Owner:** one entry describes managed or remote placement. Availability is a
 state, not another entry family. RestartPlugin replaces an activation; it does not
 mean Set status. The existing origin-dependent interruption, finalization and
 cleanup contract remains with `grpc-plugins`, not with the name change.
@@ -321,7 +362,7 @@ message RestartPluginResponse { Plugin plugin = 1; Receipt receipt = 2; }
 
 ### Product-Specific Actions and Preserved Distinctions
 
-Plugin lifecycle verbs each have one proposed meaning: MaterializeTestCase resolves
+Plugin lifecycle verbs each have one locked meaning: MaterializeTestCase resolves
 parameters into a case without running it; InitializeExecution acquires suite
 resources; ExecuteStep runs one frozen step; EvaluateCriterion judges captured
 evidence; CleanupExecution releases suite resources. Host operation IDs remain
@@ -329,7 +370,8 @@ template-local where necessary; one method name is not one shared handler instan
 Files.CopyFiles becomes CaptureFiles, freezing selected external files into
 evidence without deleting the originals. The effect journal's PrepareEffect and
 ConfirmEffect become CreateEffect and SetEffect: allocate a durable inverse ticket,
-then mark its observed application under preconditions. Neither performs the
+then replace its small writable application state under the revision from GetEffect.
+GetEffect returns that same writable state and revision. Neither performs the
 physical write; earliest-inverse retention, ownership and restoration order remain.
 
 CreateCases preserves validate-only preview, one-selection materialization and
@@ -350,15 +392,15 @@ report's description of an encrypted transfer is corrected below.
 ## Complete Product Mapping
 
 The table below inventories every ordinary method in current `client_*.proto`.
-Each also has `Run<Method>`: all 132 twins are **removed** as separate routes and
+Each also has `Run<Method>`: all 132 twins are **removed** as separate gRPC methods and
 map to the same destination as their ordinary method. This explicit rule covers
-all 264 present routes, including twins of watches and uploads. No current product
+all 264 present gRPC methods, including twins of watches and uploads. No current product
 twin demonstrates a cooperative final-result promise; see `client/conversation.rs`.
 
 Disposition: **kept** retains method meaning/name (service moves are stated);
 **renamed** changes a name or shape without another inventoried method collapsing
-into it; **merged** joins overlapping routes, masks, selectors or resource workflows;
-**removed** applies to obsolete routes, not lost capability. Every row retains
+into it; **merged** joins overlapping gRPC methods, whole writable values, selectors or resource workflows;
+**removed** applies to obsolete gRPC methods, not lost capability. Every row retains
 the report's caller evidence by category; dynamic and generated use also exists.
 `G` = desktop/native bridge, `C` = CLI/client, `S` = SDK convenience/new-host story,
 `T` = authored integration story, `N` = no named production caller found, not dead.
@@ -368,7 +410,7 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 `sdk/python/src/dokime/client.py`, server query/authorization stories and new-host
 `tests/system/`. Wire declarations and handler code win over report assumptions.
 
-| Present Operation | Proposed Destination | Disposition and Reason | Callers |
+| Present Operation | Locked Destination | Disposition and Reason | Callers |
 | --- | --- | --- | --- |
 | `Appearance.GetAppearance` | `Backend.GetAppearance` | Merged: Move appearance ownership. | G |
 | `Backend.CollectDiagnostics` | `Backend.GetDiagnostics` | Renamed: Read bounded diagnostic output. | G |
@@ -385,15 +427,15 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Catalog.ListTelemetrySchemas` | `Catalog.ListStreamSchemas` | Merged: Use stream vocabulary. | N |
 | `Content.DownloadAppearanceAsset` | `Content.GetContent` | Merged: Bounded bytes by content identity. | G |
 | `Content.DownloadArtifact` | `Content.GetArtifact` + `Content.GetContent` | Merged: Metadata then bounded bytes. | GC |
-| `Content.DownloadEvidence` | `Content.GetEvidenceArchive` | Renamed: Preserve scoped archive and verification. | C |
+| `Content.DownloadEvidence` | `Content.GetContent` | Merged: Ranged archive content; preserve scope, cut and digest verification. | C |
 | `Content.DownloadExecutionFile` | `Content.GetExecutionFile` + `Content.GetContent` | Merged: Metadata/range then bytes. | C |
 | `Content.FollowExecutionFile` | `Content.WatchExecutionFile` | Renamed: Retain growth/replacement semantics. | G |
 | `Content.ListArtifacts` | `Content.ListArtifacts` | Merged: Retain bounded artifact selection. | N |
 | `Content.ListExecutionFiles` | `Content.ListExecutionFiles` | Merged: Retain bounded file selection. | G |
 | `Content.ReadExecutionFile` | `Content.GetExecutionFile` | Merged: Same file resource, text/byte ranges. | G |
-| `Content.UploadArtifact` | `Content.CreateUpload` + `Content.GetUpload` + `Content.SetUploadChunk` + `Content.DeleteUpload` + `Content.PublishUpload` + `Content.CreateArtifact` | Merged: Shared unary resume lifecycle. | GC |
+| `Content.UploadArtifact` | `Content.CreateUpload` + `Content.GetUpload` + `Content.AppendUploadBytes` + `Content.DeleteUpload` + `Content.PublishUpload` + `Content.CreateArtifact` | Merged: Shared unary resume lifecycle. | GC |
 | `Documents.CaptureCurrentDocument` | `Documents.GetDocument` | Merged: Evaluated output without publication. | G |
-| `Documents.UpdatePlotSettings` | `Plots.SetPlotSettings` | Renamed: Masked revisioned writable value. | G |
+| `Documents.UpdatePlotSettings` | `Plots.SetPlotSettings` | Renamed: Whole small writable plot value and expected revision from GetPlotSettings. | G |
 | `Evidence.GetCapturedRecordSchema` | `Catalog.GetRecordSchema` | Merged: Execution parent selects frozen schema. | N |
 | `Evidence.ListRecords` | `Evidence.ListRecords` | Merged: One selector/cut contract. | GC |
 | `Evidence.WatchRecords` | `Evidence.WatchRecords` | Kept: Snapshot then durable changes. | GC |
@@ -411,20 +453,20 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Execution.ListExecutionParameters` | `Executions.ListExecutionParameters` | Kept: Frozen execution values. | G |
 | `Execution.ListExecutionSteps` | `Executions.ListExecutionSteps` | Kept: Frozen steps and state. | G |
 | `Execution.ListExecutions` | `Executions.ListExecutions` | Merged: Operational/query/history selection. | GC |
-| `Execution.PauseCycle` | `Cycles.SetCycle` | Merged: Mask paused, preserve admission. | S |
-| `Execution.PauseExecution` | `Executions.SetExecution` | Merged: Mask paused, preserve admission. | GC |
-| `Execution.RenameCycle` | `Cycles.SetCycle` | Merged: Mask label. | G |
-| `Execution.RenameExecution` | `Executions.SetExecution` | Merged: Mask label, one execution only. | G |
+| `Execution.PauseCycle` | `Cycles.SetCycle` | Merged: Whole small writable value and Get revision; preserve pause admission. | S |
+| `Execution.PauseExecution` | `Executions.SetExecution` | Merged: Whole small writable value and Get revision; preserve pause admission. | GC |
+| `Execution.RenameCycle` | `Cycles.SetCycle` | Merged: Whole small writable value and Get revision, including label. | G |
+| `Execution.RenameExecution` | `Executions.SetExecution` | Merged: Whole small writable value and Get revision; rename only this execution. | G |
 | `Execution.RerunCycle` | `Cycles.CreateCycle` | Merged: source_cycle preserves rerun notices. | GC |
-| `Execution.ResumeCycle` | `Cycles.SetCycle` | Merged: Mask paused=false. | S |
-| `Execution.ResumeExecution` | `Executions.SetExecution` | Merged: Mask paused=false. | GC |
+| `Execution.ResumeCycle` | `Cycles.SetCycle` | Merged: Whole small writable value and Get revision, with paused=false. | S |
+| `Execution.ResumeExecution` | `Executions.SetExecution` | Merged: Whole small writable value and Get revision, with paused=false. | GC |
 | `Execution.SealCycle` | `Cycles.SealCycle` | Kept: Preserve durable finalization. | GC |
-| `Execution.SetCycleArchived` | `Cycles.SetCycle` | Merged: Mask archived. | G |
-| `Execution.SetExecutionArchived` | `Executions.SetExecution` | Merged: Mask archived. | G |
+| `Execution.SetCycleArchived` | `Cycles.SetCycle` | Merged: Whole small writable value and Get revision, including archived. | G |
+| `Execution.SetExecutionArchived` | `Executions.SetExecution` | Merged: Whole small writable value and Get revision, including archived. | G |
 | `Execution.StartExecution` | `Executions.StartExecution` | Kept: Activate selected execution. | GC |
 | `Execution.StopExecution` | `Executions.StopExecution` | Kept: Stop scheduling at safe boundary. | GC |
 | `Execution.SubmitExecutionCommand` | `Executions.CreateExecutionCommand` | Renamed: Interactive Next/RunStep/Finish, replay receipt. | C |
-| `Execution.UpdateCyclePolicy` | `Cycles.SetCycle` | Merged: Mask policy. | G |
+| `Execution.UpdateCyclePolicy` | `Cycles.SetCycle` | Merged: Whole small writable cycle value and Get revision, including policy. | G |
 | `Health.ListHealth` | `Evidence.ListHealthEvents` | Merged: Name evidence collection. | GS |
 | `History.BrowseCycles` | `Cycles.ListCycles` | Merged: Retain saved filtering and ordering. | G |
 | `History.BrowseExecutions` | `Executions.ListExecutions` | Merged: Retain live/saved availability. | G |
@@ -443,7 +485,7 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Media.ScreenRecording` | `Media.CreateMediaCapture` + `Media.WatchMediaCapture` + `Media.StopMediaCapture` | Merged: Keep explicit unsupported-kind refusal. | N |
 | `Media.Screenshot` | `Media.CreateMediaCapture` | Merged: Typed screenshot source. | G |
 | `Notes.CreateNote` | `Evidence.CreateNote` | Kept: Allocate identified note. | G |
-| `Notes.EditNote` | `Evidence.SetNote` | Renamed: Mask and expected revision. | G |
+| `Notes.EditNote` | `Evidence.SetNote` | Renamed: Whole note writable value and revision from GetNote. | G |
 | `Notes.ListNotes` | `Evidence.ListNotes` | Merged: Retain note collection. | G |
 | `Observation.GetRuntimeShell` | `Backend.GetOverview` | Renamed: Runtime overview resource. | G |
 | `Observation.GetTraceability` | `Evidence.GetTraceability` | Merged: Retain evidence context. | G |
@@ -456,12 +498,12 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Plots.QuerySnapshots` | `Plots.ListPlotSnapshots` | Renamed: Bounded evaluated snapshots. | G |
 | `Plots.Watch` | `Plots.WatchPlotSnapshots` | Renamed: Same plot selector/cut. | G |
 | `Plugins.GetInstallation` | `Plugins.GetPlugin` | Renamed: One managed/remote entry. | G |
-| `Plugins.Install` | `Content.CreateUpload` + `Content.GetUpload` + `Content.SetUploadChunk` + `Content.DeleteUpload` + `Content.PublishUpload` + `Plugins.CreatePlugin` | Merged: Shared upload then managed admission. | GC |
+| `Plugins.Install` | `Content.CreateUpload` + `Content.GetUpload` + `Content.AppendUploadBytes` + `Content.DeleteUpload` + `Content.PublishUpload` + `Plugins.CreatePlugin` | Merged: Shared upload then managed admission. | GC |
 | `Plugins.ListAdmittedPlugins` | `Plugins.ListPlugins` | Merged: state=READY filter. | G |
 | `Plugins.ListInstallations` | `Plugins.ListPlugins` | Merged: One entry selection. | G |
 | `Plugins.Reload` | `Plugins.RestartPlugin` | Renamed: Replace activation, retain finalization rules. | GS |
 | `Plugins.Remove` | `Plugins.DeletePlugin` | Renamed: Remove entry, migrate old payload. | G |
-| `Plugins.SetEnabled` | `Plugins.SetPlugin` | Renamed: Mask enabled. | G |
+| `Plugins.SetEnabled` | `Plugins.SetPlugin` | Renamed: Whole small plugin writable value and GetPlugin revision, including enabled. | G |
 | `Plugins.List` | `Plugins.ListPlugins` | Merged: One managed/remote entry list. | S |
 | `Plugins.Add` | `Plugins.CreatePlugin` | Merged: Remote placement admission. | S |
 | `Prompts.GetDefinition` | `Catalog.GetPromptDefinition` | Renamed: Separate definition from asked prompt. | S |
@@ -478,34 +520,34 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Remote.CreatePairing` | `Access.CreatePairing` | Kept: Preserve access material lifecycle. | G |
 | `Remote.ReadListener` | `Access.GetListener` | Renamed: Derived listener state. | G |
 | `Remote.RegenerateCertificate` | `Access.CreateCertificate` | Renamed: Allocate replacement certificate. | G |
-| `Remote.UpdateListener` | `Access.SetListener` | Renamed: Mask revisioned listener settings. | G |
+| `Remote.UpdateListener` | `Access.SetListener` | Renamed: Whole listener writable settings and revision from GetListener. | G |
 | `Reports.PublishExecutionReport` | `Reports.PublishReport` | Renamed: Explicit durable publication, never implicit download. | S |
 | `Reports.DownloadCycleReport` | `Reports.GetReport` + `Content.GetContent` + `Reports.CreateReport` | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.DownloadExecutionReport` | `Reports.GetReport` + `Content.GetContent` + `Reports.CreateReport` | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.MaterializeReport` | `Reports.CreateReport` | Merged: Render only, no publication. | N |
-| `Runtime.GetHealth` | `Backend.GetHealth` | Removed: Remove duplicate health route. | C |
-| `Runtime.GetIdentity` | `Backend.GetIdentity` | Removed: Remove duplicate identity route. | C |
+| `Runtime.GetHealth` | `Backend.GetHealth` | Removed: Remove duplicate health gRPC method. | C |
+| `Runtime.GetIdentity` | `Backend.GetIdentity` | Removed: Remove duplicate identity gRPC method. | C |
 | `Secrets.Export` | `Secrets.ExportSecrets` | Renamed: Existing Base64 JSON transfer, not encryption. | G |
 | `Secrets.Import` | `Secrets.ImportSecrets` | Merged: Preserve choices and generation conflict. | G |
 | `Secrets.List` | `Secrets.ListSecrets` | Renamed: Bounded metadata, not secret values. | G |
 | `Secrets.Lookup` | `Secrets.GetSecret` | Renamed: Granted identifier only. | N |
 | `Secrets.Preview` | `Secrets.ImportSecrets` | Merged: validate_only, no writes. | G |
-| `Secrets.Put` | `Secrets.SetSecret` | Renamed: Revisioned writable secret value. | G |
+| `Secrets.Put` | `Secrets.SetSecret` | Renamed: Whole writable secret value and revision from GetSecret. | G |
 | `Secrets.Remove` | `Secrets.DeleteSecret` | Renamed: Preserve keyring/catalog cleanup. | G |
 | `Settings.GetPluginSettings` | `Settings.GetPluginSettings` | Kept: Saved values, not UI declarations. | G |
 | `Settings.GetSettings` | `Settings.GetSettingsSchema` | Renamed: UI declarations/cards/bootstrap metadata. | G |
 | `Settings.ListStorageSources` | `Settings.GetStorageSources` | Renamed: One ordered value. | G |
 | `Settings.ReadApplicationSettings` | `Settings.GetApplicationSettings` | Renamed: Revisioned application values. | G |
-| `Settings.ReorderStorageSources` | `Settings.SetStorageSources` | Merged: One ordered value, masked fields. | G |
-| `Settings.SetStorageSourceEnabled` | `Settings.SetStorageSources` | Merged: Same value with enabled mask. | G |
-| `Settings.UpdateApplicationSettings` | `Settings.SetApplicationSettings` | Renamed: Mask plus revision. | G |
-| `Settings.UpdatePluginSettings` | `Settings.SetPluginSettings` | Renamed: Mask plus revision. | G |
+| `Settings.ReorderStorageSources` | `Settings.SetStorageSources` | Merged: Whole small ordered value and revision from GetStorageSources. | G |
+| `Settings.SetStorageSourceEnabled` | `Settings.SetStorageSources` | Merged: Whole small ordered value and Get revision, including enabled state. | G |
+| `Settings.UpdateApplicationSettings` | `Settings.SetApplicationSettings` | Renamed: Whole writable value and matching Get revision. | G |
+| `Settings.UpdatePluginSettings` | `Settings.SetPluginSettings` | Renamed: Whole writable value and matching Get revision; if large, use separately revisioned setting sub-resources with GetPluginSettings/SetPluginSettings. | G |
 | `Telemetry.ListSamples` | `Evidence.ListSamples` | Merged: One canonical sample read. | CS |
 | `Telemetry.WatchSamples` | `Evidence.WatchSamples` | Kept: Same source selector and durable boundary. | C |
 
-## Proposed Client Inventory and Counts
+## Locked Client Inventory and Counts
 
-| Proposed Service | Count | Operations |
+| Locked Service | Count | Operations |
 | --- | ---: | --- |
 | Backend | 11 | `GetIdentity`, `GetHealth`, `GetAvailability`, `GetAppearance`, `GetOverview`, `WatchOverview`, `ListLogs`, `WatchLogs`, `ListTraceEvents`, `WatchTraceEvents`, `GetDiagnostics` |
 | Catalog | 9 | `GetSuite`, `ListSuites`, `GetRecordSchema`, `ListRecordSchemas`, `GetStreamSchema`, `ListStreamSchemas`, `GetPromptDefinition`, `ListPromptDefinitions`, `ListAnalyses` |
@@ -514,7 +556,7 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | Cycles | 6 | `GetCycle`, `ListCycles`, `WatchCycles`, `CreateCycle`, `SetCycle`, `SealCycle` |
 | Executions | 17 | `GetExecution`, `ListExecutions`, `WatchExecutions`, `CreateExecutions`, `SetExecution`, `StartExecution`, `StopExecution`, `CancelExecution`, `DeleteExecution`, `ListExecutionParameters`, `WatchExecutionParameters`, `ListExecutionSteps`, `WatchExecutionSteps`, `GetExecutionCommand`, `CreateExecutionCommand`, `GetExecutionProgress`, `WatchExecutionProgress` |
 | Evidence | 14 | `ListRecords`, `WatchRecords`, `GetStatistics`, `GetTraceability`, `WatchTraceability`, `ListNotes`, `WatchNotes`, `GetNote`, `CreateNote`, `SetNote`, `ListHealthEvents`, `WatchHealthEvents`, `ListSamples`, `WatchSamples` |
-| Content | 15 | `CreateUpload`, `GetUpload`, `SetUploadChunk`, `DeleteUpload`, `PublishUpload`, `GetContent`, `GetEvidenceArchive`, `GetArtifact`, `CreateArtifact`, `ListArtifacts`, `WatchArtifacts`, `GetExecutionFile`, `ListExecutionFiles`, `WatchExecutionFiles`, `WatchExecutionFile` |
+| Content | 14 | `CreateUpload`, `GetUpload`, `AppendUploadBytes`, `DeleteUpload`, `PublishUpload`, `GetContent`, `GetArtifact`, `CreateArtifact`, `ListArtifacts`, `WatchArtifacts`, `GetExecutionFile`, `ListExecutionFiles`, `WatchExecutionFiles`, `WatchExecutionFile` |
 | Documents | 2 | `GetDocument`, `WatchDocument` |
 | Plots | 4 | `ListPlotSnapshots`, `WatchPlotSnapshots`, `GetPlotSettings`, `SetPlotSettings` |
 | Prompts | 4 | `GetPrompt`, `ListPrompts`, `WatchPrompts`, `CreatePromptAnswer` |
@@ -525,29 +567,31 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | Media | 4 | `CreateMediaCapture`, `GetMediaCapture`, `WatchMediaCapture`, `StopMediaCapture` |
 | Queries | 1 | `GetAggregate` |
 
-The 132 ordinary mapping rows classify as 24 kept, 36 renamed,
-70 merged and 2 duplicate routes removed. All 132 Run routes are
-additionally removed. The proposed client set has 17 services and 121 operations/routes,
-compared with 23 services and 264 routes today: 143 fewer routes. This is a
-proposed inventory, not a claim that every route is already served. Watches,
+The 132 ordinary mapping rows classify as 24 kept, 35 renamed,
+71 merged and 2 duplicate gRPC methods removed. All 132 Run gRPC methods are
+additionally removed. The locked client set has 17 services and 120 operations/gRPC methods,
+compared with 23 services and 264 gRPC methods today: 144 fewer gRPC methods. This is a
+locked target inventory, not a claim that every gRPC method is already served. Watches,
 shared uploads and split content/report resources account for added destinations.
 
-The mapping reaches 101 distinct destinations; 20 added companion operations
+The mapping reaches 100 distinct destinations; 20 added companion operations
 complete read/watch/resource coverage: `Backend.ListLogs`, `Backend.ListTraceEvents`, `Cases.WatchCases`, `Content.WatchArtifacts`, `Content.WatchExecutionFiles`, `Cycles.WatchCycles`, `Documents.WatchDocument`, `Evidence.GetNote`, `Evidence.WatchHealthEvents`, `Evidence.WatchNotes`, `Evidence.WatchTraceability`, `Executions.GetExecutionProgress`, `Executions.WatchExecutionParameters`, `Executions.WatchExecutionSteps`, `Executions.WatchExecutions`, `Media.GetMediaCapture`, `Plots.GetPlotSettings`, `Plugins.WatchPlugins`, `Prompts.WatchPrompts`, `Secrets.WatchSecrets`.
 
-The 121 proposed methods require 242 named request/response carriers. Removing
+The 120 locked client methods require 240 named request/response messages. Removing
 264 twin envelopes does not determine the final message total: rendered graphs,
 authoring definitions and unreachable payloads still require field-level review.
-Bounded byte/document/diagnostic output may stream responses; this adds no second
-route. A later proven managed-settlement exception replaces its ordinary route.
+All content downloads are bounded unary GetContent ranges; document/diagnostic
+output is bounded unary, and only Watch uses ordinary server streaming. A proven
+managed-settlement exception replaces its ordinary gRPC method, retaining the same
+operation and gRPC method count.
 
 ## Plugin-Facing Mapping
 
 These operations are logically unary over the duplex library invocation carrier;
-publication has its own carrier. Counts are separate from client routes and do
+publication has its own carrier. Counts are separate from client gRPC methods and do
 not multiply dynamic step/criterion instances or count protocol control frames.
 
-| Present Operation or Family | Proposed Operation | Disposition and Preserved Behavior |
+| Present Operation or Family | Locked Operation | Disposition and Preserved Behavior |
 | --- | --- | --- |
 | `<template>.materialize` | MaterializeTestCase | Renamed; pure materialization, request/response wrapper. |
 | `<template>.initialize` | InitializeExecution | Renamed; acquire execution-local suite resources. |
@@ -563,21 +607,27 @@ not multiply dynamic step/criterion instances or count protocol control frames.
 | `dokime.execution.records` | Evidence.ListRecords | Merged; preserve count/last selection and bounded reads. |
 | `dokime.execution.statistics` | Evidence.GetStatistics | Merged; stream/field/step selectors and complete statistics. |
 | `dokime.execution.artifact` | Content upload lifecycle + CreateArtifact | Merged; same unary sessions as clients, acknowledged bytes. |
-| `dokime.execution.progress` | Executions.SetExecutionProgress | Renamed; producer-owned current value. |
+| `dokime.execution.progress` | Executions.SetExecutionProgress | Renamed; whole small progress value and GetExecutionProgress revision. |
 | `dokime.execution.log` | Evidence.AppendLogs | Renamed; ordered immutable log lines. |
-| `dokime.execution.traceability` | Evidence.SetTraceability | Renamed; explicit entry mask, revision and scope. |
+| `dokime.execution.traceability` | Evidence.SetTraceability | Renamed; whole small writable value, GetTraceability revision and scope; large writable parts split into separately revisioned entry Get/Set sub-resources. |
 | `dokime.execution.document` | Documents.AppendDocumentParts | Renamed; ordered immutable document contributions. |
 | `dokime.files.copy_files` | Files.CaptureFiles | Renamed; freeze file copies, preserve originals. |
 | `dokime.files.start_capture` | Files.StartFileCapture | Renamed; start capture lifecycle. |
 | `dokime.files.stop_capture` | Files.StopFileCapture | Renamed; finish capture at safe boundary. |
 | `dokime.execution.environment` | Backend.GetEnvironment | Renamed; derived environment read. |
 | `dokime.execution.effect.prepare` | Effects.CreateEffect | Renamed; durable inverse ticket, no hardware write. |
-| `dokime.execution.effect.applied` | Effects.SetEffect | Renamed; confirm observed application, preserve earliest inverse. |
+| `dokime.execution.effect.applied` | Effects.SetEffect | Renamed; whole writable application state and GetEffect revision; preserve earliest inverse. |
 
 All 17 product context bindings in `sdk/rust/src/host.rs` are covered, plus two
 library clock operations and five dynamic lifecycle families: 24 inventory rows.
+GetExecutionProgress and GetTraceability are shared with clients. Add plugin-only
+Effects.GetEffect as the exact mirror of SetEffect; it is a companion, not a 25th
+present mapping row. Any large plugin-settings or traceability writable part must
+be split by identified setting or entry into sub-resources with their own Get/Set
+and revision, rather than replacing an unbounded aggregate. The client inventory
+counts method templates, not instances of these sub-resources.
 The shared client upload workflow expands one producer call to several operations;
-do not add 24 to the client total or treat this as a fixed generated-route count.
+do not add 24 to the client total or treat this as a fixed generated-gRPC method count.
 
 ## Source Verification and Report Corrections
 
@@ -588,7 +638,8 @@ checkout named by its report:
   twins. Counting `message` declarations, including nested declarations, across
   `proto/dokime/v1/*.proto` gives 953. This confirms the reports' correction of
   131/262. PublishExecutionReport is present. Remove 264 twin-envelope messages;
-  the final payload-message total remains unknown, not 689 or 242.
+  the final payload-message total remains unknown; neither subtraction nor the
+  240 method messages establishes it.
 - `crates/dokime-runtime-next/src/services/mod.rs`: 13 registered client services,
   not complete serving of all 23. `dokime-operations-next/src/lib.rs` declares and
   dispatches exactly log, progress, record, records, statistics, prompt and library
@@ -610,9 +661,9 @@ checkout named by its report:
   Plugin Secrets explicitly describes Base64-encoded JSON, not encryption.
   Preserve the actual contract; adding encryption is a separate owner decision.
 - **Decision overrides, not source discrepancies:** both reports' latest-read
-  suggestions are replaced by owner-decided latest-durable/no-wait conditional on
-  the measured payload-size-independent durable-lag bound; the library report's
-  full-value-only Set and bare replies are replaced by optional masks and wrappers;
+  suggestions are replaced by owner-decided latest-durable/no-wait with
+  a payload-size-independent 250 ms p95 durable-lag bound; whole-value Set with
+  exact Get/revision symmetry is retained and bare replies become wrappers;
   WaitTime becomes Sleep; CreateRecord/CreateLog become AppendRecords/AppendLogs.
   No arbitrary earlier cut API is carried forward.
 
@@ -633,42 +684,27 @@ invocation-local resource store and cancellation reason; static Storage services
 expose a subset; retry policy has two shapes; the plugin proto's draft/not-implemented
 header is stale. Generated availability is not proof of application consumption.
 
-## Open Questions Before Lock
+## Open Questions During Implementation
 
-All are open, not silently answered by snippets or operation counts. Questions
-settled by the owner (queued cancellation, one-execution rename, no arbitrary
-historical reads, library SDK ownership and conditional latest-durable reads)
-are not reopened. Unary uploads remain a proposed accepted
-recommendation in the decision register.
+Only these questions remain open. Settle each when its implementation is reached;
+they do not block the rest of the locked work. Snippets and counts do not settle
+these contracts or claim implementation.
 
 1. **SDK coverage:** settle plugin parity across Rust, Python, C# and C++, including
-   explicit visibility and C# resource/cancellation parity versus a documented
-   boundary. Decide whether the generic managed client exists in all four
-   languages or Rust only; library ownership is decided.
-2. **Durable-lag bound:** the owner sets the final p95 number (250 ms proposed),
-   independent of payload size. The concrete Nightly storage benchmark task in
-   tasks.md supplies the evidence; measuring lag is no longer an open question.
-3. **Retention and restart:** how long are returned live positions and mutation
-   keys retained, which returned cuts survive restart, and how are mutable
-   presentation, appearance, notes, documents and cycle membership pinned? Preserve
-   explicit unavailability; arbitrary earlier cuts remain excluded. Agree limits,
-   authenticated provenance, composite-cut representation and release rules.
-4. **Watches:** lock snapshot-then-follow, durable progress events, gap/resync and
-   bounded-page delivery; define which added resource watches have an actual feed.
-   Do not fabricate catalog feeds or freeze a watch forever at explicit `at`.
-5. **Deletion:** settle retained-reader behavior across backends before changing
-   file deletion; the library report leaves that contract open. Include deletion
-   during content reads, upload expiry and retained-cut invalidation.
-6. **Managed cancellation:** which operations actually promise a cooperative final
-   result and must have one canonical managed stream? Preserve demonstrated library
-   settlement and device-driven publication; product's current twins establish no
-   such promise. Resource commands keep ownership after observer loss.
-7. **Public shapes:** confirm Set spelling/mask validation, full writable-value
-   replacement, revision preconditions, response wrappers and preview CreateReport
-   admission without publication; settle ID namespace/group derivation, retry
-   fields/default ownership and method-level message inventory before generation.
-   The supplied directions are proposals, not a license to guess incompatible
-   details. Do not flatten native scan/index/projection work into application reads.
+   visibility and C# resource/cancellation parity, and generic managed-client
+   coverage in all four languages versus Rust only. Library ownership is locked.
+2. **Retention and restart:** how long does a returned position stay valid and
+   which positions/cuts survive restart? Define retained mutable context and
+   explicit unavailability without arbitrary earlier positions.
+3. **Watches:** settle exact snapshot/follow, durable progress, gaps/resync,
+   bounded delivery and actual feed coverage. The shared `at`/`resolved_at`
+   rule and durable visibility are locked.
+4. **Deletion:** settle deletion while readers hold data across backends,
+   including in-progress ranged downloads and retained-cut invalidation.
+5. **Managed cancellation:** identify which operations actually promise a
+   cooperative final result and require one replacement managed gRPC method. Preserve
+   the plugin protocol's own carriers and proven settlement; current product
+   twins establish no such promise.
 
 ### SDK Ownership and Remaining Coverage Facts
 
@@ -732,13 +768,15 @@ are not built now. SDK ownership is settled, but four-language plugin parity and
 generic managed-client coverage still need agreement and proof.
 
 Pinned live cuts require retained mutable context; row hashes cannot supply that
-guarantee. Resolve retention before implementing reads. Upload sessions add calls
+guarantee. Settle retention when implementing returned-position reads; independent
+work continues. Upload sessions add calls
 but permit resume and one plugin/client path. Removing twins loses a real library
 capability unless promised settlement is explicitly retained; ordinary product
 watches and byte delivery do not need it. Replacing IDs changes fingerprints,
 requirements, manifests, fixtures and SDK constants together.
 
-After lock, coordinate the library primitives and exact pin, then implement the
+For implementation, coordinate the library primitives and exact pin, then
+implement the
 canonical product contracts/host behavior, then migrate SDKs and CLI, then move the
 desktop to the new host and grammar in one cutover. Delete old host paths, duplicate
 types and obsolete stories only after their capabilities are covered. Keep each

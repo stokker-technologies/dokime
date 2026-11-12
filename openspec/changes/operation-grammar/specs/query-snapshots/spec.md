@@ -16,7 +16,7 @@ the seal; arbitrary earlier positions SHALL be refused. Replies SHALL state
 - **WHEN** a live evidence query freezes context and its evidence frontier
 - **THEN** it needs no report publication, seal, provider stop or durability barrier, and a cycle cut freezes member revisions and membership
 - **AND** the selected journal/metadata frontier is already durable without checkpointing running executions
-- **AND** latest-durable/no-wait acceptance is conditional on the payload-size-independent p95 durable-lag bound in the operation-contracts delta (250 ms proposed; owner sets the final number), proven by the reusable Nightly storage benchmark rather than wall-clock test assertions
+- **AND** latest-durable/no-wait reads follow the locked payload-size-independent 250 ms p95 durable-lag bound in the operation-contracts delta, proven by the reusable Nightly storage benchmark rather than wall-clock test assertions
 
 #### Scenario: Live Queries During Writes
 
