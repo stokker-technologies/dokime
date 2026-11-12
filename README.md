@@ -312,7 +312,8 @@ pending verified supply-chain evidence and do not imply product certification.
 
 ## Contributing
 
-The independent execution host and its client gRPC stories are described in the
+The independent execution host serves plugin and settings administration, protected secrets,
+remote pairing and diagnostics alongside execution. Its client gRPC stories are described in the
 [execution host guide](docs/execution-host.md).
 
 Bug reports, focused fixes, clearer examples and equipment integrations are

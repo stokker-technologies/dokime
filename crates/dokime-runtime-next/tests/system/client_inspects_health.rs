@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Client Inspects Health
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -47,7 +45,7 @@
 async fn client_inspects_health() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         use dokime::v1;
-        
+
         // Open the Backend Health Page on a Fresh Host
         let root = tempfile::tempdir()?;
         let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
@@ -63,10 +61,19 @@ async fn client_inspects_health() -> Result<(), Box<dyn std::error::Error>> {
         let page = health.list_health(v1::HealthListHealthRequest::default()).await?.into_inner();
         assert_eq!(page.items[0].health_item_id, unavailable.entry);
         assert!(!page.items[0].message.is_empty());
-        assert!(health.list_health(v1::HealthListHealthRequest { cursor: empty.cursor, ..Default::default() }).await.is_err());
+        assert!(
+            health
+                .list_health(v1::HealthListHealthRequest {
+                    cursor: empty.cursor,
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
         plugins.remove(v1::RemovePlugin { entry: unavailable.entry }).await?;
         assert!(health.list_health(v1::HealthListHealthRequest::default()).await?.into_inner().items.is_empty());
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
-    }).await?
+    })
+    .await?
 }

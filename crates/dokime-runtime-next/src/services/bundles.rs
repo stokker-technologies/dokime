@@ -206,7 +206,7 @@ pub(super) fn digest(bytes: &[u8]) -> String {
 fn invalid(message: &str) -> Error {
     Error::Invalid(format!("Install Plugin: {message}"))
 }
-fn native_target() -> &'static str {
+pub(super) fn native_target() -> &'static str {
     match (std::env::consts::ARCH, std::env::consts::OS) {
         ("x86_64", "windows") => "x86_64-pc-windows-msvc",
         ("aarch64", "windows") => "aarch64-pc-windows-msvc",

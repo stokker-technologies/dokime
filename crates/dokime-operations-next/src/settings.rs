@@ -58,8 +58,17 @@ pub async fn handle(resources: &Resources, request: v1::ReadSettings) -> Result<
         _ => return Err(crate::Error::Invalid("Read Settings: Use the Calling Plugin's Active Execution".into())),
     };
     let description = harmos_protocol::v1::Description::decode(resources.store.plugin(&plugin)?.as_slice())?;
-    let settings = crate::client::settings_preferences::for_plugin(&resources.store, v1::Plugin { entry: plugin, description: Some(description), ..Default::default() })?;
-    Ok(v1::SavedSettings { values: settings.values.unwrap_or_default().values })
+    let settings = crate::client::settings_preferences::for_plugin(
+        &resources.store,
+        v1::Plugin {
+            entry: plugin,
+            description: Some(description),
+            ..Default::default()
+        },
+    )?;
+    Ok(v1::SavedSettings {
+        values: settings.values.unwrap_or_default().values,
+    })
 }
 
 /* === Private Functions === */

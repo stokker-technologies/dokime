@@ -47,6 +47,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::PluginsGetInstallationRequest) -> Result<v1::PluginInstallation> {
     super::complete(ID, context.settings.read_timeout, async {
+        context.host.refresh_plugin_states().await?;
         context
             .host
             .installations()?

@@ -302,7 +302,6 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 - [x] Complete `mise run check -- --language rust --package dokime-runtime-next`: the language worker repaired `clippy::let_and_return` in `sdk/rust/src/stream.rs` and both the SDK lint and new-runtime package check pass on Windows. Native Linux and hosted validation remain integration proof.
 
 - [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
-  - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
   - [ ] Planning: RunMaterializeTemplate, PreviewSelection, RunPreviewSelection, RegisterSelection, RunRegisterSelection.
   - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
   - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
@@ -311,8 +310,6 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
-  - [ ] Health: RunListHealth.
-  - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.
 
 ## New Host Branch Convergence
 
@@ -368,14 +365,16 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 
 ## Administration Services
 
-Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health service files; matching operation and story files; additive host/storage support and shared registration lists. Old crates and other service files remain untouched.
+Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health service files; matching operation and story files; additive host/storage support and shared registration lists. Old crates and other service files remain untouched. The original Rust client story loses its superseded Reload refusal assertion; the new plugin-entry journey owns successful reload and validation proof.
 
 - [x] Runtime GetIdentity/GetHealth and their Run transports; real-process restart identity journey.
 - [x] Appearance GetAppearance and RunGetAppearance: built-in identity and admitted typed appearance contributions; real-process read journey.
-- [ ] Remote pairing, key/certificate rotation and listener configuration.
-- [ ] Plugins entries, installation, bundles, removal and states.
+- [x] Remote four direct methods and four Run transports: authenticated TLS listener, pairing files, live key rotation, certificate regeneration and persisted restart state; real-process TLS journey.
+- [x] Plugins List/Add/Reload/Remove/ListAdmittedPlugins and all matching Run transports; durable URL placement and preconnection identity, retained failures, explicit reconnect and remote detach.
+- [x] Plugins managed installation, verified v1 bundle input, replacement/rollback, enable/disable, GetInstallation/ListInstallations and their Run transports; real-process install/replace/restart/remove journey.
 - [x] Catalog six direct methods and six Run methods: schema projections from admitted descriptors, epoch/content-bound cursor paging and the real-process catalog journey.
-- [ ] Settings read/write and on-demand plugin settings.
-- [ ] Secrets by identifier and archives.
-- [ ] Backend diagnostics, logs and trace; Health paging.
-- [ ] Required final focused proof.
+- [x] Settings eight direct methods and eight Run transports: revision-checked preferences, bootstrap paths, native storage-source administration and on-demand plugin settings (including unavailable plugins).
+- [x] Secrets seven direct methods and seven Run transports: protected identifier storage, generation checks, bounded v1 archives and explicit import choices.
+- [x] Backend diagnostics ZIP, bounded log following and epoch/scope trace reads; all Run transports. Health has content-bound paging and both transports.
+- [x] Required Windows focused proof: whole-tree format; all ten administration stories twice (the final 14-story client selection plus the 25-story host target); all fifteen original stories; check builds and Clippy for all three new crates; repository checking. The final runs have 14/14 and 25/25 passes, with no skipped stories in the complete host target. The native credential publication failure is repaired with read-back confirmation before SQLite publication.
+- [ ] Integration owner: native Linux and hosted proof, with an available OS credential store for protected secret/TLS writes; no push is authorized here.

@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Error, Result, client::Context};
 
@@ -48,8 +47,17 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::SettingsReorderStorageSourcesRequest) -> Result<v1::StorageSources> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        if request.identifiers != ["native"] { return Err(Error::Invalid("Reorder Storage: Supply Every Available Source Exactly Once".into())); }
-        Ok(v1::StorageSources { sources: vec![v1::StorageSource { identifier: "native".into(), adapter: "sqlite-arrow".into(), priority: 0, enabled: true }] })
+        if request.identifiers != ["native"] {
+            return Err(Error::Invalid("Reorder Storage: Supply Every Available Source Exactly Once".into()));
+        }
+        Ok(v1::StorageSources {
+            sources: vec![v1::StorageSource {
+                identifier: "native".into(),
+                adapter: "sqlite-arrow".into(),
+                priority: 0,
+                enabled: true,
+            }],
+        })
     })
     .await
 }

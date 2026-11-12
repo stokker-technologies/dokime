@@ -12,9 +12,13 @@
 /* === Modules === */
 
 pub mod appearance_get_appearance;
+pub mod backend_collect_diagnostics;
 pub mod backend_get_availability;
 pub mod backend_get_health;
 pub mod backend_get_identity;
+mod backend_streams;
+pub mod backend_watch_logs;
+pub mod backend_watch_trace;
 pub mod catalog_get_record_schema;
 pub mod catalog_get_suite;
 pub mod catalog_get_telemetry_schema;
@@ -29,16 +33,44 @@ pub mod health_list_health;
 pub mod observation_watch_execution_progress;
 pub mod planning_materialize_template;
 pub mod plugins_add;
+pub mod plugins_get_installation;
+pub mod plugins_install;
 pub mod plugins_list;
+pub mod plugins_list_admitted_plugins;
+pub mod plugins_list_installations;
+pub mod plugins_reload;
+pub mod plugins_remove;
+pub mod plugins_set_enabled;
 mod projection;
 pub mod prompts_get_prompt;
 pub mod prompts_list_pending;
 pub mod prompts_respond;
 pub mod query_list_executions;
+pub mod remote_create_pairing;
+pub mod remote_read_listener;
+pub mod remote_regenerate_certificate;
+pub mod remote_update_listener;
 pub mod reports_download_execution_report;
 pub mod reports_publish_execution_report;
 pub mod runtime_get_health;
 pub mod runtime_get_identity;
+pub mod secrets_export;
+pub mod secrets_import;
+pub mod secrets_list;
+pub mod secrets_lookup;
+pub mod secrets_preview;
+pub mod secrets_put;
+pub mod secrets_remove;
+pub(crate) mod secrets_store;
+pub mod settings_get_plugin_settings;
+pub mod settings_get_settings;
+pub mod settings_list_storage_sources;
+pub(crate) mod settings_preferences;
+pub mod settings_read_application_settings;
+pub mod settings_reorder_storage_sources;
+pub mod settings_set_storage_source_enabled;
+pub mod settings_update_application_settings;
+pub mod settings_update_plugin_settings;
 pub mod telemetry_list_samples;
 
 /* === Re-Exports === */
@@ -61,7 +93,74 @@ use dokime_storage::Store;
 
 /* === Constants === */
 
+const DEFAULT_PAGE_ITEMS: usize = 50;
+const MAX_PAGE_ITEMS: usize = 500;
+
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Plugins/Install",
+    "/dokime.v1.Plugins/RunInstall",
+    "/dokime.v1.Plugins/RunSetEnabled",
+    "/dokime.v1.Plugins/SetEnabled",
+    "/dokime.v1.Plugins/RunListInstallations",
+    "/dokime.v1.Plugins/ListInstallations",
+    "/dokime.v1.Plugins/RunGetInstallation",
+    "/dokime.v1.Plugins/GetInstallation",
+    "/dokime.v1.Remote/RunUpdateListener",
+    "/dokime.v1.Remote/UpdateListener",
+    "/dokime.v1.Remote/RunRegenerateCertificate",
+    "/dokime.v1.Remote/RegenerateCertificate",
+    "/dokime.v1.Remote/RunReadListener",
+    "/dokime.v1.Remote/ReadListener",
+    "/dokime.v1.Remote/RunCreatePairing",
+    "/dokime.v1.Remote/CreatePairing",
+    "/dokime.v1.Backend/RunWatchTrace",
+    "/dokime.v1.Backend/WatchTrace",
+    "/dokime.v1.Backend/RunWatchLogs",
+    "/dokime.v1.Backend/WatchLogs",
+    "/dokime.v1.Backend/RunCollectDiagnostics",
+    "/dokime.v1.Backend/CollectDiagnostics",
+    "/dokime.v1.Backend/RunGetIdentity",
+    "/dokime.v1.Backend/RunGetHealth",
+    "/dokime.v1.Backend/RunGetAvailability",
+    "/dokime.v1.Health/RunListHealth",
+    "/dokime.v1.Plugins/RunAdd",
+    "/dokime.v1.Plugins/RunList",
+    "/dokime.v1.Plugins/RunRemove",
+    "/dokime.v1.Plugins/Remove",
+    "/dokime.v1.Plugins/RunReload",
+    "/dokime.v1.Plugins/Reload",
+    "/dokime.v1.Plugins/RunListAdmittedPlugins",
+    "/dokime.v1.Plugins/ListAdmittedPlugins",
+    "/dokime.v1.Secrets/RunRemove",
+    "/dokime.v1.Secrets/Remove",
+    "/dokime.v1.Secrets/RunPut",
+    "/dokime.v1.Secrets/Put",
+    "/dokime.v1.Secrets/RunPreview",
+    "/dokime.v1.Secrets/Preview",
+    "/dokime.v1.Secrets/RunLookup",
+    "/dokime.v1.Secrets/Lookup",
+    "/dokime.v1.Secrets/RunList",
+    "/dokime.v1.Secrets/List",
+    "/dokime.v1.Secrets/RunImport",
+    "/dokime.v1.Secrets/Import",
+    "/dokime.v1.Secrets/RunExport",
+    "/dokime.v1.Secrets/Export",
+    "/dokime.v1.Settings/RunUpdatePluginSettings",
+    "/dokime.v1.Settings/UpdatePluginSettings",
+    "/dokime.v1.Settings/RunUpdateApplicationSettings",
+    "/dokime.v1.Settings/UpdateApplicationSettings",
+    "/dokime.v1.Settings/RunSetStorageSourceEnabled",
+    "/dokime.v1.Settings/SetStorageSourceEnabled",
+    "/dokime.v1.Settings/RunReorderStorageSources",
+    "/dokime.v1.Settings/ReorderStorageSources",
+    "/dokime.v1.Settings/RunReadApplicationSettings",
+    "/dokime.v1.Settings/ReadApplicationSettings",
+    "/dokime.v1.Settings/RunListStorageSources",
+    "/dokime.v1.Settings/ListStorageSources",
+    "/dokime.v1.Settings/RunGetSettings",
+    "/dokime.v1.Settings/GetSettings",
+    "/dokime.v1.Settings/RunGetPluginSettings",
+    "/dokime.v1.Settings/GetPluginSettings",
     "/dokime.v1.Appearance/RunGetAppearance",
     "/dokime.v1.Appearance/GetAppearance",
     "/dokime.v1.Catalog/RunListTelemetrySchemas",
@@ -106,7 +205,11 @@ pub const METHODS: &[&str] = &[
 
 pub type Output<T> = tokio_stream::wrappers::ReceiverStream<std::result::Result<T, tonic::Status>>;
 
-pub enum RunFrame<Q> { Request(Q), Finish, Cancel }
+pub enum RunFrame<Q> {
+    Request(Q),
+    Finish,
+    Cancel,
+}
 
 /* === Structs === */
 
@@ -122,6 +225,7 @@ pub struct ClientSettings {
 }
 #[derive(Clone)]
 pub struct Context {
+    pub administration: Arc<tokio::sync::Mutex<()>>,
     pub host: Arc<dyn Host>,
     pub settings: ClientSettings,
 }
@@ -146,10 +250,24 @@ pub trait Host: Send + Sync {
     fn store(&self) -> Store;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> v1::BackendIdentity;
+    fn bootstrap_paths(&self) -> v1::BootstrapPaths;
+    fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)>;
+    fn diagnostic_changes(&self) -> tokio::sync::broadcast::Receiver<()>;
+    async fn read_remote_listener(&self) -> Result<v1::RemoteListenerStatus>;
+    async fn update_remote_listener(&self, settings: v1::RemoteListenerSettings) -> Result<v1::RemoteListenerStatus>;
+    async fn create_pairing(&self, label: String) -> Result<v1::CreatedPairing>;
+    async fn regenerate_certificate(&self, names: Vec<String>) -> Result<v1::RemoteListenerStatus>;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;
+    async fn refresh_plugin_states(&self) -> Result<()>;
+    async fn restore_managed_plugins(&self) -> Result<()>;
+    fn installations(&self) -> Result<Vec<v1::PluginInstallation>>;
+    async fn install_plugin_bundle(&self, bytes: Vec<u8>) -> Result<v1::PluginInstallation>;
+    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation>;
+    async fn remove_plugin_entry(&self, identifier: &str) -> Result<()>;
+    async fn reload_plugin_entry(&self, identifier: &str) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, v1::Suite)>>;
     async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin>;
     async fn start(&self, origins: Vec<v1::Origin>) -> Result<StartedCycle>;
@@ -179,24 +297,41 @@ pub fn declaration<Q: prost_reflect::ReflectMessage + Default, R: prost_reflect:
 pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(timeout, work).await {
         Ok(Ok(reply)) => Ok(reply),
-        Ok(Err(error)) => Err(Error::Invalid(format!("{action}: {error}"))),
+        Ok(Err(Error::Invalid(message))) => Err(Error::Invalid(format!("{action}: {message}"))),
+        Ok(Err(error)) => Err(error),
         Err(_) => Err(Error::Deadline(action.into())),
     }
+}
+pub(super) fn page_size(requested: u32, configured: usize) -> Result<usize> {
+    let maximum = MAX_PAGE_ITEMS.min(configured);
+    if requested as usize > maximum {
+        return Err(Error::Invalid(format!("List: Request at Most {maximum} Items and Follow the Returned Cursor")));
+    }
+    Ok(if requested == 0 { DEFAULT_PAGE_ITEMS.min(maximum) } else { requested as usize })
 }
 pub fn status(error: Error) -> tonic::Status {
     match error {
         Error::Deadline(action) => tonic::Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
+        Error::Conflict(message) | Error::Storage(dokime_storage::Error::Conflict(message)) => tonic::Status::aborted(message),
+        Error::Unavailable(message) => tonic::Status::unavailable(message),
+        Error::Cancelled(message) => tonic::Status::cancelled(message),
+        Error::NotFound(message) => tonic::Status::not_found(message),
+        Error::Stale(message) => tonic::Status::failed_precondition(message),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),
     }
 }
 
 pub async fn run_unary<Q, I, R, O, F, Fut>(
-    context: Context, mut input: tonic::Streaming<I>, timeout: Duration,
-    decode: fn(I) -> Option<RunFrame<Q>>, encode: fn(R) -> O, handle: F,
+    context: Context, mut input: tonic::Streaming<I>, timeout: Duration, decode: fn(I) -> Option<RunFrame<Q>>, encode: fn(R) -> O,
+    handle: F,
 ) -> std::result::Result<tonic::Response<Output<O>>, tonic::Status>
-where Q: Send + 'static, I: prost::Message + Default + Send + 'static, R: Send + 'static,
-    O: Send + 'static, F: FnOnce(Context, Q) -> Fut + Send + 'static,
+where
+    Q: Send + 'static,
+    I: prost::Message + Default + Send + 'static,
+    R: Send + 'static,
+    O: Send + 'static,
+    F: FnOnce(Context, Q) -> Fut + Send + 'static,
     Fut: Future<Output = Result<R>> + Send + 'static,
 {
     let (send, receive) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
@@ -206,9 +341,9 @@ where Q: Send + 'static, I: prost::Message + Default + Send + 'static, R: Send +
             let Some(RunFrame::Request(request)) = first else {
                 return Err(tonic::Status::invalid_argument("Run Operation: Send One Request First"));
             };
-            while let Some(frame) = input.message().await? {
+            if let Some(frame) = input.message().await? {
                 match decode(frame) {
-                    Some(RunFrame::Finish) => break,
+                    Some(RunFrame::Finish) => (),
                     Some(RunFrame::Cancel) => return Err(tonic::Status::cancelled("Run Operation: Cancelled Before Admission")),
                     _ => return Err(tonic::Status::invalid_argument("Run Operation: Send Finish or Cancel After Its Request")),
                 }
@@ -217,7 +352,9 @@ where Q: Send + 'static, I: prost::Message + Default + Send + 'static, R: Send +
         };
         let result = match tokio::time::timeout(timeout, work).await {
             Ok(result) => result,
-            Err(_) => Err(tonic::Status::deadline_exceeded("Run Operation: Deadline Expired; Retry the Read or Inspect the Committed Mutation")),
+            Err(_) => {
+                Err(tonic::Status::deadline_exceeded("Run Operation: Deadline Expired; Retry the Read or Inspect the Committed Mutation"))
+            }
         };
         let _ = send.send(result).await;
     });

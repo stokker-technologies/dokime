@@ -790,6 +790,24 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Each managed or remote connection reads the saved PluginPreferences for startup and stop grace; client operation deadlines remain owned by ClientSettings.
+
+- Availability is refreshed on demand through bounded fresh-connection Describe handshakes, serialized with registry mutations; stopped or changed processes remain visible while admitted catalogs exclude them.
+- Protected secret-slot writes require native read-back confirmation before SQLite publication; secure-store failures return UNAVAILABLE without publishing unconfirmed values.
+
+- Administration serves all 44 declared operations through direct and Run transports (88 RPC methods); no administration operation is retired or left refusing.
+- Managed v1 bundles retain the existing tar manifest and compatibility declaration, with one sidecar per native target; all files are verified before execution, and replacements preserve disabled state and roll back failed starts.
+- Remote access uses a separate authenticated TLS listener with pinned certificates and one backend key; SQLite stores the verifier and protected TLS-key slot, and every exported pairing rotates the key for existing channels too.
+- Certificate names explicitly define wildcard-listener advertisements; the bootstrap endpoint remains loopback-only, and insecure remote configuration is rejected.
+- Catalog admission rejects conflicting operation, suite, stream or record identities before exposing them to clients.
+
+- Administration state extends the v1 baseline with one SQLite table; incompatible earlier root layouts are refused with backup/reset guidance, without migration or deletion.
+- Saved plugin settings are read per host call and remain editable while unavailable; no startup injection or applied/saved state is restored.
+- Secret values use immutable OS credential slots published before SQLite metadata; archives retain the existing bounded base64 v1 JSON shape, with explicit replace/skip choices.
+- Remote URL entries use deterministic URL identity before connection, remain durable after failure, reconnect explicitly, and detach without stopping a user-owned process.
+- Backend diagnostics capture bounded tracing events and support archives containing identity and redacted log fields, excluding saved preferences and credential values.
+- Storage-source administration describes the new native SQLite/Arrow owner; disabling its sole writable source is refused with an action, and reordering must name the available source exactly once.
+
 - Appearance uses one admitted typed AppearanceSnapshot contribution or the built-in Dokime identity; conflicting providers fail with a disable action.
 
 - Catalog returns only admitted ready plugin contracts, projecting protobuf row fields into v1 schemas; cursors bind the process epoch and complete admitted catalog digest, and complete descriptions retain original sections/descriptors.

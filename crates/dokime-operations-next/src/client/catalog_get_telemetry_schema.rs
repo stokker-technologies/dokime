@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Error, Result, client::Context};
 
@@ -48,8 +47,12 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::CatalogGetTelemetrySchemaRequest) -> Result<v1::TelemetrySchema> {
     super::complete(ID, context.settings.read_timeout, async {
-        let inventory = super::catalog_inventory::Inventory::read(context)?;
-        inventory.streams.into_iter().find(|item| item.stream == request.stream).ok_or_else(|| Error::Invalid("Read Schema: Admit the Plugin Declaring This Identifier".into()))
+        let inventory = super::catalog_inventory::Inventory::read(context).await?;
+        inventory
+            .streams
+            .into_iter()
+            .find(|item| item.stream == request.stream)
+            .ok_or_else(|| Error::NotFound("Read Schema: Admit the Plugin Declaring This Identifier".into()))
     })
     .await
 }

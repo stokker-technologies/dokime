@@ -16,11 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex}};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 
 // Third Party Imports
 use tokio::sync::broadcast;
-use tracing::{Event, Subscriber, field::{Field, Visit}};
+use tracing::{
+    Event, Subscriber,
+    field::{Field, Visit},
+};
 use tracing_subscriber::{Layer, layer::Context as LayerContext, registry::LookupSpan};
 
 // Local Imports
@@ -49,7 +55,9 @@ struct Tail {
     dropped: HashMap<String, u64>,
 }
 #[derive(Default)]
-struct Fields { values: HashMap<String, String> }
+struct Fields {
+    values: HashMap<String, String>,
+}
 
 /* === Enums === */
 
@@ -60,53 +68,115 @@ struct Fields { values: HashMap<String, String> }
 impl Diagnostics {
     pub fn new(clock: Arc<dyn SchedulerClock>, items: std::num::NonZeroUsize, bytes: std::num::NonZeroUsize) -> Self {
         let (changes, _) = broadcast::channel(items.get());
-        Self { inner: Arc::new(Mutex::new(Tail { sequence: 0, events: VecDeque::new(), dropped: HashMap::new() })), changes, clock, items: items.get(), bytes: bytes.get() }
+        Self {
+            inner: Arc::new(Mutex::new(Tail {
+                sequence: 0,
+                events: VecDeque::new(),
+                dropped: HashMap::new(),
+            })),
+            changes,
+            clock,
+            items: items.get(),
+            bytes: bytes.get(),
+        }
     }
     pub(super) fn snapshot(&self, scope: Option<&v1::TraceScope>) -> (Vec<v1::TraceEvent>, u64, u64) {
         let tail = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let key = match scope.and_then(|scope| scope.kind.as_ref()) { Some(v1::trace_scope::Kind::Cycle(id)) => format!("cycle:{id}"), Some(v1::trace_scope::Kind::Execution(id)) => format!("execution:{id}"), _ => "instance".into() };
+        let key = match scope.and_then(|scope| scope.kind.as_ref()) {
+            Some(v1::trace_scope::Kind::Cycle(id)) => format!("cycle:{id}"),
+            Some(v1::trace_scope::Kind::Execution(id)) => format!("execution:{id}"),
+            _ => "instance".into(),
+        };
         (tail.events.iter().cloned().collect(), tail.sequence, tail.dropped.get(&key).copied().unwrap_or_default())
     }
-    pub(super) fn changes(&self) -> broadcast::Receiver<()> { self.changes.subscribe() }
+    pub(super) fn changes(&self) -> broadcast::Receiver<()> {
+        self.changes.subscribe()
+    }
 }
 impl Visit for Fields {
-    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) { self.values.insert(field.name().into(), format!("{value:?}")); }
-    fn record_str(&mut self, field: &Field, value: &str) { self.values.insert(field.name().into(), value.into()); }
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        self.values.insert(field.name().into(), format!("{value:?}"));
+    }
+    fn record_str(&mut self, field: &Field, value: &str) {
+        self.values.insert(field.name().into(), value.into());
+    }
 }
-impl<S> Layer<S> for Diagnostics where S: Subscriber + for<'lookup> LookupSpan<'lookup> {
+impl<S> Layer<S> for Diagnostics
+where
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+{
     fn on_event(&self, event: &Event<'_>, context: LayerContext<'_, S>) {
         let mut fields = Fields::default();
         if let Some(scope) = context.event_scope(event) {
             for span in scope.from_root() {
-                if let Some(values) = span.extensions().get::<Fields>() { fields.values.extend(values.values.clone()); }
+                if let Some(values) = span.extensions().get::<Fields>() {
+                    fields.values.extend(values.values.clone());
+                }
             }
         }
         event.record(&mut fields);
         let message = fields.values.remove("message").unwrap_or_default();
         for (name, value) in &mut fields.values {
             let folded: String = name.chars().filter(|character| character.is_alphanumeric()).flat_map(char::to_lowercase).collect();
-            if ["secret", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"].iter().any(|fragment| folded.contains(fragment)) { *value = "<redacted>".into(); }
+            if ["secret", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"]
+                .iter()
+                .any(|fragment| folded.contains(fragment))
+            {
+                *value = "<redacted>".into();
+            }
         }
         let now = self.clock.now_ns();
         let mut tail = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         tail.sequence += 1;
         let sequence = tail.sequence;
-        let mut output = v1::TraceEvent { sequence, time: Some(prost_types::Timestamp { seconds: now.div_euclid(1_000_000_000), nanos: now.rem_euclid(1_000_000_000) as i32 }), level: match *event.metadata().level() { tracing::Level::ERROR => v1::LogLevel::Error, tracing::Level::WARN => v1::LogLevel::Warn, tracing::Level::INFO => v1::LogLevel::Info, tracing::Level::DEBUG => v1::LogLevel::Debug, tracing::Level::TRACE => v1::LogLevel::Trace } as i32, target: event.metadata().target().into(), message, plugin_id: fields.values.get("plugin").cloned(), cycle_id: fields.values.get("cycle").cloned(), execution_id: fields.values.get("execution").cloned(), fields: fields.values };
+        let mut output = v1::TraceEvent {
+            sequence,
+            time: Some(prost_types::Timestamp {
+                seconds: now.div_euclid(1_000_000_000),
+                nanos: now.rem_euclid(1_000_000_000) as i32,
+            }),
+            level: match *event.metadata().level() {
+                tracing::Level::ERROR => v1::LogLevel::Error,
+                tracing::Level::WARN => v1::LogLevel::Warn,
+                tracing::Level::INFO => v1::LogLevel::Info,
+                tracing::Level::DEBUG => v1::LogLevel::Debug,
+                tracing::Level::TRACE => v1::LogLevel::Trace,
+            } as i32,
+            target: event.metadata().target().into(),
+            message,
+            plugin_id: fields.values.get("plugin").cloned(),
+            cycle_id: fields.values.get("cycle").cloned(),
+            execution_id: fields.values.get("execution").cloned(),
+            fields: fields.values,
+        };
         // One Event Cannot Consume the Entire Configured Tail.
         use prost::Message;
-        if output.encoded_len() > self.bytes { output.message = "Diagnostic Event Exceeded Its Byte Budget; Reduce the Logged Fields".into(); output.fields.clear(); }
+        if output.encoded_len() > self.bytes {
+            output.message = "Diagnostic Event Exceeded Its Byte Budget; Reduce the Logged Fields".into();
+            output.fields.clear();
+        }
         tail.events.push_back(output);
         while tail.events.len() > self.items || tail.events.iter().map(Message::encoded_len).sum::<usize>() > self.bytes {
-            let Some(evicted) = tail.events.pop_front() else { break; };
+            let Some(evicted) = tail.events.pop_front() else {
+                break;
+            };
             *tail.dropped.entry("instance".into()).or_default() += 1;
-            if let Some(id) = evicted.cycle_id { *tail.dropped.entry(format!("cycle:{id}")).or_default() += 1; }
-            if let Some(id) = evicted.execution_id { *tail.dropped.entry(format!("execution:{id}")).or_default() += 1; }
+            if let Some(id) = evicted.cycle_id {
+                *tail.dropped.entry(format!("cycle:{id}")).or_default() += 1;
+            }
+            if let Some(id) = evicted.execution_id {
+                *tail.dropped.entry(format!("execution:{id}")).or_default() += 1;
+            }
         }
         drop(tail);
         let _ = self.changes.send(());
     }
     fn on_new_span(&self, attributes: &tracing::span::Attributes<'_>, id: &tracing::Id, context: LayerContext<'_, S>) {
-        if let Some(span) = context.span(id) { let mut fields = Fields::default(); attributes.record(&mut fields); span.extensions_mut().insert(fields); }
+        if let Some(span) = context.span(id) {
+            let mut fields = Fields::default();
+            attributes.record(&mut fields);
+            span.extensions_mut().insert(fields);
+        }
     }
 }
 

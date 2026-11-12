@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Error, Result, client::Context};
 
@@ -46,7 +45,9 @@ pub const ID: &str = "dokime.backend.collect_diagnostics";
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
     super::declaration::<v1::CollectBackendDiagnostics, v1::BackendCollectDiagnosticsOutput>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::CollectBackendDiagnostics) -> Result<super::Output<v1::BackendCollectDiagnosticsOutput>> {
+pub async fn handle(
+    context: &Context, request: v1::CollectBackendDiagnostics,
+) -> Result<super::Output<v1::BackendCollectDiagnosticsOutput>> {
     super::complete(ID, context.settings.read_timeout, async {
         use std::io::Write;
         use sha2::{Digest, Sha256};

@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Result, client::Context};
 
@@ -49,7 +48,14 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, request: v1::SettingsListStorageSourcesRequest) -> Result<v1::StorageSources> {
     super::complete(ID, context.settings.read_timeout, async {
         let _ = request;
-        Ok(v1::StorageSources { sources: vec![v1::StorageSource { identifier: "native".into(), adapter: "sqlite-arrow".into(), priority: 0, enabled: true }] })
+        Ok(v1::StorageSources {
+            sources: vec![v1::StorageSource {
+                identifier: "native".into(),
+                adapter: "sqlite-arrow".into(),
+                priority: 0,
+                enabled: true,
+            }],
+        })
     })
     .await
 }

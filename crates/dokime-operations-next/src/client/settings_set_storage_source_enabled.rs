@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Error, Result, client::Context};
 
@@ -48,8 +47,17 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::SettingsSetStorageSourceEnabledRequest) -> Result<v1::StorageSources> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        if request.identifier != "native" || !request.enabled { return Err(Error::Invalid("Configure Storage: Keep the Native Writable Source Enabled".into())); }
-        Ok(v1::StorageSources { sources: vec![v1::StorageSource { identifier: "native".into(), adapter: "sqlite-arrow".into(), priority: 0, enabled: true }] })
+        if request.identifier != "native" || !request.enabled {
+            return Err(Error::Invalid("Configure Storage: Keep the Native Writable Source Enabled".into()));
+        }
+        Ok(v1::StorageSources {
+            sources: vec![v1::StorageSource {
+                identifier: "native".into(),
+                adapter: "sqlite-arrow".into(),
+                priority: 0,
+                enabled: true,
+            }],
+        })
     })
     .await
 }

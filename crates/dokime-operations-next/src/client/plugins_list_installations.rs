@@ -47,6 +47,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::PluginsListInstallationsRequest) -> Result<v1::InstallationPage> {
     super::complete(ID, context.settings.read_timeout, async {
+        context.host.refresh_plugin_states().await?;
         use prost::Message;
         use sha2::{Digest, Sha256};
         let installations = context.host.installations()?;
@@ -68,7 +69,7 @@ pub async fn handle(context: &Context, request: v1::PluginsListInstallationsRequ
             return Err(Error::Invalid("Continue Installations: Select an Existing After Identifier".into()));
         }
         let total_count = installations.len() as u64;
-        let limit = super::projection::limit(request.page_size, context.settings.page_items);
+        let limit = super::page_size(request.page_size, context.settings.page_items)?;
         let mut selected = installations.into_iter().filter(|installation| installation.install_id > after);
         let installations: Vec<_> = selected.by_ref().take(limit).collect();
         let next = selected.next().and_then(|_| {

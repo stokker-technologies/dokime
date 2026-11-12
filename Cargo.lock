@@ -2571,17 +2571,25 @@ name = "dokime-operations-next"
 version = "0.1.5"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "dokime-protocol",
  "dokime-storage",
  "harmos-protocol",
+ "keyring",
  "prost",
  "prost-reflect",
  "prost-types",
+ "rcgen",
+ "serde",
+ "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
  "tonic",
+ "uuid",
+ "zeroize",
+ "zip",
 ]
 
 [[package]]
@@ -2714,10 +2722,18 @@ dependencies = [
  "dokime-protocol",
  "dokime-storage",
  "harmos-protocol",
+ "keyring",
  "prost",
  "prost-reflect",
  "prost-types",
+ "rand 0.10.3",
+ "rcgen",
+ "semver",
+ "serde",
+ "serde_json",
  "sha2 0.11.1",
+ "subtle",
+ "tar",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -2725,7 +2741,9 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tracing",
+ "tracing-subscriber",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -11839,6 +11857,7 @@ version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
 dependencies = [
+ "serde",
  "zeroize_derive",
 ]
 

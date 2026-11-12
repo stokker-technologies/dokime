@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Error, Result, client::Context};
 
@@ -51,7 +50,15 @@ pub async fn handle(context: &Context, request: v1::SettingsUpdatePluginSettings
         let current = super::settings_preferences::plugin(context, &request.plugin_id)?;
         let values = request.values.unwrap_or_default();
         super::settings_preferences::validate_plugin(current.settings.as_ref().unwrap(), &values)?;
-        let plugin = context.host.plugins()?.into_iter().find(|plugin| plugin.entry == request.plugin_id || plugin.description.as_ref().is_some_and(|description| description.id == request.plugin_id)).ok_or_else(|| Error::Invalid("Save Plugin Settings: Select a Plugin Entry".into()))?;
+        let plugin = context
+            .host
+            .plugins()?
+            .into_iter()
+            .find(|plugin| {
+                plugin.entry == request.plugin_id
+                    || plugin.description.as_ref().is_some_and(|description| description.id == request.plugin_id)
+            })
+            .ok_or_else(|| Error::Invalid("Save Plugin Settings: Select a Plugin Entry".into()))?;
         let settings_owner = plugin.description.as_ref().map(|description| description.id.clone()).unwrap_or_else(|| plugin.entry.clone());
         context.host.store().save_administration(&format!("plugin-settings:{}", settings_owner), &values)?;
         super::settings_preferences::plugin(context, &plugin.entry)

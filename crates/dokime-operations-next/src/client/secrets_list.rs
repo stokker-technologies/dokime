@@ -19,10 +19,9 @@
 
 // Third Party Imports
 
-
 // Local Imports
-use crate::{Error, Result, client::Context};
 use super::secrets_store::{Action, Reply};
+use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -50,7 +49,10 @@ pub async fn handle(context: &Context, request: v1::SecretsListRequest) -> Resul
     super::complete(ID, context.settings.read_timeout, async {
         let _ = request;
         let result = super::secrets_store::perform(context, Action::List).await?;
-        match result { Reply::Snapshot(reply) => Ok(reply), _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())) }
+        match result {
+            Reply::Snapshot(reply) => Ok(reply),
+            _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())),
+        }
     })
     .await
 }

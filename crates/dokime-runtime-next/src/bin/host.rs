@@ -82,7 +82,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         stream_buffer: 8,
     };
     use tracing_subscriber::prelude::*;
-    let diagnostics = services::Diagnostics::new(host_settings.clock.clone(), NonZeroUsize::new(settings.page_items).unwrap(), NonZeroUsize::new(settings.message_bytes).unwrap());
+    let diagnostics = services::Diagnostics::new(
+        host_settings.clock.clone(),
+        NonZeroUsize::new(settings.page_items).unwrap(),
+        NonZeroUsize::new(settings.message_bytes).unwrap(),
+    );
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(diagnostics.clone()))?;
     let server = services::serve_with_diagnostics(endpoint, &root, host_settings, settings, diagnostics).await?;
     tracing::info!("Execution Host Is Ready");

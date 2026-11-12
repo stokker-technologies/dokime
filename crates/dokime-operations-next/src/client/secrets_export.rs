@@ -19,10 +19,9 @@
 
 // Third Party Imports
 
-
 // Local Imports
-use crate::{Error, Result, client::Context};
 use super::secrets_store::{Action, Reply};
+use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -49,7 +48,10 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, request: v1::SecretsExportRequest) -> Result<v1::SecretArchive> {
     super::complete(ID, context.settings.read_timeout, async {
         let result = super::secrets_store::perform(context, Action::Export(request)).await?;
-        match result { Reply::Archive(reply) => Ok(reply), _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())) }
+        match result {
+            Reply::Archive(reply) => Ok(reply),
+            _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())),
+        }
     })
     .await
 }

@@ -125,10 +125,10 @@ impl Control {
             .and_then(|snapshot| snapshot.settings)
             .and_then(|settings| settings.listener)
             .or(self.active.lock().await.security.settings.clone());
-        if let Some(settings) = settings {
-            if let Err(error) = self.update(settings).await {
-                self.active.lock().await.error = Some(error.to_string());
-            }
+        if let Some(settings) = settings
+            && let Err(error) = self.update(settings).await
+        {
+            self.active.lock().await.error = Some(error.to_string());
         }
         Ok(())
     }
@@ -150,11 +150,10 @@ impl Control {
     }
     async fn stop(&self, active: &mut Active) {
         active.cancellation.cancel();
-        if let Some(mut task) = active.task.take() {
-            if tokio::time::timeout(self.settings.mutation_timeout, &mut task).await.is_err() {
-                task.abort();
-                let _ = task.await;
-            }
+        if let Some(task) = active.task.take() {
+            // A Remote Mutation Can Be Served by This Listener; Never Await Its Own RPC Settlement.
+            task.abort();
+            let _ = task.await;
         }
         active.bound = None;
     }
@@ -170,18 +169,18 @@ impl Control {
             self.generate(&mut candidate)?;
         }
         self.stop(&mut active).await;
-        if settings.enabled {
-            if let Err(error) = self.start(&mut active, &candidate).await {
-                active.error = Some(error.to_string());
-                return Err(error);
-            }
+        if settings.enabled
+            && let Err(error) = self.start(&mut active, &candidate).await
+        {
+            active.error = Some(error.to_string());
+            return Err(error);
         }
         self.store.save_administration("remote-security", &candidate)?;
         // Publish the Listener Preferences Through the Same Revision Owner as Settings.
         let mut preferences: v1::SettingsSnapshot = self
             .store
             .administration("preferences")?
-            .unwrap_or_else(|| dokime_operations_next::client::settings_read_application_settings::initial_preferences());
+            .unwrap_or_else(dokime_operations_next::client::settings_read_application_settings::initial_preferences);
         if let Some(settings) = &mut preferences.settings
             && settings.listener != candidate.settings
         {

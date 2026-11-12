@@ -81,6 +81,14 @@ impl State {
         let mut installations = self.saved_installations()?.installations;
         for installation in &mut installations {
             installation.plugin = entries.iter().find(|entry| entry.entry == installation.install_id).cloned();
+            if let Some(metadata) = &mut installation.metadata {
+                metadata.owners = installation
+                    .plugin
+                    .as_ref()
+                    .and_then(|plugin| plugin.description.as_ref())
+                    .map(|description| vec![description.id.clone()])
+                    .unwrap_or_default();
+            }
             let path = self.root.join("plugins").join(format!("{}.dokime", installation.install_id));
             if std::fs::read(path).map(|bytes| bundles::digest(&bytes) != installation.sha256).unwrap_or(true) {
                 installation.error = Some("Restore the Verified Bundle or Remove and Reinstall This Plugin".into());
@@ -122,14 +130,10 @@ impl State {
             })
             .cloned();
         let digest = bundles::digest(&bytes);
-        if let Some(previous) = &previous {
-            if previous.sha256 == digest {
-                return Ok(self
-                    .list_installations()?
-                    .into_iter()
-                    .find(|installation| installation.install_id == previous.install_id)
-                    .unwrap());
-            }
+        if let Some(previous) = &previous
+            && previous.sha256 == digest
+        {
+            return Ok(self.list_installations()?.into_iter().find(|installation| installation.install_id == previous.install_id).unwrap());
         }
         let identifier = uuid::Uuid::now_v7().to_string();
         let folder = self.root.join("plugins");

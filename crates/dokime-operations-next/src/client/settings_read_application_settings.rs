@@ -19,7 +19,6 @@
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::{Result, client::Context};
 
@@ -54,7 +53,9 @@ pub async fn handle(context: &Context, request: v1::SettingsReadApplicationSetti
     .await
 }
 
-pub fn initial_preferences() -> v1::SettingsSnapshot { super::settings_preferences::initial() }
+pub fn initial_preferences() -> v1::SettingsSnapshot {
+    super::settings_preferences::initial()
+}
 
 /* === Private Functions === */
 

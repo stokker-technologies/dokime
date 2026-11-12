@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Client Reads Runtime
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -57,11 +55,18 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
 
         // Read Through the Request and Finish Transport
         let input = tokio_stream::iter([
-            dokime::v1::RuntimeGetIdentityRunInput { value: Some(dokime::v1::runtime_get_identity_run_input::Value::Request(dokime::v1::RuntimeGetIdentityRequest {})) },
-            dokime::v1::RuntimeGetIdentityRunInput { value: Some(dokime::v1::runtime_get_identity_run_input::Value::Finish(dokime::v1::ClientEmpty {})) },
+            dokime::v1::RuntimeGetIdentityRunInput {
+                value: Some(dokime::v1::runtime_get_identity_run_input::Value::Request(dokime::v1::RuntimeGetIdentityRequest {})),
+            },
+            dokime::v1::RuntimeGetIdentityRunInput {
+                value: Some(dokime::v1::runtime_get_identity_run_input::Value::Finish(dokime::v1::ClientEmpty {})),
+            },
         ]);
         let mut output = runtime.run_get_identity(input).await?.into_inner();
-        assert_eq!(output.message().await?.unwrap().value.unwrap(), dokime::v1::runtime_get_identity_run_output::Value::Response(identity.clone()));
+        assert_eq!(
+            output.message().await?.unwrap().value.unwrap(),
+            dokime::v1::runtime_get_identity_run_output::Value::Response(identity.clone())
+        );
         assert!(output.message().await?.is_none());
         process.close().await?;
 
@@ -73,6 +78,6 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
         assert_ne!(reopened.epoch, identity.epoch);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
-    }).await?
+    })
+    .await?
 }
-

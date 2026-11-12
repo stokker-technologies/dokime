@@ -44,10 +44,7 @@ pub const ID: &str = "dokime.secrets.read";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::ReadSecret, v1::Secret>(
-        ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
+    crate::declaration::<v1::ReadSecret, v1::Secret>(ID, prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?)
 }
 pub async fn handle(resources: &Resources, request: v1::ReadSecret) -> Result<v1::Secret> {
     resources.check_action_scope(&resources.execution, ID)?;

@@ -62,6 +62,11 @@ pub async fn handle(context: &Context, request: v1::WatchBackendTrace) -> Result
                         let _ = sender.send(Ok(v1::BackendWatchTraceOutput { value: Some(v1::backend_watch_trace_output::Value::Response(v1::BackendWatchTraceCompletion {})) })).await;
                         return;
                     }
+                    let latest = match context.host.diagnostic_events(request.scope.as_ref()) { Ok((_, latest, _)) => latest, Err(error) => { let _ = sender.send(Err(super::status(error))).await; return; } };
+                    if request.after_sequence < latest {
+                        batch = match super::backend_streams::trace(&context, &request) { Ok(batch) => batch, Err(error) => { let _ = sender.send(Err(super::status(error))).await; return; } };
+                        continue;
+                    }
                     tokio::select! {
                         _ = sender.closed() => return,
                         result = changes.recv() => { if matches!(result, Err(tokio::sync::broadcast::error::RecvError::Closed)) { return; } }
