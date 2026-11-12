@@ -411,6 +411,6 @@ implementation files and old-host source remain with their owners.
 - [x] Repair merged enum ownership, preserve precondition versus revision-conflict statuses, match execution admission by described plugin identity and include managed-bundle compatibility metadata.
 - [x] Prove the managed starter first hour and command-line append/start/stop/seal/rerun flows against the combined services.
 - [x] Pass final format, Python/repository/supply checks and all four SDK checks on Windows. Rebuild and install the pure Python wheel against the pinned Harmos revision before rerunning its fresh-wheel check.
-- [ ] Pass final Rust language checking and Tests artifact build on Windows; report untouched old-host failures with their owner.
-- [ ] Build every host fixture, pass every host story twice and rerun every CLI story against the pinned fixtures on Windows.
-- [ ] Verify locked offline Cargo metadata on the committed head; retain local commits without pushing.
+- [x] Pass final Rust language checking and Tests artifact build on Windows. The Tests producer passes after closing the owned starter left by an earlier failed CLI journey; every compile contract passes. Untouched `clippy.toml:14` still emits an unreachable-method warning; the required check returns success.
+- [x] Build every host fixture, pass every host story twice and rerun every CLI story against the pinned fixtures on Windows, with no skipped stories. The C# Door assertion passes in both placements; runtime observation wakes after plugin admission.
+- [x] Verify locked offline Cargo metadata on the committed source head; retain local commits without pushing. Native Linux and hosted proof remain with the integration owner.
