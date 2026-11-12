@@ -1,5 +1,9 @@
 # Dokime Suite
 
+Read [Architecture](../../../../docs/architecture.md) for invariants and locked
+visibility/routing. The native macros below describe the existing runtime surface,
+not the final gRPC SDK contract.
+
 ## Suite Authoring
 
 Declare suites with `#[dokime::suite]` and templates with `#[dokime::template]`. A suite owns its template collection; each template owns its parameters and lifecycle state.

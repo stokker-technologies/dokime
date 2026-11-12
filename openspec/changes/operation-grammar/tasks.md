@@ -4,6 +4,7 @@ Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
+Three visibility levels locked by the owner on 2026-11-12
 
 This is the future implementation inventory, not authorization to implement.
 All boxes remain open in this documentation delivery. The additional owner
@@ -29,6 +30,26 @@ single migration in section 6. Declare new services under their final nested nam
 before migrating any desktop consumer. Remove superseded generic implementations
 as their consumers move to composition; retain no compatibility aliases or wrappers.
 Final full validation is separate from source completion.
+
+## Architecture Proof Obligations
+
+- [ ] A1 First: guard **Public Child Routing** and **Three-Level Visibility** with a product story proving plugin -> host -> plugin Public success/result/failure, declared requirements/fingerprints, unchanged scope and child cancellation, Protected peer/client refusal, Private catalog/wire absence and local-only invocation. No product story proves both Public success and Private refusal today; upstream tests are not product proof. Use four-language conformance for SDK policy parity.
+- [ ] A2 Guard **Three Faces** with deterministic host/client/plugin audience isolation and descriptor-generation stories, including host-only Instance and no client context access.
+- [ ] A3 Guard **Unary Operations and Deliberate Streams** with descriptor and cancellation-settlement stories: one operation result, sample/Watch carriers retained and no automatic Run twins.
+- [ ] A4 Guard **Opaque Invocation Scope** with a non-product opaque scope round-trip and cross-provider inheritance/refusal story; verify scope grants no authority and no payload changes it.
+- [ ] A5 Guard **Managers Own Live Orchestration** with lifecycle/shutdown stories for each live owner and direct storage-only operations; review dependency/ownership boundaries without prose assertions.
+- [ ] A6 Guard **Library Machinery and Product Policy** with an independent generic client calling composed product-host library services and a host-supplied settings/secret resolver; prove no duplicate service declaration or protocol-only generic implementation.
+- [ ] A7 Guard **Resource Operation Grammar** with generated-contract/descriptor checks plus whole-value stale revision and ordered Append replay stories; do not assert authored prose.
+- [ ] A8 Guard **Position-Resolved Reads** with controlled durable-frontier, pinned-page, seal and Watch-gap stories; keep 250 ms p95 durable-lag proof in the Nightly benchmark under 1.9, never a clock assertion in a correctness test.
+- [ ] A9 Guard **Caller Resend and Original Receipts** with a lost-reply/restart story returning the original receipt, changed-payload conflict, expired-key refusal and distinct accepted/durable positions.
+- [ ] A10 Guard **Distinct Storage Guarantees** with saved-read/follow, scan/index/projection, bulk-versus-atomic-conflict and configured durability/recovery stories using controlled commit/failure events.
+- [ ] A11 Guard **Callee-Owned Policies and Configured Limits** with a controlled-clock story for default policy, one-call override, replay-safety refusal, retry attempts and unchanged subsequent defaults; review that no budgets/limits were increased to obtain a pass.
+- [ ] A12 Guard **One-Way Crate Layers** with focused host-free protocol/storage/operations/SDK consumers and dependency-direction checks after the old paths are removed.
+- [ ] A13 Guard **Generic Library and Consistent SDK Concepts** with independent library-only conformance and matching generated hierarchy/operation concepts in Rust, Python, C# and C++; retain separate product equivalence stories.
+- [ ] A14 Guard **Deterministic Stories** by replacing real-time/load/memory-dependent assertions with event/controlled-clock behavioral stories and moving measurements to benchmarks; audit the final suite, never test or quote authored prose or single repository constants.
+- [ ] A15 Guard **Captured Shapes Preserve Evidence** with record and stream evolution, plugin absence, frozen-schema reads/reports and unchanged restart on one root in the new host; retain the old stream-evolution guard until replaced.
+- [ ] A16 Guard **Failure and Gap Honesty** with structured child/provider failure propagation, unavailable-cut, missing-evidence and Watch-resynchronization stories, preserving causes and action without exact prose assertions.
+- [ ] A17 Guard **Cancellation Preserves Cleanup and Evidence** with observer-abandonment versus admitted-work cancellation stories; preserve active cleanup, evidence and stream closure, including external-effect restoration in the new host.
 
 ## 0. Face Packages and File Moves First
 
@@ -76,7 +97,14 @@ Final full validation is separate from source completion.
 - [ ] 4.8 Separate Documents.Get, Reports.Create pure preview rendering, Reports.Get published reads, Reports.Publish atomic manager-owned publication and library Storage.GetFileBytes byte delivery. Verify frozen-context equivalence and that rendering/download never publishes; update report/content guidance.
 - [ ] 4.9 Identify operations with an actual promised cooperative final result; replace only those ordinary methods with one managed method. Verify typed cancellation settlement, lost-observer ownership, plugin carriers and absence of automatic twins; document exceptions without changing method counts.
 
-- [ ] 4.10 Preserve one host operation registry and plugin catalog visibility/fingerprints/admission. Implement plugin -> host -> plugin Public calls as declared-requirement child calls with inherited scope; refuse Private cross-plugin calls with an error naming the action. Provide client Invocations.Invoke for Public plugin operations with no direct instance access. Verify Public result/failure propagation, Private refusal, client invocation, unchanged scope and caller-to-child cancellation; verify host-only Instance calls, client refusal on protocol/context and plugin refusal on client-only management. Require explicit visibility with no default in Rust, Python, C# and C++.
+- [ ] 4.10 Preserve one host registry, descriptor/digest/fingerprint/requirement and provider admission. Implement Public plugin -> host -> plugin calls with inherited scope, result/failure propagation and caller-to-child cancellation. Refuse Protected peers/clients; Private is absent from wire catalogs and never routed. Clients reach Public operations through Invocations.Invoke, never direct instance access; plugin identity does not grant client management. Require explicit visibility in all four SDKs.
+- [ ] 4.11 Library: add the third visibility enum value (Protected) and admission rules: unspecified and catalogued Private are invalid, Private never exports descriptors or binds any endpoint, and Protected never binds client-facing gRPC. Apply the decided host built-in mapping in design.md; the earlier built-in mapping decision is closed here and is not an implementation-time question.
+- [ ] 4.12 Library Rust SDK: add local dispatch of Private operations with ordinary policy/retry/deadline/cancellation. Audit: sdk/rust/src/context.rs::operation_with currently always routes a declared child requirement through the host; no local dispatch exists.
+- [ ] 4.13 Library Python SDK: add equivalent local Private dispatch. Audit: sdk/python/src/harmos/context.py::Context.operation currently queues a child frame; no local dispatch exists.
+- [ ] 4.14 Library C# SDK: add equivalent local Private dispatch. Audit: sdk/csharp/Harmos/Context.cs::CallAsync currently emits a child frame; no local dispatch exists.
+- [ ] 4.15 Library C++ SDK: add equivalent local Private dispatch. Audit: sdk/cpp/src/context.cpp::Context::send currently emits a child frame; no local dispatch exists.
+- [ ] 4.16 Extend four-language conformance: Private is absent from catalog/descriptors/wire and callable only locally under ordinary policy; Protected is host-invocable and refused to another plugin and client; Public is invocable by another plugin with a declared requirement and by a client through the host. Reject Private endpoint associations and Protected client gRPC bindings.
+- [ ] 4.17 Declare every host-application-only plugin operation Protected, including materialize/initialize/cleanup/step/criterion and observer control; migrate current host Private admission checks and all four SDK-generated bindings together. Keep host context operations that plugins request Public within their context face.
 
 ## 5. SDK and Command-Line Consumers
 

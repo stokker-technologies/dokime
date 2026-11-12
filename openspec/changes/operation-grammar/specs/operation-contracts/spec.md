@@ -8,6 +8,7 @@ Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
+Three visibility levels locked by the owner on 2026-11-12
 
 These are target requirements, not implemented behavior.
 
@@ -48,18 +49,36 @@ call instances; clients SHALL NOT call context. Plugins SHALL remain client mana
 
 ### Requirement: Explicit Catalog Visibility and Admission
 
-Faces SHALL NOT replace visibility. Each plugin-served catalog operation SHALL
-explicitly declare Private (declaring plugin and host) or Public (everyone
-connected: other plugins and host clients). Rust, Python, C# and C++ SHALL require
-visibility with no default. Unspecified visibility SHALL fail admission. Catalog
-admission SHALL preserve descriptor/digest, declared fingerprint, visibility and
-admitted-provider checks in one host operation registry.
+Faces SHALL NOT replace visibility. Every SDK and host built-in SHALL explicitly
+choose Private, Protected or Public with no default, following the decided mapping
+in design.md. Private SHALL be local-only, Protected SHALL admit only its plugin
+and host over their carrier, and Public SHALL admit declared peers and clients
+through the host. Admission SHALL retain digest, fingerprint, requirement and
+provider checks in one registry.
+#### Scenario: Private Is Local and Absent from the Wire
 
-#### Scenario: Explicit Visibility in Every SDK
+- **WHEN** a plugin invokes its own explicitly Private operation in Rust, Python, C# or C++
+- **THEN** the SDK runs its handler locally with the same policy, retry, deadline and cancellation handling as any operation, without a host call
+- **AND** catalog/descriptor export omits the operation and no gRPC method can be associated with it
+- **AND** a host, another plugin or a client cannot discover or invoke it on any wire
 
-- **WHEN** a plugin author declares an operation in Rust, Python, C# or C++
-- **THEN** its visibility must be chosen explicitly and is retained in the catalog used by Instance.Get and host admission
-- **AND** neither an SDK default nor an unspecified catalog value silently makes the operation Private or Public
+#### Scenario: Protected Host Invocation and Peer Refusal
+
+- **WHEN** the host requests an admitted plugin's Protected operation
+- **THEN** it invokes the operation over Instance.Invoke and the declaring plugin may also invoke it
+- **AND** another plugin and a client are refused even if they declare the requirement, and a client-facing gRPC binding is rejected
+
+#### Scenario: Explicit Visibility and Invalid Admission
+
+- **WHEN** an author omits visibility in any SDK, or an incoming catalog contains unspecified visibility, Private, or a Protected client-facing gRPC binding
+- **THEN** declaration or admission fails explicitly without registering a callable wire operation
+- **AND** Private local metadata remains available only to its declaring SDK's dispatcher
+
+#### Scenario: Host Built-Ins Use the Same Levels
+
+- **WHEN** the host declares built-ins or generates plugin lifecycle bindings
+- **THEN** each uses the decided design.md mapping with no default; implementation-only Private work stays local and host-requested plugin lifecycle work is Protected
+- **AND** Public context built-ins remain callable by plugins but client credentials cannot call that context face
 
 ### Requirement: Visibility and Host-Mediated Plugin Invocation
 
@@ -76,9 +95,9 @@ propagate through the host. A requirement SHALL NOT grant access.
 - **THEN** the host checks visibility and fingerprint in its one registry, calls the providing plugin's Instance.Invoke and returns its result to the caller
 - **AND** only the host opens the instance call; no client-only service authority is required by the calling plugin
 
-#### Scenario: Private Cross-Plugin Operation Is Refused
+#### Scenario: Protected Cross-Plugin Operation Is Refused
 
-- **WHEN** a plugin makes the same child call to another plugin's Private operation
+- **WHEN** a plugin makes the same child call to another plugin's Protected operation
 - **THEN** the host refuses it with an error naming the action and does not invoke the provider
 - **AND** the declaring plugin and host remain permitted callers; a declared requirement alone does not grant another plugin access
 
@@ -86,7 +105,7 @@ propagate through the host. A requirement SHALL NOT grant access.
 
 - **WHEN** a client invokes an admitted Public plugin-served operation through `harmos.v1.Invocations/Invoke`
 - **THEN** the host checks visibility and fingerprint, resolves the provider in the same registry, invokes its instance and returns the result
-- **AND** a Private operation remains unavailable to that client
+- **AND** Private and Protected operations remain unavailable to that client
 
 #### Scenario: Scope Is Inherited Across the Provider Hop
 
@@ -597,6 +616,12 @@ explicit replay safety; invocation correlation alone SHALL NOT deduplicate.
 - **THEN** code, classification, action, safe details and cause survive propagation
 - **AND** a subsequent call without the override uses the declaration policy unchanged
 
+#### Scenario: Unset Operation Policy
+
+- **WHEN** an operation has no configured policy or per-call override
+- **THEN** the unset policy means no deadline, zero cancellation grace and no retries
+- **AND** callers do not invent budgets or retries to make a scenario pass
+
 #### Scenario: Accepted Is Not Durable
 
 - **WHEN** a mutation is accepted but not saved
@@ -607,3 +632,157 @@ explicit replay safety; invocation correlation alone SHALL NOT deduplicate.
 - **WHEN** a call fails on the client and its outcome is unknown
 - **THEN** resending is the client's responsibility, and the same request identifier and unchanged payload return the original receipt
 - **AND** a changed payload under that same identifier is a conflict
+
+### Requirement: Opaque Inherited Invocation Scope
+
+Scope SHALL be opaque caller-bound context carried and inherited unchanged by the
+library, never interpreted as product identity, authorization or a grant. Only
+product policy SHALL interpret it or require its presence. Payload and correlation
+identifiers SHALL NOT establish or widen scope or authority.
+
+#### Scenario: Non-Product Scope and Child Hop
+
+- **WHEN** an admitted caller invokes a provider and a child provider with an opaque scope unknown to the library
+- **THEN** both receive exactly that scope and the library routes without interpreting it
+- **AND** a payload claiming another scope cannot widen authority; missing scope is refused only where the operation requires it
+
+### Requirement: Distinct Storage Guarantees
+
+Saved finite reads and follows of durable progress SHALL remain distinct.
+Scans, indexes and projections SHALL retain their own selection, physical-work,
+revision and frontier guarantees; an index or projection SHALL NOT silently claim
+coverage beyond its materialized frontier. Bulk ingestion SHALL NOT replace an
+atomic conditional update. Configured durability/synchronization SHALL remain
+separate from acceptance, buffering and flush cadence.
+
+#### Scenario: Saved Read Versus Follow
+
+- **WHEN** accepted unsaved data exists and a caller reads saved data or opens a durable follow
+- **THEN** the finite read resolves its durable cut while the follow delivers subsequent durable progress according to its own continuation contract
+- **AND** neither claims an unsaved admission tail is saved or silently fills a retention gap
+
+#### Scenario: Scan and Projection Frontiers
+
+- **WHEN** an index or projection trails the selected saved frontier
+- **THEN** its read identifies its coverage or explicitly refuses the unavailable selection, and physical scan work remains bounded separately from output size
+- **AND** using an index cannot change the logical saved-read selection or hide a missing projection frontier
+
+#### Scenario: Atomic Conditional Update Versus Bulk Ingestion
+
+- **WHEN** competing writers use the same expected revision for a conditional update
+- **THEN** at most one update commits and the other conflicts without partial effects
+- **AND** a bulk append cannot be used as evidence of that atomic comparison guarantee
+
+#### Scenario: Configured Durability and Controlled Recovery
+
+- **WHEN** a write is accepted before its configured durable synchronization completes
+- **THEN** its receipt does not claim durability; the durable acknowledgement is emitted only after that configured boundary
+- **AND** controlled failure/recovery verifies the guarantee without timing or memory assertions
+
+### Requirement: Deterministic Behavioral Proof
+
+Correctness tests SHALL be deterministic, story-shaped and event/controlled-clock
+based. They SHALL NOT assert wall-clock duration, machine load, sampled memory,
+authored prose or a single repository constant. Measurements SHALL live in
+benchmarks. Operation policies and configuration SHALL own deadlines, retries,
+delays, budgets and limits; none SHALL be weakened or tuned merely to pass proof.
+
+#### Scenario: Retry and One-Call Override
+
+- **WHEN** a replay-safe operation is exercised with a configured one-call override and then without it
+- **THEN** controlled-clock/events prove the actual attempts, deadlines and cancellation, and the later call uses the declaration policy unchanged
+- **AND** replay-unsafe retry is refused without increasing the policy or limits to pass
+
+#### Scenario: Performance Workload
+
+- **WHEN** a scenario measures throughput, durable lag, elapsed execution or memory consumption
+- **THEN** it runs as a benchmark and correctness tests instead verify deterministic state, bounds, splitting or event ordering
+- **AND** an independent hang guard remains a deadlock safeguard, not an assertion about performance
+
+### Requirement: Durable External Effect Restoration
+
+The product SHALL durably prepare an owner-qualified inverse before external
+writes, retain the earliest inverse per scope/resource and give each prepare a
+unique provider-bound confirmation ticket. Cleanup SHALL restore resources once
+in reverse first-prepare order while capture stays open. Startup SHALL restore
+pending inverses before exposing plugins or recovering interrupted runs.
+#### Scenario: Repeated Writes and Later Rollback
+
+- **WHEN** multiple prepares join the same resource and a later ticket rolls back or remains unconfirmed
+- **THEN** the earliest restoration state survives and final cleanup restores the original state once
+- **AND** each ticket retains its provider, call evidence and restoration-ticket link without duplicating inverses
+
+#### Scenario: Confirmation and Cross-Execution Exclusion
+
+- **WHEN** a provider confirms a ticket or a different execution tries to prepare the same resource
+- **THEN** confirmation requires that ticket's provider and the other execution is excluded until restoration
+- **AND** a sole first-call rollback retires its inverse only if no later prepare joined; later rollback never removes the earliest inverse
+
+#### Scenario: Recovery Cannot Restore
+
+- **WHEN** startup finds an unapplied inverse whose provider is missing or restoration fails
+- **THEN** startup refuses, keeps the inverse pending and exposes no recovered runs/plugins
+- **AND** a later successful restoration can complete recovery without losing earlier evidence
+
+### Requirement: Captured Evidence Survives Plugin Evolution
+
+Stream and record shape identities SHALL be derived and compared only for equality.
+Saved evidence SHALL retain its schema definitions across plugin evolution or
+removal; neither SHALL invalidate a root. Product-owned unreadable persistent
+state SHALL be refused with backup/fresh-root or explicit reset guidance and
+without automatic reset, migration or deletion; development baselines stay v1.
+
+#### Scenario: Plugin Changes or Is Absent
+
+- **WHEN** a plugin's stream/record schema changes or the plugin is absent after an execution seals and the root reopens
+- **THEN** historical evidence and reports use captured definitions and remain readable without requiring the old plugin
+- **AND** schema identities are not manually incremented behavior/release versions
+
+#### Scenario: Unreadable Product State
+
+- **WHEN** the product cannot decode its own persistent state or encounters an incompatible database layout
+- **THEN** startup refuses that root with backup and fresh-root/explicit-reset guidance while preserving existing data
+- **AND** the caller must explicitly choose replacement storage; no silent reset occurs
+
+### Requirement: Explicit Missing Evidence and Failure Causes
+
+Every interface SHALL preserve structured failure classification, action and causes.
+Missing evidence, unavailable cuts and Watch gaps SHALL NOT become empty successes;
+retention gaps SHALL require explicit resynchronization. Abandoning observation
+SHALL NOT cancel already admitted durable work; active invocation cancellation
+SHALL preserve cleanup and evidence.
+
+#### Scenario: Provider Failure and Unavailable Cut
+
+- **WHEN** a provider fails or a requested cut/evidence is unavailable
+- **THEN** the caller receives a structured failure preserving classification/action/cause or the explicit resynchronization outcome, never an empty success
+- **AND** a transport failure leaves mutation outcome uncertain until resolved through its receipt contract
+
+#### Scenario: Observer Leaves While Work Continues
+
+- **WHEN** an observer closes its Watch while durable execution work is admitted
+- **THEN** that work continues, whereas explicit active cancellation interrupts its invocation and still closes streams, runs cleanup and seals attributed evidence
+
+### Requirement: Defined Receipt Replay Lifetime
+
+Semantic mutation deduplication SHALL declare its retention lifetime. Expired
+request keys SHALL fail explicitly rather than silently repeating irreversible
+work; invocation correlation SHALL NOT replace the semantic key.
+
+#### Scenario: Resend After Receipt Expiry
+
+- **WHEN** a caller resends a semantic request key whose retained receipt has expired
+- **THEN** the operation reports explicit expiry without applying the effect again
+- **AND** unknown transport outcome is not converted into an assumption of nonapplication
+
+### Requirement: Authoritative Host Clock
+
+Time reads, waits and operation-policy scheduling SHALL use the authoritative
+host clock. SDK waits SHALL remain context child calls rather than independent
+SDK timers, preserving the same behavior under a controlled clock.
+
+#### Scenario: Plugin Wait Under a Controlled Clock
+
+- **WHEN** a plugin requests Time.Sleep during an invocation while the host clock is controlled
+- **THEN** the host owns completion of the wait and its cancellation under that clock
+- **AND** no SDK wall-clock timer independently completes the wait or advances evidence time

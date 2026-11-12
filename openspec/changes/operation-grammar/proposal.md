@@ -2,6 +2,7 @@ Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
+Three visibility levels locked by the owner on 2026-11-12
 
 # Operation Grammar
 
@@ -14,6 +15,10 @@ moves to the new host, so consumers migrate once.
 
 ## What Changes
 
+The maintained architecture contract is docs/architecture.md. Its missing guards
+are explicit tasks here; the data-root-identity delta reconciles obsolete whole-root
+digest requirements with the existing product-owned compatibility decision.
+
 This documentation records the owner's lock on 2026-11-12. No protocol,
 source, test, workflow or specification lifecycle activation is authorized here.
 The audience lock separates the plugin protocol (`harmos.plugin.v1`, with product
@@ -22,8 +27,10 @@ catalog operations in `dokime.plugin.v1`), host context (`harmos.context.v1` and
 remain below the parent package on the same face. Only the host calls Instance;
 clients manage entries through Plugins. Context calls are children of an active
 invocation, never client services. Faces do not replace catalog visibility:
-Private means declaring plugin and host; Public means everyone connected,
-including other plugins and host clients, always through the host. All four SDKs
+Private means plugin-internal local execution, absent from the catalog and every
+wire; Protected means declaring plugin and host over the host-to-plugin carrier,
+with no client-facing gRPC binding; Public permits other plugins by declared
+requirement and clients, always through the host. All four SDKs
 require explicit visibility with no default.
 
 This product's target plus its mapped library dependencies totals 62 logical
@@ -43,7 +50,7 @@ not landed behavior.
 | Decision | Status | Direction |
 | --- | --- | --- |
 | Audience faces | Owner | Each service belongs to exactly one face visible in its package: running-plugin protocol, invocation context or host client API. Rename the plugin protocol service to Instance (Get/Invoke/Samples/Stop); Plugins remains client management. Product plugin lifecycle operations are catalog declarations carried by Instance.Invoke. Context is child calls through the plugin context object, never exposed to clients. |
-| Visibility and routing | Owner | Visibility stays explicit per plugin-served catalog operation: Private is declaring plugin and host; Public is everyone connected, including other plugins and host clients. Plugin -> host -> plugin uses a declared requirement, one registry, visibility/fingerprint/admitted-provider checks, inherited scope and propagated result/failure/cancellation. Clients use the generic client invocation path; only the host opens Instance calls. All four SDKs require visibility with no default. |
+| Visibility and routing | Owner | Visibility is explicit on every operation, including host built-ins: Private is local-only, never catalogued or wired; Protected admits only the declaring plugin and host over their carrier, with no client-facing binding; Public admits declared cross-plugin requirements and clients through the host. Plugin -> host -> plugin uses a declared requirement, one registry, visibility/fingerprint/admitted-provider checks, inherited scope and propagated result/failure/cancellation. Clients use the generic client invocation path; only the host opens Instance calls. All four SDKs require visibility with no default. |
 | Per-face declarations and generation | Owner | A capability needed on two faces has separate IDs, requests and responses per face even with a shared handler, for independent evolution and authorization. Plugin SDK generates plugin protocol and context; client generates client API; host generates all three. Package/file moves precede other implementation work. |
 | Naming grammar | Owner | Bare verbs on the service resource; noun-only single-mode reads. Multiple read/change paths form nested resources with bare verbs, replacing rule 3 and flat compound services. Nested services live in a lowercase parent sub-package with one file per service in a folder per parent; wrappers use the local service and method names. |
 | Library/product boundary | Owner | The library owns generic machinery under its managers: Plugins, access, transfers and host status, in addition to operations/invocations, time, storage, streams, plugin protocol and SDKs. A product owns its storage definition, objects, operations and authorization policy; it serves the library services directly by composition. Never rebuild generic machinery on the protocol crate alone: that previously duplicated plugin connection, dispatch, streams and process launch. |
