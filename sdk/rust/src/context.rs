@@ -78,7 +78,7 @@ impl Context {
         transport: &harmos::Context, executions: &Executions, identifier: &str, test_case: Option<v1::TestCase>,
         origin: Option<v1::Origin>, template: &str, plugin: &str,
     ) -> Result<Self> {
-        if identifier.is_empty() || transport.scope != identifier {
+        if identifier.is_empty() || transport.scope()? != identifier {
             return Err(Error::Invalid("Execution Must Match the Inherited Harmos Scope".into()));
         }
         let test_case = test_case.ok_or_else(|| Error::Invalid("Execution Call Requires Its Test Case".into()))?;
@@ -113,7 +113,7 @@ impl Context {
 
     pub(crate) fn invocation(transport: &harmos::Context, executions: &Executions) -> Result<Self> {
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
-        let execution = executions.get(&transport.scope).cloned().unwrap_or_else(|| {
+        let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
                 test_case: OnceLock::new(),
                 origin: OnceLock::new(),
@@ -129,7 +129,7 @@ impl Context {
 
     pub(crate) fn publication(transport: &harmos::Context, executions: &Executions) -> Result<Self> {
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
-        if transport.scope.is_empty() {
+        if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
                 Arc::new(Execution {
                     test_case: OnceLock::new(),
@@ -138,9 +138,9 @@ impl Context {
                 })
             });
         }
-        let execution = executions
-            .get(&transport.scope)
-            .ok_or_else(|| Error::Invalid(format!("Start Execution {} Before Requesting Its Samples", transport.scope)))?;
+        let execution = executions.get(transport.scope().unwrap_or_default()).ok_or_else(|| {
+            Error::Invalid(format!("Start Execution {} Before Requesting Its Samples", transport.scope().unwrap_or_default()))
+        })?;
         Ok(Self {
             transport: transport.clone(),
             execution: execution.clone(),
@@ -149,7 +149,7 @@ impl Context {
     }
 
     pub fn execution_id(&self) -> &str {
-        &self.transport.scope
+        self.transport.scope().unwrap_or_default()
     }
     pub fn termination(&self) -> Option<v1::Termination> {
         self.termination

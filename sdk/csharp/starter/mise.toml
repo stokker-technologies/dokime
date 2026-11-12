@@ -11,8 +11,12 @@ dotnet = "10.0.403"
 
 [tasks.build]
 description = "Build the Managed Plugin Executable"
-run = 'dotnet build Starter.csproj --configuration Release'
+# Re-Evaluate the Mutable Development Preview Before Building With Its Verified Lock.
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore Starter.csproj --force-evaluate',
+  '"{{tools.dotnet.path}}/dotnet" build Starter.csproj --configuration Release --no-restore',
+]
 
 [tasks.serve]
 description = "Serve the Remote Plugin"
-run = 'dotnet run --project Starter.csproj --configuration Release --no-build -- --remote'
+run = '"{{tools.dotnet.path}}/dotnet" run --project Starter.csproj --configuration Release --no-build -- --remote'

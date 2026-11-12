@@ -1,9 +1,47 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
 // SPDX-License-Identifier: Apache-2.0
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::HashMap;
+
+// Third Party Imports
+
+// Local Imports
 use dokime_protocol::v1;
 use dokime_runtime_next::{Host, PluginProcess};
 use dokime_storage::{ExecutionState, OutcomeCounts};
-use std::collections::HashMap;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 #[tokio::test]
 async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::error::Error>> {
@@ -66,8 +104,8 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
             assert_eq!(snapshot.samples.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(), vec![0, 1_000_000_000, 2_000_000_000]);
             assert_eq!(snapshot.records("thermal.door").len(), 1);
             assert!(host.streams_closed(&execution)?);
-            // Pending: csharp_frozen_record_schema_decodes_door (Requests to Harmos).
-            // Enable frozen_record_schema_decodes_door here after descriptor-only registration lands.
+            // csharp_frozen_record_schema_decodes_door
+            super::support::thermal::frozen_record_schema_decodes_door(&snapshot);
             if let Some(expected) = &reference {
                 super::support::thermal::equivalent(expected, &snapshot);
             } else {
@@ -89,3 +127,5 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
     })
     .await?
 }
+
+/* === Tests === */

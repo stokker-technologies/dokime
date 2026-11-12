@@ -186,6 +186,96 @@ including publication, interrupted recovery and three language-equivalence stori
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
 
+## Command-Line Candidate
+
+`crates/dokime-cli-next` builds `dokime-next`, beside the old installed tool.
+Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
+half. Build with `mise run build -- --package dokime-cli-next`.
+
+```sh
+dokime-next new first-plugin --lang rust
+dokime-next new remote-plugin --lang python
+dokime-next new managed-plugin --lang csharp
+dokime-next new native-plugin --lang cpp
+dokime-next plugin bundle --executable first-plugin/target/debug/dokime-starter --out first.dokime
+dokime-next plugin inspect --bundle first.dokime --json
+dokime-next --endpoint 127.0.0.1:7000 server --storage ./evidence
+dokime-next --endpoint http://127.0.0.1:7000 plugin install first.dokime
+dokime-next --endpoint http://127.0.0.1:7000 plugin add http://127.0.0.1:7001
+dokime-next --endpoint http://127.0.0.1:7000 catalog list --json
+dokime-next --endpoint http://127.0.0.1:7000 plan materialize --suite SUITE --template example.capture --out cases.pb
+dokime-next --endpoint http://127.0.0.1:7000 cycle create --cases cases.pb --json
+dokime-next --endpoint http://127.0.0.1:7000 execution prompt next EXECUTION --json
+dokime-next --endpoint http://127.0.0.1:7000 execution prompt answer EXECUTION --action yes --accepted
+dokime-next --endpoint http://127.0.0.1:7000 execution watch EXECUTION
+dokime-next --endpoint http://127.0.0.1:7000 execution report EXECUTION --out report.html
+dokime-next proto export --out proto
+```
+
+Run each generated project's `mise run build` before bundling its executable.
+Rust's executable is `dokime-starter` (`.exe` on Windows); C# must be published as
+a self-contained single-file executable for an executable-only bundle. Python
+stays remote. C++ generation retrieves the versioned SDK archive's published
+SHA-256 sidecar before creating the project; an unpublished candidate requires
+paired `--sdk-url` and `--sdk-sha256` overrides. Existing destinations are refused.
+
+`plugin dev --executable PATH` starts a built plugin remotely and prints its bound
+URL; adding `--endpoint` attaches it to that host. Stdin EOF or Ctrl+C stops the
+owned process. `plugin inspect --url URL` describes an independently running
+plugin. Hosting uses the same EOF/interrupt close contract as `dokime-host-next`.
+
+`--config PATH` reads explicit TOML settings; endpoint and storage may be supplied
+there or on the command line. Unknown keys, zero bounds and zero deadlines fail.
+`retained_bytes` also bounds CLI case files. The host listener remains loopback.
+
+```toml
+endpoint = "http://127.0.0.1:7000"
+storage = "./evidence"
+connect_timeout_s = 30
+read_timeout_s = 30
+mutation_timeout_s = 30
+watch_timeout_s = 3600
+reconnect_delay_ms = 25
+stop_grace_s = 30
+message_bytes = 4194304
+retained_bytes = 67108864
+stream_buffer = 8
+max_cases = 1000
+page_items = 1000
+```
+
+Materialized case files contain the authoritative `PreviewSelectionReply`
+protobuf, preserving frozen origins. `--parameters PATH` reads a JSON object
+mapping parameter names to arrays of canonical protobuf `Value` objects. For the
+Python starter, supply `{"limit":[{"number":10}]}`; this base host materializes
+explicit parameter values.
+Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
+terminal status before creating the requested output; existing output is retained.
+Human output is default and inspection/read commands offer `--json` with proto
+field names. Diagnostics go to stderr; exit codes are 0 success, 2 invalid
+arguments/configuration, 3 operational failure and 4 resource-capacity refusal.
+
+The base host refuses managed `Plugins.Install`/`Plugins.Remove`, cycle
+`AppendExecutions`/`SealCycle`/`RerunCycle` and execution
+`StartExecution`/`StopExecution`. Their commands send real SDK requests and report
+the host's named refusal. The service owners complete these independently;
+`first_hour_from_rust_bundle_to_python_remote` requires their convergence.
+`remote_first_hour_runs_rust_and_python` exercises the currently served route.
+`scaffold_languages_and_export_protocol_without_a_host` covers all four starters,
+existing-destination preservation and embedded proto export.
+
+```sh
+mise run build:cli-fixtures
+mise run test -- --package dokime-cli-next --target system
+```
+
+The fixture producer uses `dokime-next new`, builds that exact generated Rust
+project through its mise task against the local SDK candidate, and exports its
+sources/executable with Tests. Stories compare generated source bytes and never
+compile plugins. Tests Build includes this producer. `dokime installer package`,
+old tool removal, installed binary naming and desktop migration remain cutover
+work; installer packaging stays with the old tool until then.
+
 ## Compare Every SDK
 
 The single thermal procedure is authored in each SDK: Rust `examples/thermal.rs`,
@@ -194,10 +284,9 @@ The host compares the complete frozen origin/test case, ordered evidence and
 samples (including source time, sequence, position and exact payload), outcome
 and cycle counts. Only run-specific execution identity, plugin digest/start time
 and receipt timestamps are excluded. Sealed evidence must reopen unchanged.
-Python and C++ also decode Door from retained schemas. C# cannot yet register a
-record-only descriptor through the pinned Harmos API; its named
-`csharp_frozen_record_schema_decodes_door` assertion is pending upstream support,
-tracked under Requests to Harmos in the gRPC change design.
+Python and C++ also decode Door from retained schemas. C# registers record-only descriptors through Harmos Message<T>(); its named
+`csharp_frozen_record_schema_decodes_door` assertion now decodes Door from the
+frozen catalog at the exact de07fc54 Harmos revision.
 
 Build the shared fixtures and install the Python wheel with the tasks above.
 `build:host-fixtures` invokes each compiled SDK's own tasks and exports the

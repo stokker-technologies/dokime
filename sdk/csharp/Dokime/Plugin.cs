@@ -21,6 +21,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     if (built) throw new InvalidOperationException("Plugin is already built");
     if (records.Records.Any(item => item.Metadata.Identifier == record.Identifier))
       throw new ArgumentException($"Duplicate record: {record.Identifier}");
+    transport.Message<T>();
     records.Records.Add(new RecordContract
     {
       Metadata = new Metadata { Identifier = record.Identifier, Label = record.Label },
@@ -117,7 +118,13 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     }
     transport.Operation(new Operation<MaterializeRequest, TestCase>(definition.Materialize), (raw, request) =>
     {
-      if (request.Template != name || raw.Scope.Length != 0)
+      try
+      {
+        raw.Scope();
+        throw new ArgumentException("Materialization requires no execution scope");
+      }
+      catch (PluginFailureException error) when (error.Failure.Code == "scope_required") { }
+      if (request.Template != name)
         throw new ArgumentException("Materialization requires the named template and no execution scope");
       var result = testCase.Clone();
       result.Parameters.Add(request.Parameters.ToDictionary(item => item.Key, item => item.Value.Clone()));
@@ -139,7 +146,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     transport.Operation(new Operation<CleanupRequest, CleanupResponse>(definition.Cleanup), async (raw, request) =>
     {
       Validate(raw, request.Execution, name, request.TestCase, request.Origin);
-      var key = $"{name}/{raw.Scope}";
+      var key = $"{name}/{raw.Scope()}";
       resources.TryGetValue(key, out var pending);
       var owned = pending is null ? null : await pending.Value;
       try
@@ -157,7 +164,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
 
   private async Task<Context> GetContextAsync(Harmos.Sdk.Context raw, Template template, TestCase testCase)
   {
-    var key = $"{template.Definition.Metadata.Identifier}/{raw.Scope}";
+    var key = $"{template.Definition.Metadata.Identifier}/{raw.Scope()}";
     var pending = resources.GetOrAdd(key, _ => new Lazy<Task<ExecutionResource>>(async () =>
     {
       var context = new Context(raw, testCase);
@@ -171,7 +178,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
 
   private Context ObserverContext(Harmos.Sdk.Context raw, string template)
   {
-    if (resources.TryGetValue($"{template}/{raw.Scope}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
+    if (resources.TryGetValue($"{template}/{raw.Scope()}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
     {
       var owned = pending.Value.Result;
       return new Context(raw, owned.TestCase, owned.Resource);
@@ -181,7 +188,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
 
   private void Validate(Harmos.Sdk.Context raw, string execution, string template, TestCase testCase, Origin origin)
   {
-    if (string.IsNullOrWhiteSpace(execution) || raw.Scope != execution || testCase is null ||
+    if (string.IsNullOrWhiteSpace(execution) || raw.Scope() != execution || testCase is null ||
         origin?.PluginRun is not { } run || run.Plugin != identifier || run.Template != template || !testCase.Equals(run.TestCase))
       throw new ArgumentException("Execution scope, origin and frozen case must agree");
   }

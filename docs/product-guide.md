@@ -113,6 +113,10 @@ removed. It does not create a remote rehearsal release. The integration owner
 must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
 environment `release`, before the first publication under this workflow.
 
+The independent host's additive command surface is documented in the
+[new-host CLI guide](execution-host.md#command-line-candidate). It uses
+`dokime-next` until the installed-tool cutover.
+
 ## Start a Python Project
 
 Use the pure [Python SDK](../sdk/python/README.md) with Python 3.13 or newer.

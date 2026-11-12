@@ -332,7 +332,7 @@ impl Template {
         plugin = plugin.operation(operation::wire(
             self.definition.materialize.clone(),
             async move |transport: &harmos::Context, Wire(request): Wire<v1::MaterializeRequest>| {
-                if !transport.scope.is_empty() {
+                if transport.scope().is_ok() {
                     return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
                 }
                 if request.template != template {

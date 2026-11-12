@@ -2386,7 +2386,7 @@ version = "0.1.5"
 dependencies = [
  "dokime-derive",
  "dokime-protocol",
- "harmos 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c)",
  "harmos-protocol",
  "prost",
  "prost-reflect",
@@ -2419,6 +2419,30 @@ dependencies = [
  "tracing",
  "uuid",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "dokime-cli-next"
+version = "0.1.5"
+dependencies = [
+ "clap",
+ "dokime",
+ "dokime-protocol",
+ "dokime-runtime-next",
+ "prost",
+ "prost-reflect",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-stream",
+ "toml 1.1.8+spec-1.1.0",
+ "tonic",
 ]
 
 [[package]]
@@ -3998,7 +4022,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4098,7 +4122,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -4165,7 +4189,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",

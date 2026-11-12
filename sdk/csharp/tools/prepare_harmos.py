@@ -37,7 +37,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision = "a7583836e721c8dc8b135af40a78860ea5945ec6"
+revision = "de07fc54f38ece9fcd660af3146876aaf651fe3c"
 root = Path(__file__).resolve().parents[1]
 output = root / "obj" / "harmos"
 output.mkdir(parents=True, exist_ok=True)

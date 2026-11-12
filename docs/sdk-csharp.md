@@ -5,7 +5,7 @@ composed plugin authoring, typed host calls, canonical plot/document builders
 and a channel-owning client facade. It builds messages and any declared service
 stubs with `Grpc.Tools` directly from `proto/dokime/v1/*.proto`; generated C# is
 never committed. The Harmos SDK source is compiled into Dokime without modifications from
-revision `a7583836e721c8dc8b135af40a78860ea5945ec6`.
+revision `de07fc54f38ece9fcd660af3146876aaf651fe3c`.
 
 ## Build and Install
 
@@ -153,7 +153,7 @@ Rust, then reopens each sealed run. The process requires the selected .NET 10
 runtime; set `DOTNET_ROOT` to the mise .NET installation when another system
 runtime is the default. See [Execution Host](execution-host.md) for named runs.
 
-The named assertion `csharp_frozen_record_schema_decodes_door` is pending Harmos
-support for descriptor-only message registration. Record bytes and all lifecycle
-evidence compare with Rust; decoding that record from the retained catalog alone
-remains unproved. The request is tracked in the gRPC change's design.
+The named assertion `csharp_frozen_record_schema_decodes_door` passes in both
+placements at the pinned Harmos revision. `Record<T>` calls descriptor-only
+`Message<T>()`, retaining Door and its dependencies without an artificial
+operation, stream or section. The frozen catalog decodes the exact record bytes.

@@ -123,6 +123,10 @@ Installer packaging is the only way to apply a pack; Settings has no pack import
 contains the complete workflow, including
 [finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
+The additive `dokime-next` candidate hosts the new execution runtime and embeds
+all four SDK starters. See the [new-host CLI guide](docs/execution-host.md#command-line-candidate)
+for its explicit endpoint, configuration and current service coverage.
+
 #### Examples
 
 ```sh

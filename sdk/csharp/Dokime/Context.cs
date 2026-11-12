@@ -42,7 +42,7 @@ public sealed class Context
   }
 
   public Harmos.Sdk.Context Transport { get; }
-  public string Execution => Transport.Scope;
+  public string Execution => Transport.Scope();
   public TestCase TestCase { get; }
   public IReadOnlyDictionary<string, V1.Value> Parameters => TestCase.Parameters;
   public CancellationToken CancellationToken => Transport.CancellationToken;

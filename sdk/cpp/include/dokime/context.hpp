@@ -61,7 +61,7 @@ class Context {
 public:
   Context(harmos::Context &transport, v1::TestCase test_case, std::string item, std::shared_ptr<detail::Resources> resources);
   const Parameters &parameters() const { return test_case_.parameters(); }
-  const std::string &execution() const { return transport_.scope; }
+  const std::string &execution() const { return transport_.scope(); }
   const std::string &item() const { return item_; }
   std::uint32_t attempt() const { return transport_.attempt; }
   template <class Q, class R> R operation(const harmos::Operation<Q, R> &operation, Q request) {
