@@ -794,6 +794,9 @@ Prompt answers are durably acknowledged before releasing the waiting plugin; Get
 Prompt catalogs come from admitted plugin catalogs; pending pages bind epoch, selected cycle/execution and content, rejecting stale or changed continuations.
 Planning freezes selected file values as opaque text parameters in the new TestCase; no client path grants filesystem access.
 Planning registration stores the complete plan and reply atomically; repeated keys resolve the original cases across restarts and changed plans require a new key.
+Interactive command receipts use the execution identity as their run request identity, retain stable command IDs and never replay an accepted step on retry.
+Pause and stop apply at step boundaries; cancel interrupts the current call, and both paths retain required cleanup and attributed evidence.
+Execution labels and archive state are presentation outside the immutable execution seal; new TestCases have resolved inputs and no separate output-parameter store.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.

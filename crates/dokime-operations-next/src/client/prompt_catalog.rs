@@ -64,7 +64,7 @@ pub(super) fn definitions(context: &Context) -> Result<Vec<v1::Prompt>> {
 pub(super) fn view(context: &Context, identifier: &str) -> Result<v1::PromptView> {
     let (execution, prompt) = identifier.split_once('/').ok_or_else(|| Error::Invalid("Read Prompt: Select an Identifier Returned by ListPending".into()))?;
     if !context.host.store().identifiers()?.iter().any(|id| id == execution) { return Err(Error::NotFound("Read Prompt: Select an Existing Execution".into())); }
-    let snapshot = context.host.store().read(execution)?;
+    let snapshot = super::execution_state::evidence(context,execution)?;
     let question = snapshot.evidence.iter().rev().filter(|entry| entry.kind == "prompt").map(|entry| v1::OperatorQuestion::decode(entry.payload.as_slice())).collect::<std::result::Result<Vec<_>, _>>()?.into_iter().find(|question| question.prompt == prompt).ok_or_else(|| Error::NotFound("Read Prompt: Select a Question Asked by This Execution".into()))?;
     let definition = super::projection::prompt_definition(&snapshot, &question)?;
     let answer = snapshot.evidence.iter().rev().filter(|entry| entry.kind == "client:answer" || entry.kind == "answer").map(|entry| v1::OperatorAnswer::decode(entry.payload.as_slice())).collect::<std::result::Result<Vec<_>, _>>()?.into_iter().find(|answer| answer.prompt == prompt);

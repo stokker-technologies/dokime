@@ -39,6 +39,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+uuid = { workspace = true }
 
 # Serialization
 prost = { workspace = true }

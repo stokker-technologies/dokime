@@ -298,7 +298,7 @@ methods and alphabetical registration lines. Old crates stay unchanged.
 
 - [x] Complete Prompts catalog, pending paging, retained answers and all Run methods; prove the real-process operator journey.
 - [x] Complete Planning preview, registration and materialization with ordered bounded expansion; prove the real-process planning journey.
-- [ ] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey.
+- [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey.
 - [ ] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
 - [ ] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey.
 - [ ] Pass format, owned stories twice, fifteen existing stories, three new-crate check builds and repository checking; commit locally without pushing.
@@ -317,7 +317,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
   - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
   - [x] Planning: all three operations and their Run forms are served; the parameter-selection journey proves ordered duplicate selections, bounds, key conflicts and restart resolution.
-  - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
+  - [x] Execution: all 28 operations and their Run forms are served; the lifecycle journey proves explicit admission, interactive steps, pause/resume, seal, metadata/archive changes, rerun and cancellation.
   - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
   - [x] Prompts: all five operations and their Run forms are served; the operator journey proves catalog reads, invalid actions, answer settlement and restart resolution.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.

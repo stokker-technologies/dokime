@@ -19,6 +19,7 @@ mod error;
 mod execution;
 mod host;
 mod plugin;
+mod run_control;
 pub mod process;
 pub mod services;
 mod streams;

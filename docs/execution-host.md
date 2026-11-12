@@ -71,6 +71,17 @@ selection. Parameter expressions, defaults, Cartesian and zip dimensions, list
 parameters and opaque file selections resolve before plugin materialization.
 `client_plans_parameter_selections` proves the registration journey.
 
+Execution serves all 28 operations and their Run forms. CreateCycle accepts
+explicit origins or creates an empty mutable cycle for registered case bindings.
+AppendExecutions atomically admits the supplied execution identities. Manual
+cycles wait for StartExecution; automatic cycles admit their runs after append.
+Interactive runs accept Next, RunStep and Finish with durable command receipts;
+retrying a command ID resolves its existing receipt. Pause and stop apply at step
+boundaries; cancel interrupts the active call and drains required cleanup.
+Cycle/execution detail, ordered steps, parameter pages and case lists expose
+backend-owned capabilities. Labels and archives remain editable presentation
+without altering seals. `client_controls_execution_lifecycle` proves the journey.
+
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
 Progress streams expose queued/prompt/finished events and end with a terminal

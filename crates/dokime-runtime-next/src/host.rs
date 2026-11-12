@@ -60,15 +60,19 @@ pub(crate) struct Inner {
     pub active: Mutex<HashMap<String, Active>>,
     pub prompts: Arc<PromptHub>,
     pub idle: Notify,
+    pub changed: tokio::sync::watch::Sender<u64>,
+    pub shutting_down: std::sync::atomic::AtomicBool,
 }
 pub(crate) struct Active {
     pub plugin: String,
     pub cancellation: CancellationToken,
+    pub control: Arc<crate::run_control::RunControl>,
 }
 #[derive(Default)]
 pub(crate) struct PromptHub {
     pending: Mutex<HashMap<String, Pending>>,
     changed: Notify,
+    runtime: Option<tokio::sync::watch::Sender<u64>>,
 }
 struct Pending {
     question: v1::OperatorQuestion,
@@ -106,14 +110,17 @@ impl Host {
                 store.seal(&identifier)?;
             }
         }
+        let changed = tokio::sync::watch::channel(0).0;
         Ok(Self {
             inner: Arc::new(Inner {
                 store,
                 settings,
                 plugins: Mutex::new(HashMap::new()),
                 active: Mutex::new(HashMap::new()),
-                prompts: Arc::new(PromptHub::default()),
+                prompts: Arc::new(PromptHub { runtime: Some(changed.clone()), ..Default::default() }),
                 idle: Notify::new(),
+                changed,
+                shutting_down: std::sync::atomic::AtomicBool::new(false),
             }),
         })
     }
@@ -224,6 +231,7 @@ impl Host {
         })
     }
     pub async fn start_cycle(&self, origins: Vec<v1::Origin>) -> Result<Cycle> {
+        if self.is_shutting_down() { return Err(Error::Invalid("Start Cycle: Reconnect to a Running Host".into())); }
         execution::start(self.clone(), origins).await
     }
     pub fn now_ns(&self) -> i64 {
@@ -288,6 +296,15 @@ impl Host {
         active.get(execution).ok_or_else(|| Error::Invalid("Cancel Only an Execution with an Active Run".into()))?.cancellation.cancel();
         Ok(())
     }
+    pub fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.inner.changed.subscribe()
+    }
+    pub fn is_shutting_down(&self) -> bool {
+        self.inner.shutting_down.load(std::sync::atomic::Ordering::Acquire)
+    }
+    pub fn signal_change(&self) {
+        self.inner.changed.send_modify(|revision| *revision += 1);
+    }
     pub fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
         let mut pending = lock(&self.inner.prompts.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Active Question".into()))?;
@@ -304,6 +321,8 @@ impl Host {
         Ok(())
     }
     pub async fn shutdown(&self) -> Result<()> {
+        self.inner.shutting_down.store(true, std::sync::atomic::Ordering::Release);
+        self.signal_change();
         for active in lock(&self.inner.active)?.values() {
             active.cancellation.cancel();
         }
@@ -337,6 +356,7 @@ impl Prompts for PromptHub {
             pending.insert(execution.into(), Pending { question, answer: Some(send) });
         }
         self.changed.notify_waiters();
+        if let Some(runtime) = &self.runtime { runtime.send_modify(|revision| *revision += 1); }
         let answer =
             receive.await.map_err(|_| dokime_operations_next::Error::Invalid("Execution Stopped Before the Operator Answered".into()));
         self.clear(execution);
@@ -349,6 +369,7 @@ impl PromptHub {
             pending.remove(execution);
         }
         self.changed.notify_waiters();
+        if let Some(runtime) = &self.runtime { runtime.send_modify(|revision| *revision += 1); }
     }
 }
 

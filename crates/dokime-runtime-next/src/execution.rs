@@ -90,6 +90,7 @@ impl Drop for ActiveRun {
         }
         self.host.inner.prompts.clear(&self.execution);
         self.host.inner.idle.notify_waiters();
+        self.host.signal_change();
     }
 }
 
@@ -129,6 +130,7 @@ pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle>
             Active {
                 plugin: entry.description.id.clone(),
                 cancellation: CancellationToken::new(),
+                control: Arc::new(crate::run_control::RunControl::default()),
             },
         );
         executions.push(execution.clone());
@@ -137,6 +139,10 @@ pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle>
 }
 
 pub(crate) async fn start_existing(host: Host, execution: &str) -> Result<Cycle> {
+    start_existing_mode(host, execution, v1::ExecutionMode::Automatic).await
+}
+
+pub(crate) async fn start_existing_mode(host: Host, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
     if cut.state != dokime_storage::ExecutionState::Open || cut.frontier != 0 {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
@@ -162,6 +168,7 @@ pub(crate) async fn start_existing(host: Host, execution: &str) -> Result<Cycle>
             Active {
                 plugin: run.plugin.clone(),
                 cancellation: CancellationToken::new(),
+                control: Arc::new(if mode == v1::ExecutionMode::Interactive { crate::run_control::RunControl::interactive() } else { crate::run_control::RunControl::default() }),
             },
         );
     }
@@ -202,6 +209,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         execution: execution.clone(),
     };
     let cancellation = lock(&host.inner.active)?.get(&execution).unwrap().cancellation.clone();
+    let control = lock(&host.inner.active)?.get(&execution).unwrap().control.clone();
     tracing::info!(execution = %execution, "Queued Execution");
     states.push(RunState::Queued);
     let Some(v1::origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
@@ -255,7 +263,13 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
             initialized = true;
         }
         states.push(RunState::Stepping);
-        for step in &case.steps {
+        while let Some((index, command)) = control.next(case, &dispatch.cancellation).await? {
+            let step = &case.steps[index];
+            if let Some(mut command) = command.clone() {
+                command.phase = v1::ExecutionCommandPhase::Running as i32;
+                host.inner.store.save_command(&command)?;
+            }
+            host.signal_change();
             let identifier =
                 step.metadata.as_ref().ok_or_else(|| Error::Invalid("Materialize Steps with Identifiers".into()))?.identifier.clone();
             dispatch.resources.as_mut().unwrap().step = identifier.clone();
@@ -272,6 +286,13 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
                 )
                 .await;
             dispatch.resources.as_ref().unwrap().evidence("step:end", Vec::new(), None)?;
+            if let Some(mut command) = command {
+                command.phase = if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Failed } as i32;
+                command.detail = result.as_ref().err().map(ToString::to_string);
+                host.inner.store.save_command(&command)?;
+            }
+            control.complete_step(index)?;
+            host.signal_change();
             result?;
         }
         dispatch.resources.as_mut().unwrap().step.clear();
@@ -300,6 +321,10 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         Ok(())
     }
     .await;
+    if let Some(mut command) = control.take_pending()? {
+        command.phase = if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Interrupted } as i32;
+        host.inner.store.save_command(&command)?;
+    }
     let mut termination = match &result {
         Ok(()) => v1::Termination::Completed,
         Err(Error::Cancelled) => v1::Termination::Cancelled,
