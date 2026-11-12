@@ -854,6 +854,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   };
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
+    const numeric = await session.execute("return arguments[0].type === 'number'", [element]);
     await session.click(element);
     await session.request("POST", "/actions", {
       actions: [
@@ -872,8 +873,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       ],
     });
     await session.request("DELETE", "/actions");
-    // Send One Native Text Sequence To The Element, Including Number Inputs.
-    // Keep Native Caret Handling Within One WebDriver Operation.
+    // Let Native Number Key Events Commit Before Sending The Next Character.
+    if (numeric) {
+      for (const character of value) await session.key(character);
+      return;
+    }
     if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
