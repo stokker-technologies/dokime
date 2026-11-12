@@ -102,6 +102,7 @@
 - [ ] 6.3 Run the combined-tree Rust and settings/plot checks after all source handoffs; repair failures and retain native platform limitations.
 - [x] 6.3.1 Rerun Python checking after the benchmark owner repairs import ordering in `tools/python/tests/integration/test_desktop_bench.py`; the Windows check passes with 110 tooling tests. That path remains outside this worker's ownership.
 - [x] 6.3.2 Clear the earlier workstation interruption with Windows whole-tree Rust checking and the Tests artifact build after restoring free space above the cutoff; three Rust selections, cargo-machete and the archive's 16 compile-contract tests pass. The first archive attempt's allocation failures are repaired by using one Cargo job. Final feature validation in 6.3 and native Linux proof remain open.
+- [ ] 6.3.3 Rerun workspace Rust checking after the SDK owner repairs `clippy::let_and_return` in `sdk/rust/src/stream.rs`; the whole-workspace check currently stops there. Domain/runtime/protocol package checks and the Windows Tests producer pass. Rebuild Tests before rerunning compiler-contract proof after the idle runtime compiler-output cleanup; retained archives and proof logs remain available.
 
 ## Workflow Follow-Up
 
