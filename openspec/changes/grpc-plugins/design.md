@@ -790,6 +790,24 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Prompt answers are durably acknowledged before releasing the waiting plugin; GetPrompt resolves the frozen question and answer after settlement or restart.
+Prompt catalogs come from admitted plugin catalogs; pending pages bind epoch, selected cycle/execution and content, rejecting stale or changed continuations.
+Planning freezes selected file values as opaque text parameters in the new TestCase; no client path grants filesystem access.
+Planning registration stores the complete plan and reply atomically; repeated keys resolve the original cases across restarts and changed plans require a new key.
+Interactive command receipts use the execution identity as their run request identity, retain stable command IDs and never replay an accepted step on retry.
+Pause and stop apply at step boundaries; cancel interrupts the current call, and both paths retain required cleanup and attributed evidence.
+Execution labels and archive state are presentation outside the immutable execution seal; new TestCases have resolved inputs and no separate output-parameter store.
+Runtime observation coalesces host events under one process revision; shutdown emits its final state and terminal response, and abandoning a watch never cancels a run.
+History tokens bind the persistent backend, immutable saved-cycle position, execution seal and evidence frontier; reading a token never flushes or publishes.
+BrowseExecutions gains an additive cursor in its request and reply so continuations can enforce unchanged filters, order and revision.
+Saved cycle headers append at seals and presentation commits; BrowseCycles retains its captured storage frontier across later changes.
+History artifact reads consume ordered acknowledged PublishArtifact evidence; contextual artifact admission remains with the data-service owner and must retain that evidence contract at integration.
+Prompt IDs include their durable question position, keeping repeated questions in one execution distinct while retaining earlier answers.
+Interactive reruns invalidate effective downstream steps, refuse previously invoked nonrepeatable downstream steps, and leave an exhausted Next waiting for explicit Finish.
+Registry, cycle, binding, command, saved-header and deletion tables remain v1; integration combines the service owners' table inventories before root validation.
+Execution detail and execution-service lists join Store::execution_presentation; the Query owner adopts that same case/archive join at integration for explicitly bound executions.
+Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
+
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
 Cross-language proof compares the frozen origin/test case and every ordered evidence/sample field, excluding only execution identities, plugin digest/start time and receipt timestamps; each sealed snapshot must reopen byte-for-byte.

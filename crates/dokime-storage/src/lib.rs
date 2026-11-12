@@ -11,9 +11,12 @@
 
 /* === Modules === */
 
+mod cycles;
 mod error;
 mod execution;
+mod history;
 mod outcome;
+mod plans;
 mod query;
 mod report;
 mod store;

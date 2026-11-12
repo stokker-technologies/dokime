@@ -20,7 +20,7 @@ mise run check -- --repository
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
 Rust formatting and `check --language rust --package <name>` select only that package.
 
-The execution host's fifteen stories belong to its `system` target. Select a
+The execution host's stories belong to its `system` target. Select a
 story, the complete target, or affected paths explicitly:
 
 ```sh
@@ -40,12 +40,12 @@ consume those fixtures and never compile plugins. Missing fixtures fail with
 the language and build prerequisite; no language is silently skipped.
 
 Pull requests build Rust fixtures and the pure Python wheel and explicitly select
-thirteen execution-host stories on Linux and Windows; C# and C++ equivalence run
+the Rust and Python execution-host stories on Linux and Windows; C# and C++ equivalence run
 in Nightly, as the PR summary records. Nightly builds each SDK fixture in parallel
-on both platforms, independently of the host, then runs all fifteen stories from
+on both platforms, independently of the host, then runs every story from
 artifacts. Its C++ producer caches the SDK's pinned native dependency graph; C#
 installs its mise SDK. Suite failures appear in the final report without blocking
-publication. Local selection still includes all fifteen stories. Use
+publication. Local selection still includes every story. Use
 `build:host-fixtures --language rust|python|csharp|cpp` for one producer;
 `test --filterset` accepts a nextest expression with a focused Rust package,
 including archived tests.

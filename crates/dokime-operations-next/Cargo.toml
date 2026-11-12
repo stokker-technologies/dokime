@@ -39,6 +39,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+uuid = { workspace = true }
 
 # Serialization
 prost = { workspace = true }
@@ -53,6 +54,7 @@ sha2 = { workspace = true }
 # Filesystem
 
 # Parsing
+regex = { workspace = true }
 
 # Concurrency
 

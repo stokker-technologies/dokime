@@ -45,14 +45,71 @@ Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode
 The storage root retains a backend identity; each process has a new boot epoch.
 Remote authentication is pending, so this listener accepts loopback addresses.
 
-The first served methods are Plugins Add/List; Catalog ListSuites/GetSuite;
-Planning MaterializeTemplate; Execution CreateCycle/GetExecution; Observation
-WatchExecutionProgress; Prompts ListPending/GetPrompt/Respond; Query
-ListExecutions; Evidence ListRecords; Telemetry ListSamples; Reports
-DownloadExecutionReport/PublishExecutionReport; Health ListHealth; and Backend identity, health and
-availability. Backend availability advertises only these methods. Other methods
-return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
+Planning, Execution, Observation, Prompts and History serve every declared
+operation and its Run form. Other served methods are Plugins Add/List; Catalog
+ListSuites/GetSuite; Query ListExecutions; Evidence ListRecords; Telemetry
+ListSamples; Reports DownloadExecutionReport/PublishExecutionReport; Health
+ListHealth; and Backend identity, health and availability. Backend availability
+advertises the served methods. Other methods return `UNIMPLEMENTED` naming the
+action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
+
+Prompts serves all five operations and their bidirectional Run forms. Catalog
+definitions page by prompt type; pending prompts page by ID with cycle and
+execution filters. A changed selection or stale cursor requires restarting the
+page. Respond validates declared actions, fields, answer rules and evidence
+conditions, records the authenticated local responder and acknowledges durable
+acceptance. GetPrompt retains the question and answer after settlement and
+restart. `client_answers_operator_prompts` exercises this operator journey.
+
+Planning serves preview, registration and materialization through both call
+forms. Preview preserves selection order and duplicates without registering or
+starting. Registration commits the complete bounded plan and its cases
+atomically; the same key resolves its original reply after restart, while a
+changed plan requires a new key. MaterializeTemplate registers one expanded
+selection. Parameter expressions, defaults, Cartesian and zip dimensions, list
+parameters and opaque file selections resolve before plugin materialization.
+`client_plans_parameter_selections` proves the registration journey.
+
+Execution serves all 28 operations and their Run forms. CreateCycle accepts
+explicit origins or creates an empty mutable cycle for registered case bindings.
+AppendExecutions atomically admits the supplied execution identities. Manual
+cycles wait for StartExecution; automatic cycles admit their runs after append.
+Interactive runs accept Next, RunStep and Finish with durable command receipts;
+retrying a command ID resolves its existing receipt. Pause and stop apply at step
+boundaries; cancel interrupts the active call and drains required cleanup.
+Cycle/execution detail, ordered steps, parameter pages and case lists expose
+backend-owned capabilities. Labels and archives remain editable presentation
+without altering seals. `client_controls_execution_lifecycle` proves the journey.
+
+Observation serves runtime shells, scoped traceability, runtime invalidations and
+execution progress through both call forms. Runtime watches resynchronize first,
+reject another epoch or a future revision, and settle on graceful shutdown.
+Execution progress follows manager transitions and questions; each execution
+settles independently. Cancelling either watch leaves its run active.
+`client_observes_runtime_state` proves these contracts.
+
+History serves all eleven operations and their Run forms. Checkpoint inspection
+returns the existing seal, persistent backend identity and exact evidence cut;
+reads never publish or create a newer checkpoint. Cycle browsing retains an
+append-only saved frontier. Execution browsing returns a cursor that must be
+repeated with unchanged filters and order. Record and sample continuations bind
+the checkpoint and table; sample pages use bounded storage reads. Artifact
+downloads stream metadata, ordered chunks, completion digest and a final
+response; output windows return only the requested bytes. Deletion checks the
+exact seal and retains a durable request receipt for retry resolution.
+`client_browses_sealed_history` proves this workflow, including restart reads.
+
+The service adapter adds `Host::record_answer`, `changes`, `signal_change`,
+`is_shutting_down`, `execution_controls`, `start_execution_mode`,
+`pause_execution`, `stop_execution` and `submit_execution_command`.
+The storage owners are `crates/dokime-storage/src/plans.rs` (registration and
+planned-case reads), `cycles.rs` (cycle headers, execution presentation, command
+receipts, recovery and evidence times), and `history.rs` (saved frontiers and
+idempotent sealed deletion). `Store::create_executions` admits complete origin
+lists atomically. The added tables are `cases`, `registrations`, `cycles`,
+`bindings`, `commands`, `cycle_history` and `deletions`; integration must combine
+these with other service owners' tables in the v1 root validation.
 
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
@@ -92,7 +149,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains fifteen stories,
+reads their records through the client. The system target contains twenty stories,
 including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
@@ -116,11 +173,11 @@ fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
 runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
 fixtures. Local Tests Build includes every available compiled SDK fixture and the
-full selection runs all fifteen stories. Pull requests build Rust and Python and
-explicitly select thirteen stories; C# and C++ equivalence run in Nightly. Nightly
+full selection runs every story. Pull requests build Rust and Python and
+run every story except the C# and C++ equivalence stories, which run in Nightly. Nightly
 builds each language independently on Linux and Windows, caching the C++ SDK's
-pinned native dependencies and installing .NET through mise, then runs all fifteen
-stories against exported artifacts. Suite failures are reported alongside the
+pinned native dependencies and installing .NET through mise, then runs every
+story against exported artifacts. Suite failures are reported alongside the
 publication result and do not block publication.
 
 ```sh

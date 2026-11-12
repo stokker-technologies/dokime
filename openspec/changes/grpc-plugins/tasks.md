@@ -291,6 +291,18 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 
 ## Client-Driven New Host Serving
 
+Execution service worktree inventory (`feat/gp-svc-execution`): owned service files
+`execution.rs`, `planning.rs`, `observation.rs`, `prompts.rs` and new `history.rs`;
+their operation declarations/handlers and client stories; additive host/storage
+methods and alphabetical registration lines. Old crates stay unchanged.
+
+- [x] Complete Prompts catalog, pending paging, retained answers and all Run methods; prove the real-process operator journey.
+- [x] Complete Planning preview, registration and materialization with ordered bounded expansion; prove the real-process planning journey.
+- [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey and matching Query/detail projections for explicit origins.
+- [x] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
+- [x] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey and complete filtered cycle counts.
+- [x] Pass format, owned stories twice by exact name, fifteen existing stories, three new-crate check builds, all three scoped Rust checks, eight protocol checks and repository checking on Windows; commit locally without pushing. The final host target passes 20/20 with no skips; the parameter-expansion unit proof passes. Native Linux and combined integration proof remain with the orchestrator.
+
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing execution/dispatch/streams/storage source stays with the host-feature owner.
 
 - [x] Implement the real-process Rust SDK journey `client_runs_thermal_suite_over_grpc`, including URL admission, catalog, materialization, execution, progress, prompt, evidence, samples, report and sealed restart reads.
@@ -304,10 +316,11 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 - [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
   - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
   - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
-  - [ ] Planning: RunMaterializeTemplate, PreviewSelection, RunPreviewSelection, RegisterSelection, RunRegisterSelection.
-  - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
-  - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
-  - [ ] Prompts: GetDefinition, RunGetDefinition, RunGetPrompt, ListDefinitions, RunListDefinitions, RunListPending, RunRespond.
+  - [x] Planning: all three operations and their Run forms are served; the parameter-selection journey proves ordered duplicate selections, bounds, key conflicts and restart resolution.
+  - [x] Execution: all 28 operations and their Run forms are served; the lifecycle journey proves explicit admission, interactive steps, pause/resume, seal, metadata/archive changes, rerun and cancellation.
+  - [x] Observation: all four operations and their Run forms are served; the state journey proves resynchronization, cursor validation, shell counts, progress, watch cancellation and graceful shutdown.
+  - [x] Prompts: all five operations and their Run forms are served; the operator journey proves catalog reads, invalid actions, answer settlement and restart resolution.
+  - [x] History: all eleven operations and their Run forms are served; the history journey proves saved frontiers, exact seal tokens, frozen context/document/evidence, bounded record/sample/file reads, artifact download and durable deletion receipts.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.

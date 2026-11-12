@@ -6848,6 +6848,8 @@ pub struct ExecutionBrowseEntry {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionBrowsePage {
+    #[prost(message, optional, tag = "9")]
+    pub cursor: ::core::option::Option<Cursor>,
     #[prost(message, repeated, tag = "1")]
     pub entries: ::prost::alloc::vec::Vec<ExecutionBrowseEntry>,
     #[prost(string, optional, tag = "2")]
@@ -25219,6 +25221,9 @@ pub struct HistoryBrowseExecutionsRequest {
     pub filter: ::core::option::Option<ExecutionFilter>,
     #[prost(message, optional, tag = "4")]
     pub order: ::core::option::Option<ExecutionOrder>,
+    /// Bind continuations to the captured selection, order and revision.
+    #[prost(message, optional, tag = "5")]
+    pub cursor: ::core::option::Option<Cursor>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

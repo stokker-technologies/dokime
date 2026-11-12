@@ -44,6 +44,15 @@ pub enum Error {
 
     #[error("{0}")]
     Invalid(String),
+
+    #[error("{0}")]
+    NotFound(String),
+
+    #[error("{0}")]
+    Conflict(String),
+
+    #[error("{0}")]
+    Bound(String),
 }
 
 /* === Traits === */

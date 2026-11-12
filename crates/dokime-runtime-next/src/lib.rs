@@ -20,6 +20,7 @@ mod execution;
 mod host;
 mod plugin;
 pub mod process;
+mod run_control;
 pub mod services;
 mod streams;
 

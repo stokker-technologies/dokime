@@ -75,7 +75,23 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "samples", "streams"] {
+            if tables
+                != [
+                    "bindings",
+                    "cases",
+                    "commands",
+                    "cycle_history",
+                    "cycles",
+                    "deletions",
+                    "evidence",
+                    "executions",
+                    "plugins",
+                    "registrations",
+                    "reports",
+                    "samples",
+                    "streams",
+                ]
+            {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -86,6 +102,13 @@ impl Store {
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE INDEX samples_stream_position ON samples(execution,stream,position);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+                CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE cases(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE cycles(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+                CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
+                CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
+                CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
@@ -98,24 +121,21 @@ impl Store {
         self.connection.lock().map_err(|_| Error::Invalid("Restart the Host After the Evidence Store Lock Failed".into()))
     }
     pub fn create(&self, execution: &Execution) -> Result<()> {
-        if execution.identifier.trim().is_empty() || execution.cycle.trim().is_empty() {
-            return Err(Error::Invalid("Create Execution: Supply Execution and Cycle Identities".into()));
+        self.create_executions(std::slice::from_ref(execution))
+    }
+    pub fn create_executions(&self, executions: &[Execution]) -> Result<()> {
+        for execution in executions {
+            validate_execution(execution)?;
         }
-        match execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-            Some(v1::origin::Kind::PluginRun(run)) => {
-                run.validate().map_err(|error| Error::Invalid(format!("Create Execution: {error}")))?
-            }
-            Some(v1::origin::Kind::Import(_)) => (),
-            None => return Err(Error::Invalid("Create Execution: Supply a Frozen PluginRun or Import Origin".into())),
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        for execution in executions {
+            transaction.execute(
+                "INSERT INTO executions VALUES (?1,?2,0,?3,X'')",
+                params![execution.identifier, execution.cycle, execution.encode_to_vec()],
+            )?;
         }
-        if execution.outcome.is_some() || execution.termination != v1::Termination::Unspecified as i32 {
-            return Err(Error::Invalid("Create Execution: Attribute Its Outcome When Closing Evidence".into()));
-        }
-        let connection = self.lock()?;
-        connection.execute(
-            "INSERT INTO executions VALUES (?1,?2,0,?3,X'')",
-            params![execution.identifier, execution.cycle, execution.encode_to_vec()],
-        )?;
+        transaction.commit()?;
         Ok(())
     }
     pub fn identifiers(&self) -> Result<Vec<String>> {
@@ -260,6 +280,8 @@ impl Store {
         }
         let digest = digest(&transaction, execution)?;
         transaction.execute("UPDATE executions SET state=2,seal=?2 WHERE id=?1", params![execution, digest])?;
+        let cycle: String = transaction.query_row("SELECT cycle FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        crate::history::capture_cycle(&transaction, &cycle, execution)?;
         transaction.commit()?;
         Ok(())
     }
@@ -299,6 +321,21 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn validate_execution(execution: &Execution) -> Result<()> {
+    if execution.identifier.trim().is_empty() || execution.cycle.trim().is_empty() {
+        return Err(Error::Invalid("Create Execution: Supply Execution and Cycle Identities".into()));
+    }
+    match execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
+        Some(v1::origin::Kind::PluginRun(run)) => run.validate().map_err(|error| Error::Invalid(format!("Create Execution: {error}")))?,
+        Some(v1::origin::Kind::Import(_)) => (),
+        None => return Err(Error::Invalid("Create Execution: Supply a Frozen PluginRun or Import Origin".into())),
+    }
+    if execution.outcome.is_some() || execution.termination != v1::Termination::Unspecified as i32 {
+        return Err(Error::Invalid("Create Execution: Attribute Its Outcome When Closing Evidence".into()));
+    }
+    Ok(())
+}
 
 fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     let state: Option<i32> = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0)).optional()?;

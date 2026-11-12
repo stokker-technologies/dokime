@@ -345,7 +345,7 @@ jobs:
         import os
         from pathlib import Path
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
-            summary.write("Execution host: thirteen Rust and Python stories on Linux and Windows. C# and C++ equivalence stories run in Nightly.\n")
+            summary.write("Execution host: the Rust and Python stories run on Linux and Windows. C# and C++ equivalence stories run in Nightly.\n")
     - run: mise run ci:required --
       env:
         RESULTS: ${{ toJSON(needs) }}
