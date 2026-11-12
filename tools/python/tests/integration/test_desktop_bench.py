@@ -37,6 +37,47 @@ from dokime_tools.test import desktop_bench, run
 
 
 class DesktopBench(unittest.TestCase):
+    def test_system_lanes_reclaim_child_scratch_and_keep_failure_reports(self) -> None:
+        script = (
+            "import json, os, pathlib, sys, tempfile; "
+            "root = pathlib.Path(tempfile.gettempdir()); "
+            "pathlib.Path(tempfile.mkdtemp(prefix='dokime-evidence-')).joinpath('rows').write_bytes(b'evidence'); "
+            "tempfile.NamedTemporaryFile(prefix='dokime-output-', delete=False).close(); "
+            "report = pathlib.Path(sys.argv[1]); "
+            "report.with_name('scratch.json').write_text(json.dumps({'root': str(root)})); "
+            "report.write_text('<testsuites><testsuite><testcase name=\"capture\">' + "
+            "('<failure/>' if sys.argv[2] == '1' else '') + '</testcase></testsuite></testsuites>'); "
+            "os._exit(int(sys.argv[2]))"
+        )
+        rules = run.policy.load(Path.cwd())
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for language in ("rust", "python", "typescript"):
+                for failed in (False, True):
+                    key = f"system-{language}"
+                    scratch = directory / f"{language}-{int(failed)}"
+                    scratch.mkdir()
+                    junit = scratch / "junit.xml"
+                    lane = run._lane(
+                        directory,
+                        rules,
+                        key,
+                        "system",
+                        language,
+                        ".",
+                        "dev",
+                        [sys.executable, "-c", script, str(junit), str(int(failed))],
+                        directory,
+                        {**os.environ, "DOKIME_KEEP_EVIDENCE": "0"},
+                        junit,
+                        scratch,
+                    )
+                    destination = run.report.location(directory, "dev", key)
+                    native_root = Path(json.loads((destination / "scratch.json").read_text())["root"])
+                    self.assertFalse(native_root.exists())
+                    self.assertEqual(lane["outcome"], "failed" if failed else "passed")
+                    self.assertTrue((destination / "junit.xml").is_file())
+
     def test_native_child_scratch_is_reclaimed_after_success_and_failure(self) -> None:
         original = dict(os.environ)
         script = (
@@ -82,6 +123,21 @@ class DesktopBench(unittest.TestCase):
             ):
                 run.bench(root, "system", "rust", ".", False, [], binary="system-desktop")
             self.assertFalse(previous.exists())
+
+    def test_failed_native_initialization_clears_old_results_without_promoting_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "native"
+            home.mkdir()
+            previous = json.dumps({"benchmarks": [{"name": "previous", "unit": "ms", "value": 10}]}).encode()
+            (home / "dev.json").write_bytes(previous)
+            (home / "new.json").write_bytes(previous)
+            (home / "observations.json").write_text(json.dumps({"fixture": None, "results": [], "resources": []}))
+            with patch.object(desktop_bench.policy, "execute", return_value="candidate"):
+                desktop_bench.collect(root, home, {}, 20, refresh=True, success=False)
+            self.assertEqual(json.loads((home / "new.json").read_text())["benchmarks"], [])
+            self.assertEqual(json.loads((root / "target/benchmarks/benchmarks-rust-desktop.json").read_text())["benchmarks"], [])
+            self.assertEqual((home / "dev.json").read_bytes(), previous)
 
     def test_stage_totals_quantiles_and_refusals(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

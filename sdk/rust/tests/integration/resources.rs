@@ -45,7 +45,7 @@ use dokime::v1;
 #[tokio::test]
 async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> TestResult {
     // Start a Managed Plugin and Preview Its Case Without an Execution.
-    let mut process = Process::start(false).await?;
+    let mut process = Process::start("dokime-rust-thermal", false).await?;
     let description = process.describe().await?;
     let request = v1::MaterializeRequest {
         template: "thermal.cycle".into(),
@@ -120,7 +120,16 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
             kind: Some(v1::value::Kind::Number(90.0)),
         },
     );
-    let changed = v1::StepRequest { test_case: Some(changed), ..step.clone() };
+    let mut changed_origin = origin.clone();
+    let Some(v1::origin::Kind::PluginRun(run)) = changed_origin.kind.as_mut() else {
+        return Err("Missing Run Origin".into());
+    };
+    run.test_case = Some(changed.clone());
+    let changed = v1::StepRequest {
+        test_case: Some(changed),
+        origin: Some(changed_origin),
+        ..step.clone()
+    };
     assert_eq!(
         process.invoke(&case.steps[0].operation, "a", changed).await?.failure().await?.classification,
         harmos_protocol::v1::Classification::Permanent as i32

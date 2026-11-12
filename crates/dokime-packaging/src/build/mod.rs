@@ -355,7 +355,7 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     let requirements = package
         .dependencies
         .iter()
-        .filter(|dependency| dependency.name == "dokime")
+        .filter(|dependency| dependency.name == "dokime-facade")
         .map(|dependency| dependency.req.to_string())
         .collect::<std::collections::BTreeSet<_>>();
     if requirements.len() != 1 {

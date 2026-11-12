@@ -160,7 +160,7 @@ native profiles live under `target/desktop-bench-fixtures/` and close before
 removal. Fixture admission and initial persistence precede measurement. Allow
 additional disk headroom for admission's write-ahead log and a closed cold-history copy.
 
-Desktop system and bench tasks give their native descendants a private directory
+System test lanes and Rust bench tasks give their native descendants a private directory
 in system temporary storage. The runner reclaims it after success or failure,
 including forced exits that bypass native evidence/output destructors. Each bench
 fixture host also releases its private scratch at restart; the driver removes its
@@ -189,7 +189,9 @@ Live and late cases publish through the real runtime and saved telemetry path.
 Live, late and stalled trials retain their active workspace/watch between
 publications, so untimed setup does not remount and requery the document before
 every sample. A new condition or native host prepares its own initial view.
-The receive queue is stalled for 1.5 seconds while ingestion continues. Native
+The receive queue pauses for 1.5 seconds when a frame is first queued; observing
+that pause starts the remaining publications. Waiting for the frame and its drawing share the
+existing drawing wait bound. Native
 Windows needs the same interactive account, WebView2 and matching prepared Edge
 driver as desktop system stories; Linux needs WebKitWebDriver and an X11 session.
 
@@ -198,21 +200,24 @@ baseline refresh. `desktop/observations.json` beside those files retains each
 case's stage samples, native query/framing/send spans, bytes, WebView receive queue
 depth, missed 60 Hz animation opportunities, sampled process-tree CPU and peak
 resident memory. Resource sampling includes the fixture host and shell descendants
-(including WebView workers), at approximately 200 ms; it can miss shorter peaks.
+(including WebView workers), summing their resident working sets. The sampler sleeps
+200 ms between enumerations; actual cadence includes enumeration overhead. Sample
+counts and window durations retain that coverage, and sampling can miss shorter peaks.
 Absent resource readings remain absent. Stage totals and individual-call p50/p95
 are exported through `target/benchmarks/benchmarks-rust-desktop.json`, which the
 existing Nightly collector includes in `benchmarks.json`. Counts and bytes keep
 their actual units. The existing benchmark/report regression thresholds remain;
 observations never become wall-clock/resource tests.
 
-`firstVisibleMs` and `allVisibleMs` observe populated cards intersecting the
+`firstVisibleMs` and `allVisibleMs` start with the scene/action, including the live
+publication path, and observe populated cards intersecting the
 viewport at animation opportunities. They do not infer drawing from snapshot
 arrival. Zoom awaits the changed plot; resize awaits fresh canvas drawing at the
 new size. `presentation_opportunity` is two animation frames after a retained-model
 commit, not physical display presentation. `canvas_draw` measures real canvas API
 calls; DOM/SVG kinds still participate in visible-card observation. Backend query,
-framing and send spans are inclusive of their existing owners. Draining reports
-spans that finish in the sampled window; an in-flight span can have started during
+framing and send spans are inclusive of their existing owners. Every measured host
+response contributes its completed spans; an in-flight span can have started during
 preparation. Native transport wait includes server work and idle waiting, so these overlapping observations must
 not be added to claim exclusive stage attribution. Physical presentation,
 exclusive bridge/encoding time, OS-cache-cold reads and server/native queue depth

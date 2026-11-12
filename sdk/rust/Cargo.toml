@@ -69,51 +69,9 @@ tonic = { workspace = true, features = ["codegen", "transport"] }
 
 # === Dev Dependencies === #
 
-[dev-dependencies]
-# Local
-
-# Git
-harmos-runtime = { git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6", default-features = false, features = [
-  "grpc",
-] }
-
-# Error Handling
-
-# Logging
-
-# Utilities
-
-# Serialization
-tonic-prost = { workspace = true }
-
-# Configuration
-
-# Filesystem
-
-# Parsing
-
-# Concurrency
-
-# Async
-futures-util = { workspace = true }
-tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt", "sync", "test-util"] }
-tokio-stream = { workspace = true, features = ["net"] }
-
-# Networking
-
-# Storage
-
-# UI
-
-# Testing
-
 # === Target Dependencies === #
 
 # === Test Targets === #
-
-[[test]]
-name = "integration"
-path = "tests/integration/main.rs"
 
 # === Bench Targets === #
 

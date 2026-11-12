@@ -5327,7 +5327,8 @@ async function runDesktopWalkthrough() {
   } else {
     process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
     process.stdout.write(`Evidence: ${evidence}\n`);
-    if (!process.env.DOKIME_E2E_KEEP && !options.junit) await rm(evidence, { force: true, recursive: true });
+    if (!process.env.DOKIME_E2E_KEEP && process.env.DOKIME_KEEP_EVIDENCE !== "1" && !options.junit)
+      await rm(evidence, { force: true, recursive: true });
   }
 }
 

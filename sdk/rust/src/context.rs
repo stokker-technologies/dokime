@@ -40,7 +40,6 @@ pub(crate) type Executions = Arc<Mutex<HashMap<String, Arc<Execution>>>>;
 /* === Structs === */
 
 // One operation's host channel and the resources shared by its execution.
-#[derive(Clone)]
 pub struct Context {
     transport: harmos::Context,
     execution: Arc<Execution>,
@@ -65,6 +64,14 @@ pub(crate) struct EndExecution {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Execution {
+    fn clear(&self) -> Result<()> {
+        let retired = std::mem::take(&mut *self.resources.lock().map_err(|_| Error::Invalid("Execution Resource Store Poisoned".into()))?);
+        drop(retired);
+        Ok(())
+    }
+}
 
 impl Context {
     pub(crate) fn execution(
@@ -163,7 +170,9 @@ impl Context {
 
     // Replace a resource of this type. Interior mutation belongs to the resource itself.
     pub fn set<T: Send + Sync + 'static>(&self, value: T) {
-        self.execution.resources.lock().expect("Execution Resource Store Poisoned").insert(TypeId::of::<T>(), Arc::new(value));
+        let replaced =
+            self.execution.resources.lock().expect("Execution Resource Store Poisoned").insert(TypeId::of::<T>(), Arc::new(value));
+        drop(replaced);
     }
 
     pub fn get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
@@ -287,10 +296,25 @@ impl Drop for EndExecution {
         if executions.get(&self.scope).is_some_and(|current| Arc::ptr_eq(current, &self.execution)) {
             executions.remove(&self.scope);
         }
+        drop(executions);
+        self.execution.clear().expect("Execution Resource Store Poisoned");
     }
 }
 
 /* === Public Functions === */
+
+pub(crate) fn clear(executions: &Executions) -> Result<()> {
+    let retired = executions
+        .lock()
+        .map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?
+        .drain()
+        .map(|(_, execution)| execution)
+        .collect::<Vec<_>>();
+    for execution in retired {
+        execution.clear()?;
+    }
+    Ok(())
+}
 
 /* === Private Functions === */
 

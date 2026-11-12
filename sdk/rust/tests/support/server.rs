@@ -63,21 +63,6 @@ struct Health;
 
 struct Watch;
 
-#[derive(prost::Message)]
-struct Open {
-    #[prost(message, optional, tag = "1")]
-    request: Option<v1::GetBackendHealth>,
-}
-
-#[derive(prost::Message)]
-struct Output {
-    #[prost(message, optional, tag = "2")]
-    response: Option<v1::BackendIdentity>,
-
-    #[prost(message, optional, tag = "1")]
-    item: Option<v1::BackendHealth>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -127,7 +112,7 @@ where
             if D {
                 return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Discover, request).await);
             }
-            if path == "/dokime.v1.Backend/RunWatch" {
+            if path == "/dokime.v1.Backend/RunWatchLogs" {
                 return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).streaming(Watch, request).await);
             }
             Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Health, request).await)
@@ -166,25 +151,30 @@ impl tonic::server::UnaryService<v1::GetBackendHealth> for Health {
     }
 }
 
-impl tonic::server::StreamingService<Open> for Watch {
-    type Response = Output;
-    type ResponseStream = Pin<Box<dyn futures_util::Stream<Item = Result<Output, Status>> + Send>>;
+impl tonic::server::StreamingService<v1::BackendWatchLogsRunInput> for Watch {
+    type Response = v1::BackendWatchLogsRunOutput;
+    type ResponseStream = Pin<Box<dyn futures_util::Stream<Item = Result<Self::Response, Status>> + Send>>;
     type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
-    fn call(&mut self, request: Request<tonic::Streaming<Open>>) -> Self::Future {
+    fn call(&mut self, request: Request<tonic::Streaming<v1::BackendWatchLogsRunInput>>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
             let first = request.into_inner().message().await?.ok_or_else(|| Status::invalid_argument("Missing Opening"))?;
-            if first.request.is_none() {
+            if !matches!(first.value, Some(v1::backend_watch_logs_run_input::Value::Request(_))) {
                 return Err(Status::invalid_argument("Missing Request"));
             }
-            let identity = v1::BackendIdentity {
-                backend_id: "bench".into(),
-                epoch: "boot".into(),
+            let frame = v1::LogFrame {
+                time: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
+                level: v1::LogLevel::Info as i32,
+                target: "sdk.story".into(),
                 ..Default::default()
             };
             let output: Self::ResponseStream = Box::pin(tokio_stream::iter([
-                Ok(Output { item: Some(health()), response: None }),
-                Ok(Output { item: None, response: Some(identity) }),
+                Ok(v1::BackendWatchLogsRunOutput {
+                    value: Some(v1::backend_watch_logs_run_output::Value::Item(frame)),
+                }),
+                Ok(v1::BackendWatchLogsRunOutput {
+                    value: Some(v1::backend_watch_logs_run_output::Value::Response(v1::BackendWatchLogsCompletion {})),
+                }),
             ]));
             Ok(Response::new(output))
         })
@@ -201,12 +191,12 @@ pub fn contract(stream: bool) -> OperationContract {
     .encode_to_vec();
     let protobuf = host::Protobuf {
         descriptors,
-        request: "dokime.v1.GetBackendHealth".into(),
-        response: if stream { "dokime.v1.BackendIdentity" } else { "dokime.v1.BackendHealth" }.into(),
+        request: if stream { "dokime.v1.WatchBackendLogs" } else { "dokime.v1.GetBackendHealth" }.into(),
+        response: if stream { "dokime.v1.BackendWatchLogsCompletion" } else { "dokime.v1.BackendHealth" }.into(),
         input: None,
-        output: stream.then(|| "dokime.v1.BackendHealth".into()),
+        output: stream.then(|| "dokime.v1.LogFrame".into()),
     };
-    let id = if stream { "dokime.backend.watch" } else { "dokime.backend.health" };
+    let id = if stream { "dokime.backend.watch_logs" } else { "dokime.backend.get_health" };
     OperationContract {
         id: id.into(),
         visibility: host::Visibility::Public as i32,
@@ -215,7 +205,7 @@ pub fn contract(stream: bool) -> OperationContract {
         grpc: Some(host::Grpc {
             package: "dokime.v1".into(),
             service: "Backend".into(),
-            method: if stream { "Watch" } else { "Health" }.into(),
+            method: if stream { "WatchLogs" } else { "GetHealth" }.into(),
         }),
         ..Default::default()
     }

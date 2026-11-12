@@ -398,7 +398,7 @@ def _lane(
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
     destination = report.location(directory, profile, key)
-    native = language in SCRIPTS and category == "system"
+    native = category == "system"
     with desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as child_environment:
         if language in SCRIPTS:
             status = _execute(command, cwd, child_environment, timeout_s=rules.deadline(category))
@@ -564,9 +564,7 @@ def _bench_rust(
                 (home / "desktop" / diagnostic).unlink(missing_ok=True)
             shutil.copyfile(paths.output(directory, "build", "bench") / "fixtures/stamp.json", home / "desktop/fixture-stamp.json")
         with (
-            desktop_bench.scratch(environment, home / "desktop")
-            if name == "system-desktop"
-            else nullcontext(environment) as child_environment,
+            desktop_bench.scratch(environment, home / ("desktop" if name == "system-desktop" else "scratch")) as child_environment,
             desktop_bench.native(directory, child_environment) if name == "system-desktop" else nullcontext(),
         ):
             code, peak = _measured(

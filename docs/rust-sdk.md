@@ -98,12 +98,15 @@ The SDK generates private `<template>.materialize`, optional
 `<template>.initialize`, `<template>.step.<index>`, `<template>.criterion.<index>` and
 `<template>.cleanup` operations. Step/criterion evidence identifiers are separate
 from operation identifiers; `.identifier(...)` overrides their label-derived defaults.
-`.retries(n)` advertises host retry policy; it does not retry inside the plugin.
+`.retries(n)` advertises host retry policy with a 100 ms backoff when none was
+provided; it does not retry inside the plugin.
 `.policy(...)` accepts Harmos's full operation policy.
 An execution stream also gets a no-op initialize operation when there is no author
 hook, so its case is available before the first observer tick.
 The SDK always advertises cleanup, even without an author hook, to release the
-execution store. Cleanup releases resources after success, failure or cancellation;
+execution store. Cleanup empties the store even while a pending observer holds its
+call Context. Contexts are borrowed for one call; resource handles provide sharing
+between calls. Cleanup releases resources after success, failure or cancellation;
 `ctx.termination()` exposes the host's termination value. Plugin Stop also clears stores.
 
 Materialize copies the resolved parameters into a `dokime.v1.TestCase` assembled
@@ -185,7 +188,7 @@ async fn health(client: &Client) -> Result<v1::BackendHealth, tonic::Status> {
     }).await?.into_inner();
     let contract = page.operations.into_iter()
         .filter_map(|entry| entry.contract)
-        .find(|contract| contract.id == "dokime.backend.health")
+        .find(|contract| contract.id == "dokime.backend.get_health")
         .ok_or_else(|| tonic::Status::not_found("Discover the Backend Health Operation"))?;
     let method = client.method::<v1::GetBackendHealth, v1::BackendHealth>(contract)?;
     Ok(client.call(&method, v1::GetBackendHealth {}).await?.into_inner())
@@ -199,12 +202,15 @@ returns Harmos's managed call with `send`, `finish_input`, `next`, `join` and
 cancellation. `take_input` separates concurrent input from output draining.
 No SDK transport codec, retry loop or host policy duplicates Harmos.
 
-The current protocol crate has messages and reflection but no `dokime.v1` client
-service declarations/stubs, and many existing CLI/desktop service messages still
-live outside it. Generated service-specific coverage must be completed by the
-protocol owner. This SDK currently binds available generated messages to the
-host's discovered contracts. It does not absorb the old client's native DTOs,
-raw transport or host dependencies.
+The protocol crate currently provides generated Appearance, Backend and Plugins
+services through `dokime::v1`, including their managed-call envelopes. The SDK's
+Harmos client binds their generated payloads to the host's discovered contracts.
+The remaining service declarations/stubs are still missing: Catalog, Content,
+Documents, Evidence, Execution, Health, History, Media, Notes, Observation, Planning,
+Plots, Prompts, Query, Remote, Reports, Runtime, Secrets, Settings and Telemetry.
+Their existing native DTOs and host handlers need the protocol owner's cutover
+before service-wide client coverage can be promised. No old native transport or
+host dependency is absorbed into this SDK.
 
 ## Focused Proof
 
@@ -216,8 +222,11 @@ mise -C sdk/rust run sdk:test
 mise -C sdk/rust run sdk:tree
 ```
 
-The external consumer in `sdk/rust/tests/consumer` compiles the SDK from its actual
-path and builds the sample plugin. Its standalone lock isolates SDK proof from the
+The external consumer in `sdk/rust/tests/consumer` owns the focused test targets and
+all test-only reference-host dependencies. Its child-process fixture reuses the
+existing standalone `crates/dokime-domain/src/process/` constructor by source path
+to retain the repository's console-window policy without depending on that crate.
+It compiles the SDK from its actual path and builds the sample plugin. Its standalone lock isolates SDK proof from the
 concurrent host/facade cutover; `.prepare` refreshes that consumer's dependency lock
 with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository target.
 `cargo tree` checks normal/build product edges and excludes test-only host dependencies.
@@ -229,7 +238,8 @@ invocations; scoped suite execution therefore uses the protocol driver. The clie
 story uses an in-process fake gRPC server for authentication, discovery, schema
 binding/refusal, unary results, managed output/final results and response bounds.
 Other focused stories cover catalog/data construction and interleaved execution
-resource isolation. Tests never assert elapsed time or sleep on the wall clock.
+resource isolation and deterministic resource release during a pending observer
+read. Tests never assert elapsed time or sleep on the wall clock.
 
 ## Shared Cross-Language System Suite
 
@@ -242,8 +252,8 @@ It is ready for the same host-owned Nightly journey as the other SDKs:
 | Materialize `thermal.cycle` with `limit = 85.0` | Steps `ramp`, `hold`; criterion `within_limit`; stream `thermal.temperature` |
 | Initialize | Execution-local Bench resource; one acknowledged log |
 | Run `ramp` | Progress 1 of 2 |
-| Run `hold`; answer prompt `thermal.door` with accepted action `yes` | One `thermal.door` record, protobuf `thermal.v1.Door { closed: true }`; host sleep of 1 s; progress 2 of 2 |
-| Tick the observer at a literal host time | `thermal.v1.Temperature { celsius: 84.0 }`, carrying that tick time |
+| Run `hold`; answer prompt `thermal.door` with accepted action `yes` | One `thermal.door` record, protobuf `thermal.v1.Door { closed: true }`; host sleep of 2.5 s; progress 2 of 2 |
+| Tick the observer twice while Hold waits, at 1 s and 2 s after its start | Two `thermal.v1.Temperature { celsius: 84.0 }` samples, each carrying its tick time |
 | Evaluate `within_limit` | Statistics for `thermal.temperature.celsius` and records for `thermal.door`, both filtered to `hold`; Passed only with samples, maximum ≤ 85.0 and a closed-door record |
 | Cleanup, close and seal | Cleanup log; resources released; streams closed; host-persisted execution and report evidence |
 
@@ -263,7 +273,7 @@ written against generated Dokime services.
 | Owner | Adoption Work |
 | --- | --- |
 | Workspace/host | Retire or relocate the existing `crates/dokime` facade identity and point the workspace `dokime` dependency to `sdk/rust`; keep host helpers under runtime/operations/storage. Add canonical SDK build/test selection to owned tooling. |
-| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime`. |
+| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime`. |
 | Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
 | Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |
 | Old `dokime-client` | Migrate pairing/Target, discovery, cycle/execution handles, paging/follow and transfers to generated-message consumers as their protocol contracts land; delete its raw/native transport and the crate after consumers move. |

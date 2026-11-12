@@ -59,17 +59,17 @@ pub struct Invocation {
 /* === Implementations === */
 
 impl Process {
-    pub async fn start(remote: bool) -> TestResult<Self> {
-        let binary = std::env::var_os("NEXTEST_BIN_EXE_dokime-rust-thermal")
-            .or_else(|| std::env::var_os("NEXTEST_BIN_EXE_dokime_rust_thermal"))
-            .or_else(|| std::env::var_os("CARGO_BIN_EXE_dokime-rust-thermal"))
+    pub async fn start(name: &str, remote: bool) -> TestResult<Self> {
+        let binary = std::env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
+            .or_else(|| std::env::var_os(format!("NEXTEST_BIN_EXE_{}", name.replace('-', "_"))))
+            .or_else(|| std::env::var_os(format!("CARGO_BIN_EXE_{name}")))
             .map(PathBuf::from)
             .unwrap_or_else(|| {
                 let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
                 let sdk = if manifest.ends_with("tests/consumer") { manifest.join("../..") } else { manifest };
-                sdk.join("../../target/debug").join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX))
+                sdk.join("../../target/debug").join(format!("{name}{}", std::env::consts::EXE_SUFFIX))
             });
-        let mut command = Command::new(binary);
+        let mut command = Command::from(crate::process::command(binary));
         if remote {
             command.arg("--remote");
         }

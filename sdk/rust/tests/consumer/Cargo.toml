@@ -31,6 +31,10 @@ name = "dokime-rust-thermal"
 path = "../../examples/thermal.rs"
 
 [[bin]]
+name = "dokime-rust-resources"
+path = "../fixtures/resources.rs"
+
+[[bin]]
 name = "dokime-sdk-consumer"
 path = "src/main.rs"
 
@@ -61,6 +65,7 @@ dokime = { path = "../.." }
 # Concurrency
 
 # Async
+tokio = { version = "1.50.0", features = ["sync"] }
 
 # Networking
 
