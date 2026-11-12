@@ -55,7 +55,8 @@ pub async fn handle(
 ) -> Result<Output<v1::ObservationWatchExecutionProgressOutput>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut receiver = context.host.progress(&request.test_execution_id)?;
-        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
+        let terminal = sender.clone().reserve_owned().await.map_err(|_| crate::Error::Invalid("Open Watch: Reconnect the Client Stream".into()))?;
         let identifier = request.test_execution_id;
         let context = context.clone();
         let timeout = context.settings.watch_timeout;
@@ -69,7 +70,7 @@ pub async fn handle(
                     let saved = snapshot.progress().ok().and_then(|progress| progress.last().cloned()).unwrap_or_default();
                     let frame = v1::ExecutionProgressFrame { revision: progress.revision, resynchronized: initial, cleared: progress.finished,
                         progress: Some(v1::ExecutionProgress { test_execution_id: identifier.clone(), phase: progress.phase,
-                            completed: saved.completed, total: saved.total, ..Default::default() }), ..Default::default() };
+                            completed: saved.completed, total: saved.total, ..Default::default() }) };
                     let frame = v1::ObservationWatchExecutionProgressOutput { value: Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) };
                     if sender.send(Ok(frame)).await.is_err() { return; }
                     initial = false;
@@ -84,7 +85,7 @@ pub async fn handle(
                     }
                 }
             };
-            if tokio::time::timeout(timeout, work).await.is_err() { let _ = sender.try_send(Err(tonic::Status::deadline_exceeded("WatchExecutionProgress: Operation Deadline Expired"))); }
+            if tokio::time::timeout(timeout, work).await.is_err() { terminal.send(Err(tonic::Status::deadline_exceeded("WatchExecutionProgress: Operation Deadline Expired"))); }
         });
         Ok(tokio_stream::wrappers::ReceiverStream::new(output))
     }).await

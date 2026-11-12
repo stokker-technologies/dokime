@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Client Observes Runtime State
 
 /* === Modules === */
@@ -16,16 +15,14 @@
 
 /* === Imports === */
 
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::{client::HostClient, v1};
-use dokime_runtime_next::PluginProcess;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
-
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use dokime::{client::HostClient, v1};
+use dokime_runtime_next::PluginProcess;
 
 /* === Constants === */
 

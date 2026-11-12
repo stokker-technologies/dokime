@@ -46,17 +46,34 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::ExecutionGetExecutionRequest) -> Result<v1::ExecutionDetail> {
     super::complete(ID, context.settings.read_timeout, async {
-        let snapshot = super::execution_state::read(context,&request.execution_id)?;
+        let snapshot = super::execution_state::read(context, &request.execution_id)?;
         let controls = context.host.controls(&request.execution_id)?;
-        let summary = super::execution_state::summary(context,&snapshot)?;
+        let summary = super::execution_state::summary(context, &snapshot)?;
         let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
         let cycle_counts = super::projection::counts(&outcomes);
         let reports = context.host.store().reports(&request.execution_id)?;
         let schemas = super::projection::schemas(&snapshot)?;
+        let (started_at, finished_at) = context.host.store().execution_times(&request.execution_id)?;
         Ok(v1::ExecutionDetail {
-            input_parameter_count: snapshot.execution.origin.as_ref().and_then(|origin| super::execution_state::case(origin).ok()).map_or(0,|case| case.parameters.len() as u64),
-            step_count: snapshot.execution.origin.as_ref().and_then(|origin| super::execution_state::case(origin).ok()).map_or(0,|case| case.steps.len() as u64),
-            observed_cursor: Some(super::execution_state::observed(context)),
+            started_at: started_at.map(super::projection::timestamp),
+            finished_at: if snapshot.state == dokime_storage::ExecutionState::Sealed {
+                finished_at.map(super::projection::timestamp)
+            } else {
+                None
+            },
+            input_parameter_count: snapshot
+                .execution
+                .origin
+                .as_ref()
+                .and_then(|origin| super::execution_state::case(origin).ok())
+                .map_or(0, |case| case.parameters.len() as u64),
+            step_count: snapshot
+                .execution
+                .origin
+                .as_ref()
+                .and_then(|origin| super::execution_state::case(origin).ok())
+                .map_or(0, |case| case.steps.len() as u64),
+            observed_cursor: (snapshot.state != dokime_storage::ExecutionState::Sealed).then(|| super::execution_state::observed(context)),
             summary: Some(summary),
             controls: Some(controls),
             cycle_counts: Some(cycle_counts),

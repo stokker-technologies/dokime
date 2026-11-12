@@ -50,6 +50,9 @@ pub enum Error {
 
     #[error("{0}")]
     Conflict(String),
+
+    #[error("{0}")]
+    Bound(String),
 }
 
 /* === Traits === */

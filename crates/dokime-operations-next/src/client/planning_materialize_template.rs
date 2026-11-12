@@ -15,9 +15,14 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use prost::Message;
+
+// Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-use prost::Message;
 
 /* === Constants === */
 
@@ -43,10 +48,14 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, request: v1::PlanningMaterializeTemplateRequest) -> Result<v1::PreviewSelectionReply> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let selection = request.selection.ok_or_else(|| Error::Invalid("Materialize Template: Supply a Selection".into()))?;
-        let plan = v1::SelectionPlan { selections: vec![selection], ..Default::default() };
+        let plan = v1::SelectionPlan {
+            selections: vec![selection],
+            ..Default::default()
+        };
         let reply = super::planning::resolve(context, &plan).await?;
-        Ok(context.host.store().register_cases(None, &plan.encode_to_vec(), &plan.cycle_id, reply)?)
-    }).await
+        Ok(context.host.store().register_cases(None, &plan.encode_to_vec(), &plan.cycle_id, reply, context.settings.message_bytes)?)
+    })
+    .await
 }
 
 /* === Private Functions === */

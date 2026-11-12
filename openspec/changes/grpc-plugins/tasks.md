@@ -298,10 +298,10 @@ methods and alphabetical registration lines. Old crates stay unchanged.
 
 - [x] Complete Prompts catalog, pending paging, retained answers and all Run methods; prove the real-process operator journey.
 - [x] Complete Planning preview, registration and materialization with ordered bounded expansion; prove the real-process planning journey.
-- [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey.
+- [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey and matching Query/detail projections for explicit origins.
 - [x] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
-- [x] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey.
-- [ ] Pass format, owned stories twice, fifteen existing stories, three new-crate check builds and repository checking; commit locally without pushing.
+- [x] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey and complete filtered cycle counts.
+- [x] Pass format, owned stories twice by exact name, fifteen existing stories, three new-crate check builds, all three scoped Rust checks, eight protocol checks and repository checking on Windows; commit locally without pushing. The final host target passes 20/20 with no skips; the parameter-expansion unit proof passes. Native Linux and combined integration proof remain with the orchestrator.
 
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing execution/dispatch/streams/storage source stays with the host-feature owner.
 

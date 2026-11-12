@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Client Controls Execution Lifecycle
 
 /* === Modules === */
@@ -16,16 +15,14 @@
 
 /* === Imports === */
 
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::{client::HostClient, v1};
-use dokime_runtime_next::PluginProcess;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
-
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use dokime::{client::HostClient, v1};
+use dokime_runtime_next::PluginProcess;
 
 /* === Constants === */
 
@@ -94,7 +91,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         }
         let repeated = execution.submit_execution_command(command).await?.into_inner();
         assert_eq!(repeated.phase, v1::ExecutionCommandPhase::Completed as i32);
-        assert!(execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(), execution_id: identifier.clone(), command_id: "repeat-ramp".into(), action: v1::ExecutionCommandAction::RunStep as i32, step_id: Some("ramp".into()) }).await.is_err());
+        assert_eq!(execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(), execution_id: identifier.clone(), command_id: "repeat-ramp".into(), action: v1::ExecutionCommandAction::RunStep as i32, step_id: Some("ramp".into()) }).await?.into_inner().phase,v1::ExecutionCommandPhase::Refused as i32);
 
         // Run the Prompt Step and Finish After Answering
         execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(), execution_id: identifier.clone(), command_id: "hold-command".into(), action: v1::ExecutionCommandAction::Next as i32, step_id: None }).await?;
@@ -106,6 +103,9 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
             if receipt.phase == v1::ExecutionCommandPhase::Completed as i32 { break; }
             runtime.message().await?.unwrap();
         }
+        let exhausted = execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(),execution_id: identifier.clone(),command_id: "no-next-step".into(),action: v1::ExecutionCommandAction::Next as i32,step_id: None }).await?.into_inner();
+        assert_eq!(exhausted.phase,v1::ExecutionCommandPhase::Refused as i32);
+        assert!(execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner().controls.unwrap().can_cancel);
         execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(), execution_id: identifier.clone(), command_id: "finish-command".into(), action: v1::ExecutionCommandAction::Finish as i32, step_id: None }).await?;
         while progress.message().await?.is_some() {}
 

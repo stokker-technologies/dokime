@@ -65,6 +65,64 @@ pub(super) fn scope(snapshot: &ExecutionSnapshot) -> v1::EvidenceScope {
         ..Default::default()
     }
 }
+pub(super) fn entry_scope(snapshot: &ExecutionSnapshot, entry: &dokime_storage::Evidence) -> Result<v1::EvidenceScope> {
+    let mut scope = scope(snapshot);
+    if !entry.step.is_empty() {
+        scope.step_id = Some(entry.step.clone());
+    }
+    let Some(v1::origin::Kind::PluginRun(run)) = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) else {
+        return Ok(scope);
+    };
+    scope.template_id = Some(run.template.clone());
+    let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+    for section in catalog.sections {
+        if section.r#type != "dokime.v1.Suites" {
+            continue;
+        }
+        for suite in v1::Suites::decode(section.payload.as_slice())?.suites {
+            for template in suite.templates {
+                if template.metadata.as_ref().is_none_or(|metadata| metadata.identifier != run.template) {
+                    continue;
+                }
+                scope.suite_id = suite.metadata.as_ref().map(|metadata| metadata.identifier.clone());
+                let kind = if template.initialize.as_ref() == Some(&entry.operation) {
+                    Some(v1::evidence_origin_kind::Kind::Initialization(true))
+                } else if template.cleanup.as_ref() == Some(&entry.operation) {
+                    Some(v1::evidence_origin_kind::Kind::Cleanup(true))
+                } else {
+                    snapshot
+                        .evidence
+                        .iter()
+                        .rev()
+                        .find(|attempt| {
+                            attempt.kind == "attempt:start"
+                                && attempt.position <= entry.position
+                                && attempt.operation == entry.operation
+                                && attempt.step == entry.step
+                                && attempt.attempt == entry.attempt
+                        })
+                        .map(|attempt| {
+                            v1::evidence_origin_kind::Kind::StepAttemptId(format!("{}/{}", snapshot.execution.identifier, attempt.position))
+                        })
+                };
+                if let Some(kind) = kind {
+                    scope.origin = Some(v1::EvidenceOrigin {
+                        kind: Some(v1::EvidenceOriginKind { kind: Some(kind) }),
+                    });
+                }
+            }
+        }
+    }
+    if let Some(case) = &run.test_case {
+        scope.criterion_id = case
+            .criteria
+            .iter()
+            .find(|criterion| criterion.operation == entry.operation)
+            .and_then(|criterion| criterion.metadata.as_ref())
+            .map(|metadata| metadata.identifier.clone());
+    }
+    Ok(scope)
+}
 pub(super) fn execution_scope(scope: Option<&v1::EvidenceScope>) -> Result<&str> {
     let scope = scope.ok_or_else(|| Error::Invalid("Read Requires an Execution Scope".into()))?;
     if scope.origin.is_some()
@@ -225,16 +283,21 @@ pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
     }
     Ok(samples)
 }
-pub(super) fn prompt_id(execution: &str, prompt: &str) -> String {
-    format!("{execution}/{prompt}")
+pub(super) fn prompt_id(execution: &str, prompt: &str, position: u64) -> String {
+    format!("{execution}/{prompt}/{position}")
 }
 pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, v1::OperatorQuestion)> {
-    context
-        .host
-        .pending()?
-        .into_iter()
-        .find(|(execution, question)| prompt_id(execution, &question.prompt) == identifier)
-        .ok_or_else(|| Error::Invalid(format!("Read or Answer Pending Prompt {identifier}: Prompt Is Not Pending")))
+    for (execution, question) in context.host.pending()? {
+        let snapshot = super::execution_state::evidence(context, &execution)?;
+        if let Some(entry) = snapshot.evidence.iter().rev().find(|entry| {
+            entry.kind == "prompt"
+                && v1::OperatorQuestion::decode(entry.payload.as_slice()).is_ok_and(|stored| stored.prompt == question.prompt)
+        }) && prompt_id(&execution, &question.prompt, entry.position) == identifier
+        {
+            return Ok((execution, question));
+        }
+    }
+    Err(Error::Conflict("Answer Prompt: Select the Current Pending Question".into()))
 }
 pub(super) fn report(snapshot: &ExecutionSnapshot, counts: &v1::ExecutionOutcomeCounts) -> String {
     let identifier = escape(&snapshot.execution.identifier);

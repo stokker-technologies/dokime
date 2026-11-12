@@ -16,11 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 use prost::Message;
-use std::sync::Arc;
-
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_util::sync::CancellationToken;
 
@@ -116,24 +115,30 @@ pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle>
         }
         prepared.push((uuid::Uuid::now_v7().to_string(), origin, entry));
     }
-    let mut executions = Vec::new();
-    for (execution, origin, entry) in &prepared {
-        host.inner.store.create(&Execution {
+    let admitted: Vec<_> = prepared
+        .iter()
+        .map(|(execution, origin, entry)| Execution {
             identifier: execution.clone(),
             cycle: identifier.clone(),
             origin: Some(origin.clone()),
             catalog: entry.description.catalog.as_ref().unwrap().encode_to_vec(),
             ..Default::default()
-        })?;
-        lock(&host.inner.active)?.insert(
-            execution.clone(),
-            Active {
-                plugin: entry.description.id.clone(),
-                cancellation: CancellationToken::new(),
-                control: Arc::new(crate::run_control::RunControl::default()),
-            },
-        );
-        executions.push(execution.clone());
+        })
+        .collect();
+    host.inner.store.create_executions(&admitted)?;
+    let executions = admitted.iter().map(|execution| execution.identifier.clone()).collect();
+    {
+        let mut active = lock(&host.inner.active)?;
+        for (execution, _, entry) in &prepared {
+            active.insert(
+                execution.clone(),
+                Active {
+                    plugin: entry.description.id.clone(),
+                    cancellation: CancellationToken::new(),
+                    control: Arc::new(crate::run_control::RunControl::default()),
+                },
+            );
+        }
     }
     Ok(launch(host, identifier, executions, prepared))
 }
@@ -168,7 +173,11 @@ pub(crate) async fn start_existing_mode(host: Host, execution: &str, mode: v1::E
             Active {
                 plugin: run.plugin.clone(),
                 cancellation: CancellationToken::new(),
-                control: Arc::new(if mode == v1::ExecutionMode::Interactive { crate::run_control::RunControl::interactive() } else { crate::run_control::RunControl::default() }),
+                control: Arc::new(if mode == v1::ExecutionMode::Interactive {
+                    crate::run_control::RunControl::interactive()
+                } else {
+                    crate::run_control::RunControl::default()
+                }),
             },
         );
     }
@@ -182,11 +191,31 @@ fn launch(host: Host, identifier: String, executions: Vec<String>, prepared: Vec
         let mut workers = JoinSet::new();
         for (index, (execution, origin, entry)) in prepared.into_iter().enumerate() {
             let host = host.clone();
-            workers.spawn(async move { (index, drive(host, execution, origin, entry).await) });
+            workers.spawn(async move {
+                let result = drive(host.clone(), execution.clone(), origin, entry).await;
+                if result.is_err() {
+                    let cut = host.inner.store.cut(&execution)?;
+                    if cut.state == dokime_storage::ExecutionState::Open {
+                        host.inner.store.close_streams(&execution)?;
+                        host.inner.store.close(
+                            &execution,
+                            v1::Termination::Interrupted,
+                            v1::ExecutionOutcome {
+                                attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
+                                    termination: v1::Termination::Interrupted as i32,
+                                    reason: "Execution Infrastructure Failed; Inspect the Host Diagnostic".into(),
+                                })),
+                            },
+                        )?;
+                        host.inner.store.seal(&execution)?;
+                    }
+                }
+                Ok::<_, Error>((index, result))
+            });
         }
         let mut finished = Vec::new();
         while let Some(result) = workers.join_next().await {
-            let (index, result) = result?;
+            let (index, result) = result??;
             finished.push((index, result?));
         }
         finished.sort_by_key(|(index, _)| *index);
@@ -243,7 +272,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         clock: host.inner.settings.clock.clone(),
     };
     states.push(RunState::Initializing);
-    host.set_run_phase(&execution,"initializing")?;
+    host.set_run_phase(&execution, "initializing")?;
     let mut initialized = template.initialize.is_none();
     let mut evaluated = Vec::new();
     let result: Result<()> = async {
@@ -264,18 +293,25 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
             initialized = true;
         }
         states.push(RunState::Stepping);
-        host.set_run_phase(&execution,"stepping")?;
-        while let Some((index, command)) = control.next(case, &dispatch.cancellation).await? {
+        host.set_run_phase(&execution, "stepping")?;
+        while let Some((index, mut command)) = control.next(case, &dispatch.cancellation).await? {
             let step = &case.steps[index];
-            if let Some(mut command) = command.clone() {
-                command.phase = v1::ExecutionCommandPhase::Running as i32;
-                host.inner.store.save_command(&command)?;
-            }
             host.signal_change();
             let identifier =
                 step.metadata.as_ref().ok_or_else(|| Error::Invalid("Materialize Steps with Identifiers".into()))?.identifier.clone();
             dispatch.resources.as_mut().unwrap().step = identifier.clone();
-            dispatch.resources.as_ref().unwrap().evidence("step:start", Vec::new(), None)?;
+            let position = dispatch.resources.as_ref().unwrap().evidence("step:start", Vec::new(), None)?;
+            if let Some(command) = &mut command {
+                command.phase = v1::ExecutionCommandPhase::Running as i32;
+                command.attempt_id = Some(format!("{execution}/{position}"));
+                let now = host.now_ns();
+                command.updated_at = Some(prost_types::Timestamp {
+                    seconds: now.div_euclid(1_000_000_000),
+                    nanos: now.rem_euclid(1_000_000_000) as i32,
+                });
+                host.inner.store.save_command(command)?;
+            }
+            host.signal_change();
             let result = dispatch
                 .invoke::<_, v1::StepResponse>(
                     &step.operation,
@@ -288,10 +324,18 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
                 )
                 .await;
             dispatch.resources.as_ref().unwrap().evidence("step:end", Vec::new(), None)?;
-            if result.is_err() { dispatch.resources.as_ref().unwrap().evidence("step:failure", Vec::new(), None)?; }
+            if result.is_err() {
+                dispatch.resources.as_ref().unwrap().evidence("step:failure", Vec::new(), None)?;
+            }
             if let Some(mut command) = command {
-                command.phase = if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Failed } as i32;
+                command.phase =
+                    if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Failed } as i32;
                 command.detail = result.as_ref().err().map(ToString::to_string);
+                let now = host.now_ns();
+                command.updated_at = Some(prost_types::Timestamp {
+                    seconds: now.div_euclid(1_000_000_000),
+                    nanos: now.rem_euclid(1_000_000_000) as i32,
+                });
                 host.inner.store.save_command(&command)?;
             }
             control.complete_step(index)?;
@@ -300,7 +344,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         }
         dispatch.resources.as_mut().unwrap().step.clear();
         states.push(RunState::Evaluating);
-        host.set_run_phase(&execution,"evaluating")?;
+        host.set_run_phase(&execution, "evaluating")?;
         for criterion in &case.criteria {
             let identifier = criterion
                 .metadata
@@ -336,7 +380,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         Err(_) => v1::Termination::Interrupted,
     };
     states.push(RunState::CleaningUp);
-    host.set_run_phase(&execution,"cleaning_up")?;
+    host.set_run_phase(&execution, "cleaning_up")?;
     dispatch.cancellation = CancellationToken::new();
     dispatch.resources.as_mut().unwrap().step.clear();
     if initialized && let Some(operation) = &template.cleanup {

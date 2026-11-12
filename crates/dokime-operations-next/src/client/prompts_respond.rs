@@ -47,9 +47,24 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, request: v1::PromptsRespondRequest) -> Result<v1::PromptResponseReceipt> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let view = super::prompt_catalog::view(context, &request.prompt_id)?;
-        if view.response.is_some() { return Err(Error::Conflict("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into())); }
+        if view.response.is_some() {
+            return Err(Error::Conflict("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into()));
+        }
         let (execution, question) = super::projection::pending(context, &request.prompt_id)?;
-        let snapshot = context.host.store().read(&execution)?;
+        let mut snapshot = super::execution_state::evidence(context, &execution)?;
+        let cut = context.host.store().cut(&execution)?;
+        for stream in super::projection::schemas(&snapshot)?.streams {
+            let position = context.host.store().sample_frontier(&execution, &stream.stream, 0, cut.frontier)?;
+            if position > 0 {
+                snapshot.samples.extend(context.host.store().sample_page(
+                    &execution,
+                    &stream.stream,
+                    position - 1,
+                    position,
+                    std::num::NonZeroUsize::new(1).unwrap(),
+                )?);
+            }
+        }
         let definition = super::projection::prompt_definition(&snapshot, &question)?;
         let values = request.values.unwrap_or_default().values;
         super::prompt_validation::validate(&definition, request.action.trim(), request.accepted, &values, &snapshot)?;

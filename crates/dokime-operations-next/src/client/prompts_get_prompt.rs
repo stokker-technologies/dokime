@@ -45,10 +45,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
     super::declaration::<v1::PromptsGetPromptRequest, v1::PromptView>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: v1::PromptsGetPromptRequest) -> Result<v1::PromptView> {
-    super::complete(ID, context.settings.read_timeout, async {
-        super::prompt_catalog::view(context, &request.prompt_id)
-    })
-    .await
+    super::complete(ID, context.settings.read_timeout, async { super::prompt_catalog::view(context, &request.prompt_id) }).await
 }
 
 /* === Private Functions === */

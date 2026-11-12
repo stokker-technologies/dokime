@@ -803,6 +803,10 @@ BrowseExecutions gains an additive cursor in its request and reply so continuati
 Saved cycle headers append at seals and presentation commits; BrowseCycles retains its captured storage frontier across later changes.
 History artifact reads consume ordered acknowledged PublishArtifact evidence; contextual artifact admission remains with the data-service owner and must retain that evidence contract at integration.
 Prompt IDs include their durable question position, keeping repeated questions in one execution distinct while retaining earlier answers.
+Interactive reruns invalidate effective downstream steps, refuse previously invoked nonrepeatable downstream steps, and leave an exhausted Next waiting for explicit Finish.
+Registry, cycle, binding, command, saved-header and deletion tables remain v1; integration combines the service owners' table inventories before root validation.
+Execution detail and execution-service lists join Store::execution_presentation; the Query owner adopts that same case/archive join at integration for explicitly bound executions.
+Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.

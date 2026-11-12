@@ -45,13 +45,13 @@ Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode
 The storage root retains a backend identity; each process has a new boot epoch.
 Remote authentication is pending, so this listener accepts loopback addresses.
 
-The first served methods are Plugins Add/List; Catalog ListSuites/GetSuite;
-Planning MaterializeTemplate; Execution CreateCycle/GetExecution; Observation
-WatchExecutionProgress; Prompts ListPending/GetPrompt/Respond; Query
-ListExecutions; Evidence ListRecords; Telemetry ListSamples; Reports
-DownloadExecutionReport/PublishExecutionReport; Health ListHealth; and Backend identity, health and
-availability. Backend availability advertises only these methods. Other methods
-return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
+Planning, Execution, Observation, Prompts and History serve every declared
+operation and its Run form. Other served methods are Plugins Add/List; Catalog
+ListSuites/GetSuite; Query ListExecutions; Evidence ListRecords; Telemetry
+ListSamples; Reports DownloadExecutionReport/PublishExecutionReport; Health
+ListHealth; and Backend identity, health and availability. Backend availability
+advertises the served methods. Other methods return `UNIMPLEMENTED` naming the
+action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
 
 Prompts serves all five operations and their bidirectional Run forms. Catalog
@@ -100,6 +100,17 @@ response; output windows return only the requested bytes. Deletion checks the
 exact seal and retains a durable request receipt for retry resolution.
 `client_browses_sealed_history` proves this workflow, including restart reads.
 
+The service adapter adds `Host::record_answer`, `changes`, `signal_change`,
+`is_shutting_down`, `execution_controls`, `start_execution_mode`,
+`pause_execution`, `stop_execution` and `submit_execution_command`.
+The storage owners are `crates/dokime-storage/src/plans.rs` (registration and
+planned-case reads), `cycles.rs` (cycle headers, execution presentation, command
+receipts, recovery and evidence times), and `history.rs` (saved frontiers and
+idempotent sealed deletion). `Store::create_executions` admits complete origin
+lists atomically. The added tables are `cases`, `registrations`, `cycles`,
+`bindings`, `commands`, `cycle_history` and `deletions`; integration must combine
+these with other service owners' tables in the v1 root validation.
+
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
 Progress streams expose queued/prompt/finished events and end with a terminal
@@ -138,7 +149,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains fifteen stories,
+reads their records through the client. The system target contains twenty stories,
 including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
@@ -162,7 +173,7 @@ fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
 runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
 fixtures. Tests Build includes the same producer; the Linux and Windows pull
-request and Nightly jobs consume its exports and run all fifteen stories.
+request and Nightly jobs consume its exports and run all twenty stories.
 
 ```sh
 mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence

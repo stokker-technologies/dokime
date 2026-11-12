@@ -58,20 +58,34 @@ impl ClientHost for State {
     fn store(&self) -> Store {
         self.host.inner.store.clone()
     }
-    fn changes(&self) -> watch::Receiver<u64> { self.host.changes() }
-    fn shutting_down(&self) -> bool { self.host.is_shutting_down() }
-    fn signal_change(&self) { self.host.signal_change(); }
+    fn changes(&self) -> watch::Receiver<u64> {
+        self.host.changes()
+    }
+    fn shutting_down(&self) -> bool {
+        self.host.is_shutting_down()
+    }
+    fn signal_change(&self) {
+        self.host.signal_change();
+    }
     async fn start_existing(&self, execution: &str, mode: v1::ExecutionMode) -> Result<StartedCycle> {
         let cycle = self.host.start_execution_mode(execution, mode).await.map_err(convert)?;
         self.track(cycle)
     }
     fn control_execution(&self, execution: &str, action: dokime_operations_next::client::RunAction) -> Result<()> {
         use dokime_operations_next::client::RunAction;
-        match action { RunAction::Cancel => self.host.cancel(execution), RunAction::Pause => self.host.pause_execution(execution, true), RunAction::Resume => self.host.pause_execution(execution, false), RunAction::Stop => self.host.stop_execution(execution) }.map_err(|error| Error::Conflict(error.to_string()))?;
+        match action {
+            RunAction::Cancel => self.host.cancel(execution),
+            RunAction::Pause => self.host.pause_execution(execution, true),
+            RunAction::Resume => self.host.pause_execution(execution, false),
+            RunAction::Stop => self.host.stop_execution(execution),
+        }
+        .map_err(|error| Error::Conflict(error.to_string()))?;
         self.host.signal_change();
         Ok(())
     }
-    fn submit_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> { self.host.submit_execution_command(request).map_err(|error| Error::Conflict(error.to_string())) }
+    fn submit_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
+        self.host.submit_execution_command(request).map_err(|error| Error::Conflict(error.to_string()))
+    }
     fn now_ns(&self) -> i64 {
         self.host.now_ns()
     }
@@ -174,7 +188,15 @@ impl ClientHost for State {
 impl State {
     fn track(&self, cycle: crate::Cycle) -> Result<StartedCycle> {
         if self.host.inner.store.client_cycle(&cycle.identifier)?.is_none() {
-            self.host.inner.store.save_cycle(&v1::CycleSummary { cycle_id: cycle.identifier.clone(), continue_automatically: true, created_at: Some(prost_types::Timestamp { seconds: self.host.now_ns().div_euclid(1_000_000_000), nanos: self.host.now_ns().rem_euclid(1_000_000_000) as i32 }), ..Default::default() })?;
+            self.host.inner.store.save_cycle(&v1::CycleSummary {
+                cycle_id: cycle.identifier.clone(),
+                continue_automatically: true,
+                created_at: Some(prost_types::Timestamp {
+                    seconds: self.host.now_ns().div_euclid(1_000_000_000),
+                    nanos: self.host.now_ns().rem_euclid(1_000_000_000) as i32,
+                }),
+                ..Default::default()
+            })?;
         }
         let started = StartedCycle {
             identifier: cycle.identifier.clone(),
@@ -196,13 +218,29 @@ impl State {
             let prompt_task = tokio::spawn(async move {
                 loop {
                     changes.borrow_and_update();
-                    let Ok(cut) = host.inner.store.cut(&identifier) else { return; };
+                    let Ok(cut) = host.inner.store.cut(&identifier) else {
+                        return;
+                    };
                     let finished = cut.state == ExecutionState::Sealed;
-                    let pending = host.pending_prompts().is_ok_and(|prompts| prompts.iter().any(|(execution,_)| execution == &identifier));
-                    let phase = if finished { "finished".into() } else if pending { "prompt".into() } else { host.run_phase(&identifier).unwrap_or_else(|_| "interrupted".into()) };
-                    prompt_sender.send_modify(|progress| { progress.revision += 1; progress.phase = phase; progress.finished = finished; });
-                    if finished { return; }
-                    if changes.changed().await.is_err() { return; }
+                    let pending = host.pending_prompts().is_ok_and(|prompts| prompts.iter().any(|(execution, _)| execution == &identifier));
+                    let phase = if finished {
+                        "finished".into()
+                    } else if pending {
+                        "prompt".into()
+                    } else {
+                        host.run_phase(&identifier).unwrap_or_else(|_| "interrupted".into())
+                    };
+                    prompt_sender.send_modify(|progress| {
+                        progress.revision += 1;
+                        progress.phase = phase;
+                        progress.finished = finished;
+                    });
+                    if finished {
+                        return;
+                    }
+                    if changes.changed().await.is_err() {
+                        return;
+                    }
                 }
             });
             senders.push((sender, prompt_task));

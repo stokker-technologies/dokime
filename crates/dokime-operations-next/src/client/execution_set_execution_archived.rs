@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Execution Set Execution Archived
 
 /* === Modules === */
@@ -16,6 +15,11 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
 
@@ -37,14 +41,17 @@ pub const ID: &str = "dokime.execution.set_execution_archived";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> { super::declaration::<v1::ExecutionSetExecutionArchivedRequest, v1::ArchiveReply>(ID, settings.mutation_timeout) }
+pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
+    super::declaration::<v1::ExecutionSetExecutionArchivedRequest, v1::ArchiveReply>(ID, settings.mutation_timeout)
+}
 pub async fn handle(context: &Context, request: v1::ExecutionSetExecutionArchivedRequest) -> Result<v1::ArchiveReply> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        super::execution_state::read(context,&request.execution_id)?;
-        context.host.store().set_execution_presentation(&request.execution_id,None,Some(request.archived))?;
+        super::execution_state::read(context, &request.execution_id)?;
+        context.host.store().set_execution_presentation(&request.execution_id, None, Some(request.archived))?;
         context.host.signal_change();
         Ok(v1::ArchiveReply { archived: request.archived })
-    }).await
+    })
+    .await
 }
 
 /* === Private Functions === */

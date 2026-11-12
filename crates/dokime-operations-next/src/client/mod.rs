@@ -259,7 +259,12 @@ pub struct StartedCycle {
 
 /* === Enums === */
 
-pub enum RunAction { Cancel, Pause, Resume, Stop }
+pub enum RunAction {
+    Cancel,
+    Pause,
+    Resume,
+    Stop,
+}
 
 /* === Traits === */
 
@@ -317,9 +322,16 @@ pub fn status(error: Error) -> tonic::Status {
         Error::Deadline(action) => tonic::Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
         Error::NotFound(message) => tonic::Status::not_found(message),
         Error::Conflict(message) => tonic::Status::failed_precondition(message),
+        Error::Bound(message) => tonic::Status::resource_exhausted(message),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),
     }
+}
+pub fn bounded_reply<T: prost::Message>(context: &Context, reply: T) -> Result<T> {
+    if reply.encoded_len() > context.settings.message_bytes {
+        return Err(Error::Bound("Receive Reply: Reduce the Selection or Page Limit to Fit the Configured Message Bound".into()));
+    }
+    Ok(reply)
 }
 
 /* === Private Functions === */

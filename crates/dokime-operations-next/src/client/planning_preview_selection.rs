@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Preview Selection
 
 /* === Modules === */
@@ -16,6 +15,11 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
@@ -44,7 +48,8 @@ pub async fn handle(context: &Context, request: v1::PlanningPreviewSelectionRequ
     super::complete(ID, context.settings.read_timeout, async {
         let plan = request.plan.ok_or_else(|| Error::Invalid("Preview Selection: Supply a Plan".into()))?;
         super::planning::resolve(context, &plan).await
-    }).await
+    })
+    .await
 }
 
 /* === Private Functions === */
