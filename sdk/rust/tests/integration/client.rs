@@ -88,11 +88,19 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
 
     // Follow Managed Output and Join Its Independently Typed Final Result.
     let contract = page.operations[1].contract.clone().ok_or("Missing Watch Contract")?;
-    let watch = client.method::<v1::GetBackendHealth, v1::BackendIdentity>(contract)?.with_output::<v1::BackendHealth>()?;
-    let mut running = client.start(&watch, v1::GetBackendHealth {}).await?;
-    assert_eq!(running.next().await?.ok_or("Missing Health Item")?.backend_id, "bench");
+    let watch = client.method::<v1::WatchBackendLogs, v1::BackendWatchLogsCompletion>(contract)?.with_output::<v1::LogFrame>()?;
+    let mut running = client
+        .start(
+            &watch,
+            v1::WatchBackendLogs {
+                min_level: v1::LogLevel::Info as i32,
+                replay_lines: 2,
+            },
+        )
+        .await?;
+    assert_eq!(running.next().await?.ok_or("Missing Log Item")?.target, "sdk.story");
     assert!(running.next().await?.is_none());
-    assert_eq!(running.join().await?.epoch, "boot");
+    running.join().await?;
 
     // Refuse a Contract Whose Advertised Schema Fingerprint Was Altered.
     let mut contract = server::contract(false);

@@ -35,7 +35,7 @@ pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
 pub use dokime_protocol::{builders, v1};
 pub use error::{Error, Result};
 pub use harmos::clock;
-pub use harmos::{OperationRequest, Publisher, Visibility};
+pub use harmos::{Classification, Failure, OperationPolicy, OperationRequest, Publisher, Visibility};
 pub use operation::Operation;
 pub use plugin::{CatalogTypes, Plugin};
 pub use prompt::Prompt;

@@ -15,8 +15,8 @@
 
 pub use crate::client::{Client, ClientSettings, Method};
 pub use crate::{
-    Context, Criterion, Error, Message, Observer, Operation, OperationRequest, Parameters, Plugin, Prompt, Publisher, Record, Result, Row,
-    Settings, Step, Stream, Suite, Template, Visibility,
+    Context, Criterion, Error, Message, Observer, Operation, OperationPolicy, OperationRequest, Parameters, Plugin, Prompt, Publisher,
+    Record, Result, Row, Settings, Step, Stream, Suite, Template, Visibility,
 };
 
 /* === Imports === */

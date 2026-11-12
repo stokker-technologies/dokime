@@ -59,7 +59,7 @@ struct Door {
 #[tokio::test]
 async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     // Start the SDK Sample as a Remote Plugin and Inspect Its Typed Catalog.
-    let mut process = Process::start(true).await?;
+    let mut process = Process::start("dokime-rust-thermal", true).await?;
     let description = process.describe().await?;
     let catalog = description.catalog.as_ref().ok_or("Missing Catalog")?;
     let section = catalog.sections.iter().find(|section| section.r#type == "dokime.v1.Suites").ok_or("Missing Suites")?;
@@ -179,17 +179,10 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     assert!(Door::decode(record.1.payload.as_slice())?.closed);
     hold.reply(record.0, v1::RecordReceipt { ordinal: 1 }).await?;
 
-    // Advance the Declared Host Wait by a Protocol Reply, Without Waiting on Real Time.
+    // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
     assert_eq!(sleep.operation, "harmos.clock.sleep");
-    assert_eq!(h::Sleep::decode(sleep.payload.as_slice())?.duration, Some(prost_types::Duration { seconds: 1, nanos: 0 }));
-    hold.reply(sleep.call, h::SleepResponse {}).await?;
-    let progress = hold.child().await?;
-    assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.completed, 2);
-    hold.reply(progress.call, v1::ReportProgressResponse {}).await?;
-    hold.finish::<v1::StepResponse>().await?;
-
-    // Tick the Observer and Receive the Same Execution Resource and Literal Tick Time.
+    assert_eq!(h::Sleep::decode(sleep.payload.as_slice())?.duration, Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 }));
     let (ticks, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     ticks
@@ -201,8 +194,27 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     assert_eq!(sample.at, Some(at));
     assert_eq!(sample.sequence, 1);
     assert_eq!(Temperature::decode(sample.row.as_slice())?.celsius, 84.0);
+
+    // A Second Host Tick Retains the Same Execution Resource and Ordered Sequence.
+    let next = prost_types::Timestamp { seconds: 101, nanos: 0 };
+    ticks
+        .send(h::PublishFrame {
+            frame: Some(h::publish_frame::Frame::Tick(h::Tick { at: Some(next) })),
+        })
+        .await?;
+    let sample = samples.message().await?.ok_or("Missing Second Sample")?.samples.remove(0);
+    assert_eq!(sample.at, Some(next));
+    assert_eq!(sample.sequence, 2);
+    assert_eq!(Temperature::decode(sample.row.as_slice())?.celsius, 84.0);
     drop(ticks);
     assert!(samples.message().await?.is_none());
+
+    // Finish the Wait by Protocol Event and Acknowledge the Step's Final Progress.
+    hold.reply(sleep.call, h::SleepResponse {}).await?;
+    let progress = hold.child().await?;
+    assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.completed, 2);
+    hold.reply(progress.call, v1::ReportProgressResponse {}).await?;
+    hold.finish::<v1::StepResponse>().await?;
 
     // Evaluate Captured Evidence Through Host Statistics and Bounded Record Reads.
     let mut criterion = process
@@ -226,7 +238,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         .reply(
             stats.call,
             v1::Statistics {
-                count: 1,
+                count: 2,
                 max: 84.0,
                 min: 84.0,
                 ..Default::default()

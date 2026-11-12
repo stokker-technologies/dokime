@@ -120,7 +120,7 @@ async fn hold(ctx: &Context) -> Result<()> {
         },
     )
     .await?;
-    ctx.sleep(std::time::Duration::from_secs(1)).await?;
+    ctx.sleep(std::time::Duration::from_millis(2500)).await?;
     ctx.progress(2, 2, "Hold").await
 }
 

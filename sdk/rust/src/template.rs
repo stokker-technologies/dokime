@@ -102,6 +102,9 @@ impl Step {
     pub fn retries(mut self, retries: u32) -> Self {
         self.invalid_retries = retries == u32::MAX;
         self.policy.attempts = retries.checked_add(1).unwrap_or(0);
+        if retries > 0 && self.policy.backoff.is_none() {
+            self.policy.backoff = Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 });
+        }
         self
     }
     pub fn policy(mut self, policy: harmos::OperationPolicy) -> Self {
@@ -250,10 +253,13 @@ impl Template {
             self.definition
                 .parameters
                 .iter()
-                .filter_map(|parameter| Some(parameter.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()))),
+                .map(|parameter| parameter.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
             "Parameter",
         )?;
-        validate_names(self.definition.files.iter().map(|file| file.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())), "File Parameter")?;
+        validate_names(
+            self.definition.files.iter().map(|file| file.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
+            "File Parameter",
+        )?;
         validate_names(self.definition.parameter_groups.iter().map(|group| group.identifier.as_str()), "Parameter Group")?;
         validate_names(self.streams.iter().map(String::as_str), "Execution Stream")?;
         let mut case = v1::TestCase {

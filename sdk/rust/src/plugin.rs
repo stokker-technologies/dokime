@@ -183,15 +183,20 @@ impl<C: CatalogTypes> Plugin<C> {
             "Prompt",
         )?;
         validate_names(
-            settings.iter().filter_map(|setting| Some(setting.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()))),
+            settings.iter().map(|setting| setting.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
             "Setting",
         )?;
         for prompt in &prompts {
-            validate_names(prompt.fields.iter().map(|field| field.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())), "Prompt Field")?;
+            validate_names(
+                prompt.fields.iter().map(|field| field.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
+                "Prompt Field",
+            )?;
             validate_names(prompt.actions.iter().map(|action| action.identifier.as_str()), "Prompt Action")?;
         }
         for setting in &settings {
-            if setting.kind.is_none() { return Err(Error::Invalid("Declare the Setting Kind Before Serving".into())); }
+            if setting.kind.is_none() {
+                return Err(Error::Invalid("Declare the Setting Kind Before Serving".into()));
+            }
         }
         let executions: Executions = Arc::new(Mutex::new(HashMap::new()));
         let mut definitions = Vec::new();
@@ -221,10 +226,7 @@ impl<C: CatalogTypes> Plugin<C> {
         for register in registrations {
             inner = register(inner, executions.clone());
         }
-        inner = inner.on_stop(move || {
-            executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?.clear();
-            Ok(())
-        });
+        inner = inner.on_stop(move || crate::context::clear(&executions).map_err(harmos::Error::from));
         for cleanup in stop {
             inner = inner.on_stop(move || cleanup().map_err(harmos::Error::from));
         }
