@@ -46,22 +46,26 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::PromptsRespondRequest) -> Result<v1::PromptResponseReceipt> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        if request.context.is_some() {
-            return Err(Error::Invalid("Respond MutationContext Is Not Yet Served by the New Host".into()));
-        }
+        let view = super::prompt_catalog::view(context, &request.prompt_id)?;
+        if view.response.is_some() { return Err(Error::Conflict("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into())); }
         let (execution, question) = super::projection::pending(context, &request.prompt_id)?;
-        context.host.answer(
+        let snapshot = context.host.store().read(&execution)?;
+        let definition = super::projection::prompt_definition(&snapshot, &question)?;
+        let values = request.values.unwrap_or_default().values;
+        super::prompt_validation::validate(&definition, request.action.trim(), request.accepted, &values, &snapshot)?;
+        context.host.record_answer(
             &execution,
             v1::OperatorAnswer {
                 prompt: question.prompt,
-                action: request.action,
+                action: request.action.trim().into(),
                 accepted: request.accepted,
-                values: request.values.unwrap_or_default().values,
+                values,
                 responder: "local".into(),
                 submitted_at: Some(super::projection::timestamp(context.host.now_ns())),
             },
         )?;
         Ok(v1::PromptResponseReceipt {
+            command_id: request.prompt_id.clone(),
             prompt_id: request.prompt_id,
             accepted_at: Some(super::projection::timestamp(context.host.now_ns())),
             ..Default::default()

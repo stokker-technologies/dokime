@@ -278,7 +278,7 @@ pub(super) fn report_frame(kind: v1::report_html_frame_payload::Kind) -> v1::Rep
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }
-fn value(value: &prost_reflect::Value) -> v1::Value {
+pub(super) fn value(value: &prost_reflect::Value) -> v1::Value {
     use prost_reflect::Value as V;
     use v1::value::Kind;
     let kind = match value {

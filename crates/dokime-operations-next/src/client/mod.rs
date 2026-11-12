@@ -33,6 +33,18 @@ pub mod reports_download_execution_report;
 pub mod reports_publish_execution_report;
 pub mod telemetry_list_samples;
 
+pub mod conversation;
+
+mod paging;
+
+mod prompt_catalog;
+
+mod prompt_validation;
+
+pub mod prompts_get_definition;
+
+pub mod prompts_list_definitions;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -54,6 +66,11 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Prompts/RunRespond",
+    "/dokime.v1.Prompts/RunListPending",
+    "/dokime.v1.Prompts/RunListDefinitions",
+    "/dokime.v1.Prompts/RunGetPrompt",
+    "/dokime.v1.Prompts/RunGetDefinition",
     "/dokime.v1.Plugins/List",
     "/dokime.v1.Plugins/Add",
     "/dokime.v1.Catalog/GetSuite",
@@ -62,6 +79,8 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Execution/CreateCycle",
     "/dokime.v1.Execution/GetExecution",
     "/dokime.v1.Observation/WatchExecutionProgress",
+    "/dokime.v1.Prompts/GetDefinition",
+    "/dokime.v1.Prompts/ListDefinitions",
     "/dokime.v1.Prompts/GetPrompt",
     "/dokime.v1.Prompts/ListPending",
     "/dokime.v1.Prompts/Respond",
@@ -130,6 +149,7 @@ pub trait Host: Send + Sync {
     fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>>;
     fn pending(&self) -> Result<Vec<(String, v1::OperatorQuestion)>>;
     fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()>;
+    fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()>;
 }
 
 /* === Implementations === */
@@ -153,13 +173,15 @@ pub fn declaration<Q: prost_reflect::ReflectMessage + Default, R: prost_reflect:
 pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(timeout, work).await {
         Ok(Ok(reply)) => Ok(reply),
-        Ok(Err(error)) => Err(Error::Invalid(format!("{action}: {error}"))),
+        Ok(Err(error)) => Err(error),
         Err(_) => Err(Error::Deadline(action.into())),
     }
 }
 pub fn status(error: Error) -> tonic::Status {
     match error {
         Error::Deadline(action) => tonic::Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
+        Error::NotFound(message) => tonic::Status::not_found(message),
+        Error::Conflict(message) => tonic::Status::failed_precondition(message),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),
     }

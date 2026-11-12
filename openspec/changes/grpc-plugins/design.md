@@ -790,6 +790,9 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Prompt answers are durably acknowledged before releasing the waiting plugin; GetPrompt resolves the frozen question and answer after settlement or restart.
+Prompt catalogs come from admitted plugin catalogs; pending pages bind epoch, selected cycle/execution and content, rejecting stale or changed continuations.
+
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
 Cross-language proof compares the frozen origin/test case and every ordered evidence/sample field, excluding only execution identities, plugin digest/start time and receipt timestamps; each sealed snapshot must reopen byte-for-byte.

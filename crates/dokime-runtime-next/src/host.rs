@@ -288,6 +288,21 @@ impl Host {
         active.get(execution).ok_or_else(|| Error::Invalid("Cancel Only an Execution with an Active Run".into()))?.cancellation.cancel();
         Ok(())
     }
+    pub fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+        let mut pending = lock(&self.inner.prompts.pending)?;
+        let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Active Question".into()))?;
+        if prompt.question.prompt != answer.prompt || prompt.answer.as_ref().is_none_or(oneshot::Sender::is_closed) {
+            return Err(Error::Invalid("Answer Prompt: Inspect the Current Question Before Answering".into()));
+        }
+        self.inner.store.append(execution, dokime_storage::Evidence {
+            kind: "client:answer".into(),
+            receipt_ns: self.now_ns(),
+            payload: answer.encode_to_vec(),
+            ..Default::default()
+        })?;
+        prompt.answer.take().unwrap().send(answer).map_err(|_| Error::Invalid("Answer Prompt: Inspect the Committed Answer; the Run Stopped".into()))?;
+        Ok(())
+    }
     pub async fn shutdown(&self) -> Result<()> {
         for active in lock(&self.inner.active)?.values() {
             active.cancellation.cancel();

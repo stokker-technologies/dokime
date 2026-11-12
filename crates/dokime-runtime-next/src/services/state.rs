@@ -197,6 +197,9 @@ impl ClientHost for State {
     fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
         self.host.answer(execution, answer).map_err(convert)
     }
+    fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+        self.host.record_answer(execution, answer).map_err(convert)
+    }
 }
 
 /* === Public Functions === */

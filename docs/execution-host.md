@@ -54,6 +54,14 @@ availability. Backend availability advertises only these methods. Other methods
 return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
 
+Prompts serves all five operations and their bidirectional Run forms. Catalog
+definitions page by prompt type; pending prompts page by ID with cycle and
+execution filters. A changed selection or stale cursor requires restarting the
+page. Respond validates declared actions, fields, answer rules and evidence
+conditions, records the authenticated local responder and acknowledges durable
+acceptance. GetPrompt retains the question and answer after settlement and
+restart. `client_answers_operator_prompts` exercises this operator journey.
+
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
 Progress streams expose queued/prompt/finished events and end with a terminal
