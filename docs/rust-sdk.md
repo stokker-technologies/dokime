@@ -279,7 +279,7 @@ in Harmos Request/Publish scope. It must initialize before ticking resource-usin
 observers, schedule ticks inside the hold step, acknowledge records before responding,
 serve statistics/record reads scoped to execution and step, and own retries, cancellation,
 cleanup, stream closure, evidence durability and report sealing. Its virtual clock
-must advance sleep and observer ticks deterministically. The shared Nightly driver
+must advance sleep and observer ticks deterministically. The shared pull request and Nightly driver
 compares persisted evidence across SDKs through the named stories in
 [Execution Host](execution-host.md#compare-every-sdk). Native Linux and hosted
 matrix proof remain separate from local Windows runs.
