@@ -277,6 +277,21 @@ impl ExecutionView {
         self.captured_source().ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("execution evidence requires a snapshot")))
     }
 
+    pub(crate) fn with_document(&self, document: crate::document::DocumentDefinition) -> Result<Self> {
+        let original = self.source_snapshot()?;
+        let mut source = original.clone();
+        // Plot Captures Belong To Their Frozen Definitions, Not Just Their IDs.
+        if original.context.execution_documents.get(&document.document_id) != Some(&document) {
+            source.frozen_plots.clear();
+        }
+        source.context.execution_documents = std::collections::BTreeMap::from([(document.document_id.clone(), document)]);
+        source.validate_header()?;
+        Ok(Self {
+            captured: Some(Arc::new(source).into()),
+            ..self.clone()
+        })
+    }
+
     pub fn storage(&self) -> &Manager {
         &self.storage
     }

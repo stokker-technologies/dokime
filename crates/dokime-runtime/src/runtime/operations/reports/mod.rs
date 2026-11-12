@@ -138,6 +138,29 @@ impl Resources {
     }
 }
 
+impl RuntimeHandle {
+    /// Render a selected document at an already captured evidence frontier.
+    /// The returned temporary HTML neither publishes a report nor seals evidence.
+    pub async fn render_execution_document(
+        &self, snapshot: &crate::runtime::ExecutionView, document: crate::document::DocumentDefinition,
+    ) -> Result<crate::report::RenderedExecutionReport> {
+        if !self.storage().cursor_saved().covers(snapshot.evidence_through()?)? {
+            return Err(invalid("document snapshot exceeds this backend's saved evidence"));
+        }
+        let inspection = snapshot.with_document(document)?;
+        let resources = Resources::from_runtime(self);
+        let progress = resources.progress.begin("Rendering Document");
+        let captured = progress.track(crate::report::materialize::document(&resources.scope, &inspection, &progress).await)?;
+        let outputs = inspection.outputs()?.to_vec();
+        let saved = inspection.saved().clone();
+        let rendering = tokio::task::spawn_blocking(move || crate::report::Renderer.execution(captured, outputs, &saved)).await;
+        let rendered = progress.track(rendering)?;
+        let rendered = progress.track(rendered)?;
+        progress.finish();
+        Ok(rendered)
+    }
+}
+
 /* === Public Functions === */
 
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, live: &crate::app::LiveRuntime) {
@@ -178,7 +201,8 @@ impl RuntimeHandle {
         let seal = view.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution is unsealed".into()))?;
         let progress = resources.progress.begin("Rebuilding Sealed Report");
         let captured = crate::report::materialize::sealed_member(&resources.scope, self.storage(), seal, &progress).await?;
-        let mut prepared = crate::report::Renderer.execution(captured, seal.source.outputs.clone(), &self.storage().cursor_saved())?;
+        let rendered = crate::report::Renderer.execution(captured, seal.source.outputs.clone(), &self.storage().cursor_saved())?;
+        let mut prepared = rendered.prepare_publication();
         let rebuilt = prepared.save_dependencies(self.storage(), &seal.sealed_at, &seal.source.execution).await?;
         Ok(rebuilt.report)
     }
@@ -272,11 +296,12 @@ async fn execution(
     let renderer = app.renderer;
     let saved = storage.cursor_saved();
     let rendering = tokio::task::spawn_blocking(move || renderer.execution_with_outputs(captured, outputs, &saved));
-    let mut prepared = tokio::select! {
+    let rendered = tokio::select! {
         result = rendering => result??,
         _ = shutdown.wait_for(|requested| *requested) => return Err(Error::ShuttingDown),
     };
     progress.phase("Publishing Report");
+    let mut prepared = rendered.prepare_publication();
     if final_report {
         let report = resources.execution_storage.materialize_final_report(inspection, prepared, crate::model::time::now_utc()).await?;
         resources.runtime.complete_report_publication(id).await?;

@@ -134,6 +134,8 @@
 
 ## Workflow Follow-Up
 
+- Execution worker owns frozen execution definitions/persistence, outcome folding, capability projections and reports; envelope contents stay here and sending stays with the plugin worker. Sequence the native materialization result and connected Description digest/process identity before replacing snapshot consumers. SDK, benchmark and plugin-entry paths are excluded.
+
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
