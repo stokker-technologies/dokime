@@ -79,7 +79,9 @@ def build(binary: str | None = None) -> None:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         # Only This Bench Host Embeds The Instrumented Frontend.
-        os.environ["TAURI_CONFIG"] = json.dumps({"build": {"frontendDist": str(output / "desktop-web")}})
+        # A Windows Drive Prefix Parses As A URL; Resolve Assets From Tauri's Config Directory.
+        frontend_dist = os.path.relpath(output / "desktop-web", ROOT / "crates/dokime-gui/src-tauri")
+        os.environ["TAURI_CONFIG"] = json.dumps({"build": {"frontendDist": frontend_dist}})
         extra = (*extra, "--features", "tauri/custom-protocol")
     if binary is None:
         messages = bench.build(ROOT, extra=extra)

@@ -158,6 +158,19 @@ native profiles live under `target/desktop-bench-fixtures/` and close before
 removal. Fixture admission and initial persistence precede measurement. Allow
 additional disk headroom for admission's write-ahead log and a closed cold-history copy.
 
+Desktop system and bench tasks give their native descendants a private directory
+in system temporary storage. The runner reclaims it after success or failure,
+including forced exits that bypass native evidence/output destructors. Each bench
+fixture host also releases its private scratch at restart; the driver removes its
+fixture set when the run ends. Results and failure diagnostics remain under the
+task's target report directory. Set `DOKIME_KEEP_EVIDENCE=1` only when debugging
+requires the full scratch: the runner retains that scratch under its target report,
+and the bench driver also retains its fixture set.
+Native launch is checked before admitting history, and admission completes before
+timing starts. The fixture host declares its checkpoint shutdown budget from the
+existing mutation policy. The result folder retains the producer's fixture stamp
+unchanged so its measured binaries remain identifiable after another build.
+
 Criterion measures cold/warm, live ingest, late samples, zoom, resize, navigation
 and stalled-consumer cases. Cold opens a closed history copy with a fresh backend
 and desktop; it does not claim an empty OS disk cache. Warm preloads that history

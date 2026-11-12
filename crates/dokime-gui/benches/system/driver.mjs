@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -32,6 +33,7 @@ let finished = false;
 let failure;
 let fixture;
 let nativeRoot;
+let nativeTemporary;
 let seedRoot;
 let backendMode;
 let epoch = 0;
@@ -39,9 +41,10 @@ let warmReady;
 let resizeWidth = 1920;
 
 async function command(line) {
+  if (host.failure) throw host.failure;
   const pending = hostLines.next();
-  host.stdin.write(`${line}\n`);
-  const response = await pending;
+  const written = new Promise((resolve, reject) => host.stdin.write(`${line}\n`, (error) => (error ? reject(error) : resolve())));
+  const [response] = await Promise.all([pending, written]);
   if (response.done) throw new Error("Fixture host closed before command completion");
   return JSON.parse(response.value);
 }
@@ -82,11 +85,32 @@ async function closeNative() {
     async () => {
       if (!host) return;
       const child = host;
+      const started = performance.now();
+      const exited = child.exitCode !== null || child.signalCode !== null ? Promise.resolve() : once(child, "exit");
       child.stdin.end();
-      if (child.exitCode === null) await Promise.race([once(child, "exit"), delay(10000)]);
-      if (child.exitCode === null) await terminate(child);
+      const timer = new AbortController();
+      let drained;
+      try {
+        drained = await Promise.race([exited.then(() => true), delay(fixture?.shutdown_ms ?? 10000, false, { signal: timer.signal })]);
+      } finally {
+        timer.abort();
+      }
+      if (!drained) {
+        await terminate(child);
+        await exited;
+      }
       host = undefined;
-      if (child.exitCode !== 0) throw new Error(`Fixture host exited ${child.exitCode}`);
+      if (!drained || child.exitCode !== 0) {
+        await writeFile(
+          join(output, "host-shutdown.json"),
+          JSON.stringify({ drained, durationMs: performance.now() - started, code: child.exitCode, signal: child.signalCode }),
+        );
+        throw new Error(`Fixture host exited ${child.exitCode} (${child.signalCode ?? "no signal"}; drained=${drained})`);
+      }
+    },
+    async () => {
+      if (nativeTemporary && !keepEvidence) await rm(nativeTemporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      nativeTemporary = undefined;
     },
   ]) {
     try {
@@ -145,15 +169,32 @@ async function startNative(mode) {
   nativeRoot = await realpath(await mkdtemp(join(work, "native-")));
   const restored = mode === "saved" ? join(nativeRoot, "data") : "";
   if (restored) await cp(seedRoot, restored, { recursive: true, errorOnExist: true, force: false });
+  nativeTemporary = await mkdtemp(join(tmpdir(), "dokime-desktop-bench-"));
   host = spawn(process.env.DOKIME_DESKTOP_BENCH_HOST, ["--fixture-host"], {
-    env: { ...process.env, DOKIME_DESKTOP_BENCH_FIXTURES: nativeRoot, DOKIME_DESKTOP_BENCH_RESTORE: restored },
+    env: {
+      ...process.env,
+      TEMP: nativeTemporary,
+      TMP: nativeTemporary,
+      TMPDIR: nativeTemporary,
+      DOKIME_DESKTOP_BENCH_FIXTURES: nativeRoot,
+      DOKIME_DESKTOP_BENCH_RESTORE: restored,
+    },
     stdio: ["pipe", "pipe", "inherit"],
+    detached: process.platform !== "win32",
     windowsHide: true,
+  });
+  const child = host;
+  child.on("error", (error) => {
+    child.failure = error;
+  });
+  child.stdin.on("error", (error) => {
+    child.failure = error;
   });
   hostLines = createInterface({ input: host.stdout })[Symbol.asyncIterator]();
   const ready = await hostLines.next();
   assert.ok(!ready.done, "fixture host is ready");
   const { root: storage, ...metadata } = JSON.parse(ready.value);
+  assert.ok(Number.isFinite(metadata.shutdown_ms) && metadata.shutdown_ms > 0, "Fixture host owns its checkpoint shutdown budget");
   const storageRoot = await realpath(storage);
   assert.ok(storageRoot.toLowerCase().startsWith(`${nativeRoot}${sep}`.toLowerCase()), "Owned storage stays inside its native fixture");
   seedRoot ??= storageRoot;
@@ -163,6 +204,7 @@ async function startNative(mode) {
   epoch += 1;
   desktop = await startSession(nativeRoot, fixture.endpoint, output, undefined, { startLocal: false });
   await waitReady();
+  await command("prepare");
   await desktop.executeAsync(`const done = arguments[arguments.length - 1];
     const invoke = globalThis.__TAURI_INTERNALS__.invoke;
     invoke('plugin:window|is_maximized', {label: 'main'}).then(async maximized => {
@@ -184,6 +226,7 @@ async function startNative(mode) {
       [fileURLToPath(new URL("resources.mjs", import.meta.url)), String(host.pid), String(desktop.process.pid)],
       {
         stdio: ["ignore", "pipe", "inherit"],
+        detached: true,
       },
     );
   }
@@ -303,6 +346,13 @@ try {
       await close();
     } catch (error) {
       errors.push(String(error));
+    }
+  }
+  if (nativeRoot && (failure || errors.length)) {
+    const logs = join(nativeRoot, "shell/application/logs");
+    for (const name of await readdir(logs).catch(() => [])) {
+      if (!name.endsWith(".log")) continue;
+      await cp(join(logs, name), join(output, `desktop-${name}`)).catch((error) => errors.push(`Desktop log: ${error}`));
     }
   }
   // Reclaim Fixtures On Success And Failure After All Owned Children Stop.

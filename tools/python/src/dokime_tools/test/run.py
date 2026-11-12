@@ -559,8 +559,10 @@ def _bench_rust(
         environment.pop("TEST_REPORT_DIR", None)
         environment.pop("DOKIME_TEST_TRACE_DIR", None)
         if name == "system-desktop":
-            (home / "desktop/observations.json").unlink(missing_ok=True)
-            (home / "desktop/completion.json").unlink(missing_ok=True)
+            (home / "desktop").mkdir(exist_ok=True)
+            for diagnostic in ("observations.json", "completion.json", "host-shutdown.json"):
+                (home / "desktop" / diagnostic).unlink(missing_ok=True)
+            shutil.copyfile(paths.output(directory, "build", "bench") / "fixtures/stamp.json", home / "desktop/fixture-stamp.json")
         with (
             desktop_bench.scratch(environment, home / "desktop")
             if name == "system-desktop"

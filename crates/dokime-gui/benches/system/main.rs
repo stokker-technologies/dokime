@@ -144,30 +144,38 @@ fn host() {
         let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
         serde_json::from_value(saved["cycle"].clone()).unwrap()
     } else {
-        let cycle = executor.block_on(async {
-            let cycle = fixture::register_execution(&handle, &hold).await;
-            for first in (0..fixture::ROWS).step_by(4096) {
-                let count = (fixture::ROWS - first).min(4096);
-                let receipt = handle.publish_telemetry_batch(fixture::batch(first, count, false, first, &cycle)).await.unwrap();
-                assert_eq!(receipt.accepted, count as u64, "{receipt:?}");
-                assert_eq!(receipt.dropped, 0, "{receipt:?}");
-            }
-            handle.storage().flush().await.unwrap();
-            cycle
-        });
-        std::fs::write(&manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle.clone()})).unwrap()).unwrap();
-        cycle
+        executor.block_on(fixture::register_execution(&handle, &hold))
     };
     let server = executor.block_on(async { prepared.ready().await.unwrap().listen().await.unwrap() });
     println!(
         "{}",
         serde_json::json!({"endpoint":server.local_endpoint(), "execution":fixture::execution_id().to_string(),
-        "cycle": cycle.to_string(), "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S, "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
+        "cycle": cycle.to_string(), "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S,
+        "shutdown_ms": dokime::operations::MUTATION.timeout.as_millis(),
+        "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
     );
     std::io::stdout().flush().unwrap();
     let mut sequence = fixture::ROWS;
+    let mut history_ready = restoring;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
+        // Prove Native Launch Before Admitting The Multi-Million-Row History.
+        if line == "prepare" && !history_ready {
+            executor.block_on(async {
+                for first in (0..fixture::ROWS).step_by(4096) {
+                    let count = (fixture::ROWS - first).min(4096);
+                    let receipt = handle.publish_telemetry_batch(fixture::batch(first, count, false, first, &cycle)).await.unwrap();
+                    assert_eq!(receipt.accepted, count as u64, "{receipt:?}");
+                    assert_eq!(receipt.dropped, 0, "{receipt:?}");
+                    if (first + count).is_multiple_of(262_144) || first + count == fixture::ROWS {
+                        eprintln!("Desktop fixture: admitted {}/{} sample rows", first + count, fixture::ROWS);
+                    }
+                }
+                handle.storage().flush().await.unwrap();
+            });
+            std::fs::write(&manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle.clone()})).unwrap()).unwrap();
+            history_ready = true;
+        }
         if line == "live" || line == "late" {
             executor.block_on(async {
                 let first = if line == "late" { fixture::ROWS - 480 + (sequence - fixture::ROWS) % 400 } else { sequence };
@@ -182,9 +190,12 @@ fn host() {
         println!("{}", serde_json::json!({"stages": times}));
         std::io::stdout().flush().unwrap();
     }
+    eprintln!("Desktop fixture shutdown: stopping listener");
     executor.block_on(server.shutdown()).unwrap();
     drop(handle);
+    eprintln!("Desktop fixture shutdown: checkpointing runtime");
     executor.block_on(owner.shutdown()).unwrap();
+    eprintln!("Desktop fixture shutdown: complete");
 }
 
 /* === Tests === */
