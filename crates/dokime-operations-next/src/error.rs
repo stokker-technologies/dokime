@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("{0}")]
+    Precondition(String),
+
     #[error("Operation Cancelled by the Client")]
     Cancelled,
 

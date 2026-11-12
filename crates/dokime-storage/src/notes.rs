@@ -54,7 +54,7 @@ impl Store {
                     existing.scope != note.scope || existing.author != note.author || existing.message != note.message
                 })
             {
-                return Err(Error::Invalid("Create Note: Use a New Mutation ID for Different Content or Ownership".into()));
+                return Err(Error::Conflict("Create Note: Use a New Mutation ID for Different Content or Ownership".into()));
             }
             return Ok(existing);
         }
@@ -70,10 +70,13 @@ impl Store {
     pub fn edit_note(&self, id: &str, author: &str, message: String) -> Result<v1::OperatorNote> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
-        let bytes: Vec<u8> = transaction.query_row("SELECT payload FROM notes WHERE id=?1", [id], |row| row.get(0))?;
+        let bytes: Vec<u8> = transaction
+            .query_row("SELECT payload FROM notes WHERE id=?1", [id], |row| row.get(0))
+            .optional()?
+            .ok_or_else(|| Error::NotFound("Edit Note: Select an Existing Note from List Notes".into()))?;
         let mut note = v1::OperatorNote::decode(bytes.as_slice())?;
         if note.author.as_deref() != Some(author) {
-            return Err(Error::Invalid("Edit Note: Sign In as Its Author".into()));
+            return Err(Error::Permission("Edit Note: Sign In as Its Author".into()));
         }
         require_owner(&transaction, note.scope.as_ref().ok_or_else(|| Error::Incompatible("Missing Note Scope".into()))?)?;
         note.message = message;

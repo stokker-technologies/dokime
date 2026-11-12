@@ -42,7 +42,7 @@ const TEXT_BYTES: usize = 16 * 1024;
 
 pub(super) fn epoch(context: &Context, epoch: &str) -> Result<()> {
     if epoch != context.host.identity().epoch {
-        return Err(Error::Invalid("Write Note: Refresh Backend Identity After Restart".into()));
+        return Err(Error::Precondition("Write Note: Refresh Backend Identity After Restart".into()));
     }
     Ok(())
 }

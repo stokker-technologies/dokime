@@ -85,7 +85,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         assert_eq!(notes.create_note(request.clone()).await?.into_inner(), receipt);
         let mut conflict = request;
         conflict.message = "Different mutation".into();
-        assert!(notes.create_note(conflict).await.is_err());
+        assert_eq!(notes.create_note(conflict).await.unwrap_err().code(), tonic::Code::AlreadyExists);
 
         // Edit Through the Run Envelope and Page Only This Owner
         let id = receipt.note.unwrap().note_id;
@@ -159,7 +159,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         let page = notes.list_notes(v1::NotesListNotesRequest { selection, ..Default::default() }).await?.into_inner();
         assert_eq!(page.notes[0].note_id, id);
         assert_eq!(page.notes[0].message, "Connector inspected");
-        assert!(
+        assert_eq!(
             notes
                 .edit_note(v1::NotesEditNoteRequest {
                     epoch,
@@ -167,7 +167,9 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
                     message: "Stale".into()
                 })
                 .await
-                .is_err()
+                .unwrap_err()
+                .code(),
+            tonic::Code::FailedPrecondition
         );
         process.close().await?;
         Ok::<_, Box<dyn std::error::Error>>(())

@@ -328,16 +328,21 @@ impl Store {
     }
     pub fn content(&self, identifier: &str) -> Result<ContentEntry> {
         let connection = self.lock()?;
-        Ok(connection.query_row(
-            "SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE id=?1 AND phase>0",
-            [identifier],
-            entry,
-        )?)
+        connection
+            .query_row(
+                "SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE id=?1 AND phase>0",
+                [identifier],
+                entry,
+            )
+            .optional()?
+            .ok_or_else(|| {
+                Error::NotFound("Download Content: Select a Completed Artifact or Materialize the Temporary Report Again".into())
+            })
     }
     pub fn execution_file(&self, execution: &str, path: &str) -> Result<ContentEntry> {
         crate::validate_execution_path(path)?;
         let connection = self.lock()?;
-        Ok(connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 ORDER BY rowid DESC LIMIT 1", params![execution,path], entry)?)
+        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
     }
     pub fn content_window(&self, identifier: &str, offset: u64, maximum: usize) -> Result<Vec<u8>> {
         if maximum == 0 || maximum > CONTENT_CHUNK_BYTES || offset > i64::MAX as u64 - maximum as u64 {
