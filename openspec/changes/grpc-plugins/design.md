@@ -790,6 +790,10 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Notes use the loopback listener’s single `local-client` principal; remote authentication remains with its owner. Notes bind to execution or cycle, since planned cases were replaced by frozen origins.
+- Notes persist in the v1 baseline and refuse closed owners; incompatible roots require backup and explicit reset, with no migration.
+
+
 Bulk sample ingestion retains one Arrow IPC batch per supplied stream batch and atomically indexes exact protobuf rows and numeric fields; all remain sealed together at storage v1.
 Time-series windows consume an indexed source-time range once and retain only first/minimum/maximum/last buckets at the requested resolution; diagnostics count consumed rows and return resolution nanoseconds.
 Plot snapshot batches have only the configured transport bound, while watches deliver one plot in request order and isolate per-plot failures; all ten kind base paths use storage-owned bounded reducers.

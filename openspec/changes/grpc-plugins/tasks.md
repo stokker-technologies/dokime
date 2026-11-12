@@ -293,7 +293,7 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 
 ### Query and Content Service Completion
 
-Source inventory (data-service worker): owned Query, Evidence, Telemetry, Plots, Documents, Reports, Content, Media and Notes service files; their operation files and client stories; additive storage and Host methods; alphabetical registration lines; required protocol additions and generated bindings; this inventory and implementation decisions. Old crates remain read-only.
+Source inventory (data-service worker; continuation adds Content, Notes, Documents/Reports and advanced plot variants, with Query and Media held): owned Query, Evidence, Telemetry, Plots, Documents, Reports, Content, Media and Notes service files; their operation files and client stories; additive storage and Host methods; alphabetical registration lines; required protocol additions and generated bindings; this inventory and implementation decisions. Old crates remain read-only.
 
 - [x] Serve Evidence schema lookup, filtered cursor pages including logs, and event-driven watches with real-process client proof.
 - [x] Retire Evidence selector variants for sessions, planned cases and opaque attempt IDs because the new model owns execution/cycle scopes and frozen step/criterion identifiers. Keep shared proto fields while other consumers use them; no RPC is retired.
@@ -302,7 +302,9 @@ Source inventory (data-service worker): owned Query, Evidence, Telemetry, Plots,
 - [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
 - [ ] Complete bounded cancellation of blocking plot workers, plot filters and expression transforms/joins, grouped distribution/time-series reductions, logarithmic contour bins, XY sigma intervals, grid highlights, plugin analyses and live bucket deltas. Unsupported request variants return actionable refusals; live Watch still emits snapshots. Marker selection and separate summary windows also remain open. Retired operations: none.
 - [ ] Serve Documents and Reports from fixed snapshots, explicit publication and downloads with client proof.
-- [ ] Serve Content, Media and Notes with durable storage and client proof.
+- [ ] Serve Content with durable storage and client proof.
+- [x] Serve Notes create/edit/list and Run envelopes, idempotent mutations, ownership and cursor validation, restart durability and sealed-owner refusal.
+- [ ] Media: held for the owner’s client API decision; keep capture operations refusing by name.
 - [x] Run format once, each owned story twice, existing fifteen stories, three new-crate check builds and repository checking; hand back local commits without pushing. Windows proof includes nineteen host stories, all three scoped Rust language checks and eight protocol checks; native Linux and hosted proof remain with integration.
 
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing runtime execution/dispatch/stream sources remain outside this serving slice; the data-service inventory above owns storage additions.
@@ -322,14 +324,14 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
   - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
   - [ ] Prompts: GetDefinition, RunGetDefinition, RunGetPrompt, ListDefinitions, RunListDefinitions, RunListPending, RunRespond.
-  - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
+  - [ ] Query: held for the owner’s client API overlap decision; remaining named refusals: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [x] Evidence: all direct and Run methods served; no named refusals remain.
   - [x] Telemetry: all direct and Run methods served; no named refusals remain.
   - [x] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch are routed; unsupported option variants remain in the data-service inventory above.
   - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings are not registered.
   - [ ] Content: DownloadAppearanceAsset, RunDownloadAppearanceAsset, DownloadArtifact, RunDownloadArtifact, DownloadEvidence, RunDownloadEvidence, DownloadExecutionFile, RunDownloadExecutionFile, FollowExecutionFile, RunFollowExecutionFile, ListArtifacts, RunListArtifacts, ListExecutionFiles, RunListExecutionFiles, ReadExecutionFile, RunReadExecutionFile, UploadArtifact, RunUploadArtifact are not registered.
   - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot are not registered.
-  - [ ] Notes: CreateNote, RunCreateNote, EditNote, RunEditNote, ListNotes, RunListNotes are not registered.
+  - [x] Notes: all direct and Run methods served; no named refusals remain.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.
   - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.

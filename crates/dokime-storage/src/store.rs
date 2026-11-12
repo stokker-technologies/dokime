@@ -77,7 +77,7 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
+            if tables != ["evidence", "executions", "notes", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -91,6 +91,7 @@ impl Store {
                 CREATE TABLE sample_batches(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
                 CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position,number);
+                CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }

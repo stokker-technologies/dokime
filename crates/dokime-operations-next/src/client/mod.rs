@@ -23,6 +23,10 @@ pub mod evidence_watch_records;
 pub mod execution_create_cycle;
 pub mod execution_get_execution;
 pub mod health_list_health;
+pub mod notes_create_note;
+pub mod notes_edit_note;
+pub mod notes_list_notes;
+mod notes_selection;
 pub mod observation_watch_execution_progress;
 pub mod planning_materialize_template;
 pub mod plots_list_analyses;
@@ -76,6 +80,12 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Execution/CreateCycle",
     "/dokime.v1.Execution/GetExecution",
     "/dokime.v1.Health/ListHealth",
+    "/dokime.v1.Notes/CreateNote",
+    "/dokime.v1.Notes/EditNote",
+    "/dokime.v1.Notes/ListNotes",
+    "/dokime.v1.Notes/RunCreateNote",
+    "/dokime.v1.Notes/RunEditNote",
+    "/dokime.v1.Notes/RunListNotes",
     "/dokime.v1.Observation/WatchExecutionProgress",
     "/dokime.v1.Planning/MaterializeTemplate",
     "/dokime.v1.Plots/ListAnalyses",

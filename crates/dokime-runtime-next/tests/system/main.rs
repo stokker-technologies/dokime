@@ -13,6 +13,7 @@
 
 mod cancelling_a_thermal_step_runs_cleanup;
 mod client_browses_execution_evidence;
+mod client_keeps_execution_notes;
 mod client_publishes_execution_report;
 mod client_queries_plot_kinds;
 mod client_queries_plot_windows;

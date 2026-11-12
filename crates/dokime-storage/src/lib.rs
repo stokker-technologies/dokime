@@ -14,6 +14,7 @@
 mod client_reads;
 mod error;
 mod execution;
+mod notes;
 mod outcome;
 mod plot_kinds;
 mod plot_windows;
