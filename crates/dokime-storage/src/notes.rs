@@ -54,7 +54,7 @@ impl Store {
                     existing.scope != note.scope || existing.author != note.author || existing.message != note.message
                 })
             {
-                return Err(Error::Conflict("Create Note: Use a New Mutation ID for Different Content or Ownership".into()));
+                return Err(Error::AlreadyExists("Create Note: Use a New Mutation ID for Different Content or Ownership".into()));
             }
             return Ok(existing);
         }

@@ -559,6 +559,7 @@ pub fn status(error: Error) -> tonic::Status {
         Error::Cancelled(message) => tonic::Status::cancelled(message),
         Error::Stale(message) => tonic::Status::failed_precondition(message),
         Error::Storage(dokime_storage::Error::NotFound(message)) => tonic::Status::not_found(message),
+        Error::Storage(dokime_storage::Error::AlreadyExists(message)) => tonic::Status::already_exists(message),
         Error::Storage(dokime_storage::Error::Permission(message)) => tonic::Status::permission_denied(message),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),

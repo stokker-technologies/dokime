@@ -1145,3 +1145,5 @@ SDK builders and draft/report publication follow the SDK wave and
 `storage-interface` after wave 5.
 
 The combined data/execution/administration host uses one v1 storage table inventory and refuses incompatible existing roots with backup and explicit reset guidance. The CLI consumes served report streams without publication; remote bearer authentication covers data services through the same route composer as administration and execution. Query ListExecutions joins the shared case/archive presentation; held Query and Media operations and unfinished plot/document variants remain explicit in tasks.md.
+
+Duplicate note mutation identities retain ALREADY_EXISTS; optimistic administration revision conflicts retain ABORTED. The storage errors distinguish these meanings before transport projection. History deletion removes chunked content, derived data indexes, plot preferences and execution notes atomically with the sealed execution.
