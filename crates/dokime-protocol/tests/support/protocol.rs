@@ -87,7 +87,7 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     inputs.sort();
     let mut config = prost_build::Config::new();
     config.protoc_executable(&compiler);
-    config.extern_path(".harmos.v1", "crate::harmos::v1");
+    config.extern_path(".harmos.v1", "::harmos_protocol::v1");
     config.file_descriptor_set_path(output.join("descriptors.bin"));
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(
         config,
@@ -141,13 +141,6 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     }
     embedded.push_str("];\n");
     fs::write(output.join("sources.rs"), embedded)?;
-    let mut config = prost_build::Config::new();
-    config.protoc_executable(compiler);
-    tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(
-        config,
-        &[proto.join("harmos/v1/plugin.proto")],
-        &[proto, includes],
-    )?;
     let python = output.join("python");
     let csharp = output.join("csharp");
     let cpp = output.join("cpp");

@@ -48,7 +48,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     protocol::generate(&root, output.path())?;
     for (generated, committed) in [
         ("dokime.v1.rs", "src/v1.rs"),
-        ("harmos.v1.rs", "src/harmos/v1.rs"),
         ("descriptors.bin", "src/descriptors.bin"),
         ("reflection.rs", "src/reflection.rs"),
         ("sources.rs", "src/sources.rs"),

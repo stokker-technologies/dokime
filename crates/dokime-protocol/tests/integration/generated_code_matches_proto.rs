@@ -90,10 +90,19 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
     let output = tempfile::tempdir_in(output_root)?;
     crate::protocol::generate(&root, output.path())?;
 
-    // Compare Both Packages, Retaining Evidence on Failure.
+    // Match the Vendored Contract to Its Published Type Owner.
+    use prost_reflect::ReflectMessage;
+    let published = harmos_protocol::v1::Description::default().descriptor().parent_file();
+    let vendored = dokime_protocol::descriptor_pool().get_file_by_name(published.name()).expect("vendored Harmos source");
+    let mut published = published.file_descriptor_proto().clone();
+    let mut vendored = vendored.file_descriptor_proto().clone();
+    published.source_code_info = None;
+    vendored.source_code_info = None;
+    assert_eq!(vendored, published);
+
+    // Compare Protocol Outputs, Retaining Evidence on Failure.
     for (generated, committed) in [
         ("dokime.v1.rs", "src/v1.rs"),
-        ("harmos.v1.rs", "src/harmos/v1.rs"),
         ("descriptors.bin", "src/descriptors.bin"),
         ("reflection.rs", "src/reflection.rs"),
         ("sources.rs", "src/sources.rs"),

@@ -39,6 +39,7 @@
 ## 3. Host
 
 - [ ] 3.1 Adopt the Harmos `grpc-plugins` revision and add `Plugin::{Managed, Remote}` with the add and remove operations and entry states.
+- [x] 3.1.1 Adopt the exact-revision protocol owner, remove the duplicate generated Harmos Rust module and generator output, and prove vendored descriptor parity plus the five protocol journeys on Windows. Native host, SDK and tool consumer adoption remains in 3.1/3.8.2; protocol adoption precedes it to keep the tree buildable.
 - [ ] 3.2 After 2.9, move phases and criteria from the template to the test case and call `materialize` per parameter set, with rematerialization on a changed PluginRun-origin digest.
 - [ ] 3.3 After 2.9 and 3.12–3.15, build the manager with live queued/initializing/stepping/evaluating/cleaning-up state and finished/cancelled/interrupted termination; invoke initialize, steps, criteria and cleanup with retries and interactive commands, addressing cancel to executions only while driven by a run.
 - [ ] 3.4 Open and close catalog and test case streams, retain source time, receipt time and durable position with declared axes, and ingest live samples in arrival order without claiming the host owns source clocks.

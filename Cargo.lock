@@ -2577,6 +2577,7 @@ dependencies = [
 name = "dokime-protocol"
 version = "0.1.5"
 dependencies = [
+ "harmos-protocol",
  "heck 0.5.0",
  "prost",
  "prost-build",
@@ -3989,6 +3990,21 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
+]
+
+[[package]]
+name = "harmos-protocol"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "serde",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]

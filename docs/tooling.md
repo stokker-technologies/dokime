@@ -254,8 +254,10 @@ installed `protoc` is needed. Tests Build transfers the pinned native compiler a
 its includes under `fixtures/inputs/vendor/`; archived tests select these inputs
 with `TEST_PROFILE` and restore executable permission on Unix. Focused tests use
 the compiler in the local Cargo registry. Builds consume the checked-in Rust under
-`crates/dokime-protocol/src/`, exposed as `dokime_protocol::v1` and
-`dokime_protocol::harmos::v1`. `mise run generate -- --protocol --check` runs the
+`crates/dokime-protocol/src/`, exposed as `dokime_protocol::v1`. Harmos messages
+come directly from the exact-revision `harmos-protocol` dependency; Dokime does
+not generate another Rust copy. Drift checking compares the vendored Harmos
+descriptor against that dependency as well. `mise run generate -- --protocol --check` runs the
 same drift check without regenerating committed source. Existing GUI/client
 contract generation continues separately through the ordinary `generate` task.
 

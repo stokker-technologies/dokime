@@ -831,6 +831,11 @@ The API supports unary calls, input/output/duplex envelopes, explicit input fini
 independent input ownership, cancellation and typed settlement. The SDK's only
 normal product dependency is `harmos-protocol`.
 
+The protocol owner is adopted directly at the selected exact revision. Dokime
+uses its generated Harmos types and verifies the vendored descriptor against
+them; the duplicate Rust transport module and its generator output are removed.
+Native host, SDK and tool adoption remains open.
+
 Adoption follows Harmos's Crate Structure contract: native stored semantics stay
 in `harmos-domain`; declarations, dispatch and guest support use their explicit
 operations/runtime owners; field-reading derives live at `sdk/rust/derive`;

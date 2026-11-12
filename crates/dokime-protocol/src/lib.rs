@@ -23,11 +23,6 @@ mod sources;
 #[rustfmt::skip]
 pub mod v1;
 
-pub mod harmos {
-    #[rustfmt::skip]
-    pub mod v1;
-}
-
 /* === Re-Exports === */
 
 pub use sources::SOURCES;

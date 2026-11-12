@@ -29,6 +29,7 @@ publish.workspace = true
 # Local
 
 # Git
+harmos-protocol = { workspace = true }
 
 # Error Handling
 
