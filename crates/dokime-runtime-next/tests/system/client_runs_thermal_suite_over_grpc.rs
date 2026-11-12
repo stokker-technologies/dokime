@@ -86,103 +86,69 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
         let process = HostProcess::start(root.path()).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let mut catalog = v1::catalog_client::CatalogClient::new(channel.clone());
-        let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
-        let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
-        let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
-        let mut query = v1::query_client::QueryClient::new(channel.clone());
-        let mut evidence = v1::evidence_client::EvidenceClient::new(channel.clone());
-        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel.clone());
-        let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
-        let mut backend = v1::backend_client::BackendClient::new(channel.clone());
-        let mut health = v1::health_client::HealthClient::new(channel);
-        let identity = backend.get_identity(v1::GetBackendIdentity {}).await?.into_inner();
-        assert_eq!(backend.get_health(v1::GetBackendHealth {}).await?.into_inner().readiness, v1::BackendReadiness::Ready as i32);
-        health.list_health(v1::HealthListHealthRequest::default()).await?;
-        let availability = backend.get_availability(v1::GetBackendAvailability {}).await?.into_inner();
+        let client = dokime::client::HostClient::new(channel);
+        let identity = client.backend.identity().await?;
+        assert_eq!(client.backend.health().await?.readiness, v1::BackendReadiness::Ready as i32);
+        client.health.list().await?;
+        let availability = client.backend.availability().await?;
         assert!(availability.methods.iter().any(|method| method == "/dokime.v1.Plugins/Add"));
 
         // Add by URL and Read the Admitted Catalog Through the SDK's Generated Clients
-        let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
-        assert_eq!(plugins.list(v1::ListPlugins {}).await?.into_inner().plugins, vec![entry]);
-        let suites = catalog.list_suites(v1::CatalogListSuitesRequest::default()).await?.into_inner();
+        let entry = client.plugins.add(plugin.endpoint()).await?;
+        assert_eq!(client.plugins.list().await?.plugins, vec![entry]);
+        let suites = client.suites.list().await?;
         let suite_id = suites.suites[0].suite_id.clone();
-        let suite = catalog.get_suite(v1::CatalogGetSuiteRequest { suite_id: suite_id.clone() }).await?.into_inner();
+        let suite = client.suites.get(suite_id.clone()).await?;
         assert_eq!(suite.templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
 
         // Materialize a Parameter Set and Start Its Frozen Origins
-        let planned = planning.materialize_template(v1::PlanningMaterializeTemplateRequest {
-            selection: Some(v1::RegisteredSelection {
-                suite_id, template_id: "thermal.cycle".into(),
-                parameters: vec![v1::RegisteredSelectionParametersEntry { key: "limit".into(), value: Some(v1::SelectionValues {
-                    values: vec![v1::Value { kind: Some(v1::value::Kind::Number(85.0)) }]
-                }) }], ..Default::default()
-            })
-        }).await?.into_inner();
-        assert_eq!(planned.cases.len(), 1);
-        let cycle = execution.create_cycle(v1::ExecutionCreateCycleRequest {
-            origins: planned.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
-            continue_automatically: true, ..Default::default()
-        }).await?.into_inner();
-        let execution_id = cycle.execution_ids[0].clone();
-        let mut progress = observation.watch_execution_progress(v1::ObservationWatchExecutionProgressRequest {
-            test_execution_id: execution_id.clone()
-        }).await?.into_inner();
+        let cases = client.templates.materialize(suite_id, "thermal.cycle", std::collections::HashMap::from([
+            ("limit".into(), vec![v1::Value { kind: Some(v1::value::Kind::Number(85.0)) }])
+        ])).await?;
+        assert_eq!(cases.len(), 1);
+        let cycle = client.cycles.start(cases).await?;
+        let execution_id = cycle.executions[0].clone();
+        let mut progress = cycle.watch();
 
         // Await the Door Prompt Event and Answer Through the Prompts Service
         let mut phases = Vec::new();
-        while let Some(frame) = progress.message().await? {
-            if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value {
-                let phase = frame.progress.unwrap().phase;
-                phases.push(phase.clone());
-                if phase == "prompt" { break; }
-            }
+        while let Some(frame) = progress.next().await? {
+            phases.push(frame.phase.clone());
+            if frame.phase == "prompt" { break; }
         }
         assert!(phases.iter().any(|phase| phase == "prompt"));
-        let pending = prompts.list_pending(v1::PromptsListPendingRequest { execution_id: Some(execution_id.clone()), ..Default::default() }).await?.into_inner();
+        let pending = client.prompts.pending(execution_id.clone()).await?;
         let prompt_id = pending.prompts[0].prompt_id.clone();
-        let prompt = prompts.get_prompt(v1::PromptsGetPromptRequest { prompt_id: prompt_id.clone() }).await?.into_inner();
+        let prompt = client.prompts.get(prompt_id.clone()).await?;
         assert_eq!(prompt.prompt.unwrap().prompt_id, prompt_id);
-        prompts.respond(v1::PromptsRespondRequest { prompt_id, action: "yes".into(), accepted: true, ..Default::default() }).await?;
+        client.prompts.respond(prompt_id, "yes", true).await?;
 
         // Drain Progress Through Its Terminal Response and Successful Final Status
-        let mut terminal = false;
-        while let Some(frame) = progress.message().await? {
-            match frame.value.unwrap() {
-                v1::observation_watch_execution_progress_output::Value::Item(frame) => phases.push(frame.progress.unwrap().phase),
-                v1::observation_watch_execution_progress_output::Value::Response(_) => terminal = true,
-            }
-        }
-        assert!(terminal);
+        while let Some(frame) = progress.next().await? { phases.push(frame.phase); }
         assert!(phases.iter().any(|phase| phase == "finished"));
 
         // Read the Sealed Evidence, Acknowledged Records and Three Controlled Ticks
-        let detail = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: execution_id.clone() }).await?.into_inner();
+        let detail = client.executions.get(execution_id.clone()).await?;
         assert_eq!(detail.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
         assert!(!detail.seal.is_empty());
         assert!(matches!(detail.outcome.as_ref().unwrap().attribution.as_ref(), Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == v1::ResultStatus::Passed as i32));
-        let page = query.list_executions(v1::QueryListExecutionsRequest::default()).await?.into_inner();
+        let page = client.executions.list().await?;
         assert_eq!(page.rows[0], *detail.summary.as_ref().unwrap());
-        let scope = v1::EvidenceScope { execution_id: Some(execution_id.clone()), ..Default::default() };
-        let records = evidence.list_records(v1::EvidenceListRecordsRequest {
-            selection: Some(v1::CapturedRecordSelection { scope: Some(scope.clone()), ..Default::default() }), ..Default::default()
-        }).await?.into_inner();
+        let records = client.records.list(execution_id.clone()).await?;
         assert!(!records.records.is_empty());
         assert!(!records.records[0].payload.is_empty());
         let frozen = detail.schemas.as_ref().unwrap().catalog.as_ref().unwrap();
         let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(frozen.types.clone().unwrap())?;
         let door = prost_reflect::DynamicMessage::decode(pool.get_message_by_name("thermal.v1.Door").unwrap(), records.records[0].payload.as_slice())?;
         assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
-        let samples = telemetry.list_samples(v1::TelemetryListSamplesRequest { scope: Some(scope), ..Default::default() }).await?.into_inner();
+        let samples = client.samples.list(execution_id.clone()).await?;
         assert_eq!(samples.samples.len(), 3);
         assert_eq!(samples.samples.iter().map(|sample| sample.timestamp.unwrap().seconds).collect::<Vec<_>>(), vec![0, 1, 2]);
         assert!(samples.samples.iter().all(|sample| !sample.payload.is_empty()));
         assert!(samples.samples.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(v1::value::Kind::Number(84.0))));
 
         // Download the Report Including Metadata, Ordered Bytes and Digest Completion
-        let mut report = reports.download_execution_report(v1::ReportsDownloadExecutionReportRequest { execution_id: execution_id.clone() }).await?.into_inner();
+        let mut report = client.reports.download(execution_id.clone()).await?;
         let mut bytes = Vec::new();
         let mut completion = None;
         let mut report_terminal = false;
@@ -204,29 +170,28 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         assert!(String::from_utf8(bytes)?.contains(&execution_id));
 
         // Refuse Unsupported Operations by Name
-        let refused = plugins.reload(v1::PluginsReloadRequest::default()).await.unwrap_err();
+        let refused = client.plugins.reload(v1::PluginsReloadRequest::default()).await.unwrap_err();
         assert_eq!(refused.code(), tonic::Code::Unimplemented);
         assert!(refused.message().contains("Plugins.Reload"));
 
         // Restart the Host and Read Exactly the Same Sealed Execution
+        drop(progress);
+        drop(cycle);
+        client.close();
         process.close().await?;
         let restarted = HostProcess::start(root.path()).await?;
-        let mut reader = v1::execution_client::ExecutionClient::connect(restarted.url.clone()).await?;
-        let restored = reader.get_execution(v1::ExecutionGetExecutionRequest { execution_id: execution_id.clone() }).await?.into_inner();
+        let channel = tonic::transport::Endpoint::from_shared(restarted.url.clone())?.connect().await?;
+        let client = dokime::client::HostClient::new(channel);
+        let restored = client.executions.get(execution_id.clone()).await?;
         assert_eq!(restored, detail);
-        let mut evidence_reader = v1::evidence_client::EvidenceClient::connect(restarted.url.clone()).await?;
-        let scope = v1::EvidenceScope { execution_id: Some(execution_id), ..Default::default() };
-        let restored_records = evidence_reader.list_records(v1::EvidenceListRecordsRequest {
-            selection: Some(v1::CapturedRecordSelection { scope: Some(scope.clone()), ..Default::default() }), ..Default::default()
-        }).await?.into_inner();
+        let restored_records = client.records.list(execution_id.clone()).await?;
         assert_eq!(restored_records, records);
-        let mut telemetry_reader = v1::telemetry_client::TelemetryClient::connect(restarted.url.clone()).await?;
-        let restored_samples = telemetry_reader.list_samples(v1::TelemetryListSamplesRequest { scope: Some(scope), ..Default::default() }).await?.into_inner();
+        let restored_samples = client.samples.list(execution_id).await?;
         assert_eq!(restored_samples, samples);
-        let mut backend = v1::backend_client::BackendClient::connect(restarted.url.clone()).await?;
-        let restored_identity = backend.get_identity(v1::GetBackendIdentity {}).await?.into_inner();
+        let restored_identity = client.backend.identity().await?;
         assert_eq!(restored_identity.backend_id, identity.backend_id);
         assert_ne!(restored_identity.epoch, identity.epoch);
+        client.close();
         restarted.close().await?;
         plugin.close().await?;
         Ok(())

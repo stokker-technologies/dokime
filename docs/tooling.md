@@ -319,10 +319,11 @@ The single starter source is `sdk/python/examples/starter/`. The CLI must embed
 `mise.toml`, `tests/host.py`, and `tests/test_capture.py`; only its project name needs substitution.
 `mise -C sdk/python run sdk:starter` runs its deterministic in-process host story.
 
-The language-neutral system suite is the starter's `suite.py`. Its identifiers
-and host prerequisites are documented in the [SDK guide](../sdk/python/README.md#validate).
-Real Dokime execution, report publication, sealing and reopening await the host
-integration. SDK system stories run in Nightly.
+The cross-language thermal suite is `sdk/python/examples/thermal/suite.py`.
+The [Execution Host](execution-host.md#compare-every-sdk) guide names its focused
+real-host evidence comparison and the Python/Rust client restart stories.
+The starter retains its own in-process authoring story. Full SDK system lanes run
+in hosted validation.
 
 Build the reference host through the pinned Harmos checkout's
 `mise run build -- --package harmos-conformance`, set `HARMOS_CONFORMANCE_HOST`

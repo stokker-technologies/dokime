@@ -115,7 +115,9 @@ class Template:
         )
 
     def operation(self, handler: FunctionType, kind: str) -> str:
-        return f"{self.identifier}.{kind}.{handler.__name__}"
+        definitions = self.steps if kind == "step" else self.criteria
+        position = next(index for index, item in enumerate(definitions) if item.handler is handler)
+        return f"{self.identifier}.{kind}.{position}"
 
     def definition(self) -> Any:
         value = message(

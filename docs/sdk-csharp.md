@@ -142,32 +142,18 @@ the Dokime suite catalog, pure materialization, scoped child calls, explicit
 observer ticks, evidence evaluation and resource release. Test setup deadlines
 are transport hang guards; no scenario waits for wall-clock time.
 
-## Shared System Suite
+## Shared System Story
 
-`sdk/csharp/tests/SystemPlugin/Program.cs` is the C# suite for the cross-language
-Nightly story. It is built against the packed NuGet package. No Dokime-host
-system result is claimed until the new host exists. The shared runner must:
+`tests/SystemPlugin` implements the same thermal suite as Rust, Python and C++.
+Build it through `mise -C sdk/csharp run build`, `package` and `build:system`.
+The `csharp_plugin_matches_rust_thermal_evidence` host story runs the built
+executable through both remote URL and managed placements. It compares the full
+frozen case, ordered evidence, source sample times, outcome and counts against
+Rust, then reopens each sealed run. The process requires the selected .NET 10
+runtime; set `DOTNET_ROOT` to the mise .NET installation when another system
+runtime is the default. See [Execution Host](execution-host.md) for named runs.
 
-1. Start this executable with a managed `HARMOS_ADDRESS`, or connect to its
-   remote endpoint, then admit its catalog and requirements.
-2. Expand `sdk.journey.measure` with `target = 42`, materialize it without a
-   scope, and freeze the case, digest and process identity in `PluginRun` origin.
-3. Open `sdk.journey.readings` for the execution, initialize it, then execute
-   `measure` with matching scope and origin. Answer `sdk.journey.confirm` with
-   action `continue` and `accepted = true`.
-4. Use a paused host clock: advance three one-second ticks during the step's
-   three-second host sleep, await each sample before completing the sleep, and
-   return statistics scoped to step `measure`.
-5. Evaluate `evidence`, run cleanup, close streams, publish the report and seal.
-   Expect exactly three stream readings with value 42 and ticks 1, 2, 3; one
-   `sdk.journey.decision` record with value 1; and two ordered
-   `sdk.journey.lifecycle` records with values 1 and 2. The criterion passes.
-6. Compare those same evidence expectations with each other SDK and exercise
-   cancellation/failure finalization through the common host runner. Run this
-   shared-host story in Nightly, not on pull requests.
-
-The host must implement the public record, records, statistics and prompt
-operations plus Harmos host-clock sleep, scoped streams and lifecycle management.
-The common runner and generated client services remain integration-owner work.
-The local story proves the C# authoring boundary without pretending that a fake
-server is the future Dokime host.
+The named assertion `csharp_frozen_record_schema_decodes_door` is pending Harmos
+support for descriptor-only message registration. Record bytes and all lifecycle
+evidence compare with Rust; decoding that record from the retained catalog alone
+remains unproved. The request is tracked in the gRPC change's design.

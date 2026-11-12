@@ -790,6 +790,13 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
+The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
+Cross-language proof compares the frozen origin/test case and every ordered evidence/sample field, excluding only execution identities, plugin digest/start time and receipt timestamps; each sealed snapshot must reopen byte-for-byte.
+C++ record/log conveniences leave absent source timestamps to the host, matching Rust, Python and C#; explicit device sample times remain preserved.
+Python composes generated messages behind service conveniences and cycle values; Rust `client::HostClient` owns the equivalent generated-service conveniences beside the descriptor-bound Harmos `Client`.
+Client cycle watches validate terminal envelopes and successful final status; abandoning a watch leaves execution cancellation with its explicit owner.
+
 Client serving uses the authoritative generated `dokime.v1` servers; unsupported methods return `UNIMPLEMENTED` with their service and operation name.
 The first wire cycle atomically admits and starts explicit frozen origins, carried by additive `ExecutionCreateCycleRequest.origins` and returned execution IDs.
 Captured records and telemetry retain exact protobuf payload bytes alongside projections; execution detail exposes the verified seal digest.
@@ -852,6 +859,27 @@ messages and descriptors. Dokime must consume those rather than restoring old
 operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 ### Requests to Harmos
+
+#### C# Record-Only Descriptor Registration
+
+Pending Assertion: `csharp_frozen_record_schema_decodes_door`.
+At pinned revision `a7583836e721c8dc8b135af40a78860ea5945ec6`, the real-host
+thermal story seals a correct `thermal.v1.Door { closed: true }` record, but
+`DescriptorPool::get_message_by_name("thermal.v1.Door")` on the frozen catalog
+returns None in both C# placements. `Harmos.Sdk.Plugin.Section`, `Operation`,
+`Requires`, `Stream` and `Observer` are the only descriptor-registration paths;
+`Descriptors.Types` deliberately removes unreferenced sibling messages, even
+when Temperature and Door share one proto file. `Dokime.Plugin.Record<T>` can
+publish the message's name but cannot register its descriptor. Add a public
+`Plugin.Message<T>()` (or equivalent descriptor-only method) that merges the
+message and transitive dependencies into catalog Types without an operation,
+stream or section, and include them in the catalog digest. Dokime will call it
+from `Record<T>` and enable `support::thermal::frozen_record_schema_decodes_door`
+in the C# story. No reflection, synthetic section or synthetic operation is used.
+The C# story still compares every frozen case/evidence/sample field with Rust
+and verifies exact sealed reopen; only decoding a Door from the retained
+catalog is pending. Python and C++ execute that assertion today.
+
 
 #### Generated Protobuf Managed Client
 

@@ -19,7 +19,7 @@ from harmos import Failure, Operation, operation
 # Local Imports
 from . import plot
 from .authoring import Case, Criterion, Record, Step, Stream, Suite, Template, criterion, materialize, observer, step, stream, suite
-from .client import Client, MissingServiceError, connect
+from .client import Client, Cycle, MissingServiceError, connect
 from .context import Context
 from .documents import Document, Section, Summary
 from .plugin import Endpoint, Plugin, serve
@@ -33,6 +33,7 @@ __all__ = [
     "Client",
     "Context",
     "Criterion",
+    "Cycle",
     "Document",
     "Endpoint",
     "Failure",

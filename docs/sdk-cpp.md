@@ -142,22 +142,10 @@ resources through cleanup and check placement-specific Stop behaviour.
 
 ## Shared System Story
 
-[`tests/system/main.cpp`](../sdk/cpp/tests/system/main.cpp) builds
-`dokime-system-suite`; it is ready for the Nightly cross-language host story and
-is not a locally claimed host proof. The host needs to:
-
-1. Connect to managed `sdk.cpp` (or its explicit remote endpoint), read Suites,
-   RecordContracts and the `sdk.temperature` stream declaration.
-2. Materialize `sdk.journey`, freeze its full case, plugin/template identifiers,
-   digest and process start time in PluginRun, and pass matching origin/case and
-   execution scope to every operation.
-3. Open the execution stream, initialize, run `capture`, answer prompt `door`
-   with accepted action `continue`, acknowledge one Boolean `sdk.door` record,
-   then send a tick during the one-second host-clock sleep. Initialize owns a
-   42-degree resource; the observer publishes its value without real time.
-4. Evaluate `within_limit`: statistics for `sdk.temperature.number` during
-   `capture` have count greater than zero and max 42; `sdk.door` has count one
-   and its last Boolean is true. Expect the criterion to pass.
-5. Run cleanup, retain its info log, close the stream, finalize evidence and stop
-   the plugin. Compare the same frozen evidence across SDKs. The host owns
-   deterministic tick ordering, statistics, prompt resolution and evidence storage.
+[`tests/system/main.cpp`](../sdk/cpp/tests/system/main.cpp) implements the shared
+`thermal.cycle` suite. CMake generates its Temperature and Door payload types
+from `tests/system/thermal.proto` and builds `dokime-system-suite` through the
+SDK `build` task. The `cpp_plugin_matches_rust_thermal_evidence` host story runs
+the executable in remote and managed placements, compares the frozen case and
+all ordered evidence/sample fields with Rust, and reopens the sealed evidence.
+See [Execution Host](execution-host.md) for prerequisites and focused runs.

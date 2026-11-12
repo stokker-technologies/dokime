@@ -48,7 +48,7 @@ int main() {
   bool retry = false;
   for (const auto &operation : catalog.operations()) {
     check(operation.visibility() == harmos::wire::VISIBILITY_PRIVATE, "An Authoring Operation Became Public");
-    if (operation.id() == "sample.measure.step.capture")
+    if (operation.id() == "sample.measure.step.0")
       retry = operation.policy().attempts() == 3;
   }
   check(retry, "Step Retry Policy Was Lost");

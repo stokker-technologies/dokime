@@ -1,0 +1,4 @@
+syntax = "proto3";
+package thermal.v1;
+message Temperature { double celsius = 1; }
+message Door { bool closed = 1; }

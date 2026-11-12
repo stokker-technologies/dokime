@@ -12,9 +12,13 @@
 
 # Standard Library Imports
 import asyncio
+import hashlib
 import json
 import os
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 # Third Party Imports
@@ -25,12 +29,13 @@ from google.protobuf.message import Message
 
 # Local Imports
 from .v1 import descriptors, message, services
+from .values import encode
 
 # Type Checking Imports
 
 # === Public Exports === #
 
-__all__ = ["Client", "MissingServiceError", "connect"]
+__all__ = ["Client", "Cycle", "MissingServiceError", "connect"]
 
 # === Constants === #
 
@@ -57,6 +62,14 @@ class Client:
                 selected = descriptor_pool.Default().FindServiceByName(f"{definition.package}.{service.name}")
                 self._methods.extend(selected.methods)
         self.plugins = Plugins(self)
+        self.suites = Suites(self)
+        self.templates = Templates(self)
+        self.cycles = Cycles(self)
+        self.executions = Executions(self)
+        self.prompts = Prompts(self)
+        self.records = Records(self)
+        self.samples = Samples(self)
+        self.reports = Reports(self)
 
     def call(self, request, *, method: MethodDescriptor | None = None, timeout: float | None = None):
         if self.closed:
@@ -100,6 +113,134 @@ class Plugins:
 
     async def remove(self, entry: str) -> None:
         await self._client.call(message("RemovePlugin", entry=entry))
+
+
+class Suites:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def list(self):
+        return (await self._client.call(message("CatalogListSuitesRequest"))).suites
+
+    async def get(self, identifier: str):
+        return await self._client.call(message("CatalogGetSuiteRequest", suite_id=identifier))
+
+
+class Templates:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def materialize(self, suite: str, template: str, parameters: Mapping[str, Sequence[Any]]):
+        selection = message("RegisteredSelection", suite_id=suite, template_id=template)
+        for key, values in parameters.items():
+            entry = selection.parameters.add(key=key)
+            entry.value.values.extend(encode(value) for value in values)
+        result = await self._client.call(message("PlanningMaterializeTemplateRequest", selection=selection))
+        return tuple(result.cases)
+
+
+class Cycles:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def start(self, cases):
+        result = await self._client.call(
+            message("ExecutionCreateCycleRequest", origins=[case.origin for case in cases], continue_automatically=True)
+        )
+        return Cycle(self._client, result.cycle_id, tuple(result.execution_ids))
+
+
+@dataclass(frozen=True)
+class Cycle:
+    client: Client
+    identifier: str
+    executions: tuple[str, ...]
+
+    async def watch(self):
+        for identifier in self.executions:
+            terminal = False
+            async for frame in self.client.call(message("ObservationWatchExecutionProgressRequest", test_execution_id=identifier)):
+                kind = frame.WhichOneof("value")
+                if terminal:
+                    raise RuntimeError("Watch Cycle: Frame After Terminal Response")
+                if kind == "response":
+                    terminal = True
+                elif kind == "item" and frame.item.HasField("progress"):
+                    yield frame.item.progress
+                else:
+                    raise RuntimeError("Watch Cycle: Missing Progress")
+            if not terminal:
+                raise RuntimeError("Watch Cycle: Missing Terminal Response")
+
+
+class Executions:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def get(self, identifier: str):
+        return await self._client.call(message("ExecutionGetExecutionRequest", execution_id=identifier))
+
+    async def list(self):
+        return (await self._client.call(message("QueryListExecutionsRequest"))).rows
+
+
+class Prompts:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def pending(self, execution: str):
+        return (await self._client.call(message("PromptsListPendingRequest", execution_id=execution))).prompts
+
+    async def get(self, identifier: str):
+        return (await self._client.call(message("PromptsGetPromptRequest", prompt_id=identifier))).prompt
+
+    async def respond(self, identifier: str, action: str, *, accepted: bool):
+        await self._client.call(message("PromptsRespondRequest", prompt_id=identifier, action=action, accepted=accepted))
+
+
+class Records:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def list(self, execution: str):
+        return await self._client.call(message("EvidenceListRecordsRequest", selection={"scope": {"execution_id": execution}}))
+
+
+class Samples:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def list(self, execution: str):
+        return await self._client.call(message("TelemetryListSamplesRequest", scope={"execution_id": execution}))
+
+
+class Reports:
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def download(self, execution: str) -> bytes:
+        data = bytearray()
+        completion = None
+        terminal = False
+        async for frame in self._client.call(message("ReportsDownloadExecutionReportRequest", execution_id=execution)):
+            if terminal:
+                raise RuntimeError("Download Report: Frame After Terminal Response")
+            if frame.WhichOneof("value") == "response":
+                terminal = True
+                continue
+            kind = frame.item.payload.WhichOneof("kind")
+            if kind == "chunk":
+                chunk = frame.item.payload.chunk
+                if chunk.offset != len(data):
+                    raise RuntimeError("Download Report: Noncontiguous Chunk")
+                data.extend(chunk.data)
+            elif kind == "complete":
+                completion = frame.item.payload.complete
+        if not terminal or completion is None:
+            raise RuntimeError("Download Report: Missing Completion")
+        if completion.size_bytes != len(data) or completion.sha256 != hashlib.sha256(data).hexdigest():
+            raise RuntimeError("Download Report: Digest or Size Mismatch")
+        return bytes(data)
 
 
 # === Public Functions === #
