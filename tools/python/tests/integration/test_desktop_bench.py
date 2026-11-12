@@ -12,6 +12,9 @@
 
 # Standard Library Imports
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +37,38 @@ from dokime_tools.test import desktop_bench, run
 
 
 class DesktopBench(unittest.TestCase):
+    def test_native_child_scratch_is_reclaimed_after_success_and_failure(self) -> None:
+        original = dict(os.environ)
+        script = (
+            "import os, pathlib, tempfile; "
+            "root = pathlib.Path(tempfile.mkdtemp(prefix='dokime-evidence-')); "
+            "(root / 'rows').write_bytes(b'evidence'); "
+            "tempfile.NamedTemporaryFile(prefix='dokime-output-', delete=False).close(); "
+            "print(root.parent, flush=True); os._exit(0)"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            reports = Path(temporary) / "reports"
+            for failed in (False, True):
+                try:
+                    with desktop_bench.scratch(original, reports) as environment:
+                        child = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True, text=True, check=True)
+                        root = Path(child.stdout.strip())
+                        self.assertTrue(any(root.glob("dokime-evidence-*")))
+                        self.assertTrue(any(root.glob("dokime-output-*")))
+                        if failed:
+                            raise ValueError("failed desktop run")
+                except ValueError:
+                    self.assertTrue(failed)
+                self.assertFalse(root.exists())
+                self.assertFalse(reports.exists())
+            with desktop_bench.scratch({**original, "DOKIME_KEEP_EVIDENCE": "1"}, reports) as environment:
+                child = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True, text=True, check=True)
+                root = Path(child.stdout.strip())
+            self.assertFalse(root.exists())
+            self.assertTrue(any(reports.rglob("dokime-evidence-*")))
+            self.assertTrue(any(reports.rglob("dokime-output-*")))
+        self.assertEqual(dict(os.environ), original)
+
     def test_failed_preflight_does_not_publish_cached_measurements(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

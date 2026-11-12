@@ -397,12 +397,14 @@ def _lane(
 ) -> dict:
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
-    if language in SCRIPTS:
-        status = _execute(command, cwd, environment, timeout_s=rules.deadline(category))
-    else:
-        status = _execute(command, cwd, environment)
-    seconds = time.time() - started
     destination = report.location(directory, profile, key)
+    native = language in SCRIPTS and category == "system"
+    with desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as child_environment:
+        if language in SCRIPTS:
+            status = _execute(command, cwd, child_environment, timeout_s=rules.deadline(category))
+        else:
+            status = _execute(command, cwd, child_environment)
+    seconds = time.time() - started
     if (
         not junit.resolve().is_relative_to(scratch.resolve())
         or any(path.is_symlink() for path in (junit, *junit.parents) if path.is_relative_to(scratch))
@@ -559,11 +561,16 @@ def _bench_rust(
         if name == "system-desktop":
             (home / "desktop/observations.json").unlink(missing_ok=True)
             (home / "desktop/completion.json").unlink(missing_ok=True)
-        with desktop_bench.native(directory, environment) if name == "system-desktop" else nullcontext():
+        with (
+            desktop_bench.scratch(environment, home / "desktop")
+            if name == "system-desktop"
+            else nullcontext(environment) as child_environment,
+            desktop_bench.native(directory, child_environment) if name == "system-desktop" else nullcontext(),
+        ):
             code, peak = _measured(
                 [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
                 directory / manifest.parent,
-                environment,
+                child_environment,
             )
         status = status or code
         if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):

@@ -20,6 +20,7 @@ await mkdir(output, { recursive: true });
 const resolvedFixtureRoot = await realpath(fixtureRoot);
 const work = await realpath(await mkdtemp(join(fixtureRoot, "run-")));
 assert.ok(work.toLowerCase().startsWith(`${resolvedFixtureRoot}${sep}`.toLowerCase()), "Owned fixture stays inside its target directory");
+const keepEvidence = process.env.DOKIME_KEEP_EVIDENCE === "1";
 const results = [];
 const resources = [];
 const captured = new Set();
@@ -281,6 +282,7 @@ try {
         resourceSamples: samples.length,
         resourceWindowMs: samples.length > 1 ? samples.at(-1).time_ms - samples[0].time_ms : null,
       });
+      await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));
       const capture = `${count}-${condition}`;
       if (!captured.has(capture)) {
         await desktop.screenshot(capture);
@@ -293,6 +295,7 @@ try {
   finished = true;
 } catch (error) {
   failure = error;
+  await desktop?.screenshot("failure").catch(() => {});
 } finally {
   const errors = [];
   for (const close of [closeNative, async () => cleanup?.()]) {
@@ -302,17 +305,23 @@ try {
       errors.push(String(error));
     }
   }
-  // Heavy Fixtures Are Owned, Disposable And Kept Under Target Until Processes Close.
-  if (!errors.length) {
+  // Reclaim Fixtures On Success And Failure After All Owned Children Stop.
+  for (const directory of keepEvidence ? [] : [work]) {
     try {
-      await rm(work, { recursive: true, force: true });
+      await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     } catch (error) {
       errors.push(String(error));
     }
   }
   await writeFile(
     join(output, "completion.json"),
-    JSON.stringify({ finished, results: results.length, errors, failure: failure?.stack ?? null }),
+    JSON.stringify({
+      finished,
+      results: results.length,
+      errors,
+      failure: failure?.stack ?? null,
+      keptEvidence: keepEvidence ? [work] : [],
+    }),
   );
   if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
 }

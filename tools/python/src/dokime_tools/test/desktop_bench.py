@@ -13,6 +13,7 @@
 # Standard Library Imports
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -24,7 +25,7 @@ from statistics import median
 
 # Third Party Imports
 # Local Imports
-from .. import policy
+from .. import policy, temporary
 from ..ci import bootstrap
 
 # Type Checking Imports
@@ -38,6 +39,20 @@ from ..ci import bootstrap
 # === Classes === #
 
 # === Public Functions === #
+
+
+@contextmanager
+def scratch(environment: dict[str, str] | None, reports: Path) -> Generator[dict[str, str]]:
+    """Reclaim Native Child Scratch Even When Process Termination Skips Rust Drops."""
+    with temporary.directory() as root:
+        child_environment = dict(os.environ if environment is None else environment)
+        child_environment.update({name: str(root) for name in ("TEMP", "TMP", "TMPDIR")})
+        try:
+            yield child_environment
+        finally:
+            if child_environment.get("DOKIME_KEEP_EVIDENCE") == "1":
+                reports.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(root, reports / root.parent.name)
 
 
 @contextmanager
