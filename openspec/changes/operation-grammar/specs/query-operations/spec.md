@@ -6,7 +6,8 @@
 
 Dokime SHALL expose one canonical resource read path per data kind, replacing
 overlapping operational, query and checkpoint families. Each SHALL have one
-declaration, generated request/response wrappers and runtime-owned execution.
+declaration per required face, generated request/response wrappers and
+runtime-owned execution.
 Reads SHALL be read-only and idempotent at an explicit compatible returned cut;
 latest reads SHALL select already durable data without a flush barrier.
 
@@ -20,8 +21,14 @@ latest reads SHALL select already durable data without a flush barrier.
 #### Scenario: Contract Discovery
 
 - **WHEN** an authorized caller discovers the operation catalog
-- **THEN** each operation has a mechanically derived namespaced ID, one request schema, response wrapper and declared shared policy
-- **AND** native, gRPC, generated clients and generic CLI calls use that same declaration and the locked nested-resource naming grammar
+- **THEN** each operation has a face/package-derived namespaced ID, its own request schema, response wrapper and declared policy
+- **AND** native, gRPC, generated clients and generic CLI calls use the declaration for their permitted face and the locked nested-resource naming grammar
+
+#### Scenario: Plugin and Client Read Produced Records
+
+- **WHEN** a plugin reads produced records through its context and a client reads them through the client API
+- **THEN** `dokime.context.v1.evidence.Records/List` and `dokime.v1.evidence.Records/List` have separate request/response declarations and authorization
+- **AND** both preserve the same retained-cut and bounded read guarantees without exposing the context face to the client
 
 ### Requirement: Cheap CLI Parity
 

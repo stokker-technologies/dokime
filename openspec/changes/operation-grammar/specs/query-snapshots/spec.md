@@ -11,7 +11,9 @@ A supplied `at` SHALL select a compatible previously returned retained cut or
 the seal; arbitrary earlier positions SHALL be refused. Replies SHALL state
 `resolved_at`. The product SHALL own the storage schemas, indexes, projections
 and meaning of latest that define this cut; generic library services SHALL NOT
-redefine those object semantics.
+redefine those object semantics. Separate client/context declarations SHALL
+preserve those cut semantics while enforcing their own caller authority; context
+reads SHALL inherit invocation scope and SHALL NOT be exposed to clients.
 
 #### Scenario: Capture Without Finalization
 

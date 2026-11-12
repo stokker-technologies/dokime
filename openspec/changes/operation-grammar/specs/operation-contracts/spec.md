@@ -7,10 +7,157 @@ position, mutation and upload behavior across clients and plugins.
 Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
+Separation by audience locked by the owner on 2026-11-12
 
 These are target requirements, not implemented behavior.
 
 ## ADDED Requirements
+
+### Requirement: Audience Faces and Package Boundaries
+
+Each service SHALL have exactly one audience face, visible in its package:
+plugin protocol in `harmos.plugin.v1` (Instance only); product catalog operations
+in `dokime.plugin.v1` on Instance.Invoke; host context in `harmos.context.v1` or
+`dokime.context.v1` through child calls; host client API in `harmos.v1` or
+`dokime.v1`. Nested resources SHALL stay within that face. Only the host SHALL
+call instances; clients SHALL NOT call context. Plugins SHALL remain client management.
+
+#### Scenario: Client Cannot Call Context
+
+- **WHEN** a connected client attempts `dokime.context.v1.executions.Progress/Set` or `harmos.context.v1.HostValues/Get`
+- **THEN** the host refuses the call with an error naming the action; client access does not authorize an invocation-context operation
+- **AND** no context service is registered on the client endpoint or exposed by its generated client root
+
+#### Scenario: Client Cannot Call an Instance Directly
+
+- **WHEN** a client tries to open Instance.Get, Invoke, Samples or Stop directly on a plugin instance
+- **THEN** the plugin protocol refuses the caller because only the host may open those calls
+- **AND** Public catalog visibility does not authorize a direct instance connection
+
+#### Scenario: Plugin Cannot Call Client-Only Management
+
+- **WHEN** a plugin attempts client-only `harmos.v1.Plugins/Delete` through its context
+- **THEN** the host refuses it with an error naming the action and leaves the entry unchanged
+- **AND** plugin context authority does not grant a client-only operation, even when a handler is shared elsewhere
+
+#### Scenario: Host Calls an Instance
+
+- **WHEN** the host connects to a running plugin and invokes one of its admitted product operations
+- **THEN** it reads identity/catalog through `harmos.plugin.v1.Instance/Get` and opens Instance.Invoke for the `dokime.plugin.v1` catalog operation
+- **AND** Instance.Samples and Instance.Stop retain publication and cleanup semantics; Plugins remains a distinct host-served client management service
+
+### Requirement: Explicit Catalog Visibility and Admission
+
+Faces SHALL NOT replace visibility. Each plugin-served catalog operation SHALL
+explicitly declare Private (declaring plugin and host) or Public (everyone
+connected: other plugins and host clients). Rust, Python, C# and C++ SHALL require
+visibility with no default. Unspecified visibility SHALL fail admission. Catalog
+admission SHALL preserve descriptor/digest, declared fingerprint, visibility and
+admitted-provider checks in one host operation registry.
+
+#### Scenario: Explicit Visibility in Every SDK
+
+- **WHEN** a plugin author declares an operation in Rust, Python, C# or C++
+- **THEN** its visibility must be chosen explicitly and is retained in the catalog used by Instance.Get and host admission
+- **AND** neither an SDK default nor an unspecified catalog value silently makes the operation Private or Public
+
+### Requirement: Visibility and Host-Mediated Plugin Invocation
+
+The host SHALL route declared plugin requirements as child calls through one
+operation registry to admitted providers via Instance.Invoke, checking visibility
+and fingerprints. Clients SHALL reach Public plugin operations through client
+Invocations.Invoke. Plugins and clients SHALL NOT connect directly to an instance.
+Scope SHALL be inherited unchanged; results, failures and cancellation SHALL
+propagate through the host. A requirement SHALL NOT grant access.
+
+#### Scenario: Plugin Invokes Another Plugin's Public Operation
+
+- **WHEN** a plugin makes a context child call for a declared requirement matching another admitted plugin's Public operation
+- **THEN** the host checks visibility and fingerprint in its one registry, calls the providing plugin's Instance.Invoke and returns its result to the caller
+- **AND** only the host opens the instance call; no client-only service authority is required by the calling plugin
+
+#### Scenario: Private Cross-Plugin Operation Is Refused
+
+- **WHEN** a plugin makes the same child call to another plugin's Private operation
+- **THEN** the host refuses it with an error naming the action and does not invoke the provider
+- **AND** the declaring plugin and host remain permitted callers; a declared requirement alone does not grant another plugin access
+
+#### Scenario: Client Invokes a Public Plugin Operation
+
+- **WHEN** a client invokes an admitted Public plugin-served operation through `harmos.v1.Invocations/Invoke`
+- **THEN** the host checks visibility and fingerprint, resolves the provider in the same registry, invokes its instance and returns the result
+- **AND** a Private operation remains unavailable to that client
+
+#### Scenario: Scope Is Inherited Across the Provider Hop
+
+- **WHEN** a plugin child call is routed by the host to another plugin
+- **THEN** the providing invocation inherits the caller's scope unchanged
+- **AND** the host does not infer authority from payload fields or let the child widen its scope
+
+#### Scenario: Cancelling the Caller Cancels the Child
+
+- **WHEN** a caller is cancelled while its child operation is running in a providing plugin
+- **THEN** the host cancels the child and propagates cancellation to the provider's Instance.Invoke
+- **AND** cancellation/failure and required cleanup propagate through the existing invocation settlement contract
+
+#### Scenario: Child Failure Propagates Back
+
+- **WHEN** a Public provider operation fails after the host routes a child call
+- **THEN** the caller receives its structured failure, action and preserved cause through the host
+- **AND** the failure is not converted into an empty success
+
+#### Scenario: Missing Requirement or Provider and Fingerprint Mismatch
+
+- **WHEN** a plugin omits the required declaration, declares a mismatched fingerprint or targets an operation without an admitted provider
+- **THEN** admission or dispatch refuses the call explicitly and the provider is not invoked
+- **AND** a client call with an incompatible fingerprint or absent admitted provider is also refused
+
+### Requirement: Independent Declarations per Face
+
+A capability needed on context and client faces SHALL have separate IDs,
+fingerprints, requests and responses per face, even with a shared handler.
+Evolution and authorization SHALL be independent. The 15 overlapping capabilities
+SHALL match design.md's per-face mapping. Context-only mutations SHALL NOT be
+added to client services for symmetry.
+
+#### Scenario: Shared Time and Produced Data
+
+- **WHEN** a plugin and a client read time, transfer bytes or read produced records/statistics
+- **THEN** each calls its own face's typed declaration with that face's authorization and scope rules
+- **AND** a shared handler does not make the client request/response a context contract
+
+#### Scenario: Context Revision Mirror
+
+- **WHEN** a plugin gets the value/revision needed for context Progress.Set or Traceability.Set
+- **THEN** it uses the context Get request/response, separate from the client's observation Get
+- **AND** the client gains no progress or traceability Set through this duplication
+
+### Requirement: Generate Only Required Faces
+
+Each SDK role SHALL select its faces before generating contracts, stubs and
+hierarchical roots. A plugin SDK SHALL generate plugin protocol to serve and
+context to call, including product plugin operation declarations; a client SHALL
+generate client API only; a host SHALL generate all three. A combined SDK
+package SHALL keep these role surfaces separate. Public requirement descriptors
+SHALL remain usable by child calls without generating client-only management.
+
+#### Scenario: Plugin Generation
+
+- **WHEN** a plugin SDK is generated in any of the four languages
+- **THEN** it can serve Instance and call context operations, and declare/require product plugin operations
+- **AND** it does not generate client-only management as part of its plugin role
+
+#### Scenario: Client Generation
+
+- **WHEN** an application, CLI tool or script client is generated
+- **THEN** it has only `harmos.v1` and `dokime.v1` client surfaces and their nested packages
+- **AND** Public provider invocation uses the generic host client path rather than generating an instance or context client
+
+#### Scenario: Host Generation
+
+- **WHEN** the product host is generated
+- **THEN** it has client API, context and plugin protocol contracts, with face roots kept separate
+- **AND** it serves client API/context to their permitted audiences and calls Instance as the host
 
 ### Requirement: Predictable Operation Names
 
@@ -45,7 +192,8 @@ earlier verb-plus-part rule and flat compound resource services.
 
 ### Requirement: Nested Service Wire Layout
 
-A nested resource SHALL be a service in package `<owner>.v1.<lowercase-parent>`,
+A nested resource SHALL be a service namespace in package
+`<face-package>.<lowercase-parent>`,
 with the part as its service name, one proto file per service and a folder per
 parent. Its messages SHALL use the local service prefix `<Service><Method>Request`
 and `<Service><Method>Response`. Parent and nested resource MAY have different
@@ -54,17 +202,17 @@ library/product owners; composition SHALL preserve both namespaces.
 #### Scenario: Product Settings Beside Library Plugins
 
 - **WHEN** the host application serves library Plugins and product plugin settings
-- **THEN** the product declares `product.v1.plugins.Settings` in `product/v1/plugins/settings.proto`, beside library Plugins, and the full nested Get path is `product.v1.plugins.Settings/Get`
+- **THEN** the product declares `dokime.v1.plugins.Settings` in `dokime/v1/plugins/settings.proto`, beside library Plugins, and the full nested Get path is `dokime.v1.plugins.Settings/Get`
 - **AND** its wrappers are SettingsGetRequest/Response and SettingsSetRequest/Response, not flat PluginSettings wrappers or Plugins.GetSettings
 
 ### Requirement: Generated Method Messages and Clients
 
-Messages SHALL follow the service-prefixed method naming rule in their package.
-Responses SHALL always be wrappers. All four SDKs SHALL derive their client root
-hierarchy mechanically from service packages and names through a small build-time
-generator consuming the same descriptor-derived table, with no hand-written
-per-operation code. Composition SHALL merge distinct library/product resource
-children and reject collisions; language casing SHALL NOT change hierarchy.
+Messages SHALL use local ServiceMethodRequest/Response names and response
+wrappers. In all four SDKs a build-time generator SHALL derive hierarchy within
+each selected face from the shared descriptor package/service table, without
+hand-written per-operation code. Composition SHALL merge distinct resource
+children within one face and reject collisions. Language casing SHALL preserve
+hierarchy; context and client roots SHALL remain separate.
 
 #### Scenario: Contract Review
 
@@ -111,7 +259,7 @@ The per-plugin settings/secrets ownership question SHALL be treated as closed.
 #### Scenario: Plugin Requests a Value
 
 - **WHEN** a plugin declares its settings and requests a setting or secret
-- **THEN** the catalog carries declarations and library HostValues.Get calls the registered product resolver with its policy and stores
+- **THEN** the catalog carries declarations and `harmos.context.v1.HostValues/Get` calls the registered product resolver with its policy and stores
 - **AND** the library introduces no opinionated settings/secret store or archive
 
 ### Requirement: Manager-Owned Orchestration
@@ -149,14 +297,18 @@ plugin carriers and the library's other existing surfaces SHALL remain separate.
 #### Scenario: Mapping and Count Review
 
 - **WHEN** the declarations and generated outputs are reviewed against design.md
-- **THEN** all 132 ordinary rows and their Run twins are accounted for once, and the client inventory has 39 services (23 nested), 120 methods and 240 method wrappers
+- **THEN** all 132 ordinary rows and their Run twins are accounted for once, and the original mapped client subset has 39 services (23 nested), 120 methods and 240 method wrappers
 - **AND** library mapped-client totals are 7 services (3 nested), 27 operations/methods and 27 request/response pairs; product client totals are 32 services (20 nested), 93 operations/methods and 93 pairs
 - **AND** product Content.ExecutionFiles.Get resolves metadata for library Storage.WatchFileBytes growth/replacement/truncation; Content.ExecutionFiles.Watch follows product metadata/membership
 
-#### Scenario: Whole-Owner Operation Census
+#### Scenario: Complete Per-Face Operation Census
 
-- **WHEN** host/plugin-only templates and the complete library protocol are included without double-counting shared operations
-- **THEN** library totals are 13 logical services (3 nested), 67 operations, 61 gRPC methods and 67 request/response pairs; product totals are 39 logical services (22 nested), 111 operations, 93 gRPC methods and 111 pairs
+- **WHEN** product plugin/context declarations and mapped library dependencies are included, counting shared capabilities once per face
+- **THEN** the plugin face has 5 logical namespaces, 9 operations, 4 gRPC entry methods and 9 request/response pairs, with Instance its one wire service
+- **AND** context has 15 logical namespaces, 29 operations, zero independent gRPC entry methods and 29 request/response pairs, carried as child calls
+- **AND** the completed client face has 42 services, 127 operations/gRPC methods and 127 pairs, including seven generic library companions beyond the original 120-method mapping
+- **AND** product-only totals are 48 namespaces, 116 declarations, 93 gRPC methods and 116 pairs; mapped library dependencies are 14 namespaces, 49 declarations, 38 gRPC methods and 49 pairs
+- **AND** all-face totals are 62 logical namespaces, 43 wire services, 165 operations, 131 gRPC entry methods and 330 method wrappers; these are not the whole library protocol's totals
 - **AND** supporting payloads and protocol frames remain separate from method wrappers
 
 ### Requirement: Product Evidence Archive and Generic Delivery
@@ -381,12 +533,12 @@ scope consistently.
 
 ### Requirement: Shared Unary Resumable Uploads
 
-The library storage manager SHALL own the one client/plugin transfer mechanism:
-unary Storage.CreateFileProduction, GetFileProduction, AppendFileBytes,
-CreateFileWriter, PublishFileProduction and DeleteFileProduction. Append SHALL accept
-bounded ordered chunks, replay identical bytes and reject conflicting bytes at
-accepted offsets. Publish SHALL verify complete bytes, length and digest before
-visibility; Delete SHALL abandon. Expiry SHALL be explicit.
+The library storage manager SHALL own one unary transfer mechanism behind separate
+context/client declarations: Storage.CreateFileProduction, GetFileProduction,
+AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction.
+Append SHALL accept bounded ordered chunks, replay identical bytes and refuse
+conflicts. Publish SHALL verify complete bytes, length and digest before visibility; Delete SHALL
+abandon. Expiry SHALL be explicit.
 
 #### Scenario: Resume After Lost Reply
 
@@ -407,7 +559,8 @@ visibility; Delete SHALL abandon. Expiry SHALL be explicit.
 
 ### Requirement: Shared Unary Ranged Downloads
 
-The library storage manager SHALL serve Storage.GetFileBytes directly. Clients and plugins
+The library storage manager SHALL serve separate client/context declarations of
+Storage.GetFileBytes with independent request/response types and authority. Clients and plugins
 SHALL download through repeated unary Storage.GetFileBytes calls with
 offset and maximum bytes. Each reply SHALL state total length, content digest
 and resolved_at. Configuration SHALL bound range sizes. Streaming download gRPC methods

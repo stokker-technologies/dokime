@@ -1,6 +1,7 @@
 Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
+Separation by audience locked by the owner on 2026-11-12
 
 # Operation Grammar
 
@@ -15,26 +16,42 @@ moves to the new host, so consumers migrate once.
 
 This documentation records the owner's lock on 2026-11-12. No protocol,
 source, test, workflow or specification lifecycle activation is authorized here.
-The mapped client target composes 7 library services (3 nested, 27 methods) with
-32 product services (20 nested, 93 methods): 39 services, 120 operations/gRPC
-methods, 120 requests and 120 responses (240 method messages). The 27 library
-methods are existing or added library services used by this product, not the
-library's whole protocol. Whole-owner totals: library 13 logical services
-(3 nested), 67 operations, 61 gRPC methods, 67 requests and 67 responses; product
-39 logical services (22 nested), 111 operations, 93 gRPC methods, 111 requests and
-111 responses. Host-only templates and client subsets are detailed in design.md.
+The audience lock separates the plugin protocol (`harmos.plugin.v1`, with product
+catalog operations in `dokime.plugin.v1`), host context (`harmos.context.v1` and
+`dokime.context.v1`) and client API (`harmos.v1` and `dokime.v1`). Nested resources
+remain below the parent package on the same face. Only the host calls Instance;
+clients manage entries through Plugins. Context calls are children of an active
+invocation, never client services. Faces do not replace catalog visibility:
+Private means declaring plugin and host; Public means everyone connected,
+including other plugins and host clients, always through the host. All four SDKs
+require explicit visibility with no default.
+
+This product's target plus its mapped library dependencies totals 62 logical
+service namespaces, 165 operations, 131 gRPC entry methods and 165 request/response
+pairs (330 wrappers). By face: plugin protocol 5 namespaces/9 operations/4 gRPC
+methods/18 wrappers (one wire service, Instance; five product lifecycle operations
+are catalog declarations); context 15 namespaces/29 operations/0 independent gRPC
+methods/58 wrappers; client 42 services/127 operations and gRPC methods/254 wrappers.
+Client totals include the original 39-service/120-method mapping plus three generic
+library services with seven companions for discovery, invocation and time.
+Product-only totals are 48 namespaces/116 operations/93 gRPC methods/232 wrappers.
+Library numbers cover mapped dependencies, not its whole protocol. Per-face
+inventories, duplicated capabilities and count definitions are in design.md.
 Every decision below is Owner and LOCKED on 2026-11-12. These are target counts,
 not landed behavior.
 
 | Decision | Status | Direction |
 | --- | --- | --- |
+| Audience faces | Owner | Each service belongs to exactly one face visible in its package: running-plugin protocol, invocation context or host client API. Rename the plugin protocol service to Instance (Get/Invoke/Samples/Stop); Plugins remains client management. Product plugin lifecycle operations are catalog declarations carried by Instance.Invoke. Context is child calls through the plugin context object, never exposed to clients. |
+| Visibility and routing | Owner | Visibility stays explicit per plugin-served catalog operation: Private is declaring plugin and host; Public is everyone connected, including other plugins and host clients. Plugin -> host -> plugin uses a declared requirement, one registry, visibility/fingerprint/admitted-provider checks, inherited scope and propagated result/failure/cancellation. Clients use the generic client invocation path; only the host opens Instance calls. All four SDKs require visibility with no default. |
+| Per-face declarations and generation | Owner | A capability needed on two faces has separate IDs, requests and responses per face even with a shared handler, for independent evolution and authorization. Plugin SDK generates plugin protocol and context; client generates client API; host generates all three. Package/file moves precede other implementation work. |
 | Naming grammar | Owner | Bare verbs on the service resource; noun-only single-mode reads. Multiple read/change paths form nested resources with bare verbs, replacing rule 3 and flat compound services. Nested services live in a lowercase parent sub-package with one file per service in a folder per parent; wrappers use the local service and method names. |
 | Library/product boundary | Owner | The library owns generic machinery under its managers: Plugins, access, transfers and host status, in addition to operations/invocations, time, storage, streams, plugin protocol and SDKs. A product owns its storage definition, objects, operations and authorization policy; it serves the library services directly by composition. Never rebuild generic machinery on the protocol crate alone: that previously duplicated plugin connection, dispatch, streams and process launch. |
-| Settings and secrets | Owner | Product-owned stores, schemas, UI declarations, archives and OS credential-store use. The library owns only generic plugin-to-host calls, including HostValues.Get with a host-supplied resolver, and a plugin catalog's settings-declaration section. The per-plugin settings/secrets question is closed. |
+| Settings and secrets | Owner | Product-owned stores, schemas, UI declarations, archives and OS credential-store use. The library owns only generic plugin-to-host calls, including context HostValues.Get with a host-supplied resolver, and a plugin catalog's settings-declaration section. The per-plugin settings/secrets question is closed. |
 | Managers | Owner | Live ownership determines managers, as stated once in design.md. Library managers own their services. Split the product Host/shared State into execution, prompt and report managers, plus capture only if recordings remain; rendering is pure and storage operations have no manager. Decide execution-versus-small-cycle ownership at the split by the simplest complete option. |
 | Host contributions | Owner | The library service manager owns identity, health, availability, logs, trace events and diagnostics archive; narrow registration accepts host-application version and component-health facts. Product-only reads stay with product services. |
 | Nested clients and cross-owner resources | Owner | Descriptor-derived client roots expose the same hierarchy in all four SDKs, built by a small generator from a shared package/service table, without hand-written per-operation code. Product Plugins.Settings intentionally lives beside library Plugins on the same endpoint. |
-| Progress | Owner | Executions.Progress.Get and Watch observe the current value, also returned by Executions.Get. A plugin produces it by calling a host operation; no client-facing progress Set. |
+| Progress | Owner | Executions.Progress.Get and Watch observe the current value, also returned by Executions.Get. A plugin produces it through context Progress.Get/Set; no client-facing progress Set. |
 | Lost calls | Owner | Resending after a client-side failure is the client's responsibility; the same request identifier returns the original receipt, and a changed payload under it conflicts. |
 | Response representation | Owner | Always a response wrapper, never a bare resource. |
 | Ordinary verbs | Owner | Closed set: Get, List, Watch, Set, Create, Delete, Append; Append replaces Create for ordered immutable records, samples, log lines and upload bytes in both repositories. Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are not ordinary verbs. |
@@ -80,7 +97,8 @@ owners must reconcile affected contracts rather than introduce parallel rules.
 
 ## Impact
 
-Future implementation spans `proto/dokime/v1/`, protocol generation,
+Future implementation first moves declarations into `proto/dokime/plugin/v1/`,
+`proto/dokime/context/v1/` and client `proto/dokime/v1/`, then spans protocol generation,
 `crates/dokime-operations-next/`, `crates/dokime-runtime-next/`,
 `crates/dokime-storage/`, all four SDKs, CLI/client, and desktop/native bridge.
 Callers must regenerate, adopt the new IDs/fingerprints and wrappers, retain
@@ -94,8 +112,8 @@ The sibling library owns the generic services and runtime managers listed in
 design.md, including access under its gRPC manager and host status under its
 service manager. Its exact revised revision must be published and pinned before
 final combined validation. Product service methods stay thin: one operation file
-calls a manager or storage. Prepare the library services and client-root generation,
-then product contracts at their final names and manager split, then consumers;
+calls a manager or storage. Prepare face package layout and generation filters
+first, then library services and client-root generation, then product contracts at their final names and manager split, then consumers;
 migrate the desktop once after those services are ready. SDK
 parity/client coverage, retention/restart, watch semantics, deletion with readers
 and managed cancellation coverage are recorded in design.md. README and product

@@ -3,6 +3,7 @@
 Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
+Separation by audience locked by the owner on 2026-11-12
 
 Target decisions are Owner.
 Current-source observations are not target decisions.
@@ -44,15 +45,15 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   such as Plugins.Settings.Get/Set and Executions.Progress.Get/Watch. Mixed-resource
   services retain distinguishing nouns for other actions. Flat compound settings
   services and verb-plus-part methods for multiple-path parts are superseded.
-  Each nested service lives in package `<owner>.v1.<lowercase-parent>`, with the
-  part as the service name: `product.v1.plugins.Settings/Get`. One proto file per
-  service lives in a folder per parent, for example `product/v1/plugins/settings.proto`.
+  Each nested service lives below its face package in
+  `<face-package>.<lowercase-parent>`, with the part as the service name: `dokime.v1.plugins.Settings/Get`. One proto file per
+  service lives in a folder per parent, for example `dokime/v1/plugins/settings.proto`.
   Messages in that package are `<Service><Method>Request/Response`, such as
   `SettingsGetRequest`; parent services retain names such as `ExecutionsStartRequest`.
   Replies are always wrappers. Operation IDs derive mechanically from package,
   service and method, with no second authored alias. A nested service may have a
-  different owner from its parent: `product.v1.plugins.Settings` intentionally
-  sits beside `library.v1.Plugins` on the host application's endpoint.
+  different owner from its parent: `dokime.v1.plugins.Settings` intentionally
+  sits beside `harmos.v1.Plugins` on the host application's endpoint.
 - **Ordinary verbs (Owner):** the closed set is Get, List, Watch, Set, Create,
   Delete and Append. Get observes one identified or derived value; List enumerates
   one bounded selection; Watch opens that selection and follows changes; Set
@@ -150,15 +151,110 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   survives observer loss. Downloads, documents and diagnostics use bounded unary
   replies, with content bytes read through ranged Storage.GetFileBytes.
 
+### Audience Faces and Visibility
+
+**Owner, locked 2026-11-12:** every service belongs to exactly one face. Its
+package identifies who serves it and who may call it on the wire. This adds a
+boundary to the existing grammar; bare verbs, nested resources and local
+`<Service><Method>Request/Response` wrappers remain unchanged within each face.
+Here `library` means the actual package prefix `harmos`, and `product` means
+`dokime`; examples using these placeholders preserve the same package layout.
+
+| Face | Package Root | Server and Permitted Caller | Transport |
+| --- | --- | --- | --- |
+| Plugin Protocol | `harmos.plugin.v1` | Running plugin; only the host calls its instance | One service, Instance.Get/Invoke/Samples/Stop |
+| Product Plugin Operations | `dokime.plugin.v1` | Running plugin; only the host opens the carrier | Catalog operation declarations carried by Instance.Invoke, never separate client services |
+| Context | `harmos.context.v1`, `dokime.context.v1` | Host; only a plugin handling an invocation calls through its context object | Typed child calls on the active invocation; no independent context gRPC entry method |
+| Client API | `harmos.v1`, `dokime.v1` | Host; applications, CLI tools and scripts | Client gRPC services, including generic invocation of Public plugin operations |
+
+Nested resources remain sub-packages of their parent *within that face*, such as
+`dokime.context.v1.executions.Progress` and `dokime.v1.executions.Progress`.
+`Instance` names one running instance; client entry management keeps `Plugins`.
+There is no second singular management service. The protocol has exactly one
+wire service; TestCases, Executions, Steps and Criteria in the product plugin
+package group catalog operations and messages, not additional wire services.
+
+A capability needed on two faces is declared once **per face**, with its own
+operation ID, fingerprint, request and response, even when both declarations
+call the same handler. Each face evolves and is authorized separately. Do not
+reuse a client request/response as a context contract or generate a context
+client by exposing all client services. The duplicate declarations required by
+this product are listed below the per-face inventories.
+
+Faces do not replace visibility. A face controls the wire caller; visibility is
+explicit on **each operation a plugin serves**, in its catalog carried by
+Instance.Get and invoked through Instance.Invoke. **Private means the declaring
+plugin and the host. Public means everyone connected: other plugins and the
+host's clients.** All four SDKs require an explicit visibility argument with no
+default; unspecified visibility is rejected at admission. The host keeps one
+operation registry, checking catalog descriptors/digest, visibility, declared
+requirement fingerprints and provider admission; no registry per face is added.
+
+A plugin may invoke another plugin's Public operation that it declared as a
+requirement. The path is calling plugin -> host -> providing plugin: its context
+sends a child request identifying the required operation and fingerprint; the
+host resolves that entry in its one registry, checks visibility, the declared
+fingerprint and that a provider is admitted, and opens Instance.Invoke on that
+provider. The caller's scope is inherited unchanged across the hop. Cancellation
+cancels the child and reaches the provider; its result or structured failure
+propagates back through the host. Private cross-plugin calls fail with an error
+naming the action; declaring a requirement does not grant access. A client uses
+`harmos.v1.Invocations.Invoke` for the same host-mediated Public-operation path.
+Other plugins and clients never connect directly to an instance, even for a
+Public operation. Client credentials do not authorize context calls, and plugin
+identity does not authorize client-only management operations.
+
+The plugin SDK generates the plugin protocol to serve and context contracts to
+call (including product plugin operation declarations). A client generates only
+the client API. A host generates all three. A distribution containing both SDK
+roles keeps their generation inputs and roots separate. Generic child-call
+requirements can reference Public plugin operation descriptors without generating
+a client-only management surface. Plugin SDK visibility remains required in
+Rust, Python, C# and C++.
+
+Illustrative protocol shape, in `harmos/plugin/v1/instance.proto` (supporting
+frames and payloads omitted; wrapper names apply to carriers as well):
+
+```proto
+syntax = "proto3";
+package harmos.plugin.v1;
+service Instance {
+  rpc Get(InstanceGetRequest) returns (InstanceGetResponse);
+  rpc Invoke(stream InstanceInvokeRequest) returns (stream InstanceInvokeResponse);
+  rpc Samples(stream InstanceSamplesRequest) returns (stream InstanceSamplesResponse);
+  rpc Stop(InstanceStopRequest) returns (InstanceStopResponse);
+}
+message OperationContract {
+  string id = 1; string request = 2; string response = 3;
+  Visibility visibility = 4; // Required explicit choice; unspecified is invalid.
+  OperationPolicy policy = 5; bytes fingerprint = 6;
+}
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PRIVATE = 1; // Declaring plugin and host.
+  VISIBILITY_PUBLIC = 2;  // Everyone connected, through the host.
+}
+// InstanceGetResponse.catalog contains operations, declared requirements,
+// streams, settings declarations, descriptors and digest for admission.
+```
+
+For example `dokime/plugin/v1/steps.proto` declares StepsExecuteRequest and
+StepsExecuteResponse for the catalog operation
+`dokime.plugin.v1.Steps/Execute`, carried by Instance.Invoke; it declares no
+`service Steps` RPC. Context wrappers similarly describe child payloads rather
+than new network entry methods. Counts below distinguish these logical service
+namespaces from wire gRPC services and exclude supporting payload/control frames.
+
 ### Generated Client Names
 
 All four SDK client roots expose the hierarchy mechanically from descriptor-set
-packages and service names. A small generator in each SDK build consumes the same
-package/service table: remove the owner/version prefix, use the remaining package
-segments as parent resources and append the service name as the leaf. Top-level
+packages and service names, filtered by face before building roots. A small
+generator in each SDK build consumes the same package/service table: remove the complete face prefix (owner plus optional
+plugin/context plus version), use the remaining package segments as parent resources and append the service name as the leaf. Top-level
 services supply their own root leaf. Apply only each language's standard casing;
 no hand-written per-operation code or aliases. Compose the library and product
-roots by resource path, merging distinct children and rejecting collisions.
+roots by resource path within one face, merging distinct children and rejecting
+collisions. Never merge context and client roots because their resource paths match.
 
 ```python
 client.plugins.get(request)                 # Library service
@@ -172,18 +268,19 @@ client.plots.settings.set(request)
 Progress is runtime-owned: Executions.Progress.Get returns its current value,
 Executions.Progress.Watch streams it, and Executions.Get includes that same value
 at its resolved cut. A plugin produces progress through a host operation it calls,
-`Executions.Progress.Set`, with its matching Get/revision contract. Set is NOT a
-client-facing RPC or part of the client method/message counts. Parameters and
+`dokime.context.v1.executions.Progress/Set`, with its context Get/revision
+contract. Set is not a client-facing RPC or part of the client counts; its Get
+is a separate declaration from the client progress Get. Parameters and
 steps each retain their sole paged noun-only read.
 
 ### Nested Wire Examples
 
-`product/v1/plugins/settings.proto` intentionally extends a library-owned parent
+`dokime/v1/plugins/settings.proto` intentionally extends a library-owned parent
 resource from the product namespace. Settings payload declarations are illustrative.
 
 ```proto
 syntax = "proto3";
-package product.v1.plugins;
+package dokime.v1.plugins;
 message SettingsGetRequest { string name = 1; }
 message SettingsGetResponse { SettingsValue value = 1; bytes revision = 2; }
 message SettingsSetRequest {
@@ -197,11 +294,11 @@ service Settings {
 }
 ```
 
-`product/v1/executions/progress.proto` serves only client observation:
+`dokime/v1/executions/progress.proto` serves only client observation:
 
 ```proto
 syntax = "proto3";
-package product.v1.executions;
+package dokime.v1.executions;
 message ProgressGetRequest { string name = 1; Position at = 2; }
 message ProgressGetResponse { ExecutionProgress value = 1; bytes revision = 2; Position resolved_at = 3; }
 message ProgressWatchRequest { string name = 1; Position at = 2; }
@@ -210,12 +307,12 @@ service Progress {
   rpc Get(ProgressGetRequest) returns (ProgressGetResponse);
   rpc Watch(ProgressWatchRequest) returns (stream ProgressWatchResponse);
 }
-// The plugin producer calls the host operation Progress.Set over its invocation
-// carrier; this client-facing service deliberately has no Set RPC.
+// The plugin producer calls dokime.context.v1.executions.Progress/Set as a child
+// call. Its distinct context Get/Set wrappers are declared in the context package.
 ```
 
 Library listener configuration follows the same grammar:
-`library/v1/access/listener.proto`, package `library.v1.access`, service Listener,
+`harmos/v1/access/listener.proto`, package `harmos.v1.access`, service Listener,
 Get/Set with `ListenerGetRequest/Response` and `ListenerSetRequest/Response`.
 Access.CreatePairing and Access.CreateCertificate allocate lifecycle resources;
 their single creation paths keep distinguishing nouns on the mixed-resource parent.
@@ -285,28 +382,29 @@ single manager-creation rule for both owners.
 | GrpcManager | Access, Access.Listener; transport for composed services | Listener Get/Set, pairing creation, certificate regeneration and key rotation. |
 | StorageManager | Storage | One resumable unary upload/ranged-read mechanism and generic storage; the host application supplies its storage definition. |
 | ServiceManager | Status, Status.Logs, Status.TraceEvents | Host identity, health, availability, logs, trace events and diagnostics archive; narrow registration accepts host-application version and component-health contributions. |
-| OperationManager | CatalogEntries, Invocations, host-only HostValues; Plugin invocation carrier | Declarations, dispatch, invocations, retries/cancellation and plugin host-operation routing. |
-| StreamManager | Samples, Plugin.Samples | Stream lifecycle, observation and delivery. |
+| OperationManager | CatalogEntries, Invocations, context HostValues; Instance invocation carrier | Declarations, dispatch, invocations, retries/cancellation and plugin host-operation routing. |
+| StreamManager | Context Samples (outside this mapped subset), Instance.Samples | Stream lifecycle, observation and delivery. |
 | RecordManager | Generic record operations persisted through Storage; no new public service | Record capture lifecycle. |
 | StateManager | Generic state operations; no new public service | Live state and observation. |
 
 These manager types already exist in the runtime, including the generic operations
 manager's internal `Manager` and `WeakOperationManager`; their target public-service
 coverage is not a claim of landed implementation. Time remains library-owned
-(`Time.Get`, `Time.Sleep`), under ServiceManager with the authoritative runtime
-clock; no new clock
-manager is required. The plugin protocol, SDKs, operations/invocations, storage
-and streams remain library-owned. Their pre-existing full inventories are not
-recounted as new services of this product mapping.
+(separate client/context `Time.Get`, `Time.Sleep` declarations), under
+ServiceManager with the authoritative runtime clock; no new clock manager is required. The plugin protocol, SDKs, operations/invocations, storage
+and streams remain library-owned. Their pre-existing full inventories outside
+the explicitly mapped dependencies are not counted as new services of this
+product mapping.
 
 Settings and secrets are product-owned: stores, schemas, UI declarations,
 archives and use of an operating-system credential store are too opinionated
 for the library. This closes the per-plugin settings/secrets question. The
 library supplies only the generic host-operation mechanism by which a host
 application serves values to a plugin, plus the settings-declaration section of
-the plugin catalog. The generic host operation is HostValues.Get; a product
-registers its value resolver rather than introducing library settings stores. Product Plugins.Settings is intentionally separate from
-library Plugins. Product-only status reads remain in Backend; product facts
+the plugin catalog. The generic context operation is
+`harmos.context.v1.HostValues/Get`; a product registers its value resolver rather
+than introducing library settings stores. Product Plugins.Settings is
+intentionally separate from library Plugins. Product-only status reads remain in Backend; product facts
 contributed to Status use registration, not duplicate identity/health services.
 
 | Product Owner | Responsibility and Service Routing |
@@ -417,11 +515,11 @@ acknowledgement retains the existing promised stored-record semantics; the recei
 must state the durable position when that promise completes. Records and samples
 retain produced/captured ownership, source time and schema identity.
 
-The nested service lives in `product/v1/evidence/records.proto`:
+The nested service lives in `dokime/v1/evidence/records.proto`:
 
 ```proto
 syntax = "proto3";
-package product.v1.evidence;
+package dokime.v1.evidence;
 message RecordsListRequest {
   string parent = 1; Position at = 2; RecordFilter filter = 3; PageRequest page = 4;
 }
@@ -438,20 +536,35 @@ message RecordsWatchResponse {
     Position progress = 5;
   }
 }
+service Records {
+  rpc List(RecordsListRequest) returns (RecordsListResponse);
+  rpc Watch(RecordsWatchRequest) returns (stream RecordsWatchResponse);
+}
+```
+
+The context declaration lives in `dokime/context/v1/evidence/records.proto`.
+Its List request/response are distinct from the client List wrappers even when
+the handler is shared. Append is context-only; List exists on both faces so a
+plugin can read previously produced records within its inherited scope.
+
+```proto
+syntax = "proto3";
+package dokime.context.v1.evidence;
 message RecordsAppendRequest {
   string parent = 1; repeated Record records = 2; string request_id = 3;
 }
 message RecordsAppendResponse { Receipt receipt = 1; }
-service Records {
-  rpc List(RecordsListRequest) returns (RecordsListResponse);
-  rpc Watch(RecordsWatchRequest) returns (stream RecordsWatchResponse);
-  // Append wrappers above belong to a host operation called by a plugin.
-  // They do not add a client-facing RPC to this service.
+message RecordsListRequest {
+  string parent = 1; Position at = 2; RecordFilter filter = 3; PageRequest page = 4;
 }
+message RecordsListResponse { repeated Record records = 1; PageInfo page = 2; }
+// Evidence.Records.Append/List are child-call declarations, not client RPCs.
 ```
 
-Append's declaration is carried by the plugin host-operation transport rather
-than served as a client RPC; its sketch shows the operation's typed wrappers.
+Progress Get/Set follows the same separation in
+`dokime/context/v1/executions/progress.proto`, with context-local
+ProgressGetRequest/Response and ProgressSetRequest/Response. The context Get
+returns the exact writable value and revision consumed by context Set.
 
 ### Representative Resource 3: Transfers
 
@@ -474,11 +587,13 @@ in the Nightly benchmark set before deleting the superseded streaming transfers;
 throughput is a benchmark measurement, never a correctness-test assertion.
 
 The library's existing `Storage` service owns this mechanism; add no transfer
-service alias. These declarations share `library/v1/storage.proto`:
+service alias. The client declarations below live in `harmos/v1/storage.proto`. Separate
+context declarations with their own wrappers live in
+`harmos/context/v1/storage.proto`; plugins call those through child frames:
 
 ```proto
 syntax = "proto3";
-package library.v1;
+package harmos.v1;
 message StorageCreateFileProductionRequest {
   string parent = 1; uint64 size_bytes = 2; bytes sha256 = 3; string request_id = 4;
 }
@@ -520,10 +635,11 @@ GetFileProduction reports the accepted offset, length, digest and writer generat
 CreateFileWriter resumes with a new fenced writer where needed. WatchFileBytes
 preserves growth/replacement/truncation observation, distinct from the product's
 execution-file metadata collection watch. All six production/session operations
-are the existing library mechanism, not new product methods.
+use the existing library mechanism with distinct declarations on the two faces,
+not new product transfer handlers.
 
-Product artifact/file metadata lives in `product.v1.content.Artifacts` and
-`product.v1.content.ExecutionFiles`, while bytes use library Storage directly.
+Product artifact/file metadata lives in `dokime.v1.content.Artifacts` and
+`dokime.v1.content.ExecutionFiles`, while bytes use library Storage directly.
 Storage stays a mixed-resource service under the library's existing contract;
 its file methods name distinct production, writer, byte and hash resources. Do
 not add parallel Content/Uploads services or a second upload engine. Product
@@ -548,12 +664,12 @@ message PluginsRestartResponse { Plugin plugin = 1; Receipt receipt = 2; }
 
 ### Product-Specific Actions and Preserved Distinctions
 
-Plugin lifecycle verbs each have one locked meaning: TestCases.Materialize resolves
+Product plugin catalog operations in `dokime.plugin.v1` each have one locked meaning: TestCases.Materialize resolves
 parameters into a case without running it; Executions.Initialize acquires suite
 resources; Steps.Execute runs one frozen step; Criteria.Evaluate judges captured
-evidence; Executions.Cleanup releases suite resources. Host operation IDs remain
-template-local where necessary; one method name is not one shared handler instance.
-Files.CopyFiles becomes Files.Capture, freezing selected external files into
+evidence; Executions.Cleanup releases suite resources. Plugin-served operation
+bindings remain template-local where necessary; one method name is not one shared handler instance.
+Context Files.CopyFiles becomes Files.Capture, freezing selected external files into
 evidence without deleting the originals. The effect journal's PrepareEffect and
 ConfirmEffect become Effects.Create and Effects.Set: allocate a durable inverse ticket,
 then replace its small writable application state under the revision from Effects.Get.
@@ -575,7 +691,7 @@ report and seal. Storage.GetFileBytes delivers bytes; downloads never publish. S
 Import/Export preserve current transfer protection and conflict checks; the
 report's description of an encrypted transfer is corrected below.
 
-## Complete Mapping from Present Product Operations
+## Complete Mapping from Present Product Client Operations
 
 The table below inventories every ordinary method in current `client_*.proto`.
 Each also has `Run<Method>`: all 132 twins are **removed** as separate gRPC methods and
@@ -590,13 +706,15 @@ into it; **merged** joins overlapping gRPC methods, whole writable values, selec
 the report's caller evidence by category; dynamic and generated use also exists.
 `G` = desktop/native bridge, `C` = CLI/client, `S` = SDK convenience/new-host story,
 `T` = authored integration story, `N` = no named production caller found, not dead.
+Every destination in this table is on the client face. The service inventory
+below assigns its exact package, including mixed-owner workflows.
 Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 `src/lib/rpc/appearance.ts`, `src-tauri/src/`, `crates/dokime-client/src/`,
 `crates/dokime-cli/src/commands/`, `sdk/rust/src/client/host.rs`,
 `sdk/python/src/dokime/client.py`, server query/authorization stories and new-host
 `tests/system/`. Wire declarations and handler code win over report assumptions.
 
-| Present Operation | Locked Destination | Destination Owner | Disposition and Reason | Callers |
+| Present Operation | Locked Destination on the Client Face | Destination Owner | Disposition and Reason | Callers |
 | --- | --- | --- | --- | --- |
 | `Appearance.GetAppearance` | `Backend.Appearance` | Product | Merged: Move appearance ownership. | G |
 | `Backend.CollectDiagnostics` | `Status.Diagnostics` | Library | Renamed: Read bounded diagnostic output. | G |
@@ -731,188 +849,246 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Telemetry.ListSamples` | `Evidence.Samples.List` | Product | Merged: One canonical sample read. | CS |
 | `Telemetry.WatchSamples` | `Evidence.Samples.Watch` | Product | Kept: Same source selector and durable boundary. | C |
 
-## Locked Client Inventory and Counts
+## Locked Inventories and Counts by Face
 
-The first table counts the client surface reached or completed by THIS repository,
-grouped by declaration owner and served directly on the host application endpoint.
-Existing generic library services beyond these destinations are not added a second
-time; the full library inventory and plugin-only product union follow below.
+Counts below cover **this product's complete target and its explicitly composed
+library dependencies**, not the sibling library's entire protocol. Superseded
+whole-library counts from before the audience lock do not describe the new
+faces and are removed here; its other storage/provider/native operations remain
+with that repository's owner. This product does not redeclare those operations.
+Counts are operation templates, not dynamic provider or resource instances.
 
-| Owner in This Client Mapping | Services | Nested Services | Operations | gRPC Methods | Requests | Responses | Method Messages |
+A logical service is an operation namespace. Only Instance and client services
+are independent wire gRPC services here. Product plugin operation groups and
+context groups have typed declarations carried by Instance.Invoke; they add no
+independent gRPC entry methods. Thus a service count always states whether it is
+logical or wire. Every operation/carrier has one request and one response
+wrapper in its own package, including logical child-call operations. Supporting
+payloads, shared primitives and nested carrier control/event frames are excluded;
+implementation must census them separately. No automatic twins are counted.
+
+| Face / Owner | Logical Services | Wire Services | Operations | gRPC Entry Methods | Requests | Responses | Method Messages |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Library | 7 | 3 | 27 | 27 | 27 | 27 | 54 |
-| Product | 32 | 20 | 93 | 93 | 93 | 93 | 186 |
-| Combined Mapped Client Surface | 39 | 23 | 120 | 120 | 120 | 120 | 240 |
+| Plugin Protocol / Library | 1 | 1 | 4 | 4 | 4 | 4 | 8 |
+| Plugin Operations / Product | 4 | 0 | 5 | 0 | 5 | 5 | 10 |
+| Plugin Face Combined | 5 | 1 | 9 | 4 | 9 | 9 | 18 |
+| Context / Library Dependencies | 3 | 0 | 11 | 0 | 11 | 11 | 22 |
+| Context / Product | 12 | 0 | 18 | 0 | 18 | 18 | 36 |
+| Context Combined | 15 | 0 | 29 | 0 | 29 | 29 | 58 |
+| Client API / Library Dependencies | 10 | 10 | 34 | 34 | 34 | 34 | 68 |
+| Client API / Product | 32 | 32 | 93 | 93 | 93 | 93 | 186 |
+| Client API Combined | 42 | 42 | 127 | 127 | 127 | 127 | 254 |
+| All Faces, Each Declaration Counted | 62 | 43 | 165 | 131 | 165 | 165 | 330 |
 
-Each row below is one client service. Dots express hierarchy, not a flat compound
-service name. Nested services count as separate wire services; namespace-only
-parents do not count as empty services. The package owner is `library` or `product`
-respectively; actual product declarations use `dokime`, for example
-`dokime.v1.plugins.Settings` beside library Plugins.
+The product declares 48 logical services and 116 operations/pairs across the
+three faces (32/93 client, 12/18 context, 4/5 plugin). The mapped library
+contributes 14 logical services and 49 operations/pairs (10/34 client, 3/11
+context, 1/4 plugin protocol), with 38 gRPC entry methods. These are declaration
+counts: a capability on two faces counts twice, and a shared handler counts
+neither as a third declaration nor as a second registry.
 
-| Owner | Locked Service | Nested | Count | Operations |
+### Client Mapping and Companion Coverage
+
+The 132 ordinary mapping rows remain 7 kept, 52 renamed, 71 merged and 2 duplicate
+gRPC methods removed. All 132 automatic Run twins are removed. Their mapped
+client surface is still 39 services (23 nested), 120 methods and 240 wrappers:
+7 library services/27 methods plus 32 product services/93 methods. It is 144 fewer
+methods than the 264 current product methods. Seven library client companions
+complete the generic client access needed here: CatalogEntries.List,
+Invocations.Get/Watch/Cancel/Invoke and Time.Get/Sleep. This yields 42 client
+services (23 nested), 127 methods and 254 wrappers; the 132 source rows are not
+rewritten as if these companions had present product callers.
+
+Each row below is one service on the **client face**. Dots express hierarchy;
+namespace-only parents are not empty services. The package column is exact.
+
+| Owner | Client Package | Locked Service | Nested | Count | Operations |
+| --- | --- | --- | --- | ---: | --- |
+| Library | `harmos.v1` | Plugins | No | 7 | `Get`, `List`, `Watch`, `Create`, `Set`, `Delete`, `Restart` |
+| Library | `harmos.v1` | Access | No | 2 | `CreatePairing`, `CreateCertificate` |
+| Library | `harmos.v1.access` | Access.Listener | Yes | 2 | `Get`, `Set` |
+| Library | `harmos.v1` | Status | No | 4 | `Identity`, `Health`, `Availability`, `Diagnostics` |
+| Library | `harmos.v1.status` | Status.Logs | Yes | 2 | `List`, `Watch` |
+| Library | `harmos.v1.status` | Status.TraceEvents | Yes | 2 | `List`, `Watch` |
+| Library | `harmos.v1` | Storage | No | 8 | `CreateFileProduction`, `GetFileProduction`, `CreateFileWriter`, `AppendFileBytes`, `DeleteFileProduction`, `PublishFileProduction`, `GetFileBytes`, `WatchFileBytes` |
+| Product | `dokime.v1` | Backend | No | 1 | `Appearance` |
+| Product | `dokime.v1.backend` | Backend.Overview | Yes | 2 | `Get`, `Watch` |
+| Product | `dokime.v1` | Catalog | No | 1 | `Analyses` |
+| Product | `dokime.v1.catalog` | Catalog.Suites | Yes | 2 | `Get`, `List` |
+| Product | `dokime.v1.catalog` | Catalog.RecordSchemas | Yes | 2 | `Get`, `List` |
+| Product | `dokime.v1.catalog` | Catalog.StreamSchemas | Yes | 2 | `Get`, `List` |
+| Product | `dokime.v1.catalog` | Catalog.PromptDefinitions | Yes | 2 | `Get`, `List` |
+| Product | `dokime.v1` | Cases | No | 6 | `Create`, `Get`, `List`, `Watch`, `Delete`, `Parameters` |
+| Product | `dokime.v1` | Cycles | No | 6 | `Get`, `List`, `Watch`, `Create`, `Set`, `Seal` |
+| Product | `dokime.v1` | Executions | No | 11 | `Get`, `List`, `Watch`, `Create`, `Set`, `Start`, `Stop`, `Cancel`, `Delete`, `Parameters`, `Steps` |
+| Product | `dokime.v1.executions` | Executions.Commands | Yes | 2 | `Get`, `Create` |
+| Product | `dokime.v1.executions` | Executions.Progress | Yes | 2 | `Get`, `Watch` |
+| Product | `dokime.v1` | Evidence | No | 2 | `Statistics`, `Archive` |
+| Product | `dokime.v1.evidence` | Evidence.Records | Yes | 2 | `List`, `Watch` |
+| Product | `dokime.v1.evidence` | Evidence.Traceability | Yes | 2 | `Get`, `Watch` |
+| Product | `dokime.v1.evidence` | Evidence.Notes | Yes | 5 | `Get`, `List`, `Watch`, `Create`, `Set` |
+| Product | `dokime.v1.evidence` | Evidence.HealthEvents | Yes | 2 | `List`, `Watch` |
+| Product | `dokime.v1.evidence` | Evidence.Samples | Yes | 2 | `List`, `Watch` |
+| Product | `dokime.v1.content` | Content.Artifacts | Yes | 4 | `Get`, `Create`, `List`, `Watch` |
+| Product | `dokime.v1.content` | Content.ExecutionFiles | Yes | 3 | `Get`, `List`, `Watch` |
+| Product | `dokime.v1` | Documents | No | 2 | `Get`, `Watch` |
+| Product | `dokime.v1.plots` | Plots.Snapshots | Yes | 2 | `List`, `Watch` |
+| Product | `dokime.v1.plots` | Plots.Settings | Yes | 2 | `Get`, `Set` |
+| Product | `dokime.v1` | Prompts | No | 3 | `Get`, `List`, `Watch` |
+| Product | `dokime.v1.prompts` | Prompts.Answers | Yes | 1 | `Create` |
+| Product | `dokime.v1` | Settings | No | 3 | `Get`, `Set`, `Schema` |
+| Product | `dokime.v1.plugins` | Plugins.Settings | Yes | 2 | `Get`, `Set` |
+| Product | `dokime.v1.storage` | Storage.Sources | Yes | 2 | `Get`, `Set` |
+| Product | `dokime.v1` | Secrets | No | 7 | `List`, `Watch`, `Get`, `Set`, `Delete`, `Export`, `Import` |
+| Product | `dokime.v1` | Reports | No | 3 | `Get`, `Create`, `Publish` |
+| Product | `dokime.v1.media` | Media.Captures | Yes | 4 | `Create`, `Get`, `Watch`, `Stop` |
+| Product | `dokime.v1` | Aggregates | No | 1 | `Get` |
+| Library | `harmos.v1` | CatalogEntries | No | 1 | `List` |
+| Library | `harmos.v1` | Invocations | No | 4 | `Get`, `Watch`, `Cancel`, `Invoke` |
+| Library | `harmos.v1` | Time | No | 2 | `Get`, `Sleep` |
+
+The original mapping reaches 102 distinct destinations; these 18 companions
+complete that 120-method surface: Cases.Watch, Content.Artifacts.Watch,
+Content.ExecutionFiles.Watch, Cycles.Watch, Documents.Watch,
+Evidence.HealthEvents.Watch, Evidence.Notes.Get/Watch, Evidence.Traceability.Watch,
+Executions.Progress.Get, Executions.Watch, Media.Captures.Get, Plots.Settings.Get,
+Plugins.Watch, Prompts.Watch, Secrets.Watch, Status.Logs.List and
+Status.TraceEvents.List. The seven generic companions above are additional.
+Invocations.Invoke names the generic client invocation path required by this
+lock; Get/Watch/Cancel retain invocation observation/control, and CatalogEntries.List
+provides authorized discovery. It is a client operation, not another plugin
+carrier or a second operation registry.
+
+Every present method has one mapping row. A `+` cell is a required workflow,
+not an alternative or compatibility RPC. CreateFileWriter is a fenced-resume
+branch and DeleteFileProduction an abandon branch, not mandatory before Publish.
+Content.ExecutionFiles.Get resolves metadata for Storage.WatchFileBytes;
+Content.ExecutionFiles.Watch follows product membership/metadata. Cases.Parameters
+and Executions.Parameters/Steps remain sole paged noun reads. Client progress
+Get/Watch and Executions.Get expose observation; no client progress Set exists.
+Evidence.Archive selects/assembles scoped product evidence at a cut and returns
+immutable content references for library ranged reads. Archive layout and policy
+stay product-owned storage operations, without an archive manager.
+
+### Plugin Protocol and Product Catalog Operations
+
+| Package | Logical Service | Operations | Count | gRPC Entry Methods |
+| --- | --- | --- | ---: | ---: |
+| `harmos.plugin.v1` | Instance | Get, Invoke, Samples, Stop | 4 | 4 |
+| `dokime.plugin.v1` | TestCases | Materialize | 1 | 0 |
+| `dokime.plugin.v1` | Executions | Initialize, Cleanup | 2 | 0 |
+| `dokime.plugin.v1` | Steps | Execute | 1 | 0 |
+| `dokime.plugin.v1` | Criteria | Evaluate | 1 | 0 |
+
+Instance.Get returns identity and the catalog, including explicit operation
+visibility, requirements, fingerprints, descriptors, digest, streams and settings
+declarations. Invoke carries the five product lifecycle families and arbitrary
+other catalog operations; Samples preserves demand/publication semantics; Stop
+preserves shutdown and cleanup. Product operations retain template-local provider
+bindings; their ID and wrapper package is the plugin face. No product lifecycle
+service is registered on the client endpoint.
+
+### Context Inventory
+
+Every row is served by the host to a plugin through its active context object as
+a child call. Package-qualified identity distinguishes it from any client method
+with the same local name. All 29 operations have typed request/response wrappers
+and zero added independent gRPC entry methods.
+
+| Context Package | Logical Service | Operations | Count |
+| --- | --- | --- | ---: |
+| `harmos.context.v1` | Time | Get, Sleep | 2 |
+| `harmos.context.v1` | HostValues | Get | 1 |
+| `harmos.context.v1` | Storage | CreateFileProduction, GetFileProduction, CreateFileWriter, AppendFileBytes, DeleteFileProduction, PublishFileProduction, GetFileBytes, WatchFileBytes | 8 |
+| `dokime.context.v1` | Prompts | Create | 1 |
+| `dokime.context.v1.evidence` | Records | Append, List | 2 |
+| `dokime.context.v1` | Evidence | Statistics | 1 |
+| `dokime.context.v1.content` | Artifacts | Create | 1 |
+| `dokime.context.v1.executions` | Progress | Get, Set | 2 |
+| `dokime.context.v1.evidence` | Logs | Append | 1 |
+| `dokime.context.v1.evidence` | Traceability | Get, Set | 2 |
+| `dokime.context.v1` | Documents | AppendParts | 1 |
+| `dokime.context.v1` | Files | Capture | 1 |
+| `dokime.context.v1.files` | Captures | Start, Stop | 2 |
+| `dokime.context.v1` | Backend | Environment | 1 |
+| `dokime.context.v1` | Effects | Create, Get, Set | 3 |
+
+The six nested product context namespaces are Evidence.Records, Content.Artifacts,
+Executions.Progress, Evidence.Logs, Evidence.Traceability and Files.Captures.
+HostValues.Get routes declared setting/secret requests to the product's resolver;
+it does not expose the client settings/secrets stores. Effects.Get is an added
+companion. Progress.Get and Traceability.Get are separate context Get/revision
+mirrors for context Set; they cannot borrow the client declaration. Large writable
+parts split into identified, separately revisioned Get/Set resources when needed.
+
+### Capabilities Declared on Both Context and Client Faces
+
+Each row below denotes **two declarations** with independent authorization,
+request/response types and fingerprints; shared handlers/storage mechanisms are
+allowed. The context side always carries inherited invocation scope. This is the
+complete overlap in the mapped inventory, not permission to expose all client
+operations to plugins.
+
+| Capability on Each Face | Context Package | Client Package | Count Per Face | Reason |
 | --- | --- | --- | ---: | --- |
-| Library | Plugins | No | 7 | `Get`, `List`, `Watch`, `Create`, `Set`, `Delete`, `Restart` |
-| Library | Access | No | 2 | `CreatePairing`, `CreateCertificate` |
-| Library | Access.Listener | Yes | 2 | `Get`, `Set` |
-| Library | Status | No | 4 | `Identity`, `Health`, `Availability`, `Diagnostics` |
-| Library | Status.Logs | Yes | 2 | `List`, `Watch` |
-| Library | Status.TraceEvents | Yes | 2 | `List`, `Watch` |
-| Library | Storage | No | 8 | `CreateFileProduction`, `GetFileProduction`, `CreateFileWriter`, `AppendFileBytes`, `DeleteFileProduction`, `PublishFileProduction`, `GetFileBytes`, `WatchFileBytes` |
-| Product | Backend | No | 1 | `Appearance` |
-| Product | Backend.Overview | Yes | 2 | `Get`, `Watch` |
-| Product | Catalog | No | 1 | `Analyses` |
-| Product | Catalog.Suites | Yes | 2 | `Get`, `List` |
-| Product | Catalog.RecordSchemas | Yes | 2 | `Get`, `List` |
-| Product | Catalog.StreamSchemas | Yes | 2 | `Get`, `List` |
-| Product | Catalog.PromptDefinitions | Yes | 2 | `Get`, `List` |
-| Product | Cases | No | 6 | `Create`, `Get`, `List`, `Watch`, `Delete`, `Parameters` |
-| Product | Cycles | No | 6 | `Get`, `List`, `Watch`, `Create`, `Set`, `Seal` |
-| Product | Executions | No | 11 | `Get`, `List`, `Watch`, `Create`, `Set`, `Start`, `Stop`, `Cancel`, `Delete`, `Parameters`, `Steps` |
-| Product | Executions.Commands | Yes | 2 | `Get`, `Create` |
-| Product | Executions.Progress | Yes | 2 | `Get`, `Watch` |
-| Product | Evidence | No | 2 | `Statistics`, `Archive` |
-| Product | Evidence.Records | Yes | 2 | `List`, `Watch` |
-| Product | Evidence.Traceability | Yes | 2 | `Get`, `Watch` |
-| Product | Evidence.Notes | Yes | 5 | `Get`, `List`, `Watch`, `Create`, `Set` |
-| Product | Evidence.HealthEvents | Yes | 2 | `List`, `Watch` |
-| Product | Evidence.Samples | Yes | 2 | `List`, `Watch` |
-| Product | Content.Artifacts | Yes | 4 | `Get`, `Create`, `List`, `Watch` |
-| Product | Content.ExecutionFiles | Yes | 3 | `Get`, `List`, `Watch` |
-| Product | Documents | No | 2 | `Get`, `Watch` |
-| Product | Plots.Snapshots | Yes | 2 | `List`, `Watch` |
-| Product | Plots.Settings | Yes | 2 | `Get`, `Set` |
-| Product | Prompts | No | 3 | `Get`, `List`, `Watch` |
-| Product | Prompts.Answers | Yes | 1 | `Create` |
-| Product | Settings | No | 3 | `Get`, `Set`, `Schema` |
-| Product | Plugins.Settings | Yes | 2 | `Get`, `Set` |
-| Product | Storage.Sources | Yes | 2 | `Get`, `Set` |
-| Product | Secrets | No | 7 | `List`, `Watch`, `Get`, `Set`, `Delete`, `Export`, `Import` |
-| Product | Reports | No | 3 | `Get`, `Create`, `Publish` |
-| Product | Media.Captures | Yes | 4 | `Create`, `Get`, `Watch`, `Stop` |
-| Product | Aggregates | No | 1 | `Get` |
+| Time.Get, Time.Sleep | `harmos.context.v1` | `harmos.v1` | 2 | Both callers need authoritative time and host-clock waits. |
+| Storage.CreateFileProduction/GetFileProduction/CreateFileWriter/AppendFileBytes/DeleteFileProduction/PublishFileProduction/GetFileBytes/WatchFileBytes | `harmos.context.v1` | `harmos.v1` | 8 | Plugins and clients upload, resume and read produced bytes through one storage mechanism, with separate caller authority. |
+| Evidence.Records.List | `dokime.context.v1.evidence` | `dokime.v1.evidence` | 1 | Plugins read produced records; clients inspect the same evidence under their own selection policy. |
+| Evidence.Statistics | `dokime.context.v1` | `dokime.v1` | 1 | Plugin decisions and client views both need statistics over produced samples. |
+| Content.Artifacts.Create | `dokime.context.v1.content` | `dokime.v1.content` | 1 | Either caller attaches published bytes as product metadata; scope/admission differ. |
+| Executions.Progress.Get | `dokime.context.v1.executions` | `dokime.v1.executions` | 1 | Plugin obtains its Set revision; client observes current progress. |
+| Evidence.Traceability.Get | `dokime.context.v1.evidence` | `dokime.v1.evidence` | 1 | Plugin obtains its Set value/revision; client reads traceability. |
 
-The 132 ordinary mapping rows classify as 7 kept, 52 renamed, 71 merged
-and 2 duplicate gRPC methods removed. All 132 Run twins are additionally removed.
-Compared with 264 current gRPC methods, the composed mapped set has 120 methods,
-144 fewer, and 240 method wrappers. The product declares 32 services (20 nested)
-and 93 client methods; it does not redeclare the library destinations.
+There are 15 duplicated capabilities: 10 library and 5 product, adding 15 distinct
+face declarations compared with counting each capability once. Product unique
+capabilities remain 111 (= 116 declarations minus 5 overlaps); this does not
+preserve the old 111-pair census because pairs now belong to faces. Context-only
+Append is not added to a client service for symmetry. A client's Public plugin
+invocation and a plugin's Public child call target the same provider operation;
+its visibility remains catalog metadata, not a duplicate client/context provider
+operation or a direct connection to the instance.
 
-The mapping reaches 102 distinct destinations; 18 companions complete coverage: `Cases.Watch`, `Content.Artifacts.Watch`, `Content.ExecutionFiles.Watch`, `Cycles.Watch`, `Documents.Watch`, `Evidence.HealthEvents.Watch`, `Evidence.Notes.Get`, `Evidence.Notes.Watch`, `Evidence.Traceability.Watch`, `Executions.Progress.Get`, `Executions.Watch`, `Media.Captures.Get`, `Plots.Settings.Get`, `Plugins.Watch`, `Prompts.Watch`, `Secrets.Watch`, `Status.Logs.List`, `Status.TraceEvents.List`.
+### Complete Mapping of Present Plugin and Context Calls
 
-Library-owned client destinations in this mapping total 27: Plugins (7), access
-(4), host status (8) and existing Storage transfer/session/byte methods (8).
-The six session operations include CreateFileWriter for fenced resume. Identified
-byte follow maps to Storage.WatchFileBytes; Content.ExecutionFiles.Watch follows
-product metadata/membership and is not another byte-stream implementation.
-All product artifact/file metadata stays under Content nested resources. Settings
-owns application Get/Set and the noun-only Schema; Plugins.Settings, Plots.Settings
-and Storage.Sources are revisioned nested resources. Prompts.Answers.Create allocates
-an answer resource. Progress.Set is host-only; Get/Watch and Executions.Get carry
-client observation. Cases.Parameters and Executions.Parameters/Steps stay paged
-noun-only reads without automatic watch companions.
+All 17 product context bindings, two library clock calls and five dynamic
+lifecycle families are covered below: 24 present rows. The first five belong to
+the product plugin protocol; all remaining rows are context calls. Qualified
+operation IDs use the same package/service/method derivation as client methods.
+All 132 client rows above remain exclusively on the client face.
 
-Each present method has exactly one mapping row. A `+` cell is one required
-workflow, not alternative destinations. The owner column and service inventory
-identify each destination owner, including mixed-owner workflows. CreateFileWriter
-is the resume branch and DeleteFileProduction the abandon branch, not mandatory
-calls before PublishFileProduction. No aggregate compatibility RPC is introduced.
+| Present Operation or Family | Face | Locked Qualified Operation | Owner | Disposition and Preserved Behavior |
+| --- | --- | --- | --- | --- |
+| `<template>.materialize` | Plugin Protocol | `dokime.plugin.v1.TestCases/Materialize` | Product | Renamed; pure materialization, request/response wrapper. |
+| `<template>.initialize` | Plugin Protocol | `dokime.plugin.v1.Executions/Initialize` | Product | Renamed; acquire execution-local suite resources. |
+| `Step.operation` | Plugin Protocol | `dokime.plugin.v1.Steps/Execute` | Product | Renamed family; frozen step identity and retry evidence. |
+| `Criterion.operation` | Plugin Protocol | `dokime.plugin.v1.Criteria/Evaluate` | Product | Renamed family; captured-evidence judgment. |
+| `<template>.cleanup` | Plugin Protocol | `dokime.plugin.v1.Executions/Cleanup` | Product | Renamed; required cleanup after initialization. |
+| `dokime.execution.prompt` | Context | `dokime.context.v1.Prompts/Create` | Product | Renamed; wait for answer, preserve scope and cancellation. |
+| `dokime.settings.read` | Context | `harmos.context.v1.HostValues/Get` | Library | Generic declared-value delivery; product resolver owns caller-bound settings storage and policy. |
+| `dokime.secrets.read` | Context | `harmos.context.v1.HostValues/Get` | Library | Generic declared-value delivery; product resolver owns granted-identifier secret storage and policy. |
+| `harmos.clock.sleep` | Context | `harmos.context.v1.Time/Sleep` | Library | Kept meaning; normalized carriers, library-owned clock. |
+| `harmos.clock.now` | Context | `harmos.context.v1.Time/Get` | Library | Renamed; library-owned clock. |
+| `dokime.execution.record` | Context | `dokime.context.v1.evidence.Records/Append` | Product | Renamed; ordered immutable data, durable receipt. |
+| `dokime.execution.records` | Context | `dokime.context.v1.evidence.Records/List` | Product | Merged; preserve count/last selection and bounded reads. |
+| `dokime.execution.statistics` | Context | `dokime.context.v1.Evidence/Statistics` | Product | Merged; stream/field/step selectors and complete statistics. |
+| `dokime.execution.artifact` | Context | `harmos.context.v1.Storage/CreateFileProduction` + `harmos.context.v1.Storage/GetFileProduction` + `harmos.context.v1.Storage/CreateFileWriter` + `harmos.context.v1.Storage/AppendFileBytes` + `harmos.context.v1.Storage/DeleteFileProduction` + `harmos.context.v1.Storage/PublishFileProduction` + `dokime.context.v1.content.Artifacts/Create` | Library + Product | Merged; separately declared context face of the shared unary session mechanism, acknowledged bytes. |
+| `dokime.execution.progress` | Context | `dokime.context.v1.executions.Progress/Set` | Product | Renamed; context-only producer operation, whole small progress value and Executions.Progress.Get revision; no client Set. |
+| `dokime.execution.log` | Context | `dokime.context.v1.evidence.Logs/Append` | Product | Renamed; ordered immutable log lines. |
+| `dokime.execution.traceability` | Context | `dokime.context.v1.evidence.Traceability/Set` | Product | Renamed; whole small writable value, Evidence.Traceability.Get revision and scope; large writable parts split into separately revisioned entry Get/Set sub-resources. |
+| `dokime.execution.document` | Context | `dokime.context.v1.Documents/AppendParts` | Product | Renamed; ordered immutable document contributions. |
+| `dokime.files.copy_files` | Context | `dokime.context.v1.Files/Capture` | Product | Renamed; freeze file copies, preserve originals. |
+| `dokime.files.start_capture` | Context | `dokime.context.v1.files.Captures/Start` | Product | Renamed; start capture lifecycle. |
+| `dokime.files.stop_capture` | Context | `dokime.context.v1.files.Captures/Stop` | Product | Renamed; finish capture at safe boundary. |
+| `dokime.execution.environment` | Context | `dokime.context.v1.Backend/Environment` | Product | Renamed; derived environment read. |
+| `dokime.execution.effect.prepare` | Context | `dokime.context.v1.Effects/Create` | Product | Renamed; durable inverse ticket, no hardware write. |
+| `dokime.execution.effect.applied` | Context | `dokime.context.v1.Effects/Set` | Product | Renamed; whole writable application state and Effects.Get revision; preserve earliest inverse. |
 
-Evidence.Archive selects/assembles product evidence at a cut and returns a bounded
-immutable content reference, then library Storage.GetFileBytes serves ranges.
-Archive layout, scope and evidence semantics stay product-owned operations over
-storage with no manager. Diagnostics similarly return bounded archive references.
-This product-specific selection cannot be delegated to generic byte reads.
-
-### Complete Owner Totals, Including Host Operations
-
-The library's locked sibling inventory has 13 logical services: Plugin, CatalogEntries,
-Invocations, Time, Samples, Storage, Plugins, Access, Access.Listener, Status,
-Status.Logs, Status.TraceEvents and HostValues. Eleven are exposed as gRPC services;
-Samples and HostValues are host/native-only. These are target counts from its
-own change, not implementation proof or extra services to implement in this repository.
-
-| Owner / Boundary | Logical Services | Nested | Operations | gRPC Methods | Requests | Responses |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Library, Whole Locked Inventory | 13 | 3 | 67 | 61 | 67 | 67 |
-| Library, Mapped Client Subset Above | 7 | 3 | 27 | 27 | 27 | 27 |
-| Product, Client Subset | 32 | 20 | 93 | 93 | 93 | 93 |
-| Product, Client and Host/Plugin Union | 39 | 22 | 111 | 93 | 111 | 111 |
-
-The product union adds the 18 host/plugin-only templates listed below, shared
-client methods counted once. The library union includes its Time.Get/Sleep and
-HostValues.Get, not product settings/secrets stores. Six library operations are
-native/host-only: Samples.Append, Storage.Info, Storage.SetSchema/GetSchema,
-Storage.DeleteFile and HostValues.Get. Library wrappers total 134 (122 exposed,
-12 native/host-only); product wrappers total 222 (186 client, 36 host/plugin-only).
-Neither wrapper census includes domain payloads, shared primitives or carrier
-control/event frames; field-level descriptor review must establish those totals.
-A managed-settlement replacement changes no operation/method count.
-
-## Plugin-Facing Mapping
-
-These operations are logically unary over the duplex library invocation carrier;
-publication has its own carrier. Counts are separate from client gRPC methods and do
-not multiply dynamic step/criterion instances or count protocol control frames.
-
-| Present Operation or Family | Locked Operation | Destination Owner | Disposition and Preserved Behavior |
-| --- | --- | --- | --- |
-| `<template>.materialize` | TestCases.Materialize | Product | Renamed; pure materialization, request/response wrapper. |
-| `<template>.initialize` | Executions.Initialize | Product | Renamed; acquire execution-local suite resources. |
-| `Step.operation` | Steps.Execute | Product | Renamed family; frozen step identity and retry evidence. |
-| `Criterion.operation` | Criteria.Evaluate | Product | Renamed family; captured-evidence judgment. |
-| `<template>.cleanup` | Executions.Cleanup | Product | Renamed; required cleanup after initialization. |
-| `dokime.execution.prompt` | Prompts.Create | Product | Renamed; wait for answer, preserve scope and cancellation. |
-| `dokime.settings.read` | HostValues.Get | Library | Generic declared-value delivery; product resolver owns caller-bound settings storage and policy. |
-| `dokime.secrets.read` | HostValues.Get | Library | Generic declared-value delivery; product resolver owns granted-identifier secret storage and policy. |
-| `harmos.clock.sleep` | Time.Sleep | Library | Kept meaning; normalized carriers, library-owned clock. |
-| `harmos.clock.now` | Time.Get | Library | Renamed; library-owned clock. |
-| `dokime.execution.record` | Evidence.Records.Append | Product | Renamed; ordered immutable data, durable receipt. |
-| `dokime.execution.records` | Evidence.Records.List | Product | Merged; preserve count/last selection and bounded reads. |
-| `dokime.execution.statistics` | Evidence.Statistics | Product | Merged; stream/field/step selectors and complete statistics. |
-| `dokime.execution.artifact` | Storage.CreateFileProduction + Storage.GetFileProduction + Storage.CreateFileWriter + Storage.AppendFileBytes + Storage.DeleteFileProduction + Storage.PublishFileProduction + Content.Artifacts.Create | Library + Product | Merged; same unary sessions as clients, acknowledged bytes. |
-| `dokime.execution.progress` | Executions.Progress.Set | Product | Renamed; host-only producer operation, whole small progress value and Executions.Progress.Get revision; no client Set. |
-| `dokime.execution.log` | Evidence.Logs.Append | Product | Renamed; ordered immutable log lines. |
-| `dokime.execution.traceability` | Evidence.Traceability.Set | Product | Renamed; whole small writable value, Evidence.Traceability.Get revision and scope; large writable parts split into separately revisioned entry Get/Set sub-resources. |
-| `dokime.execution.document` | Documents.AppendParts | Product | Renamed; ordered immutable document contributions. |
-| `dokime.files.copy_files` | Files.Capture | Product | Renamed; freeze file copies, preserve originals. |
-| `dokime.files.start_capture` | Files.Captures.Start | Product | Renamed; start capture lifecycle. |
-| `dokime.files.stop_capture` | Files.Captures.Stop | Product | Renamed; finish capture at safe boundary. |
-| `dokime.execution.environment` | Backend.Environment | Product | Renamed; derived environment read. |
-| `dokime.execution.effect.prepare` | Effects.Create | Product | Renamed; durable inverse ticket, no hardware write. |
-| `dokime.execution.effect.applied` | Effects.Set | Product | Renamed; whole writable application state and Effects.Get revision; preserve earliest inverse. |
-
-All 17 product context bindings plus two library time operations and five dynamic
-lifecycle families are covered: 24 present rows. Settings/secrets host calls map
-to library HostValues.Get with a product resolver, not library stores. The shared
-upload workflow adds no product transfer engine; its library methods are counted
-once. Effects.Get is an added companion, not a 25th present row. Progress.Set is
-host-only, called by a plugin, with Get/revision symmetry and scoped authority;
-there is no client Set. Large writable settings/traceability values split by
-identified value rather than replace an unbounded aggregate.
-
-| Product Host/Plugin-Only Namespace | Additional Methods | Count | New Logical Service |
-| --- | --- | ---: | --- |
-| TestCases | Materialize | 1 | Yes |
-| Executions | Initialize, Cleanup | 2 | No |
-| Steps | Execute | 1 | Yes |
-| Criteria | Evaluate | 1 | Yes |
-| Prompts | Create | 1 | No |
-| Evidence.Records | Append | 1 | No |
-| Executions.Progress | Set | 1 | No |
-| Evidence.Logs | Append | 1 | Yes, nested |
-| Evidence.Traceability | Set | 1 | No |
-| Documents | AppendParts | 1 | No |
-| Files | Capture | 1 | Yes |
-| Files.Captures | Start, Stop | 2 | Yes, nested |
-| Backend | Environment | 1 | No |
-| Effects | Create, Set, Get | 3 | Yes |
-
-These are 18 operations, 18 requests and 18 responses with zero added client RPCs,
-adding seven logical service namespaces, two nested. Shared client operations are
-counted once in the 111-operation product union. Dynamic step/criterion instances
-and protocol control frames do not multiply method templates. The clock and generic
-host-value operations belong only to the library inventory.
+The old host/plugin-only union added 18 operations to client namespaces. The
+new inventory instead declares five lifecycle operations on the plugin face
+and 18 product context operations, including five separately declared client
+capabilities. Library context transfer wrappers are also separate from client
+wrappers. This removes the mixed-face namespaces without changing required
+behavior or introducing a second transfer engine.
 
 ## Source Verification and Report Corrections
 
@@ -924,7 +1100,7 @@ checkout named by its report:
   `proto/dokime/v1/*.proto` gives 953. This confirms the reports' correction of
   131/262. PublishExecutionReport is present. Remove 264 twin-envelope messages;
   the final payload-message total remains unknown; neither subtraction nor the
-  240 method messages establishes it.
+  330 scoped method messages establishes it.
 - `crates/dokime-runtime-next/src/services/mod.rs`: 13 registered client services,
   not complete serving of all 23. `dokime-operations-next/src/lib.rs` declares and
   dispatches exactly log, progress, record, records, statistics, prompt and library
@@ -964,7 +1140,8 @@ cutover. The service-level named UNIMPLEMENTED list in `grpc-plugins/tasks.md`
 remains an integration obligation, independent of this naming proposal.
 
 Sibling-library findings to reconcile with its owner, not implement here: Python
-defaults visibility to Public while the other SDKs use Private; C# lacks an
+defaults visibility to Public while the other SDKs use Private; the locked fix
+is explicit visibility in all four SDKs with no default. C# lacks an
 invocation-local resource store and cancellation reason; static Storage services
 expose a subset; retry policy has two shapes; the plugin proto's draft/not-implemented
 header is stale. Generated availability is not proof of application consumption.
@@ -979,9 +1156,9 @@ Settle each when its implementation is reached;
 they do not block the rest of the locked work. Snippets and counts do not settle
 these contracts or claim implementation.
 
-1. **SDK coverage:** settle plugin parity across Rust, Python, C# and C++, including
-   visibility and C# resource/cancellation parity, and generic managed-client
-   coverage in all four languages versus Rust only. Library ownership is locked.
+1. **SDK coverage:** visibility has no default in all four SDKs and is locked.
+   Settle remaining plugin parity across Rust, Python, C# and C++, including
+   C# resource/cancellation parity and generic managed-client coverage in all four languages versus Rust only. Library ownership is locked.
 2. **Retention and restart:** how long does a returned position stay valid and
    which positions/cuts survive restart? Define retained mutable context and
    explicit unavailability without arbitrary earlier positions.
@@ -1064,8 +1241,9 @@ capability unless promised settlement is explicitly retained; ordinary product
 watches and byte delivery do not need it. Replacing IDs changes fingerprints,
 requirements, manifests, fixtures and SDK constants together.
 
-For implementation, first prepare library services under their managers, narrow
-host-fact registration and descriptor-derived four-language client roots. Publish
+For implementation, first establish the three package roots and move declarations,
+imports and generation inputs to their final faces. Then prepare library services
+under their managers, narrow host-fact registration and descriptor-derived four-language client roots. Publish
 and pin the exact library revision. Then declare product services with their final
 nested names, compose the library services directly, split the product managers
 and migrate product operations with focused proof. Remove replaced generic copies
