@@ -51,7 +51,9 @@ pub mod prompts_get_prompt;
 pub mod prompts_list_pending;
 pub mod prompts_respond;
 pub mod query_list_executions;
+pub mod reports_download_cycle_report;
 pub mod reports_download_execution_report;
+pub mod reports_materialize_report;
 pub mod reports_publish_execution_report;
 pub mod run_call;
 pub mod telemetry_list_samples;
@@ -132,8 +134,14 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Prompts/ListPending",
     "/dokime.v1.Prompts/Respond",
     "/dokime.v1.Query/ListExecutions",
+    "/dokime.v1.Reports/DownloadCycleReport",
     "/dokime.v1.Reports/DownloadExecutionReport",
+    "/dokime.v1.Reports/MaterializeReport",
     "/dokime.v1.Reports/PublishExecutionReport",
+    "/dokime.v1.Reports/RunDownloadCycleReport",
+    "/dokime.v1.Reports/RunDownloadExecutionReport",
+    "/dokime.v1.Reports/RunMaterializeReport",
+    "/dokime.v1.Reports/RunPublishExecutionReport",
     "/dokime.v1.Telemetry/ListSamples",
     "/dokime.v1.Telemetry/RunListSamples",
     "/dokime.v1.Telemetry/RunWatchSamples",

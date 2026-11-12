@@ -201,48 +201,8 @@ pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, v1
         .find(|(execution, question)| prompt_id(execution, &question.prompt) == identifier)
         .ok_or_else(|| Error::Invalid(format!("Read or Answer Pending Prompt {identifier}: Prompt Is Not Pending")))
 }
-pub(super) fn report(snapshot: &ExecutionSnapshot, counts: &v1::ExecutionOutcomeCounts) -> String {
-    let identifier = escape(&snapshot.execution.identifier);
-    let mut html = format!(
-        "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Execution {identifier}</title><h1>Execution {identifier}</h1>"
-    );
-    html.push_str(&format!("<p>State: {:?}</p><p>Termination: {}</p>", snapshot.state, snapshot.execution.termination));
-    html.push_str(&format!(
-        "<p>Outcome: {}</p><h2>Evidence</h2><table><tr><th>Position</th><th>Kind</th><th>Step</th></tr>",
-        escape(&format!("{:?}", snapshot.execution.outcome))
-    ));
-    for evidence in &snapshot.evidence {
-        html.push_str(&format!(
-            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
-            evidence.position,
-            escape(&evidence.kind),
-            escape(&evidence.step)
-        ));
-    }
-    html.push_str("</table><h2>Stream Samples</h2><table><tr><th>Stream</th><th>Sequence</th><th>Source Time [ns]</th></tr>");
-    for sample in &snapshot.samples {
-        html.push_str(&format!("<tr><td>{}</td><td>{}</td><td>{}</td></tr>", escape(&sample.stream), sample.sequence, sample.source_ns));
-    }
-    html.push_str(&format!(
-        "</table><dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl></html>",
-        counts.evaluated_count, counts.not_evaluated_count, counts.declared_count
-    ));
-    html
-}
-pub(super) fn report_frame(kind: v1::report_html_frame_payload::Kind) -> v1::ReportsDownloadExecutionReportOutput {
-    let item = v1::ReportHtmlFrame {
-        payload: Some(v1::ReportHtmlFramePayload { kind: Some(kind) }),
-    };
-    v1::ReportsDownloadExecutionReportOutput {
-        value: Some(v1::reports_download_execution_report_output::Value::Item(item)),
-    }
-}
-
 /* === Private Functions === */
 
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
-}
 fn value(value: &prost_reflect::Value) -> v1::Value {
     use prost_reflect::Value as V;
     use v1::value::Kind;
