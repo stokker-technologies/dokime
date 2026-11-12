@@ -430,6 +430,25 @@ pub async fn handle(
                         .await?;
                         completion.binding_count += 1;
                     }
+                    Some(v1::card::Body::Evidence(_)) if !card.filters.is_empty() => {
+                        send(
+                            &sender,
+                            &context,
+                            Kind::Binding(v1::DocumentBinding {
+                                source_id: id.clone(),
+                                result: Some(v1::DocumentBindingResult {
+                                    kind: Some(v1::document_binding_result::Kind::Failure(v1::DocumentCardFailure {
+                                        code: "evidence_filters_unserved".into(),
+                                        message: "Capture Evidence Card: Clear Its Filters Until Evidence-Card Filtering Is Served".into(),
+                                        budget: None,
+                                    })),
+                                }),
+                                metadata: None,
+                            }),
+                        )
+                        .await?;
+                        completion.binding_count += 1;
+                    }
                     _ => (),
                 }
                 send(&sender, &context, Kind::CardComplete(id)).await?;

@@ -471,6 +471,37 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         assert!(std::str::from_utf8(&html)?.contains("data-contour-mask"));
         assert!(store.reports("documents-a")?.is_empty());
 
+        // Refuse Unsupported Evidence Filters Without Publishing Misleading Output
+        let mut invalid = document.clone();
+        invalid.sections[0].cards.push(v1::Card {
+            body: Some(v1::card::Body::Evidence(v1::EvidenceCard::Records as i32)),
+            filters: vec![v1::DocumentFilter {
+                expression: Some(v1::DataExpression {
+                    kind: Some(v1::data_expression::Kind::Literal(v1::Value {
+                        kind: Some(v1::value::Kind::Boolean(true)),
+                    })),
+                    ..Default::default()
+                }),
+                operator: v1::FilterOperator::Eq as i32,
+                value: Some(v1::Value {
+                    kind: Some(v1::value::Kind::Boolean(true)),
+                }),
+            }],
+            ..Default::default()
+        });
+        assert_eq!(
+            reports
+                .publish_execution_report(v1::ReportsPublishExecutionReportRequest {
+                    execution_id: "documents-a".into(),
+                    document: Some(invalid)
+                })
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::InvalidArgument
+        );
+        assert!(store.reports("documents-a")?.is_empty());
+
         // Publish Explicitly and Download an Independent Cycle Report
         reports
             .publish_execution_report(v1::ReportsPublishExecutionReportRequest {

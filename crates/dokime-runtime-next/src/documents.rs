@@ -312,7 +312,12 @@ fn render_section(
                 }
                 write!(output, "</dl>")?;
             }
-            Some(v1::card::Body::Evidence(kind)) => render_evidence(output, snapshot, *kind, settings)?,
+            Some(v1::card::Body::Evidence(kind)) => {
+                if !filters.is_empty() {
+                    return Err(Error::Invalid("Render Evidence Card: Clear Its Filters Until Evidence-Card Filtering Is Served".into()));
+                }
+                render_evidence(output, snapshot, *kind, settings)?;
+            }
             None => return Err(Error::Invalid("Render Document: Supply Each Card's Body".into())),
         }
     }
