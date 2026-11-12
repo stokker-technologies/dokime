@@ -47,7 +47,11 @@ impl Store {
         Ok(self.lock()?.query_row("SELECT COUNT(*) FROM samples", [], |row| row.get::<_,i64>(0))? as u64)
     }
     pub fn save_cycle(&self, cycle: &v1::CycleSummary) -> Result<()> {
-        self.lock()?.execute("INSERT INTO cycles VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", params![cycle.cycle_id,cycle.encode_to_vec()])?;
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        transaction.execute("INSERT INTO cycles VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", params![cycle.cycle_id,cycle.encode_to_vec()])?;
+        crate::history::capture_cycle(&transaction,&cycle.cycle_id,"")?;
+        transaction.commit()?;
         Ok(())
     }
     pub fn client_cycle(&self, id: &str) -> Result<Option<v1::CycleSummary>> {

@@ -13,6 +13,7 @@
 
 mod cancelling_a_thermal_step_runs_cleanup;
 mod client_answers_operator_prompts;
+mod client_browses_sealed_history;
 mod client_controls_execution_lifecycle;
 mod client_observes_runtime_state;
 mod client_plans_parameter_selections;

@@ -14,6 +14,7 @@
 mod error;
 mod cycles;
 mod execution;
+mod history;
 mod outcome;
 mod plans;
 mod query;

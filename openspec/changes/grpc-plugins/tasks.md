@@ -300,7 +300,7 @@ methods and alphabetical registration lines. Old crates stay unchanged.
 - [x] Complete Planning preview, registration and materialization with ordered bounded expansion; prove the real-process planning journey.
 - [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey.
 - [x] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
-- [ ] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey.
+- [x] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey.
 - [ ] Pass format, owned stories twice, fifteen existing stories, three new-crate check builds and repository checking; commit locally without pushing.
 
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing execution/dispatch/streams/storage source stays with the host-feature owner.
@@ -320,6 +320,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [x] Execution: all 28 operations and their Run forms are served; the lifecycle journey proves explicit admission, interactive steps, pause/resume, seal, metadata/archive changes, rerun and cancellation.
   - [x] Observation: all four operations and their Run forms are served; the state journey proves resynchronization, cursor validation, shell counts, progress, watch cancellation and graceful shutdown.
   - [x] Prompts: all five operations and their Run forms are served; the operator journey proves catalog reads, invalid actions, answer settlement and restart resolution.
+  - [x] History: all eleven operations and their Run forms are served; the history journey proves saved frontiers, exact seal tokens, frozen context/document/evidence, bounded record/sample/file reads, artifact download and durable deletion receipts.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.

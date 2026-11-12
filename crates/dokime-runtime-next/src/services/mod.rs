@@ -17,6 +17,7 @@ mod clock;
 mod evidence;
 mod execution;
 mod health;
+mod history;
 mod observation;
 mod planning;
 mod plugins;
@@ -186,6 +187,11 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
             )
             .add_service(
                 v1::execution_server::ExecutionServer::new(services.clone())
+                    .max_decoding_message_size(message_bytes)
+                    .max_encoding_message_size(message_bytes),
+            )
+            .add_service(
+                v1::history_server::HistoryServer::new(services.clone())
                     .max_decoding_message_size(message_bytes)
                     .max_encoding_message_size(message_bytes),
             )

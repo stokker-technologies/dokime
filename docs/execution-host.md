@@ -89,6 +89,17 @@ Execution progress follows manager transitions and questions; each execution
 settles independently. Cancelling either watch leaves its run active.
 `client_observes_runtime_state` proves these contracts.
 
+History serves all eleven operations and their Run forms. Checkpoint inspection
+returns the existing seal, persistent backend identity and exact evidence cut;
+reads never publish or create a newer checkpoint. Cycle browsing retains an
+append-only saved frontier. Execution browsing returns a cursor that must be
+repeated with unchanged filters and order. Record and sample continuations bind
+the checkpoint and table; sample pages use bounded storage reads. Artifact
+downloads stream metadata, ordered chunks, completion digest and a final
+response; output windows return only the requested bytes. Deletion checks the
+exact seal and retains a durable request receipt for retry resolution.
+`client_browses_sealed_history` proves this workflow, including restart reads.
+
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
 Progress streams expose queued/prompt/finished events and end with a terminal

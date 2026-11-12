@@ -48,6 +48,18 @@ pub mod execution_stop_execution;
 pub mod execution_submit_execution_command;
 pub mod execution_update_cycle_policy;
 pub mod health_list_health;
+mod history;
+pub mod history_browse_cycles;
+pub mod history_browse_executions;
+pub mod history_delete_execution;
+pub mod history_download_checkpoint_artifact;
+pub mod history_get_checkpoint_context;
+pub mod history_get_checkpoint_document;
+pub mod history_get_checkpoint_evidence;
+pub mod history_get_execution_checkpoint;
+pub mod history_list_checkpoint_records;
+pub mod history_list_checkpoint_telemetry;
+pub mod history_read_checkpoint_output;
 pub mod observation_get_runtime_shell;
 pub mod observation_get_traceability;
 pub mod observation_watch_execution_progress;
@@ -156,6 +168,28 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Execution/SubmitExecutionCommand",
     "/dokime.v1.Execution/UpdateCyclePolicy",
     "/dokime.v1.Health/ListHealth",
+    "/dokime.v1.History/BrowseCycles",
+    "/dokime.v1.History/BrowseExecutions",
+    "/dokime.v1.History/DeleteExecution",
+    "/dokime.v1.History/DownloadCheckpointArtifact",
+    "/dokime.v1.History/GetCheckpointContext",
+    "/dokime.v1.History/GetCheckpointDocument",
+    "/dokime.v1.History/GetCheckpointEvidence",
+    "/dokime.v1.History/GetExecutionCheckpoint",
+    "/dokime.v1.History/ListCheckpointRecords",
+    "/dokime.v1.History/ListCheckpointTelemetry",
+    "/dokime.v1.History/ReadCheckpointOutput",
+    "/dokime.v1.History/RunBrowseCycles",
+    "/dokime.v1.History/RunBrowseExecutions",
+    "/dokime.v1.History/RunDeleteExecution",
+    "/dokime.v1.History/RunDownloadCheckpointArtifact",
+    "/dokime.v1.History/RunGetCheckpointContext",
+    "/dokime.v1.History/RunGetCheckpointDocument",
+    "/dokime.v1.History/RunGetCheckpointEvidence",
+    "/dokime.v1.History/RunGetExecutionCheckpoint",
+    "/dokime.v1.History/RunListCheckpointRecords",
+    "/dokime.v1.History/RunListCheckpointTelemetry",
+    "/dokime.v1.History/RunReadCheckpointOutput",
     "/dokime.v1.Observation/GetRuntimeShell",
     "/dokime.v1.Observation/GetTraceability",
     "/dokime.v1.Observation/RunGetRuntimeShell",

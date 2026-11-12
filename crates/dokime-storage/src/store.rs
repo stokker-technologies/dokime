@@ -75,7 +75,7 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["bindings", "cases", "commands", "cycles", "evidence", "executions", "plugins", "registrations", "reports", "samples", "streams"] {
+            if tables != ["bindings", "cases", "commands", "cycle_history", "cycles", "deletions", "evidence", "executions", "plugins", "registrations", "reports", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -91,6 +91,8 @@ impl Store {
                 CREATE TABLE cycles(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
                 CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
+                CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
@@ -265,6 +267,8 @@ impl Store {
         }
         let digest = digest(&transaction, execution)?;
         transaction.execute("UPDATE executions SET state=2,seal=?2 WHERE id=?1", params![execution, digest])?;
+        let cycle: String = transaction.query_row("SELECT cycle FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        crate::history::capture_cycle(&transaction,&cycle,execution)?;
         transaction.commit()?;
         Ok(())
     }

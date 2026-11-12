@@ -1197,6 +1197,7 @@ enum ExecutionBrowseLifecycle {
 
 // Source: crates/dokime-domain/src/model/history/wire.rs
 message ExecutionBrowsePage {
+  Cursor cursor = 9;
   repeated ExecutionBrowseEntry entries = 1;
   optional string next_after_execution_id = 2;
   bool discovery_complete = 3;

@@ -798,6 +798,11 @@ Interactive command receipts use the execution identity as their run request ide
 Pause and stop apply at step boundaries; cancel interrupts the current call, and both paths retain required cleanup and attributed evidence.
 Execution labels and archive state are presentation outside the immutable execution seal; new TestCases have resolved inputs and no separate output-parameter store.
 Runtime observation coalesces host events under one process revision; shutdown emits its final state and terminal response, and abandoning a watch never cancels a run.
+History tokens bind the persistent backend, immutable saved-cycle position, execution seal and evidence frontier; reading a token never flushes or publishes.
+BrowseExecutions gains an additive cursor in its request and reply so continuations can enforce unchanged filters, order and revision.
+Saved cycle headers append at seals and presentation commits; BrowseCycles retains its captured storage frontier across later changes.
+History artifact reads consume ordered acknowledged PublishArtifact evidence; contextual artifact admission remains with the data-service owner and must retain that evidence contract at integration.
+Prompt IDs include their durable question position, keeping repeated questions in one execution distinct while retaining earlier answers.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
