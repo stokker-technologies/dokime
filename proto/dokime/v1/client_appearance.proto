@@ -2,7 +2,6 @@ syntax = "proto3";
 package dokime.v1;
 
 import "dokime/v1/appearance.proto";
-import "dokime/v1/client_types.proto";
 
 message AppearanceGetAppearanceRunInput {
   oneof value {

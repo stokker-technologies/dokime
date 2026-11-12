@@ -1,5 +1,7 @@
 # Generate From the Protocol Root to Preserve Package Include Paths.
 add_library(dokime_protocol STATIC)
+# Complete Services Exceed the Default MSVC Object Section Limit.
+target_compile_options(dokime_protocol PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/bigobj>")
 file(GLOB protocols CONFIGURE_DEPENDS "${DOKIME_PROTO_ROOT}/dokime/v1/*.proto")
 protobuf_generate(TARGET dokime_protocol LANGUAGE cpp
   PROTOS ${protocols} IMPORT_DIRS "${DOKIME_PROTO_ROOT}" "${DOKIME_PROTOBUF_INCLUDE}"

@@ -11,7 +11,11 @@
 [tasks."sdk:prepare"]
 description = "Prepare the Shared Python Environment"
 usage = 'flag "--refresh-lock"'
-run = ["uv sync --locked --project ../.. --all-groups", "uv lock {% if not usage.refresh_lock %}--check{% endif %}"]
+run = [
+  "{% if usage.refresh_lock %}uv lock --project ../..{% endif %}",
+  "uv sync --locked --project ../.. --all-groups",
+  "uv lock {% if not usage.refresh_lock %}--check{% endif %}",
+]
 
 # === Build === #
 

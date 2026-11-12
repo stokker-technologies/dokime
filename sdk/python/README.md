@@ -135,14 +135,12 @@ a streaming request. Unary calls are awaited; server-streaming calls are async
 iterators. The channel's generated stubs also remain directly available.
 `client.plugins.add/list/remove` are thin request constructors.
 
-**Current protocol dependency:** repository `proto/dokime/v1` contains no service
-declarations. The wheel therefore has 172 messages and zero client RPCs.
-Generated clients and the plugin convenience calls cannot reach a Dokime host
-until its authoritative service protos land. `MissingServiceError` reports the
-missing request mapping; pairing cannot skip identity verification. Template
-expansion, cycle start/watch, imports, and evidence clients additionally need
-their authoritative request/reply/service definitions. No substitute wire
-contract is supplied by Python.
+The wheel generates all 23 client services and their ordinary and cancellable
+`Run<Method>` routes from the authoritative protos. The in-process client story
+adds a remote plugin, lists its canonical entry, drains Backend log envelopes,
+propagates refusals and removes the entry before explicitly closing the client.
+Pairing verifies the backend identity through the generated Backend service.
+Real Dokime-host execution remains separate host integration proof.
 
 ## Validate
 
@@ -177,4 +175,4 @@ expand/materialize parameters, create a PluginRun origin and matching scope,
 drive retries and ticks on its controlled clock, acknowledge records/progress,
 answer the choice prompt, serve step-filtered statistics and records, run cleanup,
 close evidence, evaluate the cycle, and publish/seal/reopen the report. That real
-Dokime system story remains pending the host and client service definitions.
+Dokime system story remains pending the host integration.

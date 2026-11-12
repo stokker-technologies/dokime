@@ -104,15 +104,21 @@ that authoring case can be supported without a transport workaround.
 service client over that transport; call options carry cancellation and metadata.
 `GrpcChannelOptions` accepts configured TLS and HTTP handlers.
 
-**Protocol handoff:** this checkout's `proto/dokime/v1` has no service
-declarations. Consequently there are no generated Dokime service clients yet.
-The facade and its in-process fake-server journey prove transport ownership,
-authentication failure propagation, unary messages and finite server streaming;
-they do not prove the absent generated service surface. The SDK `check` task
-fails explicitly until the protocol owner adds the complete service definitions.
-Once those are under `proto/dokime/v1`, the existing `<Protobuf>` wildcard builds
-both client and server stubs without committing generated sources. Extend the
-fake-server journeys to exercise those generated clients when supplied.
+The build generates all 23 Dokime services, including ordinary and cancellable
+`Run<Method>` routes. For example:
+
+```csharp
+await using var client = Client.Connect("http://127.0.0.1:8765");
+var plugins = client.Service(calls => new Plugins.PluginsClient(calls));
+var added = await plugins.AddAsync(new AddRemotePlugin { Url = "http://127.0.0.1:7001" });
+var entries = await plugins.ListAsync(new ListPlugins());
+```
+
+The in-process fake backend implements generated Backend and Plugins service
+bases. Its client journey checks authentication refusal, identity, complete log
+stream envelopes, plugin Add/List and typed server errors. `check` verifies that
+every declared service has a generated client. Real-host execution remains
+separate integration proof.
 
 ## Focused Proof
 

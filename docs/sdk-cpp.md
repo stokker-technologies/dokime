@@ -78,12 +78,13 @@ Pass a credentialed channel or credentials to `connect` for authenticated TLS
 connections. Client/channel/stub ownership uses RAII; no global connection is
 created. Generated streaming APIs remain directly available.
 
-The current authoritative `proto/dokime/v1` files declare messages but **no
-services**. CMake generates messages and gRPC output for every file and will pick
-up service declarations there. Actual host-service stubs and their end-to-end
-client proof require the protocol owner to publish those declarations. The
-focused client story uses an explicitly test-owned service over real Dokime
-messages and an in-process gRPC fake; it does not claim host compatibility.
+CMake generates all 23 Dokime services and their ordinary and cancellable
+`Run<Method>` routes. `dokime/client.hpp` exposes every generated service header.
+Use `client.stub<dokime::v1::Plugins>()` for plugin Add/List and the other plugin
+operations. The in-process client story uses the generated Backend and Plugins
+services for authentication refusal, identity, complete log stream envelopes,
+plugin Add/List and typed server errors. It defines no substitute protocol.
+Real-host execution remains separate integration proof.
 
 ## Source Distribution and Starter
 

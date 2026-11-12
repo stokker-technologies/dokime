@@ -15,6 +15,7 @@ dependencies = []
 [dependency-groups]
 test = [
   "protobuf>=7.36.2,<8",
+  "types-protobuf",
   "grpcio>=1.85.1,<2",
   "pytest==9.1.1",
   "pytest-benchmark==5.3.0",

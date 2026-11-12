@@ -103,9 +103,8 @@ Generate Rust with `mise run generate -- --protocol`; verify drift with
 no installed `protoc`. Normal builds consume checked-in generated Rust.
 `dokime-protocol` exposes `dokime_protocol::v1` and re-exports Harmos messages
 from the pinned `harmos-protocol` owner; it has no dependency on the host.
-Generation also compiles the complete proto set for Python, C# and C++ into
-scratch output. Only Rust, reflection, descriptors and embedded sources are
-committed here. Each SDK runs its language's protobuf and gRPC generators over
+Only Rust, reflection, descriptors and embedded sources are committed here.
+Each SDK runs its language's protobuf and gRPC generators over
 the same complete source set, including `harmos/v1/plugin.proto` and Google
 well-known imports. Python uses grpcio generators, C# uses Grpc.Tools, and C++
 uses its build's matching protobuf compiler and gRPC plugin. No SDK should

@@ -181,7 +181,7 @@ for packaging options.
 
 The development [C# SDK](docs/sdk-csharp.md) builds the `Dokime` NuGet package for
 managed and remote gRPC plugins on .NET 10. It includes composed authoring and
-canonical plot/document builders; generated client services await the protocol definitions.
+canonical plot/document builders and generated clients for all 23 services.
 
 #### Examples
 
@@ -192,8 +192,8 @@ Build the package-consuming [executable starter](sdk/csharp/starter/) with
 
 The [C++ source SDK](docs/sdk-cpp.md) composes managed or remote plugins with
 ordinary C++20 values and provides generated protocol types, a thin client layer,
-and plot/document builders. The authoritative host-service declarations are still
-pending; the client guide records that integration dependency.
+and plot/document builders. CMake generates clients for all 23 services from the
+authoritative proto sources.
 
 #### Examples
 

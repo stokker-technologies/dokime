@@ -429,6 +429,141 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.RecordListener").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceRunInput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceRunInput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceRunOutput {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsCompletion {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsCompletion").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceCompletion {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceCompletion").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceCancellation").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsCompletion {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsCompletion").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsCancellation {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsCancellation").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::v1::MaterializeRequest {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.MaterializeRequest").expect("generated protocol descriptor")
@@ -2652,141 +2787,6 @@ crate::descriptor_pool().get_message_by_name("dokime.v1.ValueFormatKind").expect
 impl prost_reflect::ReflectMessage for crate::v1::Window {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.Window").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::AppearanceGetAppearanceCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.AppearanceGetAppearanceCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceRunOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetIdentityCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetIdentityCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetHealthCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetHealthCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendGetAvailabilityCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendGetAvailabilityCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsCompletion {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsCompletion").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchLogsCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchLogsCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceCompletion {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceCompletion").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendWatchTraceCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendWatchTraceCancellation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsCompletion {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsCompletion").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::v1::BackendCollectDiagnosticsCancellation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.BackendCollectDiagnosticsCancellation").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::v1::CatalogGetRecordSchemaRequest {

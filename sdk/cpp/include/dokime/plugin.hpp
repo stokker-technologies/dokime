@@ -123,7 +123,7 @@ private:
   std::string identifier_;
   std::set<std::string> record_schemas_;
   v1::Suites suites_;
-  v1::Prompts prompts_;
+  v1::PromptCatalog prompts_;
   v1::RecordContracts records_;
   std::shared_ptr<detail::Executions> executions_;
 };

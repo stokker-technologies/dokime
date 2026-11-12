@@ -302,10 +302,10 @@ source proto and validates every generated service method, cardinality and
 serializer. `mise run check -- --bindings` additionally type-checks the SDK and
 runs generated-surface checking from the fresh installed wheel.
 
-Repository `proto/dokime/v1` currently contains no client service declarations.
-The generator includes every service as those definitions land; missing mappings
-raise `MissingServiceError`. A fake server with test-owned descriptors proves
-client dispatch without introducing a second production wire contract.
+Repository `proto/dokime/v1` declares all 23 client services.
+The wheel includes generated stubs for every service; missing or ambiguous mappings
+raise `MissingServiceError`. The in-process server implements generated Backend
+and Plugins services, proving plugin Add/List and complete log stream envelopes.
 
 ## Python System Story
 
@@ -317,7 +317,7 @@ The single starter source is `sdk/python/examples/starter/`. The CLI must embed
 The language-neutral system suite is the starter's `suite.py`. Its identifiers
 and host prerequisites are documented in the [SDK guide](../sdk/python/README.md#validate).
 Real Dokime execution, report publication, sealing and reopening await the host
-and authoritative client service definitions. SDK system stories run in Nightly.
+integration. SDK system stories run in Nightly.
 
 Build the reference host through the pinned Harmos checkout's
 `mise run build -- --package harmos-conformance`, set `HARMOS_CONFORMANCE_HOST`

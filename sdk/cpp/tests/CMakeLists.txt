@@ -2,20 +2,8 @@ add_executable(dokime-builders builders.cpp)
 target_link_libraries(dokime-builders PRIVATE Dokime::Cpp)
 add_test(NAME builders COMMAND dokime-builders)
 
-# A Test-Owned Service Proves Generated Stub Behaviour Until Product Services Land.
-add_library(dokime_test_protocol STATIC)
-protobuf_generate(TARGET dokime_test_protocol LANGUAGE cpp
-  PROTOS "${CMAKE_CURRENT_SOURCE_DIR}/proto/journey.proto"
-  IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto" "${DOKIME_PROTO_ROOT}" "${DOKIME_PROTOBUF_INCLUDE}"
-  PROTOC_OUT_DIR "${DOKIME_GENERATED}" PROTOC_EXE "$<TARGET_FILE:protoc>")
-protobuf_generate(TARGET dokime_test_protocol LANGUAGE grpc
-  PROTOS "${CMAKE_CURRENT_SOURCE_DIR}/proto/journey.proto"
-  IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto" "${DOKIME_PROTO_ROOT}" "${DOKIME_PROTOBUF_INCLUDE}"
-  PROTOC_OUT_DIR "${DOKIME_GENERATED}" PROTOC_EXE "$<TARGET_FILE:protoc>"
-  GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc PLUGIN "protoc-gen-grpc=$<TARGET_FILE:grpc_cpp_plugin>")
-target_link_libraries(dokime_test_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-client-journey integration/client_reads_backend.cpp)
-target_link_libraries(dokime-client-journey PRIVATE dokime_test_protocol)
+target_link_libraries(dokime-client-journey PRIVATE Dokime::Cpp)
 add_test(NAME client_reads_backend COMMAND dokime-client-journey)
 add_executable(dokime-authoring-journey integration/author_materializes_suite.cpp)
 target_link_libraries(dokime-authoring-journey PRIVATE Dokime::Cpp)

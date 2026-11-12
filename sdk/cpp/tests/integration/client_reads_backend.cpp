@@ -12,7 +12,6 @@
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
-#include "journey.grpc.pb.h"
 
 /* === Macros === */
 
@@ -33,35 +32,60 @@
 int main() {
   // Start a Backend in This Process.
   Backend backend;
+  Plugins plugins;
   grpc::ServerBuilder builder;
   builder.RegisterService(&backend);
+  builder.RegisterService(&plugins);
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
   auto channel = server->InProcessChannel({});
   dokime::Client client(channel);
-  auto stub = client.stub<dokime::sdk::test::BackendJourney>();
+  auto stub = client.stub<dokime::v1::Backend>();
 
   // Pair and Read Its Identity Through the Generated Stub.
   grpc::ClientContext authenticated;
   authenticated.AddMetadata("authorization", "Bearer test");
-  auto identity = client.unary(*stub, &dokime::sdk::test::BackendJourney::Stub::Identity, dokime::v1::GetBackendIdentity{}, authenticated);
+  auto identity = client.unary(*stub, &dokime::v1::Backend::Stub::GetIdentity, dokime::v1::GetBackendIdentity{}, authenticated);
   check(identity.backend_id() == "bench" && identity.epoch() == "boot", "Backend Identity Was Lost");
 
   // Watch Evidence Until the Backend Closes the Stream.
   grpc::ClientContext watching;
-  auto logs = stub->Logs(&watching, {});
-  dokime::v1::LogFrame frame;
-  check(logs->Read(&frame) && frame.target() == "execution", "Log Was Lost");
+  auto logs = stub->WatchLogs(&watching, {});
+  dokime::v1::BackendWatchLogsOutput frame;
+  check(logs->Read(&frame) && frame.item().target() == "execution", "Log Was Lost");
+  check(logs->Read(&frame) && frame.has_response(), "Log Completion Was Lost");
   check(!logs->Read(&frame) && logs->Finish().ok(), "Log Stream Did Not Finish");
 
   // Read Without Pairing and Retain the Backend's Actionable Failure.
   grpc::ClientContext unpaired;
   bool refused = false;
   try {
-    client.unary(*stub, &dokime::sdk::test::BackendJourney::Stub::Identity, dokime::v1::GetBackendIdentity{}, unpaired);
+    client.unary(*stub, &dokime::v1::Backend::Stub::GetIdentity, dokime::v1::GetBackendIdentity{}, unpaired);
   } catch (const dokime::RpcError &error) {
     refused = error.status().error_code() == grpc::StatusCode::UNAUTHENTICATED;
   }
   check(refused, "Authentication Failure Was Hidden");
+
+  // Add a Remote Entry and Read Its Canonical Placement Through Generated Stubs.
+  auto plugin_stub = client.stub<dokime::v1::Plugins>();
+  dokime::v1::AddRemotePlugin request;
+  request.set_url("http://127.0.0.1:7001");
+  grpc::ClientContext adding;
+  auto added = client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::Add, request, adding);
+  grpc::ClientContext listing;
+  auto listed = client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::List, dokime::v1::ListPlugins{}, listing);
+  check(listed.plugins_size() == 1 && listed.plugins(0).entry() == added.entry(), "Plugin Entry Was Lost");
+  check(listed.plugins(0).remote().url() == request.url(), "Remote Placement Was Lost");
+  check(listed.plugins(0).state() == dokime::v1::PLUGIN_STATE_CONNECTING, "Plugin State Was Lost");
+
+  // Retain the Generated Method's Server Refusal.
+  grpc::ClientContext invalid;
+  refused = false;
+  try {
+    client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::Add, dokime::v1::AddRemotePlugin{}, invalid);
+  } catch (const dokime::RpcError &error) {
+    refused = error.status().error_code() == grpc::StatusCode::INVALID_ARGUMENT;
+  }
+  check(refused, "Plugin Refusal Was Hidden");
   server->Shutdown();
 }

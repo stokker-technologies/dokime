@@ -141,19 +141,6 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     }
     embedded.push_str("];\n");
     fs::write(output.join("sources.rs"), embedded)?;
-    let python = output.join("python");
-    for path in [&python] {
-        fs::create_dir_all(path)?;
-    }
-    // Prove the Complete Source Set Is Consumable by Every SDK Toolchain.
-    let sdk_messages = output.join("sdk-messages");
-    fs::create_dir_all(&sdk_messages)?;
-    let mut config = prost_build::Config::new();
-    config.protoc_executable(compiler);
-    config.out_dir(sdk_messages);
-    config.protoc_arg(format!("--python_out={}", python.display()));
-    inputs.push(proto.join("harmos/v1/plugin.proto"));
-    config.compile_protos(&inputs, &[proto, includes])?;
     Ok(())
 }
 
