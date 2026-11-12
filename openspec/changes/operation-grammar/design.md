@@ -1,6 +1,7 @@
 # Operation Grammar Design
 
 Status: locked by the owner on 2026-11-12
+Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 
 Target decisions are Owner.
@@ -21,7 +22,8 @@ proposal adds no implementation, compatibility layer or lifecycle activation.
 Define one naming and behavior contract shared by native, client and plugin
 interfaces. Preserve durability, scoped authority, bounded physical storage
 work, finalization, publication and cooperative cancellation where promised.
-The library owns generic primitives; product lifecycle and evidence selection
+The library owns generic machinery under its managers; a product owns its storage
+definition, objects, policy and operations. Product lifecycle and evidence selection
 remain product-owned. No arbitrary time travel, second scheduler, automatic
 streaming projection or storage reset is proposed. An accepted-data snapshot is
 the named fallback if bounded durable lag cannot be achieved, not work to build now.
@@ -35,20 +37,22 @@ The following shared text uses the supplied decisions and both reports' Shared
 Vocabulary sections. Product-specific meanings belong in the next section.
 
 - **Names (Owner):** a service names its resource with a plural noun, or a
-  singular noun for one thing such as a plugin's own service. Methods acting on
-  that resource are bare verbs; never repeat the service's resource noun.
-  A part read in exactly one way uses its noun alone, whether streamed, paged or
-  returned whole. A part with multiple read or change paths uses verb plus part;
-  prefer a small resource service with bare verbs where this makes an exact
-  Get/Set pair clearer. Mixed-resource services retain the affected resource
-  nouns, without repeating the service's own name; do not split them merely to
-  shorten methods. Messages use `<Service><Method>Request` and
-  `<Service><Method>Response`, for example `ExecutionsStartRequest`, so repeated
-  bare methods remain unique in the service namespace. Replies are always
-  wrappers, never bare resources. Operation IDs derive mechanically from the
-  owning service and method with no second authored alias. Generated clients
-  take their names directly from the proto, giving short names in every language
-  without a hand-written layer.
+  singular noun for one thing. Methods acting on that resource are bare verbs;
+  never repeat its noun. A part read in exactly one way uses its noun alone,
+  whether streamed, paged or returned whole. Rule 3 is replaced: a part with
+  multiple read or change paths is a nested resource with its own bare verbs,
+  such as Plugins.Settings.Get/Set and Executions.Progress.Get/Watch. Mixed-resource
+  services retain distinguishing nouns for other actions. Flat compound settings
+  services and verb-plus-part methods for multiple-path parts are superseded.
+  Each nested service lives in package `<owner>.v1.<lowercase-parent>`, with the
+  part as the service name: `product.v1.plugins.Settings/Get`. One proto file per
+  service lives in a folder per parent, for example `product/v1/plugins/settings.proto`.
+  Messages in that package are `<Service><Method>Request/Response`, such as
+  `SettingsGetRequest`; parent services retain names such as `ExecutionsStartRequest`.
+  Replies are always wrappers. Operation IDs derive mechanically from package,
+  service and method, with no second authored alias. A nested service may have a
+  different owner from its parent: `product.v1.plugins.Settings` intentionally
+  sits beside `library.v1.Plugins` on the host application's endpoint.
 - **Ordinary verbs (Owner):** the closed set is Get, List, Watch, Set, Create,
   Delete and Append. Get observes one identified or derived value; List enumerates
   one bounded selection; Watch opens that selection and follows changes; Set
@@ -134,7 +138,7 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   using one mechanism for clients and plugins. Create an upload session, Append
   ordered chunks at stated offsets, Get status to resume, Publish to make content
   visible, and Delete to abandon. Identical chunk replay succeeds; different bytes
-  at an accepted offset conflict. Download by repeated Content.Get calls with
+  at an accepted offset conflict. Download by repeated Storage.GetFileBytes calls with
   offset and maximum bytes; each response states total length and content digest.
   Configuration bounds chunk and range sizes. Measure large-file throughput in a
   Nightly benchmark case before deleting streaming transfers.
@@ -144,29 +148,77 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   cancellation, replacing the ordinary gRPC method. Native gRPC cancellation abandons
   observation and cannot promise that final response; admitted durable work
   survives observer loss. Downloads, documents and diagnostics use bounded unary
-  replies, with content bytes read through ranged Content.Get.
+  replies, with content bytes read through ranged Storage.GetFileBytes.
 
 ### Generated Client Names
 
-For a resource whose progress part is read only as a stream, the naming rule gives
-these generated calls directly, in every language's normal method casing:
+All four SDK client roots expose the hierarchy mechanically from descriptor-set
+packages and service names. A small generator in each SDK build consumes the same
+package/service table: remove the owner/version prefix, use the remaining package
+segments as parent resources and append the service name as the leaf. Top-level
+services supply their own root leaf. Apply only each language's standard casing;
+no hand-written per-operation code or aliases. Compose the library and product
+roots by resource path, merging distinct children and rejecting collisions.
 
 ```python
-executions.start(request)
-executions.cancel(request)
-executions.get(request)
-executions.progress(request)
+client.plugins.get(request)                 # Library service
+client.plugins.settings.get(request)        # Product nested service
+client.executions.start(request)
+client.executions.progress.get(request)
+client.executions.progress.watch(request)
+client.plots.settings.set(request)
 ```
 
-In this product's preserved contract, progress also has a whole-value Get/Set
-revision pair for plugin writes, so it is a genuine multiple-path part under rule 3:
-`Executions.GetProgress`, `Executions.SetProgress` and `Executions.WatchProgress`.
-Its actual generated stream call is `executions.watch_progress(request)`; the
-stream-only `progress` illustration above is not a second method or client alias.
-Keeping these paths together avoids introducing a separate progress resource solely
-to shorten names. The Get is shared with clients and remains the exact writable
-value/revision mirror for plugin Set. By contrast, parameters and steps have no
-independent change path, so their sole reads are paged noun-only methods.
+Progress is runtime-owned: Executions.Progress.Get returns its current value,
+Executions.Progress.Watch streams it, and Executions.Get includes that same value
+at its resolved cut. A plugin produces progress through a host operation it calls,
+`Executions.Progress.Set`, with its matching Get/revision contract. Set is NOT a
+client-facing RPC or part of the client method/message counts. Parameters and
+steps each retain their sole paged noun-only read.
+
+### Nested Wire Examples
+
+`product/v1/plugins/settings.proto` intentionally extends a library-owned parent
+resource from the product namespace. Settings payload declarations are illustrative.
+
+```proto
+syntax = "proto3";
+package product.v1.plugins;
+message SettingsGetRequest { string name = 1; }
+message SettingsGetResponse { SettingsValue value = 1; bytes revision = 2; }
+message SettingsSetRequest {
+  string name = 1; SettingsValue value = 2; bytes expected_revision = 3;
+  string request_id = 4;
+}
+message SettingsSetResponse { SettingsValue value = 1; bytes revision = 2; Receipt receipt = 3; }
+service Settings {
+  rpc Get(SettingsGetRequest) returns (SettingsGetResponse);
+  rpc Set(SettingsSetRequest) returns (SettingsSetResponse);
+}
+```
+
+`product/v1/executions/progress.proto` serves only client observation:
+
+```proto
+syntax = "proto3";
+package product.v1.executions;
+message ProgressGetRequest { string name = 1; Position at = 2; }
+message ProgressGetResponse { ExecutionProgress value = 1; bytes revision = 2; Position resolved_at = 3; }
+message ProgressWatchRequest { string name = 1; Position at = 2; }
+message ProgressWatchResponse { ProgressEvent event = 1; Position resolved_at = 2; }
+service Progress {
+  rpc Get(ProgressGetRequest) returns (ProgressGetResponse);
+  rpc Watch(ProgressWatchRequest) returns (stream ProgressWatchResponse);
+}
+// The plugin producer calls the host operation Progress.Set over its invocation
+// carrier; this client-facing service deliberately has no Set RPC.
+```
+
+Library listener configuration follows the same grammar:
+`library/v1/access/listener.proto`, package `library.v1.access`, service Listener,
+Get/Set with `ListenerGetRequest/Response` and `ListenerSetRequest/Response`.
+Access.CreatePairing and Access.CreateCertificate allocate lifecycle resources;
+their single creation paths keep distinguishing nouns on the mixed-resource parent.
 
 ### Shared Shape Sketch
 
@@ -209,6 +261,70 @@ message Failure {
 }
 ```
 
+## Ownership and Managers
+
+**Boundary (Owner, locked 2026-11-12):** if the library has a manager for generic
+machinery, that machinery belongs in the library. A product defines its storage
+layer (schemas, indexes, projections and the meaning of latest), its own objects
+and operations, and policy about who may do what. The host application composes
+and serves the library services directly on its endpoint; it does not redeclare,
+wrap or forward their public operations in product services.
+
+A product MUST NOT rebuild generic machinery on the protocol crate alone. That
+approach previously produced a second copy of plugin connection, dispatch,
+streams and process launch. Replace those copies with the library runtime owners.
+Library text uses generic vocabulary: a product or the host application.
+
+A manager exists where there is something live to own: changing state, background
+work or a lifecycle. Plain operations over storage need no manager. This is the
+single manager-creation rule for both owners.
+
+| Library Manager | Services or Owned Boundary | Responsibility |
+| --- | --- | --- |
+| PluginManager | Plugins | Managed/remote entries; verified bundles, persistence, state/failures, connection and process lifecycle; already being implemented in the library. |
+| GrpcManager | Access, Access.Listener; transport for composed services | Listener Get/Set, pairing creation, certificate regeneration and key rotation. |
+| StorageManager | Storage | One resumable unary upload/ranged-read mechanism and generic storage; the host application supplies its storage definition. |
+| ServiceManager | Status, Status.Logs, Status.TraceEvents | Host identity, health, availability, logs, trace events and diagnostics archive; narrow registration accepts host-application version and component-health contributions. |
+| OperationManager | CatalogEntries, Invocations, host-only HostValues; Plugin invocation carrier | Declarations, dispatch, invocations, retries/cancellation and plugin host-operation routing. |
+| StreamManager | Samples, Plugin.Samples | Stream lifecycle, observation and delivery. |
+| RecordManager | Generic record operations persisted through Storage; no new public service | Record capture lifecycle. |
+| StateManager | Generic state operations; no new public service | Live state and observation. |
+
+These manager types already exist in the runtime, including the generic operations
+manager's internal `Manager` and `WeakOperationManager`; their target public-service
+coverage is not a claim of landed implementation. Time remains library-owned
+(`Time.Get`, `Time.Sleep`), under ServiceManager with the authoritative runtime
+clock; no new clock
+manager is required. The plugin protocol, SDKs, operations/invocations, storage
+and streams remain library-owned. Their pre-existing full inventories are not
+recounted as new services of this product mapping.
+
+Settings and secrets are product-owned: stores, schemas, UI declarations,
+archives and use of an operating-system credential store are too opinionated
+for the library. This closes the per-plugin settings/secrets question. The
+library supplies only the generic host-operation mechanism by which a host
+application serves values to a plugin, plus the settings-declaration section of
+the plugin catalog. The generic host operation is HostValues.Get; a product
+registers its value resolver rather than introducing library settings stores. Product Plugins.Settings is intentionally separate from
+library Plugins. Product-only status reads remain in Backend; product facts
+contributed to Status use registration, not duplicate identity/health services.
+
+| Product Owner | Responsibility and Service Routing |
+| --- | --- |
+| Execution manager | Queueing, lifecycle, retries, Stop/Cancel, recovery; Executions, Cases and Cycles operations call it where lifecycle is involved. Decide whether cycles belong here or in a small cycle manager at the split, using the simplest complete option. |
+| Prompt manager | Pending operator questions; Prompts operations. |
+| Report manager | Atomic publication; Reports.Publish. Rendering is a pure function with no manager. |
+| Capture manager, only if recordings remain | Media.Captures recording lifecycle; preserve currently supported capture behavior and explicit unsupported-kind refusals. |
+| Storage operations, no manager | Evidence, Catalog, notes, Aggregates, Plots and Documents; product settings/secrets and metadata operations also use storage unless an existing live owner is involved. |
+
+Split `crates/dokime-runtime-next/src/host.rs::Host/Inner` and
+`services/state.rs::State` along those owners. Composition assembles handles;
+it is not another orchestration owner. Every service method stays thin: one
+operation file performs the work by calling its manager or storage. Delete the
+product's plugin connection, dispatch, streams, process launch, entry management,
+listener/pairing, upload handling and host-status copies as composition replaces
+them; preserve product policy and storage definitions.
+
 ## Product Decisions and Public Shapes
 
 ### Read Selection and Durability
@@ -231,7 +347,7 @@ The newest durable position must trail the newest accepted data by no more than
 250 ms at the 95th percentile, independent of payload size. A live view may
 therefore lag accepted data by a small interval, including for large payloads.
 
-Library source confirms `crates/harmos-storage/src/config.rs::FLUSH_INTERVAL` is
+Read-only library source inspection confirms `crates/harmos-storage/src/config.rs::FLUSH_INTERVAL` is
 100 ms; `worker.rs` requests periodic flushes and `sqlite/mod.rs` sets
 `PRAGMA synchronous=FULL` before transactional persistence. Flush time is added
 to the cadence and grows with the bytes written: batches target 1 MB and are capped
@@ -276,6 +392,7 @@ message ExecutionWritable { string label = 1; bool paused = 2; bool archived = 3
 message ExecutionsGetResponse {
   Execution execution = 1; Position resolved_at = 2;
   ExecutionWritable value = 3; bytes revision = 4;
+  ExecutionProgress progress = 5; // Same current value as Progress.Get at resolved_at.
 }
 message ExecutionsSetRequest {
   string name = 1;
@@ -295,20 +412,24 @@ service Executions {
 
 ### Representative Resource 2: Records
 
-**Owner:** plugin publication becomes Evidence.AppendRecords, not CreateRecord. Its
+**Owner:** plugin publication becomes Evidence.Records.Append, not CreateRecord. Its
 acknowledgement retains the existing promised stored-record semantics; the receipt
 must state the durable position when that promise completes. Records and samples
 retain produced/captured ownership, source time and schema identity.
 
+The nested service lives in `product/v1/evidence/records.proto`:
+
 ```proto
-message EvidenceListRecordsRequest {
+syntax = "proto3";
+package product.v1.evidence;
+message RecordsListRequest {
   string parent = 1; Position at = 2; RecordFilter filter = 3; PageRequest page = 4;
 }
-message EvidenceListRecordsResponse { repeated Record records = 1; PageInfo page = 2; }
-message EvidenceWatchRecordsRequest {
+message RecordsListResponse { repeated Record records = 1; PageInfo page = 2; }
+message RecordsWatchRequest {
   string parent = 1; Position at = 2; RecordFilter filter = 3; PageRequest page = 4;
 }
-message EvidenceWatchRecordsResponse {
+message RecordsWatchResponse {
   Position resolved_at = 1;
   oneof event {
     RecordSnapshot snapshot = 2;
@@ -317,68 +438,96 @@ message EvidenceWatchRecordsResponse {
     Position progress = 5;
   }
 }
-message EvidenceAppendRecordsRequest {
+message RecordsAppendRequest {
   string parent = 1; repeated Record records = 2; string request_id = 3;
 }
-message EvidenceAppendRecordsResponse { Receipt receipt = 1; }
-service Evidence {
-  rpc ListRecords(EvidenceListRecordsRequest) returns (EvidenceListRecordsResponse);
-  rpc WatchRecords(EvidenceWatchRecordsRequest) returns (stream EvidenceWatchRecordsResponse);
-  rpc AppendRecords(EvidenceAppendRecordsRequest) returns (EvidenceAppendRecordsResponse);
+message RecordsAppendResponse { Receipt receipt = 1; }
+service Records {
+  rpc List(RecordsListRequest) returns (RecordsListResponse);
+  rpc Watch(RecordsWatchRequest) returns (stream RecordsWatchResponse);
+  // Append wrappers above belong to a host operation called by a plugin.
+  // They do not add a client-facing RPC to this service.
 }
 ```
 
+Append's declaration is carried by the plugin host-operation transport rather
+than served as a client RPC; its sketch shows the operation's typed wrappers.
+
 ### Representative Resource 3: Transfers
 
-**Owner:** Content.CreateUpload, Content.GetUpload, Content.AppendUploadBytes, Content.DeleteUpload and
-Content.PublishUpload are unary for every caller. Content.AppendUploadBytes appends ordered bytes
+**Owner:** Storage.CreateFileProduction, Storage.GetFileProduction, Storage.AppendFileBytes, Storage.DeleteFileProduction and
+Storage.PublishFileProduction are unary for every caller. Storage.AppendFileBytes appends ordered bytes
 at the stated next offset. Replaying an identical accepted chunk succeeds;
 different bytes at an accepted offset conflict; gaps and out-of-order new chunks
-are refused. Content.GetUpload reports the accepted offset, length, digest and session
-state to resume. Content.PublishUpload verifies complete bytes, length and digest before
-exposing immutable content. Content.CreateArtifact or Plugins.Create then references it.
+are refused. Storage.GetFileProduction reports the accepted offset, length, digest and session
+state to resume. Storage.PublishFileProduction verifies complete bytes, length and digest before
+exposing immutable content. Content.Artifacts.Create or Plugins.Create then references it.
 Sessions are caller-bound, bounded and expire explicitly; expiry cannot silently
-start another upload. Content.DeleteUpload abandons it. Transport loss never publishes
+start another upload. Storage.DeleteFileProduction abandons it. Transport loss never publishes
 partial content. Chunk and range maxima are configuration-owned limits.
 
-Content.Get returns a bounded range, repeated by the caller to resume downloads.
+Storage.GetFileBytes returns a bounded range, repeated by the caller to resume downloads.
 The content identity and digest bind every range to the same representation,
 including a scoped evidence archive at a returned cut. There is no separate
 streaming archive download gRPC method. Measure large-file upload/download throughput
 in the Nightly benchmark set before deleting the superseded streaming transfers;
 throughput is a benchmark measurement, never a correctness-test assertion.
 
+The library's existing `Storage` service owns this mechanism; add no transfer
+service alias. These declarations share `library/v1/storage.proto`:
+
 ```proto
-message ContentCreateUploadRequest {
+syntax = "proto3";
+package library.v1;
+message StorageCreateFileProductionRequest {
   string parent = 1; uint64 size_bytes = 2; bytes sha256 = 3; string request_id = 4;
 }
-message ContentCreateUploadResponse { Upload upload = 1; Receipt receipt = 2; }
-message ContentGetUploadRequest { string name = 1; Position at = 2; }
-message ContentGetUploadResponse { Upload upload = 1; Position resolved_at = 2; }
-message ContentAppendUploadBytesRequest {
+message StorageCreateFileProductionResponse { FileProduction production = 1; Receipt receipt = 2; }
+message StorageGetFileProductionRequest { string name = 1; Position at = 2; }
+message StorageGetFileProductionResponse { FileProduction production = 1; Position resolved_at = 2; }
+message StorageAppendFileBytesRequest {
   string name = 1; uint64 offset = 2; bytes data = 3; string request_id = 4;
 }
-message ContentAppendUploadBytesResponse { Upload upload = 1; Receipt receipt = 2; }
-message ContentPublishUploadRequest { string name = 1; string request_id = 2; }
-message ContentPublishUploadResponse { PublishedContent content = 1; Receipt receipt = 2; }
-message ContentDeleteUploadRequest { string name = 1; string request_id = 2; }
-message ContentDeleteUploadResponse { Receipt receipt = 1; }
-message ContentGetRequest {
+message StorageAppendFileBytesResponse { FileProduction production = 1; Receipt receipt = 2; }
+message StorageCreateFileWriterRequest { string name = 1; string request_id = 2; }
+message StorageCreateFileWriterResponse { FileWriter writer = 1; Receipt receipt = 2; }
+message StoragePublishFileProductionRequest { string name = 1; string request_id = 2; }
+message StoragePublishFileProductionResponse { PublishedContent content = 1; Receipt receipt = 2; }
+message StorageDeleteFileProductionRequest { string name = 1; string request_id = 2; }
+message StorageDeleteFileProductionResponse { Receipt receipt = 1; }
+message StorageGetFileBytesRequest {
   string name = 1; Position at = 2; uint64 offset = 3; uint64 max_bytes = 4;
 }
-message ContentGetResponse {
+message StorageGetFileBytesResponse {
   bytes data = 1; uint64 offset = 2; uint64 total_length = 3;
   bytes sha256 = 4; Position resolved_at = 5;
 }
-service Content {
-  rpc CreateUpload(ContentCreateUploadRequest) returns (ContentCreateUploadResponse);
-  rpc GetUpload(ContentGetUploadRequest) returns (ContentGetUploadResponse);
-  rpc AppendUploadBytes(ContentAppendUploadBytesRequest) returns (ContentAppendUploadBytesResponse);
-  rpc PublishUpload(ContentPublishUploadRequest) returns (ContentPublishUploadResponse);
-  rpc DeleteUpload(ContentDeleteUploadRequest) returns (ContentDeleteUploadResponse);
-  rpc Get(ContentGetRequest) returns (ContentGetResponse);
+message StorageWatchFileBytesRequest { string name = 1; Position at = 2; }
+message StorageWatchFileBytesResponse { FileBytesEvent event = 1; Position resolved_at = 2; }
+service Storage {
+  rpc CreateFileProduction(StorageCreateFileProductionRequest) returns (StorageCreateFileProductionResponse);
+  rpc GetFileProduction(StorageGetFileProductionRequest) returns (StorageGetFileProductionResponse);
+  rpc AppendFileBytes(StorageAppendFileBytesRequest) returns (StorageAppendFileBytesResponse);
+  rpc CreateFileWriter(StorageCreateFileWriterRequest) returns (StorageCreateFileWriterResponse);
+  rpc PublishFileProduction(StoragePublishFileProductionRequest) returns (StoragePublishFileProductionResponse);
+  rpc DeleteFileProduction(StorageDeleteFileProductionRequest) returns (StorageDeleteFileProductionResponse);
+  rpc GetFileBytes(StorageGetFileBytesRequest) returns (StorageGetFileBytesResponse);
+  rpc WatchFileBytes(StorageWatchFileBytesRequest) returns (stream StorageWatchFileBytesResponse);
 }
 ```
+
+GetFileProduction reports the accepted offset, length, digest and writer generation;
+CreateFileWriter resumes with a new fenced writer where needed. WatchFileBytes
+preserves growth/replacement/truncation observation, distinct from the product's
+execution-file metadata collection watch. All six production/session operations
+are the existing library mechanism, not new product methods.
+
+Product artifact/file metadata lives in `product.v1.content.Artifacts` and
+`product.v1.content.ExecutionFiles`, while bytes use library Storage directly.
+Storage stays a mixed-resource service under the library's existing contract;
+its file methods name distinct production, writer, byte and hash resources. Do
+not add parallel Content/Uploads services or a second upload engine. Product
+`Storage.Sources` intentionally lives beside library Storage in another package.
 
 ### Representative Resource 4: Plugin
 
@@ -414,19 +563,19 @@ physical write; earliest-inverse retention, ownership and restoration order rema
 Cases.Create preserves validate-only preview, one-selection materialization and
 atomic replay-protected plan registration. Cycles.Create with `source_cycle`
 preserves rerun notices and new identities. Executions.Create allocates mutable
-lifecycle resources; it is not Append of immutable evidence. Prompts.CreateAnswer
-and Executions.CreateCommand allocate identified lifecycle resources with retained
-receipts. Executions.SetProgress replaces a current value; Evidence.AppendLogs and
+lifecycle resources; it is not Append of immutable evidence. Prompts.Answers.Create
+and Executions.Commands.Create allocate identified lifecycle resources with retained
+receipts. Executions.Progress.Set replaces a current value; Evidence.Logs.Append and
 Documents.AppendParts add ordered immutable evidence.
 
 Documents.Get retains evaluated output, budgets, repeat instances and failures;
 it does not publish a report. Reports.Create renders a preview at a fixed cut,
 Reports.Get reads an existing published report, Reports.Publish commits a selected
-report and seal. Content.Get delivers bytes; downloads never publish. Secret
+report and seal. Storage.GetFileBytes delivers bytes; downloads never publish. Secret
 Import/Export preserve current transfer protection and conflict checks; the
 report's description of an encrypted transfer is corrected below.
 
-## Complete Product Mapping
+## Complete Mapping from Present Product Operations
 
 The table below inventories every ordinary method in current `client_*.proto`.
 Each also has `Run<Method>`: all 132 twins are **removed** as separate gRPC methods and
@@ -447,199 +596,258 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 `sdk/python/src/dokime/client.py`, server query/authorization stories and new-host
 `tests/system/`. Wire declarations and handler code win over report assumptions.
 
-| Present Operation | Locked Destination | Disposition and Reason | Callers |
-| --- | --- | --- | --- |
-| `Appearance.GetAppearance` | `Backend.Appearance` | Merged: Move appearance ownership. | G |
-| `Backend.CollectDiagnostics` | `Backend.Diagnostics` | Renamed: Read bounded diagnostic output. | G |
-| `Backend.GetAvailability` | `Backend.Availability` | Renamed: Retain availability. | CS |
-| `Backend.GetHealth` | `Backend.Health` | Merged: One health owner. | CS |
-| `Backend.GetIdentity` | `Backend.Identity` | Merged: One identity owner. | GCS |
-| `Backend.WatchLogs` | `Backend.WatchLogs` | Kept: Durable log watch. | T |
-| `Backend.WatchTrace` | `Backend.WatchTraceEvents` | Renamed: Name trace event resource. | G |
-| `Catalog.GetRecordSchema` | `Catalog.GetRecordSchema` | Merged: Catalog or frozen execution parent. | N |
-| `Catalog.GetSuite` | `Catalog.GetSuite` | Kept: Retain suite definition. | GCS |
-| `Catalog.GetTelemetrySchema` | `Catalog.GetStreamSchema` | Renamed: Use stream vocabulary. | N |
-| `Catalog.ListRecordSchemas` | `Catalog.ListRecordSchemas` | Merged: Catalog or frozen execution parent. | N |
-| `Catalog.ListSuites` | `Catalog.ListSuites` | Kept: Retain suite catalog. | GCS |
-| `Catalog.ListTelemetrySchemas` | `Catalog.ListStreamSchemas` | Merged: Use stream vocabulary. | N |
-| `Content.DownloadAppearanceAsset` | `Content.Get` | Merged: Bounded bytes by content identity. | G |
-| `Content.DownloadArtifact` | `Content.GetArtifact` + `Content.Get` | Merged: Metadata then bounded bytes. | GC |
-| `Content.DownloadEvidence` | `Content.Get` | Merged: Ranged archive content; preserve scope, cut and digest verification. | C |
-| `Content.DownloadExecutionFile` | `Content.GetExecutionFile` + `Content.Get` | Merged: Metadata/range then bytes. | C |
-| `Content.FollowExecutionFile` | `Content.WatchExecutionFile` | Renamed: Retain growth/replacement semantics. | G |
-| `Content.ListArtifacts` | `Content.ListArtifacts` | Merged: Retain bounded artifact selection. | N |
-| `Content.ListExecutionFiles` | `Content.ListExecutionFiles` | Merged: Retain bounded file selection. | G |
-| `Content.ReadExecutionFile` | `Content.GetExecutionFile` | Merged: Same file resource, text/byte ranges. | G |
-| `Content.UploadArtifact` | `Content.CreateUpload` + `Content.GetUpload` + `Content.AppendUploadBytes` + `Content.DeleteUpload` + `Content.PublishUpload` + `Content.CreateArtifact` | Merged: Shared unary resume lifecycle. | GC |
-| `Documents.CaptureCurrentDocument` | `Documents.Get` | Merged: Evaluated output without publication. | G |
-| `Documents.UpdatePlotSettings` | `PlotSettings.Set` | Renamed: Whole small writable plot value and expected revision from PlotSettings.Get. | G |
-| `Evidence.GetCapturedRecordSchema` | `Catalog.GetRecordSchema` | Merged: Execution parent selects frozen schema. | N |
-| `Evidence.ListRecords` | `Evidence.ListRecords` | Merged: One selector/cut contract. | GC |
-| `Evidence.WatchRecords` | `Evidence.WatchRecords` | Kept: Snapshot then durable changes. | GC |
-| `Execution.AppendExecutions` | `Executions.Create` | Renamed: Allocate mutable execution resources. | GC |
-| `Execution.CancelExecution` | `Executions.Cancel` | Renamed: Running only, queued refusal names action. | G |
-| `Execution.CreateCycle` | `Cycles.Create` | Merged: Preserve new-cycle admission. | GCS |
-| `Execution.DeleteCase` | `Cases.Delete` | Renamed: Preserve lifecycle admission. | G |
-| `Execution.GetCase` | `Cases.Get` | Renamed: Retain planned case. | G |
-| `Execution.GetCycle` | `Cycles.Get` | Merged: One operational/saved read. | GC |
-| `Execution.GetExecution` | `Executions.Get` | Merged: One operational/saved read with seal. | GCS |
-| `Execution.GetExecutionCommand` | `Executions.GetCommand` | Renamed: Retained command receipt. | C |
-| `Execution.ListCaseParameters` | `Cases.Parameters` | Renamed: Pinned definition values. | G |
-| `Execution.ListCases` | `Cases.List` | Renamed: Retain ordered cases. | G |
-| `Execution.ListCycles` | `Cycles.List` | Merged: Operational/query/history selection. | G |
-| `Execution.ListExecutionParameters` | `Executions.Parameters` | Renamed: Frozen execution values. | G |
-| `Execution.ListExecutionSteps` | `Executions.Steps` | Renamed: Frozen steps and state. | G |
-| `Execution.ListExecutions` | `Executions.List` | Merged: Operational/query/history selection. | GC |
-| `Execution.PauseCycle` | `Cycles.Set` | Merged: Whole small writable value and Get revision; preserve pause admission. | S |
-| `Execution.PauseExecution` | `Executions.Set` | Merged: Whole small writable value and Get revision; preserve pause admission. | GC |
-| `Execution.RenameCycle` | `Cycles.Set` | Merged: Whole small writable value and Get revision, including label. | G |
-| `Execution.RenameExecution` | `Executions.Set` | Merged: Whole small writable value and Get revision; rename only this execution. | G |
-| `Execution.RerunCycle` | `Cycles.Create` | Merged: source_cycle preserves rerun notices. | GC |
-| `Execution.ResumeCycle` | `Cycles.Set` | Merged: Whole small writable value and Get revision, with paused=false. | S |
-| `Execution.ResumeExecution` | `Executions.Set` | Merged: Whole small writable value and Get revision, with paused=false. | GC |
-| `Execution.SealCycle` | `Cycles.Seal` | Renamed: Preserve durable finalization. | GC |
-| `Execution.SetCycleArchived` | `Cycles.Set` | Merged: Whole small writable value and Get revision, including archived. | G |
-| `Execution.SetExecutionArchived` | `Executions.Set` | Merged: Whole small writable value and Get revision, including archived. | G |
-| `Execution.StartExecution` | `Executions.Start` | Renamed: Activate selected execution. | GC |
-| `Execution.StopExecution` | `Executions.Stop` | Renamed: Stop scheduling at safe boundary. | GC |
-| `Execution.SubmitExecutionCommand` | `Executions.CreateCommand` | Renamed: Interactive Next/RunStep/Finish, replay receipt. | C |
-| `Execution.UpdateCyclePolicy` | `Cycles.Set` | Merged: Whole small writable cycle value and Get revision, including policy. | G |
-| `Health.ListHealth` | `Evidence.ListHealthEvents` | Merged: Name evidence collection. | GS |
-| `History.BrowseCycles` | `Cycles.List` | Merged: Retain saved filtering and ordering. | G |
-| `History.BrowseExecutions` | `Executions.List` | Merged: Retain live/saved availability. | G |
-| `History.DeleteExecution` | `Executions.Delete` | Renamed: Keep seal precondition and replay protection. | G |
-| `History.DownloadCheckpointArtifact` | `Content.GetArtifact` + `Content.Get` | Merged: Same reads at returned cut/seal. | G |
-| `History.GetCheckpointContext` | `Executions.Get` + `Cycles.Get` + `Documents.Get` + `Prompts.List` + `Evidence.ListHealthEvents` + `Evidence.ListNotes` + `Evidence.GetTraceability` + `Backend.Appearance` | Merged: Position-matched frozen context, no checkpoint DTO. | GC |
-| `History.GetCheckpointDocument` | `Documents.Get` | Merged: Same read at returned cut/seal. | GC |
-| `History.GetCheckpointEvidence` | `Content.ListArtifacts` + `Content.ListExecutionFiles` + `Catalog.ListRecordSchemas` + `Catalog.ListStreamSchemas` | Merged: One cut, preserve frozen schemas/availability. | G |
-| `History.GetExecutionCheckpoint` | `Executions.Get` | Merged: Return position and seal in ordinary read. | C |
-| `History.ListCheckpointRecords` | `Evidence.ListRecords` | Merged: Same selector at returned cut/seal. | G |
-| `History.ListCheckpointTelemetry` | `Evidence.ListSamples` | Merged: Same selector at returned cut/seal. | G |
-| `History.ReadCheckpointOutput` | `Content.GetExecutionFile` | Merged: Same bounded file read at cut/seal. | G |
-| `Media.AudioRecording` | `MediaCaptures.Create` + `MediaCaptures.Watch` + `MediaCaptures.Stop` | Merged: Owned recording lifecycle, retained result. | G |
-| `Media.CameraRecording` | `MediaCaptures.Create` + `MediaCaptures.Watch` + `MediaCaptures.Stop` | Merged: Keep explicit unsupported-kind refusal. | N |
-| `Media.Photo` | `MediaCaptures.Create` | Merged: Typed photo source. | G |
-| `Media.ScreenRecording` | `MediaCaptures.Create` + `MediaCaptures.Watch` + `MediaCaptures.Stop` | Merged: Keep explicit unsupported-kind refusal. | N |
-| `Media.Screenshot` | `MediaCaptures.Create` | Merged: Typed screenshot source. | G |
-| `Notes.CreateNote` | `Evidence.CreateNote` | Kept: Allocate identified note. | G |
-| `Notes.EditNote` | `Evidence.SetNote` | Renamed: Whole note writable value and revision from GetNote. | G |
-| `Notes.ListNotes` | `Evidence.ListNotes` | Merged: Retain note collection. | G |
-| `Observation.GetRuntimeShell` | `Backend.GetOverview` | Renamed: Runtime overview resource. | G |
-| `Observation.GetTraceability` | `Evidence.GetTraceability` | Merged: Retain evidence context. | G |
-| `Observation.WatchExecutionProgress` | `Executions.WatchProgress` | Renamed: Paired progress read/watch. | GS |
-| `Observation.WatchRuntime` | `Backend.WatchOverview` | Renamed: Same overview selection. | G |
-| `Planning.MaterializeTemplate` | `Cases.Create` | Merged: Single materialized selection. | GCS |
-| `Planning.PreviewSelection` | `Cases.Create` | Merged: validate_only, no registration. | GC |
-| `Planning.RegisterSelection` | `Cases.Create` | Merged: Atomic plan with replay key. | C |
-| `Plots.ListAnalyses` | `Catalog.Analyses` | Renamed: Move immutable declarations. | N |
-| `Plots.QuerySnapshots` | `Plots.ListSnapshots` | Renamed: Bounded evaluated snapshots. | G |
-| `Plots.Watch` | `Plots.WatchSnapshots` | Renamed: Same plot selector/cut. | G |
-| `Plugins.GetInstallation` | `Plugins.Get` | Renamed: One managed/remote entry. | G |
-| `Plugins.Install` | `Content.CreateUpload` + `Content.GetUpload` + `Content.AppendUploadBytes` + `Content.DeleteUpload` + `Content.PublishUpload` + `Plugins.Create` | Merged: Shared upload then managed admission. | GC |
-| `Plugins.ListAdmittedPlugins` | `Plugins.List` | Merged: state=READY filter. | G |
-| `Plugins.ListInstallations` | `Plugins.List` | Merged: One entry selection. | G |
-| `Plugins.Reload` | `Plugins.Restart` | Renamed: Replace activation, retain finalization rules. | GS |
-| `Plugins.Remove` | `Plugins.Delete` | Renamed: Remove entry, migrate old payload. | G |
-| `Plugins.SetEnabled` | `Plugins.Set` | Renamed: Whole small plugin writable value and Plugins.Get revision, including enabled. | G |
-| `Plugins.List` | `Plugins.List` | Merged: One managed/remote entry list. | S |
-| `Plugins.Add` | `Plugins.Create` | Merged: Remote placement admission. | S |
-| `Prompts.GetDefinition` | `Catalog.GetPromptDefinition` | Renamed: Separate definition from asked prompt. | S |
-| `Prompts.GetPrompt` | `Prompts.Get` | Renamed: Retain asked prompt state. | GCS |
-| `Prompts.ListDefinitions` | `Catalog.ListPromptDefinitions` | Renamed: Immutable definitions. | S |
-| `Prompts.ListPending` | `Prompts.List` | Merged: state=PENDING filter. | GCS |
-| `Prompts.Respond` | `Prompts.CreateAnswer` | Renamed: One answer resource and replay receipt. | GCS |
-| `Query.Aggregate` | `Aggregates.Get` | Renamed: Complete read-only aggregate. | T |
-| `Query.AggregateSamples` | `Evidence.Statistics` | Renamed: Retain stream statistics selectors. | T |
-| `Query.ListCycles` | `Cycles.List` | Merged: Preserve projection/filter semantics. | T |
-| `Query.ListExecutions` | `Executions.List` | Merged: Preserve projection/filter semantics. | TS |
-| `Query.ListRecords` | `Evidence.ListRecords` | Merged: One canonical evidence read. | T |
-| `Query.ListSamples` | `Evidence.ListSamples` | Merged: One canonical sample read. | T |
-| `Remote.CreatePairing` | `Access.CreatePairing` | Kept: Preserve access material lifecycle. | G |
-| `Remote.ReadListener` | `Access.GetListener` | Renamed: Derived listener state. | G |
-| `Remote.RegenerateCertificate` | `Access.CreateCertificate` | Renamed: Allocate replacement certificate. | G |
-| `Remote.UpdateListener` | `Access.SetListener` | Renamed: Whole listener writable settings and revision from GetListener. | G |
-| `Reports.PublishExecutionReport` | `Reports.Publish` | Renamed: Explicit durable publication, never implicit download. | S |
-| `Reports.DownloadCycleReport` | `Reports.Get` + `Content.Get` + `Reports.Create` | Merged: Published bytes or explicit preview creation. | GCS |
-| `Reports.DownloadExecutionReport` | `Reports.Get` + `Content.Get` + `Reports.Create` | Merged: Published bytes or explicit preview creation. | GCS |
-| `Reports.MaterializeReport` | `Reports.Create` | Merged: Render only, no publication. | N |
-| `Runtime.GetHealth` | `Backend.Health` | Removed: Remove duplicate health gRPC method. | C |
-| `Runtime.GetIdentity` | `Backend.Identity` | Removed: Remove duplicate identity gRPC method. | C |
-| `Secrets.Export` | `Secrets.Export` | Renamed: Existing Base64 JSON transfer, not encryption. | G |
-| `Secrets.Import` | `Secrets.Import` | Merged: Preserve choices and generation conflict. | G |
-| `Secrets.List` | `Secrets.List` | Renamed: Bounded metadata, not secret values. | G |
-| `Secrets.Lookup` | `Secrets.Get` | Renamed: Granted identifier only. | N |
-| `Secrets.Preview` | `Secrets.Import` | Merged: validate_only, no writes. | G |
-| `Secrets.Put` | `Secrets.Set` | Renamed: Whole writable secret value and revision from Secrets.Get. | G |
-| `Secrets.Remove` | `Secrets.Delete` | Renamed: Preserve keyring/catalog cleanup. | G |
-| `Settings.GetPluginSettings` | `PluginSettings.Get` | Renamed: Saved values, not UI declarations. | G |
-| `Settings.GetSettings` | `SettingsSchema.Get` | Renamed: UI declarations/cards/bootstrap metadata. | G |
-| `Settings.ListStorageSources` | `StorageSources.Get` | Renamed: One ordered value. | G |
-| `Settings.ReadApplicationSettings` | `ApplicationSettings.Get` | Renamed: Revisioned application values. | G |
-| `Settings.ReorderStorageSources` | `StorageSources.Set` | Merged: Whole small ordered value and revision from StorageSources.Get. | G |
-| `Settings.SetStorageSourceEnabled` | `StorageSources.Set` | Merged: Whole small ordered value and Get revision, including enabled state. | G |
-| `Settings.UpdateApplicationSettings` | `ApplicationSettings.Set` | Renamed: Whole writable value and matching Get revision. | G |
-| `Settings.UpdatePluginSettings` | `PluginSettings.Set` | Renamed: Whole writable value and matching Get revision; if large, use separately revisioned setting sub-resources with PluginSettings.Get/PluginSettings.Set. | G |
-| `Telemetry.ListSamples` | `Evidence.ListSamples` | Merged: One canonical sample read. | CS |
-| `Telemetry.WatchSamples` | `Evidence.WatchSamples` | Kept: Same source selector and durable boundary. | C |
+| Present Operation | Locked Destination | Destination Owner | Disposition and Reason | Callers |
+| --- | --- | --- | --- | --- |
+| `Appearance.GetAppearance` | `Backend.Appearance` | Product | Merged: Move appearance ownership. | G |
+| `Backend.CollectDiagnostics` | `Status.Diagnostics` | Library | Renamed: Read bounded diagnostic output. | G |
+| `Backend.GetAvailability` | `Status.Availability` | Library | Renamed: Retain availability. | CS |
+| `Backend.GetHealth` | `Status.Health` | Library | Merged: One health owner. | CS |
+| `Backend.GetIdentity` | `Status.Identity` | Library | Merged: One identity owner. | GCS |
+| `Backend.WatchLogs` | `Status.Logs.Watch` | Library | Kept: Durable log watch. | T |
+| `Backend.WatchTrace` | `Status.TraceEvents.Watch` | Library | Renamed: Name trace event resource. | G |
+| `Catalog.GetRecordSchema` | `Catalog.RecordSchemas.Get` | Product | Merged: Catalog or frozen execution parent. | N |
+| `Catalog.GetSuite` | `Catalog.Suites.Get` | Product | Kept: Retain suite definition. | GCS |
+| `Catalog.GetTelemetrySchema` | `Catalog.StreamSchemas.Get` | Product | Renamed: Use stream vocabulary. | N |
+| `Catalog.ListRecordSchemas` | `Catalog.RecordSchemas.List` | Product | Merged: Catalog or frozen execution parent. | N |
+| `Catalog.ListSuites` | `Catalog.Suites.List` | Product | Kept: Retain suite catalog. | GCS |
+| `Catalog.ListTelemetrySchemas` | `Catalog.StreamSchemas.List` | Product | Merged: Use stream vocabulary. | N |
+| `Content.DownloadAppearanceAsset` | `Storage.GetFileBytes` | Library | Merged: Bounded bytes by content identity. | G |
+| `Content.DownloadArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` | Product + Library | Merged: Metadata then bounded bytes. | GC |
+| `Content.DownloadEvidence` | `Evidence.Archive` + `Storage.GetFileBytes` | Product + Library | Merged: Product selects scoped evidence/archive at the cut and returns its content reference; library serves bounded bytes with digest verification. | C |
+| `Content.DownloadExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.GetFileBytes` | Product + Library | Merged: Metadata/range then bytes. | C |
+| `Content.FollowExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.WatchFileBytes` | Product + Library | Renamed: Product resolves file metadata; library watches byte growth/replacement/truncation. Product collection metadata Watch remains separate. | G |
+| `Content.ListArtifacts` | `Content.Artifacts.List` | Product | Merged: Retain bounded artifact selection. | N |
+| `Content.ListExecutionFiles` | `Content.ExecutionFiles.List` | Product | Merged: Retain bounded file selection. | G |
+| `Content.ReadExecutionFile` | `Content.ExecutionFiles.Get` | Product | Merged: Same file resource, text/byte ranges. | G |
+| `Content.UploadArtifact` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Content.Artifacts.Create` | Library + Product | Merged: Shared unary resume lifecycle. | GC |
+| `Documents.CaptureCurrentDocument` | `Documents.Get` | Product | Merged: Evaluated output without publication. | G |
+| `Documents.UpdatePlotSettings` | `Plots.Settings.Set` | Product | Renamed: Whole small writable plot value and expected revision from Plots.Settings.Get. | G |
+| `Evidence.GetCapturedRecordSchema` | `Catalog.RecordSchemas.Get` | Product | Merged: Execution parent selects frozen schema. | N |
+| `Evidence.ListRecords` | `Evidence.Records.List` | Product | Merged: One selector/cut contract. | GC |
+| `Evidence.WatchRecords` | `Evidence.Records.Watch` | Product | Kept: Snapshot then durable changes. | GC |
+| `Execution.AppendExecutions` | `Executions.Create` | Product | Renamed: Allocate mutable execution resources. | GC |
+| `Execution.CancelExecution` | `Executions.Cancel` | Product | Renamed: Running only, queued refusal names action. | G |
+| `Execution.CreateCycle` | `Cycles.Create` | Product | Merged: Preserve new-cycle admission. | GCS |
+| `Execution.DeleteCase` | `Cases.Delete` | Product | Renamed: Preserve lifecycle admission. | G |
+| `Execution.GetCase` | `Cases.Get` | Product | Renamed: Retain planned case. | G |
+| `Execution.GetCycle` | `Cycles.Get` | Product | Merged: One operational/saved read. | GC |
+| `Execution.GetExecution` | `Executions.Get` | Product | Merged: One operational/saved read with seal. | GCS |
+| `Execution.GetExecutionCommand` | `Executions.Commands.Get` | Product | Renamed: Retained command receipt. | C |
+| `Execution.ListCaseParameters` | `Cases.Parameters` | Product | Renamed: Pinned definition values. | G |
+| `Execution.ListCases` | `Cases.List` | Product | Renamed: Retain ordered cases. | G |
+| `Execution.ListCycles` | `Cycles.List` | Product | Merged: Operational/query/history selection. | G |
+| `Execution.ListExecutionParameters` | `Executions.Parameters` | Product | Renamed: Frozen execution values. | G |
+| `Execution.ListExecutionSteps` | `Executions.Steps` | Product | Renamed: Frozen steps and state. | G |
+| `Execution.ListExecutions` | `Executions.List` | Product | Merged: Operational/query/history selection. | GC |
+| `Execution.PauseCycle` | `Cycles.Set` | Product | Merged: Whole small writable value and Get revision; preserve pause admission. | S |
+| `Execution.PauseExecution` | `Executions.Set` | Product | Merged: Whole small writable value and Get revision; preserve pause admission. | GC |
+| `Execution.RenameCycle` | `Cycles.Set` | Product | Merged: Whole small writable value and Get revision, including label. | G |
+| `Execution.RenameExecution` | `Executions.Set` | Product | Merged: Whole small writable value and Get revision; rename only this execution. | G |
+| `Execution.RerunCycle` | `Cycles.Create` | Product | Merged: source_cycle preserves rerun notices. | GC |
+| `Execution.ResumeCycle` | `Cycles.Set` | Product | Merged: Whole small writable value and Get revision, with paused=false. | S |
+| `Execution.ResumeExecution` | `Executions.Set` | Product | Merged: Whole small writable value and Get revision, with paused=false. | GC |
+| `Execution.SealCycle` | `Cycles.Seal` | Product | Renamed: Preserve durable finalization. | GC |
+| `Execution.SetCycleArchived` | `Cycles.Set` | Product | Merged: Whole small writable value and Get revision, including archived. | G |
+| `Execution.SetExecutionArchived` | `Executions.Set` | Product | Merged: Whole small writable value and Get revision, including archived. | G |
+| `Execution.StartExecution` | `Executions.Start` | Product | Renamed: Activate selected execution. | GC |
+| `Execution.StopExecution` | `Executions.Stop` | Product | Renamed: Stop scheduling at safe boundary. | GC |
+| `Execution.SubmitExecutionCommand` | `Executions.Commands.Create` | Product | Renamed: Interactive Next/RunStep/Finish, replay receipt. | C |
+| `Execution.UpdateCyclePolicy` | `Cycles.Set` | Product | Merged: Whole small writable cycle value and Get revision, including policy. | G |
+| `Health.ListHealth` | `Evidence.HealthEvents.List` | Product | Merged: Name evidence collection. | GS |
+| `History.BrowseCycles` | `Cycles.List` | Product | Merged: Retain saved filtering and ordering. | G |
+| `History.BrowseExecutions` | `Executions.List` | Product | Merged: Retain live/saved availability. | G |
+| `History.DeleteExecution` | `Executions.Delete` | Product | Renamed: Keep seal precondition and replay protection. | G |
+| `History.DownloadCheckpointArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` | Product + Library | Merged: Same reads at returned cut/seal. | G |
+| `History.GetCheckpointContext` | `Executions.Get` + `Cycles.Get` + `Documents.Get` + `Prompts.List` + `Evidence.HealthEvents.List` + `Evidence.Notes.List` + `Evidence.Traceability.Get` + `Backend.Appearance` | Product | Merged: Position-matched frozen context, no checkpoint DTO. | GC |
+| `History.GetCheckpointDocument` | `Documents.Get` | Product | Merged: Same read at returned cut/seal. | GC |
+| `History.GetCheckpointEvidence` | `Content.Artifacts.List` + `Content.ExecutionFiles.List` + `Catalog.RecordSchemas.List` + `Catalog.StreamSchemas.List` | Product | Merged: One cut, preserve frozen schemas/availability. | G |
+| `History.GetExecutionCheckpoint` | `Executions.Get` | Product | Merged: Return position and seal in ordinary read. | C |
+| `History.ListCheckpointRecords` | `Evidence.Records.List` | Product | Merged: Same selector at returned cut/seal. | G |
+| `History.ListCheckpointTelemetry` | `Evidence.Samples.List` | Product | Merged: Same selector at returned cut/seal. | G |
+| `History.ReadCheckpointOutput` | `Content.ExecutionFiles.Get` | Product | Merged: Same bounded file read at cut/seal. | G |
+| `Media.AudioRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` | Product | Merged: Owned recording lifecycle, retained result. | G |
+| `Media.CameraRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` | Product | Merged: Keep explicit unsupported-kind refusal. | N |
+| `Media.Photo` | `Media.Captures.Create` | Product | Merged: Typed photo source. | G |
+| `Media.ScreenRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` | Product | Merged: Keep explicit unsupported-kind refusal. | N |
+| `Media.Screenshot` | `Media.Captures.Create` | Product | Merged: Typed screenshot source. | G |
+| `Notes.CreateNote` | `Evidence.Notes.Create` | Product | Kept: Allocate identified note. | G |
+| `Notes.EditNote` | `Evidence.Notes.Set` | Product | Renamed: Whole note writable value and revision from Evidence.Notes.Get. | G |
+| `Notes.ListNotes` | `Evidence.Notes.List` | Product | Merged: Retain note collection. | G |
+| `Observation.GetRuntimeShell` | `Backend.Overview.Get` | Product | Renamed: Runtime overview resource. | G |
+| `Observation.GetTraceability` | `Evidence.Traceability.Get` | Product | Merged: Retain evidence context. | G |
+| `Observation.WatchExecutionProgress` | `Executions.Progress.Watch` | Product | Renamed: Paired progress read/watch. | GS |
+| `Observation.WatchRuntime` | `Backend.Overview.Watch` | Product | Renamed: Same overview selection. | G |
+| `Planning.MaterializeTemplate` | `Cases.Create` | Product | Merged: Single materialized selection. | GCS |
+| `Planning.PreviewSelection` | `Cases.Create` | Product | Merged: validate_only, no registration. | GC |
+| `Planning.RegisterSelection` | `Cases.Create` | Product | Merged: Atomic plan with replay key. | C |
+| `Plots.ListAnalyses` | `Catalog.Analyses` | Product | Renamed: Move immutable declarations. | N |
+| `Plots.QuerySnapshots` | `Plots.Snapshots.List` | Product | Renamed: Bounded evaluated snapshots. | G |
+| `Plots.Watch` | `Plots.Snapshots.Watch` | Product | Renamed: Same plot selector/cut. | G |
+| `Plugins.GetInstallation` | `Plugins.Get` | Library | Renamed: One managed/remote entry. | G |
+| `Plugins.Install` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Plugins.Create` | Library | Merged: Shared upload then managed admission. | GC |
+| `Plugins.ListAdmittedPlugins` | `Plugins.List` | Library | Merged: state=READY filter. | G |
+| `Plugins.ListInstallations` | `Plugins.List` | Library | Merged: One entry selection. | G |
+| `Plugins.Reload` | `Plugins.Restart` | Library | Renamed: Replace activation, retain finalization rules. | GS |
+| `Plugins.Remove` | `Plugins.Delete` | Library | Renamed: Remove entry, migrate old payload. | G |
+| `Plugins.SetEnabled` | `Plugins.Set` | Library | Renamed: Whole small plugin writable value and Plugins.Get revision, including enabled. | G |
+| `Plugins.List` | `Plugins.List` | Library | Merged: One managed/remote entry list. | S |
+| `Plugins.Add` | `Plugins.Create` | Library | Merged: Remote placement admission. | S |
+| `Prompts.GetDefinition` | `Catalog.PromptDefinitions.Get` | Product | Renamed: Separate definition from asked prompt. | S |
+| `Prompts.GetPrompt` | `Prompts.Get` | Product | Renamed: Retain asked prompt state. | GCS |
+| `Prompts.ListDefinitions` | `Catalog.PromptDefinitions.List` | Product | Renamed: Immutable definitions. | S |
+| `Prompts.ListPending` | `Prompts.List` | Product | Merged: state=PENDING filter. | GCS |
+| `Prompts.Respond` | `Prompts.Answers.Create` | Product | Renamed: One answer resource and replay receipt. | GCS |
+| `Query.Aggregate` | `Aggregates.Get` | Product | Renamed: Complete read-only aggregate. | T |
+| `Query.AggregateSamples` | `Evidence.Statistics` | Product | Renamed: Retain stream statistics selectors. | T |
+| `Query.ListCycles` | `Cycles.List` | Product | Merged: Preserve projection/filter semantics. | T |
+| `Query.ListExecutions` | `Executions.List` | Product | Merged: Preserve projection/filter semantics. | TS |
+| `Query.ListRecords` | `Evidence.Records.List` | Product | Merged: One canonical evidence read. | T |
+| `Query.ListSamples` | `Evidence.Samples.List` | Product | Merged: One canonical sample read. | T |
+| `Remote.CreatePairing` | `Access.CreatePairing` | Library | Kept: Preserve access material lifecycle. | G |
+| `Remote.ReadListener` | `Access.Listener.Get` | Library | Renamed: Derived listener state. | G |
+| `Remote.RegenerateCertificate` | `Access.CreateCertificate` | Library | Renamed: Allocate replacement certificate. | G |
+| `Remote.UpdateListener` | `Access.Listener.Set` | Library | Renamed: Whole listener writable settings and revision from GetListener. | G |
+| `Reports.PublishExecutionReport` | `Reports.Publish` | Product | Renamed: Explicit durable publication, never implicit download. | S |
+| `Reports.DownloadCycleReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` | Product + Library | Merged: Published bytes or explicit preview creation. | GCS |
+| `Reports.DownloadExecutionReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` | Product + Library | Merged: Published bytes or explicit preview creation. | GCS |
+| `Reports.MaterializeReport` | `Reports.Create` | Product | Merged: Render only, no publication. | N |
+| `Runtime.GetHealth` | `Status.Health` | Library | Removed: Remove duplicate health gRPC method. | C |
+| `Runtime.GetIdentity` | `Status.Identity` | Library | Removed: Remove duplicate identity gRPC method. | C |
+| `Secrets.Export` | `Secrets.Export` | Product | Renamed: Existing Base64 JSON transfer, not encryption. | G |
+| `Secrets.Import` | `Secrets.Import` | Product | Merged: Preserve choices and generation conflict. | G |
+| `Secrets.List` | `Secrets.List` | Product | Renamed: Bounded metadata, not secret values. | G |
+| `Secrets.Lookup` | `Secrets.Get` | Product | Renamed: Granted identifier only. | N |
+| `Secrets.Preview` | `Secrets.Import` | Product | Merged: validate_only, no writes. | G |
+| `Secrets.Put` | `Secrets.Set` | Product | Renamed: Whole writable secret value and revision from Secrets.Get. | G |
+| `Secrets.Remove` | `Secrets.Delete` | Product | Renamed: Preserve keyring/catalog cleanup. | G |
+| `Settings.GetPluginSettings` | `Plugins.Settings.Get` | Product | Renamed: Saved values, not UI declarations. | G |
+| `Settings.GetSettings` | `Settings.Schema` | Product | Renamed: UI declarations/cards/bootstrap metadata. | G |
+| `Settings.ListStorageSources` | `Storage.Sources.Get` | Product | Renamed: One ordered value. | G |
+| `Settings.ReadApplicationSettings` | `Settings.Get` | Product | Renamed: Revisioned application values. | G |
+| `Settings.ReorderStorageSources` | `Storage.Sources.Set` | Product | Merged: Whole small ordered value and revision from Storage.Sources.Get. | G |
+| `Settings.SetStorageSourceEnabled` | `Storage.Sources.Set` | Product | Merged: Whole small ordered value and Get revision, including enabled state. | G |
+| `Settings.UpdateApplicationSettings` | `Settings.Set` | Product | Renamed: Whole writable value and matching Get revision. | G |
+| `Settings.UpdatePluginSettings` | `Plugins.Settings.Set` | Product | Renamed: Whole writable value and matching Get revision; if large, use separately revisioned setting sub-resources with Plugins.Settings.Get/Plugins.Settings.Set. | G |
+| `Telemetry.ListSamples` | `Evidence.Samples.List` | Product | Merged: One canonical sample read. | CS |
+| `Telemetry.WatchSamples` | `Evidence.Samples.Watch` | Product | Kept: Same source selector and durable boundary. | C |
 
 ## Locked Client Inventory and Counts
 
-| Locked Service | Count | Operations |
-| --- | ---: | --- |
-| Backend | 11 | `Identity`, `Health`, `Availability`, `Appearance`, `GetOverview`, `WatchOverview`, `ListLogs`, `WatchLogs`, `ListTraceEvents`, `WatchTraceEvents`, `Diagnostics` |
-| Catalog | 9 | `GetSuite`, `ListSuites`, `GetRecordSchema`, `ListRecordSchemas`, `GetStreamSchema`, `ListStreamSchemas`, `GetPromptDefinition`, `ListPromptDefinitions`, `Analyses` |
-| Plugins | 7 | `Get`, `List`, `Watch`, `Create`, `Set`, `Delete`, `Restart` |
-| Cases | 6 | `Create`, `Get`, `List`, `Watch`, `Delete`, `Parameters` |
-| Cycles | 6 | `Get`, `List`, `Watch`, `Create`, `Set`, `Seal` |
-| Executions | 15 | `Get`, `List`, `Watch`, `Create`, `Set`, `Start`, `Stop`, `Cancel`, `Delete`, `Parameters`, `Steps`, `GetCommand`, `CreateCommand`, `GetProgress`, `WatchProgress` |
-| Evidence | 14 | `ListRecords`, `WatchRecords`, `Statistics`, `GetTraceability`, `WatchTraceability`, `ListNotes`, `WatchNotes`, `GetNote`, `CreateNote`, `SetNote`, `ListHealthEvents`, `WatchHealthEvents`, `ListSamples`, `WatchSamples` |
-| Content | 14 | `CreateUpload`, `GetUpload`, `AppendUploadBytes`, `DeleteUpload`, `PublishUpload`, `Get`, `GetArtifact`, `CreateArtifact`, `ListArtifacts`, `WatchArtifacts`, `GetExecutionFile`, `ListExecutionFiles`, `WatchExecutionFiles`, `WatchExecutionFile` |
-| Documents | 2 | `Get`, `Watch` |
-| Plots | 2 | `ListSnapshots`, `WatchSnapshots` |
-| PlotSettings | 2 | `Get`, `Set` |
-| Prompts | 4 | `Get`, `List`, `Watch`, `CreateAnswer` |
-| SettingsSchema | 1 | `Get` |
-| ApplicationSettings | 2 | `Get`, `Set` |
-| PluginSettings | 2 | `Get`, `Set` |
-| StorageSources | 2 | `Get`, `Set` |
-| Access | 4 | `GetListener`, `SetListener`, `CreatePairing`, `CreateCertificate` |
-| Secrets | 7 | `List`, `Watch`, `Get`, `Set`, `Delete`, `Export`, `Import` |
-| Reports | 3 | `Get`, `Create`, `Publish` |
-| MediaCaptures | 4 | `Create`, `Get`, `Watch`, `Stop` |
-| Aggregates | 1 | `Get` |
+The first table counts the client surface reached or completed by THIS repository,
+grouped by declaration owner and served directly on the host application endpoint.
+Existing generic library services beyond these destinations are not added a second
+time; the full library inventory and plugin-only product union follow below.
 
-The 132 ordinary mapping rows classify as 7 kept, 52 renamed,
-71 merged and 2 duplicate gRPC methods removed. All 132 Run gRPC methods are
-additionally removed. The locked client set has 21 services and 118 operations/gRPC methods,
-compared with 23 services and 264 gRPC methods today: 146 fewer gRPC methods.
-There are 118 request messages and 118 response messages: 236 method messages.
-This is a locked target inventory, not a claim that every method is already served.
+| Owner in This Client Mapping | Services | Nested Services | Operations | gRPC Methods | Requests | Responses | Method Messages |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Library | 7 | 3 | 27 | 27 | 27 | 27 | 54 |
+| Product | 32 | 20 | 93 | 93 | 93 | 93 | 186 |
+| Combined Mapped Client Surface | 39 | 23 | 120 | 120 | 120 | 120 | 240 |
 
-The mapping reaches 100 distinct destination methods; 18 added companions complete
-read/watch/resource coverage: `Backend.ListLogs`, `Backend.ListTraceEvents`, `Cases.Watch`, `Content.WatchArtifacts`, `Content.WatchExecutionFiles`, `Cycles.Watch`, `Documents.Watch`, `Evidence.GetNote`, `Evidence.WatchHealthEvents`, `Evidence.WatchNotes`, `Evidence.WatchTraceability`, `Executions.GetProgress`, `Executions.Watch`, `MediaCaptures.Get`, `PlotSettings.Get`, `Plugins.Watch`, `Prompts.Watch`, `Secrets.Watch`.
-The previous automatic parameter and step watch companions are removed:
-`Executions.Parameters` and `Executions.Steps` are each one paged read, and
-`Cases.Parameters` is likewise paged. This changes no present-operation mapping.
+Each row below is one client service. Dots express hierarchy, not a flat compound
+service name. Nested services count as separate wire services; namespace-only
+parents do not count as empty services. The package owner is `library` or `product`
+respectively; actual product declarations use `dokime`, for example
+`dokime.v1.plugins.Settings` beside library Plugins.
 
-Regrouping gives PlotSettings, ApplicationSettings, PluginSettings and StorageSources
-exact bare Get/Set pairs. SettingsSchema owns the one whole schema read; these four
-settings services replace Settings. Media becomes MediaCaptures and Queries becomes
-Aggregates to name their actual resources. Backend, Catalog, Evidence, Content and
-Access keep their mixed-resource ownership; Content.Get reads content ranges, while
-its upload, artifact and execution-file methods retain the distinguishing nouns.
-Plugin lifecycle families now live under TestCases, Executions, Steps and Criteria;
-Files retains its capture actions, and Effects uses bare Create/Get/Set.
+| Owner | Locked Service | Nested | Count | Operations |
+| --- | --- | --- | ---: | --- |
+| Library | Plugins | No | 7 | `Get`, `List`, `Watch`, `Create`, `Set`, `Delete`, `Restart` |
+| Library | Access | No | 2 | `CreatePairing`, `CreateCertificate` |
+| Library | Access.Listener | Yes | 2 | `Get`, `Set` |
+| Library | Status | No | 4 | `Identity`, `Health`, `Availability`, `Diagnostics` |
+| Library | Status.Logs | Yes | 2 | `List`, `Watch` |
+| Library | Status.TraceEvents | Yes | 2 | `List`, `Watch` |
+| Library | Storage | No | 8 | `CreateFileProduction`, `GetFileProduction`, `CreateFileWriter`, `AppendFileBytes`, `DeleteFileProduction`, `PublishFileProduction`, `GetFileBytes`, `WatchFileBytes` |
+| Product | Backend | No | 1 | `Appearance` |
+| Product | Backend.Overview | Yes | 2 | `Get`, `Watch` |
+| Product | Catalog | No | 1 | `Analyses` |
+| Product | Catalog.Suites | Yes | 2 | `Get`, `List` |
+| Product | Catalog.RecordSchemas | Yes | 2 | `Get`, `List` |
+| Product | Catalog.StreamSchemas | Yes | 2 | `Get`, `List` |
+| Product | Catalog.PromptDefinitions | Yes | 2 | `Get`, `List` |
+| Product | Cases | No | 6 | `Create`, `Get`, `List`, `Watch`, `Delete`, `Parameters` |
+| Product | Cycles | No | 6 | `Get`, `List`, `Watch`, `Create`, `Set`, `Seal` |
+| Product | Executions | No | 11 | `Get`, `List`, `Watch`, `Create`, `Set`, `Start`, `Stop`, `Cancel`, `Delete`, `Parameters`, `Steps` |
+| Product | Executions.Commands | Yes | 2 | `Get`, `Create` |
+| Product | Executions.Progress | Yes | 2 | `Get`, `Watch` |
+| Product | Evidence | No | 2 | `Statistics`, `Archive` |
+| Product | Evidence.Records | Yes | 2 | `List`, `Watch` |
+| Product | Evidence.Traceability | Yes | 2 | `Get`, `Watch` |
+| Product | Evidence.Notes | Yes | 5 | `Get`, `List`, `Watch`, `Create`, `Set` |
+| Product | Evidence.HealthEvents | Yes | 2 | `List`, `Watch` |
+| Product | Evidence.Samples | Yes | 2 | `List`, `Watch` |
+| Product | Content.Artifacts | Yes | 4 | `Get`, `Create`, `List`, `Watch` |
+| Product | Content.ExecutionFiles | Yes | 3 | `Get`, `List`, `Watch` |
+| Product | Documents | No | 2 | `Get`, `Watch` |
+| Product | Plots.Snapshots | Yes | 2 | `List`, `Watch` |
+| Product | Plots.Settings | Yes | 2 | `Get`, `Set` |
+| Product | Prompts | No | 3 | `Get`, `List`, `Watch` |
+| Product | Prompts.Answers | Yes | 1 | `Create` |
+| Product | Settings | No | 3 | `Get`, `Set`, `Schema` |
+| Product | Plugins.Settings | Yes | 2 | `Get`, `Set` |
+| Product | Storage.Sources | Yes | 2 | `Get`, `Set` |
+| Product | Secrets | No | 7 | `List`, `Watch`, `Get`, `Set`, `Delete`, `Export`, `Import` |
+| Product | Reports | No | 3 | `Get`, `Create`, `Publish` |
+| Product | Media.Captures | Yes | 4 | `Create`, `Get`, `Watch`, `Stop` |
+| Product | Aggregates | No | 1 | `Get` |
 
-Each present method has exactly one canonical mapping row. A cell with `+` is one
-required resource workflow, whose constituent method destinations are listed in
-order, not alternative mappings. Transfers, checkpoint context and report download
-retain these workflows rather than inventing aggregate RPCs or compatibility layers.
+The 132 ordinary mapping rows classify as 7 kept, 52 renamed, 71 merged
+and 2 duplicate gRPC methods removed. All 132 Run twins are additionally removed.
+Compared with 264 current gRPC methods, the composed mapped set has 120 methods,
+144 fewer, and 240 method wrappers. The product declares 32 services (20 nested)
+and 93 client methods; it does not redeclare the library destinations.
 
-Removing 264 twin envelopes does not determine the final payload-message total:
-rendered graphs, authoring definitions and unreachable payloads require field-level
-review. All content downloads are bounded unary Content.Get ranges; document and
-diagnostic output is bounded unary. A proven managed-settlement exception replaces
-its ordinary gRPC method, retaining the same operation and method count.
+The mapping reaches 102 distinct destinations; 18 companions complete coverage: `Cases.Watch`, `Content.Artifacts.Watch`, `Content.ExecutionFiles.Watch`, `Cycles.Watch`, `Documents.Watch`, `Evidence.HealthEvents.Watch`, `Evidence.Notes.Get`, `Evidence.Notes.Watch`, `Evidence.Traceability.Watch`, `Executions.Progress.Get`, `Executions.Watch`, `Media.Captures.Get`, `Plots.Settings.Get`, `Plugins.Watch`, `Prompts.Watch`, `Secrets.Watch`, `Status.Logs.List`, `Status.TraceEvents.List`.
+
+Library-owned client destinations in this mapping total 27: Plugins (7), access
+(4), host status (8) and existing Storage transfer/session/byte methods (8).
+The six session operations include CreateFileWriter for fenced resume. Identified
+byte follow maps to Storage.WatchFileBytes; Content.ExecutionFiles.Watch follows
+product metadata/membership and is not another byte-stream implementation.
+All product artifact/file metadata stays under Content nested resources. Settings
+owns application Get/Set and the noun-only Schema; Plugins.Settings, Plots.Settings
+and Storage.Sources are revisioned nested resources. Prompts.Answers.Create allocates
+an answer resource. Progress.Set is host-only; Get/Watch and Executions.Get carry
+client observation. Cases.Parameters and Executions.Parameters/Steps stay paged
+noun-only reads without automatic watch companions.
+
+Each present method has exactly one mapping row. A `+` cell is one required
+workflow, not alternative destinations. The owner column and service inventory
+identify each destination owner, including mixed-owner workflows. CreateFileWriter
+is the resume branch and DeleteFileProduction the abandon branch, not mandatory
+calls before PublishFileProduction. No aggregate compatibility RPC is introduced.
+
+Evidence.Archive selects/assembles product evidence at a cut and returns a bounded
+immutable content reference, then library Storage.GetFileBytes serves ranges.
+Archive layout, scope and evidence semantics stay product-owned operations over
+storage with no manager. Diagnostics similarly return bounded archive references.
+This product-specific selection cannot be delegated to generic byte reads.
+
+### Complete Owner Totals, Including Host Operations
+
+The library's locked sibling inventory has 13 logical services: Plugin, CatalogEntries,
+Invocations, Time, Samples, Storage, Plugins, Access, Access.Listener, Status,
+Status.Logs, Status.TraceEvents and HostValues. Eleven are exposed as gRPC services;
+Samples and HostValues are host/native-only. These are target counts from its
+own change, not implementation proof or extra services to implement in this repository.
+
+| Owner / Boundary | Logical Services | Nested | Operations | gRPC Methods | Requests | Responses |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Library, Whole Locked Inventory | 13 | 3 | 67 | 61 | 67 | 67 |
+| Library, Mapped Client Subset Above | 7 | 3 | 27 | 27 | 27 | 27 |
+| Product, Client Subset | 32 | 20 | 93 | 93 | 93 | 93 |
+| Product, Client and Host/Plugin Union | 39 | 22 | 111 | 93 | 111 | 111 |
+
+The product union adds the 18 host/plugin-only templates listed below, shared
+client methods counted once. The library union includes its Time.Get/Sleep and
+HostValues.Get, not product settings/secrets stores. Six library operations are
+native/host-only: Samples.Append, Storage.Info, Storage.SetSchema/GetSchema,
+Storage.DeleteFile and HostValues.Get. Library wrappers total 134 (122 exposed,
+12 native/host-only); product wrappers total 222 (186 client, 36 host/plugin-only).
+Neither wrapper census includes domain payloads, shared primitives or carrier
+control/event frames; field-level descriptor review must establish those totals.
+A managed-settlement replacement changes no operation/method count.
 
 ## Plugin-Facing Mapping
 
@@ -647,43 +855,64 @@ These operations are logically unary over the duplex library invocation carrier;
 publication has its own carrier. Counts are separate from client gRPC methods and do
 not multiply dynamic step/criterion instances or count protocol control frames.
 
-| Present Operation or Family | Locked Operation | Disposition and Preserved Behavior |
-| --- | --- | --- |
-| `<template>.materialize` | TestCases.Materialize | Renamed; pure materialization, request/response wrapper. |
-| `<template>.initialize` | Executions.Initialize | Renamed; acquire execution-local suite resources. |
-| `Step.operation` | Steps.Execute | Renamed family; frozen step identity and retry evidence. |
-| `Criterion.operation` | Criteria.Evaluate | Renamed family; captured-evidence judgment. |
-| `<template>.cleanup` | Executions.Cleanup | Renamed; required cleanup after initialization. |
-| `dokime.execution.prompt` | Prompts.Create | Renamed; wait for answer, preserve scope and cancellation. |
-| `dokime.settings.read` | PluginSettings.Get | Merged with caller-bound resource read. |
-| `dokime.secrets.read` | Secrets.Get | Merged with granted-identifier read. |
-| `harmos.clock.sleep` | Clock.Sleep | Kept meaning; normalized carriers, library-owned clock. |
-| `harmos.clock.now` | Clock.Time | Renamed; library-owned clock. |
-| `dokime.execution.record` | Evidence.AppendRecords | Renamed; ordered immutable data, durable receipt. |
-| `dokime.execution.records` | Evidence.ListRecords | Merged; preserve count/last selection and bounded reads. |
-| `dokime.execution.statistics` | Evidence.Statistics | Merged; stream/field/step selectors and complete statistics. |
-| `dokime.execution.artifact` | Content.CreateUpload + Content.GetUpload + Content.AppendUploadBytes + Content.DeleteUpload + Content.PublishUpload + Content.CreateArtifact | Merged; same unary sessions as clients, acknowledged bytes. |
-| `dokime.execution.progress` | Executions.SetProgress | Renamed; whole small progress value and Executions.GetProgress revision. |
-| `dokime.execution.log` | Evidence.AppendLogs | Renamed; ordered immutable log lines. |
-| `dokime.execution.traceability` | Evidence.SetTraceability | Renamed; whole small writable value, Evidence.GetTraceability revision and scope; large writable parts split into separately revisioned entry Get/Set sub-resources. |
-| `dokime.execution.document` | Documents.AppendParts | Renamed; ordered immutable document contributions. |
-| `dokime.files.copy_files` | Files.Capture | Renamed; freeze file copies, preserve originals. |
-| `dokime.files.start_capture` | Files.StartCapture | Renamed; start capture lifecycle. |
-| `dokime.files.stop_capture` | Files.StopCapture | Renamed; finish capture at safe boundary. |
-| `dokime.execution.environment` | Backend.Environment | Renamed; derived environment read. |
-| `dokime.execution.effect.prepare` | Effects.Create | Renamed; durable inverse ticket, no hardware write. |
-| `dokime.execution.effect.applied` | Effects.Set | Renamed; whole writable application state and Effects.Get revision; preserve earliest inverse. |
+| Present Operation or Family | Locked Operation | Destination Owner | Disposition and Preserved Behavior |
+| --- | --- | --- | --- |
+| `<template>.materialize` | TestCases.Materialize | Product | Renamed; pure materialization, request/response wrapper. |
+| `<template>.initialize` | Executions.Initialize | Product | Renamed; acquire execution-local suite resources. |
+| `Step.operation` | Steps.Execute | Product | Renamed family; frozen step identity and retry evidence. |
+| `Criterion.operation` | Criteria.Evaluate | Product | Renamed family; captured-evidence judgment. |
+| `<template>.cleanup` | Executions.Cleanup | Product | Renamed; required cleanup after initialization. |
+| `dokime.execution.prompt` | Prompts.Create | Product | Renamed; wait for answer, preserve scope and cancellation. |
+| `dokime.settings.read` | HostValues.Get | Library | Generic declared-value delivery; product resolver owns caller-bound settings storage and policy. |
+| `dokime.secrets.read` | HostValues.Get | Library | Generic declared-value delivery; product resolver owns granted-identifier secret storage and policy. |
+| `harmos.clock.sleep` | Time.Sleep | Library | Kept meaning; normalized carriers, library-owned clock. |
+| `harmos.clock.now` | Time.Get | Library | Renamed; library-owned clock. |
+| `dokime.execution.record` | Evidence.Records.Append | Product | Renamed; ordered immutable data, durable receipt. |
+| `dokime.execution.records` | Evidence.Records.List | Product | Merged; preserve count/last selection and bounded reads. |
+| `dokime.execution.statistics` | Evidence.Statistics | Product | Merged; stream/field/step selectors and complete statistics. |
+| `dokime.execution.artifact` | Storage.CreateFileProduction + Storage.GetFileProduction + Storage.CreateFileWriter + Storage.AppendFileBytes + Storage.DeleteFileProduction + Storage.PublishFileProduction + Content.Artifacts.Create | Library + Product | Merged; same unary sessions as clients, acknowledged bytes. |
+| `dokime.execution.progress` | Executions.Progress.Set | Product | Renamed; host-only producer operation, whole small progress value and Executions.Progress.Get revision; no client Set. |
+| `dokime.execution.log` | Evidence.Logs.Append | Product | Renamed; ordered immutable log lines. |
+| `dokime.execution.traceability` | Evidence.Traceability.Set | Product | Renamed; whole small writable value, Evidence.Traceability.Get revision and scope; large writable parts split into separately revisioned entry Get/Set sub-resources. |
+| `dokime.execution.document` | Documents.AppendParts | Product | Renamed; ordered immutable document contributions. |
+| `dokime.files.copy_files` | Files.Capture | Product | Renamed; freeze file copies, preserve originals. |
+| `dokime.files.start_capture` | Files.Captures.Start | Product | Renamed; start capture lifecycle. |
+| `dokime.files.stop_capture` | Files.Captures.Stop | Product | Renamed; finish capture at safe boundary. |
+| `dokime.execution.environment` | Backend.Environment | Product | Renamed; derived environment read. |
+| `dokime.execution.effect.prepare` | Effects.Create | Product | Renamed; durable inverse ticket, no hardware write. |
+| `dokime.execution.effect.applied` | Effects.Set | Product | Renamed; whole writable application state and Effects.Get revision; preserve earliest inverse. |
 
-All 17 product context bindings in `sdk/rust/src/host.rs` are covered, plus two
-library clock operations and five dynamic lifecycle families: 24 inventory rows.
-Executions.GetProgress and Evidence.GetTraceability are shared with clients. Add plugin-only
-Effects.Get as the exact mirror of Effects.Set; it is a companion, not a 25th
-present mapping row. Any large plugin-settings or traceability writable part must
-be split by identified setting or entry into sub-resources with their own Get/Set
-and revision, rather than replacing an unbounded aggregate. The client inventory
-counts method templates, not instances of these sub-resources.
-The shared client upload workflow expands one producer call to several operations;
-do not add 24 to the client total or treat this as a fixed generated-gRPC method count.
+All 17 product context bindings plus two library time operations and five dynamic
+lifecycle families are covered: 24 present rows. Settings/secrets host calls map
+to library HostValues.Get with a product resolver, not library stores. The shared
+upload workflow adds no product transfer engine; its library methods are counted
+once. Effects.Get is an added companion, not a 25th present row. Progress.Set is
+host-only, called by a plugin, with Get/revision symmetry and scoped authority;
+there is no client Set. Large writable settings/traceability values split by
+identified value rather than replace an unbounded aggregate.
+
+| Product Host/Plugin-Only Namespace | Additional Methods | Count | New Logical Service |
+| --- | --- | ---: | --- |
+| TestCases | Materialize | 1 | Yes |
+| Executions | Initialize, Cleanup | 2 | No |
+| Steps | Execute | 1 | Yes |
+| Criteria | Evaluate | 1 | Yes |
+| Prompts | Create | 1 | No |
+| Evidence.Records | Append | 1 | No |
+| Executions.Progress | Set | 1 | No |
+| Evidence.Logs | Append | 1 | Yes, nested |
+| Evidence.Traceability | Set | 1 | No |
+| Documents | AppendParts | 1 | No |
+| Files | Capture | 1 | Yes |
+| Files.Captures | Start, Stop | 2 | Yes, nested |
+| Backend | Environment | 1 | No |
+| Effects | Create, Set, Get | 3 | Yes |
+
+These are 18 operations, 18 requests and 18 responses with zero added client RPCs,
+adding seven logical service namespaces, two nested. Shared client operations are
+counted once in the 111-operation product union. Dynamic step/criterion instances
+and protocol control frames do not multiply method templates. The clock and generic
+host-value operations belong only to the library inventory.
 
 ## Source Verification and Report Corrections
 
@@ -695,7 +924,7 @@ checkout named by its report:
   `proto/dokime/v1/*.proto` gives 953. This confirms the reports' correction of
   131/262. PublishExecutionReport is present. Remove 264 twin-envelope messages;
   the final payload-message total remains unknown; neither subtraction nor the
-  236 method messages establishes it.
+  240 method messages establishes it.
 - `crates/dokime-runtime-next/src/services/mod.rs`: 13 registered client services,
   not complete serving of all 23. `dokime-operations-next/src/lib.rs` declares and
   dispatches exactly log, progress, record, records, statistics, prompt and library
@@ -720,7 +949,7 @@ checkout named by its report:
   suggestions are replaced by owner-decided latest-durable/no-wait with
   a payload-size-independent 250 ms p95 durable-lag bound; whole-value Set with
   exact Get/revision symmetry is retained and bare replies become wrappers;
-  WaitTime becomes Sleep; CreateRecord/CreateLog become Evidence.AppendRecords/Evidence.AppendLogs.
+  WaitTime becomes Sleep; CreateRecord/CreateLog become Evidence.Records.Append/Evidence.Logs.Append.
   No arbitrary earlier cut API is carried forward.
 
 ## Defects to Fix Regardless of the Grammar Lock
@@ -742,7 +971,11 @@ header is stale. Generated availability is not proof of application consumption.
 
 ## Open Questions During Implementation
 
-Only these questions remain open. Settle each when its implementation is reached;
+Settings/secrets ownership and all four hierarchical client roots are locked,
+not open questions. Cycle-manager ownership is intentionally chosen at the manager
+split by the simplest complete option; whether a capture manager is needed follows
+whether recordings remain. The following protocol questions remain open.
+Settle each when its implementation is reached;
 they do not block the rest of the locked work. Snippets and counts do not settle
 these contracts or claim implementation.
 
@@ -831,9 +1064,13 @@ capability unless promised settlement is explicitly retained; ordinary product
 watches and byte delivery do not need it. Replacing IDs changes fingerprints,
 requirements, manifests, fixtures and SDK constants together.
 
-For implementation, coordinate the library primitives and exact pin, then
-implement the
-canonical product contracts/host behavior, then migrate SDKs and CLI, then move the
+For implementation, first prepare library services under their managers, narrow
+host-fact registration and descriptor-derived four-language client roots. Publish
+and pin the exact library revision. Then declare product services with their final
+nested names, compose the library services directly, split the product managers
+and migrate product operations with focused proof. Remove replaced generic copies
+as their consumers move, keeping the old desktop projection building until its
+single cutover. Then migrate SDKs and CLI, and finally move the
 desktop to the new host and grammar in one cutover. Delete old host paths, duplicate
 types and obsolete stories only after their capabilities are covered. Keep each
 intermediate tree building; do not ship adapters to obsolete APIs. Implementation

@@ -5,6 +5,7 @@
 Give product callers one predictable operation grammar and consistent resource,
 position, mutation and upload behavior across clients and plugins.
 Status: locked by the owner on 2026-11-12
+Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 
 These are target requirements, not implemented behavior.
@@ -20,38 +21,156 @@ without repeating the service name, and SHALL NOT be split merely to shorten nam
 
 #### Scenario: Mixed-Resource Service
 
-- **WHEN** Content exposes uploads, artifacts, execution files and content bytes
-- **THEN** its methods distinguish those resources and Content.Get reads bytes without repeating the service name
+- **WHEN** Access allocates a pairing or regenerates a certificate
+- **THEN** Access.CreatePairing and Access.CreateCertificate state those single lifecycle actions
+- **AND** the separately readable/writable listener uses Access.Listener.Get/Set
 
 ### Requirement: Resource Part Names
 
-A part read in exactly one way SHALL use its noun alone. Only parts with multiple
-read or change paths SHALL use verb plus part. A small service with bare Get/Set
-SHALL be preferred where it makes that exact pair clearer.
+A part read in exactly one way SHALL use its noun alone. A part with multiple read
+or change paths SHALL be a nested resource with its own bare verbs, replacing the
+earlier verb-plus-part rule and flat compound resource services.
 
 #### Scenario: Single-Mode Part and Revisioned Settings
 
-- **WHEN** execution parameters and steps are paged, and plugin settings are read and changed
-- **THEN** the methods are Executions.Parameters, Executions.Steps and PluginSettings.Get/Set, with no automatic parameter or step watches
+- **WHEN** execution parameters and steps are paged, and plugin or plot settings are read and changed
+- **THEN** the methods are Executions.Parameters, Executions.Steps, Plugins.Settings.Get/Set and Plots.Settings.Get/Set, with no automatic parameter or step watches
 - **AND** each settings Get returns the exact writable value and revision expected by Set
 
-#### Scenario: Progress Has Both Writable State and Observation
+#### Scenario: Progress Observation and Production
 
-- **WHEN** execution progress has the locked whole-value revisioned Get/Set and a stream
-- **THEN** its methods are Executions.GetProgress, Executions.SetProgress and Executions.WatchProgress under the multiple-path part rule
-- **AND** no redundant Progress stream or hand-written client alias is added
+- **WHEN** a client reads execution progress or follows its stream
+- **THEN** Executions.Progress.Get returns the current value and Executions.Progress.Watch follows changes, and Executions.Get includes that same value at its resolved cut
+- **AND** a plugin produces progress by calling a host operation; no client-facing Set is declared or generated
+
+### Requirement: Nested Service Wire Layout
+
+A nested resource SHALL be a service in package `<owner>.v1.<lowercase-parent>`,
+with the part as its service name, one proto file per service and a folder per
+parent. Its messages SHALL use the local service prefix `<Service><Method>Request`
+and `<Service><Method>Response`. Parent and nested resource MAY have different
+library/product owners; composition SHALL preserve both namespaces.
+
+#### Scenario: Product Settings Beside Library Plugins
+
+- **WHEN** the host application serves library Plugins and product plugin settings
+- **THEN** the product declares `product.v1.plugins.Settings` in `product/v1/plugins/settings.proto`, beside library Plugins, and the full nested Get path is `product.v1.plugins.Settings/Get`
+- **AND** its wrappers are SettingsGetRequest/Response and SettingsSetRequest/Response, not flat PluginSettings wrappers or Plugins.GetSettings
 
 ### Requirement: Generated Method Messages and Clients
 
-Messages SHALL follow the service-prefixed method naming rule in the shared grammar.
-Responses SHALL always be wrappers. Generated clients SHALL take their short names
-directly from proto declarations without a hand-written naming layer.
+Messages SHALL follow the service-prefixed method naming rule in their package.
+Responses SHALL always be wrappers. All four SDKs SHALL derive their client root
+hierarchy mechanically from service packages and names through a small build-time
+generator consuming the same descriptor-derived table, with no hand-written
+per-operation code. Composition SHALL merge distinct library/product resource
+children and reject collisions; language casing SHALL NOT change hierarchy.
 
 #### Scenario: Contract Review
 
-- **WHEN** Executions.Start and Plugins.Get are generated
-- **THEN** their request messages are ExecutionsStartRequest and PluginsGetRequest, and their responses are method-specific wrappers
-- **AND** the clients expose executions.start(request) and plugins.get(request) directly
+- **WHEN** Executions.Start, Plugins.Get and product Plugins.Settings.Get are generated
+- **THEN** their requests are ExecutionsStartRequest, PluginsGetRequest and SettingsGetRequest in their respective packages, and responses are method-specific wrappers
+- **AND** each SDK exposes the equivalent of client.executions.start(request), client.plugins.get(request) and client.plugins.settings.get(request)
+
+#### Scenario: Progress Hierarchy
+
+- **WHEN** a client subscribes to execution progress through an SDK
+- **THEN** the generated call is client.executions.progress.watch(request), using the Progress service in the executions sub-package
+- **AND** no client progress Set or hand-written naming alias is generated
+
+### Requirement: Library Machinery and Product Composition
+
+The library SHALL own Plugins, access, transfers and host status under the
+managers listed in design.md, alongside its existing generic runtime surfaces.
+A product SHALL own its storage definition, objects, operations and policy, and
+serve library services directly by composition without redeclaring or wrapping
+them. It SHALL NOT rebuild generic machinery on the protocol crate alone.
+
+#### Scenario: Direct Library Client Calls on a Product Endpoint
+
+- **WHEN** a client manages a plugin, configures the listener, transfers bytes or reads host health on the host application's endpoint
+- **THEN** it calls the library Plugins, Access/Access.Listener, Storage or Status services directly
+- **AND** PluginManager owns Plugins; GrpcManager owns access, listener, pairing, certificates and key rotation; StorageManager owns transfers; ServiceManager owns host status
+- **AND** the product has no second connection, dispatch, stream, process-launch, entry-management, listener/pairing, upload-handling or host-status implementation; the earlier protocol-only approach produced those duplicates
+- **AND** product storage ownership includes schemas, indexes, projections and the meaning of latest
+
+#### Scenario: Narrow Host-Fact Contribution
+
+- **WHEN** a host application contributes its version and component-health facts
+- **THEN** narrow registration supplies those facts to the library service manager's status services
+- **AND** reads unique to the product remain on its own services rather than duplicating generic identity or health
+
+### Requirement: Product Settings and Secrets
+
+Settings and secrets SHALL remain product-owned, including stores, schemas,
+UI declarations, archives and operating-system credential-store use. The library
+SHALL supply only generic host-operation calls by which a host application serves
+values to plugins, and each plugin's settings declarations as a catalog section.
+The per-plugin settings/secrets ownership question SHALL be treated as closed.
+
+#### Scenario: Plugin Requests a Value
+
+- **WHEN** a plugin declares its settings and requests a setting or secret
+- **THEN** the catalog carries declarations and library HostValues.Get calls the registered product resolver with its policy and stores
+- **AND** the library introduces no opinionated settings/secret store or archive
+
+### Requirement: Manager-Owned Orchestration
+
+The product SHALL split Host/shared State into execution, prompt and report
+managers, with capture only if recordings remain, under the single manager rule
+in design.md. Each service method SHALL map to one operation file which calls a
+manager or storage. Rendering SHALL remain pure. Evidence, catalog, notes,
+aggregates, plots and documents SHALL remain storage operations without managers.
+
+#### Scenario: Lifecycle Ownership Split
+
+- **WHEN** Host and shared State are split
+- **THEN** the execution manager owns queueing, lifecycle, retries, Stop/Cancel and recovery; the prompt manager owns pending questions; the report manager owns atomic publication
+- **AND** cycles belong to that execution manager or a small cycle manager, chosen at the split by the simplest complete option; a capture manager exists only if recordings remain
+
+#### Scenario: Publication Versus Rendering
+
+- **WHEN** a report is rendered for preview and later published
+- **THEN** the renderer is a pure function and atomic publication is owned by the report manager
+- **AND** a service handler delegates through one operation file rather than retaining orchestration in shared State
+
+#### Scenario: Storage-Only Read
+
+- **WHEN** a caller reads evidence, catalog, notes, aggregates, plots or documents
+- **THEN** its operation accesses storage without introducing a manager for that collection
+
+### Requirement: Complete Composed Client Inventory
+
+Implementation SHALL preserve all 132 ordinary mapping rows and account for
+132 removed Run twins, with one destination/workflow per row and explicit
+ownership. The client inventory SHALL match design.md's per-owner totals;
+plugin carriers and the library's other existing surfaces SHALL remain separate.
+
+#### Scenario: Mapping and Count Review
+
+- **WHEN** the declarations and generated outputs are reviewed against design.md
+- **THEN** all 132 ordinary rows and their Run twins are accounted for once, and the client inventory has 39 services (23 nested), 120 methods and 240 method wrappers
+- **AND** library mapped-client totals are 7 services (3 nested), 27 operations/methods and 27 request/response pairs; product client totals are 32 services (20 nested), 93 operations/methods and 93 pairs
+- **AND** product Content.ExecutionFiles.Get resolves metadata for library Storage.WatchFileBytes growth/replacement/truncation; Content.ExecutionFiles.Watch follows product metadata/membership
+
+#### Scenario: Whole-Owner Operation Census
+
+- **WHEN** host/plugin-only templates and the complete library protocol are included without double-counting shared operations
+- **THEN** library totals are 13 logical services (3 nested), 67 operations, 61 gRPC methods and 67 request/response pairs; product totals are 39 logical services (22 nested), 111 operations, 93 gRPC methods and 111 pairs
+- **AND** supporting payloads and protocol frames remain separate from method wrappers
+
+### Requirement: Product Evidence Archive and Generic Delivery
+
+Evidence.Archive SHALL select the product's evidence at a compatible cut and
+return a bounded immutable content reference. Library Storage.GetFileBytes SHALL deliver
+its ranges without interpreting product evidence selectors, policy or archive
+layout. Archive assembly SHALL remain an operation over storage with no manager.
+
+#### Scenario: Download Evidence
+
+- **WHEN** an authorized caller downloads an execution's evidence archive
+- **THEN** product Evidence.Archive binds the scope, cut and archive representation, and library Storage.GetFileBytes returns bounded ranges with total length and digest
+- **AND** the library does not acquire product object semantics or duplicate the archive-selection operation
 
 ### Requirement: Closed Ordinary Verb Vocabulary
 
@@ -147,7 +266,7 @@ SHALL pin the opening snapshot, not freeze the subscription forever.
 
 #### Scenario: Watch from a Returned Cut
 
-- **WHEN** a caller opens WatchRecords with the compatible position from ListRecords
+- **WHEN** a caller opens Evidence.Records.Watch with the compatible position from Evidence.Records.List
 - **THEN** the opening identifies that cut and subsequent changes advance strictly after it with no duplicated or omitted matching records
 - **AND** filtered-out durable progress can advance the resume position
 
@@ -222,8 +341,8 @@ Plugin carriers SHALL remain. Content transfers SHALL use bounded unary ranges.
 
 #### Scenario: Getter Projection
 
-- **WHEN** contracts for Executions.Get or ListRecords are generated
-- **THEN** no Executions.RunGet or Evidence.RunListRecords gRPC method is generated
+- **WHEN** contracts for Executions.Get or Evidence.Records.List are generated
+- **THEN** no Executions.RunGet or Evidence.Records.RunList gRPC method is generated
 
 #### Scenario: Promised Cooperative Settlement
 
@@ -262,17 +381,18 @@ scope consistently.
 
 ### Requirement: Shared Unary Resumable Uploads
 
-Clients and plugins SHALL share unary Content.CreateUpload, Content.AppendUploadBytes, Content.GetUpload,
-Content.PublishUpload and Content.DeleteUpload. Append SHALL accept ordered chunks at stated
-offsets; identical replay SHALL succeed and different bytes at an accepted offset
-SHALL conflict. Configuration SHALL bound chunk sizes. Publish SHALL verify
-complete bytes, length and digest before visibility; Delete SHALL abandon.
+The library storage manager SHALL own the one client/plugin transfer mechanism:
+unary Storage.CreateFileProduction, GetFileProduction, AppendFileBytes,
+CreateFileWriter, PublishFileProduction and DeleteFileProduction. Append SHALL accept
+bounded ordered chunks, replay identical bytes and reject conflicting bytes at
+accepted offsets. Publish SHALL verify complete bytes, length and digest before
+visibility; Delete SHALL abandon. Expiry SHALL be explicit.
 
 #### Scenario: Resume After Lost Reply
 
 - **WHEN** an upload chunk reply is lost and the caller reconnects
-- **THEN** Content.GetUpload reports the accepted offset and an identical Content.AppendUploadBytes replays safely
-- **AND** different bytes at an accepted offset conflict without changing content
+- **THEN** Storage.GetFileProduction reports the accepted offset and an identical Storage.AppendFileBytes replays safely
+- **AND** CreateFileWriter fences the old writer when resume needs a new writer generation, while different bytes at an accepted offset conflict without changing content
 
 #### Scenario: Partial Upload and Expiry
 
@@ -282,12 +402,13 @@ complete bytes, length and digest before visibility; Delete SHALL abandon.
 #### Scenario: Ordered and Bounded Chunks
 
 - **WHEN** a new chunk starts after the next accepted offset or exceeds the configured chunk bound
-- **THEN** Content.AppendUploadBytes refuses it without changing session data
-- **AND** Content.GetUpload exposes the accepted offset, length, digest and session state to resume
+- **THEN** Storage.AppendFileBytes refuses it without changing session data
+- **AND** Storage.GetFileProduction exposes the accepted offset, length, digest and session state to resume
 
 ### Requirement: Shared Unary Ranged Downloads
 
-Clients and plugins SHALL download through repeated unary Content.Get calls with
+The library storage manager SHALL serve Storage.GetFileBytes directly. Clients and plugins
+SHALL download through repeated unary Storage.GetFileBytes calls with
 offset and maximum bytes. Each reply SHALL state total length, content digest
 and resolved_at. Configuration SHALL bound range sizes. Streaming download gRPC methods
 SHALL be removed in favor of ranged Get reads.

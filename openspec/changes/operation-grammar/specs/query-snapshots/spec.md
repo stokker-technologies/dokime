@@ -9,7 +9,9 @@ evidence and corresponding membership, revisions and schemas at one logical cut,
 without waiting for unsaved accepted data. Later evidence SHALL be excluded.
 A supplied `at` SHALL select a compatible previously returned retained cut or
 the seal; arbitrary earlier positions SHALL be refused. Replies SHALL state
-`resolved_at`.
+`resolved_at`. The product SHALL own the storage schemas, indexes, projections
+and meaning of latest that define this cut; generic library services SHALL NOT
+redefine those object semantics.
 
 #### Scenario: Capture Without Finalization
 
