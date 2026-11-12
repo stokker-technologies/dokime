@@ -1,0 +1,7 @@
+syntax = "proto3";
+package dokime.sdk.test;
+import "dokime/v1/backend.proto";
+service BackendJourney {
+  rpc Identity(dokime.v1.GetBackendIdentity) returns (dokime.v1.BackendIdentity);
+  rpc Logs(dokime.v1.WatchBackendLogs) returns (stream dokime.v1.LogFrame);
+}
