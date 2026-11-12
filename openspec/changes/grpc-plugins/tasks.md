@@ -298,14 +298,21 @@ Source inventory (data-service worker; continuation adds Content, Notes, Documen
 - [x] Serve Evidence schema lookup, filtered cursor pages including logs, and event-driven watches with real-process client proof.
 - [x] Retire Evidence selector variants for sessions, planned cases and opaque attempt IDs because the new model owns execution/cycle scopes and frozen step/criterion identifiers. Keep shared proto fields while other consumers use them; no RPC is retired.
 - [x] Serve bounded Telemetry pages and watches, including Run envelopes, with real-process client proof.
-- [ ] Complete Query pages, aggregates and statistics; default execution listing uses metadata rather than loading streams, while its paging/time/archive variants and remaining methods are still refused.
 - [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
-- [ ] Complete bounded cancellation of blocking plot workers, plot filters and expression transforms/joins, grouped distribution/time-series reductions, logarithmic contour bins, XY sigma intervals, grid highlights, plugin analyses and live bucket deltas. Unsupported request variants return actionable refusals; live Watch still emits snapshots. Marker selection and separate summary windows also remain open. Retired operations: none.
-- [ ] Serve Documents and Reports from fixed snapshots, explicit publication and downloads with client proof.
+- [x] Add isolated cancellable storage read sessions for blocking plot workers, row filters, scale/offset/detail projections and source-time stream/record joins without loading whole streams.
+- [x] Serve grouped time series, histograms and boxes, logarithmic contour bins, XY sigma intervals, grid highlights, bounded record markers and separate summary windows; prove the variants through `client_queries_advanced_plots`.
+- [x] Serve bounded Raw/LTTB time-series windows, encoded-budget bucket coarsening and unary plugin analyses with typed defaults, bounded raw input and output validation; prove endpoint retention, batch fitting and malformed-output refusal through the advanced plot story.
+- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
+- [x] Route Documents CaptureCurrentDocument/UpdatePlotSettings and all Run envelopes, persist plot preferences, stream structure/table/summary/plot bindings, and bind document plot requests to a captured execution frontier.
+- [x] Route all Reports direct/Run methods: fixed-snapshot materialization, explicit execution publication and execution/cycle HTML downloads; prove temporary download, publication independence and bounded plot data through `client_renders_fixed_documents`.
+- [x] Expand repeated sections in bounded pages with stable identities, inherit filters in plot and summary queries, serve cycle-scoped default capture, evaluate record/scalar summary expressions and exact percentiles, and render masked contour bands against nonuniform edges.
+- [ ] Complete evidence-card filter evaluation, cross-execution/higher-order category and artifact expressions, and complete trajectory/grid report playback. These remaining variants are not covered by the served-route checks.
+- [ ] Export `content_fixture` through the shared Tests fixture producer; the story supports its archived path and `DOKIME_CONTENT_PLUGIN`, but producer tooling stays with its owner.
+- [ ] Add the client-driven live execution-file producer/follow journey when the producer group connects `register_execution_file`, `append_content` and `finish_execution_file`; the present real-process journey proves saved files, windows, identity-bound resume and replacement.
 - [x] Serve Content artifact uploads/downloads, evidence archives and execution-file list/window/download/follow with durable chunk storage and client proof; unary plugin artifacts enforce sequences, replay fingerprints, explicit terminal, abort and replacement.
 - [x] Serve Notes create/edit/list and Run envelopes, idempotent mutations, ownership and cursor validation, restart durability and sealed-owner refusal.
-- [ ] Media: held for the owner’s client API decision; keep capture operations refusing by name.
-- [x] Run format once, each owned story twice, existing fifteen stories, three new-crate check builds and repository checking; hand back local commits without pushing. Windows proof includes nineteen host stories, all three scoped Rust language checks and eight protocol checks; native Linux and hosted proof remain with integration.
+- [x] Pass Windows continuation proof: format; each of the four new stories twice by name; all 23 host system stories without skips; three new-crate check builds; all eight protocol stories including generation drift; repository and all three package language checks. The focused report integrity test also passes, including map persistence and tamper rejection.
+- [ ] Complete integration proof and repair the root `clippy.toml:14` unreachable `tokio::process::Command::new` warning. Standalone storage/operations checks exit successfully while emitting this warning; runtime checking is clean. Native Linux and hosted proof remain with integration; no push is authorized.
 
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing runtime execution/dispatch/stream sources remain outside this serving slice; the data-service inventory above owns storage additions.
 
@@ -328,11 +335,11 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [x] Evidence: all direct and Run methods served; no named refusals remain.
   - [x] Telemetry: all direct and Run methods served; no named refusals remain.
   - [x] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch are routed; unsupported option variants remain in the data-service inventory above.
-  - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings are not registered.
+  - [x] Documents: all direct and Run methods are registered and served; incomplete option variants remain in the data-service inventory above.
   - [ ] Content: DownloadAppearanceAsset and RunDownloadAppearanceAsset refuse by name pending appearance asset storage; all artifact, evidence and execution-file direct and Run methods are served.
   - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot are registered with named refusals and held for the owner’s client API capture decision.
   - [x] Notes: all direct and Run methods served; no named refusals remain.
-  - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
+  - [x] Reports: all direct and Run methods are served; rendering/downloading never publishes and PublishExecutionReport is explicit.
   - [ ] Health: RunListHealth.
   - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.
 

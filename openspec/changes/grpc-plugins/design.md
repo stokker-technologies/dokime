@@ -10,7 +10,8 @@ The `feat/gp-host-new` worktree owns new storage, operations and runtime crates,
 additive workspace membership, their guide and this change. It returns local commits.
 
 Integrate the gRPC-wave changes under `openspec/changes/` together on `feat/grpc-plugins`.
-`storage-interface` starts separately after wave 5, not in this integration.
+The owner’s combined delivery includes the locked storage and plot changes under
+the single `grpc-plugins` marker; feature workers do not start or retire separate markers.
 Feature worktrees hand back local commits; the integration checkout is `feat/grpc-plugins`.
 Use the single `grpc-plugins` implementation marker for the combined work.
 The Implementation Waves table below owns ordering and current completion.
@@ -789,6 +790,26 @@ Client access and its security are the separate change
 - The `dokime.v1` wire choices in Initial Protocol Slice Decisions below.
 
 ## Implementation Decisions
+
+- Explicit plot Y expressions select the columns; unsupported mixed or non-category reducers refuse before returning raw values. Evidence-card filters produce a capture binding failure and refuse HTML rendering until their evaluator is connected.
+
+- Published report seals bind exact stored protobuf document bytes; verification excludes only the derived ID/seal fields and never re-encodes decoded maps.
+
+- Analysis operations use their metadata ID and unary `AnalysisRequest`/`AnalysisResponse`; inputs are bounded raw columns with typed parameters, and outputs must match declared axes, units and aggregate limits.
+- Raw windows refuse excess samples; LTTB ranks candidates inside SQLite and returns only selected vertices. Encoded snapshot budgets coarsen complete buckets and retain the original selection identity.
+- Document repeat pages use bounded distinct-value reads, typed-value hashes for instance IDs and epoch/document/selection/frontier-bound continuations; changed preferences require restarting the capture.
+- Repeated plot requests use the concrete card ID; saved preferences use the authored plot ID across its repeat instances. Cycle captures are cacheable only when every retained member is sealed.
+- Cycle capture uses the default records/artifacts/media document; authored execution documents stay scoped to their frozen origins. Summary/plot selections inherit repeat filters; report bands use masked marching-square cells with nonuniform edge mapping.
+
+- Report and archive capture hold one SQLite read transaction across metadata, notes and data reads; cycle members use scoped pages rather than a whole-store identifier inventory.
+- Evidence exports use the development v1 protobuf archive shape, including separately chunked artifact/file content; no old-root migration or compatibility layer is introduced.
+
+- Document plot requests carry `PlotRequest.at` (field 39); its history binds backend and execution, and its sequence fixes the evidence frontier.
+- Plot expression projections run in an isolated read connection; source-time joins select the latest retained row at or before the base row in the same execution. Dropping its cancellation guard interrupts only that connection.
+- Record field indexes are derived: unreadable payloads or absent frozen descriptors remain raw evidence and are excluded from the index; typed readers still report their decoding/schema failure.
+- Materialized reports are temporary files; their returned ID downloads through Content.DownloadArtifact, never enters artifact inventory, and expires on restart or bounded cache eviction. Publication alone stores a sealed report.
+- Execution files expose additive storage registration/append/finish methods for the producer group. Replacing a logical path retains old identities for existing followers.
+- Planned-case note ownership is obsolete because origins replaced planned cases; shared proto variants remain while old consumers use them. No RPC is retired.
 
 - Content stages client uploads until explicit size/digest completion and input finish; cancellation removes only staged bytes. Unary plugin transfers preserve ordered sequence, exact replay, in-transfer replacement and explicit abort.
 - Execution files use retained SQLite chunk identities; replacing a logical name starts a new identity, and resumed follows retain the original production.

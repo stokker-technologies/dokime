@@ -57,9 +57,15 @@ Evidence additionally serves captured-schema lookup and record watches, with
 selection-bound cursors, explicit `dokime.log` reads and Run envelopes. Telemetry
 serves bounded forward/tail pages, source-time windows and event-driven watches,
 including Run envelopes. Plots serves ListAnalyses, QuerySnapshots and Watch with
-Run envelopes. Its ten kind base paths reduce in storage; advanced expressions,
-filters, grouped distributions, XY intervals and live bucket deltas remain open
-in the owning change's tasks.
+Run envelopes. Its ten kinds reduce in storage, including row filters, scale/offset/detail
+expressions, source-time joins, grouped time series/distributions, logarithmic
+contours, sigma intervals, grid highlights, bounded record markers and separate
+summary windows. Raw reads refuse oversized selections; LTTB selects bounded
+vertices in SQLite. Snapshot batches coarsen complete buckets to the encoded
+message budget. Unary plugin analyses resolve one ready provider by ID/version,
+read bounded raw columns and validate typed parameters, output axes and units.
+Incremental watch buckets, live deltas, higher-order/non-category plot aggregates and
+derived analysis defaults remain open; watches currently emit snapshots.
 
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
@@ -99,7 +105,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains nineteen stories,
+reads their records through the client. The system target contains twenty-three stories,
 including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
@@ -193,6 +199,10 @@ cancelling a staged upload publishes nothing. Plugin artifact calls are unary
 and preserve sequence, exact retry, prefix replacement and terminal abort.
 File names select retained content identities, never arbitrary filesystem paths.
 A resumed follow requires the original identity and committed offset.
+Evidence downloads use v1 protobuf `ExecutionArchive` bytes defined in
+`crates/dokime-storage/src/execution.rs`; cycle archives repeat that message at
+field 1. Content metadata and bounded chunks travel in fields 7 and 8 of each
+execution archive. The shape stays at v1 under the development storage policy.
 Notes support create/edit/list and Run envelopes, durable idempotent creation,
 selection-bound paging and closed-owner refusal. The loopback listener uses one
 local client principal until remote authentication lands.
@@ -207,6 +217,52 @@ mise run test -- --package dokime-runtime-next --target system --exact client_ke
 
 Appearance asset downloads and Media capture return named refusals pending their
 owning API/storage decisions. Query remains at its previously served surface.
+
+## Document Snapshots and Reports
+
+Documents serves capture and plot-preference updates with direct and Run calls.
+Captures stream structure, complete authored table rows, summary tiles and plot
+bindings. Each plot request carries an execution-qualified fixed storage cursor;
+the Plots service evaluates it with the same bounded reducers used by HTML.
+`Host::current_document` reads the frozen catalog and stored preferences;
+`Host::snapshot_cut` renders an explicit evidence cut. Storage adds
+`read_session`, `plot_selection`, `plot_group_values`, `sigma_window`,
+`contour_scaled_window`, `document_value` and plot-preference reads/writes.
+
+Reports serves execution/cycle downloads, materialization and explicit execution
+publication, including every Run envelope. Materialization returns a temporary
+file reference; download its `metadata.id` with Content.DownloadArtifact.
+The temporary output is excluded from artifact inventory and expires on restart
+or when the bounded cache evicts it. Cycle downloads use identifier `cycle`.
+Publication freezes the selected document, execution seal and independent HTML;
+changing plot preferences cannot alter already published HTML. Report verification
+hashes the retained document bytes rather than re-encoding decoded maps.
+
+Repeated sections use bounded distinct-value pages and propagate selection
+filters to summaries and plots. Continuations bind the backend epoch, document,
+selection and evidence frontier. Cycle capture serves the default records,
+artifacts and media document. Summaries support record/stream scalars, nested
+aggregates, exact percentiles and scalar transforms. HTML contour cells and bands
+preserve nonuniform edges and validity masks. Evidence-card filter evaluation,
+cross-execution aggregate expressions, artifact expressions and complete
+trajectory/grid playback remain in the owning task inventory.
+
+The focused journeys are `client_renders_fixed_documents` and
+`client_queries_advanced_plots` in the runtime’s system target. The protocol crate’s
+generation task owns the additive `PlotRequest.at` field, unary
+`AnalysisRequest`/`AnalysisSamples`/`AnalysisResponse` contracts and generated output.
+An analysis operation uses its metadata identifier, accepts one bounded raw
+series plus typed parameters and returns its declared `AnalysisValues`.
+
+### Host and Storage Additions
+
+| Owner | Added Methods |
+| --- | --- |
+| Host | `current_document`, `snapshot_cut`, `analyze`; service adapters also provide `render_report`, `retain_report` and `temporary_report` |
+| Storage Content | `publish_artifact_chunk`, `begin_artifact`, `abort_artifact`, `append_content`, `finish_artifact`, `register_execution_file`, `finish_execution_file`, `content`, `execution_file`, `content_window`, `artifacts_page`, `files_page`, `write_execution_archive`, `content_fingerprint` |
+| Storage Notes | `create_note`, `edit_note`, `note_owner`, `notes_page`, `notes_fingerprint` |
+| Storage Documents | `plot_preferences`, `save_plot_preferences`, `document_value`, `document_value_filtered`, `document_distinct` |
+| Storage Queries | `read_session`, `cycle_execution_page`, `cycle_is_sealed`, `plot_selection`, `plot_group_values`, `select_plot_group`, `sigma_window`, `contour_scaled_window`, `sampled_time_series_window` |
 
 ## Cutover
 
