@@ -267,4 +267,4 @@ fixture. Other SDK language sources remain with their owner.
 - [x] Add explicit report publication, read published bytes without publishing during rendering, and prove the lifecycle over the wire.
 - [x] Extend the Rust client story with two executions in one cycle and isolated record reads; prove interrupted reads over the same services.
 - [x] Give every system story one shared support-owned hang guard with no literal story deadlines.
-- [ ] Run format, the twelve-story target twice, three focused crate check builds and repository checking; verify locked offline metadata on the committed head.
+- [x] Run format, the twelve-story target twice, three focused crate check builds and repository checking; verify locked offline metadata on the committed head. Windows passes: 12 stories in each final run, all three check builds, formatting, repository checking and locked offline metadata. The missing Python wheel prerequisite is repaired through SDK build/install tasks; no other language SDK source is edited. Native Linux and hosted proof remain with integration.
