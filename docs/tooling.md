@@ -166,6 +166,11 @@ fixture set when the run ends. Results and failure diagnostics remain under the
 task's target report directory. Set `DOKIME_KEEP_EVIDENCE=1` only when debugging
 requires the full scratch: the runner retains that scratch under its target report,
 and the bench driver also retains its fixture set.
+The native runtime creates `dokime-evidence-*` spools in
+`crates/dokime-runtime/src/execution/evidence_rows.rs` and `dokime-output-*` files
+in `crates/dokime-runtime/src/runtime/storage/native_outputs.rs`. Their Rust
+destructors cannot reclaim scratch after process termination; the enclosing
+desktop task owns that cleanup.
 Native launch is checked before admitting history, and admission completes before
 timing starts. The fixture host declares its checkpoint shutdown budget from the
 existing mutation policy. The result folder retains the producer's fixture stamp

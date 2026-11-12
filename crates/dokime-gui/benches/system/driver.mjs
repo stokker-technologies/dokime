@@ -137,6 +137,7 @@ async function waitDrawing(count, condition) {
   const deadline = performance.now() + 600000;
   while (true) {
     const observation = await desktop.execute("return desktopResult(true)");
+    if (!observation) throw new Error(`${count}/${condition}: native benchmark window closed before drawing completed`);
     const refused = observation.failedPlots === count && observation.loadedPlots === 0;
     const partial =
       observation.visibleFailures > 0 &&
