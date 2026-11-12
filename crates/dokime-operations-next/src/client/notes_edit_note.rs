@@ -48,8 +48,11 @@ pub async fn handle(context: &Context, request: v1::NotesEditNoteRequest) -> Res
     super::complete(ID, context.settings.mutation_timeout, async {
         super::notes_selection::epoch(context, &request.epoch)?;
         super::notes_selection::message(context, &request.message)?;
-        Ok(v1::EditNoteResponse { note: Some(context.host.store().edit_note(&request.note_id, "local-client", request.message)?) })
-    }).await
+        Ok(v1::EditNoteResponse {
+            note: Some(context.host.store().edit_note(&request.note_id, "local-client", request.message)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */
