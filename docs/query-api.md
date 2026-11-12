@@ -6,7 +6,8 @@ Indexed local history selection is implemented under runtime query/storage owner
 Record and telemetry query execution share that ownership.
 The five operations are callable through native and gRPC transports with generated
 low-level Python/TypeScript contracts. The [Python client](../sdk/python/README.md#finite-evidence-queries)
-adds lazy readers, server statistics and [optional bounded dataframe conversion](../sdk/python/README.md#optional-dataframes).
+generates its clients from authoritative service definitions; see the
+[Python SDK integration prerequisites](../sdk/python/README.md#connect-a-client).
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |

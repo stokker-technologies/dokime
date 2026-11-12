@@ -6,20 +6,19 @@
 #
 # ***
 
-
-"""Start a Backend and Pair the Desktop"""
+"""Serve A Remote Plugin; Start Dokime Separately."""
 
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import asyncio
-from pathlib import Path
+
+# Local Imports
+from suite import plugin
 
 # Third Party Imports
 import dokime
-
-# Local Imports
-from plugin import create
 
 # Type Checking Imports
 
@@ -31,22 +30,19 @@ from plugin import create
 
 # === Classes === #
 
-
 # === Public Functions === #
 
 
-async def main() -> None:
-    # Compose the Plugin
-    plugin = create()
-
-    # Start the Backend
-    async with dokime.Backend(port=0, application_root=Path(".dokime"), plugins=[plugin]) as backend:
-        # Pair the Desktop
-        backend.export_pairing("bench.pair", label="Bench")
-        print(f"Backend: {backend.endpoint}; open bench.pair in the desktop", flush=True)
-
-        # Serve Until Cancelled
+async def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--address", default="127.0.0.1:7001")
+    options = parser.parse_args()
+    endpoint = await dokime.serve(plugin(), address=options.address)
+    print(endpoint.url, flush=True)
+    try:
         await asyncio.Event().wait()
+    finally:
+        await endpoint.close()
 
 
 # === Private Functions === #

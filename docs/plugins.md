@@ -1,11 +1,8 @@
 # Dokime Plugins
 
-Python processes can contribute embedded operations, observers, settings and
-execution templates through `dokime.Plugin` and `Backend(plugins=[...])`. They use
-the same managed generation and publication boundaries as native providers. See
-[Python Authoring](../sdk/python/README.md#author-an-embedded-plugin) for declarations,
-callback ownership and batch publication. These providers live with their Python
-backend; distributable Python plugin bundles remain outside the current SDK.
+Python plugins run as remote processes, serving Harmos gRPC with typed Dokime
+catalogs and operations. The pure SDK provides suite instances, steps, observers,
+criteria, records and documents; see [Python Authoring](../sdk/python/README.md#author-a-remote-plugin).
 
 ## Security
 
@@ -16,33 +13,22 @@ Publisher signing, organization allowlists and WebAssembly isolation remain prop
 
 ## Python Projects
 
-Create a project with `dokime new bench --lang python`, install the matching SDK
-with [uv](../sdk/python/README.md#install), and run `uv run python main.py`.
-The [runnable source](../sdk/python/examples/starter/) owns the generated files:
-`main.py` composes the backend; `plugin/__init__.py` assembles its catalog;
-`plugin/operations/read.py` owns the instrument request, policy and handler;
-`plugin/suites/capture.py` owns parameters, prompt, stream, steps and criterion.
-Python operation handlers are the driver boundary, just as Rust operations are.
+Create a project with `dokime new bench --lang python` and install the pure
+`dokime` wheel with [uv](../sdk/python/README.md#install). The
+[starter](../sdk/python/examples/starter/) keeps its remote endpoint in `main.py`,
+its suite in `suite.py`, and its deterministic host test under `tests/`.
 
-```python
-# Read Voltage
-operation = Read(index)
-voltage_v = await ctx.operation(operation)
-
-# Publish the Reading
-row = Row(index, voltage_v)
-await writer.push(row)
+```sh
+mise run test
+mise run serve
 ```
 
-Async callbacks stay on the starting event loop; synchronous operations run on
-workers. Resources are plugin-owned shared objects, while serialized requests
-and replies are independent values. Native deadlines and cancellation still
-apply. A retained callback context refuses calls after its owner ends. Completed
-evidence and sealed reports can be reopened without registering the Python
-plugin again; the GUI shows its unavailable template without offering a new run.
-Installed plugins always load and reserve their IDs, including when disabled.
-Changing the Python plugin means restarting its backend; no Python sidecar bundle
-or hot-reload lifecycle is provided.
+Add the printed endpoint to a separately running Dokime host when its gRPC
+plugin integration is available. Python never owns the host's data root.
+Operations, observer demand, retries and cancellation run through Harmos.
+The suite instance owns execution resources until cleanup. Restarting the
+Python process changes its process identity and interrupts active runs under
+the host's recovery policy. The SDK does not build managed Python bundles.
 
 ## Native Plugin Runtime
 

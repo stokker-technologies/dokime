@@ -33,7 +33,7 @@ operating conditions, and review the evidence behind each result.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
 - **Measurements and Reports:** Capture live data with the [ten plot kinds](docs/product-guide.md#plot-catalog), including sparse contours and generic grids. Retain plots, local trajectory/grid playback and records in self-contained HTML reports, with links to execution artifacts. Stream row changes apply on plugin reload; saved measurements retain their original definitions.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
-- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust and embedded Python authoring APIs.
+- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust and remote Python authoring APIs.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
 - **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
@@ -75,7 +75,7 @@ structure, so you can use any instrument library.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust and Python (embedded); C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust and Python (remote); C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
 | **Maturity** | Young | Established | Established | Industry standard |
 
@@ -133,47 +133,23 @@ dokime operation list --remote lab.pair
 
 ### Python
 
-Python can start a native backend with `async with Backend(port=0)` and export a
-GUI pairing file with `backend.export_pairing(path, label="Bench")`. The backend
-loads installed plugins and releases its data root when the context exits.
-Pass `plugins=[Plugin(...)]` to contribute Python operations, observers, settings
-and templates; see [Python Authoring](sdk/python/README.md#author-an-embedded-plugin).
-The async Python client controls a running backend with owned cycle contexts,
-terminal evidence iterators and saved bundles with digest manifests. Lazy history
-and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
-bounded dataframes with captured types. The distribution is `dokime-python`; imports use `dokime`.
-Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
+The pure `dokime` package serves remote plugins over Harmos gRPC and generates
+messages and client stubs from the repository's proto sources at wheel build time.
+Suite instances hold execution resources; clients and plugins use explicit close.
+See the [Python SDK guide](sdk/python/README.md) for the API and current host/proto
+integration prerequisites.
 
 #### Examples
 
-Start an authoring project with `dokime new bench --lang python`; its `main.py`
-starts the backend and exports a desktop pairing file, while `plugin/` keeps
-instrument operations and suites together. [Install with uv](sdk/python/README.md#install)
-from this candidate's Git revision or a matching native wheel. The provisional
-distribution is `dokime-python`; registry publication awaits the naming decision.
-
-Install the native wheel matching your backend and platform, selecting the optional
-extra for this dataframe example:
+The [starter](sdk/python/examples/starter/) owns the source embedded by
+`dokime new bench --lang python`. It serves a remote suite with measurement,
+operator confirmation, an observer, records, a criterion and a document.
 
 ```sh
-uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars
+uv add /path/to/dokime-0.1.5-py3-none-any.whl
+mise run test
+mise run serve
 ```
-
-```python
-from dokime import DokimeClient, ExecutionStatus
-
-async with DokimeClient.from_pairing("lab.pair") as client:
-    async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
-        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
-            frame = await samples.to_polars(max_rows=10_000)
-            print(frame, samples.metadata, samples.complete)
-```
-
-The [Python client guide](sdk/python/README.md) covers authentication,
-pairing files, [query limits and dataframe types](sdk/python/README.md#optional-dataframes).
-The example requires the corresponding installed template and stream; finite
-queries never follow or change execution state. The [remote guide](docs/remote/python.md)
-retains the complete setup and runnable lifecycle examples.
 
 ### Rust
 

@@ -71,8 +71,6 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "archive",
         "--locked",
         "--workspace",
-        "--exclude",
-        "dokime-python",
         "--tests",
         "--cargo-profile",
         compiler_profile,

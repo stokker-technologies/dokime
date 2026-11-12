@@ -54,8 +54,6 @@ jobs:
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    needs:
-    - build_product
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
   check_generated:
     name: Check / Generated
@@ -92,33 +90,17 @@ jobs:
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
-          work: Python / Unit
-          command: test -- --language python --layer unit
+          work: Python / Wheel
+          command: test -- --language python --wheel
           bootstrap: '[]'
           archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
-          work: Python / Unit
-          command: test -- --language python --layer unit
+          work: Python / Wheel
+          command: test -- --language python --wheel
           bootstrap: '[]'
           archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Acceptance
-          command: test -- --language python --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Acceptance
-          command: test -- --language python --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120

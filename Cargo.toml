@@ -26,7 +26,6 @@ members = [
   "crates/dokime-server",
   "plugins/sidecars/obc",
   "plugins/sidecars/obc/runtime",
-  "sdk/python",
   "sdk/rust",
 ]
 # Native Python Is Built Only By Its Explicit Producer.

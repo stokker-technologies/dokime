@@ -12,12 +12,8 @@ step_timeout_seconds = 900
 
 [conventions.rust]
 generated = ["crates/dokime-protocol/src/v1.rs", "crates/dokime-protocol/src/reflection.rs", "crates/dokime-protocol/src/sources.rs"]
-# The Owner-Locked SDK Lives Beside The Other SDKs And Depends On The Facade And Server.
-bindings = ["dokime-python"]
 
 [conventions.rust.source_roots]
-# Owner-Locked Layout Exception To The crates/<project>-python Convention.
-dokime-python = "sdk/python/src"
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"
 

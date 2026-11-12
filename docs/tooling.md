@@ -219,32 +219,29 @@ exclusive bridge/encoding time, OS-cache-cold reads and server/native queue dept
 are explicitly unavailable in the report. The `integration-plots` benchmark and
 its historical baseline obligations remain unchanged.
 
-## Native Python SDK Builds
+## Python SDK Builds
 
-`sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
+`sdk/python` builds one pure `dokime-<version>-py3-none-any.whl` with Hatchling.
+Its build hook generates protobuf messages, type stubs, service stubs and a
+complete descriptor set from repository `proto/`. No generated Python is
+committed. Harmos is a direct exact-revision dependency; the SDK imports no
+Dokime host, Rust extension or backend launcher.
 
 ```sh
-mise run build -- --profile dev
-mise run build -- --language python --profile dev
-mise run test -- --language python --wheel --profile dev
-mise run package -- --language python --profile dev
+mise -C sdk/python run sdk:prepare
+mise run build -- --language python
+mise -C sdk/python run sdk:install
+mise -C sdk/python run sdk:generated
+mise -C sdk/python run sdk:test
+mise -C sdk/python run sdk:starter
+mise run test -- --language python --wheel
 ```
 
-The explicit Python producer uses maturin and PyO3's Python 3.13+ stable ABI.
-Ordinary Rust Product, Tests and Bench producers exclude `dokime-python`; Cargo's
-`default-members` also omit it. The SDK depends on `dokime` and `dokime-server` by
-the owner-locked exception to facade-only bindings, and its source-root exception
-is declared in `.stkr/project.toml`.
-
-CI builds Product and then Python on Linux and Windows, restoring the matching
-Product compiler cache. Both use the native Cargo target directory and the same
-profile; release wheels enable the server's native media feature. Shared Cargo
-units reuse only when their resolved dependency features match. The wheel and
-package exports use `target/{build,package}/<profile>/<native-target>/python/`.
-Package copies the built wheel and never compiles it. Release assets collect both
-native wheels; no source distribution or platform-independent wheel is produced.
-`test -- --language python --wheel` installs into a disposable environment outside the checkout
-and imports the native extension with isolated Python path handling.
+Wheel outputs retain `target/build/<profile>/<native-target>/python/` for the
+existing artifact interface, but the wheel itself is platform independent.
+Packaging copies it without compilation. The fresh-wheel proof creates an
+isolated environment outside the checkout, installs the wheel and its pinned
+Harmos dependency, copies the starter there, and runs the starter's own story.
 
 ## Protocol Generation
 
@@ -273,8 +270,8 @@ descriptor against that dependency as well. `mise run generate -- --protocol --c
 same drift check without regenerating committed source. Existing GUI/client
 contract generation continues separately through the ordinary `generate` task.
 
-Document protocol generation also refreshes the Python descriptor and C#/C++
-message sources. Their focused builder checks are:
+Python generates its complete surface at wheel build time. C#/C++ own their
+message generation and focused builder checks:
 
 ```sh
 mise -C sdk/csharp run test:builders
@@ -291,54 +288,34 @@ mise -C crates/dokime-gui run generate:report
 
 ## Focused Python Checks
 
-`mise run test -- --language python --layer unit --select <expression>` and `mise run test -- --language python --layer integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build -- --language python`. `check -- --bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
+`mise -C sdk/python run sdk:test` runs the SDK's in-process stories.
+`mise -C sdk/python run sdk:generated` compares the installed wheel with every
+source proto and validates every generated service method, cardinality and
+serializer. `mise run check -- --bindings` additionally type-checks the SDK and
+runs generated-surface checking from the fresh installed wheel.
 
-For client acceptance without the desktop or Rust test archive, build the focused
-native inputs and select their fixture root:
+Repository `proto/dokime/v1` currently contains no client service declarations.
+The generator includes every service as those definitions land; missing mappings
+raise `MissingServiceError`. A fake server with test-owned descriptors proves
+client dispatch without introducing a second production wire contract.
 
-```sh
-mise run build -- --language python --artifact fixtures
-mise run test -- --language python --layer acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
-```
+## Python System Story
 
-Add `--select backend` to run only the installed-wheel backend startup, pairing,
-storage refusal and installed-plugin collision stories during backend work.
+The single starter source is `sdk/python/examples/starter/`. The CLI must embed
+`.gitattributes`, `.gitignore`, `main.py`, `suite.py`, `pyproject.toml`,
+`mise.toml`, `tests/host.py`, and `tests/test_capture.py`; only its project name needs substitution.
+`mise -C sdk/python run sdk:starter` runs its deterministic in-process host story.
 
-Use the corresponding native target directory on Linux. The foreign-operation
-socket fixtures come from Rust contract construction; refresh their JSON with
-`mise exec -- cargo run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
+The language-neutral system suite is the starter's `suite.py`. Its identifiers
+and host prerequisites are documented in the [SDK guide](../sdk/python/README.md#validate).
+Real Dokime execution, report publication, sealing and reopening await the host
+and authoritative client service definitions. SDK system stories run in Nightly.
 
-## Python System Story and Batch Measurements
-
-`sdk/python/tests/{unit,integration,acceptance,system}/` separate pure value
-invariants, in-process callback ownership, installed-wheel stories and the
-CLI/SDK composition. `sdk/python/examples/starter/` supplies `dokime new --lang
-python`; it is embedded by `crates/dokime-cli/src/commands/new.rs`, so changing the
-starter requires rebuilding the CLI as well as validating the Python source.
-
-```sh
-mise run build -- --language python --artifact fixtures
-mise run test -- --language python --layer system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
-```
-
-The system story starts the generated Python plugin, exports pairing, runs a
-prompt and measurement execution, seals its report, and reopens it without the
-plugin. It consumes only the native CLI and wheel, never a desktop or test
-archive. Nightly runs the same task on Linux and Windows; PR and dev jobs do not
-select it. Use `linux-x86_64` for the corresponding local Linux fixture path.
-
-After validation has stopped, measure the same 10,000-row, 1,000-row-batch workload:
-
-```sh
-mise exec -- cargo run --locked -p dokime-python --example authoring-batch
-mise run bench -- --language python --layer system
-```
-
-The native example and Python benchmark both await admitted ingestion. Python's
-native pytest-benchmark JSON under `target/benchmarks/` additionally records
-synchronous bridge preparation (snapshot, encoding and value conversion) and the
-awaited publication separately. These are development-profile workstation
-measurements, not a throughput target. Timings are absent from correctness tests.
+Build the reference host through the pinned Harmos checkout's
+`mise run build -- --package harmos-conformance`, set `HARMOS_CONFORMANCE_HOST`
+to that executable, and run `mise -C sdk/python run sdk:conformance` to exercise
+all Harmos transport rules through the Dokime package. This proof never starts
+Dokime and does not replace its pending real-host story.
 
 ## Test Hang Guards
 

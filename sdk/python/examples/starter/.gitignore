@@ -1,4 +1,3 @@
 .venv/
-.dokime/
 *.pair
 __pycache__/

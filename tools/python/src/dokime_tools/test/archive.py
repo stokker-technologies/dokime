@@ -144,7 +144,6 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
                 "install",
                 "--python",
                 sys.executable,
-                "--no-deps",
                 "--reinstall",
                 *map(str, wheels),
             ],
