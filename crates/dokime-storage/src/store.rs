@@ -75,11 +75,12 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "samples", "streams"] {
+            if tables != ["administration", "evidence", "executions", "plugins", "reports", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
             connection.execute_batch(&format!("PRAGMA application_id={APPLICATION_ID}; PRAGMA user_version=1;
+                CREATE TABLE administration(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));

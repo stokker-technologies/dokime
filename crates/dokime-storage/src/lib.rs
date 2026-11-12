@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod administration;
 mod error;
 mod execution;
 mod outcome;
