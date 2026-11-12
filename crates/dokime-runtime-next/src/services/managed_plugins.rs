@@ -388,6 +388,7 @@ mod tests {
             backend_id: uuid::Uuid::now_v7().to_string(),
             ..Default::default()
         };
+        let temporary_report_limit = settings.max_cases;
         let remote =
             super::super::remote_access::Control::new(host.inner.store.clone(), identity.clone(), settings, administration.clone())?;
         let state = State {
@@ -402,6 +403,8 @@ mod tests {
                 page_size: NonZeroUsize::new(100).unwrap(),
                 display_points: NonZeroUsize::new(100).unwrap(),
             },
+            temporary_reports: Mutex::new(std::collections::BTreeMap::new()),
+            temporary_report_limit,
         };
 
         // Cancel Only After the Child Has Announced Its Own PID
