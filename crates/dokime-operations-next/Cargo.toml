@@ -45,6 +45,9 @@ prost = { workspace = true }
 prost-reflect = { workspace = true }
 prost-types = { workspace = true }
 
+# Cryptography
+sha2 = { workspace = true }
+
 # Configuration
 
 # Filesystem
@@ -55,8 +58,11 @@ prost-types = { workspace = true }
 
 # Async
 async-trait = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+tokio-stream = { workspace = true }
 
 # Networking
+tonic = { workspace = true }
 
 # Storage
 

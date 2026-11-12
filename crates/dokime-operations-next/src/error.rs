@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("{0}: Operation Deadline Expired")]
+    Deadline(String),
+
     #[error(transparent)]
     Storage(#[from] dokime_storage::Error),
 

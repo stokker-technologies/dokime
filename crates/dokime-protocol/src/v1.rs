@@ -5232,6 +5232,9 @@ pub struct DeclaredOutcome {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FrozenSchemas {
+    /// Frozen descriptors and contract identities for exact payload decoding.
+    #[prost(message, optional, tag = "3")]
+    pub catalog: ::core::option::Option<::harmos_protocol::v1::Catalog>,
     #[prost(message, repeated, tag = "1")]
     pub records: ::prost::alloc::vec::Vec<RecordSchema>,
     #[prost(message, repeated, tag = "2")]
@@ -5669,6 +5672,9 @@ pub struct CapturedErrorCause {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CapturedRecord {
+    /// Original protobuf bytes interpreted using the frozen record descriptor.
+    #[prost(bytes = "vec", tag = "16")]
+    pub payload: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag = "1")]
     pub record_id: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
@@ -5934,6 +5940,8 @@ pub struct ControlReply {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CreateCycleReply {
+    #[prost(string, repeated, tag = "3")]
+    pub execution_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag = "1")]
     pub cycle_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
@@ -6931,6 +6939,9 @@ pub struct ExecutionControls {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionDetail {
+    /// Verified digest of the sealed immutable execution and evidence.
+    #[prost(bytes = "vec", tag = "18")]
+    pub seal: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "1")]
     pub report: ::core::option::Option<ReportStatus>,
     #[prost(message, optional, tag = "2")]
@@ -10001,6 +10012,9 @@ pub struct TelemetryPreferences {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetrySample {
+    /// Original row bytes interpreted using the frozen stream descriptor.
+    #[prost(bytes = "vec", tag = "12")]
+    pub payload: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag = "1")]
     pub sample_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -18330,6 +18344,9 @@ pub mod execution_cancel_execution_run_output {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionCreateCycleRequest {
+    /// New host: admit and start these frozen materialized cases atomically.
+    #[prost(message, repeated, tag = "4")]
+    pub origins: ::prost::alloc::vec::Vec<Origin>,
     #[prost(message, optional, tag = "1")]
     pub metadata: ::core::option::Option<Metadata>,
     #[prost(bool, tag = "2")]

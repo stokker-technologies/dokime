@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod client;
 mod error;
 pub mod log;
 pub mod progress;

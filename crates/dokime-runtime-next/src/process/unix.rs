@@ -36,7 +36,7 @@ use std::{ffi::OsStr, process::Command};
 
 /* === Public Functions === */
 
-pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
+pub fn command(program: impl AsRef<OsStr>) -> Command {
     #[allow(clippy::disallowed_methods, reason = "the replacement host process constructor")]
     let command = Command::new(program);
     command

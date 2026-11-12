@@ -226,3 +226,29 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 
 - [ ] CLI owner: migrate `crates/dokime-cli/src/commands/new.rs` to embed the authoritative pure Python starter file set listed in 4.3.4; remove the three retired `starter/plugin/` includes and rerun the failing Rust check and affected producer proof.
 - [ ] Rust SDK owner: replace the `v1::Prompts` construction in `sdk/rust/src/plugin.rs` with canonical `v1::PromptCatalog` and validate against the complete client protos. This mismatch was found by source inspection; the whole-workspace check stopped first at the CLI starter includes.
+
+## Client-Driven New Host Serving
+
+Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing execution/dispatch/streams/storage source stays with the host-feature owner.
+
+- [x] Implement the real-process Rust SDK journey `client_runs_thermal_suite_over_grpc`, including URL admission, catalog, materialization, execution, progress, prompt, evidence, samples, report and sealed restart reads.
+- [x] Implement thin generated servers for Plugins, Catalog, Planning, Execution, Observation, Prompts, Query, Evidence, Telemetry, Reports, Health and Backend, with one declaration/handler file per served operation and named refusals for all other methods.
+- [x] Implement the configured listener with explicit close and `dokime-host-next` process entry point; keep new host dependencies independent of old crates.
+- [x] Add only required additive wire fields and regenerate authoritative Rust bindings.
+- [x] Run the same real-host journey with the present pure Python SDK's generated clients.
+- [x] Pass focused Windows proof: whole-tree format, `client_runs_thermal_suite_over_grpc` three consecutive runs, `python_client_runs_thermal_suite_over_grpc`, both existing host stories, three new-crate check builds, operations package language checking and protocol generation drift. Python evidence decoding loads the frozen descriptor dependency graph before decoding exact payloads.
+- [ ] Integration owner: complete `mise run check -- --language rust --package dokime-runtime-next` after the SDK owner repairs `clippy::let_and_return` at `sdk/rust/src/stream.rs:107`. The required check currently fails there; its format stage passes. No suppression, check changes or SDK edits were made in this worktree. Native Linux and hosted validation remain integration proof.
+
+- [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
+  - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
+  - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
+  - [ ] Planning: RunMaterializeTemplate, PreviewSelection, RunPreviewSelection, RegisterSelection, RunRegisterSelection.
+  - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
+  - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
+  - [ ] Prompts: GetDefinition, RunGetDefinition, RunGetPrompt, ListDefinitions, RunListDefinitions, RunListPending, RunRespond.
+  - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
+  - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
+  - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
+  - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport.
+  - [ ] Health: RunListHealth.
+  - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.

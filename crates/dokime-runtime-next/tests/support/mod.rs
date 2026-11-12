@@ -63,6 +63,13 @@ pub fn thermal_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(path)
 }
 
+pub fn host_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let executable = std::env::var_os("NEXTEST_BIN_EXE_dokime-host-next")
+        .or_else(|| option_env!("CARGO_BIN_EXE_dokime-host-next").map(Into::into))
+        .ok_or("Build the New Host Binary Before Running Its Client Stories")?;
+    Ok(PathBuf::from(executable))
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

@@ -21,6 +21,10 @@ publish.workspace = true
 
 # === Package Targets === #
 
+[[bin]]
+name = "dokime-host-next"
+path = "src/bin/host.rs"
+
 # === Features === #
 
 # === Dependencies === #
@@ -58,7 +62,7 @@ prost-types = { workspace = true }
 
 # Async
 async-trait = { workspace = true }
-tokio = { workspace = true, features = ["process", "io-util", "sync", "rt", "macros", "time"] }
+tokio = { workspace = true, features = ["process", "io-util", "io-std", "sync", "rt", "macros", "time", "net"] }
 tokio-stream = { workspace = true, features = ["net"] }
 tokio-util = { workspace = true }
 
@@ -77,6 +81,7 @@ tonic = { workspace = true }
 
 [dev-dependencies]
 # Local
+dokime = { version = "0.1.5", path = "../../sdk/rust" }
 
 # Git
 
@@ -87,6 +92,9 @@ tonic = { workspace = true }
 # Utilities
 
 # Serialization
+
+# Cryptography
+sha2 = { workspace = true }
 
 # Configuration
 

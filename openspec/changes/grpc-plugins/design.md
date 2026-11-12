@@ -790,6 +790,17 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Client serving uses the authoritative generated `dokime.v1` servers; unsupported methods return `UNIMPLEMENTED` with their service and operation name.
+The first wire cycle atomically admits and starts explicit frozen origins, carried by additive `ExecutionCreateCycleRequest.origins` and returned execution IDs.
+Captured records and telemetry retain exact protobuf payload bytes alongside projections; execution detail exposes the verified seal digest.
+The existing new-runtime `process::command` constructor is public for client-story process launches and later consumer cutover; no process-constructor implementation changes.
+The listener binds before announcing its URL, closes explicitly, and the process exits on stdin EOF after cancelling and draining owned execution work.
+FrozenSchemas carries the original Harmos catalog so clients can decode exact payloads after all plugins disconnect or the host restarts.
+Backend identity is storage-root scoped, boot epoch is process scoped, and availability lists only routed methods.
+Client operation policies own finite read/mutation deadlines and configured page/message bounds; progress waits on prompt and completion events without polling.
+Reports render a read-only snapshot with ordered chunks and SHA-256 completion; publication remains the execution-feature owner's responsibility.
+
+
 The new host uses `dokime-storage`, `dokime-operations-next` and
 `dokime-runtime-next` until the later atomic consumer cutover renames the latter
 crates. Only the console-free process constructor is copied from
