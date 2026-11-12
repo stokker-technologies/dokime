@@ -103,7 +103,9 @@ pub(crate) async fn starts_shutdown_commands() {
     rebooted.shutdown().await.unwrap();
 }
 
-pub(crate) async fn old_incompatible_startup() {
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn incompatible_root_preserves_existing_evidence() {
     let root = tempdir().unwrap();
     let legacy = root.path().join("harmos");
     std::fs::create_dir_all(&legacy).unwrap();

@@ -62,7 +62,6 @@ async fn runtime_queries() {
     #[cfg(feature = "fault-injection")]
     lifecycle::fixture_backends_decorated().await;
     lifecycle::starts_shutdown_commands().await;
-    lifecycle::old_incompatible_startup().await;
     lifecycle::boot_reboots_intact().await;
     queries::orchestrator_frames_exposed().await;
     queries::live_revisions_coalesce().await;

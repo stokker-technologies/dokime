@@ -196,7 +196,8 @@ pub(super) async fn report_save_receipt() {
     let captured = harmos::storage::ReadBatch::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
-    let mut prepared = dokime_runtime::report::Renderer.execution(captured.clone(), outputs, &manager.cursor_saved()).unwrap();
+    let mut prepared =
+        dokime_runtime::report::Renderer.execution(captured.clone(), outputs, &manager.cursor_saved()).unwrap().prepare_publication();
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
     let original = prepared.save_dependencies(&manager, &sealed_at, &revision).await.unwrap();

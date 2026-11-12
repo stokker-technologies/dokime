@@ -84,6 +84,15 @@ pub struct PreparedExecutionReport {
     sealed_at: Option<Timestamp>,
 }
 
+/// Temporary HTML from one fixed evidence capture. Dropping it publishes nothing.
+pub struct RenderedExecutionReport {
+    captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
+    outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>,
+    evidence: harmos::storage::ReadBatch<CapturedSource>,
+    report: ReportFile,
+    nonce: uuid::Uuid,
+}
+
 pub(super) struct ReportFile {
     data: harmos::storage::ReadBatch<ReportFileData>,
     producer: Option<StorageFile>,
@@ -278,6 +287,57 @@ impl CapturedExecutionReportInput {
     }
 }
 
+impl RenderedExecutionReport {
+    /// Copy the temporary result without creating a storage file or publication.
+    pub fn write_html(&self, writer: &mut impl Write) -> Result<()> {
+        let mut spool = self.report.data.spool.lock().map_err(|_| report_invalid("report spool lock is poisoned"))?;
+        spool.seek(SeekFrom::Start(0))?;
+        std::io::copy(&mut *spool, writer)?;
+        Ok(())
+    }
+
+    /// Select this rendered result for subsequent durable publication.
+    pub fn prepare_publication(self) -> PreparedExecutionReport {
+        PreparedExecutionReport {
+            captured: self.captured,
+            outputs: self.outputs,
+            context: ReportContext::Deferred {
+                evidence: self.evidence,
+                nonce: self.nonce,
+            },
+            report: self.report,
+            sealed_at: None,
+        }
+    }
+
+    pub(super) fn render(
+        html: HtmlReport, outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &StorageCursor,
+    ) -> Result<Self> {
+        let captured = html.captured_input()?.clone();
+        captured.validate()?;
+        validate_outputs(&captured.execution_id, saved, outputs.as_slice())
+            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        let nonce = uuid::Uuid::now_v7();
+        let report = ReportFile::render(&html, captured.execution_id.as_str(), nonce, ".report")?;
+        let evidence = html.captured_source()?.clone();
+        let context_id = context_identity(&evidence, nonce).id()?;
+        if outputs
+            .iter()
+            .filter_map(|output| output.file.as_ref())
+            .any(|file| file.metadata.id == context_id || file.metadata.id == report.data.metadata.id)
+        {
+            return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
+        }
+        Ok(Self {
+            captured,
+            outputs,
+            evidence,
+            report,
+            nonce,
+        })
+    }
+}
+
 impl PreparedExecutionReport {
     pub(crate) fn reuse_context(&mut self, context: FileReference) -> Result<()> {
         if context.metadata.scope.as_ref().map(|scope| scope.as_str()) != Some(self.captured.execution_id.as_str())
@@ -297,43 +357,6 @@ impl PreparedExecutionReport {
 
     pub(crate) fn settled_outputs(&self) -> &[ExecutionOutput] {
         self.outputs.as_slice()
-    }
-
-    pub(super) fn prepare_html(
-        html: HtmlReport, outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>, saved: &StorageCursor,
-    ) -> Result<Self> {
-        let captured = html.captured_input()?.clone();
-        captured.validate()?;
-        validate_outputs(&captured.execution_id, saved, outputs.as_slice())
-            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-        let (context, report) = if captured.final_report {
-            let nonce = uuid::Uuid::now_v7();
-            let report = ReportFile::render(&html, captured.execution_id.as_str(), nonce, ".report")?;
-            let evidence = html.captured_source()?.clone();
-            (ReportContext::Deferred { evidence, nonce }, report)
-        } else {
-            let (context, report) = ReportFile::capture(&html)?;
-            (ReportContext::Spooled(context), report)
-        };
-        let context_id = match &context {
-            ReportContext::Spooled(context) => context.data.metadata.id.clone(),
-            ReportContext::Deferred { evidence, nonce } => context_identity(evidence, *nonce).id()?,
-            ReportContext::Frozen(context) => context.metadata.id.clone(),
-        };
-        if outputs
-            .iter()
-            .filter_map(|output| output.file.as_ref())
-            .any(|file| file.metadata.id == context_id || file.metadata.id == report.data.metadata.id)
-        {
-            return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
-        }
-        Ok(Self {
-            captured,
-            outputs,
-            context,
-            report,
-            sealed_at: None,
-        })
     }
 
     pub(crate) async fn publish_current(
@@ -452,15 +475,6 @@ impl ReportFile {
         let data = seed.try_map(encode)?;
         drop(native);
         Ok(Self::new(data))
-    }
-
-    fn capture(html: &HtmlReport) -> Result<(Self, Self)> {
-        let captured = html.captured_input()?;
-        let nonce = uuid::Uuid::now_v7();
-        let evidence = html.captured_source()?;
-        let context = Self::context(evidence, nonce)?;
-        let report = Self::render(html, captured.execution_id.as_str(), nonce, ".report")?;
-        Ok((context, report))
     }
 
     pub(super) async fn finish(&mut self, manager: &Manager) -> Result<FileReference> {
@@ -617,7 +631,9 @@ mod tests {
         let captured = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(captured)).unwrap();
         let html = HtmlReport::from_capture(captured, evidence).unwrap();
         let source = html.captured_source().unwrap();
-        let (context, report) = ReportFile::capture(&html).unwrap();
+        let nonce = uuid::Uuid::now_v7();
+        let context = ReportFile::context(source, nonce).unwrap();
+        let report = ReportFile::render(&html, html.captured_input().unwrap().execution_id.as_str(), nonce, ".report").unwrap();
         let mut context_bytes = Vec::new();
         context.data.spool.lock().unwrap().read_to_end(&mut context_bytes).unwrap();
         let decoded = NativeSource::decode(&context_bytes).unwrap();
@@ -659,9 +675,13 @@ mod tests {
         let html = fixture();
         assert!(html.captured_input().unwrap().final_report);
         let saved = html.captured_input().unwrap().evidence_through.clone();
-        let (expected_context, expected) = ReportFile::capture(&fixture()).unwrap();
+        let expected_html = fixture();
+        let nonce = uuid::Uuid::now_v7();
+        let expected_context = ReportFile::context(expected_html.captured_source().unwrap(), nonce).unwrap();
+        let expected =
+            ReportFile::render(&expected_html, expected_html.captured_input().unwrap().execution_id.as_str(), nonce, ".report").unwrap();
         let outputs = Arc::new(harmos::storage::ReadBatch::new(Vec::new()));
-        let prepared = PreparedExecutionReport::prepare_html(html, outputs, &saved).unwrap();
+        let prepared = RenderedExecutionReport::render(html, outputs, &saved).unwrap().prepare_publication();
         let read = |file: &ReportFile| {
             let mut bytes = Vec::new();
             file.data.spool.lock().unwrap().read_to_end(&mut bytes).unwrap();

@@ -2444,6 +2444,11 @@ first/last rows in one committed storage snapshot, shared across active cycle
 members. They show an **As Of** time and the saved evidence frontier for that cut;
 ingestion can continue while the report renders. Final reports retain their exact
 frozen cut.
+Document rendering can also return temporary HTML for a selected document at a
+fixed execution snapshot. Reading or discarding that output changes no saved
+report or seal. Publication is a separate explicit step; failed rendering
+publishes nothing. A selected document can reuse analysis results already frozen
+with that definition; it cannot run a new analysis against a captured snapshot.
 Live documents and HTML document replays read artifact owners and indexed records
 within their selected execution or cycle, including subscribed captures. Corrupt
 evidence outside that selection does not prevent the document from opening;
