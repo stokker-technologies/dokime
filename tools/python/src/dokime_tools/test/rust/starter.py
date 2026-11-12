@@ -114,7 +114,7 @@ def test(profile: str) -> None:
                 raise ValueError("the starter must declare SDK and host definitions from the same release")
         lines = authored.splitlines(keepends=True)
         for name, local, features in (
-            ("dokime", root / "crates/dokime", ', features = ["plugin-sidecar"]'),
+            ("dokime", root / "crates/dokime", ', package = "dokime-facade", features = ["plugin-sidecar"]'),
             ("plugin-host", root / "plugins/sidecars/host", ", default-features = false"),
         ):
             selected = [index for index, line in enumerate(lines) if line.startswith(f"{name} = ")]

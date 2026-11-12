@@ -67,6 +67,7 @@
 ## 4. SDKs
 
 - [ ] 4.1 Wave 4, Rust: make `sdk/rust` the `dokime` product crate with `use dokime::prelude::*;`, plugin authoring and the absorbed client half, generated step/criterion operations and derived `materialize`; product dependencies stop at protocol and compile no host. Align Harmos's `sdk/rust` entry point as `harmos`.
+- [x] 4.1.2 Interim package ownership: rename the old facade to `dokime-facade` with library `dokime`; 4.8 migrates its consumers and 5.11 deletes it. The CLI package remains `dokime-cli` and its installed binary remains `dokime`. Include macro crate discovery and the old starter dependency in this rename; focused formatting/checking accepts a package to preserve concurrent ownership. Cargo resolution and the renamed-facade operation journey pass on Windows.
 - [ ] 4.2 Move the plugin, installer and proto commands into `dokime`, add `dokime new --lang`, and delete `crates/cargo-dokime`.
 - [ ] 4.3 Python: flat public APIs with value composition and explicit close, no required context managers; pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
 - [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`. Generate message code from the proto files during the project build (`Grpc.Tools`) and delete the committed generated sources; the proto files are the only committed source.

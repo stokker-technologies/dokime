@@ -9,11 +9,13 @@ mise run build -- --package dokime-domain --check
 mise run test -- --package dokime-domain --target lib --exact state::records::set::tests::capture_snapshot_retains_only_owner_and_frontier
 mise run test -- --package dokime-runtime --features testing --target integration --exact config::settings_backends
 mise run format -- --check --language python
+mise run format -- --language rust --package dokime-runtime
 mise run check -- --repository
 ```
 
 `build` and `test` accept `--features "feature-a,feature-b"` (or a space-separated list)
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
+Rust formatting and `check --language rust --package <name>` select only that package.
 
 For a focused GUI integration story with already prepared, unchanged protocol
 modules, `mise run test:typescript:integration -- --prepared --select tests/integration/plots/nominal.test.ts`

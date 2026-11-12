@@ -123,8 +123,11 @@ run = [
 [tasks."format:rust"]
 hide = true
 description = "Format Rust"
-usage = 'flag "--check"'
-run = "cargo fmt --all{% if usage.check %} --check{% endif %}"
+usage = '''
+flag "--check"
+flag "--package <package>" help="Limit Formatting to One Package"
+'''
+run = "cargo fmt {% if usage.package %}--package {{usage.package}}{% else %}--all{% endif %}{% if usage.check %} --check{% endif %}"
 
 [tasks."format:toml"]
 hide = true
