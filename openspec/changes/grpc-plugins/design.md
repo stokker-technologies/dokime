@@ -871,11 +871,15 @@ deterministic admission/refusal coverage against the real host, including compac
 wire values whose generated representation exceeds the allocation bound, and
 return a published exact revision. Do not use sampled process-memory assertions.
 
-The dependent wire-mirror/dependency cutover remains open until that admission
-contract is supplied. Dokime will not add local `Portable` adapters, JSON round
-trips, handwritten protobuf client codecs or compatibility facades. The selected
-revision above replaces the previous requested pin; the workspace still uses its
-registry dependencies until the complete, buildable consumer cutover.
+Owner decision: adopt the generated client at exact revision
+`a7583836e721c8dc8b135af40a78860ea5945ec6` now, using its existing wire-message
+and outgoing queue item/byte bounds from configuration. Decoded-memory admission
+is an open follow-up owned by Harmos, delivered as an additive bound on
+`ClientSettings`; it changes no call shape (`Client`, `client::Method`, `call`,
+`start`, `Running`). Dokime adopts that bound by a pin bump when Harmos publishes
+the revision supplying it. This follow-up does not precede or block 2.8.3, 3.1,
+3.8.2 or any other adoption work. Dokime adds no local adapters, JSON round trips,
+handwritten protobuf client codecs or compatibility facades.
 
 ### Protobuf Consumer Cutover Dependency
 
@@ -890,8 +894,9 @@ Task 2.8.3 includes the necessary dependency and directly coupled operation/SDK
 consumer adoption in one buildable atomic cutover. This is an implementation
 prerequisite within the authorized clean replacement; it introduces no temporary
 codec bridge and does not close the remaining behavior in later tasks. The
-generated-client memory-admission request above blocks that adoption; independent
-protocol inventory work does not establish completed wire-mirror or handler migration.
+generated-client memory-admission request above is a later additive follow-up,
+not an adoption prerequisite. Independent protocol inventory work does not
+establish completed wire-mirror or handler migration.
 
 The remaining frozen-origin persistence, pure catalog materialization and call
 consumer work in 2.9.2 migrates the same coupled consumers. It cannot close before
