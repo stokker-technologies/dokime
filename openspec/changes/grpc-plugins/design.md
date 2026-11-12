@@ -790,7 +790,7 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
-The C# starter re-evaluates its mutable development-preview restore graph before building with the verified lock, matching the SDK's existing native restore policy.
+The C# starter uses mise's pinned SDK executable and re-evaluates its mutable development-preview restore graph before building with the verified lock, matching the SDK's existing native restore policy.
 
 The Python starter declares only its consumed host operations and waits one observer interval inside Measure before evaluating that step's captured samples.
 
