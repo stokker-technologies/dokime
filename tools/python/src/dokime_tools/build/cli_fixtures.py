@@ -47,7 +47,8 @@ def build(profile: str) -> None:
     cli = root / "target/debug" / f"dokime-next{extension}"
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
-    environment = {**os.environ, "CARGO_TARGET_DIR": str(root / "target")}
+    # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
+    environment = {**os.environ, "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
     with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
         project = Path(scratch) / "rust"
 
