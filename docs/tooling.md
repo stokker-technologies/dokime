@@ -209,8 +209,9 @@ arrival. Zoom awaits the changed plot; resize awaits fresh canvas drawing at the
 new size. `presentation_opportunity` is two animation frames after a retained-model
 commit, not physical display presentation. `canvas_draw` measures real canvas API
 calls; DOM/SVG kinds still participate in visible-card observation. Backend query,
-framing and send spans are inclusive of their existing owners. Native transport
-wait includes server work and idle waiting, so these overlapping observations must
+framing and send spans are inclusive of their existing owners. Draining reports
+spans that finish in the sampled window; an in-flight span can have started during
+preparation. Native transport wait includes server work and idle waiting, so these overlapping observations must
 not be added to claim exclusive stage attribution. Physical presentation,
 exclusive bridge/encoding time, OS-cache-cold reads and server/native queue depth
 are explicitly unavailable in the report. The `integration-plots` benchmark and
