@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod settings;
+pub mod thermal;
 
 /* === Re-Exports === */
 
@@ -52,11 +53,39 @@ pub struct Attempt {
     pub scope_refused: bool,
 }
 
+pub struct PythonPlugin {
+    child: tokio::process::Child,
+    pub url: String,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl PythonPlugin {
+    pub async fn start() -> Result<Self, Box<dyn std::error::Error>> {
+        use std::process::Stdio;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/python/examples/thermal/main.py");
+        let mut child = tokio::process::Command::from(dokime_runtime_next::process::command(python()))
+            .arg(script)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .kill_on_drop(true)
+            .spawn()?;
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let url = lines.next_line().await?.ok_or("Start Python Thermal Plugin: No Readiness Event")?;
+        Ok(Self { child, url })
+    }
+    pub async fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+        drop(self.child.stdin.take());
+        assert!(self.child.wait().await?.success());
+        Ok(())
+    }
+}
 
 /* === Public Functions === */
 
@@ -112,6 +141,30 @@ pub fn host_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
         .or_else(|| option_env!("CARGO_BIN_EXE_dokime-host-next").map(Into::into))
         .ok_or("Build the New Host Binary Before Running Its Client Stories")?;
     Ok(PathBuf::from(executable))
+}
+
+pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let variable = format!("DOKIME_{}_THERMAL_PLUGIN", language.to_uppercase());
+    let default = match language {
+        "csharp" if cfg!(windows) => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story.exe",
+        "csharp" => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story",
+        "cpp" if cfg!(windows) => "target/sdk/cpp/tests/Debug/dokime-system-suite.exe",
+        "cpp" => "target/sdk/cpp/tests/dokime-system-suite",
+        _ => return Err("Select a Compiled SDK Fixture".into()),
+    };
+    let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| repository.join(default));
+    if !path.is_file() {
+        return Err(format!("Build the {language} Thermal Fixture Through Its SDK Mise Task: {}", path.display()).into());
+    }
+    Ok(path)
+}
+
+pub fn python() -> PathBuf {
+    std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
+        let path = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(path)
+    })
 }
 
 /* === Private Functions === */

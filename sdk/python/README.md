@@ -133,14 +133,33 @@ fully qualified service name. `client.call(request)` locates a unique generated
 method by input type; pass `method=MethodDescriptor` for an ambiguous method or
 a streaming request. Unary calls are awaited; server-streaming calls are async
 iterators. The channel's generated stubs also remain directly available.
-`client.plugins.add/list/remove` are thin request constructors.
+`client.plugins`, `suites`, `templates`, `cycles`, `executions`, `prompts`,
+`records`, `samples` and `reports` compose requests over those generated methods.
+Cycle watches yield progress values and verify terminal envelopes and final status.
+Report downloads verify chunk offsets, size and SHA-256 before returning bytes.
+
+```python
+client = await dokime.connect(url)
+try:
+    await client.plugins.add(plugin_url)
+    suites = await client.suites.list()
+    cases = await client.templates.materialize(suites[0].suite_id, "thermal.cycle", {"limit": [85.0]})
+    cycle = await client.cycles.start(cases)
+    async for progress in cycle.watch():
+        if progress.phase == "prompt":
+            pending = await client.prompts.pending(cycle.executions[0])
+            await client.prompts.respond(pending[0].prompt_id, "yes", accepted=True)
+finally:
+    await client.close()
+```
 
 The wheel generates all 23 client services and their ordinary and cancellable
 `Run<Method>` routes from the authoritative protos. The in-process client story
 adds a remote plugin, lists its canonical entry, drains Backend log envelopes,
 propagates refusals and removes the entry before explicitly closing the client.
 Pairing verifies the backend identity through the generated Backend service.
-Real Dokime-host execution remains separate host integration proof.
+The new execution host also runs the real-process Python client journey; see
+[Execution Host](../../docs/execution-host.md).
 
 ## Validate
 
@@ -167,12 +186,10 @@ checkout's `mise run build -- --package harmos-conformance`, set
 `mise -C sdk/python run sdk:conformance`. It runs the fixed language-neutral
 fixture through Dokime's plugin composition against all reference-host rules.
 
-The shared system suite is `examples/starter/suite.py`: plugin `example`,
-template `example.capture`, parameter `limit`, steps `measure` and `confirm`,
-observer stream `example.reading` every 200 ms, record `example.confirmation`,
-and criterion `within.limit`. The host must register the remote endpoint,
-expand/materialize parameters, create a PluginRun origin and matching scope,
-drive retries and ticks on its controlled clock, acknowledge records/progress,
-answer the choice prompt, serve step-filtered statistics and records, run cleanup,
-close evidence, evaluate the cycle, and publish/seal/reopen the report. That real
-Dokime system story remains pending the host integration.
+The cross-language suite is [`examples/thermal/suite.py`](examples/thermal/suite.py).
+The named host story `python_plugin_matches_rust_thermal_evidence` adds its remote
+URL, runs `thermal.cycle` with `limit = 85`, answers the door, and compares the
+frozen test case, ordered records/steps/logs, samples and outcome with Rust.
+It reopens the sealed evidence after shutdown. The starter retains its own
+in-process authoring story. Build prerequisites and named host runs are in
+[Execution Host](../../docs/execution-host.md).

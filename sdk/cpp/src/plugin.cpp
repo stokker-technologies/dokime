@@ -83,13 +83,14 @@ Plugin &Plugin::suite(Suite suite) {
     const auto plugin_id = identifier_;
     v1::TestCase test_case;
     std::set<std::string> steps;
+    std::size_t step_index = 0;
     for (auto &step : value.steps) {
       identifier(step.metadata.identifier());
       if (!step.run || !steps.insert(step.metadata.identifier()).second)
         throw std::invalid_argument("Step Handler Is Required and Identifiers Must Be Unique");
       if (step.retries == std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("Retry Count Is Too Large");
-      const auto operation_id = id + ".step." + step.metadata.identifier();
+      const auto operation_id = id + ".step." + std::to_string(step_index++);
       auto *declared = test_case.add_steps();
       *declared->mutable_metadata() = step.metadata;
       declared->set_operation(operation_id);
@@ -111,11 +112,12 @@ Plugin &Plugin::suite(Suite suite) {
       native_.operation(operation);
     }
     std::set<std::string> criteria;
+    std::size_t criterion_index = 0;
     for (auto &criterion : value.criteria) {
       identifier(criterion.metadata.identifier());
       if (!criterion.evaluate || !criteria.insert(criterion.metadata.identifier()).second)
         throw std::invalid_argument("Criterion Handler Is Required and Identifiers Must Be Unique");
-      const auto operation_id = id + ".criterion." + criterion.metadata.identifier();
+      const auto operation_id = id + ".criterion." + std::to_string(criterion_index++);
       auto *declared = test_case.add_criteria();
       *declared->mutable_metadata() = criterion.metadata;
       declared->set_operation(operation_id);

@@ -11,7 +11,13 @@
 
 /* === Modules === */
 
+mod host;
+
 /* === Re-Exports === */
+
+pub use host::{
+    Backend, Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates,
+};
 
 pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
 pub use harmos_protocol::host::{Catalog, CatalogKind, CatalogPage, DiscoveredOperation, OperationContract};

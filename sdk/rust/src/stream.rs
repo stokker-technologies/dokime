@@ -100,11 +100,10 @@ impl Observer {
         Self {
             register: Box::new(move |executions| {
                 let stream = harmos::Stream::<T>::new(identifier);
-                let observer = harmos::Observer::new(&stream, async move |transport: &harmos::Context| {
+                harmos::Observer::new(&stream, async move |transport: &harmos::Context| {
                     let context = Context::publication(transport, &executions)?;
                     handler(&context).await.map_err(harmos::Error::from)
-                });
-                observer
+                })
             }),
             configure: Vec::new(),
         }

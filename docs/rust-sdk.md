@@ -205,12 +205,28 @@ No SDK transport codec, retry loop or host policy duplicates Harmos.
 The protocol crate currently provides generated Appearance, Backend and Plugins
 services through `dokime::v1`, including their managed-call envelopes. The SDK's
 Harmos client binds their generated payloads to the host's discovered contracts.
-The remaining service declarations/stubs are still missing: Catalog, Content,
-Documents, Evidence, Execution, Health, History, Media, Notes, Observation, Planning,
-Plots, Prompts, Query, Remote, Reports, Runtime, Secrets, Settings and Telemetry.
-Their existing native DTOs and host handlers need the protocol owner's cutover
-before service-wide client coverage can be promised. No old native transport or
-host dependency is absorbed into this SDK.
+All 23 generated client service declarations are available. The new host serves
+the subset listed in [Execution Host](execution-host.md), refusing the rest by name.
+`client::HostClient::new(channel)` supplies thin service conveniences:
+
+```rust
+let client = dokime::client::HostClient::new(channel);
+let cases = client.templates.materialize(suite_id, "thermal.cycle", parameters).await?;
+let cycle = client.cycles.start(cases).await?;
+let mut progress = cycle.watch();
+while let Some(frame) = progress.next().await? {
+    if frame.phase == "prompt" {
+        let pending = client.prompts.pending(cycle.executions[0].clone()).await?;
+        client.prompts.respond(pending.prompts[0].prompt_id.clone(), "yes", true).await?;
+    }
+}
+drop(progress);
+drop(cycle);
+client.close();
+```
+
+The generated-service client owns no runtime or native host dependency. Finish
+owned watches before closing; closing consumes the client's channel handles.
 
 ## Focused Proof
 
@@ -245,7 +261,7 @@ read. Tests never assert elapsed time or sleep on the wall clock.
 
 The runnable Rust suite is [thermal.rs](../sdk/rust/examples/thermal.rs), built as
 `dokime-rust-thermal` by the external consumer. Run it managed or with `--remote`.
-It is ready for the same host-owned Nightly journey as the other SDKs:
+It runs through the new host and provides the reference evidence for every SDK:
 
 | Input or Action | Expected Evidence |
 | --- | --- |
@@ -253,7 +269,7 @@ It is ready for the same host-owned Nightly journey as the other SDKs:
 | Initialize | Execution-local Bench resource; one acknowledged log |
 | Run `ramp` | Progress 1 of 2 |
 | Run `hold`; answer prompt `thermal.door` with accepted action `yes` | One `thermal.door` record, protobuf `thermal.v1.Door { closed: true }`; host sleep of 2.5 s; progress 2 of 2 |
-| Tick the observer twice while Hold waits, at 1 s and 2 s after its start | Two `thermal.v1.Temperature { celsius: 84.0 }` samples, each carrying its tick time |
+| Tick the observer while Hold waits, at 0 s, 1 s and 2 s after its start | Three `thermal.v1.Temperature { celsius: 84.0 }` samples, each carrying its tick time |
 | Evaluate `within_limit` | Statistics for `thermal.temperature.celsius` and records for `thermal.door`, both filtered to `hold`; Passed only with samples, maximum ≤ 85.0 and a closed-door record |
 | Cleanup, close and seal | Cleanup log; resources released; streams closed; host-persisted execution and report evidence |
 
@@ -264,9 +280,9 @@ observers, schedule ticks inside the hold step, acknowledge records before respo
 serve statistics/record reads scoped to execution and step, and own retries, cancellation,
 cleanup, stream closure, evidence durability and report sealing. Its virtual clock
 must advance sleep and observer ticks deterministically. The shared Nightly driver
-must compare persisted evidence across SDKs; the SDK transport tests do not establish
-that proof. Full host/client service contracts are needed before that driver can be
-written against generated Dokime services.
+compares persisted evidence across SDKs through the named stories in
+[Execution Host](execution-host.md#compare-every-sdk). Native Linux and hosted
+matrix proof remain separate from local Windows runs.
 
 ## Consumer Cutover
 

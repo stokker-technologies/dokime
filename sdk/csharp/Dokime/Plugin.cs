@@ -79,10 +79,10 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
 
     var testCase = new TestCase();
     var local = new HashSet<string>(StringComparer.Ordinal);
-    foreach (var step in template.Steps)
+    foreach (var (step, index) in template.Steps.Select((step, index) => (step, index)))
     {
       Unique(local, step.Identifier);
-      var operation = $"{name}.step.{step.Identifier}";
+      var operation = $"{name}.step.{index}";
       testCase.Steps.Add(new V1.Step { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
       var policy = step.Retries == 0 ? null : new OperationPolicy { Attempts = checked(step.Retries + 1) };
       transport.Operation(new Operation<StepRequest, StepResponse>(operation, policy: policy), async (raw, request) =>
@@ -95,10 +95,10 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
         return new StepResponse();
       });
     }
-    foreach (var criterion in template.Criteria)
+    foreach (var (criterion, index) in template.Criteria.Select((criterion, index) => (criterion, index)))
     {
       Unique(local, criterion.Identifier);
-      var operation = $"{name}.criterion.{criterion.Identifier}";
+      var operation = $"{name}.criterion.{index}";
       testCase.Criteria.Add(new V1.Criterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
       transport.Operation(new Operation<CriterionRequest, CriterionResponse>(operation), async (raw, request) =>
       {

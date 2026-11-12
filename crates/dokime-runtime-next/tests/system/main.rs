@@ -20,8 +20,11 @@ mod execution_capabilities;
 mod execution_isolation;
 mod execution_outcomes;
 mod process_interruption;
-mod python_client_runs_thermal_suite_over_grpc;
 mod step_failure_and_retries;
+mod cpp_plugin_matches_rust_thermal_evidence;
+mod csharp_plugin_matches_rust_thermal_evidence;
+mod python_client_runs_thermal_suite_over_grpc;
+mod python_plugin_matches_rust_thermal_evidence;
 #[path = "../support/mod.rs"]
 mod support;
 mod thermal_suite_survives_host_restart;

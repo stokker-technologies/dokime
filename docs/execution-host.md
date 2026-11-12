@@ -87,8 +87,8 @@ mise run test -- --package dokime-runtime-next --target system --exact client_ru
 mise run test -- --package dokime-runtime-next --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
 ```
 
-The Rust story uses the generated clients reexported by `sdk/rust`'s `dokime`
-package. The Python story uses the built pure wheel in the root `.venv/`;
+The Rust story uses `dokime::client::HostClient` service conveniences over the
+generated clients reexported by `sdk/rust`'s `dokime` package. The Python story uses the built pure wheel in the root `.venv/`;
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
@@ -96,6 +96,36 @@ reads their records through the client. The system target contains twelve storie
 including publication and interrupted recovery through real client services.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
+
+## Compare Every SDK
+
+The single thermal procedure is authored in each SDK: Rust `examples/thermal.rs`,
+Python `examples/thermal/suite.py`, C# `tests/SystemPlugin` and C++ `tests/system`.
+The host compares the complete frozen origin/test case, ordered evidence and
+samples (including source time, sequence, position and exact payload), outcome
+and cycle counts. Only run-specific execution identity, plugin digest/start time
+and receipt timestamps are excluded. Sealed evidence must reopen unchanged.
+Python and C++ also decode Door from retained schemas. C# cannot yet register a
+record-only descriptor through the pinned Harmos API; its named
+`csharp_frozen_record_schema_decodes_door` assertion is pending upstream support,
+tracked under Requests to Harmos in the gRPC change design.
+
+Build the Rust fixture and installed Python wheel above. Build C# with its
+`build`, `package` and `build:system` tasks; the executable needs mise's .NET 10
+runtime (`DOTNET_ROOT` when the system default differs). Configure/build C++ with
+its `configure` and `build` tasks; Windows may supply `--harmos-cache` to reuse
+an existing native dependency build. Tests never compile fixtures.
+
+```sh
+mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime-next --target system --exact csharp_plugin_matches_rust_thermal_evidence::csharp_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime-next --target system --exact cpp_plugin_matches_rust_thermal_evidence::cpp_plugin_matches_rust_thermal_evidence
+```
+
+Python runs remote; C# and C++ run remote and managed. Set
+`DOKIME_CSHARP_THERMAL_PLUGIN` or `DOKIME_CPP_THERMAL_PLUGIN` for a prepared
+executable outside the default SDK output path. `DOKIME_PYTHON` selects the
+interpreter with the built wheel installed.
 
 ## Evidence and Recovery
 

@@ -71,7 +71,6 @@ v1::RecordReceipt Context::record(std::string kind, const google::protobuf::Mess
   request.set_execution(execution());
   request.set_kind(std::move(kind));
   request.set_payload(harmos::detail::encode(value));
-  *request.mutable_at() = now();
   return operation(record_call, std::move(request));
 }
 v1::Records Context::records(std::string kind, std::string step, std::uint32_t limit) {
@@ -103,7 +102,6 @@ void Context::log(v1::Severity severity, std::string message) {
   request.set_execution(execution());
   request.set_severity(severity);
   request.set_message(std::move(message));
-  *request.mutable_at() = now();
   operation(log_call, std::move(request));
 }
 v1::ArtifactReceipt Context::artifact(v1::PublishArtifact request) { return operation(artifact_call, std::move(request)); }
