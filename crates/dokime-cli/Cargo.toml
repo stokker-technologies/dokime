@@ -42,6 +42,7 @@ media-native = ["dokime-server/media-native"]
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
+dokime-protocol = { workspace = true }
 dokime-server = { workspace = true }
 
 # Git

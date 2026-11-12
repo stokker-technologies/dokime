@@ -24,17 +24,6 @@ use std::{fs, path::PathBuf};
 
 /* === Constants === */
 
-/// Embedded Dokime and Harmos sources; well-known imports come from protobuf.
-const SOURCES: &[(&str, &str)] = &[
-    ("dokime/v1/catalog.proto", include_str!("../../../../proto/dokime/v1/catalog.proto")),
-    ("dokime/v1/documents.proto", include_str!("../../../../proto/dokime/v1/documents.proto")),
-    ("dokime/v1/execution.proto", include_str!("../../../../proto/dokime/v1/execution.proto")),
-    ("dokime/v1/host.proto", include_str!("../../../../proto/dokime/v1/host.proto")),
-    ("dokime/v1/plugins.proto", include_str!("../../../../proto/dokime/v1/plugins.proto")),
-    ("dokime/v1/values.proto", include_str!("../../../../proto/dokime/v1/values.proto")),
-    ("harmos/v1/plugin.proto", include_str!("../../../../proto/harmos/v1/plugin.proto")),
-];
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -71,7 +60,7 @@ pub(crate) fn run(command: Command) -> crate::Result<()> {
             "plugin export is not available yet for `{plugin}`; omit --plugin to export Dokime and Harmos contracts, or obtain the plugin's .proto sources from its author"
         )));
     }
-    for (relative, source) in SOURCES {
+    for (relative, source) in dokime_protocol::SOURCES {
         let destination = args.out.join(relative);
         fs::create_dir_all(destination.parent().expect("embedded source has a package directory"))?;
         fs::write(destination, source)?;

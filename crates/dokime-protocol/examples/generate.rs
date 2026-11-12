@@ -51,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("harmos.v1.rs", "src/harmos/v1.rs"),
         ("descriptors.bin", "src/descriptors.bin"),
         ("reflection.rs", "src/reflection.rs"),
+        ("sources.rs", "src/sources.rs"),
     ] {
         let bytes = std::fs::read(output.path().join(generated))?;
         let destination = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(committed);

@@ -55,21 +55,18 @@ async fn proto_export() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check the Complete Exported File Set.
     let actual = crate::protocol::files(&output)?;
-    let expected = [
-        "dokime/v1/catalog.proto",
-        "dokime/v1/documents.proto",
-        "dokime/v1/execution.proto",
-        "dokime/v1/host.proto",
-        "dokime/v1/plugins.proto",
-        "dokime/v1/values.proto",
-        "harmos/v1/plugin.proto",
-    ];
+    let sources = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../proto");
+    let expected = crate::protocol::files(&sources)?.into_iter().filter(|path| path.ends_with(".proto")).collect::<Vec<_>>();
     assert_eq!(actual, expected);
 
     // Parse Every Exported File With the Same Vendored Descriptor Compiler.
     let descriptor = directory.path().join("contracts.bin");
-    let status = crate::protocol::parse(&output, &expected, &descriptor)?;
+    let inputs = expected.iter().map(String::as_str).collect::<Vec<_>>();
+    let status = crate::protocol::parse(&output, &inputs, &descriptor)?;
     assert!(status.success());
+    let expected_descriptor = directory.path().join("sources.bin");
+    assert!(crate::protocol::parse(&sources, &inputs, &expected_descriptor)?.success());
+    assert_eq!(std::fs::read(descriptor)?, std::fs::read(expected_descriptor)?);
 
     // Refuse Unavailable Plugin Export Before Creating Any Output.
     let refused = directory.path().join("plugin");

@@ -121,6 +121,26 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
         ));
     }
     fs::write(output.join("reflection.rs"), reflection)?;
+    let mut pending = vec![proto.clone()];
+    let mut sources = Vec::new();
+    while let Some(parent) = pending.pop() {
+        for entry in fs::read_dir(parent)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "proto") {
+                let relative = path.strip_prefix(&proto)?.to_string_lossy().replace('\\', "/");
+                sources.push((relative, fs::read_to_string(path)?.replace("\r\n", "\n")));
+            }
+        }
+    }
+    sources.sort();
+    let mut embedded = String::from("// @generated from authoritative protobuf sources.\npub const SOURCES: &[(&str, &str)] = &[\n");
+    for (relative, source) in sources {
+        embedded.push_str(&format!("    ({relative:?}, {source:?}),\n"));
+    }
+    embedded.push_str("];\n");
+    fs::write(output.join("sources.rs"), embedded)?;
     let mut config = prost_build::Config::new();
     config.protoc_executable(compiler);
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(

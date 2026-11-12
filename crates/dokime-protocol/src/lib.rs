@@ -16,6 +16,8 @@ mod execution;
 
 #[rustfmt::skip]
 mod reflection;
+#[rustfmt::skip]
+mod sources;
 
 // Checked-In Output of the Generator Exercised by the Integration Drift Check.
 #[rustfmt::skip]
@@ -27,6 +29,8 @@ pub mod harmos {
 }
 
 /* === Re-Exports === */
+
+pub use sources::SOURCES;
 
 /* === Imports === */
 

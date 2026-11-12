@@ -821,10 +821,36 @@ operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 ### Requests to Harmos
 
-None identified for generated protobuf host operations: the requested revision
-already provides protobuf declarations, descriptor-backed admission and bounded
-gRPC codecs. Adoption must migrate Dokime's old facade consumers to the explicit
-SDK/runtime/operations/storage owners; no compatibility facade is introduced.
+#### Generated Protobuf Managed Client
+
+At exact revision `e2c76608c597643d3a92127d45ec612c38239163`, server registration
+and internal invocation support generated messages through `ProtobufOperation`
+and `OperationFactory::protobuf`. The managed remote client does not:
+
+- `crates/harmos-domain/src/operations/specification.rs`: `RequestShape` requires
+  `Portable` requests and responses.
+- `crates/harmos-domain/src/operations/direction.rs`: stream items require
+  `Portable` through `Direction`.
+- `crates/harmos-runtime/src/grpc/client.rs`: `start` and `Running` require that
+  request shape and select the `Transcoded` codec.
+- `crates/harmos-runtime/src/grpc/codec.rs`: `Transcoded` implements `Wire<T>`
+  only for `T: Portable`. The public dynamic codec is descriptor-aware but
+  exposes JSON values rather than a generated-message managed client.
+
+Request to Harmos: supply generated-message client declarations/codecs and managed
+call handles under the intended host-free client owner. They must accept generated
+protobuf request, response and native stream-item types without `Portable`
+projections, retain descriptor-backed memory admission before decoding/encoding,
+and preserve service paths, typed completion, cancellation/settlement, input
+finish, backpressure and request/response/duplex stream envelopes. Native
+`ProtobufOperation` registration and internal invocation alone do not satisfy it.
+Prove unary and streamed generated-message round trips, admission refusal and
+controlled cancellation against the real host; return the published exact revision.
+
+The requested pin remains `e2c76608`; no newer checkout state or substitute
+revision is adopted. The owner must select the revision supplying this capability
+before the dependent cutover. Dokime will not add local `Portable` adapters,
+JSON round trips, handwritten protobuf client codecs or compatibility facades.
 
 ### Protobuf Consumer Cutover Dependency
 
@@ -838,7 +864,16 @@ consumers. The listed task order places 2.8.3 before that adoption in 3.1/3.8.2.
 Task 2.8.3 includes the necessary dependency and directly coupled operation/SDK
 consumer adoption in one buildable atomic cutover. This is an implementation
 prerequisite within the authorized clean replacement; it introduces no temporary
-codec bridge and does not close the remaining behavior in later tasks.
+codec bridge and does not close the remaining behavior in later tasks. The
+managed-client request above blocks that adoption; independent protocol inventory
+work does not establish completed wire-mirror or handler migration.
+
+Appearance and backend diagnostics now have canonical protobuf definitions.
+Protocol generation also owns a package-relative embedded source inventory,
+including vendored Harmos imports, so CLI export consumes protocol output rather
+than maintaining another list. Native wire mirrors and handlers for these areas
+remain pending the coupled cutover; these definitions do not claim adopted host
+behavior.
 
 ### Plot Transport Fitting
 

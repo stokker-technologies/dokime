@@ -2221,7 +2221,11 @@ running host, plugin URL or bundle is implemented.
 
 The new `dokime.v1` contracts are authoritative in `proto/dokime/v1/`.
 `dokime-protocol` contains generated Rust messages, their descriptor set and
-light helpers; host operations use those same descriptors. The existing host
+light helpers. Its generated source inventory embeds every Dokime and vendored
+Harmos `.proto` for `dokime proto export`, preserving package-relative paths.
+The appearance and backend diagnostics definitions are part of this inventory;
+their host/client adoption remains in progress. Host operations use the protocol
+descriptors as they adopt these definitions. The existing host
 and SDK migration is still in progress. These rules apply to every adopting SDK:
 
 | Contract | Rust, Python, C# and C++ Semantics |
