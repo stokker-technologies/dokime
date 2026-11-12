@@ -31,7 +31,7 @@ pub use documents::{FixedSnapshot, RenderSettings, RenderedDocument};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
-pub use plugin::{EntryState, PlacementSettings, PluginProcess};
+pub use plugin::{EntryState, PlacementSettings, PluginProcess, describe_plugin};
 
 /* === Imports === */
 

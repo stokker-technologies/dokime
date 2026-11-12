@@ -2422,6 +2422,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-cli-next"
+version = "0.1.5"
+dependencies = [
+ "clap",
+ "dokime",
+ "dokime-protocol",
+ "dokime-runtime-next",
+ "prost",
+ "prost-reflect",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tar",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "toml 1.1.8+spec-1.1.0",
+ "tonic",
+]
+
+[[package]]
 name = "dokime-client"
 version = "0.1.5"
 dependencies = [

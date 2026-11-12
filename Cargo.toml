@@ -13,6 +13,7 @@ members = [
   "crates/dokime",
   "crates/dokime-tracing",
   "crates/dokime-cli",
+  "crates/dokime-cli-next",
   "crates/dokime-protocol",
   "crates/dokime-storage",
   "crates/dokime-operations-next",

@@ -18,6 +18,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 import dokime
 
 # Local Imports
+from dokime.context import HOST_OPERATIONS
 from dokime.v1 import message
 
 # Type Checking Imports
@@ -63,6 +64,7 @@ class Capture:
         self.reading = self.limit - 1.0
         await ctx.record("example.confirmation", value=True)
         await ctx.progress(1, 2, label="Measured")
+        await ctx.sleep(0.2)
 
     @dokime.step("Confirm")
     async def confirm(self, ctx):
@@ -84,7 +86,22 @@ class Capture:
 
 
 def plugin():
-    return dokime.Plugin("example", "0.1.0", suites=[Capture], records=[dokime.Record("example.confirmation", BoolValue, "Confirmation")])
+    needed = {
+        "dokime.execution.prompt",
+        "dokime.execution.record",
+        "dokime.execution.records",
+        "dokime.execution.statistics",
+        "dokime.execution.progress",
+        "dokime.execution.log",
+        "harmos.clock.sleep",
+    }
+    return dokime.Plugin(
+        "example",
+        "0.1.0",
+        suites=[Capture],
+        records=[dokime.Record("example.confirmation", BoolValue, "Confirmation")],
+        requires=[operation for operation in HOST_OPERATIONS if operation.id in needed],
+    )
 
 
 # === Private Functions === #

@@ -161,7 +161,7 @@ class Plugin:
             try:
                 transport.scope()
             except harmos.Failure as error:
-                if error.failure.code != "scope_required":
+                if error.value.code != "scope_required":
                     raise
             else:
                 raise ValueError("Materialization requires no execution scope")

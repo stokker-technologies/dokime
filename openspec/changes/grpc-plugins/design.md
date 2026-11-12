@@ -790,6 +790,15 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+The Python starter declares only its consumed host operations and waits one observer interval inside Measure before evaluating that step's captured samples.
+
+The additive `dokime-cli-next` package exports `dokime-next` until cutover; it imports only the new runtime, protocol and Rust SDK among Dokime packages.
+Hosting uses the new listener in process with explicit endpoint and TOML settings; remote commands use the Rust SDK client half and preserve host refusals.
+All four starters are embedded from their SDK-owned sources; C++ release URL and SHA-256 come from the published sidecar or explicit paired overrides.
+The CLI owns executable-only tar packaging using the existing schema-1 manifest, native target, per-file SHA-256 and retained description.pb; no legacy registration is fabricated.
+`build:cli-fixtures` generates and builds the Rust starter through its mise task; system stories compare those exact source bytes and consume the exported executable.
+Installer packaging, old CLI removal and binary renaming remain atomic cutover work; this additive CLI never imports the old host.
+
 All Harmos git consumers pin `de07fc54f38ece9fcd660af3146876aaf651fe3c`; native legacy hosts retain registry 0.1.14.
 The protocol dispatcher binds Request.scope directly; SDK execution validation reads Context::scope(), and native Harmos callers use Scope/with_scope when adopted.
 Harmos storage adoption will replace dokime-storage's direct SQLite transactions, Arrow batch persistence and hand-owned projection/index queries; it is a separate task.
@@ -839,10 +848,9 @@ no private envelope, Harmos path override or runtime facade is needed.
 The first host story calls the unchanged SDK thermal executable built by its
 existing `sdk:build` task; the new host crates have no SDK product dependency.
 
-The requested Harmos adoption revision is
-`a7583836e721c8dc8b135af40a78860ea5945ec6`. The vendored plugin proto already
-matches it byte for byte. Dependency adoption is still open; the old host
-facade and macro consumers must move to the explicit owners in the same cutover.
+All Harmos git dependencies now adopt
+`de07fc54f38ece9fcd660af3146876aaf651fe3c`. The plugin wire contract is unchanged;
+old native facade and macro consumers retain the registry release until cutover.
 
 The protocol descriptor set is generated from all authoritative Dokime inputs
 and their imported Harmos/Google definitions, checked in beside the Rust messages
@@ -877,123 +885,41 @@ operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 ### Requests to Harmos
 
+All three follow-up requests are answered at the published exact revision
+`de07fc54f38ece9fcd660af3146876aaf651fe3c`.
+
 #### C# Record-Only Descriptor Registration
 
-Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`: `Record<T>` registers `Message<T>()`; `csharp_frozen_record_schema_decodes_door` now decodes the retained descriptor.
-
-Original Reproduction:
-At pinned revision `a7583836e721c8dc8b135af40a78860ea5945ec6`, the real-host
-thermal story seals a correct `thermal.v1.Door { closed: true }` record, but
-`DescriptorPool::get_message_by_name("thermal.v1.Door")` on the frozen catalog
-returns None in both C# placements. `Harmos.Sdk.Plugin.Section`, `Operation`,
-`Requires`, `Stream` and `Observer` are the only descriptor-registration paths;
-`Descriptors.Types` deliberately removes unreferenced sibling messages, even
-when Temperature and Door share one proto file. `Dokime.Plugin.Record<T>` can
-publish the message's name but cannot register its descriptor. Add a public
-`Plugin.Message<T>()` (or equivalent descriptor-only method) that merges the
-message and transitive dependencies into catalog Types without an operation,
-stream or section, and include them in the catalog digest. Dokime will call it
-from `Record<T>` and enable `support::thermal::frozen_record_schema_decodes_door`
-in the C# story. No reflection, synthetic section or synthetic operation is used.
-The C# story still compares every frozen case/evidence/sample field with Rust
-and verifies exact sealed reopen; only decoding a Door from the retained
-catalog is pending. Python and C++ execute that assertion today.
-
+Answered: every SDK exposes descriptor-only registration. Dokime C# `Record<T>`
+calls Harmos `Message<T>()`, retaining Door and its transitive descriptors in the
+catalog without a synthetic operation, stream or section. The named assertion
+`csharp_frozen_record_schema_decodes_door` is enabled in the shared C# host story.
 
 #### Generated Protobuf Managed Client
 
-Answered at the owner-selected, published exact revision
-`a7583836e721c8dc8b135af40a78860ea5945ec6`. The `harmos` package at `sdk/rust`
+The earlier generated-client request remains answered; `harmos` at `sdk/rust`
 provides `Client`, `ClientSettings`, descriptor-bound `client::Method` and managed
-call handles for generated requests, replies and stream items without `Portable`.
-The API supports unary calls, input/output/duplex envelopes, explicit input finish,
-independent input ownership, cancellation and typed settlement. The SDK's only
-normal product dependency is `harmos-protocol`.
-
-The protocol owner is adopted directly at the selected exact revision. Dokime
-uses its generated Harmos types and verifies the vendored descriptor against
-them; the duplicate Rust transport module and its generator output are removed.
-Native stored-data `Described` derives are consumed directly from the same
-revision's `harmos-sdk-derive` owner. This does not turn native stored shapes into
-wire contracts. Native host, SDK and tool adoption remains open.
-
-Adoption follows Harmos's Crate Structure contract: native stored semantics stay
-in `harmos-domain`; declarations, dispatch and guest support use their explicit
-operations/runtime owners; field-reading derives live at `sdk/rust/derive`;
-conformance and packaging are tools. The removed declaring macros and SDK facade
-are not restored locally. The remaining admission gap is a separate request below.
-
-Windows proof: the exact revision's focused
-`harmos-runtime` integration test
-`operations::wire::sdk_client::generated_sdk_client_invokes_streams_and_settles_cancellation`
-passes against a launched runtime and real gRPC listener. It covers unary, upload,
-download and duplex, input finish, concurrent input, typed cancellation settlement,
-descriptor/fingerprint refusal and an oversized encoded request. The vendored
-plugin proto matches this revision byte for byte. This test does not prove the
-missing client allocation admission described below.
+call handles over generated messages without `Portable`. The same exact revision
+preserves unary/streaming calls, independent input ownership, explicit finish,
+cancellation and typed settlement. Dokime consumes the protocol and data derives
+directly; old native hosts retain registry 0.1.14 until their consumer cutover.
 
 #### Generated Client Memory Admission
 
-Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`; the original request below is retained as rationale.
-
-At the selected revision, `sdk/rust/src/client.rs::ClientSettings` provides only
-wire-message bytes and outgoing queue item/byte bounds. `Client::transport` sets
-Tonic's encoded-message limits. `client/codec.rs::Decode::decode` calls
-`R::decode`/`O::decode` directly and accumulates envelope payloads in a `Vec`;
-it never prepares a descriptor-backed allocation claim before decoding.
-`Method::new` validates schemas and fingerprints, but does not carry an allocation
-budget into the codec. `client.rs::frame` admits outgoing encoded bytes before
-encoding. Unlike the runtime's `grpc/decoding.rs`, the SDK has no equivalent of
-`DecodeSettings.retained_bytes` or its pre-decode allocation claim. The real-host client journey's
-admission refusal covers an oversized encoded request only. This does not establish
-the original request's descriptor-backed decoding/encoding memory admission.
-
-Request to Harmos: expose caller-owned decoded-memory admission in the host-free
-generated client, and carry the bound/claim through unary replies, discovery pages,
-stream items, final responses and managed envelopes before Prost allocation.
-Account for repeated/map/nested values and envelope scratch; reject an exhausted
-allocation bound before decoding. Preserve the existing outgoing encoding and
-queue byte claims, wire limits, service
-paths, half-close, concurrent input, cancellation and typed settlement. Supply
-deterministic admission/refusal coverage against the real host, including compact
-wire values whose generated representation exceeds the allocation bound, and
-return a published exact revision. Do not use sampled process-memory assertions.
-
-Owner decision: adopt the generated client at exact revision
-`a7583836e721c8dc8b135af40a78860ea5945ec6` now, using its existing wire-message
-and outgoing queue item/byte bounds from configuration. Decoded-memory admission
-is an open follow-up owned by Harmos, delivered as an additive bound on
-`ClientSettings`; it changes no call shape (`Client`, `client::Method`, `call`,
-`start`, `Running`). Dokime adopts that bound by a pin bump when Harmos publishes
-the revision supplying it. This follow-up does not precede or block 2.8.3, 3.1,
-3.8.2 or any other adoption work. Dokime adds no local adapters, JSON round trips,
-handwritten protobuf client codecs or compatibility facades.
+Answered: `ClientSettings.retained_bytes` is required and admits descriptor-backed
+decoded allocations before Prost decoding, including discovery, repeated/map/nested
+values and managed envelopes. Dokime supplies this explicit bound at each Harmos
+client construction. Wire-message and outgoing queue bounds remain independent.
+No sampled process-memory assertions or handwritten client codecs are introduced.
 
 #### Execution Scope on gRPC Plugin Invocations
 
-Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`; the original request below is retained as rationale.
-
-At the selected revision, `harmos-runtime/src/plugin/grpc/invoke.rs::invoke`
-always constructs `harmos.v1.Request` with `scope: String::new()`. The native
-invocation API does not expose an execution scope override. The Rust SDK's
-`Context::execution` correctly refuses a lifecycle envelope when its execution
-identity differs from the transport scope. A frozen origin in the payload does
-not replace the transport's inherited execution scope.
-
-Request to Harmos: provide a host-native invocation entry point that accepts an
-opaque caller-owned scope and carries it unchanged into `Request.scope` for the
-attached plugin activation. Preserve that scope for child host and cross-plugin
-calls and retain invocation identity, attempt policy, cancellation and typed
-settlement. Do not add Dokime-specific identities or infer scope from a payload.
-Prove two execution scopes against the real gRPC placement, including lifecycle
-calls, nested host calls, scope isolation and cleanup, and return a published
-exact revision. No sampled resource or wall-clock assertions are needed.
-
-This request holds only the execution-scoped dispatch call site in 3.3. Managed
-and remote attachment, catalog decoding, pure materialization, protocol/native
-owner replacement, persistence, evidence/outcome rules and the other listed
-work continue. Dokime does not add a local transport fork, bypass SDK scope
-validation or pass execution identity through an unrelated field.
+Answered: native Harmos `Scope` and `with_scope(...)` preserve an opaque caller-owned
+scope across plugin and child calls. Each SDK's `Context::scope()` equivalent
+refuses an absent invocation scope with `scope_required`. Dokime execution wrappers
+read that API; pure materialization accepts only the scope-required refusal.
+The new protocol dispatcher already binds the ordinary `Request.scope` directly;
+it has no native Harmos runtime call to adapt and adds no runtime dependency.
 
 ### Protobuf Consumer Cutover Dependency
 

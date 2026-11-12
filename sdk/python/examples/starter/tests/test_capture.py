@@ -79,6 +79,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         )
         records = []
         calls = []
+        sleeps = []
         requirements = {item.id: item.fingerprint for item in description.catalog.requires}
 
         async def host(child):
@@ -93,7 +94,8 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
                 question = message_type("OperatorQuestion").FromString(child.payload)
                 return message("OperatorAnswer", prompt=question.prompt, action=question.definition.actions[0].identifier, accepted=True)
             if child.operation == "harmos.clock.sleep":
-                self.assertEqual(wire.Sleep.FromString(child.payload).duration.seconds, 1)
+                duration = wire.Sleep.FromString(child.payload).duration
+                sleeps.append((duration.seconds, duration.nanos))
                 return wire.SleepResponse()
             if child.operation == "dokime.execution.statistics":
                 request = message_type("StatisticsRequest").FromString(child.payload)
@@ -154,6 +156,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(endpoint.plugin._sessions)
         self.assertEqual(calls[-1], "dokime.execution.log")
+        self.assertEqual(sleeps, [(0, 200_000_000), (1, 0)])
         await client.Stop(wire.StopRequest(reason="Finished"))
         self.assertEqual((await client.Describe(wire.DescribeRequest(revision=1))).started_at, description.started_at)
         await endpoint.close()
