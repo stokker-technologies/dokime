@@ -136,6 +136,7 @@ class CompilerEnvironmentTests(unittest.TestCase):
                 self.subTest(operation=operation),
                 patch.object(cargo.os, "name", "nt"),
                 patch.dict(cargo.os.environ, {}, clear=True),
+                patch.object(cargo, "spawn_flags", return_value=0),
                 patch.object(cargo.subprocess, "run") as run,
             ):
                 cargo.focused(directory, operation, ["--locked", "-p", "example"])
