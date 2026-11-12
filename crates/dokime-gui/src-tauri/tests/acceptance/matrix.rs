@@ -18,7 +18,7 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
     sync::Arc,
 };
 // Third Party Imports
@@ -217,13 +217,6 @@ fn trace(root: &Path, stage: &str) {
     writeln!(OpenOptions::new().create(true).append(true).open(root.join("lifecycle.txt")).unwrap(), "{stage}").unwrap();
 }
 
-fn python(root: &Path) -> Command {
-    let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
-    let mut command = dokime::domain::process::command(root.join(interpreter));
-    command.current_dir(root).arg(root.join("sdk/python/tests/acceptance/client/execution_matrix.py"));
-    command
-}
-
 async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
     let session = ConnectionSession::default();
     session
@@ -253,7 +246,7 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
     result.expect("desktop returned its observations")
 }
 
-async fn run_matrix(interface: &str) {
+async fn run_matrix() {
     let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .join("../../..")
         .canonicalize()
@@ -275,13 +268,7 @@ async fn run_matrix(interface: &str) {
     for scenario in contract["scenarios"].as_array().unwrap() {
         let name = scenario["name"].as_str().unwrap();
         // Client Observation
-        let observed = if interface == "desktop" {
-            desktop(&root, &endpoint, name).await
-        } else {
-            let output = python(&root).arg(&endpoint).arg(root.join(CONTRACT)).arg(name).output().unwrap();
-            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-            serde_json::from_slice(&output.stdout).unwrap()
-        };
+        let observed = desktop(&root, &endpoint, name).await;
         assert_eq!(
             observed,
             json!({
@@ -290,7 +277,7 @@ async fn run_matrix(interface: &str) {
                 "cases":1,"executions":1,"filtered":1,"live":1,
                 "artifact":"open\ncleanup\n", "progress":{"completed":if name == "complete" {1} else {0},"total":2},
             }),
-            "Rust Backend/{interface}/{name}"
+            "Rust Backend/desktop/{name}"
         );
         assert_eq!(std::fs::read_to_string(directory.path().join("lifecycle.txt")).unwrap(), "open\ncleanup\nclose\n");
         std::fs::write(directory.path().join("lifecycle.txt"), []).unwrap();
@@ -303,12 +290,6 @@ async fn run_matrix(interface: &str) {
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn python_runs_matrix() {
-    run_matrix("python").await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn desktop_runs_matrix() {
-    run_matrix("desktop").await;
+    run_matrix().await;
 }

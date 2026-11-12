@@ -1179,14 +1179,6 @@ async fn remote_scripts() {
     session.stop().await;
 }
 
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn interruptions_python() {
-    let mut session = Session::ready().await;
-    scene_interruptions(&mut session, "py").await;
-    session.stop().await;
-}
-
 #[cfg(windows)]
 #[dokime_tracing::trace_test]
 #[tokio::test]

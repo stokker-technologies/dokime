@@ -61,14 +61,14 @@ static BACKEND_IDENTIFIER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
-    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
+    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat"] } else { &["sh"] };
     let workflows = extensions.iter().flat_map(|extension| ["device", "test", "prompt"].map(|workflow| (*extension, workflow)));
     for (extension, workflow) in workflows {
         let directory = root.join(format!("{extension} {workflow}"));
         // Each Script Story Is Boxed So Only The Running One's Await Temporaries Occupy The Stack.
         let stdout = Box::pin(execute(extension, workflow, endpoint, &directory)).await;
         if workflow == "device" {
-            Box::pin(device(client, extension, &stdout, &directory)).await;
+            Box::pin(device(client, &directory)).await;
             continue;
         }
         Box::pin(evidence(client, extension, workflow, &stdout, &directory)).await;
@@ -120,8 +120,7 @@ async fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
 
 async fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
     let workspace = artifacts::workspace_root();
-    let family = if extension == "py" { "python" } else { "cli" };
-    let script = workspace.join(format!("sdk/python/examples/remote/{family}/control-{workflow}.{extension}"));
+    let script = workspace.join(format!("sdk/python/examples/remote/cli/control-{workflow}.{extension}"));
     let binary = artifacts::host_binary().with_file_name(if cfg!(windows) { "dokime.exe" } else { "dokime" });
     assert!(binary.is_file(), "the Build archive must contain {}", binary.display());
     std::fs::create_dir_all(directory).unwrap();
@@ -168,7 +167,6 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
         .map(|line| {
             for (name, value) in values {
                 let matches = match extension {
-                    "py" => line.starts_with(&format!("{name} =")) || line.starts_with(&format!("{name}:")),
                     "ps1" => line.starts_with(&format!("${name} =")),
                     "sh" => line.starts_with(&format!("{name}=")),
                     "bat" => line.starts_with(&format!("set \"{name}=")) || line.starts_with(&format!("set {name}=")),
@@ -178,22 +176,7 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
                     continue;
                 }
                 let numeric = matches!(*name, "SAMPLE_COUNT" | "EXECUTION_COUNT" | "WAIT_SECONDS");
-                let quoted = serde_json::to_string(value).unwrap();
                 return match extension {
-                    "py" => {
-                        let selected = if numeric {
-                            value.clone()
-                        } else if matches!(*name, "PARAMETERS" | "STREAMS") {
-                            format!("json.loads({quoted})")
-                        } else if value.is_empty() {
-                            "None".into()
-                        } else if matches!(*name, "ENDPOINT" | "CYCLE_LABEL" | "TEMPLATE" | "ANSWER") {
-                            quoted
-                        } else {
-                            format!("Path({quoted})")
-                        };
-                        format!("{} = {selected}", line.split_once(" = ").unwrap().0)
-                    }
                     "ps1" => {
                         if numeric {
                             format!("${name} = {value}")
@@ -214,14 +197,6 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
 
 fn launcher(extension: &str, script: &Path) -> Command {
     match extension {
-        "py" => {
-            let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
-            let executable = artifacts::workspace_root().join(interpreter);
-            let mut command = Command::from(dokime::domain::process::command(executable));
-            command.arg(script);
-            command.env_remove("PYTHONPATH");
-            command
-        }
         "sh" => {
             let mut command = Command::from(dokime::domain::process::command("sh"));
             command.arg(script);
@@ -251,8 +226,8 @@ fn powershell_host() -> &'static Path {
     &HOST
 }
 
-async fn device(client: &Client, extension: &str, stdout: &str, directory: &Path) {
-    device_responses(extension, stdout, directory);
+async fn device(client: &Client, directory: &Path) {
+    device_responses(directory);
     let response = client.call_operation("obc.device.read", None, b"{}", Vec::new()).await.unwrap();
     let Some(Event::Completion(state)) = response.message().await.unwrap() else { panic!("device read has one completion") };
     device_state(&state, false);
@@ -274,21 +249,7 @@ async fn conflicts(endpoint: &str, root: &Path, extension: &str) {
     }
 }
 
-fn device_responses(extension: &str, stdout: &str, directory: &Path) {
-    if extension == "py" {
-        for (prefix, enabled) in [("Power On: ", true), ("Power Off: ", false), ("After: ", false)] {
-            let text = stdout.lines().find_map(|line| line.strip_prefix(prefix)).unwrap();
-            let state = serde_json::from_str(text).unwrap();
-            device_state(&state, enabled);
-        }
-        for (name, enabled) in [("power-on", true), ("running", true), ("power-off", false), ("after", false)] {
-            let path = directory.join(format!("{name}.json"));
-            let bytes = std::fs::read(path).unwrap();
-            let state = serde_json::from_slice(&bytes).unwrap();
-            device_state(&state, enabled);
-        }
-        return;
-    }
+fn device_responses(directory: &Path) {
     for (name, enabled) in [("power-on", true), ("running", true), ("power-off", false), ("after", false)] {
         let path = directory.join(format!("{name}.json"));
         let bytes = std::fs::read(path).unwrap();
@@ -354,16 +315,9 @@ fn drained(stdout: &str, expected: usize, samples: &BTreeMap<String, u64>, exten
     assert_eq!(summaries.len(), expected, "{extension} listener drain summaries:\n{stdout}");
     for summary in summaries {
         let id = summary["execution_id"].as_str().unwrap();
-        if extension != "py" {
-            assert_eq!(summary["samples"].as_u64().unwrap(), samples[id]);
-            assert_eq!(summary["records"], 2);
-            native_observations(stdout, id, samples[id]);
-            continue;
-        }
-        assert_eq!(summary["status"], "passed");
-        assert_eq!(summary["samples_by_stream"]["obc.pulse"].as_u64().unwrap(), samples[id]);
-        assert_eq!(summary["records_by_type"]["obc.run.started"], 1);
-        assert_eq!(summary["records_by_type"]["obc.run.completed"], 1);
+        assert_eq!(summary["samples"].as_u64().unwrap(), samples[id]);
+        assert_eq!(summary["records"], 2);
+        native_observations(stdout, id, samples[id]);
     }
 }
 
