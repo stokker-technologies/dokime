@@ -112,7 +112,7 @@ run = [
 [tasks."publish:system"]
 description = "Publish the Self-Contained Shared System Story Suite"
 usage = 'arg "output"'
-run = '"{{tools.dotnet.path}}/dotnet" publish tests/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" --configfile NuGet.Config --packages obj/consumer-packages'
+run = '"{{tools.dotnet.path}}/dotnet" publish tests/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" -p:RestoreForceEvaluate=true --configfile NuGet.Config --packages obj/consumer-packages'
 
 
 [tasks.clean]
