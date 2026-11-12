@@ -854,17 +854,18 @@ Tonic's encoded-message limits. `client/codec.rs::Decode::decode` calls
 `R::decode`/`O::decode` directly and accumulates envelope payloads in a `Vec`;
 it never prepares a descriptor-backed allocation claim before decoding.
 `Method::new` validates schemas and fingerprints, but does not carry an allocation
-budget into the codec. `client.rs::frame` admits encoded bytes before encoding,
-not the generated value's descriptor-backed memory. The real-host client journey's
+budget into the codec. `client.rs::frame` admits outgoing encoded bytes before
+encoding. Unlike the runtime's `grpc/decoding.rs`, the SDK has no equivalent of
+`DecodeSettings.retained_bytes` or its pre-decode allocation claim. The real-host client journey's
 admission refusal covers an oversized encoded request only. This does not establish
 the original request's descriptor-backed decoding/encoding memory admission.
 
 Request to Harmos: expose caller-owned decoded-memory admission in the host-free
 generated client, and carry the bound/claim through unary replies, discovery pages,
 stream items, final responses and managed envelopes before Prost allocation.
-Account for repeated/map/nested values, retained envelope scratch and outgoing
-encoding scratch; reject exhausted claims before allocating and release claims
-with their owning value/frame. Preserve the existing wire/queue limits, service
+Account for repeated/map/nested values and envelope scratch; reject an exhausted
+allocation bound before decoding. Preserve the existing outgoing encoding and
+queue byte claims, wire limits, service
 paths, half-close, concurrent input, cancellation and typed settlement. Supply
 deterministic admission/refusal coverage against the real host, including compact
 wire values whose generated representation exceeds the allocation bound, and
@@ -889,8 +890,16 @@ Task 2.8.3 includes the necessary dependency and directly coupled operation/SDK
 consumer adoption in one buildable atomic cutover. This is an implementation
 prerequisite within the authorized clean replacement; it introduces no temporary
 codec bridge and does not close the remaining behavior in later tasks. The
-generated-client memory-admission request above blocks that adoption; independent protocol inventory
-work does not establish completed wire-mirror or handler migration.
+generated-client memory-admission request above blocks that adoption; independent
+protocol inventory work does not establish completed wire-mirror or handler migration.
+
+The remaining frozen-origin persistence, pure catalog materialization and call
+consumer work in 2.9.2 migrates the same coupled consumers. It cannot close before
+that cutover without retaining superseded snapshots or adding the forbidden codec
+bridge. Host and SDK waves depend on those producers. Release archive attachment
+in 2.7 is independent and is implemented by `release-layout` task 2.3; focused
+Windows release tooling and complete CLI protocol-export proof pass. Actual
+current-source release packaging and hosted publication remain final validation.
 
 Appearance and backend diagnostics now have canonical protobuf definitions.
 Protocol generation also owns a package-relative embedded source inventory,

@@ -15,8 +15,8 @@
 
 ## 2. Protocol
 
-- [x] Reproduce the hosted Windows interruption timeout five times by exact name; all five pass. Examined terminal-query servicing, batch acknowledgement, held mutation replies, admission watches and the frozen-origin commit; no cleanup regression or permanently unsent event was established.
 - [x] 2.1 Define and check in `dokime.v1` host operations, `TestCase`, `Step`, `Criterion` and `Statistics`; generate the protocol crate.
+- [x] 2.1.1 Reproduce the hosted Windows interruption timeout five times by exact name; all five pass. Examined terminal-query servicing, batch acknowledgement, held mutation replies, admission watches and the frozen-origin commit; no cleanup regression or permanently unsent event was established.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
 - [ ] 2.3 Replace JSON catalog readers and producers with `dokime.v1` messages; add running-host, plugin URL and bundle export sources. Embedded host-source export is tracked in 2.6.
 - [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.
@@ -48,7 +48,7 @@
 - [x] 3.7.1 Verify that the vendored `proto/harmos/v1/plugin.proto` already matches the requested Harmos revision byte for byte; retain it without a local protocol fork.
 - [ ] 3.7.2 Migrate plugin/host call sites and operation policies, stream-setting resolution, required stream window and descriptor parity after dependency adoption.
 - [ ] 3.8 Wave 2: extend Harmos client-facing operation declarations/codecs to accept generated protobuf types and descriptors before adoption; preserve bounded decoding, cancellation, backpressure, service paths and streaming envelopes, then pin the published revision.
-- [x] 3.8.1 Inspect the requested Harmos revision: `ProtobufOperation`, `OperationFactory::protobuf` and descriptor-backed admission provide server registration and internal invocation. Verify that the managed remote client still requires `Portable`; record the missing client capability under Requests to Harmos.
+- [x] 3.8.1 Inspect the pre-client Harmos revision: `ProtobufOperation`, `OperationFactory::protobuf` and descriptor-backed admission provide server registration and internal invocation; identify the managed client's `Portable` requirement and request its replacement. The published answer and remaining admission request are tracked below.
 - [x] 3.8.1.1 Obtain generated-message managed client declarations/codecs and call handles from the owner-selected published Harmos revision; prove unary, upload, download, duplex, input finish, concurrent input, cancellation settlement, schema/fingerprint refusal and encoded-size admission against its real host on Windows. Descriptor-backed client memory admission remains separately open in 3.8.1.2; no local codec/projection shim.
 - [ ] 3.8.1.2 Obtain descriptor-backed decoded-memory admission in the host-free generated client: its current codec directly calls Prost with encoded-message limits only. The precise follow-up request in design.md blocks the coupled wire-mirror/dependency cutover; retain existing consumers until a complete buildable replacement is possible.
 - [ ] 3.8.2 Pin the requested published revision in the workspace and migrate every removed facade/SDK consumer to its explicit owner without path overrides or compatibility shims.
