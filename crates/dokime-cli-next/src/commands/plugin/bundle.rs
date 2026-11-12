@@ -15,13 +15,18 @@
 
 /* === Imports === */
 
-use dokime_runtime_next::PluginProcess;
-use prost::Message;
-use sha2::Digest;
+// Standard Library Imports
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
 };
+
+// Third Party Imports
+use prost::Message;
+use sha2::Digest;
+
+// Local Imports
+use dokime_runtime_next::PluginProcess;
 
 /* === Constants === */
 
@@ -106,6 +111,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     println!("{}", args.out.display());
     Ok(())
 }
+
 pub(super) fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
     let bytes = read(path, ARCHIVE_BYTES)?;
     let mut archive = tar::Archive::new(bytes.as_slice());
@@ -164,6 +170,7 @@ fn read(path: &Path, limit: u64) -> crate::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+
 fn digest(bytes: &[u8]) -> String {
     sha2::Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
 }

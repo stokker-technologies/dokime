@@ -15,8 +15,13 @@
 
 /* === Imports === */
 
+// Standard Library Imports
 use std::{io::Write, path::PathBuf};
+
+// Third Party Imports
 use tokio::io::AsyncReadExt;
+
+// Local Imports
 
 /* === Constants === */
 
@@ -44,9 +49,12 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT or Configure endpoint")?;
+    let endpoint = endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --endpoint HOST:PORT or Configure endpoint".into()))?;
     let endpoint = endpoint.strip_prefix("http://").unwrap_or(&endpoint).parse()?;
-    let storage = args.storage.or(settings.storage.clone()).ok_or("Start Host: Supply --storage PATH or Configure storage")?;
+    let storage = args
+        .storage
+        .or(settings.storage.clone())
+        .ok_or_else(|| crate::error::Error::Invalid("Supply --storage PATH or Configure storage".into()))?;
     let server =
         dokime_runtime_next::services::serve(endpoint, &storage, settings.host(args.controlled_clock), settings.services()).await?;
     println!("http://{}", server.endpoint());

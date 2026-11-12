@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
+
 # === Package === #
 
 [package]
@@ -28,31 +29,89 @@ path = "src/main.rs"
 # === Dependencies === #
 
 [dependencies]
+# Local
 dokime = { version = "0.1.5", path = "../../sdk/rust" }
 dokime-protocol = { workspace = true }
 dokime-runtime-next = { workspace = true }
-clap = { workspace = true }
+
+# Git
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+
+# Utilities
+sha2 = { workspace = true }
+
+# Serialization
 prost = { workspace = true }
 prost-reflect = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2 = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
+toml = { workspace = true }
+
+# Filesystem
 tar = { workspace = true }
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
 tokio = { workspace = true, features = ["io-std", "process"] }
 tokio-stream = { workspace = true }
-toml = { workspace = true }
-tonic = { workspace = true }
-reqwest = { workspace = true }
-tempfile = { workspace = true }
-rustls = { workspace = true, features = ["ring"] }
 
+# Networking
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Build Dependencies === #
 
 # === Dev Dependencies === #
 
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Target Dependencies === #
 

@@ -20,7 +20,6 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.build import configuration, paths
 from dokime_tools.process import spawn_flags
@@ -62,6 +61,7 @@ def build(profile: str) -> None:
             ["mise", "-C", str(project), "run", "build", "--", "--config", f"patch.crates-io.dokime.path='{sdk}'"],
             cwd=root,
             env=environment,
+            check=False,
             capture_output=True,
             text=True,
             creationflags=spawn_flags(),

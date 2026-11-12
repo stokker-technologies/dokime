@@ -15,10 +15,15 @@
 
 /* === Imports === */
 
-use dokime::v1;
-use sha2::Digest;
+// Standard Library Imports
 use std::path::PathBuf;
+
+// Third Party Imports
+use sha2::Digest;
 use tokio::io::AsyncReadExt;
+
+// Local Imports
+use dokime::v1;
 
 /* === Constants === */
 

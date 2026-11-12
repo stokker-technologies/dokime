@@ -15,9 +15,14 @@
 
 /* === Imports === */
 
-use dokime_protocol::v1;
-use prost::Message;
+// Standard Library Imports
 use std::path::PathBuf;
+
+// Third Party Imports
+use prost::Message;
+
+// Local Imports
+use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -46,7 +51,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     if std::fs::metadata(&args.cases)?.len() > settings.retained_bytes.get() as u64 {
-        return Err("Start Cycle: Select a Smaller Case File or Increase retained_bytes".into());
+        return Err(crate::error::Error::Capacity("Start Cycle: Select a Smaller Case File or Increase retained_bytes".into()));
     }
     let cases = v1::PreviewSelectionReply::decode(std::fs::read(args.cases)?.as_slice())?;
     let channel = settings.channel(endpoint, false).await?;

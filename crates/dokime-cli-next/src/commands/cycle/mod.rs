@@ -20,6 +20,12 @@ mod seal;
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
 /* === Constants === */
 
 /* === Macros === */
@@ -41,6 +47,17 @@ pub(crate) enum Command {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Command {
+    pub(crate) fn action(&self) -> &'static str {
+        match self {
+            Self::Create(_) => "Start Cycle",
+            Self::Append(_) => "Append Executions",
+            Self::Seal(_) => "Seal Cycle",
+            Self::Rerun(_) => "Rerun Cycle",
+        }
+    }
+}
 
 /* === Public Functions === */
 

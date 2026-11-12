@@ -157,14 +157,16 @@ page_items = 1000
 
 Materialized case files contain the authoritative `PreviewSelectionReply`
 protobuf, preserving frozen origins. `--parameters PATH` reads a JSON object
-mapping parameter names to arrays of canonical protobuf `Value` objects.
+mapping parameter names to arrays of canonical protobuf `Value` objects. For the
+Python starter, supply `{"limit":[{"number":10}]}`; this base host materializes
+explicit parameter values.
 Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
 terminal status before creating the requested output; existing output is retained.
 Human output is default and inspection/read commands offer `--json` with proto
 field names. Diagnostics go to stderr; exit codes are 0 success, 2 invalid
 arguments/configuration, 3 operational failure and 4 resource-capacity refusal.
 
-The base host refuses managed `Plugins.Install`, cycle
+The base host refuses managed `Plugins.Install`/`Plugins.Remove`, cycle
 `AppendExecutions`/`SealCycle`/`RerunCycle` and execution
 `StartExecution`/`StopExecution`. Their commands send real SDK requests and report
 the host's named refusal. The service owners complete these independently;

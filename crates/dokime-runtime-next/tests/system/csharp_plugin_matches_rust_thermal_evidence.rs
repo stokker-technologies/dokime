@@ -1,9 +1,47 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
 // SPDX-License-Identifier: Apache-2.0
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::HashMap;
+
+// Third Party Imports
+
+// Local Imports
 use dokime_protocol::v1;
 use dokime_runtime_next::{Host, PluginProcess};
 use dokime_storage::{ExecutionState, OutcomeCounts};
-use std::collections::HashMap;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 #[tokio::test]
 async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,3 +127,5 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
     })
     .await?
 }
+
+/* === Tests === */

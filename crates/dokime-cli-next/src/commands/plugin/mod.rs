@@ -11,18 +11,23 @@
 
 /* === Modules === */
 
-mod list;
-mod remove;
-
 mod add;
 mod bundle;
 mod dev;
 mod inspect;
 mod install;
+mod list;
+mod remove;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 
 /* === Constants === */
 
@@ -48,6 +53,20 @@ pub(crate) enum Command {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Command {
+    pub(crate) fn action(&self) -> &'static str {
+        match self {
+            Self::Bundle(_) => "Bundle Plugin",
+            Self::Dev(_) => "Develop Plugin",
+            Self::Inspect(_) => "Inspect Plugin",
+            Self::Add(_) => "Add Plugin",
+            Self::Install(_) => "Install Plugin",
+            Self::List(_) => "List Plugins",
+            Self::Remove(_) => "Remove Plugin",
+        }
+    }
+}
 
 /* === Public Functions === */
 

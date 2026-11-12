@@ -11,11 +11,10 @@
 
 /* === Modules === */
 
-mod show;
-
 mod list;
 mod prompt;
 mod report;
+mod show;
 mod start;
 mod stop;
 mod wait;
@@ -23,6 +22,12 @@ mod wait;
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 
 /* === Constants === */
 
@@ -40,9 +45,12 @@ pub(crate) enum Command {
     List(list::Args),
     Start(start::Args),
     Stop(stop::Args),
+
     #[command(alias = "watch")]
     Wait(wait::Args),
+
     Report(report::Args),
+
     #[command(subcommand)]
     Prompt(prompt::Command),
 }
@@ -50,6 +58,20 @@ pub(crate) enum Command {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Command {
+    pub(crate) fn action(&self) -> &'static str {
+        match self {
+            Self::List(_) => "List Executions",
+            Self::Show(_) => "Read Execution",
+            Self::Start(_) => "Start Execution",
+            Self::Stop(_) => "Stop Execution",
+            Self::Wait(_) => "Watch Execution",
+            Self::Report(_) => "Fetch Report",
+            Self::Prompt(command) => command.action(),
+        }
+    }
+}
 
 /* === Public Functions === */
 

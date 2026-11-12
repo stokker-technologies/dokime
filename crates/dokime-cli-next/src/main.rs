@@ -13,6 +13,7 @@
 
 mod cli;
 mod commands;
+mod error;
 mod output;
 mod settings;
 
@@ -20,7 +21,12 @@ mod settings;
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
 use clap::Parser;
+
+// Local Imports
 
 /* === Constants === */
 
@@ -28,7 +34,7 @@ use clap::Parser;
 
 /* === Type Aliases === */
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+type Result<T> = std::result::Result<T, error::Error>;
 
 /* === Structs === */
 
@@ -57,11 +63,7 @@ async fn main() -> std::process::ExitCode {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{action}: {error}");
-            let code = match error.downcast_ref::<tonic::Status>().map(tonic::Status::code) {
-                Some(tonic::Code::ResourceExhausted) => 4,
-                Some(tonic::Code::InvalidArgument) => 2,
-                _ => 3,
-            };
+            let code = error.exit_code();
             std::process::ExitCode::from(code)
         }
     }

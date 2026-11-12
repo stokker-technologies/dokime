@@ -15,8 +15,13 @@
 
 /* === Imports === */
 
+// Standard Library Imports
 use std::process::Stdio;
+
+// Third Party Imports
 use tokio::io::{AsyncBufReadExt, BufReader};
+
+// Local Imports
 
 /* === Constants === */
 
@@ -35,8 +40,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn std::error::Error>> {
@@ -120,6 +123,8 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         let suites: serde_json::Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
         let suite = suites["suites"].as_array().unwrap().last().unwrap()["suite_id"].as_str().unwrap();
         let cases = directory.path().join("python-cases.pb");
+        let parameters = directory.path().join("parameters.json");
+        std::fs::write(&parameters, br#"{"limit":[{"number":10}]}"#)?;
         super::run(&[
             "--endpoint",
             &endpoint,
@@ -131,6 +136,8 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
             "example.capture",
             "--out",
             cases.to_str().unwrap(),
+            "--parameters",
+            parameters.to_str().unwrap(),
         ])
         .await?;
         let cycle: serde_json::Value = serde_json::from_str(
@@ -153,3 +160,5 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
     })
     .await?
 }
+
+/* === Tests === */

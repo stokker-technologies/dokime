@@ -15,6 +15,12 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
 /* === Constants === */
 
 /* === Macros === */
@@ -60,7 +66,13 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             return crate::output::print(prompt, args.json);
         }
     }
-    Err("Await Prompt: Execution Finished Without a Pending Prompt".into())
+    let execution = client.executions.get(args.execution).await?;
+    let reason = match execution.outcome.and_then(|outcome| outcome.attribution) {
+        Some(dokime::v1::execution_outcome::Attribution::Evaluated(outcome)) => outcome.reason,
+        Some(dokime::v1::execution_outcome::Attribution::NotEvaluated(outcome)) => outcome.reason,
+        _ => String::new(),
+    };
+    Err(format!("Await Prompt: Execution Finished Without a Pending Prompt; {reason}").into())
 }
 
 /* === Private Functions === */

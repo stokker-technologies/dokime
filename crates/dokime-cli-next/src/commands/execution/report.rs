@@ -15,9 +15,14 @@
 
 /* === Imports === */
 
-use dokime_protocol::v1;
-use sha2::Digest;
+// Standard Library Imports
 use std::{io::Write, path::PathBuf};
+
+// Third Party Imports
+use sha2::Digest;
+
+// Local Imports
+use dokime_protocol::v1;
 
 /* === Constants === */
 

@@ -230,10 +230,14 @@ impl Entry {
 /* === Public Functions === */
 
 pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<h::Description> {
-    let mut client = connect(endpoint,settings).await?;
-    let response = client.describe(h::DescribeRequest {
-        revision: 1, host: "dokime".into(), host_version: env!("CARGO_PKG_VERSION").into(),
-    }).await?;
+    let mut client = connect(endpoint, settings).await?;
+    let response = client
+        .describe(h::DescribeRequest {
+            revision: 1,
+            host: "dokime".into(),
+            host_version: env!("CARGO_PKG_VERSION").into(),
+        })
+        .await?;
     Ok(response.into_inner())
 }
 

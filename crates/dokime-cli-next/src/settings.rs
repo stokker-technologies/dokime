@@ -15,16 +15,21 @@
 
 /* === Imports === */
 
-use dokime_runtime_next::{
-    ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
-    services::{ClientSettings, WallClock},
-};
-use serde::Deserialize;
+// Standard Library Imports
 use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
+};
+
+// Third Party Imports
+use serde::Deserialize;
+
+// Local Imports
+use dokime_runtime_next::{
+    ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
+    services::{ClientSettings, WallClock},
 };
 
 /* === Constants === */
@@ -78,6 +83,7 @@ impl Default for Settings {
         }
     }
 }
+
 impl Settings {
     pub fn load(path: Option<&Path>) -> crate::Result<Self> {
         let settings: Self = match path {
@@ -122,7 +128,8 @@ impl Settings {
         }
     }
     pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<tonic::transport::Channel> {
-        let endpoint = endpoint.ok_or("Supply --endpoint http://HOST:PORT or Configure endpoint")?;
+        let endpoint =
+            endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --endpoint http://HOST:PORT or Configure endpoint".into()))?;
         let timeout = if streaming { self.watch_timeout_s } else { self.mutation_timeout_s.max(self.read_timeout_s) };
         let channel = tonic::transport::Endpoint::from_shared(endpoint)?
             .connect_timeout(Duration::from_secs(self.connect_timeout_s))

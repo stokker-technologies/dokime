@@ -5,6 +5,15 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
+
+# === Workspace === #
+
+[workspace]
+
+# === Workspace Package === #
+
+# === Workspace Dependencies === #
+
 # === Package === #
 
 [package]
@@ -24,7 +33,36 @@ path = "src/main.rs"
 # === Dependencies === #
 
 [dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
 dokime = "0.1.5"
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Build Dependencies === #
 
@@ -47,5 +85,3 @@ dokime = "0.1.5"
 # === Patches === #
 
 # === Other === #
-
-[workspace]

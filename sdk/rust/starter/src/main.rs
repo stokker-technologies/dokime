@@ -15,6 +15,11 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use dokime::{prelude::*, v1};
 
 /* === Constants === */
@@ -56,6 +61,7 @@ fn main() -> Result<()> {
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
+
 async fn confirm(ctx: &Context) -> Result<()> {
     let answer = ctx
         .prompt(v1::OperatorQuestion {
@@ -74,6 +80,7 @@ async fn confirm(ctx: &Context) -> Result<()> {
     .await?;
     Ok(())
 }
+
 async fn confirmed(ctx: &Context) -> Result<bool> {
     let records = ctx.records("example.confirmation", "confirm", 0).await?;
     let record = records.last.ok_or_else(|| Error::Invalid("Read Confirmation: Missing Record".into()))?;

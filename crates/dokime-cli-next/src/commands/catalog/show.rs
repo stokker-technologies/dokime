@@ -15,6 +15,12 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
 /* === Constants === */
 
 /* === Macros === */
@@ -26,6 +32,7 @@
 #[derive(clap::Args)]
 pub(crate) struct Args {
     suite: String,
+
     #[arg(long)]
     json: bool,
 }

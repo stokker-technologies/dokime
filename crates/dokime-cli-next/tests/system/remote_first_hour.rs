@@ -15,8 +15,13 @@
 
 /* === Imports === */
 
+// Standard Library Imports
 use std::process::Stdio;
+
+// Third Party Imports
 use tokio::io::{AsyncBufReadExt, BufReader};
+
+// Local Imports
 
 /* === Constants === */
 
@@ -35,8 +40,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::error::Error>> {
@@ -92,7 +95,9 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                 serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
             let suite = suites["suites"][0]["suite_id"].as_str().ok_or("List Suites: Missing Suite Identity")?;
             let cases = directory.path().join("cases.pb");
-            super::run(&[
+            let parameters = directory.path().join("parameters.json");
+            std::fs::write(&parameters, br#"{"limit":[{"number":10}]}"#)?;
+            let mut arguments = vec![
                 "--endpoint",
                 &endpoint,
                 "plan",
@@ -103,8 +108,12 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                 "example.capture",
                 "--out",
                 cases.to_str().unwrap(),
-            ])
-            .await?;
+            ];
+            if language == "python" {
+                arguments.extend(["--parameters", parameters.to_str().unwrap()]);
+            }
+            super::run(&arguments).await?;
+
             let cycle: serde_json::Value = serde_json::from_str(
                 &super::run(&["--endpoint", &endpoint, "cycle", "create", "--cases", cases.to_str().unwrap(), "--json"]).await?,
             )?;
@@ -148,3 +157,5 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
     })
     .await?
 }
+
+/* === Tests === */

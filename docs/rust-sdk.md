@@ -249,8 +249,9 @@ with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository targ
 
 The thermal story admits and materializes the plugin through the pinned Harmos
 runtime, then drives scoped calls through `harmos.v1`, following the reference
-conformance protocol. That Harmos revision sends empty scopes for runtime plugin
-invocations; scoped suite execution therefore uses the protocol driver. The client
+conformance protocol. Native Harmos calls accept `Scope` through `with_scope(...)`;
+unbound calls retain an empty scope. This protocol-focused story keeps its explicit
+wire driver, and SDK execution validation reads `Context::scope()`. The client
 story uses an in-process fake gRPC server for authentication, discovery, schema
 binding/refusal, unary results, managed output/final results and response bounds.
 Other focused stories cover catalog/data construction and interleaved execution

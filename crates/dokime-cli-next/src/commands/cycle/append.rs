@@ -15,8 +15,13 @@
 
 /* === Imports === */
 
-use prost::Message;
+// Standard Library Imports
 use std::path::PathBuf;
+
+// Third Party Imports
+use prost::Message;
+
+// Local Imports
 
 /* === Constants === */
 
@@ -45,7 +50,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     if std::fs::metadata(&args.request)?.len() > settings.retained_bytes.get() as u64 {
-        return Err("Append Executions: Select a Smaller Request".into());
+        return Err(crate::error::Error::Capacity("Append Executions: Select a Smaller Request".into()));
     }
     let request = dokime::v1::ExecutionAppendExecutionsRequest::decode(std::fs::read(args.request)?.as_slice())?;
     let channel = settings.channel(endpoint, false).await?;

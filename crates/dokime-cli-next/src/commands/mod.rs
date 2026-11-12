@@ -25,6 +25,12 @@ mod status;
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
 /* === Constants === */
 
 /* === Macros === */
@@ -39,18 +45,25 @@ mod status;
 pub(crate) enum Command {
     New(new::Args),
     Server(server::Args),
+
     #[command(subcommand)]
     Plugin(plugin::Command),
+
     #[command(subcommand)]
     Proto(proto::Command),
+
     #[command(subcommand)]
     Catalog(catalog::Command),
+
     #[command(subcommand)]
     Plan(plan::Command),
+
     #[command(subcommand)]
     Cycle(cycle::Command),
+
     #[command(subcommand)]
     Execution(execution::Command),
+
     Status(status::Args),
 }
 
@@ -63,12 +76,12 @@ impl Command {
         match self {
             Self::New(_) => "Create Project",
             Self::Server(_) => "Start Host",
-            Self::Plugin(_) => "Plugin Command",
+            Self::Plugin(command) => command.action(),
             Self::Proto(_) => "Export Protocol",
-            Self::Catalog(_) => "Read Catalog",
+            Self::Catalog(command) => command.action(),
             Self::Plan(_) => "Materialize Cases",
-            Self::Cycle(_) => "Cycle Command",
-            Self::Execution(_) => "Execution Command",
+            Self::Cycle(command) => command.action(),
+            Self::Execution(command) => command.action(),
             Self::Status(_) => "Read Host Status",
         }
     }

@@ -15,9 +15,14 @@
 
 /* === Imports === */
 
-use dokime_protocol::v1;
-use prost::Message;
+// Standard Library Imports
 use std::{collections::HashMap, path::PathBuf};
+
+// Third Party Imports
+use prost::Message;
+
+// Local Imports
+use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -73,7 +78,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let value = v1::PreviewSelectionReply { cases, ..Default::default() };
     let bytes = value.encode_to_vec();
     if bytes.len() > settings.retained_bytes.get() {
-        return Err("Materialize Cases: Increase retained_bytes or Select Fewer Cases".into());
+        return Err(crate::error::Error::Capacity("Materialize Cases: Increase retained_bytes or Select Fewer Cases".into()));
     }
     std::fs::write(args.out, bytes)?;
     crate::output::print(&value, args.json)
