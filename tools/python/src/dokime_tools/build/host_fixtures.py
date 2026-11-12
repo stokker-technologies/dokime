@@ -64,7 +64,12 @@ def build(profile: str) -> None:
         check=True,
         creationflags=spawn_flags(),
     )
-    subprocess.run(["mise", "-C", "sdk/cpp", "run", "build"], cwd=root, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        ["mise", "-C", "sdk/cpp", "run", "build", "--", "--target", "dokime-system-suite"],
+        cwd=root,
+        check=True,
+        creationflags=spawn_flags(),
+    )
     native = root / "target/sdk/cpp/tests"
     if os.name == "nt":
         native /= "Debug"
