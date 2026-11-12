@@ -46,6 +46,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::ListPlugins) -> Result<v1::PluginEntries> {
     super::complete(ID, context.settings.read_timeout, async {
+        context.host.refresh_plugin_states().await?;
         let _ = request;
         Ok(v1::PluginEntries { plugins: context.host.plugins()? })
     })

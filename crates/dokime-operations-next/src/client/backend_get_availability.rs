@@ -48,10 +48,13 @@ pub async fn handle(context: &Context, request: v1::GetBackendAvailability) -> R
     super::complete(ID, context.settings.read_timeout, async {
         let _ = request;
         let identity = context.host.identity();
+        let mut methods: Vec<String> = super::METHODS.iter().map(|method| (*method).into()).collect();
+        methods.sort();
+        methods.dedup();
         Ok(v1::BackendAvailability {
             backend_id: identity.backend_id,
             epoch: identity.epoch,
-            methods: super::METHODS.iter().map(|method| (*method).into()).collect(),
+            methods,
             limits: Some(v1::BackendLimits {
                 max_request_bytes: context.settings.message_bytes as u64,
                 max_response_bytes: context.settings.message_bytes as u64,

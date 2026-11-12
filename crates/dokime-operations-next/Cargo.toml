@@ -39,12 +39,19 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+keyring = { workspace = true }
+rcgen = { workspace = true }
 uuid = { workspace = true }
+zeroize = { workspace = true, features = ["serde"] }
+zip = { workspace = true }
 
 # Serialization
+base64 = { workspace = true }
 prost = { workspace = true }
 prost-reflect = { workspace = true }
 prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Cryptography
 sha2 = { workspace = true }
@@ -86,6 +93,11 @@ tonic = { workspace = true }
 # Logging
 
 # Utilities
+keyring = { workspace = true }
+rcgen = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true, features = ["serde"] }
+zip = { workspace = true }
 
 # Serialization
 

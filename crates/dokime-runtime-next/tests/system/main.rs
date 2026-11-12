@@ -13,12 +13,22 @@
 
 mod cancelling_a_thermal_step_runs_cleanup;
 mod client_answers_operator_prompts;
+mod client_browses_catalog;
 mod client_browses_sealed_history;
+mod client_collects_backend_diagnostics;
 mod client_controls_execution_lifecycle;
+mod client_edits_settings;
+mod client_inspects_health;
+mod client_installs_and_removes_managed_plugins;
+mod client_manages_plugin_entries;
+mod client_manages_secret_storage;
 mod client_observes_runtime_state;
+mod client_pairs_and_rotates_remote_access;
 mod client_plans_parameter_selections;
 mod client_publishes_execution_report;
+mod client_reads_appearance;
 mod client_reads_interrupted_execution;
+mod client_reads_runtime;
 mod client_runs_thermal_suite_over_grpc;
 mod cpp_plugin_matches_rust_thermal_evidence;
 mod csharp_plugin_matches_rust_thermal_evidence;

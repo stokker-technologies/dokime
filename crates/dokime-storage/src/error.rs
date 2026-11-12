@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("{0}")]
+    Conflict(String),
+
     #[error("Cannot Open Evidence Root: {0}. Make a backup and choose a fresh root or explicitly reset it")]
     Incompatible(String),
 

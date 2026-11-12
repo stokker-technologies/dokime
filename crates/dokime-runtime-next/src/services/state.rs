@@ -41,9 +41,12 @@ use dokime_storage::{ExecutionState, Store};
 
 pub(super) struct State {
     pub host: Host,
+    pub administration: std::sync::Arc<tokio::sync::Mutex<()>>,
+    pub remote: std::sync::Arc<super::remote_access::Control>,
+    pub diagnostics: super::diagnostics::Diagnostics,
+    pub root: std::path::PathBuf,
     pub render_settings: crate::RenderSettings,
     pub identity: v1::BackendIdentity,
-    pub urls: Mutex<HashMap<String, String>>,
     pub progress: Mutex<HashMap<String, watch::Receiver<Progress>>>,
 }
 
@@ -89,6 +92,33 @@ impl ClientHost for State {
     fn now_ns(&self) -> i64 {
         self.host.now_ns()
     }
+    async fn read_remote_listener(&self) -> Result<v1::RemoteListenerStatus> {
+        self.remote.read().await.map_err(convert)
+    }
+    async fn update_remote_listener(&self, settings: v1::RemoteListenerSettings) -> Result<v1::RemoteListenerStatus> {
+        self.remote.update(settings).await.map_err(convert)
+    }
+    async fn create_pairing(&self, label: String) -> Result<v1::CreatedPairing> {
+        self.remote.pair(label).await.map_err(convert)
+    }
+    async fn regenerate_certificate(&self, names: Vec<String>) -> Result<v1::RemoteListenerStatus> {
+        self.remote.rotate(names).await.map_err(convert)
+    }
+    fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)> {
+        Ok(self.diagnostics.snapshot(scope))
+    }
+    fn diagnostic_changes(&self) -> tokio::sync::broadcast::Receiver<()> {
+        self.diagnostics.changes()
+    }
+    fn bootstrap_paths(&self) -> v1::BootstrapPaths {
+        let root = self.root.to_string_lossy().into_owned();
+        v1::BootstrapPaths {
+            application: root.clone(),
+            storage: root,
+            plugins: self.root.join("plugins").to_string_lossy().into_owned(),
+            logs: self.root.join("logs").to_string_lossy().into_owned(),
+        }
+    }
     fn identity(&self) -> v1::BackendIdentity {
         self.identity.clone()
     }
@@ -102,44 +132,45 @@ impl ClientHost for State {
         self.host.publish_report(&output).map_err(convert)
     }
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin> {
-        let entry = self.host.add_remote(url).await.map_err(convert)?;
-        lock(&self.urls).map_err(convert)?.insert(entry.clone(), url.into());
-        let description = self.host.description(&entry).map_err(convert)?;
-        self.host.signal_change();
-        Ok(v1::Plugin {
-            entry,
-            placement: Some(v1::plugin::Placement::Remote(v1::RemotePlugin { url: url.into() })),
-            state: v1::PluginState::Ready as i32,
-            description: Some(description),
-            ..Default::default()
-        })
+        self.add_entry(url).await
+    }
+    async fn refresh_plugin_states(&self) -> Result<()> {
+        self.refresh_entry_states().await
     }
     fn plugins(&self) -> Result<Vec<v1::Plugin>> {
-        let urls = lock(&self.urls).map_err(convert)?;
-        let mut entries = Vec::new();
-        for (entry, state) in self.host.plugin_entries().map_err(convert)? {
-            let state = match state {
-                crate::EntryState::Starting => v1::PluginState::Starting,
-                crate::EntryState::Connecting => v1::PluginState::Connecting,
-                crate::EntryState::Ready => v1::PluginState::Ready,
-                crate::EntryState::Failed => v1::PluginState::Failed,
-                crate::EntryState::Unavailable => v1::PluginState::Unavailable,
-            };
-            entries.push(v1::Plugin {
-                entry: entry.clone(),
-                placement: urls.get(&entry).map(|url| v1::plugin::Placement::Remote(v1::RemotePlugin { url: url.clone() })),
-                state: state as i32,
-                description: Some(self.host.description(&entry).map_err(convert)?),
-                ..Default::default()
-            });
-        }
-        entries.sort_by(|left, right| left.entry.cmp(&right.entry));
-        Ok(entries)
+        self.list_entries()
+    }
+    async fn restore_managed_plugins(&self) -> Result<()> {
+        self.restore_managed().await
+    }
+    fn installations(&self) -> Result<Vec<v1::PluginInstallation>> {
+        self.list_installations()
+    }
+    async fn install_plugin_bundle(&self, bytes: Vec<u8>) -> Result<v1::PluginInstallation> {
+        self.install_bundle(bytes).await
+    }
+    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation> {
+        self.enable_managed(identifier, enabled).await
+    }
+    async fn remove_plugin_entry(&self, identifier: &str) -> Result<()> {
+        self.remove_entry(identifier).await
+    }
+    async fn reload_plugin_entry(&self, identifier: &str) -> Result<()> {
+        self.reload_entry(identifier).await
     }
     fn suites(&self) -> Result<Vec<(String, v1::Suite)>> {
+        let ready: std::collections::HashSet<_> = self
+            .list_entries()?
+            .into_iter()
+            .filter(|plugin| plugin.state == v1::PluginState::Ready as i32)
+            .filter_map(|plugin| plugin.description.map(|description| description.id))
+            .collect();
         let plugins = lock(&self.host.inner.plugins).map_err(convert)?;
         let mut suites = Vec::new();
         for (plugin, entry) in plugins.iter() {
+            if !ready.contains(plugin) {
+                continue;
+            }
             suites.extend(entry.suites.suites.iter().cloned().map(|suite| (plugin.clone(), suite)));
         }
         suites.sort_by(|left, right| {

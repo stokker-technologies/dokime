@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod administration;
 mod capabilities;
 mod clock;
 mod dispatch;

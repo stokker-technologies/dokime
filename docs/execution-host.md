@@ -43,15 +43,47 @@ The `dokime-host-next` binary accepts `--endpoint HOST:PORT --storage PATH`.
 It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
 Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode.
 The storage root retains a backend identity; each process has a new boot epoch.
-Remote authentication is pending, so this listener accepts loopback addresses.
+The bootstrap listener accepts loopback addresses. Remote manages a separate
+TLS listener with one rotating backend access key. Export a pairing to enable it,
+then import its endpoints, certificate and key on the client. Exporting again
+invalidates every previous key, including on open channels; certificate rotation
+requires a fresh pairing export. Reconfiguring the listener closes its existing
+remote calls; reconnect and inspect the committed listener state after an uncertain
+acknowledgement. TLS private keys remain in the OS credential
+store; SQLite retains their slot identity and the access-key verifier.
+
+Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health
+serve every declared method, including their Run transports. Plugin installation
+accepts verified v1 `.dokime` tar bundles with one native sidecar per target,
+portable regular-file paths, matching size/digest inventory and a compatible
+`dokime.json`. Managed entries start on restart; disabled installations stay
+disabled. Replacement retains that state and restores the previous entry when
+starting its replacement fails. Removing an entry preserves execution evidence.
+Remote entries retain URL identity and descriptions while unavailable, and
+reload reconnects them without taking ownership of the remote process. Plugin,
+catalog and health reads probe connected entries on demand, retaining stopped or
+changed processes as unavailable/failed entries and excluding them from admission.
+
+Settings use revision-checked durable preferences and report bootstrap paths
+without making them editable. Plugin settings remain editable while unavailable;
+`dokime.settings.read` resolves saved values on demand in the calling execution.
+Secret Storage uses generation checks, protected immutable credential slots and
+bounded v1 base64 JSON files with explicit replace/skip choices. Secret values
+are never written into the SQLite catalog. `dokime.secrets.read` reads the named
+protected credential within the calling execution's scope. Headless hosts need
+an available OS credential store for secret writes and TLS key persistence.
+
+Catalog and Health paging binds the current process epoch and inventory;
+installation paging binds its manifest digest. Restart paging after a stale
+cursor refusal. Backend availability lists only served methods. Diagnostics
+streams a verifiable ZIP containing backend identity and a bounded tracing tail;
+log/trace follows await events and redact secret-looking structured fields.
 
 Planning, Execution, Observation, Prompts and History serve every declared
-operation and its Run form. Other served methods are Plugins Add/List; Catalog
-ListSuites/GetSuite; Query ListExecutions; Evidence ListRecords; Telemetry
-ListSamples; Reports DownloadExecutionReport/PublishExecutionReport; Health
-ListHealth; and Backend identity, health and availability. Backend availability
-advertises the served methods. Other methods return `UNIMPLEMENTED` naming the
-action; the owning OpenSpec task lists them.
+operation and its Run form. Query ListExecutions, Evidence ListRecords, Telemetry
+ListSamples and Reports DownloadExecutionReport/PublishExecutionReport retain their
+existing serving. Backend availability advertises every served method. Other methods
+return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
 
 Prompts serves all five operations and their bidirectional Run forms. Catalog
@@ -149,7 +181,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains twenty stories,
+reads their records through the client. The system target covers every host story,
 including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.

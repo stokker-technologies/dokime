@@ -142,7 +142,18 @@ impl Host {
         let entry = Entry::admit(&endpoint, Some(process), &self.inner.settings.placement).await?;
         self.insert(entry)
     }
+    pub async fn add_remote_configured(&self, endpoint: &str, placement: &PlacementSettings) -> Result<String> {
+        let entry = Entry::admit(endpoint, None, placement).await?;
+        self.insert(entry)
+    }
+    pub async fn add_managed_configured(&self, executable: &Path, placement: &PlacementSettings) -> Result<String> {
+        let process = PluginProcess::start(executable, false, placement).await?;
+        let endpoint = process.endpoint().to_owned();
+        let entry = Entry::admit(&endpoint, Some(process), placement).await?;
+        self.insert(entry)
+    }
     fn insert(&self, entry: Entry) -> Result<String> {
+        self.validate_plugin_admission(&entry)?;
         let identifier = entry.description.id.clone();
         let mut plugins = lock(&self.inner.plugins)?;
         if plugins.contains_key(&identifier) {
