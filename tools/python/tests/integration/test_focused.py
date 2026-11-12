@@ -131,6 +131,16 @@ class ChangedPathsTests(unittest.TestCase):
                 self.assertEqual(archive.call_args.args[-1], ["-E", "binary_id(=example::integration)", "--", "--exact", "save"])
             execute.assert_not_called()
 
+    def test_filterset_reaches_source_and_archived_story_selection(self):
+        expression = "not (test(native_one) or test(native_two))"
+        arguments = ["test", "--package", "example", "--target", "system", "--filterset", expression]
+        with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=7) as execute:
+            self.assertEqual(tasks.main(arguments), 7)
+            self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "system", "-E", expression])
+            with patch.object(archived.archive, "install_wheels"), patch.object(archived, "test", return_value=9) as run:
+                self.assertEqual(tasks.main([*arguments, "--artifact", "tests"]), 9)
+                self.assertEqual(run.call_args.args[-1], ["-E", "binary_id(=example::system)", "-E", expression])
+
     def test_native_runner_keeps_deadlines_exact_selection_and_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

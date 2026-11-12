@@ -115,8 +115,13 @@ Build the shared fixtures and install the Python wheel with the tasks above.
 fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
 runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
-fixtures. Tests Build includes the same producer; the Linux and Windows pull
-request and Nightly jobs consume its exports and run all fifteen stories.
+fixtures. Local Tests Build includes every available compiled SDK fixture and the
+full selection runs all fifteen stories. Pull requests build Rust and Python and
+explicitly select thirteen stories; C# and C++ equivalence run in Nightly. Nightly
+builds each language independently on Linux and Windows, caching the C++ SDK's
+pinned native dependencies and installing .NET through mise, then runs all fifteen
+stories against exported artifacts. Suite failures are reported alongside the
+publication result and do not block publication.
 
 ```sh
 mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence

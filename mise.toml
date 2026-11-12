@@ -293,8 +293,8 @@ run = [
 [tasks."build:host-fixtures"]
 hide = true
 description = "Build and Export Execution Host SDK Fixtures"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.host_fixtures --profile {{usage.profile}}"
+usage = 'flag "--profile <profile>" default="dev"; flag "--language <language>"; flag "--export"'
+run = "{{vars.tools}} dokime_tools.build.host_fixtures --profile {{usage.profile}}{% if usage.language %} --language {{usage.language}}{% endif %}{% if usage.export %} --export{% endif %}"
 
 [tasks."build:typescript"]
 hide = true

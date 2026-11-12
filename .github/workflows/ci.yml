@@ -179,16 +179,16 @@ jobs:
           runner: ubuntu-latest
           minutes: 120
           work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system
+          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence) or test(cpp_plugin_matches_rust_thermal_evidence))"
           bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system
+          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence) or test(cpp_plugin_matches_rust_thermal_evidence))"
           bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -339,6 +339,13 @@ jobs:
       with:
         platform: unix
       id: setup
+    - name: Execution Host Coverage
+      shell: python
+      run: |
+        import os
+        from pathlib import Path
+        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+            summary.write("Execution host: thirteen Rust and Python stories on Linux and Windows. C# and C++ equivalence stories run in Nightly.\n")
     - run: mise run ci:required --
       env:
         RESULTS: ${{ toJSON(needs) }}

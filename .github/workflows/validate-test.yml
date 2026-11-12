@@ -109,6 +109,12 @@ jobs:
         name: build-gui-${{ env.PROFILE }}-${{ inputs.platform }}
         path: target/ci
       if: contains(fromJSON(inputs.archives), 'target/ci/build-gui-{profile}-{platform}.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      if: contains(inputs.archives, 'build-host-')
+      with:
+        pattern: build-host-*-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/ci
+        merge-multiple: true
     - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()

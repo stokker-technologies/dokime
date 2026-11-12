@@ -73,6 +73,20 @@ jobs:
     needs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
+  build_host_fixtures:
+    name: Build / Host Fixtures / ${{ matrix.language }}
+    uses: ./.github/workflows/validate-build-tests.yml
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [rust, python, csharp, cpp]
+    with:
+      channel: nightly
+      profile: release
+      fixture-language: ${{ matrix.language }}
   build_python:
     name: Build / Python
     uses: ./.github/workflows/validate-build-python.yml
@@ -289,20 +303,6 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
           work: Rust / Unit
           command: test -- --language rust --layer unit
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
@@ -346,6 +346,31 @@ jobs:
           bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
           archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
             "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
+  test_host:
+    name: Test / Execution Host
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_tests
+    - build_host_fixtures
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+        - platform: windows
+          runner: windows-latest
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      work: Rust / System / Execution Host
+      command: test -- --artifact tests --package dokime-runtime-next --target system
+      bootstrap: '[]'
+      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
+      minutes: 120
+      suite: execution-host
   coverage:
     name: Test / ${{ matrix.work }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -603,10 +628,12 @@ jobs:
     - check
     - build_product
     - build_tests
+    - build_host_fixtures
     - build_python
     - build_bench
     - check_generated
     - test
+    - test_host
     - coverage
     - bench
     - package

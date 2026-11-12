@@ -210,7 +210,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
-- SDK transport conformance runs in Nightly; the shared execution-host system target runs on pull requests and in Nightly on Linux and Windows.
+- SDK transport conformance runs in Nightly; the shared execution-host system target selects thirteen Rust/Python stories on pull requests and all fifteen in Nightly on Linux and Windows.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - This change owns the execution model before manager construction; imported-executions depends on it and follows the SDK wave and storage-interface for admission, draft publication and SDK/report integration.
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
@@ -357,7 +357,7 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 
 - [x] Merge the language branch and current integration branch, preserving all fifteen stories and regenerating protocol output through its task.
 - [x] Keep all three new crates in the workspace, retain SDK dependency versions, share the story hang guard and expose package/story/changed-path selection.
-- [x] Build shared language fixtures through SDK tasks, export portable fixture bytes with Tests and select the new-host system target separately on pull requests and Nightly for Linux and Windows.
+- [x] Build shared language fixtures through SDK tasks, export portable fixture bytes and select the new-host system target separately on Linux and Windows: thirteen Rust/Python stories on pull requests; all fifteen in Nightly after independent parallel language fixture builds.
 - [x] Pass Windows format, repository/Rust/Python checks (125 tooling tests), the complete Tests producer (53 archived binaries, 16 compile contracts), eight protocol drift/routing stories, all four SDK checks and locked offline metadata. All fifteen execution-host stories pass twice with no skips, including managed/remote C# and C++ equivalence. No old-host check failures remain in this candidate. Native Linux and hosted runs remain unverified; the pre-existing named C# record-only descriptor assertion still awaits Harmos support.
 
 - [x] Refresh the generated C# fixture lock when republishing the locally rebuilt development SDK. Reproduce NU1403 across committed checkpoints and pass the same publisher with native restore graph re-evaluation; preserve package hash validation and keep the lock in the fixture output. The complete producer and both fifteen-story runs pass after this repair.
