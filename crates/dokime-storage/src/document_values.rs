@@ -18,10 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
 
 // Local Imports
-use crate::{Error, ExecutionCut, NumericWindow, Result, Store};
+use crate::{Error, ExecutionCut, Result, Store};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -40,98 +39,100 @@ use dokime_protocol::v1;
 
 impl Store {
     pub fn document_value(&self, cut: &ExecutionCut, expression: &v1::DataExpression) -> Result<v1::Value> {
-        use v1::data_expression::Kind;
-        let value = match expression.kind.as_ref() {
-            Some(Kind::Literal(value)) => return Ok(value.clone()),
-            Some(Kind::Parameter(key) | Kind::Dimension(key)) => {
-                let Some(v1::origin::Kind::PluginRun(run)) = cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) else {
-                    return Err(Error::Invalid("Read Document Value: Select a Parameter from a PluginRun Origin".into()));
-                };
-                return run
-                    .test_case
-                    .as_ref()
-                    .and_then(|case| case.parameters.get(key))
-                    .cloned()
-                    .ok_or_else(|| Error::Invalid(format!("Read Document Value: Declare Parameter {key}")));
-            }
-            Some(Kind::Stream(reference)) => self.document_statistic(cut, reference, v1::Aggregate::Last)?,
-            Some(Kind::Aggregate(aggregate)) => {
-                let Some(Kind::Stream(reference)) = aggregate.input.as_ref().and_then(|input| input.kind.as_ref()) else {
-                    return Err(Error::Invalid("Read Document Aggregate: Select a Numeric Stream Field".into()));
-                };
-                self.document_statistic(
-                    cut,
-                    reference,
-                    v1::Aggregate::try_from(aggregate.kind)
-                        .map_err(|_| Error::Invalid("Read Document Aggregate: Select a Declared Reducer".into()))?,
-                )?
-            }
-            Some(Kind::Transform(transform)) => {
-                let input = transform.input.as_ref().ok_or_else(|| Error::Invalid("Read Document Transform: Select Its Input".into()))?;
-                let value = self.document_value(cut, input)?;
-                let number = match value.kind {
-                    Some(v1::value::Kind::Number(value)) => value,
-                    Some(v1::value::Kind::Integer(value)) => value as f64,
-                    Some(v1::value::Kind::UnsignedInteger(value)) => value as f64,
-                    _ => return Err(Error::Invalid("Read Document Transform: Select a Numeric Input".into())),
-                };
-                match transform.kind {
-                    Some(v1::transform_expression::Kind::Scale(scale)) => number * scale,
-                    Some(v1::transform_expression::Kind::Offset(offset)) => number + offset,
-                    _ => return Err(Error::Invalid("Read Document Transform: Select Scale or Offset".into())),
-                }
-            }
-            _ => return Err(Error::Invalid("Read Document Value: Bind a Stored Numeric Stream, Parameter or Literal".into())),
-        };
-        if !value.is_finite() {
-            return Err(Error::Invalid("Read Document Value: Select Finite Input Values".into()));
-        }
-        Ok(v1::Value {
-            kind: Some(v1::value::Kind::Number(value)),
-        })
+        self.document_value_filtered(cut, expression, &[])
     }
-    fn document_statistic(&self, cut: &ExecutionCut, reference: &v1::FieldReference, aggregate: v1::Aggregate) -> Result<f64> {
-        let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
-        if !catalog.streams.iter().any(|stream| stream.id == reference.identifier) {
-            return Err(Error::Invalid(format!("Read Document Value: Declare Stream {}", reference.identifier)));
+    pub fn document_value_filtered(
+        &self, cut: &ExecutionCut, expression: &v1::DataExpression, filters: &[v1::PlotFilter],
+    ) -> Result<v1::Value> {
+        let stream = crate::plot_selection::reference(expression)
+            .filter(|(_, record)| !*record)
+            .map_or("", |(reference, _)| reference.identifier.as_str());
+        let compiler = crate::plot_selection::Compiler::new(
+            cut,
+            stream,
+            filters,
+            crate::plot_selection::reference(expression).filter(|(_, record)| *record).map(|(reference, _)| reference.identifier.as_str()),
+        )?;
+        let sql = compiler.expression(expression, 0)?;
+        let rows = compiler.rows(expression)?;
+        let conditions = filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
+        let condition = if conditions.is_empty() { "1".into() } else { conditions.join(" AND ") };
+        let mut root = expression;
+        while let Some(v1::data_expression::Kind::Transform(transform)) = &root.kind {
+            let Some(input) = transform.input.as_deref() else { break };
+            root = input;
         }
-        let bounds =
-            self.numeric_bounds(&cut.execution.identifier, &reference.identifier, &reference.field, cut.frontier)?.unwrap_or((0, 0));
-        let window = NumericWindow {
-            execution: &cut.execution.identifier,
-            stream: &reference.identifier,
-            field: &reference.field,
-            after: 0,
-            through: cut.frontier,
-            start_ns: bounds.0,
-            end_ns: bounds.1,
-            bins: std::num::NonZeroUsize::new(1).unwrap(),
+        let aggregate = matches!(root.kind, Some(v1::data_expression::Kind::Aggregate(_)));
+        let query = if aggregate {
+            format!("SELECT {sql}")
+        } else {
+            format!("SELECT {sql} FROM {rows} a WHERE {condition} ORDER BY source_ns DESC,position DESC LIMIT 1")
         };
-        let stats = self.numeric_statistics(&window)?;
-        if stats.count == 0 && aggregate != v1::Aggregate::Count {
-            return Err(Error::Invalid("Read Document Value: Capture Samples Before Evaluating This Summary".into()));
-        }
-        Ok(match aggregate {
-            v1::Aggregate::Count => stats.count as f64,
-            v1::Aggregate::Sum => stats.mean * stats.count as f64,
-            v1::Aggregate::Min => stats.min,
-            v1::Aggregate::Max => stats.max,
-            v1::Aggregate::Mean => stats.mean,
-            v1::Aggregate::Stddev => stats.stddev,
-            v1::Aggregate::Median => stats.median,
-            v1::Aggregate::First => stats.first,
-            v1::Aggregate::Last => stats.last,
-            v1::Aggregate::Rms => {
-                let bins = self.numeric_bins(window)?;
-                (bins.iter().map(|bin| bin.sum_squares).sum::<f64>() / stats.count as f64).sqrt()
-            }
-            _ => return Err(Error::Invalid("Read Document Value: Select a Declared Summary Reducer".into())),
-        })
+        let connection = self.lock()?;
+        connection.create_scalar_function(
+            "dokime_sqrt",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC | rusqlite::functions::FunctionFlags::SQLITE_INNOCUOUS,
+            |context| Ok(context.get::<Option<f64>>(0)?.map(|value| value.max(0.0).sqrt())),
+        )?;
+        use rusqlite::OptionalExtension;
+        let value = connection.query_row(&query, [], |row| row.get::<_, rusqlite::types::Value>(0)).optional()?;
+        value
+            .map(wire_value)
+            .transpose()?
+            .ok_or_else(|| Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()))
+    }
+    pub fn document_distinct(
+        &self, cut: &ExecutionCut, expression: &v1::DataExpression, order: Option<&v1::DataExpression>, filters: &[v1::PlotFilter],
+        offset: usize, maximum: usize,
+    ) -> Result<(Vec<v1::Value>, u64)> {
+        let stream = crate::plot_selection::reference(expression)
+            .filter(|(_, record)| !*record)
+            .map_or("", |(reference, _)| reference.identifier.as_str());
+        let compiler = crate::plot_selection::Compiler::new(
+            cut,
+            stream,
+            filters,
+            crate::plot_selection::reference(expression).filter(|(_, record)| *record).map(|(reference, _)| reference.identifier.as_str()),
+        )?;
+        let value = compiler.expression(expression, 0)?;
+        let order = order.map(|order| compiler.expression(order, 0)).transpose()?.unwrap_or_else(|| value.clone());
+        let rows = compiler.rows(expression)?;
+        let conditions = filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
+        let condition = if conditions.is_empty() { "1".into() } else { conditions.join(" AND ") };
+        let query = format!(
+            "SELECT value FROM (SELECT ({value}) value,({order}) ordering,source_ns,position FROM {rows} a WHERE {condition}) WHERE value IS NOT NULL GROUP BY value ORDER BY ordering,MIN(position) LIMIT ?1 OFFSET ?2"
+        );
+        let connection = self.lock()?;
+        let total: i64 = connection.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM (SELECT ({value}) value FROM {rows} a WHERE {condition} GROUP BY value) WHERE value IS NOT NULL"
+            ),
+            [],
+            |row| row.get(0),
+        )?;
+        let mut query = connection.prepare(&query)?;
+        let values = query
+            .query_map(rusqlite::params![maximum as i64, offset as i64], |row| row.get::<_, rusqlite::types::Value>(0))?
+            .map(|row| wire_value(row?))
+            .collect::<Result<Vec<_>>>()?;
+        Ok((values, total as u64))
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn wire_value(value: rusqlite::types::Value) -> Result<v1::Value> {
+    let kind = match value {
+        rusqlite::types::Value::Null => v1::value::Kind::Null(v1::Null {}),
+        rusqlite::types::Value::Integer(value) => v1::value::Kind::Integer(value),
+        rusqlite::types::Value::Real(value) if value.is_finite() => v1::value::Kind::Number(value),
+        rusqlite::types::Value::Text(value) => v1::value::Kind::Text(value),
+        _ => return Err(Error::Invalid("Read Document Value: Select a Finite Scalar Expression".into())),
+    };
+    Ok(v1::Value { kind: Some(kind) })
+}
 
 /* === Tests === */

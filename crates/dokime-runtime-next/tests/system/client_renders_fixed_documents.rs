@@ -56,8 +56,67 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             label: "Trend".into(),
             ..Default::default()
         });
-        let document = v1::Document::new("Measurements").id("measurements").section(
+        let aggregate = |input: v1::DataExpression, kind: v1::Aggregate, percentile: f64| v1::DataExpression {
+            kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+                input: Some(Box::new(input)),
+                kind: kind as i32,
+                percentile,
+            }))),
+            ..Default::default()
+        };
+        let record = v1::DataExpression {
+            kind: Some(v1::data_expression::Kind::Record(v1::FieldReference {
+                identifier: "measurement".into(),
+                field: "min".into(),
+            })),
+            ..Default::default()
+        };
+        let summary = v1::Summary {
+            tiles: vec![
+                v1::SummaryTile {
+                    metadata: Some(v1::Metadata {
+                        identifier: "percentile".into(),
+                        ..Default::default()
+                    }),
+                    value: Some(aggregate(v1::FieldReference::new("reading").field("max"), v1::Aggregate::Percentile, 25.0)),
+                    ..Default::default()
+                },
+                v1::SummaryTile {
+                    metadata: Some(v1::Metadata {
+                        identifier: "record-mean".into(),
+                        ..Default::default()
+                    }),
+                    value: Some(aggregate(record.clone(), v1::Aggregate::Mean, 0.0)),
+                    ..Default::default()
+                },
+                v1::SummaryTile {
+                    metadata: Some(v1::Metadata {
+                        identifier: "record-std".into(),
+                        ..Default::default()
+                    }),
+                    value: Some(aggregate(record.clone(), v1::Aggregate::Stddev, 0.0)),
+                    ..Default::default()
+                },
+                v1::SummaryTile {
+                    metadata: Some(v1::Metadata {
+                        identifier: "record-rms".into(),
+                        ..Default::default()
+                    }),
+                    value: Some(aggregate(record, v1::Aggregate::Rms, 0.0)),
+                    ..Default::default()
+                },
+            ],
+        };
+        let mut document = v1::Document::new("Measurements").id("measurements").section(
             v1::Section::new("Results")
+                .card(v1::Card {
+                    metadata: Some(v1::Metadata {
+                        identifier: "summary".into(),
+                        ..Default::default()
+                    }),
+                    body: Some(v1::card::Body::Summary(summary)),
+                    ..Default::default()
+                })
                 .card(v1::Card {
                     metadata: Some(v1::Metadata {
                         identifier: "trend-card".into(),
@@ -87,6 +146,40 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     ..Default::default()
                 }),
         );
+        document.sections.push(v1::Section {
+            metadata: Some(v1::Metadata {
+                identifier: "groups".into(),
+                ..Default::default()
+            }),
+            repeat: Some(v1::SectionRepeat {
+                value: Some(v1::FieldReference::new("reading").field("min")),
+                label_template: "Group {value}".into(),
+                order_by: None,
+            }),
+            cards: vec![v1::Card {
+                metadata: Some(v1::Metadata {
+                    identifier: "group-count".into(),
+                    ..Default::default()
+                }),
+                body: Some(v1::card::Body::Summary(v1::Summary {
+                    tiles: vec![v1::SummaryTile {
+                        value: Some(aggregate(v1::FieldReference::new("reading").field("min"), v1::Aggregate::Count, 0.0)),
+                        ..Default::default()
+                    }],
+                })),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        for index in 0..1_001 {
+            document.sections.push(v1::Section {
+                metadata: Some(v1::Metadata {
+                    identifier: format!("appendix-{index}"),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+        }
         let suites = v1::Suites {
             suites: vec![v1::Suite {
                 templates: vec![v1::TestCaseTemplate {
@@ -96,7 +189,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                 ..Default::default()
             }],
         };
-        let catalog = harmos_protocol::v1::Catalog {
+        let mut catalog = harmos_protocol::v1::Catalog {
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![harmos_protocol::v1::StreamDeclaration {
                 id: "reading".into(),
@@ -109,6 +202,19 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             }],
             ..Default::default()
         };
+        catalog.sections.push(harmos_protocol::v1::Section {
+            r#type: "dokime.v1.RecordContracts".into(),
+            payload: v1::RecordContracts {
+                records: vec![v1::RecordContract {
+                    metadata: Some(v1::Metadata {
+                        identifier: "measurement".into(),
+                        ..Default::default()
+                    }),
+                    message: "dokime.v1.PlotDomain".into(),
+                }],
+            }
+            .encode_to_vec(),
+        });
         for id in ["documents-a", "documents-b"] {
             store.create(&Execution {
                 identifier: id.into(),
@@ -133,6 +239,23 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                 })
                 .collect::<Vec<_>>();
             store.sample_batch(id, &samples)?;
+            for value in [2.0, 4.0] {
+                store.append(
+                    id,
+                    dokime_storage::Evidence {
+                        kind: "record:measurement".into(),
+                        source_ns: 0,
+                        payload: v1::PublishRecord {
+                            execution: id.into(),
+                            kind: "measurement".into(),
+                            payload: v1::PlotDomain { min: value, max: value + 7.0 }.encode_to_vec(),
+                            ..Default::default()
+                        }
+                        .encode_to_vec(),
+                        ..Default::default()
+                    },
+                )?;
+            }
             store.close_streams(id)?;
             store.close(id, v1::Termination::Completed, v1::ExecutionOutcome::default())?;
             store.seal(id)?;
@@ -167,6 +290,10 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             .await?
             .into_inner();
         let mut binding = None;
+        let mut summaries = std::collections::BTreeMap::new();
+        let mut grouped_counts = Vec::new();
+        let mut next_page = None;
+        let mut sections = std::collections::BTreeSet::new();
         let mut table_rows = 0;
         let mut completed = false;
         let mut terminal = false;
@@ -178,7 +305,21 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                             binding = plot.request;
                         }
                     }
+                    v1::document_frame_frame::Kind::SummaryTile(tile) => {
+                        assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
+                        if tile.card_id.starts_with("group-count.") {
+                            grouped_counts.push(tile.value.unwrap());
+                        } else {
+                            summaries.insert(tile.metadata.unwrap().identifier, tile.value.unwrap());
+                        }
+                    }
                     v1::document_frame_frame::Kind::TableRow(_) => table_rows += 1,
+                    v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
+                    v1::document_frame_frame::Kind::LayoutNode(node) => {
+                        if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
+                            assert!(sections.insert(section.node_id));
+                        }
+                    }
                     v1::document_frame_frame::Kind::Completion(_) => completed = true,
                     _ => (),
                 },
@@ -190,6 +331,71 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         }
         assert!(terminal);
         assert_eq!(table_rows, 7);
+        assert_eq!(summaries["percentile"].kind, Some(v1::value::Kind::Number(2500.5)));
+        assert_eq!(summaries["record-mean"].kind, Some(v1::value::Kind::Number(3.0)));
+        assert_eq!(summaries["record-std"].kind, Some(v1::value::Kind::Number(1.0)));
+        assert_eq!(summaries["record-rms"].kind, Some(v1::value::Kind::Number(10.0f64.sqrt())));
+        assert_eq!(grouped_counts.len(), 31);
+        assert_eq!(
+            grouped_counts
+                .iter()
+                .map(|value| match value.kind {
+                    Some(v1::value::Kind::Integer(value)) => value,
+                    _ => panic!("Expected Count"),
+                })
+                .sum::<i64>(),
+            10_003
+        );
+        let mut pages = 1;
+        while let Some(page) = next_page.take() {
+            let mut capture = documents
+                .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
+                    scope: Some(scope.clone()),
+                    document_id: "measurements".into(),
+                    page: Some(page),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
+            while let Some(frame) = capture.message().await? {
+                if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value {
+                    match frame.frame.unwrap().kind.unwrap() {
+                        v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
+                        v1::document_frame_frame::Kind::LayoutNode(node) => {
+                            if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
+                                assert!(sections.insert(section.node_id));
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            pages += 1;
+        }
+        assert!(pages > 1);
+        assert_eq!(sections.len(), 1 + 31 + 1_001);
+        let mut cycle_document = documents
+            .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
+                scope: Some(v1::DocumentScope {
+                    cycle_id: "documents".into(),
+                    execution_id: String::new(),
+                }),
+                document_id: "default".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let mut cycle_cards = 0;
+        while let Some(frame) = cycle_document.message().await? {
+            if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value {
+                match frame.frame.unwrap().kind.unwrap() {
+                    v1::document_frame_frame::Kind::Header(header) => assert!(header.scope.unwrap().execution_id.is_none()),
+                    v1::document_frame_frame::Kind::Card(_) => cycle_cards += 1,
+                    _ => (),
+                }
+            }
+        }
+        assert_eq!(cycle_cards, 3);
         let binding = binding.unwrap();
         assert_eq!(binding.max_points, Some(32));
         assert!(binding.at.is_some());

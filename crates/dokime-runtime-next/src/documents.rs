@@ -89,6 +89,53 @@ impl Host {
     pub(crate) fn current_document_in(
         &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
     ) -> Result<(v1::Document, ExecutionCut)> {
+        if scope.execution_id.is_empty() {
+            if !identifier.is_empty() && identifier != "default" {
+                return Err(Error::Invalid("Capture Cycle Document: Select the Default Document".into()));
+            }
+            let execution = store
+                .cycle_execution_page(&scope.cycle_id, "", NonZeroUsize::new(1).unwrap())?
+                .into_iter()
+                .next()
+                .ok_or_else(|| Error::Invalid("Capture Cycle Document: Create or Import an Execution in This Cycle First".into()))?;
+            let mut cut = store.cut(&execution)?;
+            cut.frontier = store.cycle_evidence_frontier(&scope.cycle_id)?;
+            let sections = [
+                ("events", "Records", v1::EvidenceCard::Records),
+                ("artifacts", "Artifacts", v1::EvidenceCard::Artifacts),
+                ("media", "Media", v1::EvidenceCard::Media),
+            ]
+            .into_iter()
+            .map(|(id, label, kind)| v1::Section {
+                metadata: Some(v1::Metadata {
+                    identifier: format!("cycle.{id}"),
+                    label: label.into(),
+                    ..Default::default()
+                }),
+                cards: vec![v1::Card {
+                    metadata: Some(v1::Metadata {
+                        identifier: format!("cycle.{id}.list"),
+                        label: label.into(),
+                        ..Default::default()
+                    }),
+                    body: Some(v1::card::Body::Evidence(kind as i32)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
+            .collect();
+            return Ok((
+                v1::Document {
+                    metadata: Some(v1::Metadata {
+                        identifier: "default".into(),
+                        label: "Cycle Report".into(),
+                        ..Default::default()
+                    }),
+                    sections,
+                },
+                cut,
+            ));
+        }
         let cut = store.cut(&scope.execution_id)?;
         if cut.execution.cycle != scope.cycle_id {
             return Err(Error::Invalid("Capture Document: Select the Execution in Its Own Cycle".into()));
@@ -177,8 +224,23 @@ impl Host {
             counts.evaluated, counts.not_evaluated, counts.declared
         )?;
         let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
-        for section in &document.sections {
-            render_section(&mut output, snapshot, section, &catalog, settings)?;
+        let mut offset = 0;
+        loop {
+            let expansion = dokime_operations_next::client::document_expansion::expand(
+                &snapshot.store,
+                &snapshot.cut,
+                &document,
+                offset,
+                settings.page_size.get(),
+            )
+            .map_err(|error| Error::Invalid(error.to_string()))?;
+            for section in &expansion.document.sections {
+                render_section(&mut output, snapshot, section, &catalog, settings)?;
+            }
+            match expansion.next {
+                Some(next) => offset = next,
+                None => break,
+            }
         }
         write!(output, "</body></html>")?;
         output.flush()?;
@@ -210,12 +272,18 @@ fn render_section(
     let label = section.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
     write!(output, "<section><h2>{}</h2>", escape(label))?;
     for card in &section.cards {
-        if !card.filters.is_empty() {
-            return Err(Error::Invalid("Render Document: Use Unfiltered Cards in This Renderer".into()));
-        }
+        let filters = card
+            .filters
+            .iter()
+            .map(|filter| v1::PlotFilter {
+                expression: filter.expression.clone(),
+                operator: filter.operator,
+                value: filter.value.clone(),
+            })
+            .collect::<Vec<_>>();
         match card.body.as_ref() {
             Some(v1::card::Body::Markdown(text)) => write!(output, "<pre>{}</pre>", escape(text))?,
-            Some(v1::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, catalog, settings)?,
+            Some(v1::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, &filters, catalog, settings)?,
             Some(v1::card::Body::Table(table)) => {
                 write!(output, "<table>")?;
                 for row in &table.rows {
@@ -234,7 +302,7 @@ fn render_section(
                 for tile in &summary.tiles {
                     let value =
                         tile.value.as_ref().ok_or_else(|| Error::Invalid("Render Summary: Supply Each Tile's Expression".into()))?;
-                    let value = snapshot.store.document_value(&snapshot.cut, value)?;
+                    let value = snapshot.store.document_value_filtered(&snapshot.cut, value, &filters)?;
                     write!(
                         output,
                         "<dt>{}</dt><dd>{}</dd>",
@@ -256,7 +324,8 @@ fn render_section(
 }
 
 fn render_plot(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, _catalog: &h::Catalog, settings: RenderSettings,
+    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
+    settings: RenderSettings,
 ) -> Result<()> {
     let scope = v1::EvidenceScope {
         execution_id: Some(snapshot.cut.execution.identifier.clone()),
@@ -265,6 +334,7 @@ fn render_plot(
     };
     let mut request =
         dokime_operations_next::client::document_plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
+    request.filters.extend_from_slice(filters);
     request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
     let (store, _cancel_on_drop) = snapshot.store.read_session()?;
     let envelope = dokime_operations_next::client::plots_query_snapshots::snapshot_at(

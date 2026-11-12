@@ -42,11 +42,13 @@ pub struct PlotSelection {
     pub projected: std::collections::BTreeSet<String>,
     pub labels: std::collections::BTreeMap<String, String>,
 }
-struct Compiler<'a> {
+pub(crate) struct Compiler<'a> {
     cut: &'a ExecutionCut,
     stream: &'a str,
+    record: Option<&'a str>,
     catalog: harmos_protocol::v1::Catalog,
     pool: prost_reflect::DescriptorPool,
+    filters: &'a [v1::PlotFilter],
 }
 
 /* === Enums === */
@@ -110,8 +112,10 @@ impl Store {
         let compiler = Compiler {
             cut,
             stream: &request.stream,
+            record: None,
             catalog,
             pool,
+            filters: &[],
         };
         let mut selected = request.clone();
         let filters = request.filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
@@ -208,8 +212,23 @@ impl Store {
         Ok(PlotSelection { request: selected, projected, labels })
     }
 }
-impl Compiler<'_> {
-    fn expression(&self, expression: &v1::DataExpression, depth: usize) -> Result<String> {
+impl<'a> Compiler<'a> {
+    pub(crate) fn new(cut: &'a ExecutionCut, stream: &'a str, filters: &'a [v1::PlotFilter], record: Option<&'a str>) -> Result<Self> {
+        let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
+        let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(
+            catalog.types.clone().ok_or_else(|| Error::Invalid("Read Document: Restore Frozen Descriptors".into()))?,
+        )
+        .map_err(|error| Error::Invalid(error.to_string()))?;
+        Ok(Self {
+            cut,
+            stream,
+            record,
+            catalog,
+            pool,
+            filters,
+        })
+    }
+    pub(crate) fn expression(&self, expression: &v1::DataExpression, depth: usize) -> Result<String> {
         if depth > 32 {
             return Err(Error::Invalid("Query Plot: Simplify the Expression Nesting".into()));
         }
@@ -218,6 +237,7 @@ impl Compiler<'_> {
             Some(Kind::Stream(reference)) => self.reference(reference, false),
             Some(Kind::Record(reference)) => self.reference(reference, true),
             Some(Kind::Literal(value)) => literal(value),
+            Some(Kind::Aggregate(aggregate)) => self.aggregate(aggregate, depth + 1),
             Some(Kind::Parameter(key) | Kind::Dimension(key)) => {
                 let Some(v1::origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref())
                 else {
@@ -276,6 +296,67 @@ impl Compiler<'_> {
             _ => Err(Error::Invalid("Query Plot: Select a Row Expression Before Its Aggregate".into())),
         }
     }
+    pub(crate) fn rows(&self, expression: &v1::DataExpression) -> Result<String> {
+        let reference = reference(expression);
+        let execution = quote(&self.cut.execution.identifier);
+        let through = self.cut.frontier;
+        Ok(match reference {
+            Some((reference, false)) => format!(
+                "(SELECT execution,position,source_ns FROM main.samples WHERE execution={execution} AND stream={} AND position<={through})",
+                quote(&reference.identifier)
+            ),
+            Some((reference, true)) => format!(
+                "(SELECT execution,position,source_ns FROM main.record_fields WHERE execution={execution} AND record={} AND position<={through} GROUP BY position)",
+                quote(&reference.identifier)
+            ),
+            None => format!("(SELECT {execution} execution,{through} position,9223372036854775807 source_ns)"),
+        })
+    }
+    fn aggregate(&self, aggregate: &v1::AggregateExpression, depth: usize) -> Result<String> {
+        let input = aggregate.input.as_ref().ok_or_else(|| Error::Invalid("Read Aggregate: Supply Its Input".into()))?;
+        let stream = reference(input).filter(|(_, record)| !*record).map_or("", |(reference, _)| reference.identifier.as_str());
+        let compiler = Compiler {
+            cut: self.cut,
+            stream,
+            record: reference(input).filter(|(_, record)| *record).map(|(reference, _)| reference.identifier.as_str()),
+            catalog: self.catalog.clone(),
+            pool: self.pool.clone(),
+            filters: self.filters,
+        };
+        let value = compiler.expression(input, depth)?;
+        let rows = compiler.rows(input)?;
+        let filters = compiler.filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
+        let condition = if filters.is_empty() { "1".into() } else { filters.join(" AND ") };
+        let values = format!("SELECT ({value}) value,a.position,a.source_ns FROM {rows} a WHERE {condition}");
+        let values = format!("SELECT * FROM ({values}) WHERE value IS NOT NULL");
+        let kind =
+            v1::Aggregate::try_from(aggregate.kind).map_err(|_| Error::Invalid("Read Aggregate: Select a Declared Reducer".into()))?;
+        let scalar = match kind {
+            v1::Aggregate::Count => format!("SELECT COUNT(*) FROM ({values})"),
+            v1::Aggregate::Sum => format!("SELECT SUM(value) FROM ({values})"),
+            v1::Aggregate::Min => format!("SELECT MIN(value) FROM ({values})"),
+            v1::Aggregate::Max => format!("SELECT MAX(value) FROM ({values})"),
+            v1::Aggregate::Mean => format!("SELECT AVG(value) FROM ({values})"),
+            v1::Aggregate::Stddev => format!(
+                "SELECT dokime_sqrt(MAX(0,AVG((value-(SELECT AVG(value) FROM ({values})))*(value-(SELECT AVG(value) FROM ({values})))))) FROM ({values})"
+            ),
+            v1::Aggregate::Rms => format!("SELECT dokime_sqrt(AVG(value*value)) FROM ({values})"),
+            v1::Aggregate::First => format!("SELECT value FROM ({values}) ORDER BY source_ns,position LIMIT 1"),
+            v1::Aggregate::Last => format!("SELECT value FROM ({values}) ORDER BY source_ns DESC,position DESC LIMIT 1"),
+            v1::Aggregate::Median | v1::Aggregate::Percentile => {
+                let percentile = if kind == v1::Aggregate::Median { 50.0 } else { aggregate.percentile };
+                if !percentile.is_finite() || !(0.0..=100.0).contains(&percentile) {
+                    return Err(Error::Invalid("Read Percentile: Supply a Finite Rank Between 0 and 100".into()));
+                }
+                let rank = format!("((SELECT COUNT(*) FROM ({values}))-1)*({percentile}/100.0)");
+                format!(
+                    "SELECT lo+(hi-lo)*(({rank})-CAST(({rank}) AS INTEGER)) FROM (SELECT (SELECT value FROM ({values}) ORDER BY value LIMIT 1 OFFSET MAX(0,CAST(({rank}) AS INTEGER))) lo,(SELECT value FROM ({values}) ORDER BY value LIMIT 1 OFFSET MAX(0,(CAST(({rank}) AS INTEGER)+(({rank})>CAST(({rank}) AS INTEGER))))) hi)"
+                )
+            }
+            _ => return Err(Error::Invalid("Read Aggregate: Select a Declared Reducer".into())),
+        };
+        Ok(format!("({scalar})"))
+    }
     fn reference(&self, reference: &v1::FieldReference, record: bool) -> Result<String> {
         let message = if record {
             let mut message = None;
@@ -329,7 +410,7 @@ impl Compiler<'_> {
         let source = quote(&reference.identifier);
         let table = if record { "record_fields" } else { "sample_fields" };
         let key = if record { "record" } else { "stream" };
-        let position = if !record && reference.identifier == self.stream {
+        let position = if !record && reference.identifier == self.stream || record && self.record == Some(reference.identifier.as_str()) {
             "p.position=a.position".into()
         } else {
             format!("p.source_ns<=a.source_ns AND p.position<={}", self.cut.frontier)
@@ -338,7 +419,7 @@ impl Compiler<'_> {
             "(SELECT COALESCE(p.number,p.label) FROM main.{table} p WHERE p.execution=a.execution AND p.{key}={source} AND p.field={field} AND {position} ORDER BY p.source_ns DESC,p.position DESC LIMIT 1)"
         ))
     }
-    fn filter(&self, filter: &v1::PlotFilter) -> Result<String> {
+    pub(crate) fn filter(&self, filter: &v1::PlotFilter) -> Result<String> {
         let expression = filter.expression.as_ref().ok_or_else(|| Error::Invalid("Query Plot Filter: Supply Its Expression".into()))?;
         let expression = self.expression(expression, 0)?;
         let operator = v1::FilterOperator::try_from(filter.operator)
@@ -374,6 +455,15 @@ pub(crate) fn compare_groups(left: &str, right: &str) -> std::cmp::Ordering {
         (Some(_), None) => std::cmp::Ordering::Less,
         (None, Some(_)) => std::cmp::Ordering::Greater,
         _ => left.cmp(right),
+    }
+}
+pub(crate) fn reference(expression: &v1::DataExpression) -> Option<(&v1::FieldReference, bool)> {
+    match expression.kind.as_ref()? {
+        v1::data_expression::Kind::Stream(reference) => Some((reference, false)),
+        v1::data_expression::Kind::Record(reference) => Some((reference, true)),
+        v1::data_expression::Kind::Aggregate(aggregate) => reference(aggregate.input.as_deref()?),
+        v1::data_expression::Kind::Transform(transform) => reference(transform.input.as_deref()?),
+        _ => None,
     }
 }
 fn quote(value: &str) -> String {

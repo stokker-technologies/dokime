@@ -25,6 +25,7 @@ pub mod content_list_execution_files;
 pub mod content_read_execution_file;
 mod content_transfer;
 pub mod content_upload_artifact;
+pub mod document_expansion;
 pub mod document_plot;
 pub mod documents_capture_current_document;
 pub mod documents_update_plot_settings;

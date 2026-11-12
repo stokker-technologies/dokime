@@ -52,23 +52,51 @@ pub async fn handle(
     context: &Context, request: v1::DocumentsCaptureCurrentDocumentRequest,
 ) -> Result<Output<v1::DocumentsCaptureCurrentDocumentOutput>> {
     let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Capture Document: Select Its Execution and Cycle".into()))?;
-    if request.page.is_some() {
-        return Err(Error::Invalid("Capture Document: Refresh the Initial Page Before Selecting a Repeated Section".into()));
+    let (document, mut cut) = context.host.current_document(scope, &request.document_id)?;
+    use sha2::{Digest, Sha256};
+    let mut selection = request.clone();
+    selection.page = None;
+    let mut identity = document.encode_to_vec();
+    identity.extend(selection.encode_to_vec());
+    let binding = Sha256::digest(identity).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let epoch = context.host.identity().epoch;
+    let mut offset = 0;
+    if let Some(page) = &request.page {
+        let parts = page.split('/').collect::<Vec<_>>();
+        if parts.len() != 5 || parts[0] != "dp1" || parts[1] != epoch || parts[2] != binding {
+            return Err(Error::Invalid(
+                "Capture Document: Restart Pagination After the Document, Selection or Backend Epoch Changed".into(),
+            ));
+        }
+        let frontier = parts[3].parse::<u64>().map_err(|_| Error::Invalid("Capture Document: Supply the Returned Page Token".into()))?;
+        offset = parts[4].parse::<usize>().map_err(|_| Error::Invalid("Capture Document: Supply the Returned Page Token".into()))?;
+        if frontier > cut.frontier {
+            return Err(Error::Invalid("Capture Document: Refresh the Evidence Cut".into()));
+        }
+        cut.frontier = frontier;
     }
-    let (document, cut) = context.host.current_document(scope, &request.document_id)?;
+    let cycle_scope = scope.execution_id.is_empty();
     let context = context.clone();
     let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
     tokio::spawn(async move {
         let work = async {
             use v1::document_frame_frame::Kind;
+            let (store, _cancel_on_drop) = context.host.store().read_session()?;
+            let query_cut = cut.clone();
+            let page_size = context.settings.page_items;
+            let expansion =
+                tokio::task::spawn_blocking(move || super::document_expansion::expand(&store, &query_cut, &document, offset, page_size))
+                    .await
+                    .map_err(|error| Error::Invalid(format!("Capture Document: Retry After Expansion Failed: {error}")))??;
+            let document = expansion.document;
             let evidence_scope = v1::EvidenceScope {
                 cycle_id: Some(cut.execution.cycle.clone()),
-                execution_id: Some(cut.execution.identifier.clone()),
+                execution_id: (!cycle_scope).then(|| cut.execution.identifier.clone()),
                 ..Default::default()
             };
             let telemetry = v1::DocumentTelemetryCut {
                 store: context.host.identity().backend_id.clone(),
-                epoch: cut.execution.identifier.clone(),
+                epoch: if cycle_scope { format!("cycle:{}", cut.execution.cycle) } else { cut.execution.identifier.clone() },
                 position: cut.frontier,
             };
             let header = v1::DocumentHeader {
@@ -94,6 +122,12 @@ pub async fn handle(
                 }),
             )
             .await?;
+            for frame in expansion.frames {
+                send(&sender, &context, frame).await?;
+            }
+            let current = format!("dp1/{epoch}/{binding}/{}/{offset}", cut.frontier);
+            let next = expansion.next.map(|offset| format!("dp1/{epoch}/{binding}/{}/{offset}", cut.frontier));
+            send(&sender, &context, Kind::Page(v1::DocumentPage { current, next })).await?;
             let mut sections = document.sections.iter().rev().map(|section| (None, section)).collect::<Vec<_>>();
             let mut cards = Vec::new();
             let mut ordinal = 0;
@@ -250,8 +284,18 @@ pub async fn handle(
                             let (store, _cancel_on_drop) = context.host.store().read_session()?;
                             let cut = cut.clone();
                             let expression = expression.clone();
-                            let result =
-                                tokio::task::spawn_blocking(move || store.document_value(&cut, &expression)).await.map_err(|error| {
+                            let filters = card
+                                .filters
+                                .iter()
+                                .map(|filter| v1::PlotFilter {
+                                    expression: filter.expression.clone(),
+                                    operator: filter.operator,
+                                    value: filter.value.clone(),
+                                })
+                                .collect::<Vec<_>>();
+                            let result = tokio::task::spawn_blocking(move || store.document_value_filtered(&cut, &expression, &filters))
+                                .await
+                                .map_err(|error| {
                                     Error::Invalid(format!("Capture Summary: Retry After the Query Worker Failed: {error}"))
                                 })?;
                             let (value, unavailable) = match result {
