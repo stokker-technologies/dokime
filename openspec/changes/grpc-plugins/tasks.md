@@ -371,7 +371,7 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health service files; matching operation and story files; additive host/storage support and shared registration lists. Old crates and other service files remain untouched.
 
 - [x] Runtime GetIdentity/GetHealth and their Run transports; real-process restart identity journey.
-- [ ] Appearance.
+- [x] Appearance GetAppearance and RunGetAppearance: built-in identity and admitted typed appearance contributions; real-process read journey.
 - [ ] Remote pairing, key/certificate rotation and listener configuration.
 - [ ] Plugins entries, installation, bundles, removal and states.
 - [x] Catalog six direct methods and six Run methods: schema projections from admitted descriptors, epoch/content-bound cursor paging and the real-process catalog journey.

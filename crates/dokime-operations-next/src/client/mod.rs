@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod appearance_get_appearance;
 pub mod backend_get_availability;
 pub mod backend_get_health;
 pub mod backend_get_identity;
@@ -61,6 +62,8 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Appearance/RunGetAppearance",
+    "/dokime.v1.Appearance/GetAppearance",
     "/dokime.v1.Catalog/RunListTelemetrySchemas",
     "/dokime.v1.Catalog/ListTelemetrySchemas",
     "/dokime.v1.Catalog/RunListSuites",
