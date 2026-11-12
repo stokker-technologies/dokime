@@ -103,10 +103,9 @@ def main() -> None:
         ]
         if os.name == "nt":
             command += ["-G", "Visual Studio 17 2022", "-A", "x64"]
-        if args.harmos_source:
-            command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
-        if args.harmos_cache:
-            command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
+        source = args.harmos_source.resolve() if args.harmos_source else ""
+        cache = args.harmos_cache.resolve() if args.harmos_cache else ""
+        command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={source}", f"-DDOKIME_HARMOS_CACHE={cache}"]
         if args.fetch_dependencies:
             command += ["-DDOKIME_FETCH_DEPENDENCIES=ON"]
     elif args.action == "build":

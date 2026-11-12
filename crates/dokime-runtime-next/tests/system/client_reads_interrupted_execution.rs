@@ -91,11 +91,11 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
             .into_inner();
         let mut prompted = false;
         while let Some(frame) = progress.message().await? {
-            if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value {
-                if frame.progress.unwrap().phase == "prompt" {
-                    prompted = true;
-                    break;
-                }
+            if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value
+                && frame.progress.unwrap().phase == "prompt"
+            {
+                prompted = true;
+                break;
             }
         }
         assert!(prompted);

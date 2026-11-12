@@ -194,9 +194,9 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
             }).await?.into_inner();
             let mut prompted = false;
             while let Some(frame) = progress.message().await? {
-                if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value {
-                    if frame.progress.unwrap().phase == "prompt" { prompted = true; break; }
-                }
+                if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value
+                    && frame.progress.unwrap().phase == "prompt"
+                { prompted = true; break; }
             }
             assert!(prompted);
             let running = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
