@@ -3,7 +3,7 @@
 The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
 Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
 plugins and clients compile no host. It uses Harmos at
-`a7583836e721c8dc8b135af40a78860ea5945ec6`.
+`de07fc54f38ece9fcd660af3146876aaf651fe3c`.
 The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
 context, data contracts, streams and the separate `client` namespace.
 
@@ -249,8 +249,9 @@ with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository targ
 
 The thermal story admits and materializes the plugin through the pinned Harmos
 runtime, then drives scoped calls through `harmos.v1`, following the reference
-conformance protocol. That Harmos revision sends empty scopes for runtime plugin
-invocations; scoped suite execution therefore uses the protocol driver. The client
+conformance protocol. Native Harmos calls accept `Scope` through `with_scope(...)`;
+unbound calls retain an empty scope. This protocol-focused story keeps its explicit
+wire driver, and SDK execution validation reads `Context::scope()`. The client
 story uses an in-process fake gRPC server for authentication, discovery, schema
 binding/refusal, unary results, managed output/final results and response bounds.
 Other focused stories cover catalog/data construction and interleaved execution

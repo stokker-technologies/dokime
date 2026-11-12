@@ -49,6 +49,7 @@ pub async fn handle(context: &Context, request: v1::AddRemotePlugin) -> Result<v
         if request.url.is_empty() {
             return Err(Error::Invalid("Add a Plugin URL".into()));
         }
+        let _guard = context.administration.lock().await;
         context.host.add_remote(&request.url).await
     })
     .await

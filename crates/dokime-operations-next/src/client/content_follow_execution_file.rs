@@ -82,7 +82,10 @@ pub async fn handle(
     let timeout = context.settings.watch_timeout;
     tokio::spawn(async move {
         let work = async {
-            sender.send(Ok(item(v1::execution_file_follow_frame_payload::Kind::Metadata(frame)))).await.map_err(|_| Error::Cancelled)?;
+            sender
+                .send(Ok(item(v1::execution_file_follow_frame_payload::Kind::Metadata(frame))))
+                .await
+                .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
             let mut offset = request.offset;
             loop {
                 let entry = store.content(&identity.file_id)?;
@@ -96,7 +99,7 @@ pub async fn handle(
                     sender
                         .send(Ok(item(v1::execution_file_follow_frame_payload::Kind::Chunk(chunk))))
                         .await
-                        .map_err(|_| Error::Cancelled)?;
+                        .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
                 }
                 let closed = store.metadata(&entry.execution)?.state != dokime_storage::ExecutionState::Open;
                 if entry.phase != v1::ExecutionFilePhase::Producing || closed {
@@ -120,13 +123,13 @@ pub async fn handle(
                     sender
                         .send(Ok(item(v1::execution_file_follow_frame_payload::Kind::Terminal(terminal))))
                         .await
-                        .map_err(|_| Error::Cancelled)?;
+                        .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
                     sender
                         .send(Ok(v1::ContentFollowExecutionFileOutput {
                             value: Some(v1::content_follow_execution_file_output::Value::Response(v1::ClientEmpty {})),
                         }))
                         .await
-                        .map_err(|_| Error::Cancelled)?;
+                        .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
                     return Ok(());
                 }
                 tokio::select! {

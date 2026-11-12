@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
@@ -46,33 +47,53 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::PromptsListPendingRequest) -> Result<v1::ListPendingPromptsReply> {
     super::complete(ID, context.settings.read_timeout, async {
-        if request.cursor.is_some() || !request.after_prompt_id.is_empty() {
-            return Err(Error::Invalid("ListPending Cursors Are Not Yet Served by the New Host".into()));
-        }
         let mut prompts = Vec::new();
         for (execution, question) in context.host.pending()? {
             if request.execution_id.as_ref().is_some_and(|identifier| identifier != &execution) {
                 continue;
             }
-            let snapshot = context.host.store().read(&execution)?;
+            let snapshot = super::execution_state::evidence(context, &execution)?;
             if request.cycle_id.as_ref().is_some_and(|identifier| identifier != &snapshot.execution.cycle) {
                 continue;
             }
             let definition = super::projection::prompt_definition(&snapshot, &question)?;
             let title = definition.metadata.as_ref().map(|metadata| metadata.label.clone()).unwrap_or_default();
+            let question_entry = snapshot
+                .evidence
+                .iter()
+                .rev()
+                .find(|entry| {
+                    entry.kind == "prompt"
+                        && v1::OperatorQuestion::decode(entry.payload.as_slice()).is_ok_and(|stored| stored.prompt == question.prompt)
+                })
+                .ok_or_else(|| Error::Precondition("List Pending Prompts: Resynchronize After the Question Changed".into()))?;
             prompts.push(v1::PendingPromptIdentity {
                 definition: Some(v1::PromptDefinitionIdentity {
                     prompt_type: question.prompt_type.clone(),
                     title,
                 }),
-                prompt_id: super::projection::prompt_id(&execution, &question.prompt),
-                scope: Some(super::projection::scope(&snapshot)),
-                ..Default::default()
+                prompt_id: super::projection::prompt_id(&execution, &question.prompt, question_entry.position),
+                scope: Some(super::projection::entry_scope(&snapshot, question_entry)?),
+                created_at: Some(super::projection::timestamp(question_entry.receipt_ns)),
             });
         }
         prompts.sort_by(|left, right| left.prompt_id.cmp(&right.prompt_id));
-        super::projection::bounded(prompts.len(), super::projection::limit(request.limit, context.settings.page_items))?;
-        Ok(v1::ListPendingPromptsReply { prompts, ..Default::default() })
+        let selection = format!("prompts.pending/{:?}/{:?}", request.cycle_id, request.execution_id);
+        let cursor = super::paging::cursor(context, selection, prompts.iter().map(super::paging::bytes));
+        let (prompts, next_after_prompt_id) = super::paging::page(
+            prompts,
+            request.limit,
+            &request.after_prompt_id,
+            request.cursor.as_ref(),
+            &cursor,
+            context.settings.page_items,
+            |prompt| &prompt.prompt_id,
+        )?;
+        Ok(v1::ListPendingPromptsReply {
+            prompts,
+            next_after_prompt_id,
+            cursor: Some(cursor),
+        })
     })
     .await
 }

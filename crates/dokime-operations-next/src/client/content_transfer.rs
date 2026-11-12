@@ -86,7 +86,7 @@ pub(super) fn download<O: Message + Send + 'static>(
     let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
     tokio::spawn(async move {
         let result = super::complete("Download Content", timeout, async {
-            sender.send(Ok(metadata)).await.map_err(|_| Error::Cancelled)?;
+            sender.send(Ok(metadata)).await.map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
             let mut hash = Sha256::new();
             let mut offset = 0;
             while offset < length {
@@ -105,14 +105,17 @@ pub(super) fn download<O: Message + Send + 'static>(
                 hash.update(&bytes);
                 let frame = chunk(v1::ArtifactChunk { offset, data: bytes });
                 offset += size as u64;
-                sender.send(Ok(frame)).await.map_err(|_| Error::Cancelled)?;
+                sender.send(Ok(frame)).await.map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
             }
             let sha256: String = hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
             if expected_digest.is_some_and(|expected| expected != sha256) {
                 return Err(Error::Invalid("Download Content: Restore a Backup Matching Its Stored Digest".into()));
             }
-            sender.send(Ok(complete(v1::ArtifactCompletion { size_bytes: length, sha256 }))).await.map_err(|_| Error::Cancelled)?;
-            sender.send(Ok(terminal())).await.map_err(|_| Error::Cancelled)?;
+            sender
+                .send(Ok(complete(v1::ArtifactCompletion { size_bytes: length, sha256 })))
+                .await
+                .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
+            sender.send(Ok(terminal())).await.map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
             Ok(())
         })
         .await;

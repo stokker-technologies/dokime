@@ -1,0 +1,139 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-cli-next"
+version.workspace = true
+description = "Command-line interface to the independent Dokime host."
+license.workspace = true
+rust-version.workspace = true
+publish = false
+autotests = false
+edition = "2024"
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-next"
+path = "src/main.rs"
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { version = "0.1.5", path = "../../sdk/rust" }
+dokime-protocol = { workspace = true }
+dokime-runtime-next = { workspace = true }
+
+# Git
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+
+# Utilities
+sha2 = { workspace = true }
+
+# Serialization
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
+toml = { workspace = true }
+
+# Filesystem
+tar = { workspace = true }
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+tokio = { workspace = true, features = ["io-std", "process"] }
+tokio-stream = { workspace = true }
+
+# Networking
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+[[test]]
+name = "system"
+path = "tests/system/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

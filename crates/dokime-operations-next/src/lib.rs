@@ -20,6 +20,8 @@ pub mod prompt;
 pub mod record;
 pub mod records;
 mod resources;
+pub mod secret;
+pub mod settings;
 pub mod sleep;
 pub mod statistics;
 
@@ -70,6 +72,8 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
                 records::declaration()?,
                 statistics::declaration()?,
                 prompt::declaration()?,
+                secret::declaration()?,
+                settings::declaration()?,
                 sleep::declaration()?,
             ])
         };
@@ -96,6 +100,8 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         records::ID => Ok(records::handle(resources, v1::RecordsRequest::decode(payload)?).await?.encode_to_vec()),
         statistics::ID => Ok(statistics::handle(resources, v1::StatisticsRequest::decode(payload)?).await?.encode_to_vec()),
         prompt::ID => Ok(prompt::handle(resources, v1::OperatorQuestion::decode(payload)?).await?.encode_to_vec()),
+        secret::ID => Ok(secret::handle(resources, v1::ReadSecret::decode(payload)?).await?.encode_to_vec()),
+        settings::ID => Ok(settings::handle(resources, v1::ReadSettings::decode(payload)?).await?.encode_to_vec()),
         sleep::ID => Ok(sleep::handle(resources, h::Sleep::decode(payload)?).await?.encode_to_vec()),
         _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
     }

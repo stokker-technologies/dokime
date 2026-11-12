@@ -158,7 +158,14 @@ class Plugin:
 
     def _materialize(self, template: Template):
         async def execute(adapter, transport, request):
-            if transport.scope or request.template != template.identifier:
+            try:
+                transport.scope()
+            except harmos.Failure as error:
+                if error.value.code != "scope_required":
+                    raise
+            else:
+                raise ValueError("Materialization requires no execution scope")
+            if request.template != template.identifier:
                 raise ValueError("Materialization requires its template and no execution scope")
             return template.build({key: decode(value) for key, value in request.parameters.items()}).message
 
@@ -171,7 +178,7 @@ class Plugin:
 
     def _execution(self, template: Template, kind: str, handler=None, retries: int = 0):
         async def execute(adapter, transport, request):
-            if not request.execution or transport.scope != request.execution:
+            if not request.execution or transport.scope() != request.execution:
                 raise ValueError("Execution and Harmos scope must agree")
             origin = request.origin
             if (
@@ -232,7 +239,7 @@ class Plugin:
         interval = getattr(method, "__dokime_observer__", None)
 
         async def observe(adapter, transport):
-            key = (template.identifier, transport.scope)
+            key = (template.identifier, transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
             context = Context(
@@ -244,7 +251,7 @@ class Plugin:
             return result if isinstance(result, definition.row) else definition.row(value=result)
 
         async def publish(adapter, transport, publisher):
-            key = (template.identifier, transport.scope)
+            key = (template.identifier, transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
             context = Context(

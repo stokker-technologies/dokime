@@ -20,7 +20,7 @@ mise run check -- --repository
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
 Rust formatting and `check --language rust --package <name>` select only that package.
 
-The execution host's nineteen stories belong to its `system` target. Select a
+The execution host's stories belong to its `system` target. Select a
 story, the complete target, or affected paths explicitly:
 
 ```sh
@@ -29,8 +29,8 @@ mise run test -- --package dokime-runtime-next --target system --artifact tests
 mise run test -- --changed crates/dokime-runtime-next/tests/system/client_runs_thermal_suite_over_grpc.rs
 ```
 
-Tests Build runs `build:host-fixtures`, which uses the Rust, C# and C++ SDK tasks
-and exports the compiled thermal and execution fixtures under
+Local Tests Build runs `build:host-fixtures`, which uses the available Rust, C#
+and C++ SDK tasks and exports the compiled thermal, execution and content fixtures under
 `target/build/<profile>/<target>/fixtures/host/`. C# carries its runtime; C++ uses
 the Harmos-pinned native dependencies. On a workstation, `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` may select an existing Harmos source and read-only Windows
@@ -39,9 +39,22 @@ separately built wheel, installed before archived system execution. Stories
 consume those fixtures and never compile plugins. Missing fixtures fail with
 the language and build prerequisite; no language is silently skipped.
 
-Pull requests and Nightly each run the execution-host system target on Linux
-and Windows, independently of the existing Rust system lane. Nightly runs all
-fifteen stories, including Python, C# and C++ evidence equivalence.
+Pull requests build Rust fixtures and the pure Python wheel and explicitly select
+the Rust and Python execution-host stories on Linux and Windows; C# and C++ equivalence run
+in Nightly, as the PR summary records. Nightly builds each SDK fixture in parallel
+on both platforms, independently of the host, then runs every story from
+artifacts. Its C++ producer caches the SDK's pinned native dependency graph; C#
+installs its mise SDK. Suite failures appear in the final report without blocking
+publication. Local selection still includes every story. Use
+`build:host-fixtures --language rust|python|csharp|cpp` for one producer;
+`test --filterset` accepts a nextest expression with a focused Rust package,
+including archived tests.
+
+The candidate CLI stories consume a generated Rust starter built by
+`mise run build:cli-fixtures` and the installed Python wheel. Run every CLI story
+with `mise run test -- --package dokime-cli-next --target system`. They exercise
+managed installation and remote admission, prompts, reports and execution/cycle
+controls through `dokime-next` against the new host.
 
 Focused Rust tests use nextest, compiling only the selected Cargo target and its
 dependencies; no Tests archive or unrelated fixture build is required. `--exact`

@@ -123,6 +123,10 @@ Installer packaging is the only way to apply a pack; Settings has no pack import
 contains the complete workflow, including
 [finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
+The additive `dokime-next` candidate hosts the new execution runtime and embeds
+all four SDK starters. See the [new-host CLI guide](docs/execution-host.md#command-line-candidate)
+for its explicit endpoint, configuration and current service coverage.
+
 #### Examples
 
 ```sh
@@ -312,7 +316,8 @@ pending verified supply-chain evidence and do not imply product certification.
 
 ## Contributing
 
-The independent execution host and its client gRPC stories are described in the
+The independent execution host serves plugin and settings administration, protected secrets,
+remote pairing and diagnostics alongside execution. Its client gRPC stories are described in the
 [execution host guide](docs/execution-host.md).
 
 Bug reports, focused fixes, clearer examples and equipment integrations are

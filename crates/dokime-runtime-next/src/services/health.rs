@@ -51,8 +51,24 @@ impl v1::health_server::Health for Services {
     async fn run_list_health(
         &self, request: tonic::Request<tonic::Streaming<v1::HealthListHealthRunInput>>,
     ) -> Result<tonic::Response<Self::RunListHealthStream>, tonic::Status> {
-        let _ = request;
-        Err(tonic::Status::unimplemented("Health.RunListHealth: Not Yet Served by the New Host"))
+        use dokime_operations_next::client::{RunFrame, run_unary};
+        run_unary(
+            self.context.clone(),
+            request.into_inner(),
+            self.context.settings.read_timeout,
+            |frame| {
+                frame.value.map(|value| match value {
+                    v1::health_list_health_run_input::Value::Request(request) => RunFrame::Request(request),
+                    v1::health_list_health_run_input::Value::Finish(_) => RunFrame::Finish,
+                    v1::health_list_health_run_input::Value::Cancel(_) => RunFrame::Cancel,
+                })
+            },
+            |reply| v1::HealthListHealthRunOutput {
+                value: Some(v1::health_list_health_run_output::Value::Response(reply)),
+            },
+            |context, request| async move { dokime_operations_next::client::health_list_health::handle(&context, request).await },
+        )
+        .await
     }
 }
 

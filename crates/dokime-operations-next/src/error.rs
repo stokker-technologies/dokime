@@ -34,10 +34,22 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
-    Precondition(String),
+    Unavailable(String),
 
-    #[error("Operation Cancelled by the Client")]
-    Cancelled,
+    #[error("{0}")]
+    Cancelled(String),
+
+    #[error("{0}")]
+    NotFound(String),
+
+    #[error("{0}")]
+    Stale(String),
+
+    #[error("{0}")]
+    Conflict(String),
+
+    #[error("{0}")]
+    Precondition(String),
 
     #[error("{0}: Operation Deadline Expired")]
     Deadline(String),
@@ -50,6 +62,9 @@ pub enum Error {
 
     #[error("{0}")]
     Invalid(String),
+
+    #[error("{0}")]
+    Bound(String),
 }
 
 /* === Traits === */

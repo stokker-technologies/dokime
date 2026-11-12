@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod administration;
 mod capabilities;
 mod clock;
 mod dispatch;
@@ -22,6 +23,7 @@ mod plot_analysis;
 mod plot_html;
 mod plugin;
 pub mod process;
+mod run_control;
 pub mod services;
 mod streams;
 
@@ -33,7 +35,7 @@ pub use documents::{FixedSnapshot, RenderSettings, RenderedDocument};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
-pub use plugin::{EntryState, PlacementSettings, PluginProcess};
+pub use plugin::{EntryState, PlacementSettings, PluginProcess, describe_plugin};
 
 /* === Imports === */
 

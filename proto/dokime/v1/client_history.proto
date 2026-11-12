@@ -29,6 +29,8 @@ message HistoryBrowseExecutionsRequest {
   string after_execution_id = 2;
   ExecutionFilter filter = 3;
   ExecutionOrder order = 4;
+  // Bind continuations to the captured selection, order and revision.
+  Cursor cursor = 5;
 }
 
 message HistoryBrowseExecutionsRunInput {

@@ -83,8 +83,8 @@ tokio = { version = "1.50.0", features = ["sync"] }
 # Local
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "de07fc54f38ece9fcd660af3146876aaf651fe3c" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "de07fc54f38ece9fcd660af3146876aaf651fe3c", default-features = false, features = [
   "grpc",
 ] }
 

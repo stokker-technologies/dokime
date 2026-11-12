@@ -239,11 +239,6 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         }
         assert_ne!(record_ids[0], record_ids[1]);
 
-        // Refuse Unsupported Operations by Name
-        let refused = client.plugins.reload(v1::PluginsReloadRequest::default()).await.unwrap_err();
-        assert_eq!(refused.code(), tonic::Code::Unimplemented);
-        assert!(refused.message().contains("Plugins.Reload"));
-
         // Restart the Host and Read Exactly the Same Sealed Execution
         drop(progress);
         drop(cycle);

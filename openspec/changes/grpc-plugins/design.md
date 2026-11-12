@@ -815,7 +815,7 @@ Client access and its security are the separate change
 - Execution files use retained SQLite chunk identities; replacing a logical name starts a new identity, and resumed follows retain the original production.
 - Evidence exports stream v1 protobuf execution archives (cycle exports repeat execution archives at field 1), including content metadata and 64 KiB chunks; rendering does not publish.
 
-- Notes use the loopback listener’s single `local-client` principal; remote authentication remains with its owner. Notes bind to execution or cycle, since planned cases were replaced by frozen origins.
+- Notes use the backend’s single `local-client` principal; the shared route composer authenticates every remote data operation. Notes bind to execution or cycle, since planned cases were replaced by frozen origins.
 - Notes persist in the v1 baseline and refuse closed owners; incompatible roots require backup and explicit reset, with no migration.
 
 
@@ -831,6 +831,64 @@ Numeric stream fields are indexed atomically with retained Arrow evidence for st
 
 Evidence cursors bind the storage-root backend identity and encoded selection; captured structured records remain the default and persisted logs are selected as `dokime.log`.
 Storage notifications wake evidence watches after committed writes; query metadata reads avoid rehashing streams already verified at host startup.
+Prompt answers are durably acknowledged before releasing the waiting plugin; GetPrompt resolves the frozen question and answer after settlement or restart.
+Prompt catalogs come from admitted plugin catalogs; pending pages bind epoch, selected cycle/execution and content, rejecting stale or changed continuations.
+Planning freezes selected file values as opaque text parameters in the new TestCase; no client path grants filesystem access.
+Planning registration stores the complete plan and reply atomically; repeated keys resolve the original cases across restarts and changed plans require a new key.
+Interactive command receipts use the execution identity as their run request identity, retain stable command IDs and never replay an accepted step on retry.
+Pause and stop apply at step boundaries; cancel interrupts the current call, and both paths retain required cleanup and attributed evidence.
+Execution labels and archive state are presentation outside the immutable execution seal; new TestCases have resolved inputs and no separate output-parameter store.
+Runtime observation coalesces host events under one process revision; shutdown emits its final state and terminal response, and abandoning a watch never cancels a run.
+History tokens bind the persistent backend, immutable saved-cycle position, execution seal and evidence frontier; reading a token never flushes or publishes.
+BrowseExecutions gains an additive cursor in its request and reply so continuations can enforce unchanged filters, order and revision.
+Saved cycle headers append at seals and presentation commits; BrowseCycles retains its captured storage frontier across later changes.
+History artifact reads consume ordered acknowledged PublishArtifact evidence; contextual artifact admission remains with the data-service owner and must retain that evidence contract at integration.
+Prompt IDs include their durable question position, keeping repeated questions in one execution distinct while retaining earlier answers.
+Interactive reruns invalidate effective downstream steps, refuse previously invoked nonrepeatable downstream steps, and leave an exhausted Next waiting for explicit Finish.
+Registry, cycle, binding, command, saved-header and deletion tables remain v1; integration combines the service owners' table inventories before root validation.
+Execution admission matches a frozen PluginRun to the ready entry's described plugin identity; durable managed/URL placement IDs remain administration identities.
+Execution and planning precondition failures retain FAILED_PRECONDITION; administration revision/generation conflicts retain ABORTED.
+Execution detail and execution-service lists join Store::execution_presentation; the Query owner adopts that same case/archive join at integration for explicitly bound executions.
+Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
+- Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route. Durable remote and managed plugin-entry commits advance the same runtime revision so existing observation streams wake after administration changes.
+
+- Each managed or remote connection reads the saved PluginPreferences for startup and stop grace; client operation deadlines remain owned by ClientSettings.
+
+- Availability is refreshed on demand through bounded fresh-connection Describe handshakes, serialized with registry mutations; stopped or changed processes remain visible while admitted catalogs exclude them.
+- Protected secret-slot writes require native read-back confirmation before SQLite publication; secure-store failures return UNAVAILABLE without publishing unconfirmed values.
+
+- Administration serves all 44 declared operations through direct and Run transports (88 RPC methods); no administration operation is retired or left refusing.
+- Managed v1 bundles retain the existing tar manifest and compatibility declaration, with one sidecar per native target; all files are verified before execution, and replacements preserve disabled state and roll back failed starts.
+- Remote access uses a separate authenticated TLS listener with pinned certificates and one backend key; SQLite stores the verifier and protected TLS-key slot, and every exported pairing rotates the key for existing channels too.
+- Certificate names explicitly define wildcard-listener advertisements; the bootstrap endpoint remains loopback-only, and insecure remote configuration is rejected.
+- Catalog admission rejects conflicting operation, suite, stream or record identities before exposing them to clients.
+
+- Administration state extends the v1 baseline with one SQLite table; incompatible earlier root layouts are refused with backup/reset guidance, without migration or deletion.
+- Saved plugin settings are read per host call and remain editable while unavailable; no startup injection or applied/saved state is restored.
+- Secret values use immutable OS credential slots published before SQLite metadata; archives retain the existing bounded base64 v1 JSON shape, with explicit replace/skip choices.
+- Remote URL entries use deterministic URL identity before connection, remain durable after failure, reconnect explicitly, and detach without stopping a user-owned process.
+- Backend diagnostics capture bounded tracing events and support archives containing identity and redacted log fields, excluding saved preferences and credential values.
+- Storage-source administration describes the new native SQLite/Arrow owner; disabling its sole writable source is refused with an action, and reordering must name the available source exactly once.
+
+- Appearance uses one admitted typed AppearanceSnapshot contribution or the built-in Dokime identity; conflicting providers fail with a disable action.
+
+- Catalog returns only admitted ready plugin contracts, projecting protobuf row fields into v1 schemas; cursors bind the process epoch and complete admitted catalog digest, and complete descriptions retain original sections/descriptors.
+
+- Administration Runtime identity and health share the Backend identity/readiness owner; unary Run calls validate request/finish ordering before admission, then use the operation deadline.
+The C# starter uses mise's pinned SDK executable and re-evaluates its mutable development-preview restore graph before building with the verified lock, matching the SDK's existing native restore policy.
+
+The Python starter declares only its consumed host operations and waits one observer interval inside Measure before evaluating that step's captured samples.
+
+The additive `dokime-cli-next` package exports `dokime-next` until cutover; it imports only the new runtime, protocol and Rust SDK among Dokime packages.
+Hosting uses the new listener in process with explicit endpoint and TOML settings; remote commands use the Rust SDK client half and preserve host refusals.
+All four starters are embedded from their SDK-owned sources; C++ release URL and SHA-256 come from the published sidecar or explicit paired overrides.
+The CLI owns executable-only tar packaging using the existing schema-1 manifest, native target, per-file SHA-256 and retained description.pb; no legacy registration is fabricated. The bundle also declares its exact Dokime product version in dokime.json so managed admission can validate compatibility.
+`build:cli-fixtures` generates and builds the Rust starter through its mise task; system stories compare those exact source bytes and consume the exported executable.
+Installer packaging, old CLI removal and binary renaming remain atomic cutover work; this additive CLI never imports the old host.
+
+All Harmos git consumers pin `de07fc54f38ece9fcd660af3146876aaf651fe3c`; native legacy hosts retain registry 0.1.14.
+The protocol dispatcher binds Request.scope directly; SDK execution validation reads Context::scope(), and native Harmos callers use Scope/with_scope when adopted.
+Harmos storage adoption will replace dokime-storage's direct SQLite transactions, Arrow batch persistence and hand-owned projection/index queries; it is a separate task.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
@@ -851,7 +909,7 @@ Reports download a read-only snapshot or an already published report with ordere
 `Reports.PublishExecutionReport` explicitly renders a selected document from a sealed execution and publishes only after rendering succeeds; downloads never publish.
 Execution detail and listing expose host-owned controls, attributed outcomes and separate evaluated, not-evaluated and declared counts; only evaluated outcomes set the headline verdict.
 Persisted plugin descriptions project their actual entry state after restart, and interrupted executions remain readable over the same services.
-The system target retains the original fifteen stories and four additional data-service client stories, each guarded by the support-owned `SYSTEM_HANG_GUARD` setting.
+Every story in the merged system target uses the support-owned `SYSTEM_HANG_GUARD` setting.
 
 Executions run concurrently within and across cycles; each unary invocation inherits only its execution's resources and persists operation/attempt evidence.
 Exhausted plugin-operation retries attribute an evaluated Failed outcome after cleanup; cancellation, interruption and empty criterion sets stay not-evaluated.
@@ -877,10 +935,9 @@ no private envelope, Harmos path override or runtime facade is needed.
 The first host story calls the unchanged SDK thermal executable built by its
 existing `sdk:build` task; the new host crates have no SDK product dependency.
 
-The requested Harmos adoption revision is
-`a7583836e721c8dc8b135af40a78860ea5945ec6`. The vendored plugin proto already
-matches it byte for byte. Dependency adoption is still open; the old host
-facade and macro consumers must move to the explicit owners in the same cutover.
+All Harmos git dependencies now adopt
+`de07fc54f38ece9fcd660af3146876aaf651fe3c`. The plugin wire contract is unchanged;
+old native facade and macro consumers retain the registry release until cutover.
 
 The protocol descriptor set is generated from all authoritative Dokime inputs
 and their imported Harmos/Google definitions, checked in beside the Rust messages
@@ -915,117 +972,41 @@ operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 ### Requests to Harmos
 
+All three follow-up requests are answered at the published exact revision
+`de07fc54f38ece9fcd660af3146876aaf651fe3c`.
+
 #### C# Record-Only Descriptor Registration
 
-Pending Assertion: `csharp_frozen_record_schema_decodes_door`.
-At pinned revision `a7583836e721c8dc8b135af40a78860ea5945ec6`, the real-host
-thermal story seals a correct `thermal.v1.Door { closed: true }` record, but
-`DescriptorPool::get_message_by_name("thermal.v1.Door")` on the frozen catalog
-returns None in both C# placements. `Harmos.Sdk.Plugin.Section`, `Operation`,
-`Requires`, `Stream` and `Observer` are the only descriptor-registration paths;
-`Descriptors.Types` deliberately removes unreferenced sibling messages, even
-when Temperature and Door share one proto file. `Dokime.Plugin.Record<T>` can
-publish the message's name but cannot register its descriptor. Add a public
-`Plugin.Message<T>()` (or equivalent descriptor-only method) that merges the
-message and transitive dependencies into catalog Types without an operation,
-stream or section, and include them in the catalog digest. Dokime will call it
-from `Record<T>` and enable `support::thermal::frozen_record_schema_decodes_door`
-in the C# story. No reflection, synthetic section or synthetic operation is used.
-The C# story still compares every frozen case/evidence/sample field with Rust
-and verifies exact sealed reopen; only decoding a Door from the retained
-catalog is pending. Python and C++ execute that assertion today.
-
+Answered: every SDK exposes descriptor-only registration. Dokime C# `Record<T>`
+calls Harmos `Message<T>()`, retaining Door and its transitive descriptors in the
+catalog without a synthetic operation, stream or section. The named assertion
+`csharp_frozen_record_schema_decodes_door` is enabled in the shared C# host story.
 
 #### Generated Protobuf Managed Client
 
-Answered at the owner-selected, published exact revision
-`a7583836e721c8dc8b135af40a78860ea5945ec6`. The `harmos` package at `sdk/rust`
+The earlier generated-client request remains answered; `harmos` at `sdk/rust`
 provides `Client`, `ClientSettings`, descriptor-bound `client::Method` and managed
-call handles for generated requests, replies and stream items without `Portable`.
-The API supports unary calls, input/output/duplex envelopes, explicit input finish,
-independent input ownership, cancellation and typed settlement. The SDK's only
-normal product dependency is `harmos-protocol`.
-
-The protocol owner is adopted directly at the selected exact revision. Dokime
-uses its generated Harmos types and verifies the vendored descriptor against
-them; the duplicate Rust transport module and its generator output are removed.
-Native stored-data `Described` derives are consumed directly from the same
-revision's `harmos-sdk-derive` owner. This does not turn native stored shapes into
-wire contracts. Native host, SDK and tool adoption remains open.
-
-Adoption follows Harmos's Crate Structure contract: native stored semantics stay
-in `harmos-domain`; declarations, dispatch and guest support use their explicit
-operations/runtime owners; field-reading derives live at `sdk/rust/derive`;
-conformance and packaging are tools. The removed declaring macros and SDK facade
-are not restored locally. The remaining admission gap is a separate request below.
-
-Windows proof: the exact revision's focused
-`harmos-runtime` integration test
-`operations::wire::sdk_client::generated_sdk_client_invokes_streams_and_settles_cancellation`
-passes against a launched runtime and real gRPC listener. It covers unary, upload,
-download and duplex, input finish, concurrent input, typed cancellation settlement,
-descriptor/fingerprint refusal and an oversized encoded request. The vendored
-plugin proto matches this revision byte for byte. This test does not prove the
-missing client allocation admission described below.
+call handles over generated messages without `Portable`. The same exact revision
+preserves unary/streaming calls, independent input ownership, explicit finish,
+cancellation and typed settlement. Dokime consumes the protocol and data derives
+directly; old native hosts retain registry 0.1.14 until their consumer cutover.
 
 #### Generated Client Memory Admission
 
-At the selected revision, `sdk/rust/src/client.rs::ClientSettings` provides only
-wire-message bytes and outgoing queue item/byte bounds. `Client::transport` sets
-Tonic's encoded-message limits. `client/codec.rs::Decode::decode` calls
-`R::decode`/`O::decode` directly and accumulates envelope payloads in a `Vec`;
-it never prepares a descriptor-backed allocation claim before decoding.
-`Method::new` validates schemas and fingerprints, but does not carry an allocation
-budget into the codec. `client.rs::frame` admits outgoing encoded bytes before
-encoding. Unlike the runtime's `grpc/decoding.rs`, the SDK has no equivalent of
-`DecodeSettings.retained_bytes` or its pre-decode allocation claim. The real-host client journey's
-admission refusal covers an oversized encoded request only. This does not establish
-the original request's descriptor-backed decoding/encoding memory admission.
-
-Request to Harmos: expose caller-owned decoded-memory admission in the host-free
-generated client, and carry the bound/claim through unary replies, discovery pages,
-stream items, final responses and managed envelopes before Prost allocation.
-Account for repeated/map/nested values and envelope scratch; reject an exhausted
-allocation bound before decoding. Preserve the existing outgoing encoding and
-queue byte claims, wire limits, service
-paths, half-close, concurrent input, cancellation and typed settlement. Supply
-deterministic admission/refusal coverage against the real host, including compact
-wire values whose generated representation exceeds the allocation bound, and
-return a published exact revision. Do not use sampled process-memory assertions.
-
-Owner decision: adopt the generated client at exact revision
-`a7583836e721c8dc8b135af40a78860ea5945ec6` now, using its existing wire-message
-and outgoing queue item/byte bounds from configuration. Decoded-memory admission
-is an open follow-up owned by Harmos, delivered as an additive bound on
-`ClientSettings`; it changes no call shape (`Client`, `client::Method`, `call`,
-`start`, `Running`). Dokime adopts that bound by a pin bump when Harmos publishes
-the revision supplying it. This follow-up does not precede or block 2.8.3, 3.1,
-3.8.2 or any other adoption work. Dokime adds no local adapters, JSON round trips,
-handwritten protobuf client codecs or compatibility facades.
+Answered: `ClientSettings.retained_bytes` is required and admits descriptor-backed
+decoded allocations before Prost decoding, including discovery, repeated/map/nested
+values and managed envelopes. Dokime supplies this explicit bound at each Harmos
+client construction. Wire-message and outgoing queue bounds remain independent.
+No sampled process-memory assertions or handwritten client codecs are introduced.
 
 #### Execution Scope on gRPC Plugin Invocations
 
-At the selected revision, `harmos-runtime/src/plugin/grpc/invoke.rs::invoke`
-always constructs `harmos.v1.Request` with `scope: String::new()`. The native
-invocation API does not expose an execution scope override. The Rust SDK's
-`Context::execution` correctly refuses a lifecycle envelope when its execution
-identity differs from the transport scope. A frozen origin in the payload does
-not replace the transport's inherited execution scope.
-
-Request to Harmos: provide a host-native invocation entry point that accepts an
-opaque caller-owned scope and carries it unchanged into `Request.scope` for the
-attached plugin activation. Preserve that scope for child host and cross-plugin
-calls and retain invocation identity, attempt policy, cancellation and typed
-settlement. Do not add Dokime-specific identities or infer scope from a payload.
-Prove two execution scopes against the real gRPC placement, including lifecycle
-calls, nested host calls, scope isolation and cleanup, and return a published
-exact revision. No sampled resource or wall-clock assertions are needed.
-
-This request holds only the execution-scoped dispatch call site in 3.3. Managed
-and remote attachment, catalog decoding, pure materialization, protocol/native
-owner replacement, persistence, evidence/outcome rules and the other listed
-work continue. Dokime does not add a local transport fork, bypass SDK scope
-validation or pass execution identity through an unrelated field.
+Answered: native Harmos `Scope` and `with_scope(...)` preserve an opaque caller-owned
+scope across plugin and child calls. Each SDK's `Context::scope()` equivalent
+refuses an absent invocation scope with `scope_required`. Dokime execution wrappers
+read that API; pure materialization accepts only the scope-required refusal.
+The new protocol dispatcher already binds the ordinary `Request.scope` directly;
+it has no native Harmos runtime call to adapt and adds no runtime dependency.
 
 ### Protobuf Consumer Cutover Dependency
 
@@ -1162,3 +1143,5 @@ not serve new operations or migrate the existing catalog readers.
 construction. `imported-executions` depends on it; import admission, bulk staging,
 SDK builders and draft/report publication follow the SDK wave and
 `storage-interface` after wave 5.
+
+The combined data/execution/administration host uses one v1 storage table inventory and refuses incompatible existing roots with backup and explicit reset guidance. The CLI consumes served report streams without publication; remote bearer authentication covers data services through the same route composer as administration and execution. Query ListExecutions joins the shared case/archive presentation; held Query and Media operations and unfinished plot/document variants remain explicit in tasks.md.

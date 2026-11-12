@@ -64,7 +64,7 @@ class Context:
     def __init__(self, transport, parameters: dict[str, Any], operations: Sequence[Operation], records: Sequence[Record] = ()):
         self._transport = transport
         self.parameters = parameters
-        self.execution = transport.scope
+        self.execution = transport.scope()
         self.attempt = transport.attempt
         self._operations = tuple(operations)
         self._records = {item.identifier: item for item in records}

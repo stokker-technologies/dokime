@@ -66,6 +66,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--project", choices=("sdk/python", "tools/python"))
     parser.add_argument("--scene", choices=("cycle", "plots", "report", "history", "library", "cycles", "touch"))
     parser.add_argument("--select")
+    parser.add_argument("--filterset", help="Select Focused Rust Stories With A Nextest Filterset")
     parser.add_argument("--artifacts")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
@@ -139,6 +140,8 @@ def main(arguments: list[str] | None = None) -> int:
             return focused.changed(Path.cwd(), args.changed, args.layer, plan=args.plan, no_run=args.no_run, timings=args.timings)
         except ValueError as error:
             parser.error(str(error))
+    if args.filterset and (args.operation != "test" or not args.package):
+        parser.error("--filterset requires a focused Rust test package")
     if args.story and (args.operation != "test" or not args.package or args.exact or args.select):
         parser.error("--story requires a focused test package and cannot combine with --exact or --select")
     if args.package and args.operation == "test" and args.exact and args.select:
@@ -203,6 +206,8 @@ def main(arguments: list[str] | None = None) -> int:
             )
             identity = args.package if target == "lib" else f"{args.package}::{target}"
             selection = ["-E", f"binary_id(={identity})"]
+            if args.filterset:
+                selection += ["-E", args.filterset]
             if args.exact:
                 selection += ["--", "--exact", args.exact]
             elif args.story or args.select:
@@ -223,6 +228,8 @@ def main(arguments: list[str] | None = None) -> int:
                 parser.error("focused tests use the Cargo test profile")
             target = args.target or ("lib" if args.layer == "unit" else args.layer) or ("integration" if args.story else None)
             command += ["--lib"] if target == "lib" else ["--test", target] if target else ["--tests"]
+            if args.filterset:
+                command += ["-E", args.filterset]
             if args.no_run:
                 command += ["--no-run"]
             if args.exact:

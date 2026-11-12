@@ -127,7 +127,7 @@ pub async fn handle<I: prost::Message + Default>(
             let value =
                 decode(frame).ok_or_else(|| Error::Invalid("Upload Artifact: Send a Chunk, Completion, Finish or Cancel Frame".into()))?;
             match value {
-                Input::Cancel => return Err(Error::Cancelled),
+                Input::Cancel => return Err(Error::Cancelled("Operation Cancelled by the Client".into())),
                 Input::Finish => break,
                 Input::Item(frame) if completed.is_none() => match frame.payload.and_then(|payload| payload.kind) {
                     Some(v1::upload_artifact_frame_payload::Kind::Chunk(chunk)) => {

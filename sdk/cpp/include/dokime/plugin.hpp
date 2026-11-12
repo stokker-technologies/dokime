@@ -86,7 +86,7 @@ public:
   template <class T> Plugin &observer(Observer<T> observer) {
     auto state = executions_;
     harmos::Observer<T> native(observer.stream, [state, sample = std::move(observer.sample)](harmos::Context &transport) {
-      auto resources = state->open(transport.scope);
+      auto resources = state->open(transport.scope());
       v1::TestCase test_case;
       {
         std::lock_guard lock(resources->mutex);

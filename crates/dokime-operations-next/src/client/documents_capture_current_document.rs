@@ -58,7 +58,7 @@ impl FrameSender {
         ) {
             self.frames.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
-        self.channel.send(frame).await.map_err(|_| Error::Cancelled)
+        self.channel.send(frame).await.map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))
     }
 }
 
@@ -460,7 +460,7 @@ pub async fn handle(
                     value: Some(v1::documents_capture_current_document_output::Value::Response(v1::ClientEmpty {})),
                 }))
                 .await
-                .map_err(|_| Error::Cancelled)?;
+                .map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))?;
             Ok(())
         };
         if let Err(error) = super::complete(ID, context.settings.read_timeout, work).await {
@@ -481,7 +481,7 @@ async fn send(sender: &FrameSender, context: &Context, kind: v1::document_frame_
     if frame.encoded_len() > context.settings.message_bytes {
         return Err(Error::Invalid("Capture Document: Split This Card or Row to Fit the Message Budget".into()));
     }
-    sender.send(Ok(frame)).await.map_err(|_| Error::Cancelled)
+    sender.send(Ok(frame)).await.map_err(|_| Error::Cancelled("Operation Cancelled by the Client".into()))
 }
 fn evidence_kind(kind: i32) -> Result<v1::DocumentCardKind> {
     Ok(match v1::EvidenceCard::try_from(kind) {

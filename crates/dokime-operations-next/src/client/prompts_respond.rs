@@ -46,22 +46,41 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::PromptsRespondRequest) -> Result<v1::PromptResponseReceipt> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        if request.context.is_some() {
-            return Err(Error::Invalid("Respond MutationContext Is Not Yet Served by the New Host".into()));
+        let view = super::prompt_catalog::view(context, &request.prompt_id)?;
+        if view.response.is_some() {
+            return Err(Error::Precondition("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into()));
         }
         let (execution, question) = super::projection::pending(context, &request.prompt_id)?;
-        context.host.answer(
+        let mut snapshot = super::execution_state::evidence(context, &execution)?;
+        let cut = context.host.store().cut(&execution)?;
+        for stream in super::projection::schemas(&snapshot)?.streams {
+            let position = context.host.store().sample_frontier(&execution, &stream.stream, 0, cut.frontier)?;
+            if position > 0 {
+                snapshot.samples.extend(context.host.store().sample_page(
+                    &execution,
+                    &stream.stream,
+                    position - 1,
+                    position,
+                    std::num::NonZeroUsize::new(1).unwrap(),
+                )?);
+            }
+        }
+        let definition = super::projection::prompt_definition(&snapshot, &question)?;
+        let values = request.values.unwrap_or_default().values;
+        super::prompt_validation::validate(&definition, request.action.trim(), request.accepted, &values, &snapshot)?;
+        context.host.record_answer(
             &execution,
             v1::OperatorAnswer {
                 prompt: question.prompt,
-                action: request.action,
+                action: request.action.trim().into(),
                 accepted: request.accepted,
-                values: request.values.unwrap_or_default().values,
+                values,
                 responder: "local".into(),
                 submitted_at: Some(super::projection::timestamp(context.host.now_ns())),
             },
         )?;
         Ok(v1::PromptResponseReceipt {
+            command_id: request.prompt_id.clone(),
             prompt_id: request.prompt_id,
             accepted_at: Some(super::projection::timestamp(context.host.now_ns())),
             ..Default::default()

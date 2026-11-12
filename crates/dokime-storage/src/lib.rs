@@ -11,14 +11,18 @@
 
 /* === Modules === */
 
+mod administration;
 mod client_reads;
 mod content;
 mod content_name;
+mod cycles;
 mod document_values;
 mod error;
 mod execution;
+mod history;
 mod notes;
 mod outcome;
+mod plans;
 mod plot_kinds;
 mod plot_selection;
 mod plot_windows;

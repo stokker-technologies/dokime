@@ -55,6 +55,7 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
     let server = FakeServer::start().await?;
     let settings = ClientSettings {
         message_bytes: NonZeroUsize::new(1_048_576).unwrap(),
+        retained_bytes: NonZeroUsize::new(16 * 1_048_576).unwrap(),
         input_items: NonZeroUsize::new(8).unwrap(),
         input_bytes: NonZeroUsize::new(1_048_576).unwrap(),
     };
