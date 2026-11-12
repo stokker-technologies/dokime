@@ -7,7 +7,7 @@
  * ***
  */
 
-// Create the Python Backend Starter
+// Create the Python Plugin Starter
 
 /* === Modules === */
 
@@ -29,9 +29,10 @@ const FILES: &[(&str, &[u8])] = &[
     (".gitignore", include_bytes!("../../../../sdk/python/examples/starter/.gitignore")),
     ("pyproject.toml", include_bytes!("../../../../sdk/python/examples/starter/pyproject.toml")),
     ("main.py", include_bytes!("../../../../sdk/python/examples/starter/main.py")),
-    ("plugin/__init__.py", include_bytes!("../../../../sdk/python/examples/starter/plugin/__init__.py")),
-    ("plugin/operations/read.py", include_bytes!("../../../../sdk/python/examples/starter/plugin/operations/read.py")),
-    ("plugin/suites/capture.py", include_bytes!("../../../../sdk/python/examples/starter/plugin/suites/capture.py")),
+    ("suite.py", include_bytes!("../../../../sdk/python/examples/starter/suite.py")),
+    ("mise.toml", include_bytes!("../../../../sdk/python/examples/starter/mise.toml")),
+    ("tests/host.py", include_bytes!("../../../../sdk/python/examples/starter/tests/host.py")),
+    ("tests/test_capture.py", include_bytes!("../../../../sdk/python/examples/starter/tests/test_capture.py")),
 ];
 
 /* === Macros === */
@@ -63,6 +64,14 @@ enum Language {
 /* === Public Functions === */
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
+    // Resolve the Project Name
+    let name = args
+        .path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| crate::Error::Input("project directory must have a UTF-8 name".into()))?;
+    let name = serde_json::to_string(name)?;
+
     // Reserve the Destination
     fs::create_dir(&args.path)?;
 
@@ -74,7 +83,12 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         for (relative, bytes) in files {
             let destination = args.path.join(relative);
             fs::create_dir_all(destination.parent().expect("starter file has a parent"))?;
-            fs::write(destination, bytes)?;
+            if *relative == "pyproject.toml" {
+                let manifest = std::str::from_utf8(bytes).expect("embedded Python manifest is UTF-8");
+                fs::write(destination, manifest.replacen("\"dokime-starter\"", &name, 1))?;
+            } else {
+                fs::write(destination, bytes)?;
+            }
         }
         Ok(())
     })();
@@ -87,8 +101,9 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
     let terminal = dokime::terminal::Terminal::default();
     terminal.success(format!("Created {}", args.path.display()));
     terminal.hint(format!("cd {}", args.path.display()));
-    terminal.hint("uv add <matching native dokime_python wheel>");
-    terminal.hint("uv run python main.py");
+    terminal.hint("mise run build");
+    terminal.hint("mise run test");
+    terminal.hint("mise run serve");
     Ok(())
 }
 

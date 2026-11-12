@@ -215,6 +215,7 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<v1::Parameter>> 
                         .collect::<Vec<_>>()
                         .join(" "),
                     description: String::new(),
+                    ..Default::default()
                 }),
                 r#type: if field.is_list() { v1::ValueType::List as i32 } else { element_type as i32 },
                 element_type: if field.is_list() { element_type as i32 } else { 0 },

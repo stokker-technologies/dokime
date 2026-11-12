@@ -48,6 +48,7 @@ impl Prompt {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),
+                    ..Default::default()
                 }),
                 message: message.into(),
                 ..Default::default()

@@ -51,6 +51,7 @@ impl<T: Message> Record<T> {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),
+                    ..Default::default()
                 }),
                 message: T::name(),
             },

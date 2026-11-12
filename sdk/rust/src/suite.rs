@@ -49,6 +49,7 @@ impl Suite {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),
+                    ..Default::default()
                 }),
                 ..Default::default()
             },
