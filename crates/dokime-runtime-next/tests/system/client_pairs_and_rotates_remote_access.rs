@@ -1,0 +1,131 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Client Pairs And Rotates Remote Access
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[derive(Clone, PartialEq, prost::Message)]
+struct Cleanup {
+    #[prost(string, tag = "3")]
+    key_slot: String,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */
+
+#[tokio::test]
+async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        use dokime::v1;
+
+        // Export a Pairing File and Connect Through Its Pinned Certificate
+        let root = tempfile::tempdir()?;
+        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
+        assert!(!remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner().settings.unwrap().enabled);
+        let first =
+            remote.create_pairing(v1::RemoteCreatePairingRequest { label: "Story Desktop".into() }).await?.into_inner().pairing.unwrap();
+        let tls = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(first.certificate_pem.clone().unwrap()));
+        let channel = tonic::transport::Endpoint::from_shared(first.endpoints[0].clone())?.tls_config(tls)?.connect().await?;
+        let mut backend = v1::backend_client::BackendClient::new(channel.clone());
+        assert_eq!(backend.get_identity(v1::GetBackendIdentity {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        let identity = backend.get_identity(request).await?.into_inner();
+        assert_eq!(identity.backend_id, first.backend_identifier);
+
+        // A New Export Invalidates the Old Key on an Already Open Channel
+        let second = remote
+            .create_pairing(v1::RemoteCreatePairingRequest { label: "Replacement Desktop".into() })
+            .await?
+            .into_inner()
+            .pairing
+            .unwrap();
+        assert_ne!(second.access_key, first.access_key);
+        let mut old = tonic::Request::new(v1::GetBackendIdentity {});
+        old.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.unwrap()).parse()?);
+        assert_eq!(backend.get_identity(old).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut current = tonic::Request::new(v1::GetBackendIdentity {});
+        current.metadata_mut().insert("authorization", format!("Bearer {}", second.access_key.as_ref().unwrap()).parse()?);
+        assert_eq!(backend.get_identity(current).await?.into_inner().backend_id, identity.backend_id);
+        drop(backend);
+        drop(channel);
+        process.close().await?;
+
+        // Restart Retains the Access Key and Certificate, Then Rotate the Certificate
+        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
+        let status = remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner();
+        assert!(status.key_configured);
+        assert_eq!(status.certificate_pem, second.certificate_pem);
+        let address = format!("https://{}", status.listening_address.as_ref().unwrap());
+        let tls = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(second.certificate_pem.clone().unwrap()));
+        let channel = tonic::transport::Endpoint::from_shared(address)?.tls_config(tls)?.connect().await?;
+        let mut backend = v1::backend_client::BackendClient::new(channel);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", second.access_key.unwrap()).parse()?);
+        assert_eq!(backend.get_identity(request).await?.into_inner().backend_id, identity.backend_id);
+        drop(backend);
+        let rotated = remote
+            .regenerate_certificate(v1::RemoteRegenerateCertificateRequest {
+                certificate_names: status.settings.as_ref().unwrap().certificate_names.clone(),
+            })
+            .await?
+            .into_inner();
+        assert_ne!(rotated.certificate_pem, status.certificate_pem);
+        let disabled = remote
+            .update_listener(v1::RemoteUpdateListenerRequest {
+                settings: Some(v1::RemoteListenerSettings {
+                    enabled: false,
+                    ..rotated.settings.unwrap()
+                }),
+            })
+            .await?
+            .into_inner();
+        assert!(disabled.listening_address.is_none());
+        process.close().await?;
+
+        // Remove Only This Disposable Story's Protected TLS Key
+        let store = dokime_storage::Store::open(root.path())?;
+        let security: Cleanup = store.administration("remote-security")?.unwrap();
+        keyring::Entry::new("dokime.remote-tls", &format!("{}:{}", identity.backend_id, security.key_slot))?.delete_credential()?;
+        Ok::<(), Box<dyn std::error::Error>>(())
+    })
+    .await?
+}
