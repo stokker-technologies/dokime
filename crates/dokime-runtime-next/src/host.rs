@@ -230,6 +230,9 @@ impl Host {
             changed.await;
         }
     }
+    pub fn pending_prompts(&self) -> Result<Vec<(String, v1::OperatorQuestion)>> {
+        Ok(lock(&self.inner.prompts.pending)?.iter().map(|(execution, pending)| (execution.clone(), pending.question.clone())).collect())
+    }
     pub fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
         let mut pending = lock(&self.inner.prompts.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Wait for an Execution Prompt Before Answering".into()))?;

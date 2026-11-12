@@ -17,7 +17,8 @@ mod error;
 mod execution;
 mod host;
 mod plugin;
-mod process;
+pub mod process;
+pub mod services;
 mod streams;
 
 /* === Re-Exports === */

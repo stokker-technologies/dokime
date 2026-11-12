@@ -3,6 +3,7 @@ package dokime.v1;
 
 import "dokime/v1/client_types.proto";
 import "dokime/v1/values.proto";
+import "dokime/v1/execution.proto";
 
 message ExecutionAppendExecutionsRequest {
   string cycle_id = 1;
@@ -43,6 +44,8 @@ message ExecutionCancelExecutionRunOutput {
 }
 
 message ExecutionCreateCycleRequest {
+  // New host: admit and start these frozen materialized cases atomically.
+  repeated Origin origins = 4;
   Metadata metadata = 1;
   bool continue_automatically = 2;
   MutationContext context = 3;

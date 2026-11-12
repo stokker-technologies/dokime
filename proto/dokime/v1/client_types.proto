@@ -9,6 +9,7 @@ import "google/protobuf/timestamp.proto";
 import "dokime/v1/host.proto";
 import "dokime/v1/plugins.proto";
 import "dokime/v1/values.proto";
+import "harmos/v1/plugin.proto";
 
 // Shared Client Message Contracts
 // Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
@@ -37,6 +38,8 @@ message DeclaredOutcome { ResultStatus status = 1; string reason = 2; string imp
 // Schemas frozen for this execution, from its plugin catalog or its import-local catalog. Import schemas do not
 // register a plugin or overwrite global definitions.
 message FrozenSchemas {
+  // Frozen descriptors and contract identities for exact payload decoding.
+  harmos.v1.Catalog catalog = 3;
   repeated RecordSchema records = 1;
   repeated TelemetrySchema streams = 2;
 }
@@ -328,6 +331,8 @@ message CapturedErrorCause {
 
 // Source: crates/dokime-domain/src/model/evidence/wire.rs
 message CapturedRecord {
+  // Original protobuf bytes interpreted using the frozen record descriptor.
+  bytes payload = 16;
   string record_id = 1;
   uint64 sequence = 2;
   google.protobuf.Timestamp timestamp = 3;
@@ -501,6 +506,7 @@ message ControlReply {
 
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message CreateCycleReply {
+  repeated string execution_ids = 3;
   string cycle_id = 1;
   Cursor observed_cursor = 2;
 }
@@ -1264,6 +1270,8 @@ message ExecutionControls {
 // Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
 // capability.
 message ExecutionDetail {
+  // Verified digest of the sealed immutable execution and evidence.
+  bytes seal = 18;
   ReportStatus report = 1;
   ExecutionSummary summary = 2;
   string cycle_id = 3;
@@ -3422,6 +3430,8 @@ enum TelemetryRole {
 
 // Source: crates/dokime-domain/src/model/telemetry/wire.rs
 message TelemetrySample {
+  // Original row bytes interpreted using the frozen stream descriptor.
+  bytes payload = 12;
   string sample_id = 1;
   string stream = 2;
   uint32 schema_version = 3;

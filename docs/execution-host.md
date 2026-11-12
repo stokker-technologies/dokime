@@ -27,6 +27,60 @@ The host requires explicit `HostSettings`: placement bounds and a
 observers tick and commit samples before a plugin's host sleep settles.
 Prompt arrival and cancellation use events, with no wall-clock sleeps.
 
+## Serve Client gRPC
+
+`services::serve(endpoint, root, host_settings, client_settings)` in
+`crates/dokime-runtime-next/src/services/` binds a loopback endpoint and returns
+`Server`; `endpoint()` exposes the chosen address and `close().await` cancels
+active work, drains cleanup and closes the listener. Client settings supply
+read, mutation and stream deadlines, case/page limits, message bytes and stream
+buffer capacity.
+
+The public `process::command` constructor starts owned child processes without
+opening Windows console windows.
+
+The `dokime-host-next` binary accepts `--endpoint HOST:PORT --storage PATH`.
+It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
+Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode.
+The storage root retains a backend identity; each process has a new boot epoch.
+Remote authentication is pending, so this listener accepts loopback addresses.
+
+The first served methods are Plugins Add/List; Catalog ListSuites/GetSuite;
+Planning MaterializeTemplate; Execution CreateCycle/GetExecution; Observation
+WatchExecutionProgress; Prompts ListPending/GetPrompt/Respond; Query
+ListExecutions; Evidence ListRecords; Telemetry ListSamples; Reports
+DownloadExecutionReport; Health ListHealth; and Backend identity, health and
+availability. Backend availability advertises only these methods. Other methods
+return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
+Requests using unserved filter/cursor variants are explicitly refused.
+
+Materialization returns frozen origins; CreateCycle admits and starts the
+explicit origin list with `continue_automatically`, returning execution IDs.
+Progress streams expose queued/prompt/finished events and end with a terminal
+response followed by successful status. Cancelling a watch does not cancel the
+execution. Pending prompt IDs combine execution identity and the plugin's prompt
+name to keep concurrent executions distinct. Exact record and sample payloads
+can be decoded using the catalog descriptors frozen in ExecutionDetail.schemas.
+ExecutionDetail also exposes the verified seal. Reports render a snapshot and
+stream metadata, ordered chunks, SHA-256 completion and the terminal response;
+durable document/report publication remains the execution-feature owner's work.
+
+Build prerequisites and run the client stories through the focused task:
+
+```powershell
+mise -C sdk/rust run sdk:build
+mise -C sdk/python run sdk:prepare
+mise -C sdk/python run sdk:build
+mise -C sdk/python run sdk:install
+mise run test -- --package dokime-runtime-next --target system --exact client_runs_thermal_suite_over_grpc::client_runs_thermal_suite_over_grpc
+mise run test -- --package dokime-runtime-next --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
+```
+
+The Rust story uses the generated clients reexported by `sdk/rust`'s `dokime`
+package. The Python story uses the built pure wheel in the root `.venv/`;
+`DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
+builds artifacts, polls, or sleeps on the wall clock.
+
 ## Evidence and Recovery
 
 Each execution freezes the complete PluginRun origin and catalog descriptors.

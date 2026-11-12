@@ -38,7 +38,7 @@ pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /* === Public Functions === */
 
-pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
+pub fn command(program: impl AsRef<OsStr>) -> Command {
     #[allow(clippy::disallowed_methods, reason = "the replacement host process constructor")]
     let mut command = Command::new(program);
     command.creation_flags(CREATE_NO_WINDOW);

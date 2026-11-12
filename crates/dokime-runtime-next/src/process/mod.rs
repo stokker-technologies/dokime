@@ -24,9 +24,9 @@ mod windows;
 /* === Re-Exports === */
 
 #[cfg(unix)]
-pub(crate) use unix::command;
+pub use unix::command;
 #[cfg(target_os = "windows")]
-pub(crate) use windows::command;
+pub use windows::command;
 
 /* === Imports === */
 

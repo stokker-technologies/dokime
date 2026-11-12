@@ -312,6 +312,9 @@ pending verified supply-chain evidence and do not imply product certification.
 
 ## Contributing
 
+The independent execution host and its client gRPC stories are described in the
+[execution host guide](docs/execution-host.md).
+
 Bug reports, focused fixes, clearer examples and equipment integrations are
 welcome. Read [Contributing](docs/CONTRIBUTING.md) for setup and the review workflow.
 Frozen documents share the live card query path, retain complete authored tables
