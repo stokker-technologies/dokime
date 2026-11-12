@@ -45,6 +45,9 @@ const COLORS: [&str; 6] = ["#4477aa", "#ee6677", "#228833", "#ccbb44", "#66ccee"
 pub(crate) fn render(
     output: &mut impl Write, plot: &v1::Plot, envelope: &v1::PlotEnvelope, presentation: &v1::PlotPresentation,
 ) -> Result<()> {
+    if plot.kind == v1::PlotKind::Contour as i32 && plot.render == v1::ContourRender::Bands as i32 {
+        return Err(Error::Invalid("Render Contour Bands: Select Cells Until Report Band Geometry Is Connected".into()));
+    }
     let payload = envelope.payload.as_ref().ok_or_else(|| Error::Invalid("Render Plot: Query Its Fixed Snapshot First".into()))?;
     let count = envelope.diagnostics.as_ref().map_or(0, |diagnostics| diagnostics.raw_point_count);
     write!(
@@ -280,13 +283,13 @@ fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &v1::PlotFrame)
         frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).reduce(f64::min).unwrap_or(0.0).min(0.0);
     let max_y = frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).reduce(f64::max).unwrap_or(1.0);
     if kind == v1::PlotKind::Bar {
-        let categories = frame
-            .series
-            .iter()
-            .flat_map(|column| column.x.iter().map(display))
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+        let mut categories = Vec::new();
+        for value in frame.series.iter().flat_map(|column| &column.x) {
+            let value = display(value);
+            if !categories.contains(&value) {
+                categories.push(value);
+            }
+        }
         let stacked = plot.arrangement == Some(v1::BarArrangement::Stacked as i32);
         let mut stacks = vec![0.0; categories.len()];
         let max = if stacked {
