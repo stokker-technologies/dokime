@@ -892,6 +892,11 @@ message; transport fitting includes that outer message envelope.
 Repeated identical background failures remain in the plot but produce one
 notification until that plot recovers. The existing integration-plots benchmark
 has no contour case, so no contour benchmark or new benchmark case is added.
+The cycle journey compares persisted error-record identities across the cycle,
+taking its baseline after the Library's deliberate invalid-input checks. Its
+notification proof covers the whole store rather than title text or one page.
+The report-browser fixture verifies closed report tabs, terminates only its own
+disposable child process and awaits physical exit under the existing deadline.
 
 ## Initial Protocol Slice Decisions
 

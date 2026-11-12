@@ -602,12 +602,14 @@ async fn fitted_maps_and_playback() {
     assert!(columns.instants.len() > 1 && columns.instants.len() < observed.len());
     assert_eq!(columns.instants.len(), columns.y.len());
 
-    // An Irreducible Frame Names The Refresh Action.
+    // An Irreducible Frame Reports Its Refused Plot.
     let mut refused = grid_request;
+    let refused_id = refused.plot_id.clone().unwrap();
     refused.grid.as_mut().unwrap().summary_label = "x".repeat(excess_label);
     let error =
         client.unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![refused] }).await.unwrap_err();
-    assert!(error.message().contains("Refresh plot grid"), "{error}");
+    assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+    assert!(error.message().contains(&refused_id), "{error}");
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();

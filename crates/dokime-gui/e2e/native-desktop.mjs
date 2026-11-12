@@ -2257,6 +2257,21 @@ async function openPlotSettings(session, selector) {
 }
 
 async function cycleJourney(session, cycleId) {
+  // Earlier Library Actions Deliberately Exercise Invalid Input.
+  await session.goto("/notifications");
+  await session.waitForDom("loaded notification history", `return document.querySelector('ol[aria-busy=false]') !== null;`);
+  const previousErrors = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    const request = indexedDB.open("dokime-notifications");
+    request.onerror = () => done({ error: String(request.error) });
+    request.onsuccess = () => {
+      const database = request.result;
+      const read = database.transaction("notifications", "readonly").objectStore("notifications").getAll();
+      read.onerror = () => { database.close(); done({ error: String(read.error) }); };
+      read.onsuccess = () => { database.close(); done(read.result.filter(record => record.tone === "error").map(record => record.id)); };
+    };
+  `);
+  assert.ok(Array.isArray(previousErrors));
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
   let listened = false;
@@ -2770,8 +2785,22 @@ async function cycleJourney(session, cycleId) {
   const returnTo = await session.location();
   await session.goto("/notifications");
   await session.waitForDom("loaded notification history", `return document.querySelector('ol[aria-busy=false]') !== null;`);
-  const notifications = await session.text();
-  assert.ok(!hasText(notifications, "Plot Refresh Failed"), `Plot refreshes must succeed: ${notifications}`);
+  const errors = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    const request = indexedDB.open("dokime-notifications");
+    request.onerror = () => done({ error: String(request.error) });
+    request.onsuccess = () => {
+      const database = request.result;
+      const read = database.transaction("notifications", "readonly").objectStore("notifications").getAll();
+      read.onerror = () => { database.close(); done({ error: String(read.error) }); };
+      read.onsuccess = () => { database.close(); done(read.result.filter(record => record.tone === "error").map(record => record.id)); };
+    };
+  `);
+  assert.ok(Array.isArray(errors));
+  assert.deepEqual(
+    errors.filter((id) => !previousErrors.includes(id)),
+    [],
+  );
   await session.goto(`${returnTo.pathname}${returnTo.search}`);
   return { ...selection, executionIds: [rerunId], reports: [measuringExecutionId, selection.executionId, rerunId] };
 }
