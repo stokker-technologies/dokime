@@ -100,7 +100,7 @@ descendants are terminated even when their leader already exited.
 
 Each Python package carries its own `[tool.ty]` configuration. `lint -- --language python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`check -- --bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
+`check -- --bindings` type-checks the pure SDK and verifies generated messages and services from a fresh wheel.
 
 `mise run build -- --artifact tests` packages the host and OBC fixture bundles from the
 Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.

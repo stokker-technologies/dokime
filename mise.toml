@@ -680,7 +680,7 @@ run = "{{vars.tools}} dokime_tools.release.run finalize"
 
 [tasks."release:publish:python"]
 hide = true
-description = "Publish The Native Python SDK"
+description = "Publish the Pure Python SDK"
 run = "{{vars.tools}} dokime_tools.release.run python"
 
 [tasks."release:rehearse"]

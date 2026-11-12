@@ -28,7 +28,6 @@ members = [
   "plugins/sidecars/obc/runtime",
   "sdk/rust",
 ]
-# Native Python Is Built Only By Its Explicit Producer.
 default-members = [
   "crates/dokime",
   "crates/dokime-tracing",
