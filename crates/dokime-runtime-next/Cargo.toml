@@ -1,0 +1,133 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-runtime-next"
+description = "Independent gRPC execution host."
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime-operations-next = { workspace = true }
+dokime-protocol = { workspace = true }
+dokime-storage = { workspace = true }
+
+# Git
+harmos-protocol = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+
+# Serialization
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+prost-types = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["process", "io-util", "sync", "rt", "macros", "time"] }
+tokio-stream = { workspace = true, features = ["net"] }
+tokio-util = { workspace = true }
+
+# Networking
+tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+[[test]]
+name = "system"
+path = "tests/system/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

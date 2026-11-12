@@ -218,7 +218,7 @@ impl<C: CatalogTypes> Plugin<C> {
             });
         }
         if !prompts.is_empty() {
-            inner = inner.section(Wire(v1::Prompts { prompts }));
+            inner = inner.section(Wire(v1::PromptCatalog { prompts }));
         }
         if !settings.is_empty() {
             inner = inner.section(Wire(v1::SettingsCatalog { settings }));

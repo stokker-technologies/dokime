@@ -151,6 +151,7 @@ impl Template {
                     identifier: identifier.clone(),
                     label: label.into(),
                     description: String::new(),
+                    ..Default::default()
                 }),
                 materialize: format!("{identifier}.materialize"),
                 cleanup: Some(format!("{identifier}.cleanup")),
@@ -432,6 +433,7 @@ fn metadata(label: &str) -> v1::Metadata {
         identifier,
         label: label.into(),
         description: String::new(),
+        ..Default::default()
     }
 }
 

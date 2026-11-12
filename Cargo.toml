@@ -14,6 +14,9 @@ members = [
   "crates/dokime-tracing",
   "crates/dokime-cli",
   "crates/dokime-protocol",
+  "crates/dokime-storage",
+  "crates/dokime-operations-next",
+  "crates/dokime-runtime-next",
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
@@ -67,10 +70,13 @@ dokime = { package = "dokime-facade", version = "0.1.5", path = "crates/dokime" 
 dokime-client = { version = "0.1.5", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.5", path = "crates/dokime-domain" }
 dokime-macros = { version = "0.1.5", path = "crates/dokime-macros" }
+dokime-operations-next = { version = "0.1.5", path = "crates/dokime-operations-next" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
 dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime", default-features = false }
+dokime-runtime-next = { version = "0.1.5", path = "crates/dokime-runtime-next" }
 dokime-server = { version = "0.1.5", path = "crates/dokime-server" }
+dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 dokime-tracing = { version = "0.1.5", path = "crates/dokime-tracing" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 

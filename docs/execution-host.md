@@ -1,0 +1,60 @@
+# New Execution Host
+
+The independent host is built beside the current command-line and desktop host.
+`dokime-runtime-next` composes plugin entries, scoped unary lifecycle dispatch,
+controlled orchestration time and cycle execution. `dokime-operations-next` owns
+one declaration and handler per supported host operation. `dokime-storage` owns
+SQLite execution evidence and Arrow IPC sample batches. These crates have no
+normal dependency on the old domain, runtime, server, client or facade.
+
+## Run the Thermal Stories
+
+Build the existing shared SDK plugin, then run either story by its full name:
+
+```powershell
+mise -C sdk/rust run sdk:build
+mise run test -- --package dokime-runtime-next --target system --exact thermal_suite_survives_host_restart::thermal_suite_survives_host_restart
+mise run test -- --package dokime-runtime-next --target system --exact cancelling_a_thermal_step_runs_cleanup::cancelling_a_thermal_step_runs_cleanup
+```
+
+The fixture is `target/debug/dokime-rust-thermal` with the native executable
+extension. `DOKIME_THERMAL_PLUGIN` can name an already built copy. Tests never
+compile a plugin themselves. Both placements use the unchanged shared thermal
+suite at `sdk/rust/examples/thermal.rs`.
+
+The host requires explicit `HostSettings`: placement bounds and a
+`SchedulerClock`. `ControlledClock` advances only through requested waits;
+observers tick and commit samples before a plugin's host sleep settles.
+Prompt arrival and cancellation use events, with no wall-clock sleeps.
+
+## Evidence and Recovery
+
+Each execution freezes the complete PluginRun origin and catalog descriptors.
+The manager owns live queued, initializing, stepping, evaluating and cleaning-up
+state; those phases are not persisted as a Run. Step boundaries, acknowledged
+records, logs, progress and criterion reads are durable evidence. Sample batches
+retain source time, host receipt time, publication sequence and a durable position
+shared with evidence entries. Interval streams use source UTC nanoseconds as
+their axis. Step queries use the evidence positions at the step's time boundaries,
+including equal-time events without admitting evidence from another step.
+
+SQLite commits each Arrow IPC batch and its position atomically with FULL
+synchronous durability. Streams close before evidence closes. A seal hashes the
+frozen execution and ordered evidence bytes, and reopened reads verify it.
+Writes after close are refused. Open plugin-run executions are recovered as
+interrupted and sealed; import origins are never run-recovery targets.
+
+Storage remains at v1. An unrecognized nonempty root is refused with instructions
+to back it up and choose fresh storage or explicitly reset it. No migration,
+implicit reset or deletion occurs.
+
+## Cutover
+
+CLI and desktop still use the old host. The integration cutover must migrate
+those consumers, delete the superseded loop, crates and tests, and rename the
+`-next` crates. The console-free process constructor is copied from `dokime-domain/src/process/`
+into the new runtime. Delete its old owner at cutover; no old crate is imported.
+The dispatcher uses the published `harmos.v1.Request.scope` field directly;
+it does not call the old Harmos runtime's scope-losing invocation API and needs
+no local path override. The native-runtime scoped-call adoption remains with
+its owning cutover.

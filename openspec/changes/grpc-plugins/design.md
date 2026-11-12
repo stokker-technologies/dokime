@@ -2,6 +2,13 @@
 
 ## Resuming
 
+Owner decision (2026-11-12): build the new execution host beside the old loop,
+then prove the shared thermal suite end to end. A later atomic cutover switches
+CLI and desktop and deletes the old loop, crates and tests. This changes order,
+not the clean replacement contract; no compatibility layer is introduced.
+The `feat/gp-host-new` worktree owns new storage, operations and runtime crates,
+additive workspace membership, their guide and this change. It returns local commits.
+
 Integrate the gRPC-wave changes under `openspec/changes/` together on `feat/grpc-plugins`.
 `storage-interface` starts separately after wave 5, not in this integration.
 Feature worktrees hand back local commits; the integration checkout is `feat/grpc-plugins`.
@@ -782,6 +789,20 @@ Client access and its security are the separate change
 - The `dokime.v1` wire choices in Initial Protocol Slice Decisions below.
 
 ## Implementation Decisions
+
+The new host uses `dokime-storage`, `dokime-operations-next` and
+`dokime-runtime-next` until the later atomic consumer cutover renames the latter
+crates. Only the console-free process constructor is copied from
+`dokime-domain/src/process/`; delete that old owner at cutover. No old crate is imported.
+The narrow first store commits Arrow IPC sample batches in SQLite transactions;
+sealed reads verify a digest over immutable stored execution/evidence bytes.
+The controlled execution clock drains each requested observer tick durably before
+settling host sleep, so the shared thermal suite needs no wall-clock wait.
+The new dispatcher speaks the published `harmos.v1` Plugin protocol directly,
+sets its ordinary Request.scope, and preserves it in child-operation resources;
+no private envelope, Harmos path override or runtime facade is needed.
+The first host story calls the unchanged SDK thermal executable built by its
+existing `sdk:build` task; the new host crates have no SDK product dependency.
 
 The requested Harmos adoption revision is
 `a7583836e721c8dc8b135af40a78860ea5945ec6`. The vendored plugin proto already

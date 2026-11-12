@@ -2567,6 +2567,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-operations-next"
+version = "0.1.5"
+dependencies = [
+ "async-trait",
+ "dokime-protocol",
+ "dokime-storage",
+ "harmos-protocol",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "dokime-packaging"
 version = "0.1.5"
 dependencies = [
@@ -2687,6 +2701,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-runtime-next"
+version = "0.1.5"
+dependencies = [
+ "async-trait",
+ "dokime-operations-next",
+ "dokime-protocol",
+ "dokime-storage",
+ "harmos-protocol",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "dokime-server"
 version = "0.1.5"
 dependencies = [
@@ -2736,6 +2772,20 @@ dependencies = [
  "windows-sys 0.61.2",
  "zeroize",
  "zip",
+]
+
+[[package]]
+name = "dokime-storage"
+version = "0.1.5"
+dependencies = [
+ "arrow-array",
+ "arrow-ipc",
+ "arrow-schema",
+ "dokime-protocol",
+ "prost",
+ "rusqlite",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
