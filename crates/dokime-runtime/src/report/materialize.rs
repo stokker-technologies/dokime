@@ -54,6 +54,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 enum Mode {
     Report,
     FreezeAnalyses,
+    Document,
 }
 
 /* === Traits === */
@@ -76,6 +77,14 @@ pub(crate) async fn execution(
     let request = evidence_request(inspection, current)?;
     let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
     execution_with_evidence(ctx, inspection, final_report, operation, evidence.remove(0)).await
+}
+
+pub(crate) async fn document(
+    ctx: &Scope, inspection: &ExecutionView, operation: &Operation,
+) -> Result<ReadBatch<CapturedExecutionReportInput>> {
+    let request = evidence_request(inspection, false)?;
+    let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
+    materialize_execution(ctx, inspection, false, operation, evidence.remove(0), Mode::Document).await
 }
 
 #[tracing::instrument(name = "report.materialize", skip_all, fields(final_report))]
@@ -132,7 +141,7 @@ async fn materialize_execution(
     captured.report_defaults.source_bytes = limits.source_bytes;
     captured.report_defaults.value_depth = limits.value_depth;
     captured.evidence_through = evidence.through;
-    if !final_report && execution.finished_at.is_none() {
+    if mode != Mode::Document && !final_report && execution.finished_at.is_none() {
         captured.captured_at = evidence.captured_at;
         captured.context.health.push(dokime_domain::model::execution::health::HealthItem {
             health_item_id: crate::model::identity::new_id(),
@@ -238,8 +247,8 @@ async fn materialize_execution(
                 }
                 continue;
             }
-            if final_report && mode == Mode::Report && request.analysis.is_some() {
-                return Err(invalid("final report analysis was not frozen before completion"));
+            if (final_report && mode == Mode::Report || mode == Mode::Document) && request.analysis.is_some() {
+                return Err(invalid("document analysis is absent from the frozen snapshot"));
             }
             let indexed = match evidence.plots.get(descriptor.plot_id.as_str()) {
                 Some(checkpoint) if !crate::plot::preview::index::uses_numeric_mean(&request) => Some(checkpoint.payload(

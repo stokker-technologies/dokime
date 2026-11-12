@@ -30,6 +30,7 @@ pub mod value;
 pub use crate::execution::evidence_rows::EvidenceRows;
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
 pub use renderer::Renderer;
+pub use saved::RenderedExecutionReport;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
 pub(crate) use scope::Scope;
 

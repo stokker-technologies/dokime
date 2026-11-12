@@ -17,6 +17,7 @@ test = [
   "protobuf>=7.36.2,<8",
   "types-protobuf",
   "grpcio>=1.85.1,<2",
+  "polars==2.1.0",
   "pytest==9.1.1",
   "pytest-benchmark==5.3.0",
   "pytest-cov==7.1.0",

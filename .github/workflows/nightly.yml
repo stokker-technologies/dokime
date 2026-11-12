@@ -303,16 +303,32 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: TypeScript / System
-          command: test -- --language typescript --layer system
+          work: TypeScript / System / Execution
+          command: test -- --language typescript --layer system --select native-desktop
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
           archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
             "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
-          work: TypeScript / System
-          command: test -- --language typescript --layer system
+          work: TypeScript / System / Execution
+          command: test -- --language typescript --layer system --select native-desktop
+          bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
+            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          work: TypeScript / System / Connections
+          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
+            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: TypeScript / System / Connections
+          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
           bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
           archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
             "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'

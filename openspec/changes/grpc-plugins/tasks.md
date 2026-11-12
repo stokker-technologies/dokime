@@ -1,5 +1,57 @@
 # gRPC Plugins Tasks
 
+## Focused Test Feedback
+
+Source inventory: `tools/python/src/dokime_tools/{ci/tasks.py,build/{cargo,configuration,rust/tests}.py,test/{focused,archive,run}.py}`,
+their tooling integration stories, `mise.toml`, retained packaging integration stories,
+`crates/dokime-server/tests/support/artifacts.rs` (the Tests-owned host fixture path), and
+`docs/tooling.md`. Product code and suites being replaced by waves 4–5 remain
+with their implementation owners.
+
+- [x] Measure Windows focused compilation, harness inventory, run costs and compiler contention; distinguish cold, warm and unmeasured native Linux results.
+- [x] Route focused tests through nextest with canonical guards, story and changed-path selection, native compiler timings and explicit plans.
+- [x] Consolidate retained test fixtures where measured duplication dominates, preserving all distinct refusal and round-trip branches.
+- [x] Run each touched suite, format, Rust/repository checks and the Tests artifact task; retain local commits without pushing.
+- [ ] Obtain native Linux proof in the combined delivery; the Windows validation failures below are repaired and the combined Windows checks and Tests producer pass.
+
+Retain the existing harness boundaries: the workspace already groups integration stories
+by package. Keep runtime workflow/recovery, embedded SDK and macro-consumer rewrites with
+waves 4–5; their measured costs do not justify rebuilding superseded suites here. Focused
+selection preserves deadlines, required target features and stamped fixture checks.
+Linux timing and isolated per-harness linker timing remain unmeasured. Windows proof
+still requires repair of unused protocol dependencies (`tonic`, `tonic-prost`), the
+runtime threaded workflow failure under concurrent execution (its standalone rerun
+passes), and legacy Python/TypeScript artifact prerequisites.
+## PR 411 Desktop System Repair
+
+Source inventory: `crates/dokime-gui/e2e/{native-desktop,system}.mjs`, the TypeScript
+system task in `mise.toml`, `.github/workflows/{ci,nightly}.yml`, and `docs/tooling.md`.
+Product changes are limited to a demonstrated cause of the reported regression.
+
+- [x] Read Linux job 131065996838 and Windows job 130993783301, including retained Linux RPC and backend evidence.
+- [x] Run isolated admission and the failing scenes on current Windows artifacts; repair native numeric entry and any demonstrated admission defect without extending deadlines.
+- [x] Measure the Windows system lane before and after; keep the 600-second guard and split hosted work if the legitimate stories exceed it.
+- [x] Run format, TypeScript and repository checks, retain local commits and report native Linux proof as pending hosted CI.
+
+The Linux host plugin initialized in 1.051 s; StartExecution succeeded in 166 ms.
+The failed numeric edit left the preceding execution at its operator prompt, so
+the next execution remained queued behind it. This run does not reproduce the
+separate host-plugin initialization deadline failure.
+Current Windows artifacts also pass isolated `execution-stop` in 14.387 s with
+host-plugin startup taking 3.626 s. The existing 46-test plot integration journey
+passes, including digit retention across presentation refreshes. Bulk numeric
+entry was introduced by `8e45a8216`; six serial system stories by `8f7abf734`.
+The original Windows six-story Node lane passed in 572.718 s; the runner including
+trace processing took 588.76 s (591.284 s including task setup). The split execution
+Node lane passes in 258.855 s (276.75 s with trace processing). With separate native numeric key events,
+`cycle`, `execution-stop` and `containers` pass in 43.715, 17.687 and 23.270 s.
+The five-story Node lane passes in 455.119 s (474.66 s with trace processing),
+so all six stories pass across the two unchanged 600-second guards. Formatting,
+TypeScript and repository checks pass. One successful
+Windows restart's host-plugin start took 45.156 s; its retained trace is separate
+from the Linux prompt-blocked admission and does not establish the cause of the
+earlier initialization-deadline failure. Native Linux proof remains hosted.
+
 ## 1. Contract
 
 - [x] 1.1 Settle the open points in `design.md` with the owner and record each outcome there.
@@ -146,6 +198,9 @@
 
 - The new-host source-policy audit has no findings in its new crates or SDK fixes; root manifest skeletons, generated protocol output, other changes' task policy, stale generated guidance and the missing CONTRIBUTING.md remain integration-owner repairs outside this worktree's additive ownership.
 
+- Execution worker owns frozen execution definitions/persistence, outcome folding, capability projections and reports; envelope contents stay here and sending stays with the plugin worker. Sequence the native materialization result and connected Description digest/process identity before replacing snapshot consumers. SDK, benchmark and plugin-entry paths are excluded.
+
+
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
@@ -224,10 +279,8 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 - [x] Merge the protocol, Python, C# and C++ branches in order, with one merge commit each; resolve service declarations in authoritative protos and regenerate Rust output.
 - [x] Retire the native Python Cargo member, environment dependencies and binding declarations, and stale C#/C++ protocol generation/drift ownership.
 - [x] Generate all authoritative client services in Python, C# and C++; migrate canonical types and PromptCatalog, and prove plugin Add then List in each SDK's in-process client story.
-- [ ] Merge the current integration branch, regenerate and run final focused proof: format, Rust/Python/repository checks, protocol stories, each SDK build/check/stories and Tests artifact build. Report host-owned failures and native platform limitations truthfully. The integration merge, regeneration, format, Python/repository checks, eight protocol tests and all three SDK builds/checks/focused stories pass on Windows. Whole-workspace Rust checking fails at `crates/dokime-cli/src/commands/new.rs:32–34` because it embeds the retired Python starter files; Tests artifact proof remains open. Native Linux and real-host system proof are unverified.
+- [x] Merge the current integration branch, regenerate and run final focused proof: format, Rust/Python/repository checks, protocol stories, each SDK build/check/stories and Tests artifact build. The prior regeneration, eight protocol tests and Python/C#/C++ build/check/story proof retain unchanged protocol and SDK inputs. The repaired combined tree passes whole-workspace Rust, Python and repository checks, formatting, the Tests producer with 47 binaries and 16 compile contracts, and five external-consumer Rust SDK journeys on Windows. Native Linux and real Dokime-host SDK system proof remain unverified.
 
-- [ ] CLI owner: migrate `crates/dokime-cli/src/commands/new.rs` to embed the authoritative pure Python starter file set listed in 4.3.4; remove the three retired `starter/plugin/` includes and rerun the failing Rust check and affected producer proof.
-- [ ] Rust SDK owner: replace the `v1::Prompts` construction in `sdk/rust/src/plugin.rs` with canonical `v1::PromptCatalog` and validate against the complete client protos. This mismatch was found by source inspection; the whole-workspace check stopped first at the CLI starter includes.
 
 ## Client-Driven New Host Serving
 
@@ -279,3 +332,12 @@ Source inventory: `sdk/python/{src/dokime/{__init__,authoring,client}.py,example
 - [x] Pass each cross-language story twice, the four existing stories, whole-tree format and each affected SDK check on Windows. Python remote, C# remote/managed and C++ remote/managed all match Rust's sealed evidence; SDK focused stories pass (Python 3, C# 3, C++ 5, Rust 5), as do Python binding/fresh-wheel, C# check, C++ check, Rust SDK lint and new-runtime package checking. Native Linux and hosted proof remain separate. The one pending C# retained-record-schema assertion is listed below.
 
 - [ ] Pending Harmos assertion `csharp_frozen_record_schema_decodes_door`: the C# record-only Door descriptor is missing from the frozen catalog; enable the existing shared assertion after upstream descriptor-only registration and Dokime Record<T> adoption. Full reproduction and requested API are under design.md / Requests to Harmos. Core C# evidence equivalence is independent and remains required in both placements.
+
+- [x] CLI owner: embed the eight authoritative pure Python starter files listed in 4.3.4, substituting only the project name in pyproject.toml; remove the three retired starter/plugin includes and native-wheel hint. The CLI story proves source-byte parity and existing-destination preservation; whole-workspace Rust checking and the Tests producer pass.
+- [x] Rust SDK owner: replace the `v1::Prompts` construction in `sdk/rust/src/plugin.rs` with canonical `v1::PromptCatalog`; default the protocol's added Metadata fields in the six SDK initializers. Whole-workspace Rust checking and all five external-consumer SDK journeys pass against the complete client protos.
+- [x] Preserve native test inputs removed with the Python SDK: relocate the unchanged negotiation fixture to GUI test fixtures, and relocate the independent Polars Arrow verifier to tooling with its pinned workspace test dependency. The Tests archive, its 16 compile contracts, the GUI negotiation story and the runtime Arrow export story pass.
+- [x] Integrate both finished speed-tooling branches, retaining story/package/changed-path selection, batched compilation, selective extraction, desktop freshness, bundled development/test LLD, cache overrides and timings. Resolve the selector/linker environment and duplicate timing flags together; 22 build-dispatch, seven selector and six schedule tooling tests pass. Keep usage and conservative concurrency advice in the tooling guide; condensed measurements live with tooling-streamline.
+- [x] Merge the completed integration numeric-entry and split desktop-system-lane repair, retaining both tooling changes and both sets of guidance. Preserve the fast-forward handoff to the current integration branch; no product execution-loop semantics are changed by this repair.
+- [x] Prove the combined repair and speed-tooling candidate on Windows: format, repository/Rust/Python checks, Tests artifact build, all 125 tooling tests, CLI Python scaffold, relocated GUI/Arrow fixture stories, the admit_bundle_metadata packaging selector and locked offline Cargo metadata pass. The SDK's five journeys run through its separate consumer workspace, not the repository Tests archive. Native Linux and real Dokime-host SDK proof remain separate.
+- [ ] Host/client owner: migrate the old GUI acceptance matrix's removed Python client API and deleted execution-matrix driver together. This runtime-only dependency cannot be repaired by relocating the script; old execution-loop semantics are outside the bounded build/reference repair. No acceptance lane was run or claimed here.
+

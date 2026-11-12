@@ -20,6 +20,7 @@ from pathlib import Path
 # Local Imports
 from ..build import cargo
 from ..process import spawn_flags
+from ..test import focused
 from . import transport
 
 # Type Checking Imports
@@ -46,6 +47,11 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--features")
     parser.add_argument("--target")
     parser.add_argument("--exact")
+    parser.add_argument("--story", help="Run One Rust Story Module in a Focused Package")
+    parser.add_argument("--changed", nargs="+", help="Run Rust Tests Affected by These Repository Paths")
+    parser.add_argument("--plan", action="store_true", help="Print Focused Cargo Commands Without Compiling")
+    parser.add_argument("--no-run", action="store_true", help="Compile the Selected Rust Tests Without Running Them")
+    parser.add_argument("--timings", action="store_true", help="Retain Native Cargo Build Timings")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--coverage", action="store_true")
     parser.add_argument("--repository", action="store_true")
@@ -63,7 +69,46 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--artifacts")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
+    parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
     args = parser.parse_args(arguments)
+    if args.cargo is not None:
+        if args.operation != "build" or args.package or not args.cargo or args.cargo[0] not in ("build", "check", "rustc"):
+            parser.error("--cargo requires build and a native build, check or rustc command")
+        if not any(
+            argument in ("-p", "--package") or argument.startswith("--package=") or argument.startswith("-p") and len(argument) > 2
+            for argument in args.cargo[1:]
+        ):
+            parser.error("--cargo requires an explicit Cargo package")
+        if (
+            args.profile != "dev"
+            or args.check
+            or args.features
+            or args.target
+            or args.exact
+            or args.story
+            or args.changed
+            or args.plan
+            or args.no_run
+            or args.artifact != "product"
+            or args.language not in (None, "rust")
+        ):
+            parser.error("pass compiler selectors after --cargo")
+        transport.receive()
+        command = args.cargo[1:]
+        if "--locked" not in command:
+            command = ["--locked", *command]
+        if args.timings and not any(argument == "--timings" or argument.startswith("--timings=") for argument in command):
+            command = ["--timings", *command]
+        return cargo.focused(Path.cwd(), args.cargo[0], command)
+    if args.timings and not (
+        args.changed
+        and args.operation == "test"
+        or args.package
+        and args.operation in ("build", "test")
+        or args.operation == "build"
+        and args.artifact == "tests"
+    ):
+        parser.error("--timings requires a focused build/test or the Tests artifact")
     transport.receive()
     if args.operation == "screenshots":
         from ..screenshots.run import main as screenshots
@@ -83,6 +128,27 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("the selected operation has no implementation for this language")
     if args.operation == "build" and args.check and not args.package:
         parser.error("build --check requires --package")
+    if args.changed:
+        if args.operation != "test" or any(
+            (args.package, args.features, args.exact, args.story, args.target, args.select, args.coverage, args.wheel, args.starter)
+        ):
+            parser.error("--changed selects test packages, targets and required features from paths")
+        if args.language not in (None, "rust") or args.profile != "dev":
+            parser.error("--changed selects Rust tests in the Cargo test profile")
+        try:
+            return focused.changed(Path.cwd(), args.changed, args.layer, plan=args.plan, no_run=args.no_run, timings=args.timings)
+        except ValueError as error:
+            parser.error(str(error))
+    if args.story and (args.operation != "test" or not args.package or args.exact or args.select):
+        parser.error("--story requires a focused test package and cannot combine with --exact or --select")
+    if args.package and args.operation == "test" and args.exact and args.select:
+        parser.error("choose either --exact or --select")
+    if (args.plan or args.no_run) and not args.package:
+        parser.error("--plan and --no-run require a focused package or --changed")
+    if (args.plan or args.timings) and args.operation not in ("build", "test"):
+        parser.error("--plan and --timings require build or test")
+    if args.no_run and args.operation != "test":
+        parser.error("--no-run requires test")
     if args.features and not args.package:
         parser.error("--features requires --package")
     if args.package and args.operation == "check":
@@ -122,20 +188,50 @@ def main(arguments: list[str] | None = None) -> int:
             parser.error("--package requires build or test")
         if args.language not in (None, "rust"):
             parser.error("--package selects Cargo packages")
+        if args.operation == "test" and args.artifact == "tests":
+            from ..test import run
+
+            if any((args.features, args.timings, args.no_run, args.plan, args.coverage)):
+                parser.error("archived tests consume existing bytes; compiler and coverage options require a source test")
+            target = args.target or ("lib" if args.layer == "unit" else args.layer) or ("integration" if args.story else None)
+            if not target:
+                parser.error("archived package tests require --target or --layer")
+            category = (
+                "unit"
+                if target == "lib"
+                else next((value for value in ("acceptance", "system") if target == value or target.startswith(f"{value}-")), "integration")
+            )
+            identity = args.package if target == "lib" else f"{args.package}::{target}"
+            selection = ["-E", f"binary_id(={identity})"]
+            if args.exact:
+                selection += ["--", "--exact", args.exact]
+            elif args.story or args.select:
+                selection += [args.story or args.select]
+            return run.test(Path.cwd(), category, "rust", ".", args.profile, selection)
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]
+        if args.timings:
+            command.insert(0, "--timings")
         if args.features:
             command += ["--features", args.features]
         if operation == "test":
-            if not args.target:
-                parser.error("focused tests require --target lib or a test target name")
             if args.profile != "dev":
                 parser.error("focused tests use the Cargo test profile")
-            command += ["--lib"] if args.target == "lib" else ["--test", args.target]
+            target = args.target or ("lib" if args.layer == "unit" else args.layer) or ("integration" if args.story else None)
+            command += ["--lib"] if target == "lib" else ["--test", target] if target else ["--tests"]
+            if args.no_run:
+                command += ["--no-run"]
             if args.exact:
                 command += [args.exact, "--", "--exact"]
+            elif args.story or args.select:
+                command += [args.story or args.select]
         else:
             command += ["--profile", args.profile]
+        if args.plan:
+            if operation == "test":
+                return focused.run(Path.cwd(), command, plan=True)
+            print(focused.display(operation, command))
+            return 0
         return cargo.focused(Path.cwd(), operation, command)
     if args.features:
         parser.error("--features requires a focused package build or test")
@@ -178,7 +274,7 @@ def main(arguments: list[str] | None = None) -> int:
         elif args.artifact == "bench":
             tasks = [("build:rust:bench", ["--binary", args.binary] if args.binary else [])]
         elif args.artifact == "tests":
-            tasks = [("build:rust:tests", profile)]
+            tasks = [("build:rust:tests", profile + (["--timings"] if args.timings else []))]
         elif args.language:
             tasks = [(f"build:{args.language}", profile)]
         else:

@@ -101,7 +101,9 @@ pub enum Error {
     #[error("local state task: {0}")]
     Task(#[from] tokio::task::JoinError),
 
-    #[error("storage root is incompatible with this build: {0}; choose a fresh root")]
+    #[error(
+        "storage root is incompatible with this build: {0}; back up this root before an explicit reset, or choose a fresh root; existing data has been preserved"
+    )]
     Incompatible(String),
 
     #[error("invalid storage catalog operation: {0}")]

@@ -223,7 +223,8 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let captured = harmos::storage::ReadBatch::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
-    let mut prepared = dokime_runtime::report::Renderer.execution(captured, outputs, &manager.cursor_saved()).unwrap();
+    let mut prepared =
+        dokime_runtime::report::Renderer.execution(captured, outputs, &manager.cursor_saved()).unwrap().prepare_publication();
     let seal = prepared.save_dependencies(&manager, &execution.finished_at.clone().unwrap(), &revision).await.unwrap();
     let html = dokime_runtime::storage::read_file_bytes(&manager, &seal.report).await.unwrap();
     let html = String::from_utf8(html.as_slice().to_vec()).unwrap();

@@ -319,6 +319,8 @@ Bug reports, focused fixes, clearer examples and equipment integrations are
 welcome. Read [Contributing](docs/CONTRIBUTING.md) for setup and the review workflow.
 Frozen documents share the live card query path, retain complete authored tables
 and include every repeated-section page at the sealed evidence cut.
+Rendering a selected document returns temporary output; durable report publication
+and sealing happen separately, after rendering succeeds.
 
 The [storage benchmarks](docs/CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
 suite using Dokime's default settings and SQLite backend, including writes, reads,

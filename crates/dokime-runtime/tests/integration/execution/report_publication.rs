@@ -139,7 +139,7 @@ pub(crate) async fn dependency_publication_retry() {
         let boundary = input.evidence_through.clone();
         let input = harmos::storage::ReadBatch::new(input);
         let outputs = Vec::new();
-        let mut report = dokime_runtime::report::Renderer.execution(input, outputs, &manager.cursor_saved()).unwrap();
+        let mut report = dokime_runtime::report::Renderer.execution(input, outputs, &manager.cursor_saved()).unwrap().prepare_publication();
         let sealed_at = execution.finished_at.as_ref().unwrap();
         assert!(report.save_dependencies(&manager, sealed_at, &revision).await.is_err(), "{suffix} must interrupt dependency publication");
         assert!(fault.failures() > 0, "the selected dependency must reach the real backend");
@@ -209,7 +209,8 @@ pub(crate) async fn dependency_publication_retry() {
     });
     *fault.append_boundary.lock().unwrap() = Some(boundary.clone());
     let initial_window = manager.mutation_window().unwrap().id;
-    let mut report = dokime_runtime::report::Renderer.execution(input.clone(), Vec::new(), &manager.cursor_saved()).unwrap();
+    let mut report =
+        dokime_runtime::report::Renderer.execution(input.clone(), Vec::new(), &manager.cursor_saved()).unwrap().prepare_publication();
     let sealed_at = execution.finished_at.as_ref().unwrap();
     // Age The Public Retry Window Before Writing The Native Report.
     tokio::time::pause();
@@ -227,7 +228,8 @@ pub(crate) async fn dependency_publication_retry() {
     boundary.calls.lock().unwrap().clear();
     boundary.advance_after_append.store(true, std::sync::atomic::Ordering::SeqCst);
     boundary.lose_append_reply.store(true, std::sync::atomic::Ordering::SeqCst);
-    let mut ambiguous = dokime_runtime::report::Renderer.execution(input, Vec::new(), &manager.cursor_saved()).unwrap();
+    let mut ambiguous =
+        dokime_runtime::report::Renderer.execution(input, Vec::new(), &manager.cursor_saved()).unwrap().prepare_publication();
     tokio::time::pause();
     tokio::time::advance(Duration::from_secs(250)).await;
     tokio::time::resume();
@@ -310,3 +312,115 @@ pub(crate) async fn admitted_create_window() {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn fixed_snapshot_document_render_does_not_publish() {
+    // Complete And Seal One Execution
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let suite = fixture_suite(&["passed"]);
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    let cycle = super::published_cycle(&runtime, &cycle_id).await;
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let execution = &cycle.test_executions[0];
+    let snapshot = runtime.execution_snapshot(&execution.test_execution_id).await.unwrap();
+    let original_context = snapshot.context().unwrap().clone();
+    let before = runtime.storage().status().accepted;
+
+    // Select A Document Without Changing The Saved Definitions
+    let document = dokime_runtime::document::DocumentDefinition::new("Selected Document");
+    let document_id = document.document_id.clone();
+    let rendered = runtime.render_execution_document(&snapshot, document.clone()).await.unwrap();
+    let mut bytes = Vec::new();
+    rendered.write_html(&mut bytes).unwrap();
+    let html = String::from_utf8(bytes).unwrap();
+    let payload = crate::service_support::reports::parse(&html);
+    let documents = payload["case_runs"][0]["documents"].as_object().unwrap();
+    assert_eq!(documents.len(), 1);
+    assert_eq!(documents[document_id.as_str()]["definition"]["document_id"], document_id.as_str());
+    assert_eq!(snapshot.context().unwrap(), &original_context);
+    assert_eq!(runtime.storage().status().accepted, before);
+
+    // Refuse An Uncaptured View Without Entering Finalization
+    let uncaptured = dokime_runtime::runtime::ExecutionView::open(
+        runtime.storage(),
+        &execution.test_execution_id,
+        harmos::storage::ObjectVersion::Latest,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(runtime.render_execution_document(&uncaptured, document).await.is_err());
+    assert_eq!(runtime.storage().status().accepted, before);
+    assert_eq!(snapshot.execution().saved, execution.saved);
+    drop((rendered, snapshot, uncaptured, runtime));
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn rendered_output_requires_explicit_publication() {
+    // Open An Empty Store
+    let root = tempdir().unwrap();
+    let primary = Arc::new(Backend::primary(root.path().to_owned()).await.unwrap());
+    let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        primary.history().clone(),
+        dokime_runtime::config::storage_state_defaults(),
+    ));
+    let manager = Manager::new(StorageBackends { primary, state }, crate::service_support::budgets::story_settings()).unwrap();
+    let owner = crate::service_support::reports::storage_runtime(&manager).await;
+
+    // Freeze A Complete Input Without Publishing It
+    let mut input: CapturedExecutionReportInput =
+        serde_json::from_str(include_str!("../../../src/report/fixtures/execution-report-input.json")).unwrap();
+    input.input.records = Default::default();
+    input.input.telemetry = Default::default();
+    let execution = &input.input.cycle.test_executions[0];
+    let receipt = manager.write_object(&Execution::try_from(execution).unwrap()).await.unwrap();
+    let revision = ExecutionRevision {
+        execution_id: execution.test_execution_id.clone(),
+        version: receipt.version,
+        position: receipt.position.clone(),
+    };
+    input.execution = Some(revision.clone());
+    input.evidence_through = receipt.position;
+    manager.flush().await.unwrap();
+    let before = manager.status().accepted;
+
+    // Refuse A Broken Capture Without Publishing Files Or A Seal
+    let mut broken = input.clone();
+    broken.context.cycle.cycle.test_cycle_id = TestCycleId::from_seed("different-cycle");
+    let failed = dokime_runtime::report::Renderer.execution(harmos::storage::ReadBatch::new(broken), Vec::new(), &manager.cursor_saved());
+    assert!(failed.is_err());
+    assert_eq!(manager.status().accepted, before);
+
+    // Read And Discard A Temporary Render Without Publishing It
+    let rendered = dokime_runtime::report::Renderer
+        .execution(harmos::storage::ReadBatch::new(input.clone()), Vec::new(), &manager.cursor_saved())
+        .unwrap();
+    let mut first = Vec::new();
+    rendered.write_html(&mut first).unwrap();
+    let mut repeated = Vec::new();
+    rendered.write_html(&mut repeated).unwrap();
+    assert!(!first.is_empty());
+    assert_eq!(first, repeated);
+    drop(rendered);
+    assert_eq!(manager.status().accepted, before);
+
+    // Select A Render For Durable Dependencies Without Sealing Its Execution
+    let sealed_at = input.input.cycle.test_executions[0].finished_at.clone().unwrap();
+    let rendered =
+        dokime_runtime::report::Renderer.execution(harmos::storage::ReadBatch::new(input), Vec::new(), &manager.cursor_saved()).unwrap();
+    let mut publication = rendered.prepare_publication();
+    let seal = publication.save_dependencies(&manager, &sealed_at, &revision).await.unwrap();
+    let bytes = dokime_runtime::storage::read_file_bytes(&manager, &seal.report).await.unwrap();
+    assert_eq!(bytes.as_slice(), first.as_slice());
+    let stored =
+        manager.read_object::<Execution>(revision.execution_id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
+    assert!(stored.value.restore().unwrap().saved.is_none());
+    drop((stored, publication));
+    owner.shutdown().await.unwrap();
+}

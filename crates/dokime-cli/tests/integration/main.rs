@@ -14,6 +14,7 @@
 mod backend_profiles;
 mod commands;
 mod execution_inputs;
+mod new_project;
 mod operation_inputs;
 mod proto_export;
 

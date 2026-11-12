@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import cargo, paths
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output
@@ -59,6 +59,7 @@ def prepare(*, check: bool = True) -> None:
         with messages.open("w", encoding="utf-8") as output:
             subprocess.run(
                 ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"],
+                env=cargo.compiler_environment("dev"),
                 cwd=ROOT,
                 check=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

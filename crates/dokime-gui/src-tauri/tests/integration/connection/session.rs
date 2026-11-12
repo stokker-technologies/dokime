@@ -183,8 +183,7 @@ async fn transport_and_secrets() {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn negotiation_matches_fixture() {
-    let scenarios: Vec<serde_json::Value> =
-        serde_json::from_str(include_str!("../../../../../../sdk/python/tests/integration/client/fixtures/negotiation.json")).unwrap();
+    let scenarios: Vec<serde_json::Value> = serde_json::from_str(include_str!("../../fixtures/negotiation.json")).unwrap();
 
     for case in scenarios {
         let mut service = Service::new("backend");

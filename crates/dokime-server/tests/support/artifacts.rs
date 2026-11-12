@@ -44,7 +44,7 @@ pub fn host_binary() -> PathBuf {
 }
 
 pub fn host_plugin_bundle() -> PathBuf {
-    artifact("plugins/plugin-host.dokime")
+    artifact("fixtures/plugins/plugin-host.dokime")
 }
 
 pub fn plugin_obc_bundle() -> PathBuf {
