@@ -33,3 +33,55 @@ enum PluginState {
   PLUGIN_STATE_UNAVAILABLE = 4;
   PLUGIN_STATE_FAILED = 5;
 }
+
+// Managed calls use the same payloads and allow explicit cancellation and input finish.
+service Plugins {
+  rpc List(.dokime.v1.ListPlugins) returns (.dokime.v1.PluginEntries);
+  rpc RunList(stream .dokime.v1.PluginsListRunInput) returns (stream .dokime.v1.PluginsListRunOutput);
+  rpc Add(.dokime.v1.AddRemotePlugin) returns (.dokime.v1.Plugin);
+  rpc RunAdd(stream .dokime.v1.PluginsAddRunInput) returns (stream .dokime.v1.PluginsAddRunOutput);
+  rpc Remove(.dokime.v1.RemovePlugin) returns (.dokime.v1.RemovePluginResponse);
+  rpc RunRemove(stream .dokime.v1.PluginsRemoveRunInput) returns (stream .dokime.v1.PluginsRemoveRunOutput);
+}
+
+message PluginsListCancellation {}
+message PluginsListRunInput {
+  oneof value {
+    ListPlugins request = 1;
+    PluginsListCancellation cancel = 3;
+    PluginsListCancellation finish = 4;
+  }
+}
+message PluginsListRunOutput {
+  oneof value {
+    PluginEntries response = 2;
+  }
+}
+
+message PluginsAddCancellation {}
+message PluginsAddRunInput {
+  oneof value {
+    AddRemotePlugin request = 1;
+    PluginsAddCancellation cancel = 3;
+    PluginsAddCancellation finish = 4;
+  }
+}
+message PluginsAddRunOutput {
+  oneof value {
+    Plugin response = 2;
+  }
+}
+
+message PluginsRemoveCancellation {}
+message PluginsRemoveRunInput {
+  oneof value {
+    RemovePlugin request = 1;
+    PluginsRemoveCancellation cancel = 3;
+    PluginsRemoveCancellation finish = 4;
+  }
+}
+message PluginsRemoveRunOutput {
+  oneof value {
+    RemovePluginResponse response = 2;
+  }
+}

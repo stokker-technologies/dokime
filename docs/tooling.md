@@ -249,7 +249,10 @@ and imports the native extension with isolated Python path handling.
 ## Protocol Generation
 
 `proto/dokime/v1/` owns the checked-in execution, plugin, context-operation,
-catalog and document contracts. The Harmos transport is copied read-only under
+catalog and document contracts. Backend, Appearance and Plugins also declare
+their client services and managed-call envelopes here; generation emits their
+Rust client/server interfaces with the messages. Host adoption and the remaining
+service contracts are tracked in the gRPC change. The Harmos transport is copied read-only under
 `proto/harmos/v1/` and must match the adopted Harmos revision.
 
 ```sh

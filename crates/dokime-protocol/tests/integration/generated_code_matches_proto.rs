@@ -183,3 +183,73 @@ fn typed_plot_builders_produce_canonical_document_messages() {
     assert_eq!(variants[4].interval, Some(XyInterval::Sigma as i32));
     assert_eq!(Plot::contour(scan.field("value")).id("stable").label("Temperature Map").metadata.as_ref().unwrap().identifier, "stable");
 }
+
+#[test]
+fn client_service_managed_envelopes() {
+    use dokime_protocol::v1::*;
+    use prost::Message;
+    use prost_reflect::{DynamicMessage, Kind, ReflectMessage};
+
+    // Discover Each Ordinary Method And Its Managed Counterpart.
+    let pool = dokime_protocol::descriptor_pool();
+    let services = pool.services().filter(|service| service.package_name() == "dokime.v1").collect::<Vec<_>>();
+    assert!(!services.is_empty());
+    for service in services {
+        for method in service.methods().filter(|method| !method.name().starts_with("Run")) {
+            let managed = service.methods().find(|candidate| candidate.name() == format!("Run{}", method.name())).unwrap();
+            assert!(managed.is_client_streaming() && managed.is_server_streaming());
+            assert_eq!(managed.input().get_field_by_name("request").unwrap().kind(), Kind::Message(method.input()));
+            let primary = method.output();
+            let response =
+                if method.is_server_streaming() { primary.get_field_by_name("response").unwrap().kind() } else { Kind::Message(primary) };
+            assert_eq!(managed.output().get_field_by_name("response").unwrap().kind(), response);
+        }
+    }
+
+    // Open A Health Call Using Its Generated Request And Authoritative Descriptor.
+    let service = pool.get_service_by_name("dokime.v1.Backend").unwrap();
+    let method = service.methods().find(|method| method.name() == "RunGetHealth").unwrap();
+    let opening = BackendGetHealthRunInput {
+        value: Some(backend_get_health_run_input::Value::Request(GetBackendHealth {})),
+    };
+    let bytes = opening.encode_to_vec();
+    let opening = DynamicMessage::decode(method.input(), bytes.as_slice()).unwrap();
+    assert_eq!(opening.get_field_by_name("request").unwrap().as_message().unwrap().descriptor(), GetBackendHealth {}.descriptor());
+    let health = BackendHealth {
+        backend_id: "bench".into(),
+        epoch: "boot".into(),
+        readiness: BackendReadiness::Ready as i32,
+        ..Default::default()
+    };
+    let reply = BackendGetHealthRunOutput {
+        value: Some(backend_get_health_run_output::Value::Response(health.clone())),
+    };
+    let bytes = reply.encode_to_vec();
+    let reply = DynamicMessage::decode(method.output(), bytes.as_slice()).unwrap();
+    assert_eq!(reply.get_field_by_name("response").unwrap().as_message().unwrap().transcode_to::<BackendHealth>().unwrap(), health);
+
+    // Read The Same Stream Item And Settlement Through Both Generated Envelopes.
+    let log = LogFrame {
+        level: LogLevel::Info as i32,
+        target: "instrument".into(),
+        message: "Connected".into(),
+        ..Default::default()
+    };
+    let item = BackendWatchLogsOutput {
+        value: Some(backend_watch_logs_output::Value::Item(log.clone())),
+    };
+    let decoded = BackendWatchLogsRunOutput::decode(item.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(decoded.value, Some(backend_watch_logs_run_output::Value::Item(log)));
+    let completed = BackendWatchLogsRunOutput {
+        value: Some(backend_watch_logs_run_output::Value::Response(BackendWatchLogsCompletion {})),
+    };
+    let decoded = BackendWatchLogsOutput::decode(completed.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(decoded.value, Some(backend_watch_logs_output::Value::Response(BackendWatchLogsCompletion {})));
+
+    // Preserve Explicit Cancellation Without Turning It Into Another Request.
+    let cancelled = BackendGetHealthRunInput {
+        value: Some(backend_get_health_run_input::Value::Cancel(BackendGetHealthCancellation {})),
+    };
+    let decoded = BackendGetHealthRunInput::decode(cancelled.encode_to_vec().as_slice()).unwrap();
+    assert!(matches!(decoded.value, Some(backend_get_health_run_input::Value::Cancel(_))));
+}

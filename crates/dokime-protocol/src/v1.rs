@@ -134,6 +134,43 @@ pub struct AppearanceFailure {
     pub kind: i32,
 }
 #[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct AppearanceGetAppearanceCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct AppearanceGetAppearanceRunInput {
+    #[prost(oneof = "appearance_get_appearance_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<appearance_get_appearance_run_input::Value>,
+}
+/// Nested message and enum types in `AppearanceGetAppearanceRunInput`.
+pub mod appearance_get_appearance_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::GetAppearance),
+        #[prost(message, tag = "3")]
+        Cancel(super::AppearanceGetAppearanceCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::AppearanceGetAppearanceCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AppearanceGetAppearanceRunOutput {
+    #[prost(oneof = "appearance_get_appearance_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<appearance_get_appearance_run_output::Value>,
+}
+/// Nested message and enum types in `AppearanceGetAppearanceRunOutput`.
+pub mod appearance_get_appearance_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::AppearanceSnapshot),
+    }
+}
+#[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum LogoVariant {
@@ -242,6 +279,400 @@ impl AppearanceFailureKind {
             "APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE" => Some(Self::AssetUnavailable),
             _ => None,
         }
+    }
+}
+/// Generated client implementations.
+pub mod appearance_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug, Clone)]
+    pub struct AppearanceClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl AppearanceClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> AppearanceClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> AppearanceClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            AppearanceClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        pub async fn get_appearance(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetAppearance>,
+        ) -> std::result::Result<
+            tonic::Response<super::AppearanceSnapshot>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Appearance/GetAppearance",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Appearance", "GetAppearance"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_get_appearance(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::AppearanceGetAppearanceRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<
+                tonic::codec::Streaming<super::AppearanceGetAppearanceRunOutput>,
+            >,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Appearance/RunGetAppearance",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Appearance", "RunGetAppearance"));
+            self.inner.streaming(req, path, codec).await
+        }
+    }
+}
+/// Generated server implementations.
+pub mod appearance_server {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    /// Generated trait containing gRPC methods that should be implemented for use with AppearanceServer.
+    #[async_trait]
+    pub trait Appearance: std::marker::Send + std::marker::Sync + 'static {
+        async fn get_appearance(
+            &self,
+            request: tonic::Request<super::GetAppearance>,
+        ) -> std::result::Result<
+            tonic::Response<super::AppearanceSnapshot>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the RunGetAppearance method.
+        type RunGetAppearanceStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::AppearanceGetAppearanceRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_get_appearance(
+            &self,
+            request: tonic::Request<
+                tonic::Streaming<super::AppearanceGetAppearanceRunInput>,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunGetAppearanceStream>,
+            tonic::Status,
+        >;
+    }
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug)]
+    pub struct AppearanceServer<T> {
+        inner: Arc<T>,
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
+    }
+    impl<T> AppearanceServer<T> {
+        pub fn new(inner: T) -> Self {
+            Self::from_arc(Arc::new(inner))
+        }
+        pub fn from_arc(inner: Arc<T>) -> Self {
+            Self {
+                inner,
+                accept_compression_encodings: Default::default(),
+                send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
+            }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
+        {
+            InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
+    }
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for AppearanceServer<T>
+    where
+        T: Appearance,
+        B: Body + std::marker::Send + 'static,
+        B::Error: Into<StdError> + std::marker::Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+        fn poll_ready(
+            &mut self,
+            _cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn call(&mut self, req: http::Request<B>) -> Self::Future {
+            match req.uri().path() {
+                "/dokime.v1.Appearance/GetAppearance" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetAppearanceSvc<T: Appearance>(pub Arc<T>);
+                    impl<T: Appearance> tonic::server::UnaryService<super::GetAppearance>
+                    for GetAppearanceSvc<T> {
+                        type Response = super::AppearanceSnapshot;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetAppearance>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Appearance>::get_appearance(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetAppearanceSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Appearance/RunGetAppearance" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunGetAppearanceSvc<T: Appearance>(pub Arc<T>);
+                    impl<
+                        T: Appearance,
+                    > tonic::server::StreamingService<
+                        super::AppearanceGetAppearanceRunInput,
+                    > for RunGetAppearanceSvc<T> {
+                        type Response = super::AppearanceGetAppearanceRunOutput;
+                        type ResponseStream = T::RunGetAppearanceStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::AppearanceGetAppearanceRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Appearance>::run_get_appearance(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunGetAppearanceSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
+            }
+        }
+    }
+    impl<T> Clone for AppearanceServer<T> {
+        fn clone(&self) -> Self {
+            let inner = self.inner.clone();
+            Self {
+                inner,
+                accept_compression_encodings: self.accept_compression_encodings,
+                send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
+            }
+        }
+    }
+    /// Generated gRPC service name
+    pub const SERVICE_NAME: &str = "dokime.v1.Appearance";
+    impl<T> tonic::server::NamedService for AppearanceServer<T> {
+        const NAME: &'static str = SERVICE_NAME;
     }
 }
 /// Host-native client operations retain their existing dokime.v1.Backend paths.
@@ -515,6 +946,294 @@ pub struct DiagnosticsBundleCompletion {
     pub sha256: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetIdentityCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetIdentityRunInput {
+    #[prost(oneof = "backend_get_identity_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_get_identity_run_input::Value>,
+}
+/// Nested message and enum types in `BackendGetIdentityRunInput`.
+pub mod backend_get_identity_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::GetBackendIdentity),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendGetIdentityCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendGetIdentityCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetIdentityRunOutput {
+    #[prost(oneof = "backend_get_identity_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<backend_get_identity_run_output::Value>,
+}
+/// Nested message and enum types in `BackendGetIdentityRunOutput`.
+pub mod backend_get_identity_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::BackendIdentity),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetHealthCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetHealthRunInput {
+    #[prost(oneof = "backend_get_health_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_get_health_run_input::Value>,
+}
+/// Nested message and enum types in `BackendGetHealthRunInput`.
+pub mod backend_get_health_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::GetBackendHealth),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendGetHealthCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendGetHealthCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetHealthRunOutput {
+    #[prost(oneof = "backend_get_health_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<backend_get_health_run_output::Value>,
+}
+/// Nested message and enum types in `BackendGetHealthRunOutput`.
+pub mod backend_get_health_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::BackendHealth),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetAvailabilityCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetAvailabilityRunInput {
+    #[prost(oneof = "backend_get_availability_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_get_availability_run_input::Value>,
+}
+/// Nested message and enum types in `BackendGetAvailabilityRunInput`.
+pub mod backend_get_availability_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::GetBackendAvailability),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendGetAvailabilityCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendGetAvailabilityCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendGetAvailabilityRunOutput {
+    #[prost(oneof = "backend_get_availability_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<backend_get_availability_run_output::Value>,
+}
+/// Nested message and enum types in `BackendGetAvailabilityRunOutput`.
+pub mod backend_get_availability_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::BackendAvailability),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchLogsCompletion {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendWatchLogsOutput {
+    #[prost(oneof = "backend_watch_logs_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_watch_logs_output::Value>,
+}
+/// Nested message and enum types in `BackendWatchLogsOutput`.
+pub mod backend_watch_logs_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::LogFrame),
+        #[prost(message, tag = "2")]
+        Response(super::BackendWatchLogsCompletion),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchLogsCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchLogsRunInput {
+    #[prost(oneof = "backend_watch_logs_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_watch_logs_run_input::Value>,
+}
+/// Nested message and enum types in `BackendWatchLogsRunInput`.
+pub mod backend_watch_logs_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::WatchBackendLogs),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendWatchLogsCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendWatchLogsCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendWatchLogsRunOutput {
+    #[prost(oneof = "backend_watch_logs_run_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_watch_logs_run_output::Value>,
+}
+/// Nested message and enum types in `BackendWatchLogsRunOutput`.
+pub mod backend_watch_logs_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::LogFrame),
+        #[prost(message, tag = "2")]
+        Response(super::BackendWatchLogsCompletion),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchTraceCompletion {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendWatchTraceOutput {
+    #[prost(oneof = "backend_watch_trace_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_watch_trace_output::Value>,
+}
+/// Nested message and enum types in `BackendWatchTraceOutput`.
+pub mod backend_watch_trace_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::TraceBatch),
+        #[prost(message, tag = "2")]
+        Response(super::BackendWatchTraceCompletion),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchTraceCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendWatchTraceRunInput {
+    #[prost(oneof = "backend_watch_trace_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_watch_trace_run_input::Value>,
+}
+/// Nested message and enum types in `BackendWatchTraceRunInput`.
+pub mod backend_watch_trace_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::WatchBackendTrace),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendWatchTraceCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendWatchTraceCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendWatchTraceRunOutput {
+    #[prost(oneof = "backend_watch_trace_run_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_watch_trace_run_output::Value>,
+}
+/// Nested message and enum types in `BackendWatchTraceRunOutput`.
+pub mod backend_watch_trace_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::TraceBatch),
+        #[prost(message, tag = "2")]
+        Response(super::BackendWatchTraceCompletion),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendCollectDiagnosticsCompletion {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendCollectDiagnosticsOutput {
+    #[prost(oneof = "backend_collect_diagnostics_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_collect_diagnostics_output::Value>,
+}
+/// Nested message and enum types in `BackendCollectDiagnosticsOutput`.
+pub mod backend_collect_diagnostics_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::DiagnosticsBundleFrame),
+        #[prost(message, tag = "2")]
+        Response(super::BackendCollectDiagnosticsCompletion),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendCollectDiagnosticsCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BackendCollectDiagnosticsRunInput {
+    #[prost(oneof = "backend_collect_diagnostics_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<backend_collect_diagnostics_run_input::Value>,
+}
+/// Nested message and enum types in `BackendCollectDiagnosticsRunInput`.
+pub mod backend_collect_diagnostics_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::CollectBackendDiagnostics),
+        #[prost(message, tag = "3")]
+        Cancel(super::BackendCollectDiagnosticsCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::BackendCollectDiagnosticsCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BackendCollectDiagnosticsRunOutput {
+    #[prost(oneof = "backend_collect_diagnostics_run_output::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<backend_collect_diagnostics_run_output::Value>,
+}
+/// Nested message and enum types in `BackendCollectDiagnosticsRunOutput`.
+pub mod backend_collect_diagnostics_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Item(super::DiagnosticsBundleFrame),
+        #[prost(message, tag = "2")]
+        Response(super::BackendCollectDiagnosticsCompletion),
+    }
+}
+#[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum BackendReadiness {
@@ -587,6 +1306,1248 @@ impl LogLevel {
             "LOG_LEVEL_ERROR" => Some(Self::Error),
             _ => None,
         }
+    }
+}
+/// Generated client implementations.
+pub mod backend_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug, Clone)]
+    pub struct BackendClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl BackendClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> BackendClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> BackendClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            BackendClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        pub async fn get_identity(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetBackendIdentity>,
+        ) -> std::result::Result<
+            tonic::Response<super::BackendIdentity>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/GetIdentity",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "GetIdentity"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_get_identity(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendGetIdentityRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendGetIdentityRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunGetIdentity",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunGetIdentity"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn get_health(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetBackendHealth>,
+        ) -> std::result::Result<tonic::Response<super::BackendHealth>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/GetHealth",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "GetHealth"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_get_health(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendGetHealthRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendGetHealthRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunGetHealth",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunGetHealth"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn get_availability(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetBackendAvailability>,
+        ) -> std::result::Result<
+            tonic::Response<super::BackendAvailability>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/GetAvailability",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "GetAvailability"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_get_availability(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendGetAvailabilityRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<
+                tonic::codec::Streaming<super::BackendGetAvailabilityRunOutput>,
+            >,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunGetAvailability",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunGetAvailability"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn watch_logs(
+            &mut self,
+            request: impl tonic::IntoRequest<super::WatchBackendLogs>,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendWatchLogsOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/WatchLogs",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "WatchLogs"));
+            self.inner.server_streaming(req, path, codec).await
+        }
+        pub async fn run_watch_logs(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendWatchLogsRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendWatchLogsRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunWatchLogs",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunWatchLogs"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn watch_trace(
+            &mut self,
+            request: impl tonic::IntoRequest<super::WatchBackendTrace>,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendWatchTraceOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/WatchTrace",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "WatchTrace"));
+            self.inner.server_streaming(req, path, codec).await
+        }
+        pub async fn run_watch_trace(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendWatchTraceRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::BackendWatchTraceRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunWatchTrace",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunWatchTrace"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn collect_diagnostics(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CollectBackendDiagnostics>,
+        ) -> std::result::Result<
+            tonic::Response<
+                tonic::codec::Streaming<super::BackendCollectDiagnosticsOutput>,
+            >,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/CollectDiagnostics",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "CollectDiagnostics"));
+            self.inner.server_streaming(req, path, codec).await
+        }
+        pub async fn run_collect_diagnostics(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::BackendCollectDiagnosticsRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<
+                tonic::codec::Streaming<super::BackendCollectDiagnosticsRunOutput>,
+            >,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Backend/RunCollectDiagnostics",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Backend", "RunCollectDiagnostics"));
+            self.inner.streaming(req, path, codec).await
+        }
+    }
+}
+/// Generated server implementations.
+pub mod backend_server {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    /// Generated trait containing gRPC methods that should be implemented for use with BackendServer.
+    #[async_trait]
+    pub trait Backend: std::marker::Send + std::marker::Sync + 'static {
+        async fn get_identity(
+            &self,
+            request: tonic::Request<super::GetBackendIdentity>,
+        ) -> std::result::Result<tonic::Response<super::BackendIdentity>, tonic::Status>;
+        /// Server streaming response type for the RunGetIdentity method.
+        type RunGetIdentityStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendGetIdentityRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_get_identity(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::BackendGetIdentityRunInput>>,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunGetIdentityStream>,
+            tonic::Status,
+        >;
+        async fn get_health(
+            &self,
+            request: tonic::Request<super::GetBackendHealth>,
+        ) -> std::result::Result<tonic::Response<super::BackendHealth>, tonic::Status>;
+        /// Server streaming response type for the RunGetHealth method.
+        type RunGetHealthStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendGetHealthRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_get_health(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::BackendGetHealthRunInput>>,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunGetHealthStream>,
+            tonic::Status,
+        >;
+        async fn get_availability(
+            &self,
+            request: tonic::Request<super::GetBackendAvailability>,
+        ) -> std::result::Result<
+            tonic::Response<super::BackendAvailability>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the RunGetAvailability method.
+        type RunGetAvailabilityStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendGetAvailabilityRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_get_availability(
+            &self,
+            request: tonic::Request<
+                tonic::Streaming<super::BackendGetAvailabilityRunInput>,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunGetAvailabilityStream>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the WatchLogs method.
+        type WatchLogsStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::BackendWatchLogsOutput, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn watch_logs(
+            &self,
+            request: tonic::Request<super::WatchBackendLogs>,
+        ) -> std::result::Result<tonic::Response<Self::WatchLogsStream>, tonic::Status>;
+        /// Server streaming response type for the RunWatchLogs method.
+        type RunWatchLogsStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendWatchLogsRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_watch_logs(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::BackendWatchLogsRunInput>>,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunWatchLogsStream>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the WatchTrace method.
+        type WatchTraceStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::BackendWatchTraceOutput, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn watch_trace(
+            &self,
+            request: tonic::Request<super::WatchBackendTrace>,
+        ) -> std::result::Result<tonic::Response<Self::WatchTraceStream>, tonic::Status>;
+        /// Server streaming response type for the RunWatchTrace method.
+        type RunWatchTraceStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendWatchTraceRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_watch_trace(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::BackendWatchTraceRunInput>>,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunWatchTraceStream>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the CollectDiagnostics method.
+        type CollectDiagnosticsStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendCollectDiagnosticsOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn collect_diagnostics(
+            &self,
+            request: tonic::Request<super::CollectBackendDiagnostics>,
+        ) -> std::result::Result<
+            tonic::Response<Self::CollectDiagnosticsStream>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the RunCollectDiagnostics method.
+        type RunCollectDiagnosticsStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::BackendCollectDiagnosticsRunOutput,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_collect_diagnostics(
+            &self,
+            request: tonic::Request<
+                tonic::Streaming<super::BackendCollectDiagnosticsRunInput>,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<Self::RunCollectDiagnosticsStream>,
+            tonic::Status,
+        >;
+    }
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug)]
+    pub struct BackendServer<T> {
+        inner: Arc<T>,
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
+    }
+    impl<T> BackendServer<T> {
+        pub fn new(inner: T) -> Self {
+            Self::from_arc(Arc::new(inner))
+        }
+        pub fn from_arc(inner: Arc<T>) -> Self {
+            Self {
+                inner,
+                accept_compression_encodings: Default::default(),
+                send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
+            }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
+        {
+            InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
+    }
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for BackendServer<T>
+    where
+        T: Backend,
+        B: Body + std::marker::Send + 'static,
+        B::Error: Into<StdError> + std::marker::Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+        fn poll_ready(
+            &mut self,
+            _cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn call(&mut self, req: http::Request<B>) -> Self::Future {
+            match req.uri().path() {
+                "/dokime.v1.Backend/GetIdentity" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetIdentitySvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::UnaryService<super::GetBackendIdentity>
+                    for GetIdentitySvc<T> {
+                        type Response = super::BackendIdentity;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetBackendIdentity>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::get_identity(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetIdentitySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunGetIdentity" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunGetIdentitySvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<super::BackendGetIdentityRunInput>
+                    for RunGetIdentitySvc<T> {
+                        type Response = super::BackendGetIdentityRunOutput;
+                        type ResponseStream = T::RunGetIdentityStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendGetIdentityRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_get_identity(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunGetIdentitySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/GetHealth" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetHealthSvc<T: Backend>(pub Arc<T>);
+                    impl<T: Backend> tonic::server::UnaryService<super::GetBackendHealth>
+                    for GetHealthSvc<T> {
+                        type Response = super::BackendHealth;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetBackendHealth>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::get_health(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetHealthSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunGetHealth" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunGetHealthSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<super::BackendGetHealthRunInput>
+                    for RunGetHealthSvc<T> {
+                        type Response = super::BackendGetHealthRunOutput;
+                        type ResponseStream = T::RunGetHealthStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendGetHealthRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_get_health(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunGetHealthSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/GetAvailability" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetAvailabilitySvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::UnaryService<super::GetBackendAvailability>
+                    for GetAvailabilitySvc<T> {
+                        type Response = super::BackendAvailability;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetBackendAvailability>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::get_availability(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetAvailabilitySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunGetAvailability" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunGetAvailabilitySvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<
+                        super::BackendGetAvailabilityRunInput,
+                    > for RunGetAvailabilitySvc<T> {
+                        type Response = super::BackendGetAvailabilityRunOutput;
+                        type ResponseStream = T::RunGetAvailabilityStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendGetAvailabilityRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_get_availability(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunGetAvailabilitySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/WatchLogs" => {
+                    #[allow(non_camel_case_types)]
+                    struct WatchLogsSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::ServerStreamingService<super::WatchBackendLogs>
+                    for WatchLogsSvc<T> {
+                        type Response = super::BackendWatchLogsOutput;
+                        type ResponseStream = T::WatchLogsStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::WatchBackendLogs>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::watch_logs(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = WatchLogsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunWatchLogs" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunWatchLogsSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<super::BackendWatchLogsRunInput>
+                    for RunWatchLogsSvc<T> {
+                        type Response = super::BackendWatchLogsRunOutput;
+                        type ResponseStream = T::RunWatchLogsStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendWatchLogsRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_watch_logs(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunWatchLogsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/WatchTrace" => {
+                    #[allow(non_camel_case_types)]
+                    struct WatchTraceSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::ServerStreamingService<super::WatchBackendTrace>
+                    for WatchTraceSvc<T> {
+                        type Response = super::BackendWatchTraceOutput;
+                        type ResponseStream = T::WatchTraceStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::WatchBackendTrace>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::watch_trace(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = WatchTraceSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunWatchTrace" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunWatchTraceSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<super::BackendWatchTraceRunInput>
+                    for RunWatchTraceSvc<T> {
+                        type Response = super::BackendWatchTraceRunOutput;
+                        type ResponseStream = T::RunWatchTraceStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendWatchTraceRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_watch_trace(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunWatchTraceSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/CollectDiagnostics" => {
+                    #[allow(non_camel_case_types)]
+                    struct CollectDiagnosticsSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::ServerStreamingService<
+                        super::CollectBackendDiagnostics,
+                    > for CollectDiagnosticsSvc<T> {
+                        type Response = super::BackendCollectDiagnosticsOutput;
+                        type ResponseStream = T::CollectDiagnosticsStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CollectBackendDiagnostics>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::collect_diagnostics(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CollectDiagnosticsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Backend/RunCollectDiagnostics" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunCollectDiagnosticsSvc<T: Backend>(pub Arc<T>);
+                    impl<
+                        T: Backend,
+                    > tonic::server::StreamingService<
+                        super::BackendCollectDiagnosticsRunInput,
+                    > for RunCollectDiagnosticsSvc<T> {
+                        type Response = super::BackendCollectDiagnosticsRunOutput;
+                        type ResponseStream = T::RunCollectDiagnosticsStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::BackendCollectDiagnosticsRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Backend>::run_collect_diagnostics(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunCollectDiagnosticsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
+            }
+        }
+    }
+    impl<T> Clone for BackendServer<T> {
+        fn clone(&self) -> Self {
+            let inner = self.inner.clone();
+            Self {
+                inner,
+                accept_compression_encodings: self.accept_compression_encodings,
+                send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
+            }
+        }
+    }
+    /// Generated gRPC service name
+    pub const SERVICE_NAME: &str = "dokime.v1.Backend";
+    impl<T> tonic::server::NamedService for BackendServer<T> {
+        const NAME: &'static str = SERVICE_NAME;
     }
 }
 #[allow(clippy::all)]
@@ -3120,6 +5081,117 @@ pub struct RemotePlugin {
     pub url: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsListCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsListRunInput {
+    #[prost(oneof = "plugins_list_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<plugins_list_run_input::Value>,
+}
+/// Nested message and enum types in `PluginsListRunInput`.
+pub mod plugins_list_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::ListPlugins),
+        #[prost(message, tag = "3")]
+        Cancel(super::PluginsListCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::PluginsListCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PluginsListRunOutput {
+    #[prost(oneof = "plugins_list_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<plugins_list_run_output::Value>,
+}
+/// Nested message and enum types in `PluginsListRunOutput`.
+pub mod plugins_list_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::PluginEntries),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsAddCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsAddRunInput {
+    #[prost(oneof = "plugins_add_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<plugins_add_run_input::Value>,
+}
+/// Nested message and enum types in `PluginsAddRunInput`.
+pub mod plugins_add_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::AddRemotePlugin),
+        #[prost(message, tag = "3")]
+        Cancel(super::PluginsAddCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::PluginsAddCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PluginsAddRunOutput {
+    #[prost(oneof = "plugins_add_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<plugins_add_run_output::Value>,
+}
+/// Nested message and enum types in `PluginsAddRunOutput`.
+pub mod plugins_add_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::Plugin),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsRemoveCancellation {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsRemoveRunInput {
+    #[prost(oneof = "plugins_remove_run_input::Value", tags = "1, 3, 4")]
+    pub value: ::core::option::Option<plugins_remove_run_input::Value>,
+}
+/// Nested message and enum types in `PluginsRemoveRunInput`.
+pub mod plugins_remove_run_input {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Request(super::RemovePlugin),
+        #[prost(message, tag = "3")]
+        Cancel(super::PluginsRemoveCancellation),
+        #[prost(message, tag = "4")]
+        Finish(super::PluginsRemoveCancellation),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PluginsRemoveRunOutput {
+    #[prost(oneof = "plugins_remove_run_output::Value", tags = "2")]
+    pub value: ::core::option::Option<plugins_remove_run_output::Value>,
+}
+/// Nested message and enum types in `PluginsRemoveRunOutput`.
+pub mod plugins_remove_run_output {
+    #[allow(clippy::all)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "2")]
+        Response(super::RemovePluginResponse),
+    }
+}
+#[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum PluginState {
@@ -3156,5 +5228,679 @@ impl PluginState {
             "PLUGIN_STATE_FAILED" => Some(Self::Failed),
             _ => None,
         }
+    }
+}
+/// Generated client implementations.
+pub mod plugins_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug, Clone)]
+    pub struct PluginsClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl PluginsClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> PluginsClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> PluginsClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            PluginsClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        pub async fn list(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListPlugins>,
+        ) -> std::result::Result<tonic::Response<super::PluginEntries>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/dokime.v1.Plugins/List");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("dokime.v1.Plugins", "List"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_list(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::PluginsListRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::PluginsListRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Plugins/RunList",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut().insert(GrpcMethod::new("dokime.v1.Plugins", "RunList"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn add(
+            &mut self,
+            request: impl tonic::IntoRequest<super::AddRemotePlugin>,
+        ) -> std::result::Result<tonic::Response<super::Plugin>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/dokime.v1.Plugins/Add");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("dokime.v1.Plugins", "Add"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_add(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::PluginsAddRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::PluginsAddRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/dokime.v1.Plugins/RunAdd");
+            let mut req = request.into_streaming_request();
+            req.extensions_mut().insert(GrpcMethod::new("dokime.v1.Plugins", "RunAdd"));
+            self.inner.streaming(req, path, codec).await
+        }
+        pub async fn remove(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RemovePlugin>,
+        ) -> std::result::Result<
+            tonic::Response<super::RemovePluginResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/dokime.v1.Plugins/Remove");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("dokime.v1.Plugins", "Remove"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn run_remove(
+            &mut self,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::PluginsRemoveRunInput,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::PluginsRemoveRunOutput>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.v1.Plugins/RunRemove",
+            );
+            let mut req = request.into_streaming_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.v1.Plugins", "RunRemove"));
+            self.inner.streaming(req, path, codec).await
+        }
+    }
+}
+/// Generated server implementations.
+pub mod plugins_server {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    /// Generated trait containing gRPC methods that should be implemented for use with PluginsServer.
+    #[async_trait]
+    pub trait Plugins: std::marker::Send + std::marker::Sync + 'static {
+        async fn list(
+            &self,
+            request: tonic::Request<super::ListPlugins>,
+        ) -> std::result::Result<tonic::Response<super::PluginEntries>, tonic::Status>;
+        /// Server streaming response type for the RunList method.
+        type RunListStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::PluginsListRunOutput, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_list(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::PluginsListRunInput>>,
+        ) -> std::result::Result<tonic::Response<Self::RunListStream>, tonic::Status>;
+        async fn add(
+            &self,
+            request: tonic::Request<super::AddRemotePlugin>,
+        ) -> std::result::Result<tonic::Response<super::Plugin>, tonic::Status>;
+        /// Server streaming response type for the RunAdd method.
+        type RunAddStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::PluginsAddRunOutput, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_add(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::PluginsAddRunInput>>,
+        ) -> std::result::Result<tonic::Response<Self::RunAddStream>, tonic::Status>;
+        async fn remove(
+            &self,
+            request: tonic::Request<super::RemovePlugin>,
+        ) -> std::result::Result<
+            tonic::Response<super::RemovePluginResponse>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the RunRemove method.
+        type RunRemoveStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::PluginsRemoveRunOutput, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn run_remove(
+            &self,
+            request: tonic::Request<tonic::Streaming<super::PluginsRemoveRunInput>>,
+        ) -> std::result::Result<tonic::Response<Self::RunRemoveStream>, tonic::Status>;
+    }
+    /// Managed calls use the same payloads and allow explicit cancellation and input finish.
+    #[derive(Debug)]
+    pub struct PluginsServer<T> {
+        inner: Arc<T>,
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
+    }
+    impl<T> PluginsServer<T> {
+        pub fn new(inner: T) -> Self {
+            Self::from_arc(Arc::new(inner))
+        }
+        pub fn from_arc(inner: Arc<T>) -> Self {
+            Self {
+                inner,
+                accept_compression_encodings: Default::default(),
+                send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
+            }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
+        {
+            InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
+    }
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for PluginsServer<T>
+    where
+        T: Plugins,
+        B: Body + std::marker::Send + 'static,
+        B::Error: Into<StdError> + std::marker::Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+        fn poll_ready(
+            &mut self,
+            _cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn call(&mut self, req: http::Request<B>) -> Self::Future {
+            match req.uri().path() {
+                "/dokime.v1.Plugins/List" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListSvc<T: Plugins>(pub Arc<T>);
+                    impl<T: Plugins> tonic::server::UnaryService<super::ListPlugins>
+                    for ListSvc<T> {
+                        type Response = super::PluginEntries;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListPlugins>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::list(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Plugins/RunList" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunListSvc<T: Plugins>(pub Arc<T>);
+                    impl<
+                        T: Plugins,
+                    > tonic::server::StreamingService<super::PluginsListRunInput>
+                    for RunListSvc<T> {
+                        type Response = super::PluginsListRunOutput;
+                        type ResponseStream = T::RunListStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::PluginsListRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::run_list(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunListSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Plugins/Add" => {
+                    #[allow(non_camel_case_types)]
+                    struct AddSvc<T: Plugins>(pub Arc<T>);
+                    impl<T: Plugins> tonic::server::UnaryService<super::AddRemotePlugin>
+                    for AddSvc<T> {
+                        type Response = super::Plugin;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::AddRemotePlugin>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::add(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = AddSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Plugins/RunAdd" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunAddSvc<T: Plugins>(pub Arc<T>);
+                    impl<
+                        T: Plugins,
+                    > tonic::server::StreamingService<super::PluginsAddRunInput>
+                    for RunAddSvc<T> {
+                        type Response = super::PluginsAddRunOutput;
+                        type ResponseStream = T::RunAddStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::PluginsAddRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::run_add(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunAddSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Plugins/Remove" => {
+                    #[allow(non_camel_case_types)]
+                    struct RemoveSvc<T: Plugins>(pub Arc<T>);
+                    impl<T: Plugins> tonic::server::UnaryService<super::RemovePlugin>
+                    for RemoveSvc<T> {
+                        type Response = super::RemovePluginResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RemovePlugin>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::remove(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RemoveSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.v1.Plugins/RunRemove" => {
+                    #[allow(non_camel_case_types)]
+                    struct RunRemoveSvc<T: Plugins>(pub Arc<T>);
+                    impl<
+                        T: Plugins,
+                    > tonic::server::StreamingService<super::PluginsRemoveRunInput>
+                    for RunRemoveSvc<T> {
+                        type Response = super::PluginsRemoveRunOutput;
+                        type ResponseStream = T::RunRemoveStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                tonic::Streaming<super::PluginsRemoveRunInput>,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Plugins>::run_remove(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RunRemoveSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
+            }
+        }
+    }
+    impl<T> Clone for PluginsServer<T> {
+        fn clone(&self) -> Self {
+            let inner = self.inner.clone();
+            Self {
+                inner,
+                accept_compression_encodings: self.accept_compression_encodings,
+                send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
+            }
+        }
+    }
+    /// Generated gRPC service name
+    pub const SERVICE_NAME: &str = "dokime.v1.Plugins";
+    impl<T> tonic::server::NamedService for PluginsServer<T> {
+        const NAME: &'static str = SERVICE_NAME;
     }
 }

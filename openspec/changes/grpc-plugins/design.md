@@ -888,6 +888,30 @@ the revision supplying it. This follow-up does not precede or block 2.8.3, 3.1,
 3.8.2 or any other adoption work. Dokime adds no local adapters, JSON round trips,
 handwritten protobuf client codecs or compatibility facades.
 
+#### Execution Scope on gRPC Plugin Invocations
+
+At the selected revision, `harmos-runtime/src/plugin/grpc/invoke.rs::invoke`
+always constructs `harmos.v1.Request` with `scope: String::new()`. The native
+invocation API does not expose an execution scope override. The Rust SDK's
+`Context::execution` correctly refuses a lifecycle envelope when its execution
+identity differs from the transport scope. A frozen origin in the payload does
+not replace the transport's inherited execution scope.
+
+Request to Harmos: provide a host-native invocation entry point that accepts an
+opaque caller-owned scope and carries it unchanged into `Request.scope` for the
+attached plugin activation. Preserve that scope for child host and cross-plugin
+calls and retain invocation identity, attempt policy, cancellation and typed
+settlement. Do not add Dokime-specific identities or infer scope from a payload.
+Prove two execution scopes against the real gRPC placement, including lifecycle
+calls, nested host calls, scope isolation and cleanup, and return a published
+exact revision. No sampled resource or wall-clock assertions are needed.
+
+This request holds only the execution-scoped dispatch call site in 3.3. Managed
+and remote attachment, catalog decoding, pure materialization, protocol/native
+owner replacement, persistence, evidence/outcome rules and the other listed
+work continue. Dokime does not add a local transport fork, bypass SDK scope
+validation or pass execution identity through an unrelated field.
+
 ### Protobuf Consumer Cutover Dependency
 
 The current `harmos = 0.1.14` operation declarations require `Portable` for
