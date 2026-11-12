@@ -72,7 +72,7 @@ def build(profile: str) -> None:
 
     # Extend The Tests Producer's Existing Fixture Inventory.
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"
-    record = json.loads(stamp.read_text(encoding="utf-8"))
+    record = json.loads(stamp.read_text(encoding="utf-8")) if stamp.is_file() else {"files": {}, "metadata": {}}
     files = [*record["files"], *(path.relative_to(root).as_posix() for path in output.rglob("*") if path.is_file())]
     archive.stamp(root, profile, files, record["metadata"])
 
