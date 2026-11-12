@@ -14,6 +14,7 @@
 mod error;
 mod execution;
 mod outcome;
+mod plans;
 mod query;
 mod report;
 mod store;

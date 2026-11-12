@@ -75,7 +75,7 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "samples", "streams"] {
+            if tables != ["cases", "evidence", "executions", "plugins", "registrations", "reports", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -86,6 +86,8 @@ impl Store {
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE INDEX samples_stream_position ON samples(execution,stream,position);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+                CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE cases(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;

@@ -21,7 +21,10 @@ pub mod execution_create_cycle;
 pub mod execution_get_execution;
 pub mod health_list_health;
 pub mod observation_watch_execution_progress;
+mod planning;
 pub mod planning_materialize_template;
+pub mod planning_preview_selection;
+pub mod planning_register_selection;
 pub mod plugins_add;
 pub mod plugins_list;
 mod projection;
@@ -66,6 +69,11 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Planning/RunRegisterSelection",
+    "/dokime.v1.Planning/RunPreviewSelection",
+    "/dokime.v1.Planning/RunMaterializeTemplate",
+    "/dokime.v1.Planning/RegisterSelection",
+    "/dokime.v1.Planning/PreviewSelection",
     "/dokime.v1.Prompts/RunRespond",
     "/dokime.v1.Prompts/RunListPending",
     "/dokime.v1.Prompts/RunListDefinitions",
