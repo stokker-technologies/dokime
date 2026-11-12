@@ -15,6 +15,7 @@ latest reads SHALL select already durable data without a flush barrier.
 - **WHEN** a query resolves a durable cut during a running execution
 - **THEN** it does not flush admitted unsaved evidence or change execution lifecycle
 - **AND** transport adapters use the runtime semantics without redeclaration
+- **AND** latest-durable/no-wait acceptance is conditional on the measured payload-size-independent p95 durable-lag bound in the operation-contracts delta (250 ms proposed; owner sets the final number)
 
 #### Scenario: Contract Discovery
 

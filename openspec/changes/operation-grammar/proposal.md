@@ -26,13 +26,13 @@ discussion. Proposed requirement deltas describe the target, not landed behavior
 | Domain verbs | Proposed | Only stated side effects that ordinary verbs would hide; retain lifecycle distinctions and name the clock wait Sleep. |
 | Position-resolved reads | Owner | One path per kind; optional `at`, default latest, reply `resolved_at`; same rule for pages and watches. Running executions resolve to the live frontier, sealed executions to their seal. |
 | Earlier positions | Owner | Accept only a position returned by a previous reply for consistency, or the seal; no arbitrary historical selection and no separate checkpoint family. |
-| Latest and durability | Proposed | Resolve latest durable without waiting for accepted unsaved data; no accepted-data snapshot. Use a write receipt's durable position for read-your-write. Measure lag before lock. |
+| Latest and durability | Owner, conditional on the measured bound | Resolve latest durable without waiting; durable lag must meet a payload-size-independent p95 bound (250 ms proposed; owner sets the final number). Use durable receipts for read-your-write. Benchmark small, multi-megabyte and mixed loads; first reduce flush pieces and flush at a size threshold; accepted-data snapshots are the fallback if that is insufficient. |
 | Execution cancellation | Owner | Cancel only running executions; refuse queued cancellation with an error naming the action. Stop finishes at a safe boundary; Cancel interrupts. |
 | Execution rename | Owner | Rename one execution, never every attempt of its case. |
 | Uploads | Proposed; recommendation accepted by owner | One resumable unary session mechanism for clients and plugins, replacing streaming uploads. |
 | Streaming twins | Proposed | Never generate automatically; use unary operations and resource Get/Watch. A managed stream replaces the ordinary route only where a cooperative final result after cancellation is promised. |
 | Shared primitives | Proposed | One bounded paging shape, `(history, sequence)` positions, protobuf Timestamp/Duration, Failure, retry policy, and accepted/durable receipts. |
-| SDK ownership | Open | Whether the library retains language SDKs or the product SDKs implement the plugin protocol directly; no choice made. |
+| SDK ownership | Owner | Other products will host plugins on the library: it retains language SDKs, and product SDKs build on them. Protocol, SDKs and conformance remain self-sufficient and free of product vocabulary. Only four-language plugin parity and generic managed-client coverage remain open under SDKs. |
 
 **BREAKING:** replace the old operation names, requests and reply carriers; remove
 all 132 automatic Run routes, duplicate Runtime identity/health, separate
@@ -73,7 +73,7 @@ the old loop and obsolete consumers; no compatibility aliases are proposed.
 
 The sibling library owns generic protocol/storage primitives. Its exact revised
 revision must be published and pinned before final combined validation. SDK
-placement, retention, managed cancellation coverage and other lock questions are
-recorded in design.md. README and product guides describe current behavior and
+parity/client coverage, the final durable-lag bound, retention, managed cancellation
+coverage and other lock questions are recorded in design.md. README and product guides describe current behavior and
 need no edits in this proposal-only delivery; implementation must update affected
 claims and examples with the consumer cutover.

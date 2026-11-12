@@ -8,15 +8,15 @@ The owner lock and unresolved decisions precede implementation. Source inventory
 `crates/dokime-client/`, `crates/dokime-cli/`, `crates/dokime-gui/`, affected
 old domain/runtime/server consumers and stories, protocol/tooling generation,
 README and maintained product/query/SDK/GUI guides. The sibling library owns its
-primitives, SDK decision and conformance work in its own change. Refine exact
+primitives, language SDKs and conformance work in its own change. Refine exact
 files after lock without dropping any mapped capability.
 
 ## 1. Owner Lock and Dependencies
 
-- [ ] 1.1 Measure accepted-to-durable/read-visible lag and synchronous commit cost in the library and independent product store using the owning benchmark workflow; record the resulting design decision without adding time/load assertions to correctness tests.
-- [ ] 1.2 Resolve every open question in design.md with the owner, including SDK ownership, parity, measured lag acceptance, cut retention/restart, file deletion, managed settlement and exact shared shapes; verify a dated lock and matching shared wording in both repositories before implementation.
+- [ ] 1.1 Add a reusable durable-lag benchmark case to the Nightly benchmark set under the stable storage-bench case naming convention, usable by a consumer against its own backend, including the independent product store. Report p50, p95 and maximum for small samples at a high rate, multi-megabyte batches and a mix; compare each p95 with the owner-set payload-size-independent bound (250 ms proposed). If missed, first try smaller flush pieces and size-triggered flushing, then remeasure; reads against an accepted-data snapshot are the named fallback if insufficient, not work to build now. Use benchmark measurements, never wall-clock test assertions; deterministically test byte-bounded flushes and splitting large input so each commit stays within the configured size.
+- [ ] 1.2 Resolve every open question in design.md with the owner, including four-language plugin parity, all-four-versus-Rust-only generic managed-client coverage, the final p95 durable-lag bound, cut retention/restart, file deletion, managed settlement and exact shared shapes; verify a dated lock and matching shared wording in both repositories before implementation.
 - [ ] 1.3 Reconcile `grpc-plugins`, `storage-interface`, `imported-executions` and affected existing query contracts with the locked grammar; verify one source inventory and one desktop/new-host cutover rather than separate migrations.
-- [ ] 1.4 Complete the sibling library prerequisites under its own owner: canonical primitives/policy, authoritative services, conditional managed streaming, upload/session support and the selected SDK ownership; verify targeted native proof and a published exact revision before removing integration-only overrides and pinning it for final validation.
+- [ ] 1.4 Complete the sibling library prerequisites under its own owner: canonical primitives/policy, authoritative services, conditional managed streaming, upload/session support and self-sufficient protocol, language SDKs and conformance without product vocabulary; verify targeted native proof and a published exact revision before removing integration-only overrides and pinning it for final validation.
 
 ## 2. Canonical Contracts While the Existing Desktop Still Builds
 
@@ -38,10 +38,10 @@ files after lock without dropping any mapped capability.
 
 ## 4. SDK and CLI Consumers
 
-- [ ] 4.1 Apply the owner's SDK placement decision to Rust plugin/client authoring, generated contracts, descriptors and fixtures; verify focused external-consumer and new-host stories and update the Rust SDK guide without parallel legacy contracts.
-- [ ] 4.2 Apply that same decision to Python, including pure generated clients, authoring, context helpers and examples; verify focused fresh-package/client/plugin stories and update its README in the same slice.
-- [ ] 4.3 Apply that same decision to C#, including the agreed resource-store/cancellation semantics and frozen descriptors; verify focused managed/remote stories and generated-service coverage with matching SDK documentation.
-- [ ] 4.4 Apply that same decision to C++, including generated clients, publication and explicit lifecycle close; verify focused managed/remote stories and update its guide alongside the implementation.
+- [ ] 4.1 Keep the Rust product SDK building on the library SDK while migrating plugin/client authoring, generated contracts, descriptors and fixtures; verify focused external-consumer and new-host stories and update the Rust SDK guide without parallel legacy contracts.
+- [ ] 4.2 Keep the Python product SDK building on the library SDK, including pure generated clients, authoring, context helpers and examples; verify focused fresh-package/client/plugin stories and update its README in the same slice.
+- [ ] 4.3 Keep the C# product SDK building on the library SDK, including the agreed resource-store/cancellation semantics and frozen descriptors; verify focused managed/remote stories and generated-service coverage with matching SDK documentation.
+- [ ] 4.4 Keep the C++ product SDK building on the library SDK, including generated clients, publication and explicit lifecycle close; verify focused managed/remote stories and update its guide alongside the implementation.
 - [ ] 4.5 Migrate `dokime-client`, CLI discovery/dynamic calls, lifecycle commands, uploads/downloads and retained-cut paging to the canonical new host; verify focused CLI/client stories, lost replies and sample requests, and update README/product/query examples with correct current behavior.
 
 ## 5. One Desktop Cutover and Clean Removal

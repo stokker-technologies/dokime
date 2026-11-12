@@ -20,8 +20,11 @@ interfaces. Preserve durability, scoped authority, bounded physical storage
 work, finalization, publication and cooperative cancellation where promised.
 The library owns generic primitives; product lifecycle and evidence selection
 remain product-owned. No arbitrary time travel, second scheduler, automatic
-streaming projection, accepted-data snapshot or storage reset is proposed.
-SDK ownership remains open; tasks must not assume its answer.
+streaming projection or storage reset is proposed. An accepted-data snapshot is
+the named fallback if bounded durable lag cannot be achieved, not work to build now.
+The owner decided on 2026-11-12 that language SDKs stay in the library and product
+SDKs build on them: other products will also host plugins on this library. Its
+protocol, SDKs and conformance suite remain self-sufficient, with no product vocabulary.
 
 ## Shared Grammar and Vocabulary
 
@@ -72,11 +75,14 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   for consistency, or a product-defined terminal boundary. Arbitrary earlier
   positions are not offered. The product decides what latest and its terminal
   boundary mean; the library does not define product lifecycles.
-- **Latest and durability (proposed):** latest resolves once, at read/watch
-  opening, to the latest durable position without waiting. It does not wait for
+- **Latest and durability (owner, conditional on the measured bound):** latest
+  resolves once, at read/watch opening, to the latest durable position without waiting. It does not wait for
   accepted data that is not yet saved. A caller that needs its own write visible
-  passes the durable position from that write's receipt as `at`. No snapshot of
-  accepted data is built. Measure visibility lag before lock.
+  passes the durable position from that write's receipt as `at`. Durable lag must
+  stay within a stated p95 bound independent of payload size (250 ms proposed;
+  owner sets the final number). Benchmark small, multi-megabyte and mixed loads;
+  accepted-data snapshots are the fallback if smaller, size-triggered flushes
+  cannot meet the bound, not work to build now.
 - **Paging (proposed):** `page_size`, `max_bytes`, `page_token`, `next_page_token`,
   `resolved_at`; tokens bind selection, ordering, cut and schema/projection revision.
   Stable ordering has an identifier tie-breaker and exclusive continuation. Bound
@@ -170,29 +176,44 @@ through the same resource reads. A cut must still bind execution state, seal,
 evidence frontier, mutable presentation, membership, schemas and document revisions
 atomically. Retaining a returned live cut for paging is not arbitrary time travel.
 
-**Proposed:** the live frontier is the latest durable frontier. Reads do not wait
-for accepted unsaved writes. A durable write receipt can supply `at` for
+**Owner, conditional on the measured bound:** the live frontier is the latest
+durable frontier. Reads do not wait for accepted unsaved writes. A durable write receipt can supply `at` for
 read-your-write; an accepted-only receipt cannot. Resource Get/Watch must expose
 the later durable receipt without inventing an implicit read barrier. Watches use
 the same durable visibility rule for subsequent changes, not an accepted-data tail.
 
+The newest durable position must trail the newest accepted data by no more than
+an explicitly stated bound at the 95th percentile, independent of payload size.
+The proposed bound is 250 ms; the owner sets the final number. A live view may
+therefore lag accepted data by a small interval, including for large payloads.
+
 Library source confirms `crates/harmos-storage/src/config.rs::FLUSH_INTERVAL` is
 100 ms; `worker.rs` requests periodic flushes and `sqlite/mod.rs` sets
-`PRAGMA synchronous=FULL` before transactional persistence. Thus a healthy live
-view is expected to lag newest accepted data by at most about that interval plus
-one commit, with no durability wait added to a read. This is an estimate, not a
-measured worst-case guarantee under backlog, scheduling or I/O stalls. Measure
-acceptance-to-durability and read visibility under representative load before lock.
-The new product `dokime-storage` is independent of `harmos-storage`; that library
-cadence is not proof of the new host's latency. Measure that path too and agree
-which component supplies the durable frontier before implementation lock.
+`PRAGMA synchronous=FULL` before transactional persistence. Flush time is added
+to the cadence and grows with the bytes written: batches target 1 MB and are capped
+at 16 MB, each committed synchronously. Nothing measures durable lag today, so
+100 ms is not proof of the required bound. The new product `dokime-storage` is
+independent of `harmos-storage`; the library cadence is not proof of the new host's
+latency. Agree which component supplies the durable frontier before lock.
 
-Alternatives not chosen (proposed): waiting for a durability barrier on every
-latest read exposes accepted data but puts flush/commit latency on reads; an
-accepted-data snapshot avoids the wait but adds another snapshot/retention owner
-and unsaved-data semantics. Neither is needed for latest-durable plus explicit
-durable receipts. These recommendations replace the reports' accepted-frontier
-and per-read-barrier suggestions, not a claim that current code already does this.
+Add a durable-lag benchmark case to the Nightly benchmark set using the stable
+case naming convention of the storage benches. Report p50, p95 and maximum lag
+under small samples at a high rate, multi-megabyte batches and a mix. Make the
+case reusable by a consumer against its own backend, including the independent
+product store. Compare measured p95 for each load with the owner-set bound.
+These are benchmark measurements, never wall-clock assertions in tests. Test the
+mechanism deterministically: flush work is bounded in bytes and large input is
+split so no single commit exceeds the configured size.
+
+If the bound is missed, first try smaller flush pieces and flushing as soon as a
+size threshold is reached, rather than only on the cadence, then remeasure.
+If that is insufficient, the named fallback is reads resolving against a snapshot
+of accepted data; do not build that fallback now. A per-read durability barrier
+was considered and not chosen because it puts flush/commit latency on reads.
+An accepted-data snapshot adds snapshot/retention ownership and unsaved-data
+semantics, but remains the fallback rather than a rejected alternative. This
+conditional owner decision replaces the reports' accepted-frontier and
+per-read-barrier suggestions, not a claim that current code already meets it.
 
 ### Representative Resource 1: Execution
 
@@ -589,7 +610,8 @@ checkout named by its report:
   Plugin Secrets explicitly describes Base64-encoded JSON, not encryption.
   Preserve the actual contract; adding encryption is a separate owner decision.
 - **Decision overrides, not source discrepancies:** both reports' latest-read
-  suggestions are replaced by proposed latest-durable/no-wait; the library report's
+  suggestions are replaced by owner-decided latest-durable/no-wait conditional on
+  the measured payload-size-independent durable-lag bound; the library report's
   full-value-only Set and bare replies are replaced by optional masks and wrappers;
   WaitTime becomes Sleep; CreateRecord/CreateLog become AppendRecords/AppendLogs.
   No arbitrary earlier cut API is carried forward.
@@ -615,19 +637,17 @@ header is stale. Generated availability is not proof of application consumption.
 
 All are open, not silently answered by snippets or operation counts. Questions
 settled by the owner (queued cancellation, one-execution rename, no arbitrary
-historical reads) are not reopened. Unary uploads remain a proposed accepted
+historical reads, library SDK ownership and conditional latest-durable reads)
+are not reopened. Unary uploads remain a proposed accepted
 recommendation in the decision register.
 
-1. **SDK ownership:** keep library language SDKs or implement the plugin protocol
-   directly in product SDKs? The inventory below supplies size and actual roles;
-   neither duplication nor deletion is authorized. Also settle whether all four
-   languages promise the Rust generic managed-client convenience, or only shared
-   plugin semantics and generated contracts. If SDKs remain, decide explicit
-   visibility and C# resource/cancellation parity versus a documented boundary.
-2. **Lag evidence:** measure accepted-to-durable and read-visible lag, including
-   synchronous commit cost, backlog and the independent new product store. Is the
-   expected roughly 100 ms plus one commit live lag acceptable? No read barrier or
-   accepted snapshot is authorized by this question.
+1. **SDK coverage:** settle plugin parity across Rust, Python, C# and C++, including
+   explicit visibility and C# resource/cancellation parity versus a documented
+   boundary. Decide whether the generic managed client exists in all four
+   languages or Rust only; library ownership is decided.
+2. **Durable-lag bound:** the owner sets the final p95 number (250 ms proposed),
+   independent of payload size. The concrete Nightly storage benchmark task in
+   tasks.md supplies the evidence; measuring lag is no longer an open question.
 3. **Retention and restart:** how long are returned live positions and mutation
    keys retained, which returned cuts survive restart, and how are mutable
    presentation, appearance, notes, documents and cycle membership pinned? Preserve
@@ -650,10 +670,10 @@ recommendation in the decision register.
    The supplied directions are proposals, not a license to guess incompatible
    details. Do not flatten native scan/index/projection work into application reads.
 
-### SDK Facts for the Open Ownership Question
+### SDK Ownership and Remaining Coverage Facts
 
-Size is a review aid, not an argument for either outcome. Counts below are current
-tracked `.rs`, `.py`, `.cs`, `.cpp`, `.hpp`, `.h` source under each `sdk/<language>/`,
+Ownership is decided; size is a review aid for the remaining coverage work.
+Counts below are current tracked `.rs`, `.py`, `.cs`, `.cpp`, `.hpp`, `.h` source under each `sdk/<language>/`,
 including source tests/examples, excluding directories named `generated` or
 `_generated` and Python `_pb2`/`_pb2_grpc` files. Counts include comments/blank lines;
 they exclude manifests, proto files and build artifacts. These are source sizes,
@@ -684,21 +704,32 @@ context conveniences; they also carry generated product clients and lifecycle
 conveniences. Rust `sdk/rust/src/client.rs` uses the library generic client while
 `client/host.rs` uses generated product stubs. Python is pure Python with generated
 services and thin async clients. C#/C++ provide plugin authoring and generated client
-surfaces. Product manifests currently depend on the library SDKs, so direct protocol
-implementation would move catalog/fingerprint, child routing and lifecycle work,
-not merely remove wrappers. Library examples and SDK stories consume their own
-SDKs; product SDK stories and new-host system stories exercise all four languages.
+surfaces. Product manifests depend on the library SDKs and will keep building on
+them. Moving SDKs into a product was considered and not chosen because a second
+plugin-hosting product would have to reimplement the plugin protocol in every
+language, and the library could not be proven end to end by itself. Library
+examples and SDK stories consume their own SDKs; product SDK stories and new-host
+system stories exercise all four languages.
 
 The library conformance tool under `tools/conformance/` needs real managed/remote
 plugin endpoints, authoritative descriptors, registration/digest and admission
 rules, invocation/child scope and failure propagation, cancellation settlement,
 clock ticks, publication and stop cleanup. It needs conforming implementations
-and fixtures, not a predetermined packaging choice. Product equivalence stories
-add materialization, prompts, evidence, seals and restart reads; protocol conformance
-does not replace them. If SDK ownership moves, preserve both kinds of proof and
-their independent consumers before deleting anything.
+and fixtures within the library's self-sufficient protocol, SDK and conformance
+suite, with no product vocabulary. Product equivalence stories add materialization,
+prompts, evidence, seals and restart reads; protocol conformance does not replace
+them. Preserve both kinds of proof and their independent consumers.
 
 ## Risks and Migration Plan
+
+Durable lag is currently unmeasured: a 100 ms cadence plus synchronous commits
+of growing batches may miss the payload-size-independent p95 bound. Prove small,
+multi-megabyte and mixed loads in the reusable Nightly storage benchmark; first
+reduce flush pieces and add size-triggered flushing if needed. If that is
+insufficient, reads against accepted-data snapshots are the named fallback,
+with additional snapshot/retention ownership and unsaved-data semantics; they
+are not built now. SDK ownership is settled, but four-language plugin parity and
+generic managed-client coverage still need agreement and proof.
 
 Pinned live cuts require retained mutable context; row hashes cannot supply that
 guarantee. Resolve retention before implementing reads. Upload sessions add calls

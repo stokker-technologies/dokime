@@ -55,6 +55,46 @@ positions or the seal; unavailable or arbitrary earlier positions SHALL fail.
 - **WHEN** a caller supplies an earlier sequence that is neither a returned compatible position nor the seal
 - **THEN** the read fails explicitly rather than offering arbitrary historical selection
 
+### Requirement: Payload-Size-Independent Durable Lag
+
+The newest durable position SHALL trail the newest accepted data by no more than
+a stated bound at the 95th percentile, independent of payload size. The proposed
+bound is 250 ms; the owner SHALL set the final number. Latest-durable/no-wait
+reads are an owner decision conditional on meeting that measured bound.
+The flush cadence alone SHALL NOT count as proof.
+
+#### Scenario: Nightly Measurement Across Payload Sizes
+
+- **WHEN** the durable-lag benchmark case runs in the Nightly benchmark set under the stable case naming convention used by the storage benches
+- **THEN** it reports p50, p95 and maximum durable lag separately for small samples at a high rate, multi-megabyte batches and a mix, comparing each p95 with the owner-set bound
+- **AND** a consumer can reuse the case against its own backend, including the independent product store, without wall-clock assertions in correctness tests
+
+#### Scenario: Deterministic Flush Bounds
+
+- **WHEN** input exceeds the configured flush size and the flush mechanism is tested deterministically
+- **THEN** the input is split into byte-bounded flush pieces and no single commit exceeds that configured size
+- **AND** the test verifies byte bounds and splitting without asserting elapsed time
+
+#### Scenario: Measured Bound Is Missed
+
+- **WHEN** any benchmark load misses the owner-set p95 bound
+- **THEN** smaller flush pieces and flushing as soon as a size threshold is reached, rather than only on the cadence, are tried first and measured again
+- **AND** if those measures are insufficient, reads resolving against a snapshot of accepted data are the named fallback; that fallback is not built now
+
+### Requirement: Library-Owned Language SDKs
+
+The library SHALL retain its language SDKs because other products will host
+plugins on it. Product SDKs SHALL keep building on them. The library protocol,
+SDKs and conformance suite SHALL remain self-sufficient with no product
+vocabulary. Remaining SDK decisions SHALL concern only plugin parity across the
+four languages and generic managed-client coverage in all four or Rust only.
+
+#### Scenario: Independent Plugin Host
+
+- **WHEN** another product hosts plugins on the library
+- **THEN** it can build on the library language SDKs without reimplementing the plugin protocol in every language
+- **AND** the library can prove its protocol end to end through its own SDKs and conformance suite without product vocabulary
+
 ### Requirement: Snapshot Then Watch
 
 Watch SHALL use the same selection and position rule as its corresponding read,
