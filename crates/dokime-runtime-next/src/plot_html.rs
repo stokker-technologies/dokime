@@ -45,9 +45,6 @@ const COLORS: [&str; 6] = ["#4477aa", "#ee6677", "#228833", "#ccbb44", "#66ccee"
 pub(crate) fn render(
     output: &mut impl Write, plot: &v1::Plot, envelope: &v1::PlotEnvelope, presentation: &v1::PlotPresentation,
 ) -> Result<()> {
-    if plot.kind == v1::PlotKind::Contour as i32 && plot.render == v1::ContourRender::Bands as i32 {
-        return Err(Error::Invalid("Render Contour Bands: Select Cells Until Report Band Geometry Is Connected".into()));
-    }
     let payload = envelope.payload.as_ref().ok_or_else(|| Error::Invalid("Render Plot: Query Its Fixed Snapshot First".into()))?;
     let count = envelope.diagnostics.as_ref().map_or(0, |diagnostics| diagnostics.raw_point_count);
     write!(
@@ -56,7 +53,6 @@ pub(crate) fn render(
         escape(plot.metadata.as_ref().map_or("", |metadata| metadata.label.as_str())),
         escape(&payload.stream)
     )?;
-    render_references(output, payload, presentation)?;
     if let Some(frame) = &payload.frame {
         render_frame(output, plot, frame)?;
     }
@@ -130,26 +126,7 @@ pub(crate) fn render(
                     }
                 }
             }
-            v1::plot_analysis_result::Kind::Contour(grid) => {
-                for row in 0..grid.rows as usize {
-                    for column in 0..grid.columns as usize {
-                        let index = row * grid.columns as usize + column;
-                        if !grid.valid.get(index).copied().unwrap_or(false) {
-                            continue;
-                        }
-                        let width = 600.0 / grid.columns.max(1) as f64;
-                        let height = 200.0 / grid.rows.max(1) as f64;
-                        write!(
-                            output,
-                            "<rect x=\"{}\" y=\"{}\" width=\"{width}\" height=\"{height}\" fill=\"{}\"><title>{}</title></rect>",
-                            20.0 + column as f64 * width,
-                            20.0 + row as f64 * height,
-                            color(grid.values[index], &grid.values),
-                            grid.values[index]
-                        )?;
-                    }
-                }
-            }
+            v1::plot_analysis_result::Kind::Contour(grid) => render_contour(output, plot, grid, &envelope.selection)?,
             v1::plot_analysis_result::Kind::GridChart(grid) => {
                 if let Some(frame) = grid.frames.first() {
                     grid_frame(output, grid, frame)?;
@@ -158,6 +135,7 @@ pub(crate) fn render(
             v1::plot_analysis_result::Kind::Error(error) => return Err(Error::Invalid(format!("Render Plot: {}", error.message))),
         }
     }
+    render_references(output, payload, presentation)?;
     write!(output, "</svg>")?;
     if let Some(v1::plot_analysis_result::Kind::GridChart(grid)) =
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
@@ -373,6 +351,133 @@ fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &v1::PlotFrame)
         }
     }
     Ok(())
+}
+fn render_contour(output: &mut impl Write, plot: &v1::Plot, grid: &v1::ContourGrid, identity: &str) -> Result<()> {
+    let rows = grid.rows as usize;
+    let columns = grid.columns as usize;
+    if rows == 0 || columns == 0 {
+        return Ok(());
+    }
+    if grid.x_edges.len() != columns + 1
+        || grid.y_edges.len() != rows + 1
+        || grid.values.len() != rows * columns
+        || grid.valid.len() != rows * columns
+    {
+        return Err(Error::Invalid("Render Contour: Restore Complete Edges, Values and Validity Cells".into()));
+    }
+    if rows == 0 || columns == 0 {
+        return Ok(());
+    }
+    let x = |position: f64| contour_coordinate(position, &grid.x_edges, plot.x_scale == v1::AxisScale::Log as i32, 20.0, 600.0);
+    let y = |position: f64| contour_coordinate(position, &grid.y_edges, plot.y_scale == v1::AxisScale::Log as i32, 220.0, -200.0);
+    let values = grid.values.iter().zip(&grid.valid).filter_map(|(value, valid)| valid.then_some(*value)).collect::<Vec<_>>();
+    let mask = format!("contour-{}", escape(identity));
+    write!(output, "<defs><clipPath id=\"{mask}\" clipPathUnits=\"userSpaceOnUse\">")?;
+    for row in 0..rows {
+        for column in 0..columns {
+            if grid.valid[row * columns + column] {
+                write!(
+                    output,
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/>",
+                    x(column as f64),
+                    y(row as f64 + 1.0),
+                    x(column as f64 + 1.0) - x(column as f64),
+                    y(row as f64) - y(row as f64 + 1.0)
+                )?;
+            }
+        }
+    }
+    write!(output, "</clipPath></defs>")?;
+    for row in 0..rows {
+        for column in 0..columns {
+            let index = row * columns + column;
+            if grid.valid[index] {
+                write!(
+                    output,
+                    "<rect data-contour-cell=\"{index}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"><title>{}</title></rect>",
+                    x(column as f64),
+                    y(row as f64 + 1.0),
+                    x(column as f64 + 1.0) - x(column as f64),
+                    y(row as f64) - y(row as f64 + 1.0),
+                    color(grid.values[index], &values),
+                    grid.values[index]
+                )?;
+            }
+        }
+    }
+    if plot.render != v1::ContourRender::Bands as i32 {
+        return Ok(());
+    }
+    let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
+    let max = values.iter().copied().reduce(f64::max).unwrap_or(min);
+    if min == max {
+        return Ok(());
+    }
+    write!(output, "<g clip-path=\"url(#{mask})\" data-contour-mask>")?;
+    for level in 1..=8 {
+        let threshold = min + (max - min) * level as f64 / 9.0;
+        write!(output, "<path data-contour-band=\"{threshold}\" fill=\"{}\" d=\"", color(threshold, &values))?;
+        for row in -1..rows as isize {
+            for column in -1..columns as isize {
+                let mut bits = 0;
+                for (corner, (dx, dy)) in [(0, 0), (1, 0), (1, 1), (0, 1)].into_iter().enumerate() {
+                    let c = column + dx;
+                    let r = row + dy;
+                    if c >= 0 && r >= 0 && c < columns as isize && r < rows as isize {
+                        let index = r as usize * columns + c as usize;
+                        if grid.valid[index] && grid.values[index] >= threshold {
+                            bits |= 1 << corner;
+                        }
+                    }
+                }
+                let polygons: &[&[usize]] = match bits {
+                    0 => &[],
+                    1 => &[&[0, 4, 7]],
+                    2 => &[&[1, 5, 4]],
+                    3 => &[&[0, 1, 5, 7]],
+                    4 => &[&[2, 6, 5]],
+                    5 => &[&[0, 4, 7], &[2, 6, 5]],
+                    6 => &[&[1, 2, 6, 4]],
+                    7 => &[&[0, 1, 2, 6, 7]],
+                    8 => &[&[3, 7, 6]],
+                    9 => &[&[0, 4, 6, 3]],
+                    10 => &[&[1, 5, 4], &[3, 7, 6]],
+                    11 => &[&[0, 1, 5, 6, 3]],
+                    12 => &[&[7, 5, 2, 3]],
+                    13 => &[&[0, 4, 5, 2, 3]],
+                    14 => &[&[4, 1, 2, 3, 7]],
+                    _ => &[&[0, 1, 2, 3]],
+                };
+                let points = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5)];
+                for polygon in polygons {
+                    for (index, point) in polygon.iter().enumerate() {
+                        let (dx, dy) = points[*point];
+                        write!(
+                            output,
+                            "{}{} {}",
+                            if index == 0 { "M" } else { "L" },
+                            x(column as f64 + 0.5 + dx),
+                            y(row as f64 + 0.5 + dy)
+                        )?;
+                    }
+                    write!(output, "Z")?;
+                }
+            }
+        }
+        write!(output, "\"/>")?;
+    }
+    write!(output, "</g>")?;
+    Ok(())
+}
+fn contour_coordinate(position: f64, edges: &[f64], logarithmic: bool, origin: f64, span: f64) -> f64 {
+    let transform = |value: f64| if logarithmic { value.ln() } else { value };
+    let first = transform(edges[0]);
+    let last = transform(edges[edges.len() - 1]);
+    let position = position.clamp(0.0, (edges.len() - 1) as f64);
+    let cell = (position.floor() as usize).min(edges.len() - 2);
+    let from = transform(edges[cell]);
+    let to = transform(edges[cell + 1]);
+    origin + span * ((from + (to - from) * (position - cell as f64) - first) / (last - first).max(f64::EPSILON))
 }
 fn grid_frame(output: &mut impl Write, grid: &v1::GridFrames, frame: &v1::GridFrame) -> Result<()> {
     let width = 600.0 / grid.columns.len().max(1) as f64;

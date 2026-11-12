@@ -69,18 +69,23 @@ impl Store {
             format!("SELECT {sql} FROM {rows} a WHERE {condition} ORDER BY source_ns DESC,position DESC LIMIT 1")
         };
         let connection = self.lock()?;
-        connection.create_scalar_function(
-            "dokime_sqrt",
-            1,
-            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC | rusqlite::functions::FunctionFlags::SQLITE_INNOCUOUS,
-            |context| Ok(context.get::<Option<f64>>(0)?.map(|value| value.max(0.0).sqrt())),
-        )?;
         use rusqlite::OptionalExtension;
         let value = connection.query_row(&query, [], |row| row.get::<_, rusqlite::types::Value>(0)).optional()?;
-        value
-            .map(wire_value)
-            .transpose()?
-            .ok_or_else(|| Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()))
+        let value = value
+            .ok_or_else(|| Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()))?;
+        if let Some(v1::data_expression::Kind::Literal(value)) = &expression.kind {
+            return Ok(value.clone());
+        }
+        if let Some(v1::data_expression::Kind::Parameter(key) | v1::data_expression::Kind::Dimension(key)) = &expression.kind
+            && let Some(v1::origin::Kind::PluginRun(run)) = cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref())
+            && let Some(value) = run.test_case.as_ref().and_then(|case| case.parameters.get(key))
+        {
+            return Ok(value.clone());
+        }
+        if value == rusqlite::types::Value::Null {
+            return Err(Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()));
+        }
+        wire_value(value)
     }
     pub fn document_distinct(
         &self, cut: &ExecutionCut, expression: &v1::DataExpression, order: Option<&v1::DataExpression>, filters: &[v1::PlotFilter],

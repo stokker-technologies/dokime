@@ -79,6 +79,7 @@ impl Store {
             return Err(Error::Incompatible(root.display().to_string()));
         }
         let connection = Connection::open(&database)?;
+        configure_read_functions(&connection)?;
         if exists {
             let identity: i32 = connection
                 .query_row("PRAGMA application_id", [], |row| row.get(0))
@@ -165,6 +166,7 @@ impl Store {
     }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
         let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        configure_read_functions(&connection)?;
         connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -198,6 +200,13 @@ impl Store {
             params![execution.identifier, execution.cycle, execution.encode_to_vec()],
         )?;
         Ok(())
+    }
+    pub fn cycle_is_sealed(&self, cycle: &str) -> Result<bool> {
+        Ok(self.lock()?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM executions WHERE cycle=?1) AND NOT EXISTS(SELECT 1 FROM executions WHERE cycle=?1 AND state!=2)",
+            [cycle],
+            |row| row.get(0),
+        )?)
     }
     pub fn cycle_execution_page(&self, cycle: &str, after: &str, limit: std::num::NonZeroUsize) -> Result<Vec<String>> {
         let connection = self.lock()?;
@@ -406,6 +415,16 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn configure_read_functions(connection: &Connection) -> Result<()> {
+    connection.create_scalar_function(
+        "dokime_sqrt",
+        1,
+        rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC | rusqlite::functions::FunctionFlags::SQLITE_INNOCUOUS,
+        |context| Ok(context.get::<Option<f64>>(0)?.map(|value| value.max(0.0).sqrt())),
+    )?;
+    Ok(())
+}
 
 fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     let state: Option<i32> = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0)).optional()?;

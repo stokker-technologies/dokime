@@ -146,6 +146,26 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     ..Default::default()
                 }),
         );
+        document.sections[0].cards.push(v1::Card {
+            metadata: Some(v1::Metadata {
+                identifier: "contour-card".into(),
+                ..Default::default()
+            }),
+            body: Some(v1::card::Body::Plot(v1::Plot {
+                metadata: Some(v1::Metadata {
+                    identifier: "contour".into(),
+                    ..Default::default()
+                }),
+                kind: v1::PlotKind::Contour as i32,
+                x: Some(v1::FieldReference::new("reading").field("min")),
+                y: vec![v1::FieldReference::new("reading").field("max")],
+                z: Some(v1::FieldReference::new("reading").field("min")),
+                render: v1::ContourRender::Bands as i32,
+                display_points: Some(32),
+                ..Default::default()
+            })),
+            ..Default::default()
+        });
         document.sections.push(v1::Section {
             metadata: Some(v1::Metadata {
                 identifier: "groups".into(),
@@ -180,6 +200,10 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                 ..Default::default()
             });
         }
+        document.metadata.as_mut().unwrap().attributes = std::collections::HashMap::from([
+            ("first".into(), v1::Value { kind: Some(v1::value::Kind::Integer(1)) }),
+            ("second".into(), v1::Value { kind: Some(v1::value::Kind::Integer(2)) }),
+        ]);
         let suites = v1::Suites {
             suites: vec![v1::Suite {
                 templates: vec![v1::TestCaseTemplate {
@@ -297,32 +321,42 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         let mut table_rows = 0;
         let mut completed = false;
         let mut terminal = false;
+        let mut frame_count = 0;
         while let Some(frame) = capture.message().await? {
             match frame.value.unwrap() {
-                v1::documents_capture_current_document_output::Value::Item(frame) => match frame.frame.unwrap().kind.unwrap() {
-                    v1::document_frame_frame::Kind::Binding(value) => {
-                        if let Some(v1::document_binding_result::Kind::Plot(plot)) = value.result.and_then(|result| result.kind) {
-                            binding = plot.request;
+                v1::documents_capture_current_document_output::Value::Item(frame) => {
+                    frame_count += 1;
+                    match frame.frame.unwrap().kind.unwrap() {
+                        v1::document_frame_frame::Kind::Binding(value) => {
+                            if let Some(v1::document_binding_result::Kind::Plot(plot)) = value.result.and_then(|result| result.kind)
+                                && value.source_id == "trend-card"
+                            {
+                                binding = plot.request;
+                            }
                         }
-                    }
-                    v1::document_frame_frame::Kind::SummaryTile(tile) => {
-                        assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
-                        if tile.card_id.starts_with("group-count.") {
-                            grouped_counts.push(tile.value.unwrap());
-                        } else {
-                            summaries.insert(tile.metadata.unwrap().identifier, tile.value.unwrap());
+                        v1::document_frame_frame::Kind::SummaryTile(tile) => {
+                            assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
+                            if tile.card_id.starts_with("group-count.") {
+                                grouped_counts.push(tile.value.unwrap());
+                            } else {
+                                summaries.insert(tile.metadata.unwrap().identifier, tile.value.unwrap());
+                            }
                         }
-                    }
-                    v1::document_frame_frame::Kind::TableRow(_) => table_rows += 1,
-                    v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
-                    v1::document_frame_frame::Kind::LayoutNode(node) => {
-                        if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
-                            assert!(sections.insert(section.node_id));
+                        v1::document_frame_frame::Kind::TableRow(_) => table_rows += 1,
+                        v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
+                        v1::document_frame_frame::Kind::LayoutNode(node) => {
+                            if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
+                                assert!(sections.insert(section.node_id));
+                            }
                         }
+                        v1::document_frame_frame::Kind::Completion(completion) => {
+                            assert_eq!(completion.frame_count, frame_count);
+                            assert_eq!(completion.repeat_count, 1);
+                            completed = true;
+                        }
+                        _ => (),
                     }
-                    v1::document_frame_frame::Kind::Completion(_) => completed = true,
-                    _ => (),
-                },
+                }
                 v1::documents_capture_current_document_output::Value::Response(_) => {
                     assert!(completed);
                     terminal = true;
@@ -433,6 +467,8 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         use sha2::Digest;
         assert_eq!(sha2::Sha256::digest(&html).as_slice(), rendered.sha256);
         assert!(std::str::from_utf8(&html)?.contains("<svg"));
+        assert!(std::str::from_utf8(&html)?.contains("data-contour-band="));
+        assert!(std::str::from_utf8(&html)?.contains("data-contour-mask"));
         assert!(store.reports("documents-a")?.is_empty());
 
         // Publish Explicitly and Download an Independent Cycle Report
@@ -467,6 +503,36 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         }
         assert!(terminal);
         assert!(store.reports("documents-b")?.is_empty());
+        // An Open Member Prevents Reusing a Cycle Capture as Sealed Evidence
+        store.create(&Execution {
+            identifier: "documents-open".into(),
+            cycle: "documents".into(),
+            catalog: catalog.encode_to_vec(),
+            origin: Some(v1::Origin {
+                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            }),
+            ..Default::default()
+        })?;
+        let mut open_cycle = documents
+            .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
+                scope: Some(v1::DocumentScope {
+                    cycle_id: "documents".into(),
+                    execution_id: String::new(),
+                }),
+                document_id: "default".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let mut cacheable = None;
+        while let Some(frame) = open_cycle.message().await? {
+            if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value
+                && let Some(v1::document_frame_frame::Kind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind)
+            {
+                cacheable = Some(cut.cacheable);
+            }
+        }
+        assert_eq!(cacheable, Some(false));
         process.close().await?;
         Ok::<_, Box<dyn std::error::Error>>(())
     })

@@ -37,11 +37,30 @@ pub const ID: &str = "dokime.documents.capture_current_document";
 
 /* === Structs === */
 
+struct FrameSender {
+    channel: tokio::sync::mpsc::Sender<std::result::Result<v1::DocumentsCaptureCurrentDocumentOutput, tonic::Status>>,
+    frames: std::sync::atomic::AtomicU64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl FrameSender {
+    async fn send(&self, frame: std::result::Result<v1::DocumentsCaptureCurrentDocumentOutput, tonic::Status>) -> Result<()> {
+        if matches!(
+            &frame,
+            Ok(v1::DocumentsCaptureCurrentDocumentOutput {
+                value: Some(v1::documents_capture_current_document_output::Value::Item(_))
+            })
+        ) {
+            self.frames.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.channel.send(frame).await.map_err(|_| Error::Cancelled)
+    }
+}
 
 /* === Public Functions === */
 
@@ -56,8 +75,25 @@ pub async fn handle(
     use sha2::{Digest, Sha256};
     let mut selection = request.clone();
     selection.page = None;
-    let mut identity = document.encode_to_vec();
+    let document_key = document.metadata.as_ref().map_or(request.document_id.clone(), |metadata| metadata.identifier.clone());
+    // The retained catalog bytes are stable even when decoded document maps have a new hash seed.
+    let mut identity = cut.execution.catalog.clone();
     identity.extend(selection.encode_to_vec());
+    let mut sections = document.sections.iter().collect::<Vec<_>>();
+    while let Some(section) = sections.pop() {
+        for card in &section.cards {
+            if let Some(v1::card::Body::Plot(plot)) = &card.body {
+                let id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
+                if let Some((points, technique)) = context.host.store().plot_preferences(&cut.execution.identifier, &document_key, id)? {
+                    identity.extend((id.len() as u64).to_le_bytes());
+                    identity.extend(id.as_bytes());
+                    identity.extend(points.unwrap_or(0).to_le_bytes());
+                    identity.extend(technique.to_le_bytes());
+                }
+            }
+        }
+        sections.extend(section.sections.iter());
+    }
     let binding = Sha256::digest(identity).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let epoch = context.host.identity().epoch;
     let mut offset = 0;
@@ -70,6 +106,9 @@ pub async fn handle(
         }
         let frontier = parts[3].parse::<u64>().map_err(|_| Error::Invalid("Capture Document: Supply the Returned Page Token".into()))?;
         offset = parts[4].parse::<usize>().map_err(|_| Error::Invalid("Capture Document: Supply the Returned Page Token".into()))?;
+        if offset > i64::MAX as usize {
+            return Err(Error::Invalid("Capture Document: Supply the Returned Page Position".into()));
+        }
         if frontier > cut.frontier {
             return Err(Error::Invalid("Capture Document: Refresh the Evidence Cut".into()));
         }
@@ -78,6 +117,10 @@ pub async fn handle(
     let cycle_scope = scope.execution_id.is_empty();
     let context = context.clone();
     let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+    let sender = FrameSender {
+        channel: sender,
+        frames: std::sync::atomic::AtomicU64::new(0),
+    };
     tokio::spawn(async move {
         let work = async {
             use v1::document_frame_frame::Kind;
@@ -100,7 +143,7 @@ pub async fn handle(
                 position: cut.frontier,
             };
             let header = v1::DocumentHeader {
-                document_id: document.metadata.as_ref().map_or(request.document_id.clone(), |metadata| metadata.identifier.clone()),
+                document_id: document_key.clone(),
                 metadata: document.metadata.clone(),
                 scope: Some(evidence_scope.clone()),
                 frontiers: Some(v1::DocumentFrontiers {
@@ -118,10 +161,15 @@ pub async fn handle(
                 Kind::EvidenceCut(v1::DocumentEvidenceCut {
                     cut: Some(telemetry),
                     telemetry: true,
-                    cacheable: cut.state == dokime_storage::ExecutionState::Sealed,
+                    cacheable: if cycle_scope {
+                        context.host.store().cycle_is_sealed(&cut.execution.cycle)?
+                    } else {
+                        cut.state == dokime_storage::ExecutionState::Sealed
+                    },
                 }),
             )
             .await?;
+            let repeat_count = expansion.frames.iter().filter(|frame| matches!(frame, Kind::RepeatSelection(_))).count() as u64;
             for frame in expansion.frames {
                 send(&sender, &context, frame).await?;
             }
@@ -200,8 +248,10 @@ pub async fn handle(
                 layout_node_count: ordinal,
                 section_count,
                 card_count: cards.len() as u64,
+                repeat_count,
                 ..Default::default()
             };
+            completion.frame_count = sender.frames.load(std::sync::atomic::Ordering::Relaxed) + 1;
             send(&sender, &context, Kind::StructureComplete(completion)).await?;
             for (id, card) in cards {
                 if !request.card_ids.is_empty() && !request.card_ids.contains(&id) {
@@ -322,6 +372,7 @@ pub async fn handle(
                     Some(v1::card::Body::Plot(plot)) => {
                         let prepared = async {
                             let mut plot_request = super::document_plot::request(plot, evidence_scope.clone())?;
+                            plot_request.plot_id = Some(id.clone());
                             plot_request.filters.extend(card.filters.iter().map(|filter| v1::PlotFilter {
                                 expression: filter.expression.clone(),
                                 operator: filter.operator,
@@ -336,7 +387,7 @@ pub async fn handle(
                             });
                             if let Some((points, technique)) = context.host.store().plot_preferences(
                                 &cut.execution.identifier,
-                                &request.document_id,
+                                &document_key,
                                 plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()),
                             )? {
                                 plot_request.max_points = points.map(u64::from);
@@ -383,6 +434,7 @@ pub async fn handle(
                 }
                 send(&sender, &context, Kind::CardComplete(id)).await?;
             }
+            completion.frame_count = sender.frames.load(std::sync::atomic::Ordering::Relaxed) + 1;
             send(&sender, &context, Kind::Completion(completion)).await?;
             sender
                 .send(Ok(v1::DocumentsCaptureCurrentDocumentOutput {
@@ -401,10 +453,7 @@ pub async fn handle(
 
 /* === Private Functions === */
 
-async fn send(
-    sender: &tokio::sync::mpsc::Sender<std::result::Result<v1::DocumentsCaptureCurrentDocumentOutput, tonic::Status>>, context: &Context,
-    kind: v1::document_frame_frame::Kind,
-) -> Result<()> {
+async fn send(sender: &FrameSender, context: &Context, kind: v1::document_frame_frame::Kind) -> Result<()> {
     let frame = v1::DocumentsCaptureCurrentDocumentOutput {
         value: Some(v1::documents_capture_current_document_output::Value::Item(v1::DocumentFrame {
             frame: Some(v1::DocumentFrameFrame { kind: Some(kind) }),
