@@ -176,11 +176,11 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - [ ] 5.1 Delete `<template>.run` and `.signal`, the signal and evidence-page protocol, the plugin walker and their transport.
 - [ ] 5.2 Delete the execution hand-off layer and rename what remains as the execution manager.
 - [ ] 5.3 Delete embedded plugins, the PyO3 SDK, the Python backend, stubs and wheel tasks.
-  - [x] Remove the Python variant of `plugin::remote_scripts`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (not present in this checkout yet). CLI variants remain.
-  - [x] Remove `plugin::interruptions_python`; The designated new-host replacement is `process_interruption` (not present in this checkout yet).
+  - [x] Remove the Python variant of `plugin::remote_scripts`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (present in the new-host system target). CLI variants remain.
+  - [x] Remove `plugin::interruptions_python`; The designated new-host replacement is `process_interruption` (present in the new-host system target).
   - [x] Remove the Python variants of `plugin::disconnections::disconnections`; client disconnection during a run has no new-host replacement story yet. CLI variants remain.
-  - [x] Remove `matrix::python_runs_matrix`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (not present in this checkout yet). The desktop matrix remains.
-  - [ ] Implement the designated new-host replacement stories `python_client_runs_thermal_suite_over_grpc` and `process_interruption`; neither exists at this checkout head.
+  - [x] Remove `matrix::python_runs_matrix`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (present in the new-host system target). The desktop matrix remains.
+  - [x] Integrate the designated new-host replacement stories `python_client_runs_thermal_suite_over_grpc` and `process_interruption`; both pass in each complete fifteen-story Windows run.
   - [ ] Add a new-host client-disconnection-during-run story proving retained admission and independent client survival.
   - [ ] Add a new-host partial-capture interruption story proving saved partial evidence and no completed drain claim; the deleted Python-only helper has no equivalent replacement story yet.
 - [ ] 5.4 Delete leases, sample and record delivery, replay and restart recovery during an execution.
@@ -358,6 +358,6 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 - [x] Merge the language branch and current integration branch, preserving all fifteen stories and regenerating protocol output through its task.
 - [x] Keep all three new crates in the workspace, retain SDK dependency versions, share the story hang guard and expose package/story/changed-path selection.
 - [x] Build shared language fixtures through SDK tasks, export portable fixture bytes with Tests and select the new-host system target separately on pull requests and Nightly for Linux and Windows.
-- [ ] Pass Windows format, repository/Rust/Python checks (125 tooling tests), the complete Tests producer (53 archived binaries, 16 compile contracts), eight protocol drift/routing stories, all four SDK checks and locked offline metadata. All fifteen execution-host stories pass twice with no skips, including managed/remote C# and C++ equivalence. No old-host check failures remain in this candidate. Native Linux and hosted runs remain unverified; the pre-existing named C# record-only descriptor assertion still awaits Harmos support.
+- [x] Pass Windows format, repository/Rust/Python checks (125 tooling tests), the complete Tests producer (53 archived binaries, 16 compile contracts), eight protocol drift/routing stories, all four SDK checks and locked offline metadata. All fifteen execution-host stories pass twice with no skips, including managed/remote C# and C++ equivalence. No old-host check failures remain in this candidate. Native Linux and hosted runs remain unverified; the pre-existing named C# record-only descriptor assertion still awaits Harmos support.
 
-- [x] Refresh the generated C# fixture lock when republishing the locally rebuilt development SDK. Reproduce NU1403 across committed checkpoints and pass the same publisher with native restore graph re-evaluation; preserve package hash validation and keep the lock in the fixture output. Rerun the final producer and stories after this repair.
+- [x] Refresh the generated C# fixture lock when republishing the locally rebuilt development SDK. Reproduce NU1403 across committed checkpoints and pass the same publisher with native restore graph re-evaluation; preserve package hash validation and keep the lock in the fixture output. The complete producer and both fifteen-story runs pass after this repair.
