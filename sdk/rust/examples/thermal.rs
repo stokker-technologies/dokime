@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         .requires_host::<v1::StatisticsRequest>()
         .requires_host::<v1::ReportProgress>()
         .requires_host::<v1::WriteLog>()
-        .requires::<dokime::clock::Sleep>();
+        .requires::<dokime::clock::TimeSleepRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }

@@ -101,6 +101,7 @@ def main() -> None:
             str(directory),
             "-DCMAKE_BUILD_TYPE=Debug",
             "-DDOKIME_BUILD_CONFORMANCE=ON",
+            "-DHARMOS_AUDIENCE=Host",
         ]
         if os.name == "nt":
             command += ["-G", "Visual Studio 17 2022", "-A", "x64"]

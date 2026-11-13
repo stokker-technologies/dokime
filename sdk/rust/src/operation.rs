@@ -53,7 +53,7 @@ pub(crate) trait Handler<T>: Send + Sync {
 /* === Implementations === */
 
 impl Operation {
-    pub fn new<Q, R, H>(identifier: impl Into<String>, handler: H) -> Self
+    pub fn new<Q, R, H>(identifier: impl Into<String>, visibility: harmos::Visibility, handler: H) -> Self
     where
         Q: Message,
         R: Message,
@@ -62,7 +62,7 @@ impl Operation {
         let identifier = identifier.into();
         Self {
             register: Box::new(move |executions| {
-                wire(identifier, async move |transport: &harmos::Context, request| {
+                wire(identifier, visibility, async move |transport: &harmos::Context, request| {
                     let context = Context::invocation(transport, &executions)?;
                     handler(&context, request).await
                 })
@@ -70,8 +70,8 @@ impl Operation {
             configure: Vec::new(),
         }
     }
-    pub fn visibility(self, visibility: harmos::Visibility) -> Self {
-        self.configure(move |operation| operation.visibility(visibility))
+    pub fn replay_safe(self) -> Self {
+        self.configure(|operation| operation.replay_safe())
     }
     pub fn policy(self, policy: harmos::OperationPolicy) -> Self {
         self.configure(move |operation| operation.policy(policy))
@@ -113,7 +113,7 @@ where
     Arc::new(Function(handler))
 }
 
-pub(crate) fn wire<Q, R, H>(identifier: impl Into<String>, handler: H) -> harmos::Operation
+pub(crate) fn wire<Q, R, H>(identifier: impl Into<String>, visibility: harmos::Visibility, handler: H) -> harmos::Operation
 where
     Q: Message,
     R: Message,
@@ -122,6 +122,7 @@ where
     harmos::Operation::new(identifier, async move |context: &harmos::Context, request| {
         handler(context, request).await.map_err(harmos::Error::from)
     })
+    .visibility(visibility)
 }
 
 /* === Private Functions === */

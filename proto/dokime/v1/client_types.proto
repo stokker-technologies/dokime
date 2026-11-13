@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 import "dokime/v1/host.proto";
 import "dokime/v1/plugins.proto";
 import "dokime/v1/values.proto";
-import "harmos/v1/plugin.proto";
+import "harmos/v1/types.proto";
 
 // Shared Client Message Contracts
 // Canonical values, documents, catalogs and plugin origins are imported, never mirrored.

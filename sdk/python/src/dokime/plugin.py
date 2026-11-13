@@ -21,7 +21,7 @@ from typing import Any
 import harmos
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
-from harmos.v1 import plugin_pb2 as wire
+from harmos.v1 import types_pb2 as wire
 
 # Local Imports
 from .authoring import Record, Suite, Template
@@ -173,7 +173,7 @@ class Plugin:
             f"{template.identifier}.materialize",
             request=message_type("MaterializeRequest"),
             response=message_type("TestCase"),
-            visibility=wire.VISIBILITY_PRIVATE,
+            visibility=wire.VISIBILITY_PROTECTED,
         )(execute)
 
     def _execution(self, template: Template, kind: str, handler=None, retries: int = 0):
@@ -225,13 +225,16 @@ class Plugin:
                     self._ready.pop(key, None)
 
         operation = template.operation(handler, kind) if handler is not None else f"{template.identifier}.{kind}"
-        policy = wire.OperationPolicy(attempts=retries + 1) if retries else None
+        policy = (
+            wire.OperationPolicy(retries=wire.RetryPolicy(total_attempts=retries + 1, initial={"nanos": 100_000_000})) if retries else None
+        )
         return harmos.operation(
             operation,
             request=message_type(f"{kind.title()}Request"),
             response=message_type(f"{kind.title()}Response"),
-            visibility=wire.VISIBILITY_PRIVATE,
+            visibility=wire.VISIBILITY_PROTECTED,
             policy=policy,
+            replay_safe=bool(retries),
         )(execute)
 
     def _stream(self, template: Template, name: str, method):

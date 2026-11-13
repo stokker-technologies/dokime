@@ -23,7 +23,6 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
 use prost::Message;
 
 // Local Imports
@@ -136,11 +135,11 @@ impl Host {
             .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin with Its Suites".into()))?;
         Ok(v1::Suites::decode(section.payload.as_slice())?)
     }
-    pub fn description(&self, identifier: &str) -> Result<h::Description> {
+    pub fn description(&self, identifier: &str) -> Result<harmos_protocol::plugin::InstanceGetResponse> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {
             return Ok(entry.description.clone());
         }
-        Ok(h::Description::decode(self.store.plugin(identifier)?.as_slice())?)
+        Ok(harmos_protocol::plugin::InstanceGetResponse::decode(self.store.plugin(identifier)?.as_slice())?)
     }
     pub fn entry_state(&self, identifier: &str) -> Result<crate::EntryState> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {

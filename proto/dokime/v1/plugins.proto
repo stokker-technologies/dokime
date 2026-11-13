@@ -1,6 +1,6 @@
 syntax = "proto3";
 package dokime.v1;
-import "harmos/v1/plugin.proto";
+import "harmos/plugin/v1/instance.proto";
 
 // Public operations: dokime.plugins.list (ListPlugins -> PluginEntries),
 // dokime.plugins.add (AddRemotePlugin -> Plugin), and
@@ -21,7 +21,7 @@ message Plugin {
   PluginState state = 4;
   string reason = 5;
   // Absent until first connection; retained while unavailable.
-  harmos.v1.Description description = 6;
+  harmos.plugin.v1.InstanceGetResponse description = 6;
 }
 message ManagedPlugin { string bundle = 1; }
 message RemotePlugin { string url = 1; }

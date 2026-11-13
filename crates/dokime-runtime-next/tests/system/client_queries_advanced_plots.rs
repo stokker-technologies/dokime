@@ -35,7 +35,7 @@ use harmos_protocol::v1 as h;
 
 #[derive(Clone)]
 struct AnalysisProvider {
-    description: h::Description,
+    description: harmos_protocol::plugin::InstanceGetResponse,
 }
 
 /* === Enums === */
@@ -45,16 +45,20 @@ struct AnalysisProvider {
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl h::plugin_server::Plugin for AnalysisProvider {
-    async fn describe(&self, _: tonic::Request<h::DescribeRequest>) -> Result<tonic::Response<h::Description>, tonic::Status> {
+impl harmos_protocol::plugin::instance_server::Instance for AnalysisProvider {
+    async fn get(
+        &self, _: tonic::Request<harmos_protocol::plugin::InstanceGetRequest>,
+    ) -> Result<tonic::Response<harmos_protocol::plugin::InstanceGetResponse>, tonic::Status> {
         Ok(tonic::Response::new(self.description.clone()))
     }
-    type InvokeStream = tokio_stream::Iter<std::vec::IntoIter<Result<h::PluginFrame, tonic::Status>>>;
+    type InvokeStream = tokio_stream::Iter<std::vec::IntoIter<Result<harmos_protocol::plugin::InstanceInvokeResponse, tonic::Status>>>;
     async fn invoke(
-        &self, request: tonic::Request<tonic::Streaming<h::HostFrame>>,
+        &self, request: tonic::Request<tonic::Streaming<harmos_protocol::plugin::InstanceInvokeRequest>>,
     ) -> Result<tonic::Response<Self::InvokeStream>, tonic::Status> {
         let mut input = request.into_inner();
-        let Some(h::host_frame::Frame::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
+        let Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(request)) =
+            input.message().await?.and_then(|frame| frame.frame)
+        else {
             return Err(tonic::Status::invalid_argument("Supply One Unary Request"));
         };
         assert!(request.scope.is_empty());
@@ -78,18 +82,20 @@ impl h::plugin_server::Plugin for AnalysisProvider {
         let response = h::Response {
             result: Some(h::response::Result::Payload(result.encode_to_vec())),
         };
-        Ok(tonic::Response::new(tokio_stream::iter(vec![Ok(h::PluginFrame {
-            frame: Some(h::plugin_frame::Frame::Response(response)),
+        Ok(tonic::Response::new(tokio_stream::iter(vec![Ok(harmos_protocol::plugin::InstanceInvokeResponse {
+            frame: Some(harmos_protocol::plugin::instance_invoke_response::Frame::Response(response)),
         })])))
     }
-    type PublishStream = tokio_stream::Iter<std::vec::IntoIter<Result<h::Samples, tonic::Status>>>;
-    async fn publish(
-        &self, _: tonic::Request<tonic::Streaming<h::PublishFrame>>,
-    ) -> Result<tonic::Response<Self::PublishStream>, tonic::Status> {
+    type SamplesStream = tokio_stream::Iter<std::vec::IntoIter<Result<harmos_protocol::plugin::InstanceSamplesResponse, tonic::Status>>>;
+    async fn samples(
+        &self, _: tonic::Request<tonic::Streaming<harmos_protocol::plugin::InstanceSamplesRequest>>,
+    ) -> Result<tonic::Response<Self::SamplesStream>, tonic::Status> {
         Err(tonic::Status::unimplemented("This Fixture Has No Streams"))
     }
-    async fn stop(&self, _: tonic::Request<h::StopRequest>) -> Result<tonic::Response<h::StopResponse>, tonic::Status> {
-        Ok(tonic::Response::new(h::StopResponse {}))
+    async fn stop(
+        &self, _: tonic::Request<harmos_protocol::plugin::InstanceStopRequest>,
+    ) -> Result<tonic::Response<harmos_protocol::plugin::InstanceStopResponse>, tonic::Status> {
+        Ok(tonic::Response::new(harmos_protocol::plugin::InstanceStopResponse {}))
     }
 }
 
@@ -153,11 +159,11 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         operation.fingerprint=harmos_protocol::schema::fingerprint(&operation.id,&types,&operation.request,&operation.response)?;
         let mut analysis_catalog=h::Catalog {types:Some(types),operations:vec![operation],sections:vec![h::Section {r#type:"dokime.v1.Suites".into(),payload:v1::Suites::default().encode_to_vec()},h::Section {r#type:"dokime.v1.Analyses".into(),payload:v1::Analyses {analyses:vec![definition]}.encode_to_vec()}],..Default::default()};
         analysis_catalog.digest=harmos_protocol::schema::catalog_digest(&analysis_catalog);
-        let provider=AnalysisProvider {description:h::Description {id:"analysis_fixture".into(),started_at:Some(prost_types::Timestamp::default()),revision:1,catalog:Some(analysis_catalog),..Default::default()}};
+        let provider=AnalysisProvider {description:harmos_protocol::plugin::InstanceGetResponse {id:"analysis_fixture".into(),started_at:Some(prost_types::Timestamp::default()),revision:1,catalog:Some(analysis_catalog),..Default::default()}};
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let endpoint=format!("http://{}",listener.local_addr()?);
         let (stop,stopped)=tokio::sync::oneshot::channel::<()>();
-        let provider_task=tokio::spawn(async move{tonic::transport::Server::builder().add_service(h::plugin_server::PluginServer::new(provider)).serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener),async {let _=stopped.await;}).await});
+        let provider_task=tokio::spawn(async move{tonic::transport::Server::builder().add_service(harmos_protocol::plugin::instance_server::InstanceServer::new(provider)).serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener),async {let _=stopped.await;}).await});
         let channel=tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client=dokime::client::HostClient::new(channel);
         client.plugins.add(endpoint).await?;

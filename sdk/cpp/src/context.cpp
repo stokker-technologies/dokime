@@ -25,17 +25,22 @@
 
 namespace dokime {
 namespace {
-const harmos::Operation<v1::OperatorQuestion, v1::OperatorAnswer> prompt_call("dokime.execution.prompt");
-const harmos::Operation<v1::ReadSettings, v1::SavedSettings> settings_call("dokime.settings.read");
-const harmos::Operation<v1::ReadSecret, v1::Secret> secret_call("dokime.secrets.read");
-const harmos::Operation<v1::PublishRecord, v1::RecordReceipt> record_call("dokime.execution.record");
-const harmos::Operation<v1::RecordsRequest, v1::Records> records_call("dokime.execution.records");
-const harmos::Operation<v1::StatisticsRequest, v1::Statistics> statistics_call("dokime.execution.statistics");
-const harmos::Operation<v1::ReportProgress, v1::ReportProgressResponse> progress_call("dokime.execution.progress");
-const harmos::Operation<v1::WriteLog, v1::WriteLogResponse> log_call("dokime.execution.log");
-const harmos::Operation<v1::PublishArtifact, v1::ArtifactReceipt> artifact_call("dokime.execution.artifact");
-const harmos::Operation<v1::SetTraceability, v1::SetTraceabilityResponse> traceability_call("dokime.execution.traceability");
-const harmos::Operation<v1::AddDocumentPart, v1::AddDocumentPartResponse> document_call("dokime.execution.document");
+const harmos::Operation<v1::OperatorQuestion, v1::OperatorAnswer> prompt_call("dokime.execution.prompt", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::ReadSettings, v1::SavedSettings> settings_call("dokime.settings.read", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::ReadSecret, v1::Secret> secret_call("dokime.secrets.read", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::PublishRecord, v1::RecordReceipt> record_call("dokime.execution.record", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::RecordsRequest, v1::Records> records_call("dokime.execution.records", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::StatisticsRequest, v1::Statistics> statistics_call("dokime.execution.statistics",
+                                                                               harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::ReportProgress, v1::ReportProgressResponse> progress_call("dokime.execution.progress",
+                                                                                      harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::WriteLog, v1::WriteLogResponse> log_call("dokime.execution.log", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::PublishArtifact, v1::ArtifactReceipt> artifact_call("dokime.execution.artifact",
+                                                                                harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::SetTraceability, v1::SetTraceabilityResponse> traceability_call("dokime.execution.traceability",
+                                                                                            harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<v1::AddDocumentPart, v1::AddDocumentPartResponse> document_call("dokime.execution.document",
+                                                                                        harmos::wire::VISIBILITY_PUBLIC);
 } // namespace
 
 std::shared_ptr<detail::Resources> detail::Executions::open(const std::string &execution) {
@@ -125,7 +130,7 @@ void Context::declare_requirements(harmos::Plugin &plugin) {
       .requires_operation(artifact_call)
       .requires_operation(traceability_call)
       .requires_operation(document_call)
-      .requires_operation(harmos::NOW)
+      .requires_operation(harmos::GET_TIME)
       .requires_operation(harmos::SLEEP);
 }
 } // namespace dokime

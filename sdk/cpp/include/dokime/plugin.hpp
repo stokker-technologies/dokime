@@ -13,7 +13,6 @@
 
 #include "dokime/context.hpp"
 #include "dokime/v1/catalog.pb.h"
-#include <set>
 
 /* === Macros === */
 
@@ -70,9 +69,7 @@ public:
     if (record.message() != T::descriptor()->full_name())
       throw std::invalid_argument("Record Message Differs from Its Contract");
     *records_.add_records() = std::move(record);
-    // Include the Record Descriptor Without Inventing an Operation.
-    if (record_schemas_.insert(std::string(T::descriptor()->full_name())).second)
-      native_.section(T{});
+    native_.message<T>();
     return *this;
   }
   template <class T> Plugin &stream(Stream<T> stream) {
@@ -109,6 +106,10 @@ public:
     native_.requires_operation(operation);
     return *this;
   }
+  template <class T> Plugin &message() {
+    native_.message<T>();
+    return *this;
+  }
   template <class T> Plugin &section(T section) {
     native_.section(section);
     return *this;
@@ -121,7 +122,6 @@ private:
   harmos::Plugin compose() const;
   harmos::Plugin native_;
   std::string identifier_;
-  std::set<std::string> record_schemas_;
   v1::Suites suites_;
   v1::PromptCatalog prompts_;
   v1::RecordContracts records_;

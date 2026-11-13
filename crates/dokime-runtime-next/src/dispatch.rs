@@ -63,6 +63,8 @@ impl Dispatch {
         if contract.request != Q::default().descriptor().full_name() || contract.response != R::default().descriptor().full_name() {
             return Err(Error::Invalid(format!("Use the Declared Request and Response for {operation}")));
         }
+        let retry_policy = harmos_protocol::policy::OperationPolicy::try_from(contract.policy.as_ref())
+            .map_err(|error| Error::Invalid(format!("Invoke {operation}: {error}")))?;
         let policy = contract.policy.unwrap_or_default();
         let started_ns = self.clock.now_ns();
         let total_ns = duration_ns(policy.timeout.as_ref())?.and_then(|duration| started_ns.checked_add(duration));
@@ -89,14 +91,24 @@ impl Dispatch {
                 let payload = result.as_ref().err().map_or_else(Vec::new, |error| error.to_string().into_bytes());
                 resources.evidence(if result.is_ok() { "attempt:succeeded" } else { "attempt:failed" }, payload, None)?;
             }
-            let retryable = matches!(&result, Err(Error::Plugin(failure)) if failure.classification == h::Classification::Transient as i32)
-                || matches!(&result, Err(Error::Status(status)) if status.code() == tonic::Code::Unavailable);
-            if !retryable || attempt >= policy.attempts.max(1) {
+            let failure = match &result {
+                Err(Error::Plugin(failure)) if failure.classification == h::Classification::Transient as i32 => {
+                    harmos_protocol::policy::FailureKind::Transient
+                }
+                Err(Error::Status(status)) if status.code() == tonic::Code::Unavailable => harmos_protocol::policy::FailureKind::Transient,
+                _ => harmos_protocol::policy::FailureKind::Permanent,
+            };
+            let replay = if contract.replay_safe {
+                harmos_protocol::policy::ReplaySafety::Idempotent
+            } else {
+                harmos_protocol::policy::ReplaySafety::Unknown
+            };
+            let Some(backoff) = retry_policy.retries.retry_after((attempt - 1) as usize, failure, replay, 0) else {
                 return result.and_then(|bytes| R::decode(bytes.as_slice()).map_err(Into::into));
-            }
+            };
             let mut client = self.entry.client.clone();
             let description = client
-                .describe(h::DescribeRequest {
+                .get(harmos_protocol::plugin::InstanceGetRequest {
                     revision: 1,
                     host: "dokime".into(),
                     host_version: env!("CARGO_PKG_VERSION").into(),
@@ -106,19 +118,19 @@ impl Dispatch {
             if description.started_at != self.entry.description.started_at {
                 return Err(Error::Invalid("Plugin Process Changed; Inspect the Interrupted Execution and Start a New Cycle".into()));
             }
-            if let Some(backoff) = duration_ns(policy.backoff.as_ref())? {
-                if let Some(resources) = &self.resources {
-                    resources.clock.sleep(backoff).await?;
-                } else {
-                    self.clock.wait_until(self.clock.now_ns() + backoff).await?;
-                }
+            let backoff = i64::try_from(backoff.as_nanos())
+                .map_err(|_| Error::Invalid(format!("Retry {operation}: Backoff Exceeds the Host Clock Range")))?;
+            if let Some(resources) = &self.resources {
+                resources.clock.sleep(backoff).await?;
+            } else {
+                self.clock.wait_until(self.clock.now_ns() + backoff).await?;
             }
         }
     }
     async fn attempt(&self, operation: &str, payload: Vec<u8>, attempt: u32) -> Result<Vec<u8>> {
         let (send, receive) = mpsc::channel(self.settings.stream_window.get());
-        send.send(h::HostFrame {
-            frame: Some(h::host_frame::Frame::Request(h::Request {
+        send.send(harmos_protocol::plugin::InstanceInvokeRequest {
+            frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(h::Request {
                 operation: operation.into(),
                 payload,
                 invocation: uuid::Uuid::now_v7().to_string(),
@@ -135,8 +147,8 @@ impl Dispatch {
             tokio::select! {
                 biased;
                 _ = self.cancellation.cancelled() => {
-                    let frame = h::HostFrame {
-                        frame: Some(h::host_frame::Frame::Cancel(h::Cancel {
+                    let frame = harmos_protocol::plugin::InstanceInvokeRequest {
+                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Cancel(h::Cancel {
                             reason: "Operator Cancelled the Execution".into(),
                         })),
                     };
@@ -161,8 +173,8 @@ impl Dispatch {
                             ..Default::default()
                         }),
                     };
-                    let frame = h::HostFrame {
-                        frame: Some(h::host_frame::Frame::Child(h::ChildResponse { call, result: Some(result) })),
+                    let frame = harmos_protocol::plugin::InstanceInvokeRequest {
+                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(h::ChildResponse { call, result: Some(result) })),
                     };
                     send.send(frame).await.map_err(|_| Error::Invalid("Reconnect the Plugin Before Returning Host Evidence".into()))?;
                 }
@@ -171,7 +183,7 @@ impl Dispatch {
                         Error::Invalid("Plugin Closed Before Settling the Operation; Inspect Interrupted Evidence".into())
                     })?;
                     match frame {
-                        h::plugin_frame::Frame::Child(request) => {
+                        harmos_protocol::plugin::instance_invoke_response::Frame::Child(request) => {
                             let mut resources = self.resources.clone().ok_or_else(|| {
                                 Error::Invalid("Keep Materialization Pure; Remove Its Host Calls".into())
                             })?;
@@ -186,10 +198,13 @@ impl Dispatch {
                             });
                             pending.insert(call, handle);
                         }
-                        h::plugin_frame::Frame::ChildCancel(cancel) => {
+                        harmos_protocol::plugin::instance_invoke_response::Frame::ChildCancel(cancel) => {
                             if let Some(handle) = pending.remove(&cancel.call) { handle.abort(); }
                         }
-                        h::plugin_frame::Frame::Response(response) => return match response.result {
+                        harmos_protocol::plugin::instance_invoke_response::Frame::ChildDemand(demand) => {
+                            return Err(Error::Invalid(format!("Watch {}: No Streaming Child Was Opened", demand.call)));
+                        }
+                        harmos_protocol::plugin::instance_invoke_response::Frame::Response(response) => return match response.result {
                             Some(h::response::Result::Payload(payload)) => Ok(payload),
                             Some(h::response::Result::Failure(failure)) => Err(Error::Plugin(Box::new(failure))),
                             None => Err(Error::Invalid("Return a Result from the Plugin Operation".into())),

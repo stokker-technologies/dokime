@@ -15,7 +15,8 @@
 # Third Party Imports
 import grpc
 from harmos import Failure
-from harmos.v1 import plugin_pb2 as wire
+from harmos.plugin.v1 import instance_pb2 as instance
+from harmos.v1 import types_pb2 as wire
 
 # Local Imports
 
@@ -35,7 +36,7 @@ from harmos.v1 import plugin_pb2 as wire
 async def invoke(client, operation, request, response_type, *, scope="", host=None, attempt=1):
     call = client.Invoke()
     await call.write(
-        wire.HostFrame(
+        instance.InstanceInvokeRequest(
             request=wire.Request(
                 operation=operation, payload=request.SerializeToString(), invocation="starter", attempt=attempt, scope=scope
             )
@@ -50,7 +51,9 @@ async def invoke(client, operation, request, response_type, *, scope="", host=No
                 if host is None:
                     raise RuntimeError(f"Unexpected host call: {frame.child.operation}")
                 reply = await host(frame.child)
-                await call.write(wire.HostFrame(child=wire.ChildResponse(call=frame.child.call, payload=reply.SerializeToString())))
+                await call.write(
+                    instance.InstanceInvokeRequest(child=wire.ChildResponse(call=frame.child.call, payload=reply.SerializeToString()))
+                )
                 continue
             if frame.WhichOneof("frame") != "response":
                 raise RuntimeError("Unexpected plugin frame")

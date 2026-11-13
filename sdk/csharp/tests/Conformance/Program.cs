@@ -37,7 +37,7 @@ internal sealed class ConformancePlugin
       .Requires(hostFail)
       .Requires(new Operation<Graph, Value>("conformance.host.schema", Visibility.Public))
       .Requires(Clock.Sleep)
-      .Requires(Clock.Now)
+      .Requires(Clock.GetTime)
       .Observer("conformance.ticks", new Duration { Seconds = 1 }, Tick)
       .Stream<Value>("conformance.device", Device)
       .Observer("conformance.settings", new Duration { Seconds = 1 }, Tick, intervalSetting: "harmos.conformance.v1.Graph.interval")
@@ -66,7 +66,7 @@ internal sealed class ConformancePlugin
 
   private async Task<Value> Policy(Context context, Value request)
   {
-    var first = await context.CallAsync(hostEcho, request, new OperationPolicy { Attempts = 3 });
+    var first = await context.CallAsync(hostEcho, request, new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = 3, Initial = new Duration { Nanos = 100_000_000 } } });
     return await context.CallAsync(hostEcho, first);
   }
 

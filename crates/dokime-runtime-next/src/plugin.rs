@@ -19,7 +19,7 @@
 use std::{collections::HashSet, num::NonZeroUsize, path::Path, process::Stdio, time::Duration};
 
 // Third Party Imports
-use harmos_protocol::v1::{self as h, plugin_client::PluginClient};
+use harmos_protocol::{plugin::instance_client::InstanceClient, v1 as h};
 use prost::Message;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -62,8 +62,8 @@ pub struct PluginProcess {
 struct OwnedChild(std::process::Child);
 
 pub(crate) struct Entry {
-    pub client: PluginClient<Channel>,
-    pub description: h::Description,
+    pub client: InstanceClient<Channel>,
+    pub description: harmos_protocol::plugin::InstanceGetResponse,
     pub suites: v1::Suites,
     pub state: EntryState,
     pub process: tokio::sync::Mutex<Option<PluginProcess>>,
@@ -119,7 +119,7 @@ impl PluginProcess {
             settings: settings.clone(),
         })
     }
-    pub async fn describe(&self) -> Result<h::Description> {
+    pub async fn describe(&self) -> Result<harmos_protocol::plugin::InstanceGetResponse> {
         describe_plugin(&self.endpoint, &self.settings).await
     }
     pub fn endpoint(&self) -> &str {
@@ -128,7 +128,7 @@ impl PluginProcess {
     pub async fn close(&mut self) -> Result<()> {
         let stopped = tokio::time::timeout(self.settings.stop_grace, async {
             let mut client = connect(&self.endpoint, &self.settings).await?;
-            client.stop(h::StopRequest { reason: "Host Removed the Entry".into() }).await?;
+            client.stop(harmos_protocol::plugin::InstanceStopRequest { reason: "Host Removed the Entry".into() }).await?;
             Ok::<(), Error>(())
         })
         .await;
@@ -175,7 +175,7 @@ impl Entry {
     pub async fn admit(endpoint: &str, process: Option<PluginProcess>, settings: &PlacementSettings) -> Result<Self> {
         let mut client = connect(endpoint, settings).await?;
         let description = client
-            .describe(h::DescribeRequest {
+            .get(harmos_protocol::plugin::InstanceGetRequest {
                 revision: 1,
                 host: "dokime".into(),
                 host_version: env!("CARGO_PKG_VERSION").into(),
@@ -202,6 +202,17 @@ impl Entry {
         for operation in &catalog.operations {
             if !identifiers.insert(&operation.id) {
                 return Err(Error::Invalid("Give Every Plugin Operation a Unique Identifier".into()));
+            }
+            if !matches!(h::Visibility::try_from(operation.visibility), Ok(h::Visibility::Protected | h::Visibility::Public)) {
+                return Err(Error::Invalid(format!(
+                    "Admit {}: Declare Protected or Public Visibility; Keep Private Operations Local",
+                    operation.id
+                )));
+            }
+            let policy = harmos_protocol::policy::OperationPolicy::try_from(operation.policy.as_ref())
+                .map_err(|error| Error::Invalid(format!("Admit {}: {error}", operation.id)))?;
+            if policy.retries != harmos_protocol::policy::RetryPolicy::Never && !operation.replay_safe {
+                return Err(Error::Invalid(format!("Admit {}: Declare Replay Safety Before Enabling Retries", operation.id)));
             }
             let fingerprint = harmos_protocol::schema::fingerprint(&operation.id, types, &operation.request, &operation.response)
                 .map_err(|error| Error::Invalid(error.to_string()))?;
@@ -239,7 +250,7 @@ impl Entry {
         let mut client = self.client.clone();
         tokio::time::timeout(
             settings.stop_grace,
-            client.stop(h::StopRequest {
+            client.stop(harmos_protocol::plugin::InstanceStopRequest {
                 reason: "Host Removed the Remote Entry".into(),
             }),
         )
@@ -279,7 +290,7 @@ pub(crate) async fn materialize(
     for operation in
         test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
     {
-        if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == h::Visibility::Private as i32) {
+        if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == h::Visibility::Protected as i32) {
             return Err(Error::Invalid(format!("Declare the Materialized Operation {operation} as Private")));
         }
     }
@@ -296,10 +307,10 @@ pub(crate) async fn materialize(
     })
 }
 
-pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<h::Description> {
+pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<harmos_protocol::plugin::InstanceGetResponse> {
     let mut client = connect(endpoint, settings).await?;
     let response = client
-        .describe(h::DescribeRequest {
+        .get(harmos_protocol::plugin::InstanceGetRequest {
             revision: 1,
             host: "dokime".into(),
             host_version: env!("CARGO_PKG_VERSION").into(),
@@ -310,12 +321,12 @@ pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Re
 
 /* === Private Functions === */
 
-async fn connect(endpoint: &str, settings: &PlacementSettings) -> Result<PluginClient<Channel>> {
+async fn connect(endpoint: &str, settings: &PlacementSettings) -> Result<InstanceClient<Channel>> {
     let endpoint = tonic::transport::Endpoint::from_shared(endpoint.to_owned())
         .map_err(|error| Error::Invalid(format!("Supply a Valid Plugin URL: {error}")))?
         .connect_timeout(settings.connect_timeout);
     let channel = endpoint.connect().await?;
-    Ok(PluginClient::new(channel)
+    Ok(InstanceClient::new(channel)
         .max_decoding_message_size(settings.message_bytes.get())
         .max_encoding_message_size(settings.message_bytes.get()))
 }

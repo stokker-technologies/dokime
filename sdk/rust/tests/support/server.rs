@@ -23,7 +23,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::host;
+use harmos_protocol::v1 as host;
 use prost::Message;
 use prost_reflect::ReflectMessage;
 use tokio::{net::TcpListener, sync::oneshot};
@@ -36,7 +36,7 @@ use tonic::{
 // Local Imports
 use super::TestResult;
 use dokime::{
-    client::{CatalogPage, DiscoveredOperation, OperationContract},
+    client::{CatalogEntriesListResponse, DiscoveredContract, DiscoveredOperation},
     v1,
 };
 
@@ -93,7 +93,7 @@ impl FakeServer {
 }
 
 impl<const D: bool> NamedService for Rpc<D> {
-    const NAME: &'static str = if D { "harmos.host.v1.Host" } else { "dokime.v1.Backend" };
+    const NAME: &'static str = if D { "harmos.v1.CatalogEntries" } else { "dokime.v1.Backend" };
 }
 
 impl<const D: bool, B: Body + Send + 'static> Service<http::Request<B>> for Rpc<D>
@@ -120,10 +120,10 @@ where
     }
 }
 
-impl tonic::server::UnaryService<host::Catalog> for Discover {
-    type Response = CatalogPage;
+impl tonic::server::UnaryService<host::CatalogEntriesListRequest> for Discover {
+    type Response = CatalogEntriesListResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<host::Catalog>) -> Self::Future {
+    fn call(&mut self, request: Request<host::CatalogEntriesListRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
             let operations = [contract(false), contract(true)]
@@ -135,7 +135,7 @@ impl tonic::server::UnaryService<host::Catalog> for Discover {
                     ..Default::default()
                 })
                 .collect();
-            Ok(Response::new(CatalogPage { operations, ..Default::default() }))
+            Ok(Response::new(CatalogEntriesListResponse { operations, ..Default::default() }))
         })
     }
 }
@@ -183,7 +183,7 @@ impl tonic::server::StreamingService<v1::BackendWatchLogsRunInput> for Watch {
 
 /* === Public Functions === */
 
-pub fn contract(stream: bool) -> OperationContract {
+pub fn contract(stream: bool) -> DiscoveredContract {
     let descriptor = v1::GetBackendHealth::default().descriptor();
     let descriptors = prost_types::FileDescriptorSet {
         file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
@@ -197,15 +197,16 @@ pub fn contract(stream: bool) -> OperationContract {
         output: stream.then(|| "dokime.v1.LogFrame".into()),
     };
     let id = if stream { "dokime.backend.watch_logs" } else { "dokime.backend.get_health" };
-    OperationContract {
+    DiscoveredContract {
         id: id.into(),
         visibility: host::Visibility::Public as i32,
         fingerprint: harmos_protocol::schema::host_fingerprint(id, &protobuf).unwrap(),
         protobuf: Some(protobuf),
         grpc: Some(host::Grpc {
+            managed: stream,
             package: "dokime.v1".into(),
             service: "Backend".into(),
-            method: if stream { "WatchLogs" } else { "GetHealth" }.into(),
+            method: if stream { "RunWatchLogs" } else { "GetHealth" }.into(),
         }),
         ..Default::default()
     }

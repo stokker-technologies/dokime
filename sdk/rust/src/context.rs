@@ -198,7 +198,7 @@ impl Context {
 
     // Route a typed operation to the host; its requirement must be declared on Plugin.
     pub async fn operation<Q: OperationRequest>(&self, request: Q) -> Result<Q::Response> {
-        self.transport.operation(request).await.map_err(Error::from)
+        self.transport.call(request).await.map_err(Error::from)
     }
 
     // Route a generated Dokime request without copying its fields into a parallel model.

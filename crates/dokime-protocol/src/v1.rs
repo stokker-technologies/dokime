@@ -5106,7 +5106,9 @@ pub struct Plugin {
     pub reason: ::prost::alloc::string::String,
     /// Absent until first connection; retained while unavailable.
     #[prost(message, optional, tag = "6")]
-    pub description: ::core::option::Option<::harmos_protocol::v1::Description>,
+    pub description: ::core::option::Option<
+        ::harmos_protocol::plugin::InstanceGetResponse,
+    >,
     #[prost(oneof = "plugin::Placement", tags = "2, 3")]
     pub placement: ::core::option::Option<plugin::Placement>,
 }

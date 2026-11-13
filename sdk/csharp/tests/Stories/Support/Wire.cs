@@ -3,6 +3,7 @@
 using Google.Protobuf;
 using Grpc.Core;
 using Harmos.V1;
+using Harmos.Plugin.V1;
 
 namespace Stories.Support;
 
@@ -14,16 +15,16 @@ internal sealed class Wire(CallInvoker calls)
           Marshallers.Create<TRequest>(value => value.ToByteArray(), bytes => (TRequest)new TRequest().Descriptor.Parser.ParseFrom(bytes)),
           Marshallers.Create<TResponse>(value => value.ToByteArray(), bytes => (TResponse)new TResponse().Descriptor.Parser.ParseFrom(bytes)));
 
-  internal async Task<Description> DescribeAsync()
-      => await calls.AsyncUnaryCall(Method<DescribeRequest, Description>(MethodType.Unary, "harmos.v1.Plugin", "Describe"),
-          null, new CallOptions(), new DescribeRequest { Revision = 1 });
+  internal async Task<InstanceGetResponse> DescribeAsync()
+      => await calls.AsyncUnaryCall(Method<InstanceGetRequest, InstanceGetResponse>(MethodType.Unary, "harmos.plugin.v1.Instance", "Get"),
+          null, new CallOptions(), new InstanceGetRequest { Revision = 1 });
 
-  internal async Task<T> InvokeAsync<T>(Description description, string operation, IMessage request, string scope = "",
+  internal async Task<T> InvokeAsync<T>(InstanceGetResponse description, string operation, IMessage request, string scope = "",
       Func<ChildRequest, ByteString>? child = null) where T : IMessage<T>, new()
   {
     _ = description.Catalog.Operations.Single(item => item.Id == operation);
-    using var call = calls.AsyncDuplexStreamingCall(Method<HostFrame, PluginFrame>(MethodType.DuplexStreaming, "harmos.v1.Plugin", "Invoke"), null, new CallOptions());
-    await call.RequestStream.WriteAsync(new HostFrame
+    using var call = calls.AsyncDuplexStreamingCall(Method<InstanceInvokeRequest, InstanceInvokeResponse>(MethodType.DuplexStreaming, "harmos.plugin.v1.Instance", "Invoke"), null, new CallOptions());
+    await call.RequestStream.WriteAsync(new InstanceInvokeRequest
     {
       Request = new Request
       {
@@ -40,7 +41,7 @@ internal sealed class Wire(CallInvoker calls)
       if (frame.Child is { } nested)
       {
         var payload = child?.Invoke(nested) ?? throw new InvalidOperationException($"Unexpected child call: {nested.Operation}");
-        await call.RequestStream.WriteAsync(new HostFrame { Child = new ChildResponse { Call = nested.Call, Payload = payload } });
+        await call.RequestStream.WriteAsync(new InstanceInvokeRequest { Child = new ChildResponse { Call = nested.Call, Payload = payload } });
       }
       if (frame.Response is { } response)
       {
@@ -52,6 +53,6 @@ internal sealed class Wire(CallInvoker calls)
     throw new InvalidOperationException("Missing unary operation response");
   }
 
-  internal AsyncDuplexStreamingCall<PublishFrame, Samples> Publish()
-      => calls.AsyncDuplexStreamingCall(Method<PublishFrame, Samples>(MethodType.DuplexStreaming, "harmos.v1.Plugin", "Publish"), null, new CallOptions());
+  internal AsyncDuplexStreamingCall<InstanceSamplesRequest, InstanceSamplesResponse> Publish()
+      => calls.AsyncDuplexStreamingCall(Method<InstanceSamplesRequest, InstanceSamplesResponse>(MethodType.DuplexStreaming, "harmos.plugin.v1.Instance", "Samples"), null, new CallOptions());
 }

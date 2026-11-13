@@ -81,7 +81,7 @@ def plugin():
         "dokime.execution.statistics",
         "dokime.execution.progress",
         "dokime.execution.log",
-        "harmos.clock.sleep",
+        "harmos.context.v1.Time/Sleep",
     }
     return dokime.Plugin(
         "thermal",

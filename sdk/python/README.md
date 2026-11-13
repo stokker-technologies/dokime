@@ -2,7 +2,7 @@
 
 `dokime` is one pure Python package for remote plugin authoring and async gRPC
 clients. It builds on the Harmos Python SDK at revision
-`de07fc54f38ece9fcd660af3146876aaf651fe3c`, serves `harmos.v1`, and exchanges
+`b5f595087967a085662689654bfadeff3d77ffa1`, serves `harmos.plugin.v1.Instance`, and exchanges
 generated `dokime.v1` messages. Python never starts Dokime.
 
 ## Install
@@ -75,7 +75,7 @@ Pass generated `Parameter` and `FileParameter` messages and composed `Document`
 values to `Template`. Duplicate identifiers fail when the plugin is constructed
 or its catalog is built, before its endpoint starts.
 
-The SDK derives a pure `<template>.materialize` operation and Private unary
+The SDK derives a pure `<template>.materialize` operation and Protected unary
 initialize, step, criterion, and cleanup operations. Step retries become Harmos
 operation attempts. Parameter-dependent materialization uses the same handlers:
 

@@ -53,7 +53,7 @@ public sealed class Context
   public Task<TResponse> OperationAsync<TRequest, TResponse>(Operation<TRequest, TResponse> operation, TRequest request,
       OperationPolicy? policy = null) where TRequest : IMessage<TRequest>, new() where TResponse : IMessage<TResponse>, new()
       => Transport.CallAsync(operation, request, policy);
-  public Task<SleepResponse> SleepAsync(Duration duration) => Transport.SleepAsync(duration);
+  public Task<Harmos.Context.V1.TimeSleepResponse> SleepAsync(Duration duration) => Transport.SleepAsync(duration);
   public Task<Timestamp> NowAsync() => Transport.NowAsync();
   public Task<OperatorAnswer> PromptAsync(V1.Prompt prompt) => OperationAsync(Host.Prompt,
       new OperatorQuestion { Prompt = prompt.Metadata.Identifier, PromptType = prompt.Metadata.Identifier, Definition = prompt.Clone() });

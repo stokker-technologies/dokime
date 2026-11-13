@@ -1227,6 +1227,19 @@ these contracts or claim implementation.
    the plugin protocol's own carriers and proven settlement; current product
    twins establish no such promise.
 
+### Library Admission Request
+
+The converged revision's non-reserved `OperationContract::from_protobuf` path
+calls native `OperationDefinition::validate`, whose dotted-identity validator
+refuses both generated numeric template-local bindings and the locked
+`package.Service/Method` wire identities. The Rust SDK's reference-host authoring
+story fails at attachment before materialization with the existing step binding.
+The smallest upstream change is a wire-identity validation path that retains
+schema, fingerprint, visibility and provider admission independently from native
+portable IDs. Product aliases or renaming numeric bindings to evade it would
+hide the defect. The sibling is read-only; library-backed admission remains open
+under Library Requests in tasks.md.
+
 ### SDK Ownership and Remaining Coverage Facts
 
 Ownership is decided; size is a review aid for the remaining coverage work.

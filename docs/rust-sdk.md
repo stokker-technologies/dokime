@@ -3,7 +3,7 @@
 The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
 Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
 plugins and clients compile no host. It uses Harmos at
-`de07fc54f38ece9fcd660af3146876aaf651fe3c`.
+`b5f595087967a085662689654bfadeff3d77ffa1`.
 The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
 context, data contracts, streams and the separate `client` namespace.
 
@@ -94,7 +94,7 @@ operation joins an existing local suite store when its inherited scope matches;
 otherwise its resources last for that invocation. Plugin-wide publication has its
 own unscoped store. No resource is serialized or retained by materialization.
 
-The SDK generates private `<template>.materialize`, optional
+The SDK generates Protected `<template>.materialize`, optional
 `<template>.initialize`, `<template>.step.<index>`, `<template>.criterion.<index>` and
 `<template>.cleanup` operations. Step/criterion evidence identifiers are separate
 from operation identifiers; `.identifier(...)` overrides their label-derived defaults.
@@ -148,7 +148,7 @@ reply. `prompt`, `record`, `records`, `statistics`, `progress`, `log`, `secret`,
 `settings` and `typed_settings` are thin conveniences. Artifact, file capture,
 traceability, document-part, environment and effect calls use `ctx.host(...)` with
 the generated messages and their declared requirements.
-`ctx.sleep` and `ctx.now` require `dokime::clock::Sleep` and `dokime::clock::Now`;
+`ctx.sleep` and `ctx.now` require `dokime::clock::TimeSleepRequest` and `dokime::clock::TimeGetRequest`;
 all waits and clock reads go to the host.
 
 `Record::<Door>::new(id, label)` names a derived record message. Pass the record
@@ -248,7 +248,7 @@ with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository targ
 `cargo tree` checks normal/build product edges and excludes test-only host dependencies.
 
 The thermal story admits and materializes the plugin through the pinned Harmos
-runtime, then drives scoped calls through `harmos.v1`, following the reference
+runtime, then drives scoped calls through `harmos.plugin.v1.Instance`, following the reference
 conformance protocol. Native Harmos calls accept `Scope` through `with_scope(...)`;
 unbound calls retain an empty scope. This protocol-focused story keeps its explicit
 wire driver, and SDK execution validation reads `Context::scope()`. The client

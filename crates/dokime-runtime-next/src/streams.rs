@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_protocol::v1::{self as h, plugin_client::PluginClient};
+use harmos_protocol::{plugin::instance_client::InstanceClient, v1 as h};
 use tokio::sync::{Mutex, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Streaming, transport::Channel};
@@ -46,8 +46,8 @@ pub(crate) struct ExecutionTime {
 }
 struct Publication {
     identifier: String,
-    send: mpsc::Sender<h::PublishFrame>,
-    output: Streaming<h::Samples>,
+    send: mpsc::Sender<harmos_protocol::plugin::InstanceSamplesRequest>,
+    output: Streaming<harmos_protocol::plugin::InstanceSamplesResponse>,
     interval_ns: i64,
     next_ns: i64,
     sequence: u64,
@@ -61,7 +61,7 @@ struct Publication {
 
 impl ExecutionTime {
     pub async fn open(
-        client: &PluginClient<Channel>, catalog: &h::Catalog, identifiers: &[String], execution: &str, store: Store,
+        client: &InstanceClient<Channel>, catalog: &h::Catalog, identifiers: &[String], execution: &str, store: Store,
         clock: Arc<dyn SchedulerClock>, settings: &PlacementSettings,
     ) -> Result<Arc<Self>> {
         let mut streams = Vec::new();
@@ -81,15 +81,15 @@ impl ExecutionTime {
                 .ok_or_else(|| Error::Invalid("Set a Positive Observer Interval".into()))?;
             store.open_stream(execution, identifier)?;
             let (send, receive) = mpsc::channel(settings.stream_window.get());
-            send.send(h::PublishFrame {
-                frame: Some(h::publish_frame::Frame::Open(h::PublishRequest {
+            send.send(harmos_protocol::plugin::InstanceSamplesRequest {
+                frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Open(h::SamplesSelection {
                     stream: identifier.clone(),
                     scope: execution.into(),
                 })),
             })
             .await
             .map_err(|_| Error::Invalid("Reconnect the Plugin Stream".into()))?;
-            let output = client.clone().publish(ReceiverStream::new(receive)).await?.into_inner();
+            let output = client.clone().samples(ReceiverStream::new(receive)).await?.into_inner();
             streams.push(Publication {
                 identifier: identifier.clone(),
                 send,
@@ -151,8 +151,8 @@ impl ExecutionTime {
             };
             stream
                 .send
-                .send(h::PublishFrame {
-                    frame: Some(h::publish_frame::Frame::Tick(h::Tick { at: Some(at) })),
+                .send(harmos_protocol::plugin::InstanceSamplesRequest {
+                    frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Tick(h::Tick { at: Some(at) })),
                 })
                 .await
                 .map_err(|_| Error::Invalid("Reconnect the Plugin Stream Before Sampling".into()))?;

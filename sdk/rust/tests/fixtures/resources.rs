@@ -83,11 +83,11 @@ fn main() -> Result<()> {
         })
         .stream(stream)
         .observer(observer);
-    let ready = Operation::new("resources.observer_ready", async move |_: &Context, _: ()| {
+    let ready = Operation::new("resources.observer_ready", dokime::Visibility::Protected, async move |_: &Context, _: ()| {
         entered.notified().await;
         Ok(())
     });
-    let release = Operation::new("resources.release_observer", async move |_: &Context, _: ()| {
+    let release = Operation::new("resources.release_observer", dokime::Visibility::Protected, async move |_: &Context, _: ()| {
         released.notify_one();
         Ok(())
     });

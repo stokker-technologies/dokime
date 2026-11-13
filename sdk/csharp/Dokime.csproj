@@ -23,6 +23,6 @@
     <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
     <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
     <Protobuf Include="../../proto/dokime/v1/*.proto" ProtoRoot="../../proto" GrpcServices="Both" />
-    <Protobuf Include="../../proto/harmos/v1/plugin.proto" ProtoRoot="../../proto" GrpcServices="Both" />
+    <Protobuf Include="../../proto/harmos/**/*.proto" Exclude="../../proto/harmos/v1/guest.proto" ProtoRoot="../../proto" GrpcServices="Both" />
   </ItemGroup>
 </Project>

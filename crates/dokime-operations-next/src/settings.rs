@@ -57,7 +57,7 @@ pub async fn handle(resources: &Resources, request: v1::ReadSettings) -> Result<
         Some(v1::origin::Kind::PluginRun(run)) => run.plugin,
         _ => return Err(crate::Error::Invalid("Read Settings: Use the Calling Plugin's Active Execution".into())),
     };
-    let description = harmos_protocol::v1::Description::decode(resources.store.plugin(&plugin)?.as_slice())?;
+    let description = harmos_protocol::plugin::InstanceGetResponse::decode(resources.store.plugin(&plugin)?.as_slice())?;
     let settings = crate::client::settings_preferences::for_plugin(
         &resources.store,
         v1::Plugin {

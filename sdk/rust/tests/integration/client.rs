@@ -27,7 +27,7 @@ use super::support::{
 };
 use dokime::{
     Client, ClientSettings,
-    client::{Catalog, CatalogKind},
+    client::{CatalogEntriesListRequest, CatalogKind},
     v1,
 };
 
@@ -69,10 +69,13 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
 
     // Discover Operations and Bind the Authoritative Generated Types.
     let page = client
-        .catalog(Catalog {
+        .catalog(CatalogEntriesListRequest {
             kind: CatalogKind::Operations as i32,
-            rows: Some(8),
-            bytes: Some(65_536),
+            page: Some(harmos_protocol::v1::PageRequest {
+                page_size: 8,
+                max_bytes: 65_536,
+                page_token: String::new(),
+            }),
             ..Default::default()
         })
         .await?

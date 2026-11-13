@@ -52,10 +52,7 @@ def main():
     root = Path(__file__).resolve().parents[3]
     sources = root / "proto"
     manifest = json.loads(files("dokime.v1").joinpath("sources.json").read_text())
-    expected = {
-        path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.glob("dokime/v1/*.proto")
-    }
-    expected["harmos/v1/plugin.proto"] = hashlib.sha256((sources / "harmos/v1/plugin.proto").read_bytes()).hexdigest()
+    expected = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")}
     if manifest != expected:
         raise ValueError("Installed generated surface differs from proto/; rebuild and reinstall the SDK wheel")
     channel = RecordingChannel()

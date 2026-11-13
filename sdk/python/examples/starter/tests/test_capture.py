@@ -16,8 +16,10 @@ import unittest
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue
-from harmos.v1 import plugin_pb2 as wire
-from harmos.v1.plugin_pb2_grpc import PluginStub
+from harmos.context.v1 import time_pb2 as time
+from harmos.plugin.v1 import instance_pb2 as instance
+from harmos.plugin.v1.instance_pb2_grpc import InstanceStub
+from harmos.v1 import types_pb2 as wire
 from host import invoke
 from suite import plugin
 
@@ -45,8 +47,8 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(endpoint.close)
         channel = grpc.aio.insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
-        client = PluginStub(channel)
-        description = await client.Describe(wire.DescribeRequest(revision=1))
+        client = InstanceStub(channel)
+        description = await client.Get(instance.InstanceGetRequest(revision=1))
         suites = message_type("Suites").FromString(
             next(item.payload for item in description.catalog.sections if item.type == "dokime.v1.Suites")
         )
@@ -93,10 +95,10 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
             if child.operation == "dokime.execution.prompt":
                 question = message_type("OperatorQuestion").FromString(child.payload)
                 return message("OperatorAnswer", prompt=question.prompt, action=question.definition.actions[0].identifier, accepted=True)
-            if child.operation == "harmos.clock.sleep":
-                duration = wire.Sleep.FromString(child.payload).duration
+            if child.operation == "harmos.context.v1.Time/Sleep":
+                duration = time.TimeSleepRequest.FromString(child.payload).duration
                 sleeps.append((duration.seconds, duration.nanos))
-                return wire.SleepResponse()
+                return time.TimeSleepResponse()
             if child.operation == "dokime.execution.statistics":
                 request = message_type("StatisticsRequest").FromString(child.payload)
                 self.assertEqual((request.stream, request.step), ("example.reading", "measure"))
@@ -118,9 +120,9 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
             scope="execution-one",
             host=host,
         )
-        publication = client.Publish()
-        await publication.write(wire.PublishFrame(open=wire.PublishRequest(stream=case.streams[0], scope="execution-one")))
-        await publication.write(wire.PublishFrame(tick=wire.Tick(at=Timestamp(seconds=123))))
+        publication = client.Samples()
+        await publication.write(instance.InstanceSamplesRequest(open=wire.SamplesSelection(stream=case.streams[0], scope="execution-one")))
+        await publication.write(instance.InstanceSamplesRequest(tick=wire.Tick(at=Timestamp(seconds=123))))
         sample = (await publication.read()).samples[0]
         self.assertEqual((sample.at.seconds, DoubleValue.FromString(sample.row).value), (123, 11))
         publication.cancel()
@@ -157,8 +159,8 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(endpoint.plugin._sessions)
         self.assertEqual(calls[-1], "dokime.execution.log")
         self.assertEqual(sleeps, [(0, 200_000_000), (1, 0)])
-        await client.Stop(wire.StopRequest(reason="Finished"))
-        self.assertEqual((await client.Describe(wire.DescribeRequest(revision=1))).started_at, description.started_at)
+        await client.Stop(instance.InstanceStopRequest(reason="Finished"))
+        self.assertEqual((await client.Get(instance.InstanceGetRequest(revision=1))).started_at, description.started_at)
         await endpoint.close()
 
 

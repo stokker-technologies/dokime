@@ -58,8 +58,9 @@ class CustomBuildHook(BuildHookInterface):
             raise RuntimeError("Dokime protocol generation failed")
         package = output / "dokime/v1"
         (output / "surface.pb").replace(package / "surface.pb")
-        manifest = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in definitions}
-        manifest["harmos/v1/plugin.proto"] = hashlib.sha256((sources / "harmos/v1/plugin.proto").read_bytes()).hexdigest()
+        manifest = {
+            path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")
+        }
         (package / "sources.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
         build_data["force_include"][str(package)] = "dokime/v1"
         for name in ("LICENSE", "NOTICE"):

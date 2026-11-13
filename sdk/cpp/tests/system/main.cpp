@@ -67,12 +67,19 @@ int main(int argc, char **argv) {
     no->set_identifier("no");
     no->set_label("No");
     dokime::Plugin plugin("thermal", "1.0.0");
-    plugin.requires_operation(harmos::Operation<dokime::v1::OperatorQuestion, dokime::v1::OperatorAnswer>("dokime.execution.prompt"))
-        .requires_operation(harmos::Operation<dokime::v1::PublishRecord, dokime::v1::RecordReceipt>("dokime.execution.record"))
-        .requires_operation(harmos::Operation<dokime::v1::RecordsRequest, dokime::v1::Records>("dokime.execution.records"))
-        .requires_operation(harmos::Operation<dokime::v1::StatisticsRequest, dokime::v1::Statistics>("dokime.execution.statistics"))
-        .requires_operation(harmos::Operation<dokime::v1::ReportProgress, dokime::v1::ReportProgressResponse>("dokime.execution.progress"))
-        .requires_operation(harmos::Operation<dokime::v1::WriteLog, dokime::v1::WriteLogResponse>("dokime.execution.log"))
+    plugin
+        .requires_operation(harmos::Operation<dokime::v1::OperatorQuestion, dokime::v1::OperatorAnswer>("dokime.execution.prompt",
+                                                                                                        harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<dokime::v1::PublishRecord, dokime::v1::RecordReceipt>("dokime.execution.record",
+                                                                                                    harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(
+            harmos::Operation<dokime::v1::RecordsRequest, dokime::v1::Records>("dokime.execution.records", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<dokime::v1::StatisticsRequest, dokime::v1::Statistics>("dokime.execution.statistics",
+                                                                                                     harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<dokime::v1::ReportProgress, dokime::v1::ReportProgressResponse>(
+            "dokime.execution.progress", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(
+            harmos::Operation<dokime::v1::WriteLog, dokime::v1::WriteLogResponse>("dokime.execution.log", harmos::wire::VISIBILITY_PUBLIC))
         .requires_operation(harmos::SLEEP)
         .stream(temperature)
         .observer(std::move(observer))

@@ -1,7 +1,7 @@
 # Dokime Protocol Contracts
 
 `dokime/v1/` contains the authoritative client services, execution, plugin,
-context-operation, catalog and document contracts. `harmos/v1/plugin.proto` is a
+context-operation, catalog and document contracts. `harmos/plugin/v1/instance.proto` is a
 read-only Harmos copy. Each `client_<service>.proto` owns one client service and
 its request/stream envelopes. `client_types.proto` owns shared projections and
 replies so services can share them without cyclic imports. All messages are in
@@ -105,7 +105,7 @@ no installed `protoc`. Normal builds consume checked-in generated Rust.
 from the pinned `harmos-protocol` owner; it has no dependency on the host.
 Only Rust, reflection, descriptors and embedded sources are committed here.
 Each SDK runs its language's protobuf and gRPC generators over
-the same complete source set, including `harmos/v1/plugin.proto` and Google
+the same complete source set, including `harmos/plugin/v1/instance.proto` and Google
 well-known imports. Python uses grpcio generators, C# uses Grpc.Tools, and C++
 uses its build's matching protobuf compiler and gRPC plugin. No SDK should
 derive its client definitions from Rust declarations or committed document-only

@@ -5,7 +5,7 @@ composed plugin authoring, typed host calls, canonical plot/document builders
 and a channel-owning client facade. It builds messages and any declared service
 stubs with `Grpc.Tools` directly from `proto/dokime/v1/*.proto`; generated C# is
 never committed. The Harmos SDK source is compiled into Dokime without modifications from
-revision `de07fc54f38ece9fcd660af3146876aaf651fe3c`.
+revision `b5f595087967a085662689654bfadeff3d77ffa1`.
 
 ## Build and Install
 
@@ -61,7 +61,7 @@ await plugin.ServeAsync();
 ```
 
 The complete example is `sdk/csharp/starter/Program.cs`. The managed executable
-serves `harmos.v1` at `HARMOS_ADDRESS`, which the host supplies. Stop releases
+serves `harmos.plugin.v1.Instance` at `HARMOS_ADDRESS`, which the host supplies. Stop releases
 resources and exits. For remote placement, use `--remote`; Stop runs cleanup
 while the process remains available. `--address 127.0.0.1:7001` supplies a remote
 endpoint when `HARMOS_ADDRESS` is absent. Transport readiness is announced as

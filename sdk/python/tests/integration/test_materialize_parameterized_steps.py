@@ -16,8 +16,9 @@ import unittest
 from pathlib import Path
 
 import grpc
-from harmos.v1 import plugin_pb2 as wire
-from harmos.v1.plugin_pb2_grpc import PluginStub
+from harmos.plugin.v1 import instance_pb2 as instance
+from harmos.plugin.v1.instance_pb2_grpc import InstanceStub
+from harmos.v1 import types_pb2 as wire
 
 # Third Party Imports
 import dokime
@@ -71,7 +72,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(endpoint.close)
         channel = grpc.aio.insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
-        client = PluginStub(channel)
+        client = InstanceStub(channel)
 
         # Materialization Is Repeatable And Does Not Construct Resources.
         request = message(
@@ -84,9 +85,9 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first, second)
         self.assertEqual(instances, [])
         self.assertEqual([item.metadata.identifier for item in first.steps], ["channel.2", "channel.4"])
-        description = await client.Describe(wire.DescribeRequest(revision=1))
+        description = await client.Get(instance.InstanceGetRequest(revision=1))
         contract = next(item for item in description.catalog.operations if item.id == first.steps[0].operation)
-        self.assertEqual(contract.policy.attempts, 2)
+        self.assertEqual(contract.policy.retries.total_attempts, 2)
 
         # Run Two Executions Without An Initialize Hook And Keep Them Separate.
         for execution in ("one", "two"):

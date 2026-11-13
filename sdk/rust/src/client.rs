@@ -20,7 +20,9 @@ pub use host::{
 };
 
 pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
-pub use harmos_protocol::host::{Catalog, CatalogKind, CatalogPage, DiscoveredOperation, OperationContract};
+pub use harmos_protocol::v1::{
+    CatalogEntriesListRequest, CatalogEntriesListResponse, CatalogKind, DiscoveredContract, DiscoveredOperation,
+};
 
 /* === Imports === */
 
@@ -74,13 +76,15 @@ impl Client {
 
     // Bind Authoritative Host Discovery to Generated Dokime Messages, Checking Their Schema.
     pub fn method<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
-        &self, contract: OperationContract,
+        &self, contract: DiscoveredContract,
     ) -> Result<Method<Q, R>, Status> {
         Method::new(contract)
     }
 
-    pub async fn catalog(&self, request: impl IntoRequest<Catalog>) -> Result<Response<CatalogPage>, Status> {
-        self.transport.catalog(self.request(request)).await
+    pub async fn catalog(
+        &self, request: impl IntoRequest<CatalogEntriesListRequest>,
+    ) -> Result<Response<CatalogEntriesListResponse>, Status> {
+        self.transport.catalog_entries.list(self.request(request)).await
     }
 
     pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: impl IntoRequest<Q>) -> Result<Response<R>, Status>

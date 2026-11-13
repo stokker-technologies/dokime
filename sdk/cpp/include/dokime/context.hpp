@@ -65,7 +65,7 @@ public:
   const std::string &item() const { return item_; }
   std::uint32_t attempt() const { return transport_.attempt; }
   template <class Q, class R> R operation(const harmos::Operation<Q, R> &operation, Q request) {
-    return transport_.operation(operation, request);
+    return transport_.call(operation, request).get();
   }
   template <class T> void set(std::shared_ptr<T> value) {
     std::lock_guard lock(resources_->mutex);

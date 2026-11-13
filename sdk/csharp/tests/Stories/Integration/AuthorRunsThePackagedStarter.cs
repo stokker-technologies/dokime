@@ -6,6 +6,7 @@ using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Harmos.V1;
+using Harmos.Plugin.V1;
 using Stories.Support;
 using Xunit;
 
@@ -61,7 +62,7 @@ public sealed class AuthorRunsThePackagedStarter
       await wire.InvokeAsync<CleanupResponse>(description, template.Cleanup,
           new CleanupRequest { Execution = "starter-execution", TestCase = testCase, Origin = origin }, "starter-execution");
       using var stopped = channel.CreateCallInvoker().AsyncUnaryCall(
-          Wire.Method<StopRequest, StopResponse>(MethodType.Unary, "harmos.v1.Plugin", "Stop"), null, new CallOptions(), new StopRequest());
+          Wire.Method<InstanceStopRequest, InstanceStopResponse>(MethodType.Unary, "harmos.plugin.v1.Instance", "Stop"), null, new CallOptions(), new InstanceStopRequest());
       await stopped.ResponseAsync;
       await process.WaitForExitAsync(setup.Token);
       Assert.True(process.ExitCode == 0, await errors);

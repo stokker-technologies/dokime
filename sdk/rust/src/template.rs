@@ -101,10 +101,12 @@ impl Step {
     // Retrying Is Host Policy; the SDK Does Not Loop or Sleep Locally.
     pub fn retries(mut self, retries: u32) -> Self {
         self.invalid_retries = retries == u32::MAX;
-        self.policy.attempts = retries.checked_add(1).unwrap_or(0);
-        if retries > 0 && self.policy.backoff.is_none() {
-            self.policy.backoff = Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 });
-        }
+        self.policy.retries = (retries > 0).then_some(harmos::RetryPolicy {
+            total_attempts: u64::from(retries) + 1,
+            initial: Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 }),
+            maximum: None,
+            deterministic_jitter: false,
+        });
         self
     }
     pub fn policy(mut self, policy: harmos::OperationPolicy) -> Self {
@@ -280,8 +282,10 @@ impl Template {
             let store = executions.clone();
             let template = identifier.clone();
             let owner = plugin_id.to_owned();
-            let handler =
-                operation::wire(operation.clone(), async move |transport: &harmos::Context, Wire(request): Wire<v1::StepRequest>| {
+            let handler = operation::wire(
+                operation.clone(),
+                harmos::Visibility::Protected,
+                async move |transport: &harmos::Context, Wire(request): Wire<v1::StepRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
                     let present = context.test_case()?.steps.iter().any(|step| {
@@ -292,8 +296,10 @@ impl Template {
                     }
                     step.handler.execute(&context).await?;
                     Ok(Wire(v1::StepResponse {}))
-                })
-                .policy(step.policy);
+                },
+            )
+            .policy(step.policy)
+            .replay_safe();
             plugin = plugin.operation(handler);
         }
         for (index, criterion) in self.criteria.into_iter().enumerate() {
@@ -307,6 +313,7 @@ impl Template {
             let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation.clone(),
+                harmos::Visibility::Protected,
                 async move |transport: &harmos::Context, Wire(request): Wire<v1::CriterionRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
@@ -331,6 +338,7 @@ impl Template {
         let template = identifier.clone();
         plugin = plugin.operation(operation::wire(
             self.definition.materialize.clone(),
+            harmos::Visibility::Protected,
             async move |transport: &harmos::Context, Wire(request): Wire<v1::MaterializeRequest>| {
                 if transport.scope().is_ok() {
                     return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
@@ -376,6 +384,7 @@ impl Template {
             let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation,
+                harmos::Visibility::Protected,
                 async move |transport: &harmos::Context, Wire(request): Wire<v1::InitializeRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
@@ -390,6 +399,7 @@ impl Template {
         let store = executions.clone();
         plugin = plugin.operation(operation::wire(
             self.definition.cleanup.clone().expect("SDK Cleanup Operation"),
+            harmos::Visibility::Protected,
             async move |transport: &harmos::Context, Wire(request): Wire<v1::CleanupRequest>| {
                 let context =
                     Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;

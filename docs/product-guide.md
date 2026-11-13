@@ -40,7 +40,7 @@ Each plugins archive contains shipping native plugins as unversioned `.dokime`
 members. Python wheels and `cargo-dokime` archives remain downloads until
 replaced by their owning SDK and CLI changes.
 
-`dokime-proto-<version>.zip` contains the `dokime/v1/` and `harmos/v1/` definitions
+`dokime-proto-<version>.zip` contains the `dokime/` and `harmos/` protocol trees
 written by `dokime proto export`. `dokime-compliance-<version>.zip` contains
 `NOTICE` and `THIRD-PARTY-NOTICES` at its root, artifact bills of materials under
 `artifacts/`, and source inventories under `crates/<platform>/` (`any` for the

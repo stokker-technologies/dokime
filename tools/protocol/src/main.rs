@@ -11,7 +11,6 @@
 
 /* === Modules === */
 
-#[path = "../tests/support/protocol.rs"]
 mod protocol;
 
 /* === Re-Exports === */
@@ -53,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("sources.rs", "src/sources.rs"),
     ] {
         let bytes = std::fs::read(output.path().join(generated))?;
-        let destination = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(committed);
+        let destination = root.join("crates/dokime-protocol").join(committed);
         if std::fs::read(&destination).ok().as_deref() != Some(bytes.as_slice()) {
             std::fs::write(destination, bytes)?;
         }

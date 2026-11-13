@@ -1,7 +1,7 @@
 # C++ SDK
 
 `sdk/cpp` is a C++20 source SDK. `Dokime::Cpp` provides plugin composition on
-Harmos revision `de07fc54f38ece9fcd660af3146876aaf651fe3c`, generated Dokime
+Harmos revision `b5f595087967a085662689654bfadeff3d77ffa1`, generated Dokime
 messages and service stubs, a channel-owning client, and the plot/document builders.
 Only `.proto` files are authoritative; CMake runs the build's own `protoc` and
 `grpc_cpp_plugin`, so generated sources never need to be committed.
@@ -13,7 +13,7 @@ Compose `Suite`, `Template`, `Step` and `Criterion` values and pass them by valu
 The template's generated materialize operation copies its steps, criteria,
 streams and resolved parameters. An optional materialize callback modifies that
 case without execution state or host calls. Generated operation identifiers are
-private; a step's retries become its operation's total attempts.
+Protected; a step's retries become its operation's total attempts.
 
 ```cpp
 dokime::Template value;
@@ -106,7 +106,9 @@ can instead pass `-DDOKIME_SDK_URL=URL -DDOKIME_SDK_SHA256=HASH`. Windows requir
 
 ## Focused Contributor Proof
 
-Run all commands through mise; no host build is needed for SDK compilation:
+Run all commands through mise; the contributor configure task selects the Harmos
+Host audience so its in-process host and plugin fixtures compile together.
+Consumers of the SDK retain the library's Plugin audience by default:
 
 ```powershell
 mise -C sdk/cpp tasks --all

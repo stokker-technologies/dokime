@@ -110,7 +110,12 @@ impl Observer {
     }
 
     pub fn every_ms(self, interval_ms: u64) -> Self {
-        self.configure(move |observer| observer.every_ms(interval_ms))
+        self.configure(move |observer| {
+            observer.every(prost_types::Duration {
+                seconds: (interval_ms / 1000) as i64,
+                nanos: ((interval_ms % 1000) * 1_000_000) as i32,
+            })
+        })
     }
 
     pub fn interval_setting(self, identifier: impl Into<String>) -> Self {

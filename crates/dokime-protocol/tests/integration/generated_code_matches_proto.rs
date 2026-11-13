@@ -92,7 +92,7 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
 
     // Match the Vendored Contract to Its Published Type Owner.
     use prost_reflect::ReflectMessage;
-    let published = harmos_protocol::v1::Description::default().descriptor().parent_file();
+    let published = harmos_protocol::plugin::InstanceGetResponse::default().descriptor().parent_file();
     let vendored = dokime_protocol::descriptor_pool().get_file_by_name(published.name()).expect("vendored Harmos source");
     let mut published = published.file_descriptor_proto().clone();
     let mut vendored = vendored.file_descriptor_proto().clone();

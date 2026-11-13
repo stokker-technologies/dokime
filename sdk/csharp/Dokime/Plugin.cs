@@ -85,8 +85,8 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       Unique(local, step.Identifier);
       var operation = $"{name}.step.{index}";
       testCase.Steps.Add(new V1.Step { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
-      var policy = step.Retries == 0 ? null : new OperationPolicy { Attempts = checked(step.Retries + 1) };
-      transport.Operation(new Operation<StepRequest, StepResponse>(operation, policy: policy), async (raw, request) =>
+      var policy = step.Retries == 0 ? null : new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = checked(step.Retries + 1), Initial = new Google.Protobuf.WellKnownTypes.Duration { Nanos = 100_000_000 } } };
+      transport.Operation(new Operation<StepRequest, StepResponse>(operation, Visibility.Protected, policy: policy, replaySafe: step.Retries > 0), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin);
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
@@ -101,7 +101,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       Unique(local, criterion.Identifier);
       var operation = $"{name}.criterion.{index}";
       testCase.Criteria.Add(new V1.Criterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
-      transport.Operation(new Operation<CriterionRequest, CriterionResponse>(operation), async (raw, request) =>
+      transport.Operation(new Operation<CriterionRequest, CriterionResponse>(operation, Visibility.Protected), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin);
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
@@ -116,7 +116,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       testCase.Streams.Add(stream.Identifier);
       stream.Register(transport, raw => ObserverContext(raw, name));
     }
-    transport.Operation(new Operation<MaterializeRequest, TestCase>(definition.Materialize), (raw, request) =>
+    transport.Operation(new Operation<MaterializeRequest, TestCase>(definition.Materialize, Visibility.Protected), (raw, request) =>
     {
       try
       {
@@ -136,14 +136,14 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       return Task.FromResult(result);
     });
     if (definition.HasInitialize)
-      transport.Operation(new Operation<InitializeRequest, InitializeResponse>(definition.Initialize), async (raw, request) =>
+      transport.Operation(new Operation<InitializeRequest, InitializeResponse>(definition.Initialize, Visibility.Protected), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin);
         var context = await GetContextAsync(raw, template, request.TestCase);
         if (template.InitializeBody is not null) await template.InitializeBody(context);
         return new InitializeResponse();
       });
-    transport.Operation(new Operation<CleanupRequest, CleanupResponse>(definition.Cleanup), async (raw, request) =>
+    transport.Operation(new Operation<CleanupRequest, CleanupResponse>(definition.Cleanup, Visibility.Protected), async (raw, request) =>
     {
       Validate(raw, request.Execution, name, request.TestCase, request.Origin);
       var key = $"{name}/{raw.Scope()}";

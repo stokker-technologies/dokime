@@ -2386,7 +2386,7 @@ version = "0.1.5"
 dependencies = [
  "dokime-derive",
  "dokime-protocol",
- "harmos 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c)",
+ "harmos 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1)",
  "harmos-protocol",
  "prost",
  "prost-reflect",
@@ -2665,6 +2665,20 @@ dependencies = [
  "tempfile",
  "tonic",
  "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
+name = "dokime-protocol-generator"
+version = "0.1.5"
+dependencies = [
+ "heck 0.5.0",
+ "prost",
+ "prost-build",
+ "prost-reflect",
+ "prost-types",
+ "protoc-bin-vendored",
+ "tempfile",
  "tonic-prost-build",
 ]
 
@@ -4027,7 +4041,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1#b5f595087967a085662689654bfadeff3d77ffa1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4127,7 +4141,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1#b5f595087967a085662689654bfadeff3d77ffa1"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -4194,7 +4208,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=de07fc54f38ece9fcd660af3146876aaf651fe3c#de07fc54f38ece9fcd660af3146876aaf651fe3c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1#b5f595087967a085662689654bfadeff3d77ffa1"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",

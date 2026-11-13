@@ -60,7 +60,7 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
             })
             .catalog()?;
         let store = dokime_storage::Store::open(root.path())?;
-        let description = harmos_protocol::v1::Description {
+        let description = harmos_protocol::plugin::InstanceGetResponse {
             id: "settings.fixture".into(),
             catalog: Some(catalog),
             ..Default::default()

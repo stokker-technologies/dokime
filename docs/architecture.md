@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `de07fc54f38ece9fcd660af3146876aaf651fe3c`, rather than
+[Cargo.toml](../Cargo.toml), `b5f595087967a085662689654bfadeff3d77ffa1`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 
@@ -38,7 +38,8 @@ inside that pinned dependency revision; other paths resolve in this repository.
    [current protocol](../proto/dokime/v1), [current host](../crates/dokime-runtime-next/src/services/mod.rs).
    **Proof:** No proof yet; task A2 must guard all three audiences and generation filters.
    **Status:** locked direction (`operation-grammar`); separate package roots and
-   Instance naming are not landed.
+   product declarations are not landed. The host now calls the pinned library's
+   `harmos.plugin.v1.Instance` carrier.
 
 2. **Three-Level Visibility.** Private is plugin-internal, never catalogued or on
    any wire (including host-to-plugin), has no gRPC endpoint association, and runs
@@ -53,28 +54,14 @@ inside that pinned dependency revision; other paths resolve in this repository.
    "a plugin should be able to call another operation in another plugin if exposed".
    **Where:** [visibility, enum, built-in mapping and SDK audit](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
    [requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-catalog-visibility-and-admission),
-   [current host admission](../crates/dokime-runtime-next/src/host.rs).
-   **Today:** The pinned library has two levels. Private admits the declaring plugin
-   and host; Public additionally admits peers with matching declared requirements
-   and external clients subject to authorization. Both are catalogued and invoked
-   over the carrier. Client-facing Private gRPC bindings are rejected. The exact
-   rules are Harmos
-   `Harmos:crates/harmos-runtime/src/operations/manager/admission.rs`,
-   `plugin_grpc.rs::submit_grpc_child` in `Harmos:crates/harmos-runtime/src/operations/manager/plugin_grpc.rs`,
-   `entry.rs::authorize` in `Harmos:crates/harmos-runtime/src/operations/manager/entry.rs`
-   and `Harmos:crates/harmos-operations/src/operations/contract.rs`.
-   The gRPC child rule checks peer visibility only for plugin-backed targets;
-   host-native targets instead require a matching requirement/fingerprint and their
-   own policy. Do not mistake that exception for the new uniform admission rule.
-   Today's product explicitly requires Private materialized step/criterion bindings
-   in `Host::materialize`; these become Protected. Rust, Python, C# and C++ own-operation
-   SDK calls all emit host child calls, with no local-handler dispatch branch
-   ([four-SDK audit](../openspec/changes/operation-grammar/design.md#current-sdk-dispatch-audit)).
-   Rust/C#/C++ default Private; Python defaults Public. **Proof:** No proof yet for
-   three levels; task A1 and 4.11–4.17. Current two-level evidence is upstream
-   `private_peer_operation_is_refused_across_plugins` in `Harmos:crates/harmos-runtime/tests/plugin_grpc/private_refusal.rs`
-   and `grpc_visibility_contracts` in `Harmos:crates/harmos-operations/src/operations/mod.rs`,
-   not a product proof of the replacement. **Status:** locked direction (`operation-grammar`).
+   [current host admission](../crates/dokime-runtime-next/src/plugin.rs).
+   **Today:** The pinned library implements all three levels with explicit SDK
+   visibility and local Private dispatch. Product template lifecycle declarations
+   and host admission now use Protected in all four languages. The additive host
+   still owns its dispatcher and does not yet provide the complete peer/client
+   routing contract. **Proof:** No complete product proof yet; task A1 and
+   4.11–4.17 retain the remaining admission and four-language obligations.
+   **Status:** upstream implementation adopted; complete product guard remains locked direction.
 
 3. **Public Child Routing.** A plugin calls a Public operation in another plugin
    through its context, the host's one registry, then the provider's invocation

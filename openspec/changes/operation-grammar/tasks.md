@@ -59,6 +59,11 @@ Final full validation is separate from source completion.
 - [ ] A16 Guard **Failure and Gap Honesty** with structured child/provider failure propagation, unavailable-cut, missing-evidence and Watch-resynchronization stories, preserving causes and action without exact prose assertions.
 - [ ] A17 Guard **Cancellation Preserves Cleanup and Evidence** with observer-abandonment versus admitted-work cancellation stories; preserve active cleanup, evidence and stream closure, including external-effect restoration in the new host.
 
+## Pin Adoption Inventory
+
+- [x] P1 Adopt the converged sibling revision in every Git consumer, vendor its complete proto source tree, and regenerate Rust with an independent protocol generator. Adapt carrier, policy, visibility and clock consumers in the new host, Rust SDK, CLI and all language fixtures; retain old-loop compilation mechanically. This slice owns Cargo manifests/locks, proto/harmos, protocol generator/tooling, affected host/operations/storage consumers, SDK sources/tests and current guides.
+- [ ] P2 Prove the pin with every new-host system story, new CLI system stories, fixture producers, protocol drift, SDK checks, format/language/repository checks, Tests compilation and canonical locked offline metadata. Record remaining native Linux proof explicitly.
+
 ## 0. Face Packages and File Moves First
 
 - [ ] 0.1 Library owner: establish harmos.plugin.v1, harmos.context.v1 and harmos.v1 roots and nested parent folders; move the running-instance protocol to harmos/plugin/v1/instance.proto and rename its service to Instance, with Get/Invoke/Samples/Stop and InstanceMethodRequest/Response wrappers. Keep client Plugins management separate; update imports/descriptors and remove superseded protocol paths without aliases. Preserve catalog visibility, requirements, descriptors/digest, fingerprints and admission checks.
@@ -137,3 +142,13 @@ Final full validation is separate from source completion.
 - [ ] 8.2 Verify the exact published sibling revision is pinned, local overrides are gone and no superseded consumers remain; verify focused dependency/artifact proof before any full lane.
 - [ ] 8.3 Run authorized final native Windows and Linux protocol/conformance/product proof for direct service composition, host-fact registration, four-language face-filtered hierarchical roots, audience isolation, Public cross-plugin/client invocation, scope inheritance and child cancellation, lost replies, restart, paging under mutation, sealed rendering and unary ranged transfers. Report counts only from final full runs and leave missing platform proof open.
 - [ ] 8.4 Review all requirements/mappings and deterministic behavior evidence. After separately authorized delivery, verify the remote candidate and use hosted CI/Nightly for full project validation, reporting failures and pending proof without changing branch policy.
+
+## Library Requests
+
+- [ ] Accept product wire identities in `harmos_operations::operations::OperationContract::from_protobuf`: the non-reserved branch currently calls `OperationDefinition::validate`, which accepts only `harmos_domain::identity::dotted`. It rejects the existing SDK-generated `thermal.cycle.step.0` at reference-host admission, and cannot accept the locked `dokime.plugin.v1.Steps/Execute` or `dokime.context.v1.Prompts/Create` shapes. Required capability: validate package/service/method wire identities independently from native dotted identities, retaining descriptor/fingerprint/visibility checks and template-local provider bindings. Consumer proof: `sdk/rust/tests/integration/authoring.rs::author_serve_materialize_and_execute_a_thermal_suite` fails at `runtime.attach_grpc` with `invalid wire operation metadata: operation thermal.cycle.step.0 is not a local portable identity`. Do not rename product identities to bypass this validator; library-backed lifecycle admission and final composition wait for its owner.
+
+## Remaining Pin Proof
+
+- [ ] Complete the Rust SDK reference-host authoring story after its Library Request is resolved; the other focused Rust SDK stories pass. Product faces, library composition and new context features must not extend the protocol-only host copies while library admission rejects their locked identities.
+- [ ] Compile the Linux-only managed-install cancellation unit story in `crates/dokime-runtime-next/src/services/managed_plugins.rs` in a native Linux environment. This workstation exposes only Windows and the Docker Desktop support distribution; Windows compilation does not prove that target.
+- [ ] Complete the shipping Rust check and Tests producer within the owner's disk bounds. The first focused Clippy pass completed; the shipping desktop pass was stopped when free space fell below 50 GB. Preserve its diagnostics and rerun after native cleanup, without increasing budgets or disabling checks.

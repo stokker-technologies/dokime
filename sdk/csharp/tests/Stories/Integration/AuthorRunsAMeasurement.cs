@@ -5,6 +5,7 @@ using Dokime.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Harmos.V1;
+using Harmos.Plugin.V1;
 using Stories.Support;
 using Xunit;
 using Value = Dokime.V1.Value;
@@ -42,7 +43,7 @@ public sealed class AuthorRunsAMeasurement
     var testCase = await server.Wire.InvokeAsync<TestCase>(description, "journey.measure.materialize", materialize);
     var repeated = await server.Wire.InvokeAsync<TestCase>(description, "journey.measure.materialize", materialize);
     Assert.Equal(testCase, repeated);
-    Assert.Equal(3u, description.Catalog.Operations.Single(item => item.Id == testCase.Steps[0].Operation).Policy.Attempts);
+    Assert.Equal(3u, description.Catalog.Operations.Single(item => item.Id == testCase.Steps[0].Operation).Policy.Retries.TotalAttempts);
     Assert.Equal(0, instrument.Reads);
     var origin = new Origin { PluginRun = new PluginRun { Plugin = "journey", Template = materialize.Template, TestCase = testCase.Clone(), Digest = description.Catalog.Digest, StartedAt = description.StartedAt } };
 
@@ -60,11 +61,11 @@ public sealed class AuthorRunsAMeasurement
 
     // Advance the Observer with One Explicit Host Tick.
     using var publication = server.Wire.Publish();
-    await publication.RequestStream.WriteAsync(new PublishFrame { Open = new PublishRequest { Stream = stream.Identifier, Scope = "execution-a" } });
+    await publication.RequestStream.WriteAsync(new InstanceSamplesRequest { Open = new SamplesSelection { Stream = stream.Identifier, Scope = "execution-a" } });
     var at = new Timestamp { Seconds = 123 };
-    await publication.RequestStream.WriteAsync(new PublishFrame { Tick = new Tick { At = at } });
+    await publication.RequestStream.WriteAsync(new InstanceSamplesRequest { Tick = new Tick { At = at } });
     Assert.True(await publication.ResponseStream.MoveNext(default));
-    var sample = Assert.Single(publication.ResponseStream.Current.Samples_);
+    var sample = Assert.Single(publication.ResponseStream.Current.Samples);
     Assert.Equal(at, sample.At);
     Assert.Equal(1ul, Statistics.Parser.ParseFrom(sample.Row).Count);
     Assert.Equal(1, Statistics.Parser.ParseFrom(sample.Row).Mean);

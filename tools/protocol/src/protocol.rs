@@ -88,6 +88,9 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     let mut config = prost_build::Config::new();
     config.protoc_executable(&compiler);
     config.extern_path(".harmos.v1", "::harmos_protocol::v1");
+    config.extern_path(".harmos.plugin.v1", "::harmos_protocol::plugin");
+    config.extern_path(".harmos.context.v1", "::harmos_protocol::context");
+    config.extern_path(".harmos.storage.v1", "::harmos_protocol::storage");
     config.file_descriptor_set_path(output.join("descriptors.bin"));
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(
         config,

@@ -102,7 +102,7 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         prompt::ID => Ok(prompt::handle(resources, v1::OperatorQuestion::decode(payload)?).await?.encode_to_vec()),
         secret::ID => Ok(secret::handle(resources, v1::ReadSecret::decode(payload)?).await?.encode_to_vec()),
         settings::ID => Ok(settings::handle(resources, v1::ReadSettings::decode(payload)?).await?.encode_to_vec()),
-        sleep::ID => Ok(sleep::handle(resources, h::Sleep::decode(payload)?).await?.encode_to_vec()),
+        sleep::ID => Ok(sleep::handle(resources, harmos_protocol::context::TimeSleepRequest::decode(payload)?).await?.encode_to_vec()),
         _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
     }
 }
@@ -124,6 +124,7 @@ pub(crate) fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Defau
         policy: None,
         fingerprint,
         description: String::new(),
+        replay_safe: false,
     })
 }
 

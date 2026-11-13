@@ -335,7 +335,7 @@ catalog and document contracts. Backend, Appearance and Plugins also declare
 their client services and managed-call envelopes here; generation emits their
 Rust client/server interfaces with the messages. Host adoption and the remaining
 service contracts are tracked in the gRPC change. The Harmos transport is copied read-only under
-`proto/harmos/v1/` and must match the adopted Harmos revision.
+`proto/harmos/` and must match the adopted Harmos revision.
 
 ```sh
 mise run generate -- --protocol
@@ -347,7 +347,8 @@ Generation and drift checks use the pinned vendored protobuf compiler; no
 installed `protoc` is needed. Tests Build transfers the pinned native compiler and
 its includes under `fixtures/inputs/vendor/`; archived tests select these inputs
 with `TEST_PROFILE` and restore executable permission on Unix. Focused tests use
-the compiler in the local Cargo registry. Builds consume the checked-in Rust under
+the compiler in the local Cargo registry. The independent `tools/protocol` generator can run even when an upstream change
+makes the previous checked-in bindings uncompilable. Builds consume the checked-in Rust under
 `crates/dokime-protocol/src/`, exposed as `dokime_protocol::v1`. Harmos messages
 come directly from the exact-revision `harmos-protocol` dependency; Dokime does
 not generate another Rust copy. Drift checking compares the vendored Harmos

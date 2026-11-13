@@ -141,10 +141,10 @@ impl State {
                     .map_err(|_| crate::Error::Invalid("Reload the Plugin with a Valid Endpoint".into()))?
                     .connect_timeout(settings.connect_timeout);
                 let channel = endpoint.connect().await?;
-                let reply = harmos_protocol::v1::plugin_client::PluginClient::new(channel)
+                let reply = harmos_protocol::plugin::instance_client::InstanceClient::new(channel)
                     .max_decoding_message_size(settings.message_bytes.get())
                     .max_encoding_message_size(settings.message_bytes.get())
-                    .describe(harmos_protocol::v1::DescribeRequest {
+                    .get(harmos_protocol::plugin::InstanceGetRequest {
                         revision: 1,
                         host: "dokime".into(),
                         host_version: env!("CARGO_PKG_VERSION").into(),

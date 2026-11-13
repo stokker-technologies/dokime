@@ -72,8 +72,8 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     let (ticks, mut samples) = process.publish("resources.state", "retained").await?;
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     ticks
-        .send(h::PublishFrame {
-            frame: Some(h::publish_frame::Frame::Tick(h::Tick { at: Some(at) })),
+        .send(harmos_protocol::plugin::InstanceSamplesRequest {
+            frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Tick(h::Tick { at: Some(at) })),
         })
         .await?;
     process.invoke("resources.observer_ready", "", ()).await?.finish::<()>().await?;

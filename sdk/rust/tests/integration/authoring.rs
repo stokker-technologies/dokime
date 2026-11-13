@@ -75,7 +75,9 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             .find(|operation| operation.id == "thermal.cycle.step.0")
             .and_then(|operation| operation.policy.as_ref())
             .ok_or("Missing Retry Policy")?
-            .attempts,
+            .retries
+            .ok_or("Missing Retries")?
+            .total_attempts,
         3
     );
 
@@ -181,13 +183,16 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 
     // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
-    assert_eq!(sleep.operation, "harmos.clock.sleep");
-    assert_eq!(h::Sleep::decode(sleep.payload.as_slice())?.duration, Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 }));
+    assert_eq!(sleep.operation, "harmos.context.v1.Time/Sleep");
+    assert_eq!(
+        harmos_protocol::context::TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
+        Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })
+    );
     let (ticks, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     ticks
-        .send(h::PublishFrame {
-            frame: Some(h::publish_frame::Frame::Tick(h::Tick { at: Some(at) })),
+        .send(harmos_protocol::plugin::InstanceSamplesRequest {
+            frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Tick(h::Tick { at: Some(at) })),
         })
         .await?;
     let sample = samples.message().await?.ok_or("Missing Sample")?.samples.remove(0);
@@ -198,8 +203,8 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     // A Second Host Tick Retains the Same Execution Resource and Ordered Sequence.
     let next = prost_types::Timestamp { seconds: 101, nanos: 0 };
     ticks
-        .send(h::PublishFrame {
-            frame: Some(h::publish_frame::Frame::Tick(h::Tick { at: Some(next) })),
+        .send(harmos_protocol::plugin::InstanceSamplesRequest {
+            frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Tick(h::Tick { at: Some(next) })),
         })
         .await?;
     let sample = samples.message().await?.ok_or("Missing Second Sample")?.samples.remove(0);
@@ -210,7 +215,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     assert!(samples.message().await?.is_none());
 
     // Finish the Wait by Protocol Event and Acknowledge the Step's Final Progress.
-    hold.reply(sleep.call, h::SleepResponse {}).await?;
+    hold.reply(sleep.call, harmos_protocol::context::TimeSleepResponse {}).await?;
     let progress = hold.child().await?;
     assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.completed, 2);
     hold.reply(progress.call, v1::ReportProgressResponse {}).await?;

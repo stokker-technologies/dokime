@@ -25,7 +25,7 @@ use crate::{Error, Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "harmos.clock.sleep";
+pub const ID: &str = "harmos.context.v1.Time/Sleep";
 
 /* === Macros === */
 
@@ -42,9 +42,14 @@ pub const ID: &str = "harmos.clock.sleep";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<h::Sleep, h::SleepResponse>(ID, harmos_protocol::clock::catalog_types())
+    crate::declaration::<harmos_protocol::context::TimeSleepRequest, harmos_protocol::context::TimeSleepResponse>(
+        ID,
+        harmos_protocol::clock::catalog_types(),
+    )
 }
-pub async fn handle(resources: &Resources, request: h::Sleep) -> Result<h::SleepResponse> {
+pub async fn handle(
+    resources: &Resources, request: harmos_protocol::context::TimeSleepRequest,
+) -> Result<harmos_protocol::context::TimeSleepResponse> {
     resources.check_action_scope(&resources.execution, ID)?;
     let duration = request.duration.ok_or_else(|| Error::Invalid("Supply the Duration to Sleep".into()))?;
     let duration_ns = duration
@@ -54,7 +59,7 @@ pub async fn handle(resources: &Resources, request: h::Sleep) -> Result<h::Sleep
         .filter(|value| *value >= 0)
         .ok_or_else(|| Error::Invalid("Supply a Nonnegative Sleep Duration Within Range".into()))?;
     resources.clock.sleep(duration_ns).await?;
-    Ok(h::SleepResponse {})
+    Ok(harmos_protocol::context::TimeSleepResponse {})
 }
 
 /* === Private Functions === */

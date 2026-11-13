@@ -528,7 +528,6 @@ pub fn declaration<Q: prost_reflect::ReflectMessage + Default, R: prost_reflect:
     contract.policy = Some(h::OperationPolicy {
         timeout: Some(timeout),
         attempt_timeout: Some(timeout),
-        attempts: 1,
         ..Default::default()
     });
     Ok(contract)

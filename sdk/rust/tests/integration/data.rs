@@ -68,7 +68,7 @@ fn compose_typed_data_and_refuse_invalid_catalogs_at_startup() -> Result<()> {
         channels: vec![1, 3],
         serial: None,
     });
-    let echo = Operation::new("data.echo", async |_: &Context, request: Payload| Ok(request)).visibility(Visibility::Public);
+    let echo = Operation::new("data.echo", Visibility::Public, async |_: &Context, request: Payload| Ok(request));
     let catalog = Plugin::new("data", "1.0.0")
         .operation(echo)
         .settings(Saved { enabled: true })

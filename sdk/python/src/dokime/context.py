@@ -17,7 +17,8 @@ from typing import Any
 # Third Party Imports
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
-from harmos import NOW, SLEEP, Operation
+from harmos import GET_TIME, SLEEP, Operation
+from harmos.v1 import types_pb2 as wire
 
 # Local Imports
 from .authoring import Record
@@ -33,7 +34,7 @@ __all__ = ["HOST_OPERATIONS", "Context"]
 # === Constants === #
 
 HOST_OPERATIONS = tuple(
-    Operation(identifier, message_type(request), message_type(response))
+    Operation(identifier, message_type(request), message_type(response), wire.VISIBILITY_PUBLIC)
     for identifier, request, response in (
         ("dokime.execution.record", "PublishRecord", "RecordReceipt"),
         ("dokime.execution.records", "RecordsRequest", "Records"),
@@ -53,7 +54,7 @@ HOST_OPERATIONS = tuple(
         ("dokime.execution.effect.prepare", "PrepareEffect", "Ticket"),
         ("dokime.execution.effect.applied", "ConfirmEffect", "ConfirmEffectResponse"),
     )
-) + (NOW, SLEEP)
+) + (GET_TIME, SLEEP)
 
 # === Types === #
 
@@ -74,7 +75,7 @@ class Context:
         if operation is None and len(candidates) != 1:
             raise ValueError(f"Name the declared operation for {request.DESCRIPTOR.full_name}")
         selected = operation if operation is not None else candidates[0]
-        return await self._transport.operation(selected, request, policy=policy)
+        return await self._transport.call(selected, request, policy=policy)
 
     async def sleep(self, duration: float | Duration) -> None:
         if not isinstance(duration, Duration):

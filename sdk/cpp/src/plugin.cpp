@@ -97,7 +97,8 @@ Plugin &Plugin::suite(Suite suite) {
       declared->set_repeatable(step.repeatable);
       const auto item = step.metadata.identifier();
       harmos::Operation<v1::StepRequest, v1::StepResponse> operation(
-          operation_id, [state, id, plugin_id, item, run = std::move(step.run)](harmos::Context &transport, v1::StepRequest request) {
+          operation_id, harmos::wire::VISIBILITY_PROTECTED,
+          [state, id, plugin_id, item, run = std::move(step.run)](harmos::Context &transport, v1::StepRequest request) {
             if (request.step() != item)
               throw std::invalid_argument("Step Identifier Does Not Match Its Operation");
             auto ctx = context(transport, request, id, plugin_id, state, item);
@@ -106,7 +107,9 @@ Plugin &Plugin::suite(Suite suite) {
           });
       if (step.retries) {
         harmos::wire::OperationPolicy policy;
-        policy.set_attempts(step.retries + 1);
+        policy.mutable_retries()->set_total_attempts(step.retries + 1);
+        policy.mutable_retries()->mutable_initial()->set_nanos(100000000);
+        operation.replay_safe();
         operation.policy(policy);
       }
       native_.operation(operation);
@@ -123,7 +126,7 @@ Plugin &Plugin::suite(Suite suite) {
       declared->set_operation(operation_id);
       const auto item = criterion.metadata.identifier();
       native_.operation(harmos::Operation<v1::CriterionRequest, v1::CriterionResponse>(
-          operation_id,
+          operation_id, harmos::wire::VISIBILITY_PROTECTED,
           [state, id, plugin_id, item, evaluate = std::move(criterion.evaluate)](harmos::Context &transport, v1::CriterionRequest request) {
             if (request.criterion() != item)
               throw std::invalid_argument("Criterion Identifier Does Not Match Its Operation");
@@ -137,7 +140,7 @@ Plugin &Plugin::suite(Suite suite) {
       test_case.add_streams(std::move(stream));
     value.definition.set_materialize(id + ".materialize");
     native_.operation(harmos::Operation<v1::MaterializeRequest, v1::TestCase>(
-        id + ".materialize",
+        id + ".materialize", harmos::wire::VISIBILITY_PROTECTED,
         [id, test_case, materialize = std::move(value.materialize)](harmos::Context &transport, v1::MaterializeRequest request) {
           try {
             transport.scope();
@@ -157,7 +160,7 @@ Plugin &Plugin::suite(Suite suite) {
     if (value.initialize) {
       value.definition.set_initialize(id + ".initialize");
       native_.operation(harmos::Operation<v1::InitializeRequest, v1::InitializeResponse>(
-          id + ".initialize",
+          id + ".initialize", harmos::wire::VISIBILITY_PROTECTED,
           [state, id, plugin_id, initialize = std::move(value.initialize)](harmos::Context &transport, v1::InitializeRequest request) {
             auto ctx = context(transport, request, id, plugin_id, state);
             try {
@@ -172,7 +175,7 @@ Plugin &Plugin::suite(Suite suite) {
     // Always Register Cleanup So the Host Can Release Execution Resources.
     value.definition.set_cleanup(id + ".cleanup");
     native_.operation(harmos::Operation<v1::CleanupRequest, v1::CleanupResponse>(
-        id + ".cleanup",
+        id + ".cleanup", harmos::wire::VISIBILITY_PROTECTED,
         [state, id, plugin_id, cleanup = std::move(value.cleanup)](harmos::Context &transport, v1::CleanupRequest request) {
           auto ctx = context(transport, request, id, plugin_id, state);
           try {
