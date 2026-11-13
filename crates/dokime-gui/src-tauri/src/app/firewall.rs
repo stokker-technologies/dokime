@@ -131,7 +131,7 @@ async fn run(app: AppHandle, action: &'static str, port: u16, bind_address: Stri
                 .map(std::path::PathBuf::from)
                 .ok_or("Windows system directory is unavailable")?
                 .join("System32/WindowsPowerShell/v1.0/powershell.exe");
-            dokime::domain::process::command(executable)
+            dokime_runtime_next::process::command(executable)
                 .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
                 .output()
                 .map_err(|error| error.to_string())

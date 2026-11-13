@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(crate) mod plugins;
+pub mod policy;
 mod sources;
 
 /* === Re-Exports === */
@@ -33,8 +34,8 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 // Local Imports
+use self::policy::{Mode, UpdatePolicy};
 use super::organization::OrganizationState;
-use dokime::config::organization::policy::{Mode, UpdatePolicy};
 
 /* === Constants === */
 
@@ -62,7 +63,6 @@ struct Inner {
     generation: u64,
     error: Option<String>,
     last: Option<UpdateCheck>,
-    plugin: Vec<plugins::Candidate>,
 
     #[cfg(feature = "updater")]
     candidate: Option<Candidate>,
@@ -143,7 +143,6 @@ impl UpdateState {
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
-        inner.plugin.clear();
         inner.error = None;
         #[cfg(feature = "updater")]
         {
@@ -181,7 +180,7 @@ impl UpdateState {
         inner.candidate = None;
         let result = match found {
             Some(mut update) => {
-                dokime::config::organization::policy::https_url(update.download_url.as_str())?;
+                policy::https_url(update.download_url.as_str())?;
                 update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
                 let result = UpdateCheck {
@@ -267,7 +266,6 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             generation: 0,
             error,
             last: None,
-            plugin: Vec::new(),
             #[cfg(feature = "updater")]
             candidate: None,
         }),
@@ -336,7 +334,6 @@ impl UpdateProbe {
                 generation: 0,
                 error: None,
                 last: None,
-                plugin: Vec::new(),
                 #[cfg(feature = "updater")]
                 candidate: None,
             }),

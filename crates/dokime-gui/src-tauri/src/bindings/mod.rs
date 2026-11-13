@@ -232,12 +232,12 @@ native_commands! {
         => crate::app::updates::desktop_updates_install;
 
     async desktop_plugin_release_check
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>, app: tauri::AppHandle]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (generation: String) -> Result<Vec<crate::app::updates::plugins::Release>, String>
         => crate::app::updates::plugins::desktop_plugin_release_check;
 
     async desktop_plugin_release_install
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>, app: tauri::AppHandle]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
         => crate::app::updates::plugins::desktop_plugin_release_install;
 }

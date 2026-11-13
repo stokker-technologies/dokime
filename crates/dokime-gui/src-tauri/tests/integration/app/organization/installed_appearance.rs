@@ -48,7 +48,7 @@ fn bundled_pack_loads_without_a_system_temp_directory() {
     if std::env::var_os(CHILD).is_some() {
         assert!(!std::env::temp_dir().exists());
         let pack = dokime::config::organization::resolve_directory(None).unwrap();
-        let loaded = implementation::testing::inspect_resolved(pack).unwrap();
+        let loaded = implementation::inspect_resolved(pack).unwrap();
         assert!(!loaded["logos"].as_object().unwrap().is_empty());
         assert!(!loaded["css"].as_str().unwrap().is_empty());
         return;
@@ -87,7 +87,7 @@ fn memory_css_matches_the_disk_fixture() {
         expected = expected.replace(&format!("url('{relative}')"), &url).replace(&format!("url({relative})"), &url);
         pack.files.insert(relative.into(), bytes.to_vec());
     }
-    assert_eq!(implementation::testing::inspect_css(&pack, css).unwrap().as_bytes(), expected.as_bytes());
-    assert!(implementation::testing::inspect_css(&pack, "a{background:url(../outside.svg)}").is_err());
-    assert!(implementation::testing::inspect_css(&pack, "a{background:url(missing.svg)}").is_err());
+    assert_eq!(implementation::inspect_css(&pack, css).unwrap().as_bytes(), expected.as_bytes());
+    assert!(implementation::inspect_css(&pack, "a{background:url(../outside.svg)}").is_err());
+    assert!(implementation::inspect_css(&pack, "a{background:url(missing.svg)}").is_err());
 }

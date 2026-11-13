@@ -61,7 +61,7 @@ numeric enums and fully qualified library service paths.
 | Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. Unserved boot/restart/applied-field facts stay absent. File installation streams SDK frames. Seven native-install frontend stories pass. Full WebView plugin proof remains open. |
 | Remote Access | Pairing export, pinned connection and certificate rotation use the SDK. `native-remote.ts` projects Access listener state and owns its opaque revision. Remote preferences commit through `Access.Listener.Set`; application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. Full remote/ownership WebView proof remains open. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
-| Dependency Removal | Native paths/distribution identity and build identity are desktop-owned, and tracing uses its independent crate directly. The manifest still uses the facade for filesystem publication, installed appearance and release metadata; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |
+| Dependency Removal | Native paths/distribution identity and build identity are desktop-owned, and tracing uses its independent crate directly. Desktop update policy and process launching also have current owners. The manifest still uses the facade for filesystem publication and installed appearance; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |
 
 ### Native Commands and Events
 
@@ -78,8 +78,8 @@ numeric enums and fully qualified library service paths.
 | `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | `Content.UploadArtifact` |
 | `desktop_artifact_deliver` | `Content.DownloadArtifact`, `Content.DownloadExecutionFile`, `Content.DownloadEvidence`, `Reports.DownloadCycleReport`, `Reports.DownloadExecutionReport` |
 | `desktop_media_prepare`, `desktop_media_release` | `Content.DownloadArtifact` / `Content.DownloadExecutionFile` plus native preview cache |
-| `desktop_plugin_install_file`, `desktop_plugin_release_install` | `Plugins.Install` |
-| `desktop_plugin_release_check` | Native verified release feed; host identity from `Status.Get` |
+| `desktop_plugin_install_file` | `Plugins.Install` |
+| `desktop_plugin_release_check`, `desktop_plugin_release_install` | Missing typed host build target; both commands refuse before fetching or installing release candidates. Verified bundle file installation remains available. |
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
 | `desktop_parameters_read`, `desktop_parameters_write` | Native remembered parameter selections |
 | `desktop_open_backend_log`, `desktop_open_path`, `desktop_open_target`, `desktop_set_title` | Native window, log and opener actions |
@@ -270,10 +270,9 @@ Materialized cases retain their authored suite/template origin. The desktop SDK
 story runs the shared thermal suite through its watched operator prompt,
 completion, captured records, telemetry and a verified report download.
 
-The existing Control, Cycles and History view adapters still require that
-projection. Their former tagged statuses, flat values, plugin identities and
-cursor shapes must be removed together with their old generated client imports.
-Their WebView journeys remain open; native host proof does not establish the
+Control, Cycles and History consume the canonical projection through the shared
+adapter layer. Their WebView journeys remain open because the system driver still
+uses the retired CLI/fixture setup; native host proof does not establish the
 screens' behavior. Storage and restart recovery belong to the host's v1 store,
 not to a desktop checkpoint file.
 

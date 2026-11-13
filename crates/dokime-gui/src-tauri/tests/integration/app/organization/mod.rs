@@ -11,9 +11,7 @@
 
 /* === Modules === */
 
-#[allow(dead_code)]
-#[path = "../../../../src/app/organization.rs"]
-mod implementation;
+use dokime_gui::testing as implementation;
 
 mod installed_appearance;
 mod malformed_policy_diagnostics_do_not_echo_manifest_values;
