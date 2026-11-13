@@ -113,6 +113,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
     if arguments.gui_packages or arguments.gui_runtime or arguments.credential_store:
         install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop, credential_store=arguments.credential_store)
+    if arguments.credential_session and sys.platform == "linux":
+        install_gui_packages(credential_store=True)
+        start_credential_session()
     if arguments.desktop:
         if sys.platform == "win32":
             prepare_windows_desktop(Path.cwd())
@@ -159,6 +162,11 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="install only the session bus and keyring an isolated credential store needs.",
     )
     parser.add_argument("--desktop", action="store_true")
+    parser.add_argument(
+        "--credential-session",
+        action="store_true",
+        help="start a session bus with an unlocked disposable keyring for later steps (Linux jobs only).",
+    )
     return parser.parse_args(argv)
 
 
@@ -227,6 +235,28 @@ def fetch_packages(
         delay_s = APT_RETRY_DELAYS_S[attempt]
         _step(f"package fetch failed (exit {result.returncode}); retrying update and install in {delay_s}s")
         sleep(delay_s)
+
+
+def start_credential_session() -> None:
+    """Give Later Steps The Secret Service That Host Startup Stores Credentials In."""
+    if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        _step("skipping credential session: a session bus is already selected")
+        return
+    github_environment = os.environ.get("GITHUB_ENV")
+    if not github_environment:
+        raise ValueError("the credential session needs a session bus or GitHub's environment file")
+    address = subprocess.check_output(["dbus-daemon", "--session", "--fork", "--print-address=1"], text=True).strip()
+    subprocess.run(
+        ["gnome-keyring-daemon", "--daemonize", "--unlock", "--components=secrets"],
+        input="ci",
+        text=True,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        env={**os.environ, "DBUS_SESSION_BUS_ADDRESS": address},
+    )
+    with Path(github_environment).open("a", encoding="utf-8") as written:
+        written.write(f"DBUS_SESSION_BUS_ADDRESS={address}\n")
+    _step(f"credential session uses {address}")
 
 
 def prepare_linux_browser(root: Path) -> Path:

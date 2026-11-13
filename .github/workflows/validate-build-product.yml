@@ -36,7 +36,7 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]' || '[]' }}
+        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --credential-session"]' || '[]' }}
     - run: mise run build -- --artifact product --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
