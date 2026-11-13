@@ -3,9 +3,11 @@
 The development NuGet package is `Dokime` (`0.1.0-dev`, .NET 10). It provides
 composed plugin authoring, typed host calls, canonical plot/document builders
 and a channel-owning client facade. It builds messages and any declared service
-stubs with `Grpc.Tools` directly from `proto/dokime/v1/*.proto`; generated C# is
-never committed. The Harmos SDK source is compiled into Dokime without modifications from
-revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
+stubs with `Grpc.Tools` directly from `proto/dokime/**/*.proto`; generated C#
+protobuf messages and service stubs are build outputs. Descriptor-derived resource
+wrappers in `sdk/csharp/Dokime/Resources.cs` and `ClientResources.cs` are committed
+and regenerated through `mise run generate -- --protocol`. The Harmos SDK source
+is compiled into Dokime without modifications from revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
 
 ## Build and Install
 
@@ -77,8 +79,11 @@ requires the host to initialize the execution before its first tick.
 Materialization is pure: it receives resolved parameters, copies the registered
 steps, criteria and streams, and never creates execution resources. Override it
 with `Template.Materialize` when parameters select or repeat registered bodies.
-Operation names stay stable within the catalog. Steps and criteria must name
-registered operations; the host owns expansion, ordering and retries. `Retries`
+Each materialize, initialize, cleanup, step and criterion binding has its own
+Protected operation, dotted identity, handler and policy. Their payloads come
+from `Dokime.Protocol.Plugin.V1`; they travel through `Instance.Invoke`, without
+independent lifecycle gRPC services. Operation names stay stable within the catalog.
+Steps and criteria must name registered operations; the host owns expansion, ordering and retries. `Retries`
 is the number of retries after the first attempt.
 
 `Context` exposes prompt, record, records, statistics, settings, secret, sleep,
@@ -89,12 +94,8 @@ though Harmos carries their child calls over a duplex transport. Calls inherit
 the execution scope; the SDK rejects disagreement between scope, execution,
 origin and frozen case.
 
-Record payload types must currently also occur in a stream or another typed
-operation in the catalog. Harmos at the pinned revision has no descriptor-only
-registration API; `RecordContracts` names a payload type but cannot introduce its
-descriptor. The system suite uses its declared stream row for records as well.
-A record-only type needs an upstream descriptor registration capability before
-that authoring case can be supported without a transport workaround.
+`Record<T>` registers the payload descriptor and dependencies through Harmos's
+`Message<T>()`. Record-only payloads do not need an artificial operation or stream.
 
 ## Connect a Client
 
@@ -104,25 +105,45 @@ that authoring case can be supported without a transport workaround.
 service client over that transport; call options carry cancellation and metadata.
 `GrpcChannelOptions` accepts configured TLS and HTTP handlers.
 
-The build generates the declared Dokime services. Migrated resources expose the
-descriptor-derived hierarchy: `client.Executions.Progress.Get(request)` and
-`.Watch(request)` use client wrappers in `Dokime.Protocol.V1.Executions`.
-`Context.ProgressAsync` requires `Host.ProgressGet` and `Host.ProgressSet`, using
-separate context wrappers and whole-value revision checks. Clients have no progress Set.
-For example:
+The client API uses `Dokime.Protocol.V1` for root resource contracts. Every nested
+client package uses a `Resources` suffix in its C# namespace: `BackendResources`,
+`CatalogResources`, `ContentResources`, `EvidenceResources`, `ExecutionsResources`,
+`MediaResources`, `PlotsResources`, `PluginsResources`, `PromptsResources` and
+`StorageResources`, all under `Dokime.Protocol.V1`. This keeps root service types
+and nested namespaces distinct. Wire identities retain their face packages, such
+as `dokime.v1.executions.Progress/Get`.
+
+Use the descriptor-derived hierarchy with explicit request messages and call
+options. For example:
 
 ```csharp
 await using var client = Client.Connect("http://127.0.0.1:8765");
-var plugins = client.Service(calls => new Plugins.PluginsClient(calls));
-var added = await plugins.AddAsync(new AddRemotePlugin { Url = "http://127.0.0.1:7001" });
-var entries = await plugins.ListAsync(new ListPlugins());
+using var progress = client.Executions.Progress.Get(
+    new Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest
+    {
+        Name = "execution-id"
+    });
+var observed = await progress.ResponseAsync;
 ```
 
-The in-process fake backend implements generated Backend and Plugins service
-bases. Its client journey checks authentication refusal, identity, complete log
-stream envelopes, plugin Add/List and typed server errors. `check` verifies that
-every declared service has a generated client. Real-host execution remains
-separate integration proof.
+`client.Executions.Progress.Watch` opens a snapshot and follows changes. Reads
+resolve latest durable data once; reuse the returned `ResolvedAt` for a consistent
+read. Paged resources bind continuation tokens to their selection and cut. Watch
+gaps require explicit resynchronization. Downloads use bounded unary responses
+and ranged `client.Storage.GetFileBytes` reads; only watches use server streaming.
+
+Plugin child calls use separate `Dokime.Protocol.Context.V1` contracts and its
+nested `.Content`, `.Evidence`, `.Executions` and `.Files` namespaces. Context
+contracts travel through the active invocation, without client gRPC entry points.
+`Context.ProgressAsync` requires `Host.ProgressGet` and `Host.ProgressSet` and uses
+whole-value revision checks. Clients have no progress Set. Settings and secret
+helpers retain their present contracts while awaiting library composition.
+
+The in-process backend journey checks authentication refusal, status identity,
+log watch envelopes, case reads and resolved cuts, plugin Add/List and typed server
+errors. Plugin management retains its present declaration while awaiting library
+composition. `check` verifies generated client coverage for every declared service.
+Real-host execution remains separate integration proof.
 
 ## Focused Proof
 
@@ -143,7 +164,10 @@ Harmos's C# fixture at that revision through `Dokime.Plugin.Build()`. The refere
 host checks every transport rule in managed and remote placements; it does not
 understand Dokime execution orchestration. Separate journeys directly exercise
 the Dokime suite catalog, pure materialization, scoped child calls, explicit
-observer ticks, evidence evaluation and resource release. Test setup deadlines
+observer ticks, evidence evaluation and resource release. The ordinary `test` task runs three in-process journeys;
+`test:builders` runs two document builder checks. Conformance and packaged-starter
+stories require the reference host fixture and are excluded from `test`.
+Test setup deadlines
 are transport hang guards; no scenario waits for wall-clock time.
 
 ## Shared System Story
