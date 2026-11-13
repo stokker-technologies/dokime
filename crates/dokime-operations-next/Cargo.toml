@@ -40,10 +40,8 @@ thiserror = { workspace = true }
 
 # Utilities
 keyring = { workspace = true }
-rcgen = { workspace = true }
 uuid = { workspace = true }
 zeroize = { workspace = true, features = ["serde"] }
-zip = { workspace = true }
 
 # Serialization
 base64 = { workspace = true }
@@ -95,10 +93,8 @@ tonic = { workspace = true }
 
 # Utilities
 keyring = { workspace = true }
-rcgen = { workspace = true }
 uuid = { workspace = true }
 zeroize = { workspace = true, features = ["serde"] }
-zip = { workspace = true }
 
 # Serialization
 

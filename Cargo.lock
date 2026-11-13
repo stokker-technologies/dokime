@@ -2605,7 +2605,6 @@ dependencies = [
  "prost",
  "prost-reflect",
  "prost-types",
- "rcgen",
  "regex",
  "serde",
  "serde_json",
@@ -2617,7 +2616,6 @@ dependencies = [
  "tonic",
  "uuid",
  "zeroize",
- "zip",
 ]
 
 [[package]]
