@@ -34,7 +34,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 services = []
-for protocol in (root / "../../proto/dokime/v1").resolve().glob("*.proto"):
+for protocol in (root / "../../proto/dokime/v1").resolve().rglob("*.proto"):
     services.extend(re.findall(r"^service\s+(\w+)\s*\{", protocol.read_text(), re.MULTILINE))
 if not services:
     sys.exit(

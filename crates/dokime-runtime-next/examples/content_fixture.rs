@@ -53,11 +53,87 @@ fn main() -> Result<()> {
     }
 
     let template = Template::new("content.capture", "Capture Content").step(Step::new("Capture", capture));
+    let progress = Template::new("content.progress", "Observe Progress").step(Step::new("Progress", revisioned_progress));
     let plugin = Plugin::new("content_fixture", "1.0.0")
-        .suite(Suite::new("content", "Content").template(template))
-        .requires_host::<v1::PublishArtifact>();
+        .suite(Suite::new("content", "Content").template(template).template(progress))
+        .requires_host::<v1::PublishArtifact>()
+        .requires_host::<dokime::protocol::context::v1::executions::ProgressGetRequest>()
+        .requires_host::<dokime::protocol::context::v1::executions::ProgressSetRequest>()
+        .requires_host::<dokime::protocol::context::v1::PromptsCreateRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
+}
+
+async fn revisioned_progress(ctx: &Context) -> Result<()> {
+    use dokime::protocol::context::v1::executions::{ProgressGetRequest, ProgressSetRequest};
+
+    // Establish a Whole Value and Recover Its Original Receipt
+    let initial = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
+    let first = ProgressSetRequest {
+        name: ctx.execution_id().into(),
+        value: Some(v1::ExecutionProgressValue {
+            completed: 1,
+            total: 2,
+            label: "First Value".into(),
+        }),
+        expected_revision: initial.revision,
+        request_id: "first".into(),
+    };
+    let saved = ctx.host(first.clone()).await?;
+    if ctx.host(first.clone()).await? != saved {
+        return Err(Error::Invalid("Set Progress: Replay Lost Its Original Receipt".into()));
+    }
+    let mut changed = first.clone();
+    changed.value.as_mut().unwrap().label = "Changed Value".into();
+    if ctx.host(changed).await.is_ok() {
+        return Err(Error::Invalid("Set Progress: Changed Request ID Payload Was Accepted".into()));
+    }
+    let stale = ProgressSetRequest {
+        request_id: "stale".into(),
+        ..first.clone()
+    };
+    if ctx.host(stale).await.is_ok() {
+        return Err(Error::Invalid("Set Progress: Stale Revision Was Accepted".into()));
+    }
+
+    // Let the Client Retain This Value Before Replacing It
+    ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest {
+        prompt: "continue".into(),
+        prompt_type: "content.continue".into(),
+        definition: Some(v1::Prompt {
+            metadata: Some(v1::Metadata {
+                identifier: "content.continue".into(),
+                label: "Continue".into(),
+                ..Default::default()
+            }),
+            actions: vec![v1::PromptAction {
+                identifier: "continue".into(),
+                label: "Continue".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .await?;
+
+    // Replace Every Writable Field, Including Clearing the Earlier Label
+    let current = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
+    ctx.host(ProgressSetRequest {
+        name: ctx.execution_id().into(),
+        value: Some(v1::ExecutionProgressValue {
+            completed: 2,
+            total: 2,
+            label: String::new(),
+        }),
+        expected_revision: current.revision,
+        request_id: "second".into(),
+    })
+    .await?;
+    if ctx.host(first).await? != saved {
+        return Err(Error::Invalid("Set Progress: Later Writes Changed an Earlier Receipt".into()));
+    }
+    Ok(())
 }
 async fn capture(ctx: &Context) -> Result<()> {
     // Start an Ordered Transfer

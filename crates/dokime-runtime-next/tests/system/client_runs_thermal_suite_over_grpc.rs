@@ -187,7 +187,6 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         // Start Two Executions in One Cycle and Read Their Records Separately
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
         let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
         let mut evidence = v1::evidence_client::EvidenceClient::new(channel);
         let cycle = execution.create_cycle(v1::ExecutionCreateCycleRequest {
@@ -198,13 +197,11 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         assert_ne!(cycle.execution_ids[0], cycle.execution_ids[1]);
         let mut watches = Vec::new();
         for (identifier, closed) in cycle.execution_ids.iter().zip([true, false]) {
-            let mut progress = observation.watch_execution_progress(v1::ObservationWatchExecutionProgressRequest {
-                test_execution_id: identifier.clone()
-            }).await?.into_inner();
+            let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone()).await?.watch(v1::executions::ProgressWatchRequest { name: identifier.clone()
+            , at: None }).await?.into_inner();
             let mut prompted = false;
             while let Some(frame) = progress.message().await? {
-                if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value
-                    && frame.progress.unwrap().phase == "prompt"
+                if frame.phase == "prompt"
                 { prompted = true; break; }
             }
             assert!(prompted);
@@ -222,7 +219,7 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         for mut progress in watches {
             let mut terminal = false;
             while let Some(frame) = progress.message().await? {
-                if matches!(frame.value, Some(v1::observation_watch_execution_progress_output::Value::Response(_))) { terminal = true; }
+                if frame.finished { terminal = true; }
             }
             assert!(terminal);
         }

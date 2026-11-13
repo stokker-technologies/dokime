@@ -1155,6 +1155,8 @@ message ExecutionOutcomeCounts {
 }
 
 message ExecutionDetail {
+  ExecutionProgressValue progress = 20;
+  .harmos.v1.Position resolved_at = 21;
   // Counts and evaluated-only verdict for all executions in this cycle.
   ExecutionOutcomeCounts cycle_counts = 19;
   // Verified digest of the sealed immutable execution and evidence.
@@ -1334,23 +1336,6 @@ enum ExecutionParameterSet {
   EXECUTION_PARAMETER_SET_UNSPECIFIED = 0;
   EXECUTION_PARAMETER_SET_INPUTS = 1;
   EXECUTION_PARAMETER_SET_OUTPUTS = 2;
-}
-
-message ExecutionProgress {
-  string test_execution_id = 1;
-  string step_id = 2;
-  string phase = 3;
-  uint64 completed = 4;
-  uint64 total = 5;
-  uint64 elapsed_ms = 6;
-  optional uint64 remaining_ms = 7;
-}
-
-message ExecutionProgressFrame {
-  uint64 revision = 1;
-  bool resynchronized = 2;
-  ExecutionProgress progress = 3;
-  bool cleared = 4;
 }
 
 message ExecutionSelection {

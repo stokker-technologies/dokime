@@ -88,45 +88,6 @@ impl v1::observation_server::Observation for Services {
         .await?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchExecutionProgressStream = dokime_operations_next::client::Output<v1::ObservationWatchExecutionProgressOutput>;
-    async fn watch_execution_progress(
-        &self, request: tonic::Request<v1::ObservationWatchExecutionProgressRequest>,
-    ) -> Result<tonic::Response<Self::WatchExecutionProgressStream>, tonic::Status> {
-        let reply = dokime_operations_next::client::observation_watch_execution_progress::handle(&self.context, request.into_inner())
-            .await
-            .map_err(dokime_operations_next::client::status)?;
-        Ok(tonic::Response::new(reply))
-    }
-    type RunWatchExecutionProgressStream = dokime_operations_next::client::Output<v1::ObservationWatchExecutionProgressRunOutput>;
-    async fn run_watch_execution_progress(
-        &self, request: tonic::Request<tonic::Streaming<v1::ObservationWatchExecutionProgressRunInput>>,
-    ) -> Result<tonic::Response<Self::RunWatchExecutionProgressStream>, tonic::Status> {
-        use dokime_operations_next::client::conversation::Input;
-        let reply = dokime_operations_next::client::conversation::streaming(
-            self.context.clone(),
-            request.into_inner(),
-            |input: v1::ObservationWatchExecutionProgressRunInput| match input.value? {
-                v1::observation_watch_execution_progress_run_input::Value::Request(request) => Some(Input::Request(request)),
-                v1::observation_watch_execution_progress_run_input::Value::Cancel(_) => Some(Input::Cancel),
-                v1::observation_watch_execution_progress_run_input::Value::Finish(_) => Some(Input::Finish),
-            },
-            |output: v1::ObservationWatchExecutionProgressOutput| v1::ObservationWatchExecutionProgressRunOutput {
-                value: output.value.map(|value| match value {
-                    v1::observation_watch_execution_progress_output::Value::Item(item) => {
-                        v1::observation_watch_execution_progress_run_output::Value::Item(item)
-                    }
-                    v1::observation_watch_execution_progress_output::Value::Response(response) => {
-                        v1::observation_watch_execution_progress_run_output::Value::Response(response)
-                    }
-                }),
-            },
-            |context, request| async move {
-                dokime_operations_next::client::observation_watch_execution_progress::handle(&context, request).await
-            },
-        )
-        .await?;
-        Ok(tonic::Response::new(reply))
-    }
     type WatchRuntimeStream = dokime_operations_next::client::Output<v1::ObservationWatchRuntimeOutput>;
     async fn watch_runtime(
         &self, request: tonic::Request<v1::ObservationWatchRuntimeRequest>,

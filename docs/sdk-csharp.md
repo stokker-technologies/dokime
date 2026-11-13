@@ -104,8 +104,12 @@ that authoring case can be supported without a transport workaround.
 service client over that transport; call options carry cancellation and metadata.
 `GrpcChannelOptions` accepts configured TLS and HTTP handlers.
 
-The build generates all 23 Dokime services, including ordinary and cancellable
-`Run<Method>` routes. For example:
+The build generates the declared Dokime services. Migrated resources expose the
+descriptor-derived hierarchy: `client.Executions.Progress.Get(request)` and
+`.Watch(request)` use client wrappers in `Dokime.Protocol.V1.Executions`.
+`Context.ProgressAsync` requires `Host.ProgressGet` and `Host.ProgressSet`, using
+separate context wrappers and whole-value revision checks. Clients have no progress Set.
+For example:
 
 ```csharp
 await using var client = Client.Connect("http://127.0.0.1:8765");

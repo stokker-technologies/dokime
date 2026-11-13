@@ -167,7 +167,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    [grammar requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md).
    **Proof:** Bounded product declaration/plan/pending lists return whole sets;
    `client_browses_catalog` checks schemas and whole catalog reads across restart.
-   No proof yet for final declarations/revision/replay behavior; A7.
+   `client_observes_revisioned_progress` proves separate context Get/Set and client
+   Get/Watch declarations, whole-value revision conflicts, original receipts and
+   clearing fields. Progress has no client Set or automatic streaming twin.
+   No proof yet for all final declarations/revision/replay behavior; A7.
    **Status:** locked direction (`operation-grammar`).
 
 9. **Position-Resolved Reads.** Optional `at` selects a previously returned compatible
@@ -183,7 +186,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    sealed reads resolve their seal. Arbitrary historical positions are not offered.
    **Where:** [read/watch/paging requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [query delta](../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
-   **Proof:** No proof yet for this complete API; A8 plus Nightly task
+   Progress retains issued durable positions across restart until execution
+   deletion and refuses foreign/unissued positions; the revisioned-progress
+   story guards that resource. **Proof:** No proof yet for this complete API; A8 plus Nightly task
    1.9. Measure small, multi-megabyte and mixed payloads; test splitting/positions
    deterministically, never elapsed time. **Status:** locked direction (`operation-grammar`).
 

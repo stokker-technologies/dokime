@@ -11,6 +11,7 @@
 
 /* === Imports === */
 
+#include "dokime/resources.hpp"
 #include "dokime/v1/client_appearance.grpc.pb.h"
 #include "dokime/v1/client_backend.grpc.pb.h"
 #include "dokime/v1/client_catalog.grpc.pb.h"
@@ -61,16 +62,12 @@ private:
   grpc::Status status_;
 };
 
-class Client {
+class Client : public resources::Client {
 public:
-  explicit Client(std::shared_ptr<grpc::Channel> channel)
-      : access(channel), status(channel), storage(channel), channel_(std::move(channel)) {
+  explicit Client(std::shared_ptr<grpc::Channel> channel) : resources::Client(channel), channel_(std::move(channel)) {
     if (!channel_)
       throw std::invalid_argument("Client Channel Is Required");
   }
-  harmos::AccessResource access;
-  harmos::StatusResource status;
-  harmos::StorageResource storage;
   static Client connect(std::string address, std::shared_ptr<grpc::ChannelCredentials> credentials = grpc::InsecureChannelCredentials());
   template <class Service> auto stub() const { return Service::NewStub(channel_); }
   const std::shared_ptr<grpc::Channel> &channel() const { return channel_; }

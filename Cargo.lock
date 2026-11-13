@@ -793,6 +793,7 @@ dependencies = [
  "prost-types",
  "thiserror",
  "tonic",
+ "uuid",
 ]
 
 [[package]]
@@ -948,6 +949,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

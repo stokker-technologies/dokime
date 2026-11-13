@@ -58,7 +58,6 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
         let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
         let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
         let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel);
         let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
         let planned = planning
@@ -87,15 +86,14 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
             .await?
             .into_inner();
         let identifier = cycle.execution_ids[0].clone();
-        let mut progress = observation
-            .watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: identifier.clone() })
+        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+            .await?
+            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         let mut prompted = false;
         while let Some(frame) = progress.message().await? {
-            if let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value
-                && frame.progress.unwrap().phase == "prompt"
-            {
+            if frame.phase == "prompt" {
                 prompted = true;
                 break;
             }
@@ -122,7 +120,6 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         let mut query = v1::query_client::QueryClient::new(channel.clone());
         let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel.clone());
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let mut observation = v1::observation_client::ObservationClient::new(channel);
         let recovered = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
         assert_eq!(recovered.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
         assert!(matches!(recovered.outcome.as_ref().unwrap().attribution.as_ref(),
@@ -142,13 +139,14 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         assert_eq!(saved.plugins[0].entry, entry.entry);
         assert_eq!(saved.plugins[0].state, v1::PluginState::Unavailable as i32);
         assert_eq!(saved.plugins[0].description, entry.description);
-        let mut progress = observation
-            .watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: identifier.clone() })
+        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+            .await?
+            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         let mut terminal = false;
         while let Some(frame) = progress.message().await? {
-            if matches!(frame.value, Some(v1::observation_watch_execution_progress_output::Value::Response(_))) {
+            if frame.finished {
                 terminal = true;
             }
         }

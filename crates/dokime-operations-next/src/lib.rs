@@ -16,7 +16,8 @@ pub mod client;
 pub mod environment;
 mod error;
 pub mod log;
-pub mod progress;
+pub mod progress_get;
+pub mod progress_set;
 pub mod prompt;
 pub mod record;
 pub mod records;
@@ -71,7 +72,8 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
                 environment::declaration()?,
                 time::declaration()?,
                 log::declaration()?,
-                progress::declaration()?,
+                progress_get::declaration()?,
+                progress_set::declaration()?,
                 record::declaration()?,
                 records::declaration()?,
                 statistics::declaration()?,
@@ -105,7 +107,12 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         log::ID => {
             Ok(log::handle(resources, dokime_protocol::context::evidence::LogsAppendRequest::decode(payload)?).await?.encode_to_vec())
         }
-        progress::ID => Ok(progress::handle(resources, v1::ReportProgress::decode(payload)?).await?.encode_to_vec()),
+        progress_get::ID => Ok(progress_get::handle(resources, dokime_protocol::context::executions::ProgressGetRequest::decode(payload)?)
+            .await?
+            .encode_to_vec()),
+        progress_set::ID => Ok(progress_set::handle(resources, dokime_protocol::context::executions::ProgressSetRequest::decode(payload)?)
+            .await?
+            .encode_to_vec()),
         record::ID => {
             Ok(record::handle(resources, dokime_protocol::context::evidence::RecordsAppendRequest::decode(payload)?).await?.encode_to_vec())
         }

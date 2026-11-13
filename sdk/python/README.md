@@ -135,7 +135,11 @@ a streaming request. Unary calls are awaited; server-streaming calls are async
 iterators. The channel's generated stubs also remain directly available.
 `client.plugins`, `suites`, `templates`, `cycles`, `executions`, `prompts`,
 `records`, `samples` and `reports` compose requests over those generated methods.
-Cycle watches yield progress values and verify terminal envelopes and final status.
+Cycle watches yield `dokime.v1.executions.ProgressWatchResponse` values and verify
+finished progress followed by successful final status. The descriptor-derived
+`client.executions.progress.get(request)` and `.watch(request)` use distinct client
+wrappers; context `Progress.Get/Set` supplies whole-value revision checks. Declare
+both context operations when selecting requirements for `ctx.progress(...)`.
 Report downloads verify chunk offsets, size and SHA-256 before returning bytes.
 
 ```python

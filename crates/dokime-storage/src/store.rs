@@ -47,6 +47,7 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
     database: Arc<std::path::PathBuf>,
+    pub(crate) identity: Arc<str>,
     cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
@@ -71,6 +72,10 @@ impl Drop for ReadCancellation {
     }
 }
 impl Store {
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
     pub fn open(root: &Path) -> Result<Self> {
         std::fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
@@ -110,9 +115,12 @@ impl Store {
                     "notes",
                     "plot_preferences",
                     "plugins",
+                    "read_positions",
                     "record_fields",
                     "registrations",
                     "reports",
+                    "resource_requests",
+                    "resource_values",
                     "sample_batches",
                     "sample_fields",
                     "samples",
@@ -151,12 +159,28 @@ impl Store {
                 CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
                 CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL);
-                CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
+                CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));
+                CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
+                CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
+                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
+        let identity_path = root.join("backend-id");
+        let identity = if identity_path.exists() {
+            std::fs::read_to_string(&identity_path)?
+        } else {
+            use std::io::Write;
+            let identity = uuid::Uuid::now_v7().to_string();
+            let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(identity_path)?;
+            file.write_all(identity.as_bytes())?;
+            file.sync_all()?;
+            identity
+        };
+        uuid::Uuid::parse_str(&identity).map_err(|_| Error::Incompatible(root.display().to_string()))?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
+            identity: identity.into(),
             cancelled: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
@@ -190,6 +214,7 @@ impl Store {
         let session = Self {
             connection: Arc::new(Mutex::new(connection)),
             database: self.database.clone(),
+            identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
             statistics: self.statistics.clone(),
             verified: self.verified.clone(),
@@ -456,7 +481,7 @@ fn validate_execution(execution: &Execution) -> Result<()> {
     Ok(())
 }
 
-fn require_open(connection: &Connection, execution: &str) -> Result<()> {
+pub(crate) fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     let state: Option<i32> = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0)).optional()?;
     if state != Some(0) {
         return Err(Error::Invalid("Start an Open Execution Before Writing Evidence".into()));

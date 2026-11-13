@@ -22,7 +22,6 @@ import sys
 import tarfile
 import tempfile
 import threading
-import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -148,7 +147,6 @@ class ScheduleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()
             repository = Path(__file__).resolve().parents[4]
-            configuration = tomllib.loads((repository / "mise.toml").read_text(encoding="utf-8"))
             # Project The Authored Graph Without Product Prerequisites Or Native Test Binaries.
             source = (repository / "mise.toml").read_text(encoding="utf-8")
             blocks = re.split(r"(?=^\[tasks\.)", source, flags=re.MULTILINE)
@@ -207,7 +205,7 @@ class ScheduleTests(unittest.TestCase):
                 encoding="utf-8",
             )
             tool = f'"{sys.executable}" "{wrapper}"'
-            header = f"[settings]\njobs={configuration['settings']['jobs']}\n[vars]\ntools={json.dumps(tool)}\npython={json.dumps(tool)}\nlane=''\n"
+            header = f"[vars]\ntools={json.dumps(tool)}\npython={json.dumps(tool)}\nlane=''\n"
             prerequisite = (
                 "\n[tasks.prepare]\nrun="
                 + json.dumps(tool + " prerequisite")

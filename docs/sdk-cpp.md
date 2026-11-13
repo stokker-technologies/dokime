@@ -78,8 +78,12 @@ Pass a credentialed channel or credentials to `connect` for authenticated TLS
 connections. Client/channel/stub ownership uses RAII; no global connection is
 created. Generated streaming APIs remain directly available.
 
-CMake generates all 23 Dokime services and their ordinary and cancellable
-`Run<Method>` routes. `dokime/client.hpp` exposes every generated service header.
+CMake generates the declared Dokime services. The composed descriptor-derived
+hierarchy exposes `client.executions.progress.get(context, request)` and
+`.watch(context, request)` with caller-owned gRPC contexts. Plugin progress uses
+separate context Get/Set declarations and whole-value revision checks; declare
+both when selecting requirements. Clients have no progress Set.
+`dokime/client.hpp` exposes every generated service header.
 Use `client.stub<dokime::v1::Plugins>()` for plugin Add/List and the other plugin
 operations. The in-process client story uses the generated Backend and Plugins
 services for authentication refusal, identity, complete log stream envelopes,

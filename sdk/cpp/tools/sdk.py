@@ -61,6 +61,7 @@ def main() -> None:
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument("--sdk-archive", type=Path)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--source", type=Path, help="Format One Generated Source")
     args = parser.parse_args()
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
@@ -89,7 +90,7 @@ def main() -> None:
             formatter = str(Path(installation) / "VC/Tools/Llvm/bin/clang-format.exe")
         if not formatter:
             parser.error("Install clang-format and Put It on PATH")
-        sources = sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp")])
+        sources = [args.source] if args.source else sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp")])
         command = [formatter, "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
         command += ["--dry-run", "--Werror"] if args.check else ["-i"]
         command += [str(source) for source in sources]
@@ -107,9 +108,10 @@ def main() -> None:
             command += ["--fresh"]
         if os.name == "nt":
             command += ["-G", "Visual Studio 17 2022", "-A", "x64"]
-        source = args.harmos_source.resolve() if args.harmos_source else ""
-        cache = args.harmos_cache.resolve() if args.harmos_cache else ""
-        command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={source}", f"-DDOKIME_HARMOS_CACHE={cache}"]
+        if args.harmos_source:
+            command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
+        if args.harmos_cache:
+            command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
         if args.fetch_dependencies:
             command += ["-DDOKIME_FETCH_DEPENDENCIES=ON"]
     elif args.action == "build":

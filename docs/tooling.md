@@ -67,6 +67,8 @@ and its native default exporter. Their source remains in the desktop tree.
 `mise run generate` generates frontend protobuf modules from the authoritative
 checked-in descriptor, without compiling a host. `mise run generate -- --protocol`
 regenerates checked-in Rust protocol output; add `--check` to prove its drift.
+The protocol task also generates four-language SDK roots through the pinned
+library's descriptor table/generator; its check verifies those outputs for drift.
 `generate --check` requires `--protocol` while native client generation is detached.
 Never edit generated files.
 

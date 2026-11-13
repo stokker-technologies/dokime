@@ -189,8 +189,9 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             .await?;
         let mut runtime = observation.watch_runtime(v1::ObservationWatchRuntimeRequest::default()).await?.into_inner();
         runtime.message().await?.unwrap();
-        let mut progress = observation
-            .watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: repeated.clone() })
+        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+            .await?
+            .watch(v1::executions::ProgressWatchRequest { name: repeated.clone(), at: None })
             .await?
             .into_inner();
         let mut questions = Vec::new();

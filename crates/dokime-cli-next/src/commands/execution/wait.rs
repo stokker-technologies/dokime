@@ -48,27 +48,21 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, true).await?;
     let mut client =
-        dokime::v1::observation_client::ObservationClient::new(channel).max_decoding_message_size(settings.message_bytes.get());
-    let request = dokime::v1::ObservationWatchExecutionProgressRequest { test_execution_id: args.execution };
-    let mut stream = client.watch_execution_progress(request).await?.into_inner();
+        dokime::v1::executions::progress_client::ProgressClient::new(channel).max_decoding_message_size(settings.message_bytes.get());
+    let request = dokime::v1::executions::ProgressWatchRequest { name: args.execution, at: None };
+    let mut stream = client.watch(request).await?.into_inner();
     let mut terminal = false;
     while let Some(frame) = stream.message().await? {
         if terminal {
-            return Err("Watch Execution: Received Data After Terminal Response".into());
+            return Err("Watch Execution: Progress After Settlement".into());
         }
-        match frame.value {
-            Some(dokime::v1::observation_watch_execution_progress_output::Value::Item(frame)) => {
-                let progress = frame.progress.ok_or("Watch Execution: Missing Progress")?;
-                crate::output::print(&progress, args.json)?;
-                use std::io::Write;
-                std::io::stdout().flush()?;
-            }
-            Some(dokime::v1::observation_watch_execution_progress_output::Value::Response(_)) => terminal = true,
-            None => return Err("Watch Execution: Missing Envelope Value".into()),
-        }
+        terminal = frame.finished;
+        crate::output::print(&frame, args.json)?;
+        use std::io::Write;
+        std::io::stdout().flush()?;
     }
     if !terminal {
-        return Err("Watch Execution: Missing Terminal Response".into());
+        return Err("Watch Execution: Missing Finished Progress".into());
     }
     Ok(())
 }

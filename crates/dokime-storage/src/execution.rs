@@ -174,11 +174,11 @@ impl ExecutionSnapshot {
             .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
-    pub fn progress(&self) -> Result<Vec<v1::ReportProgress>> {
+    pub fn progress(&self) -> Result<Vec<v1::ExecutionProgressValue>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "progress")
-            .map(|entry| v1::ReportProgress::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| v1::ExecutionProgressValue::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn step_contains(&self, step: &str, position: u64) -> bool {

@@ -1199,6 +1199,13 @@ header is stale. Generated availability is not proof of application consumption.
 
 ## Open Questions During Implementation
 
+Progress retains issued durable positions across restart until its execution is
+deleted. Its immutable value history and request receipts are committed with
+evidence; reads never flush accepted work. Client Get/Watch and context Get/Set
+use separate wrappers on the same storage owner. Unrelated evidence does not
+emit unchanged progress, while manager phase and finished observations remain
+part of Watch. Other resources' mutable-cut retention remains to be settled.
+
 Lifecycle identity (Owner, amended by the owner on 2026-11-13): each lifecycle
 binding keeps its own Protected operation identity with its own callee-owned policy
 and handler; the plugin face supplies the shared request and response messages. The

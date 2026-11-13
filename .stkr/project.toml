@@ -11,7 +11,7 @@ step_timeout_seconds = 900
 # === === Conventions === === #
 
 [conventions.rust]
-generated = ["crates/dokime-protocol/src/generated/**/*.rs", "crates/dokime-protocol/src/reflection.rs", "crates/dokime-protocol/src/sources.rs"]
+generated = ["crates/dokime-protocol/src/generated/**/*.rs", "crates/dokime-protocol/src/reflection.rs", "crates/dokime-protocol/src/sources.rs", "sdk/rust/src/client/resources.rs"]
 
 [skeletons]
 # Audit Native Sources And Cargo/CI Policy Skeletons.

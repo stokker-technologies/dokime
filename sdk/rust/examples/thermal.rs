@@ -87,7 +87,8 @@ fn main() -> Result<()> {
         .requires_host::<dokime::protocol::context::v1::evidence::RecordsAppendRequest>()
         .requires_host::<dokime::protocol::context::v1::evidence::RecordsListRequest>()
         .requires_host::<dokime::protocol::context::v1::EvidenceStatisticsRequest>()
-        .requires_host::<v1::ReportProgress>()
+        .requires_host::<dokime::protocol::context::v1::executions::ProgressGetRequest>()
+        .requires_host::<dokime::protocol::context::v1::executions::ProgressSetRequest>()
         .requires_host::<dokime::protocol::context::v1::evidence::LogsAppendRequest>()
         .requires::<dokime::clock::TimeSleepRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };

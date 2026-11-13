@@ -38,6 +38,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+uuid = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

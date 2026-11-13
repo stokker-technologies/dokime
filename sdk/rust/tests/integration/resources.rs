@@ -156,9 +156,11 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         harmos_protocol::v1::Classification::Permanent as i32
     );
     let mut ramp = process.invoke(&case.steps[0].operation, "b", v1::StepRequest { execution: "b".into(), ..step }).await?;
+    let get = ramp.child().await?;
+    ramp.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
     let progress = ramp.child().await?;
-    assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.execution, "b");
-    ramp.reply(progress.call, v1::ReportProgressResponse {}).await?;
+    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.name, "b");
+    ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
     ramp.finish::<v1::StepResponse>().await?;
 
     // Cleanup May Be the First Operation, Including on a Case Never Initialized.

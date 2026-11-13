@@ -12,6 +12,8 @@
 /* === Modules === */
 
 mod host;
+#[rustfmt::skip]
+mod resources;
 
 /* === Re-Exports === */
 
@@ -51,6 +53,7 @@ use tonic::{
 pub struct Client {
     transport: harmos::Client,
     authorization: Option<MetadataValue<Ascii>>,
+    resources: resources::Root,
 }
 
 /* === Enums === */
@@ -61,7 +64,12 @@ pub struct Client {
 
 impl Client {
     pub fn new(transport: harmos::Client) -> Self {
-        Self { transport, authorization: None }
+        let resources = resources::Root::new(transport.transport_handle());
+        Self {
+            transport,
+            authorization: None,
+            resources,
+        }
     }
     pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, Status> {
         Ok(Self::new(harmos::Client::new(channel, settings)?))
@@ -116,9 +124,9 @@ impl Client {
 }
 
 impl std::ops::Deref for Client {
-    type Target = harmos::Client;
+    type Target = resources::Root;
     fn deref(&self) -> &Self::Target {
-        &self.transport
+        &self.resources
     }
 }
 
