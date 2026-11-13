@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-using Dokime.V1;
+using Dokime.Protocol.Client.V1;
+using Dokime.Protocol.V1;
 using Grpc.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -61,13 +62,13 @@ public sealed class FakeLogs : Harmos.V1.StatusResources.Logs.LogsBase
 
 public sealed class FakePlugins : Plugins.PluginsBase
 {
-  private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dokime.V1.Plugin> entries = new();
+  private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dokime.Protocol.Client.V1.Plugin> entries = new();
 
-  public override Task<Dokime.V1.Plugin> Add(AddRemotePlugin request, ServerCallContext context)
+  public override Task<Dokime.Protocol.Client.V1.Plugin> Add(AddRemotePlugin request, ServerCallContext context)
   {
     if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var url) || url.Scheme != "http")
       throw new RpcException(new Status(StatusCode.InvalidArgument, "Plugin URL is required"));
-    var plugin = new Dokime.V1.Plugin
+    var plugin = new Dokime.Protocol.Client.V1.Plugin
     {
       Entry = Guid.NewGuid().ToString(),
       Remote = new RemotePlugin { Url = request.Url },
@@ -85,15 +86,15 @@ public sealed class FakePlugins : Plugins.PluginsBase
   }
 }
 
-public sealed class FakeCases : Dokime.Protocol.V1.Cases.CasesBase
+public sealed class FakeCases : Dokime.Protocol.Client.V1.Cases.CasesBase
 {
-  public override Task<Dokime.Protocol.V1.CasesGetResponse> Get(Dokime.Protocol.V1.CasesGetRequest request, ServerCallContext context)
+  public override Task<Dokime.Protocol.Client.V1.CasesGetResponse> Get(Dokime.Protocol.Client.V1.CasesGetRequest request, ServerCallContext context)
   {
     if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
       throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Case: Supply Credentials"));
     if (string.IsNullOrWhiteSpace(request.Name))
       throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
-    return Task.FromResult(new Dokime.Protocol.V1.CasesGetResponse
+    return Task.FromResult(new Dokime.Protocol.Client.V1.CasesGetResponse
     {
       Value = new CaseDetail { Summary = new CaseSummary { CaseId = request.Name, Status = CaseStatus.Planned } },
       ResolvedAt = request.At?.Clone()

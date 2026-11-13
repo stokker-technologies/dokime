@@ -7,7 +7,7 @@
  * ***
  */
 
-using Dokime.V1;
+using Dokime.Protocol.V1;
 
 namespace Dokime.Authoring;
 

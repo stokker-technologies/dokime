@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using Dokime.Protocol.Client.V1;
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Stories.Support;
@@ -45,12 +46,12 @@ public sealed class ClientInspectsABackend
     {
       Positions = { new Harmos.V1.Position { History = new Harmos.V1.History { Store = "cases", Epoch = "epoch" }, Sequence = 7 } }
     };
-    using var getCase = client.Cases.Get(new Dokime.Protocol.V1.CasesGetRequest { Name = "case-a", At = cut }, new CallOptions(headers));
+    using var getCase = client.Cases.Get(new Dokime.Protocol.Client.V1.CasesGetRequest { Name = "case-a", At = cut }, new CallOptions(headers));
     var planned = await getCase.ResponseAsync;
     Assert.Equal("case-a", planned.Value.Summary.CaseId);
     Assert.Equal(CaseStatus.Planned, planned.Value.Summary.Status);
     Assert.Equal(cut, planned.ResolvedAt);
-    using var missingCase = client.Cases.Get(new Dokime.Protocol.V1.CasesGetRequest(), new CallOptions(headers));
+    using var missingCase = client.Cases.Get(new Dokime.Protocol.Client.V1.CasesGetRequest(), new CallOptions(headers));
     var missing = await Assert.ThrowsAsync<RpcException>(() => missingCase.ResponseAsync);
     Assert.Equal(StatusCode.InvalidArgument, missing.StatusCode);
 

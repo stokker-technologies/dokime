@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Dokime.Protocol.Plugin.V1;
 using Harmos.Sdk;
 using Stories.Support;

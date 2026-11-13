@@ -52,7 +52,7 @@ or instrument call with `Plugin.Requires(operation)` before serving.
 
 ```csharp
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 
 var template = new Template("example.measurement", "Measurement")
     .Step(new Dokime.Step("measure", "Measure", async context =>
@@ -105,13 +105,18 @@ origin and frozen case.
 service client over that transport; call options carry cancellation and metadata.
 `GrpcChannelOptions` accepts configured TLS and HTTP handlers.
 
-The client API uses `Dokime.Protocol.V1` for root resource contracts. Every nested
+The client API uses `Dokime.Protocol.Client.V1` for root resource contracts. Every nested
 client package uses a `Resources` suffix in its C# namespace: `BackendResources`,
-`CatalogResources`, `ContentResources`, `EvidenceResources`, `ExecutionsResources`,
+`ContentResources`, `EvidenceResources`, `ExecutionsResources`,
 `MediaResources`, `PlotsResources`, `PluginsResources`, `PromptsResources` and
-`StorageResources`, all under `Dokime.Protocol.V1`. This keeps root service types
+`StorageResources`, all under `Dokime.Protocol.Client.V1`. This keeps root service types
 and nested namespaces distinct. Wire identities retain their face packages, such
-as `dokime.v1.executions.Progress/Get`.
+as `dokime.client.v1.executions.Progress/Get`.
+
+Registries are top-level resources: `client.Suites`, `client.RecordSchemas`,
+`client.StreamSchemas`, `client.PromptDefinitions` and `client.Analyses.List`.
+Shared vocabulary stays in `Dokime.Protocol.V1`; plugin lifecycle payloads stay
+in `Dokime.Protocol.Plugin.V1`.
 
 Use the descriptor-derived hierarchy with explicit request messages and call
 options. For example:
@@ -119,7 +124,7 @@ options. For example:
 ```csharp
 await using var client = Client.Connect("http://127.0.0.1:8765");
 using var progress = client.Executions.Progress.Get(
-    new Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest
+    new Dokime.Protocol.Client.V1.ExecutionsResources.ProgressGetRequest
     {
         Name = "execution-id"
     });
@@ -132,8 +137,9 @@ read. Paged resources bind continuation tokens to their selection and cut. Watch
 gaps require explicit resynchronization. Downloads use bounded unary responses
 and ranged `client.Storage.GetFileBytes` reads; only watches use server streaming.
 
-Plugin child calls use separate `Dokime.Protocol.Context.V1` contracts and its
-nested `.Content`, `.Evidence`, `.Executions` and `.Files` namespaces. Context
+Plugin child calls use separate `Dokime.Protocol.Plugin.Host.V1` contracts and its
+nested `.ContentResources`, `.EvidenceResources`, `.ExecutionsResources` and
+`.FilesResources` namespaces. Context
 contracts travel through the active invocation, without client gRPC entry points.
 `Context.ProgressAsync` requires `Host.ProgressGet` and `Host.ProgressSet` and uses
 whole-value revision checks. Clients have no progress Set. Settings and secret

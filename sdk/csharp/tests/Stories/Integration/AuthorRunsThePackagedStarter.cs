@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Dokime.Protocol.Plugin.V1;
 using Google.Protobuf;
 using Grpc.Core;
@@ -47,14 +47,14 @@ public sealed class AuthorRunsThePackagedStarter
       var origin = new Origin { PluginRun = new PluginRun { Plugin = description.Id, Template = template.Metadata.Identifier, TestCase = testCase } };
 
       // Execute the Measurement and Acknowledge Its Host Log Call.
-      global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest? log = null;
+      global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendRequest? log = null;
       await wire.InvokeAsync<StepsExecuteResponse>(description, step.Operation,
           new StepsExecuteRequest { Execution = "starter-execution", Step = step.Metadata.Identifier, TestCase = testCase, Origin = origin },
           "starter-execution", child =>
           {
             Assert.Equal(Dokime.Host.Log.Contract.Id, child.Operation);
-            log = global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest.Parser.ParseFrom(child.Payload);
-            return new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse().ToByteString();
+            log = global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendRequest.Parser.ParseFrom(child.Payload);
+            return new global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendResponse().ToByteString();
           });
       Assert.Equal("starter-execution", log!.Execution);
       Assert.Equal(Severity.Info, log.Severity);

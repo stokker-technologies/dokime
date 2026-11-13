@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Dokime.Protocol.Plugin.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
@@ -9,7 +9,7 @@ using Harmos.V1;
 using Harmos.Plugin.V1;
 using Stories.Support;
 using Xunit;
-using Value = Dokime.V1.Value;
+using Value = Dokime.Protocol.V1.Value;
 
 namespace Stories.Integration;
 
@@ -20,19 +20,19 @@ public sealed class AuthorRunsAMeasurement
   {
     // Compose a Suite with an Owned Instrument, Record and Host-Ticked Stream.
     var instrument = new Instrument();
-    var record = new Dokime.Record<global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse>("measurement", "Measurement");
-    var stream = new Dokime.Stream<global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse>("journey.readings");
+    var record = new Dokime.Record<global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse>("measurement", "Measurement");
+    var stream = new Dokime.Stream<global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse>("journey.readings");
     var template = new Template("journey.measure", "Measure")
         .Resource(_ => Task.FromResult<IAsyncDisposable>(instrument))
         .Initialize(context => { context.Resource<Instrument>().Initialized = true; return Task.CompletedTask; })
         .Step(new Dokime.Step("read", "Read", async context =>
         {
           context.Resource<Instrument>().Reads++;
-          await context.RecordAsync(record, new global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse { Count = 1, Mean = context.Parameters["target"].Number },
+          await context.RecordAsync(record, new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = 1, Mean = context.Parameters["target"].Number },
               sourceAt: new Timestamp { Seconds = 120 }, requestId: "measurement-read");
         }, Retries: 2))
-        .Observer(new Observer<global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse>(stream, new Duration { Seconds = 1 }, context =>
-            Task.FromResult(new global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse { Count = context.Sequence, Mean = context.Resource<Instrument>().Reads })))
+        .Observer(new Observer<global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse>(stream, new Duration { Seconds = 1 }, context =>
+            Task.FromResult(new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = context.Sequence, Mean = context.Resource<Instrument>().Reads })))
         .Criterion(new Dokime.Criterion("captured", "Captured", async context =>
             (await context.RecordsAsync(record.Identifier, page: new PageRequest { PageSize = 8, MaxBytes = 4096, PageToken = "continuation" },
                 at: new Position { History = new History { Store = "evidence", Epoch = "epoch" }, Sequence = 1 })).Count == 1))
@@ -61,18 +61,18 @@ public sealed class AuthorRunsAMeasurement
     Assert.True(instrument.Initialized);
 
     // Execute the Step and Acknowledge Its Typed Record on the Parent Call.
-    global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendRequest? stored = null;
+    global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.RecordsAppendRequest? stored = null;
     await server.Wire.InvokeAsync<StepsExecuteResponse>(description, testCase.Steps[0].Operation,
         new StepsExecuteRequest { Execution = "execution-a", Step = "read", TestCase = testCase, Origin = origin }, "execution-a", child =>
         {
           Assert.Equal(Host.Record.Contract.Id, child.Operation);
-          stored = global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendRequest.Parser.ParseFrom(child.Payload);
-          return new global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendResponse { Ordinal = 1 }.ToByteString();
+          stored = global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.RecordsAppendRequest.Parser.ParseFrom(child.Payload);
+          return new global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.RecordsAppendResponse { Ordinal = 1 }.ToByteString();
         });
     Assert.Equal("execution-a", stored!.Execution);
     Assert.Equal(new Timestamp { Seconds = 120 }, stored.SourceAt);
     Assert.Equal("measurement-read", stored.RequestId);
-    Assert.Equal(42, global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse.Parser.ParseFrom(stored.Payload).Mean);
+    Assert.Equal(42, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(stored.Payload).Mean);
 
     // Advance the Observer with One Explicit Host Tick.
     using var publication = server.Wire.Publish();
@@ -82,8 +82,8 @@ public sealed class AuthorRunsAMeasurement
     Assert.True(await publication.ResponseStream.MoveNext(default));
     var sample = Assert.Single(publication.ResponseStream.Current.Samples);
     Assert.Equal(at, sample.At);
-    Assert.Equal(1ul, global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Count);
-    Assert.Equal(1, global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Mean);
+    Assert.Equal(1ul, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Count);
+    Assert.Equal(1, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Mean);
     await publication.RequestStream.CompleteAsync();
 
     // Evaluate Captured Evidence and Release the Instrument After Cleanup.
@@ -92,10 +92,10 @@ public sealed class AuthorRunsAMeasurement
         child =>
         {
           Assert.Equal(Host.Records.Contract.Id, child.Operation);
-          var request = global::Dokime.Protocol.Context.V1.Evidence.RecordsListRequest.Parser.ParseFrom(child.Payload);
+          var request = global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.RecordsListRequest.Parser.ParseFrom(child.Payload);
           Assert.Equal(new PageRequest { PageSize = 8, MaxBytes = 4096, PageToken = "continuation" }, request.Page);
           Assert.Equal(new Position { History = new History { Store = "evidence", Epoch = "epoch" }, Sequence = 1 }, request.At);
-          return new global::Dokime.Protocol.Context.V1.Evidence.RecordsListResponse { Count = stored is null ? 0ul : 1ul }.ToByteString();
+          return new global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.RecordsListResponse { Count = stored is null ? 0ul : 1ul }.ToByteString();
         });
     Assert.True(verdict.Passed);
     await server.Wire.InvokeAsync<ExecutionsCleanupResponse>(description, "journey.measure.cleanup",
