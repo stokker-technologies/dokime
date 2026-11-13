@@ -71,12 +71,15 @@ def build(profile: str, language: str = "auto") -> None:
                 "dokime-runtime-next",
                 "--example",
                 "content_fixture",
+                "--bin",
+                "dokime-host-next",
             ],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
+        shutil.copy2(root / "target/debug" / f"dokime-host-next{extension}", output / f"dokime-host-next{extension}")
 
     # Publish The C# Fixture With Its Runtime And Local SDK Package.
     if "csharp" in languages:

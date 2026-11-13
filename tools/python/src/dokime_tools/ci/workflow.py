@@ -177,8 +177,6 @@ def main(arguments: list[str] | None = None) -> int:
     elif operation == "bindings":
         from . import tasks
 
-        if tasks.main(["test", "--language", "python", "--wheel", "--profile", options.profile]):
-            return 1
         from ..test.archive import install_wheels
 
         install_wheels(Path.cwd(), options.profile)

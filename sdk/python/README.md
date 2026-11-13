@@ -174,6 +174,7 @@ mise -C sdk/python run sdk:prepare
 mise -C sdk/python run sdk:build
 mise -C sdk/python run sdk:install
 mise -C sdk/python run sdk:generated
+mise run build:host-fixtures -- --language rust
 mise -C sdk/python run sdk:test
 mise -C sdk/python run sdk:starter
 mise -C sdk/python run sdk:wheel
@@ -195,7 +196,10 @@ The named host story `python_plugin_matches_rust_thermal_evidence` adds its remo
 URL, runs `thermal.cycle` with `limit = 85`, answers the door, and compares the
 frozen test case, ordered records/steps/logs, samples and outcome with Rust.
 It reopens the sealed evidence after shutdown. The starter retains its own
-in-process authoring story. Build prerequisites and named host runs are in
+host-driven authoring story, using the client root rather than an Instance client stub.
+The host owns the controlled clock, retries, evidence and cleanup. Linux stories
+start an isolated session bus/keyring; install dbus and gnome-keyring first.
+Build prerequisites and named host runs are in
 [Execution Host](../../docs/execution-host.md).
 
 ## Composed Client Services

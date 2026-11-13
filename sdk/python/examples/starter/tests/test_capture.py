@@ -6,28 +6,20 @@
 #
 # ***
 
-"""An Operator Serves, Materializes And Runs The Starter With A Host Clock."""
+"""An Operator Runs The Starter Through A Host And Its Controlled Clock."""
 
 # === Imports === #
 
 # Standard Library Imports
 import unittest
 
-import grpc
-from google.protobuf.timestamp_pb2 import Timestamp
-from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue
-from harmos.context.v1 import time_pb2 as time
-from harmos.plugin.v1 import instance_pb2 as instance
-from harmos.plugin.v1.instance_pb2_grpc import InstanceStub
-from harmos.v1 import types_pb2 as wire
-from host import invoke
-from suite import plugin
-
 # Third Party Imports
+from google.protobuf.wrappers_pb2 import BoolValue
 import dokime
 
 # Local Imports
-from dokime.v1 import message, message_type
+from host import Host
+from suite import plugin
 
 # Type Checking Imports
 
@@ -42,126 +34,41 @@ from dokime.v1 import message, message_type
 
 class CaptureStory(unittest.IsolatedAsyncioTestCase):
     async def test_serve_capture_and_release(self):
-        # Serve The Remote Plugin And Read Its Typed Catalog.
+        # Serve And Admit The Starter Through A Prepared Product Host.
+        host = await Host.start(self)
         endpoint = await dokime.serve(plugin(), address="127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
-        channel = grpc.aio.insecure_channel(endpoint.address)
-        self.addAsyncCleanup(channel.close)
-        client = InstanceStub(channel)
-        description = await client.Get(instance.InstanceGetRequest(revision=1))
-        suites = message_type("Suites").FromString(
-            next(item.payload for item in description.catalog.sections if item.type == "dokime.v1.Suites")
-        )
-        template = suites.suites[0].templates[0]
-        self.assertEqual(len(template.documents[0].sections[0].cards), 2)
-
-        # Materialize A Resolved Parameter Set Without Creating An Execution.
-        case = await invoke(
-            client,
-            template.materialize,
-            message("MaterializeRequest", template=template.metadata.identifier, parameters={"limit": {"number": 12}}),
-            message_type("TestCase"),
-        )
+        self.addAsyncCleanup(host.close)
+        await host.client.plugins.add(endpoint.url)
+        suites = await host.client.suites.list()
+        suite = await host.client.suites.get(suites[0].suite_id)
+        self.assertEqual(len(suite.templates[0].documents[0].sections[0].cards), 2)
+        cases = await host.client.templates.materialize(suites[0].suite_id, "example.capture", {"limit": [12]})
+        case = cases[0].origin.plugin_run.test_case
         self.assertEqual([item.metadata.identifier for item in case.steps], ["measure", "confirm"])
-        origin = message(
-            "Origin",
-            plugin_run={
-                "plugin": description.id,
-                "template": template.metadata.identifier,
-                "test_case": case,
-                "digest": description.catalog.digest,
-                "started_at": description.started_at,
-            },
-        )
-        envelope = {"execution": "execution-one", "test_case": case, "origin": origin}
 
-        # Initialize One Execution-Owned Suite Instance.
-        await invoke(
-            client, template.initialize, message("InitializeRequest", **envelope), message_type("InitializeResponse"), scope="execution-one"
-        )
-        records = []
-        calls = []
-        sleeps = []
-        requirements = {item.id: item.fingerprint for item in description.catalog.requires}
+        # Await The Operator Question And Answer With The Client Root.
+        cycle = await host.client.cycles.start(cases)
+        async for progress in cycle.watch():
+            if progress.phase == "prompt":
+                prompts = await host.client.prompts.pending(cycle.executions[0])
+                asked = await host.client.prompts.get(prompts[0].prompt_id)
+                await host.client.prompts.respond(asked.prompt_id, asked.definition.actions[0].identifier, accepted=True)
+        execution = await host.client.executions.get(cycle.executions[0])
+        self.assertEqual(
+                execution.outcome.evaluated.status,
+                execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
+            )
 
-        async def host(child):
-            self.assertEqual(child.fingerprint, requirements[child.operation])
-            calls.append(child.operation)
-            if child.operation == "dokime.execution.record":
-                request = message_type("PublishRecord").FromString(child.payload)
-                self.assertEqual(request.execution, "execution-one")
-                records.append(request.payload)
-                return message("RecordReceipt", ordinal=len(records))
-            if child.operation == "dokime.execution.prompt":
-                question = message_type("OperatorQuestion").FromString(child.payload)
-                return message("OperatorAnswer", prompt=question.prompt, action=question.definition.actions[0].identifier, accepted=True)
-            if child.operation == "harmos.context.v1.Time/Sleep":
-                duration = time.TimeSleepRequest.FromString(child.payload).duration
-                sleeps.append((duration.seconds, duration.nanos))
-                return time.TimeSleepResponse()
-            if child.operation == "dokime.execution.statistics":
-                request = message_type("StatisticsRequest").FromString(child.payload)
-                self.assertEqual((request.stream, request.step), ("example.reading", "measure"))
-                return message("Statistics", count=1, min=11, max=11, mean=11)
-            if child.operation == "dokime.execution.records":
-                return message("Records", count=len(records), last={"kind": "example.confirmation", "payload": records[-1]})
-            if child.operation == "dokime.execution.progress":
-                return message("ReportProgressResponse")
-            if child.operation == "dokime.execution.log":
-                return message("WriteLogResponse")
-            raise ValueError(f"Unexpected host operation: {child.operation}")
-
-        # Run Measure And Read Its Observer At A Fixed Host Tick.
-        await invoke(
-            client,
-            case.steps[0].operation,
-            message("StepRequest", step="measure", **envelope),
-            message_type("StepResponse"),
-            scope="execution-one",
-            host=host,
-        )
-        publication = client.Samples()
-        await publication.write(instance.InstanceSamplesRequest(open=wire.SamplesSelection(stream=case.streams[0], scope="execution-one")))
-        await publication.write(instance.InstanceSamplesRequest(tick=wire.Tick(at=Timestamp(seconds=123))))
-        sample = (await publication.read()).samples[0]
-        self.assertEqual((sample.at.seconds, DoubleValue.FromString(sample.row).value), (123, 11))
-        publication.cancel()
-
-        # Answer The Prompt And Evaluate Against Acknowledged Evidence.
-        await invoke(
-            client,
-            case.steps[1].operation,
-            message("StepRequest", step="confirm", **envelope),
-            message_type("StepResponse"),
-            scope="execution-one",
-            host=host,
-        )
-        result = await invoke(
-            client,
-            case.criteria[0].operation,
-            message("CriterionRequest", criterion="within.limit", **envelope),
-            message_type("CriterionResponse"),
-            scope="execution-one",
-            host=host,
-        )
-        self.assertTrue(result.passed)
-        self.assertTrue(all(BoolValue.FromString(payload).value for payload in records))
-
-        # Release Resources Through Cleanup And Stop The Remote Plugin.
-        await invoke(
-            client,
-            template.cleanup,
-            message("CleanupRequest", termination=1, **envelope),
-            message_type("CleanupResponse"),
-            scope="execution-one",
-            host=host,
-        )
+        # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
+        records = await host.client.records.list(cycle.executions[0])
+        self.assertEqual(len(records.records), 2)
+        self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))
+        samples = await host.client.samples.list(cycle.executions[0])
+        self.assertTrue(samples.samples)
         self.assertFalse(endpoint.plugin._sessions)
-        self.assertEqual(calls[-1], "dokime.execution.log")
-        self.assertEqual(sleeps, [(0, 200_000_000), (1, 0)])
-        await client.Stop(instance.InstanceStopRequest(reason="Finished"))
-        self.assertEqual((await client.Get(instance.InstanceGetRequest(revision=1))).started_at, description.started_at)
-        await endpoint.close()
+        await host.client.plugins.remove((await host.client.plugins.list()).plugins[0].entry)
+        self.assertEqual((await host.client.plugins.list()).plugins, [])
 
 
 # === Public Functions === #

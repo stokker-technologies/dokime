@@ -92,15 +92,15 @@ jobs:
           minutes: 120
           work: Python / Wheel
           command: test -- --language python --wheel
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Wheel
           command: test -- --language python --wheel
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -113,15 +113,15 @@ jobs:
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
