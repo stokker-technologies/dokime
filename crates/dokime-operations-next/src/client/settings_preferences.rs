@@ -40,10 +40,10 @@ use dokime_protocol::v1;
 /* === Public Functions === */
 
 // Product Defaults Are Copied from the Old Application Preferences; Delete the Old Owner at Cutover.
-pub(super) fn initial() -> v1::SettingsSnapshot {
-    v1::SettingsSnapshot {
-        revision: 0,
-        settings: Some(v1::ApplicationSettings {
+pub(super) fn initial() -> v1::SettingsGetResponse {
+    v1::SettingsGetResponse {
+        revision: 0_u64.to_be_bytes().to_vec(),
+        value: Some(v1::ApplicationSettings {
             appearance: Some(v1::ApplicationAppearance {
                 theme_mode: v1::ThemeMode::System as i32,
                 density: v1::Density::Comfortable as i32,
@@ -67,11 +67,13 @@ pub(super) fn initial() -> v1::SettingsSnapshot {
                 stop_timeout_s: 10,
             }),
         }),
+        resolved_at:None,
     }
 }
 
-pub(super) fn read(context: &Context) -> Result<v1::SettingsSnapshot> {
-    Ok(context.host.store().administration("preferences")?.unwrap_or_else(initial))
+pub(super) fn read(context: &Context) -> Result<v1::SettingsGetResponse> {
+    let (payload,revision)=context.host.store().administration_value("preferences",&prost::Message::encode_to_vec(&initial().value.unwrap()))?;
+    Ok(v1::SettingsGetResponse {value:Some(<v1::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),revision,resolved_at:None})
 }
 
 pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
@@ -111,7 +113,7 @@ pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::PluginRuntimeSettings> {
+pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::plugins::SettingsGetResponse> {
     let plugin = context
         .host
         .plugins()?
@@ -121,7 +123,7 @@ pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::PluginRu
     for_plugin(&context.host.store(), plugin)
 }
 
-pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> Result<v1::PluginRuntimeSettings> {
+pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> Result<v1::plugins::SettingsGetResponse> {
     let settings_owner = plugin.description.as_ref().map(|description| description.id.clone()).unwrap_or_else(|| plugin.entry.clone());
     let mut settings = v1::SettingsCatalog::default();
     if let Some(catalog) = plugin.description.and_then(|description| description.catalog) {
@@ -162,9 +164,9 @@ pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> R
             identifier,
         });
     }
-    Ok(v1::PluginRuntimeSettings {
-        settings: Some(settings),
-        values: Some(v1::MapValue { values }),
+    Ok(v1::plugins::SettingsGetResponse {
+        schema: Some(settings),
+        value: Some(v1::MapValue { values }),
         secrets,
         ..Default::default()
     })

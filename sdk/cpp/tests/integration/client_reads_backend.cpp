@@ -33,10 +33,12 @@ int main() {
   // Start a Backend in This Process.
   Backend backend;
   Plugins plugins;
+  Suites suites;
   Logs log_service;
   grpc::ServerBuilder builder;
   builder.RegisterService(&backend);
   builder.RegisterService(&plugins);
+  builder.RegisterService(&suites);
   builder.RegisterService(&log_service);
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
@@ -70,6 +72,23 @@ int main() {
   auto status_stub = client.stub<harmos::v1::Status>();
   auto failure = status_stub->Get(&checking_refusal, {}, &refused_response);
   check(refused && failure.error_code() == grpc::StatusCode::UNAUTHENTICATED, "Authentication Failure Was Hidden");
+
+  // Read a Product Resource Through Its Nested Client Root.
+  grpc::ClientContext reading_suite;
+  dokime::v1::catalog::SuitesGetRequest suite_request;
+  suite_request.set_name("sample");
+  auto suite = client.catalog.suites.get(reading_suite, suite_request);
+  check(suite.value().metadata().identifier() == suite_request.name(), "Nested Suite Read Was Lost");
+
+  // Retain a Product Resource Failure Through the Root.
+  grpc::ClientContext missing_suite;
+  refused = false;
+  try {
+    client.catalog.suites.get(missing_suite, {});
+  } catch (const std::runtime_error &) {
+    refused = true;
+  }
+  check(refused, "Missing Suite Became an Empty Success");
 
   // Add a Remote Entry and Read Its Canonical Placement Through Generated Stubs.
   auto plugin_stub = client.stub<dokime::v1::Plugins>();

@@ -145,7 +145,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
     raw.analysis = None;
     raw.technique = v1::Downsample::Raw as i32;
     raw.max_points = Some(input_limit as u64);
-    let mut envelope = super::plots_query_snapshots::query_base(context, raw).await?;
+    let mut envelope = super::plots_snapshots_list::query_base(context, raw).await?;
     let payload = envelope.payload.as_mut().ok_or_else(|| Error::Invalid("Query Analysis: Capture Its Raw Source Window".into()))?;
     let frame = payload.frame.take().ok_or_else(|| Error::Invalid("Query Analysis: Select a Time-Series Source".into()))?;
     if frame.series.len() != payload.series.len() {

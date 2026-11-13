@@ -67,7 +67,7 @@ pub async fn handle(resources: &Resources, request: v1::ReadSettings) -> Result<
         },
     )?;
     Ok(v1::SavedSettings {
-        values: settings.values.unwrap_or_default().values,
+        values: settings.value.unwrap_or_default().values,
     })
 }
 

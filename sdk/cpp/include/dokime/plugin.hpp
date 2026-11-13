@@ -12,6 +12,10 @@
 /* === Imports === */
 
 #include "dokime/context.hpp"
+#include "dokime/plugin/v1/criteria.pb.h"
+#include "dokime/plugin/v1/executions.pb.h"
+#include "dokime/plugin/v1/steps.pb.h"
+#include "dokime/plugin/v1/test_cases.pb.h"
 #include "dokime/v1/catalog.pb.h"
 
 /* === Macros === */

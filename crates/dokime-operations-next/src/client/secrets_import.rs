@@ -1,13 +1,13 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-// Client gRPC Services
+// Read Execution Progress at a Returned Durable Position
 
 /* === Modules === */
 
@@ -18,15 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::v1 as h;
 
 // Local Imports
-use super::secrets_store::{Action, Reply};
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
+
 /* === Constants === */
 
-pub const ID: &str = "dokime.secrets.import";
+pub const ID: &str = "dokime.v1.Secrets/Import";
 
 /* === Macros === */
 
@@ -42,18 +43,19 @@ pub const ID: &str = "dokime.secrets.import";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::SecretsImportRequest, v1::SecretSnapshot>(ID, settings.mutation_timeout)
+pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+    super::declaration::<v1::SecretsImportRequest, v1::SecretsImportResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(context: &Context, request: v1::SecretsImportRequest) -> Result<v1::SecretSnapshot> {
+pub async fn handle(context: &Context, request: v1::SecretsImportRequest) -> Result<v1::SecretsImportResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-        let result = super::secrets_store::perform(context, Action::Import(request)).await?;
-        match result {
-            Reply::Snapshot(reply) => Ok(reply),
-            _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())),
-        }
-    })
-    .await
+if request.validate_only {
+ let super::secrets_store::Reply::Preview(preview)=super::secrets_store::perform(context,super::secrets_store::Action::Preview(request.data)).await? else {return Err(Error::Invalid("Preview Secrets: Restart the Secret Store".into()));};
+ return Ok(v1::SecretsImportResponse {preview:Some(preview),..Default::default()});
+}
+let receipt=super::views::receipt(&request.request_id)?;
+let super::secrets_store::Reply::Snapshot(snapshot)=super::secrets_store::perform(context,super::secrets_store::Action::Import(request)).await? else {return Err(Error::Invalid("Import Secrets: Restart the Secret Store".into()));};
+context.host.signal_change();Ok(v1::SecretsImportResponse {snapshot:Some(snapshot),receipt:Some(receipt),..Default::default()})
+    }).await
 }
 
 /* === Private Functions === */

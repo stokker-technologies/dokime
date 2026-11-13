@@ -329,61 +329,25 @@ impl Store {
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        evidence.position = next_position(&transaction, execution)?;
-        transaction.execute(
-            "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
-            params![execution, evidence.position as i64, evidence.encode_to_vec()],
-        )?;
-        if evidence.kind == "attempt:start" {
-            transaction.execute(
-                "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
-                params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
-            )?;
-        }
-        if let Some(kind) = evidence.kind.strip_prefix("record:") {
-            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
-            let definition = Execution::decode(payload.as_slice())?;
-            let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
-            for section in &catalog.sections {
-                if section.r#type != "dokime.v1.RecordContracts" {
-                    continue;
-                }
-                let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
-                let Some(contract) = contracts
-                    .records
-                    .iter()
-                    .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
-                else {
-                    continue;
-                };
-                let Some(types) = catalog.types.clone() else {
-                    continue;
-                };
-                let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
-                    continue;
-                };
-                let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
-                    continue;
-                };
-                let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
-                    continue;
-                };
-                let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
-                    continue;
-                };
-                for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
-                    transaction.execute(
-                        "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
-                    )?;
-                }
-            }
-        }
-
+        insert_evidence(&transaction, execution, &mut evidence)?;
         transaction.commit()?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
+    }
+    pub fn append_requested(&self,execution:&str,operation:&str,request_id:&str,fingerprint:&[u8],mut evidence:Evidence)->Result<(u64,harmos_protocol::v1::Receipt)> {
+        use harmos_protocol::v1::{History,Position,Receipt};
+        if request_id.is_empty(){return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));}
+        let mut connection=self.lock()?;let transaction=connection.transaction()?;
+        let saved:Option<(Vec<u8>,i64)>=transaction.query_row("SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",params![execution,operation,request_id],|row|Ok((row.get(0)?,row.get(1)?))).optional()?;
+        let position=if let Some((saved,position))=saved {if saved!=fingerprint{return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));}position as u64}else{
+            insert_evidence(&transaction,execution,&mut evidence)?;
+            transaction.execute("INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",params![execution,operation,request_id,fingerprint,evidence.position as i64])?;
+            evidence.position
+        };
+        transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)",params![execution,position as i64])?;
+        transaction.commit()?;self.changed.send_modify(|revision|*revision+=1);
+        let durable=Position {history:Some(History {store:self.identity.to_string(),epoch:execution.into()}),sequence:position};
+        Ok((position,Receipt {request_id:request_id.into(),accepted_at:Some(durable.clone()),durable_at:Some(durable),completed:true}))
     }
     pub fn open_stream(&self, execution: &str, stream: &str) -> Result<()> {
         let connection = self.lock()?;
@@ -487,6 +451,63 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn insert_evidence(transaction:&rusqlite::Transaction<'_>,execution:&str,evidence:&mut Evidence)->Result<()> {
+        require_open(transaction, execution)?;
+        evidence.position = next_position(transaction, execution)?;
+        transaction.execute(
+            "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
+            params![execution, evidence.position as i64, evidence.encode_to_vec()],
+        )?;
+        if evidence.kind == "attempt:start" {
+            transaction.execute(
+                "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
+                params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
+            )?;
+        }
+        if let Some(kind) = evidence.kind.strip_prefix("record:") {
+            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+            let definition = Execution::decode(payload.as_slice())?;
+            let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
+            for section in &catalog.sections {
+                if section.r#type != "dokime.v1.RecordContracts" {
+                    continue;
+                }
+                let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
+                let Some(contract) = contracts
+                    .records
+                    .iter()
+                    .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
+                else {
+                    continue;
+                };
+                let Some(types) = catalog.types.clone() else {
+                    continue;
+                };
+                let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
+                    continue;
+                };
+                let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
+                    continue;
+                };
+                let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
+                    continue;
+                };
+                let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
+                    continue;
+                };
+                for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
+                    transaction.execute(
+                        "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                        params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
+                    )?;
+                }
+            }
+        }
+
+Ok(())
+}
+
 
 fn configure_read_functions(connection: &Connection) -> Result<()> {
     connection.create_scalar_function(

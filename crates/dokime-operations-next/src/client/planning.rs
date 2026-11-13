@@ -41,7 +41,7 @@ use dokime_protocol::v1;
 
 /* === Public Functions === */
 
-pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Result<v1::PreviewSelectionReply> {
+pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Result<v1::CasesCreateResponse> {
     if !plan.case_ids.is_empty() && !plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Choose Registered Cases or Template Selections".into()));
     }
@@ -57,7 +57,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
         for identifier in &plan.case_ids {
             cases.push(context.host.store().planned_case(identifier)?);
         }
-        return Ok(v1::PreviewSelectionReply { cases, ..Default::default() });
+        return Ok(v1::CasesCreateResponse { cases, ..Default::default() });
     }
     if plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Supply at Least One Selection".into()));
@@ -109,9 +109,9 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
     if super::paging::cursor(context, "planning.catalog".into(), latest.iter().map(super::paging::bytes)) != catalog_cursor {
         return Err(Error::Precondition("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
     }
-    let reply = v1::PreviewSelectionReply {
+    let reply = v1::CasesCreateResponse {
         cases,
-        observed_cursor: Some(catalog_cursor),
+        ..Default::default()
     };
     if reply.encoded_len() > context.settings.message_bytes {
         return Err(Error::Invalid("Plan Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));

@@ -28,6 +28,11 @@
 
 namespace dokime {
 namespace {
+std::string request_id() {
+  std::random_device random;
+  return std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random());
+}
+
 const harmos::Operation<::dokime::context::v1::PromptsCreateRequest, ::dokime::context::v1::PromptsCreateResponse>
     prompt_call("dokime.context.v1.Prompts/Create", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<v1::ReadSettings, v1::SavedSettings> settings_call("dokime.settings.read", harmos::wire::VISIBILITY_PUBLIC);
@@ -44,8 +49,8 @@ const harmos::Operation<::dokime::context::v1::executions::ProgressSetRequest, :
     progress_set("dokime.context.v1.executions.Progress/Set", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::evidence::LogsAppendRequest, ::dokime::context::v1::evidence::LogsAppendResponse>
     log_call("dokime.context.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC);
-const harmos::Operation<v1::PublishArtifact, v1::ArtifactReceipt> artifact_call("dokime.execution.artifact",
-                                                                                harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<::dokime::context::v1::content::ArtifactsCreateRequest, ::dokime::context::v1::content::ArtifactsCreateResponse>
+    artifact_call("dokime.context.v1.content.Artifacts/Create", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::evidence::TraceabilityGetRequest, ::dokime::context::v1::evidence::TraceabilityGetResponse>
     traceability_get("dokime.context.v1.evidence.Traceability/Get", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::evidence::TraceabilitySetRequest, ::dokime::context::v1::evidence::TraceabilitySetResponse>
@@ -89,14 +94,18 @@ v1::Secret Context::secret(std::string identifier) {
   request.set_execution(execution());
   request.set_kind(std::move(kind));
   request.set_payload(harmos::detail::encode(value));
+  request.set_request_id(request_id());
   return operation(record_call, std::move(request));
 }
-::dokime::context::v1::evidence::RecordsListResponse Context::records(std::string kind, std::string step, std::uint32_t limit) {
+::dokime::context::v1::evidence::RecordsListResponse Context::records(std::string kind, std::string step, harmos::wire::PageRequest page,
+                                                                      std::optional<harmos::wire::Position> at) {
   ::dokime::context::v1::evidence::RecordsListRequest request;
   request.set_execution(execution());
   request.set_kind(std::move(kind));
   request.set_step(std::move(step));
-  request.set_limit(limit);
+  *request.mutable_page() = std::move(page);
+  if (at)
+    *request.mutable_at() = std::move(*at);
   return operation(records_call, std::move(request));
 }
 ::dokime::context::v1::EvidenceStatisticsResponse Context::statistics(std::string stream, std::string field, std::string step) {
@@ -117,9 +126,7 @@ void Context::progress(std::uint64_t completed, std::uint64_t total, std::string
   request.mutable_value()->set_total(total);
   request.mutable_value()->set_label(std::move(label));
   request.set_expected_revision(current.revision());
-  std::random_device random;
-  request.set_request_id(std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random()) + ":" +
-                         std::to_string(random()));
+  request.set_request_id(request_id());
   operation(progress_set, std::move(request));
 }
 void Context::log(v1::Severity severity, std::string message) {
@@ -127,9 +134,13 @@ void Context::log(v1::Severity severity, std::string message) {
   request.set_execution(execution());
   request.set_severity(severity);
   request.set_message(std::move(message));
+  request.set_request_id(request_id());
   operation(log_call, std::move(request));
 }
-v1::ArtifactReceipt Context::artifact(v1::PublishArtifact request) { return operation(artifact_call, std::move(request)); }
+::dokime::context::v1::content::ArtifactsCreateResponse Context::artifact(::dokime::context::v1::content::ArtifactsCreateRequest request) {
+  request.set_execution(execution());
+  return operation(artifact_call, std::move(request));
+}
 void Context::traceability(v1::TraceabilityEntry value) {
   ::dokime::context::v1::evidence::TraceabilityGetRequest get;
   get.set_name(execution());
@@ -140,9 +151,7 @@ void Context::traceability(v1::TraceabilityEntry value) {
   request.set_entry(value.metadata().identifier());
   *request.mutable_value() = std::move(value);
   request.set_expected_revision(current.revision());
-  std::random_device random;
-  request.set_request_id(std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random()) + ":" +
-                         std::to_string(random()));
+  request.set_request_id(request_id());
   operation(traceability_set, std::move(request));
 }
 void Context::document(::dokime::context::v1::DocumentsAppendPartsRequest request) {

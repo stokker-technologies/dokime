@@ -164,7 +164,7 @@ impl Store {
     pub fn save_command(&self, receipt: &v1::ExecutionCommandReceipt) -> Result<()> {
         self.lock()?.execute(
             "INSERT INTO commands VALUES (?1,?2,?3) ON CONFLICT(request,id) DO UPDATE SET payload=excluded.payload",
-            params![receipt.request_id, receipt.command_id, receipt.encode_to_vec()],
+            params![receipt.execution_id, receipt.command_id, receipt.encode_to_vec()],
         )?;
         Ok(())
     }

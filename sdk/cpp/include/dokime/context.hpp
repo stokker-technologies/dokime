@@ -12,6 +12,7 @@
 /* === Imports === */
 
 #include "dokime/context/v1/backend.pb.h"
+#include "dokime/context/v1/content/artifacts.pb.h"
 #include "dokime/context/v1/documents.pb.h"
 #include "dokime/context/v1/evidence.pb.h"
 #include "dokime/context/v1/evidence/logs.pb.h"
@@ -24,6 +25,7 @@
 #include "dokime/v1/host.pb.h"
 #include "harmos/harmos.hpp"
 #include <mutex>
+#include <optional>
 #include <typeindex>
 
 /* === Macros === */
@@ -93,11 +95,12 @@ public:
   v1::SavedSettings settings();
   v1::Secret secret(std::string identifier);
   ::dokime::context::v1::evidence::RecordsAppendResponse record(std::string kind, const google::protobuf::Message &value);
-  ::dokime::context::v1::evidence::RecordsListResponse records(std::string kind, std::string step = {}, std::uint32_t limit = 0);
+  ::dokime::context::v1::evidence::RecordsListResponse records(std::string kind, std::string step = {}, harmos::wire::PageRequest page = {},
+                                                               std::optional<harmos::wire::Position> at = {});
   ::dokime::context::v1::EvidenceStatisticsResponse statistics(std::string stream, std::string field = {}, std::string step = {});
   void progress(std::uint64_t completed, std::uint64_t total, std::string label = {});
   void log(v1::Severity severity, std::string message);
-  v1::ArtifactReceipt artifact(v1::PublishArtifact request);
+  ::dokime::context::v1::content::ArtifactsCreateResponse artifact(::dokime::context::v1::content::ArtifactsCreateRequest request);
   void traceability(v1::TraceabilityEntry value);
   void document(::dokime::context::v1::DocumentsAppendPartsRequest request);
   static void declare_requirements(harmos::Plugin &plugin);

@@ -46,12 +46,7 @@ use dokime_storage::{ExecutionSnapshot, ExecutionState};
 pub(super) fn limit(requested: u32, maximum: usize) -> usize {
     if requested == 0 { maximum } else { (requested as usize).min(maximum) }
 }
-pub(super) fn bounded(count: usize, maximum: usize) -> Result<()> {
-    if count > maximum {
-        return Err(Error::Invalid("Read Exceeds the New Host's Page Bound; Narrow the Selection".into()));
-    }
-    Ok(())
-}
+
 pub(super) fn timestamp(at_ns: i64) -> prost_types::Timestamp {
     prost_types::Timestamp {
         seconds: at_ns.div_euclid(1_000_000_000),
@@ -227,7 +222,7 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
         records.push(v1::CapturedRecord {
             record_id: format!("{}:{}", snapshot.execution.identifier, evidence.position),
             sequence: evidence.position,
-            timestamp: record.at,
+            timestamp: record.source_at,
             received_at: Some(timestamp(evidence.receipt_ns)),
             record_type: record.kind,
             payload: record.payload,

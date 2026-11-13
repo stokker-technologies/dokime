@@ -11,7 +11,8 @@
 
 /* === Imports === */
 
-#include "dokime/v1/client_plugins.grpc.pb.h"
+#include "dokime/v1/catalog/suites.grpc.pb.h"
+#include "dokime/v1/client_pending_plugins.grpc.pb.h"
 #include "harmos/v1/status.grpc.pb.h"
 #include "harmos/v1/status/logs.grpc.pb.h"
 #include <grpcpp/grpcpp.h>
@@ -64,12 +65,22 @@ class Logs final : public harmos::v1::status::Logs::CallbackService {
   }
 };
 
+class Suites final : public dokime::v1::catalog::Suites::Service {
+  grpc::Status Get(grpc::ServerContext *, const dokime::v1::catalog::SuitesGetRequest *request,
+                   dokime::v1::catalog::SuitesGetResponse *response) override {
+    if (request->name() != "sample")
+      return {grpc::StatusCode::NOT_FOUND, "Get Suite: Unknown Name"};
+    response->mutable_value()->mutable_metadata()->set_identifier(request->name());
+    return grpc::Status::OK;
+  }
+};
+
 class Plugins final : public dokime::v1::Plugins::Service {
   dokime::v1::PluginEntries entries_;
 
   grpc::Status Add(grpc::ServerContext *, const dokime::v1::AddRemotePlugin *request, dokime::v1::Plugin *response) override {
     if (!request->url().starts_with("http://"))
-      return {grpc::StatusCode::INVALID_ARGUMENT, "Plugin URL Is Required"};
+      return {grpc::StatusCode::INVALID_ARGUMENT, "Add Plugin: URL Is Required"};
     response->set_entry("entry-" + std::to_string(entries_.plugins_size()));
     response->mutable_remote()->set_url(request->url());
     response->set_state(dokime::v1::PLUGIN_STATE_CONNECTING);

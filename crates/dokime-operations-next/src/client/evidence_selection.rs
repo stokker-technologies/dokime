@@ -20,11 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result};
 use dokime_protocol::v1;
 use dokime_storage::{Evidence, ExecutionCut};
 use prost::Message;
-use sha2::{Digest, Sha256};
 
 /* === Constants === */
 
@@ -42,9 +41,7 @@ use sha2::{Digest, Sha256};
 
 /* === Public Functions === */
 
-pub(super) fn key(selection: &v1::CapturedRecordSelection) -> String {
-    format!("evidence.records:{}", Sha256::digest(selection.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>())
-}
+
 pub(super) fn validate(selection: &v1::CapturedRecordSelection) -> Result<()> {
     if selection.severities.iter().any(|severity| {
         !matches!(
@@ -141,7 +138,7 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
 pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<v1::CapturedRecord>> {
     let (kind, payload, timestamp, severity, message) = if let Some(kind) = evidence.kind.strip_prefix("record:") {
         let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-        (kind.into(), record.payload, record.at, v1::Severity::Info as i32, None)
+        (kind.into(), record.payload, record.source_at, v1::Severity::Info as i32, None)
     } else if evidence.kind == "log" {
         let log = dokime_protocol::context::evidence::LogsAppendRequest::decode(evidence.payload.as_slice())?;
         ("dokime.log".into(), evidence.payload.clone(), log.at, log.severity, Some(log.message))
@@ -171,24 +168,6 @@ pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<
         }),
         ..Default::default()
     }))
-}
-pub(super) fn cursor(context: &Context, stream: &str, position: u64) -> v1::Cursor {
-    v1::Cursor {
-        epoch: context.host.identity().backend_id,
-        stream: stream.into(),
-        position,
-    }
-}
-pub(super) fn position(context: &Context, stream: &str, cursor: Option<&v1::Cursor>, maximum: u64, fallback: u64) -> Result<u64> {
-    let Some(cursor) = cursor else {
-        return Ok(fallback);
-    };
-    if cursor.epoch != context.host.identity().backend_id || cursor.stream != stream || cursor.position > maximum {
-        return Err(Error::Invalid(
-            "Read Evidence Cursor: Resynchronize Without Cursors After Changing the Selection or Storage Root".into(),
-        ));
-    }
-    Ok(cursor.position)
 }
 
 /* === Private Functions === */

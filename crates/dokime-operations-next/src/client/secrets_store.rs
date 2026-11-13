@@ -97,15 +97,15 @@ struct Metadata {
 pub(super) enum Action {
     List,
     Lookup(String),
-    Put(v1::SecretsPutRequest),
-    Remove(v1::SecretsRemoveRequest),
+    Put(v1::SecretsSetRequest),
+    Remove(v1::SecretsDeleteRequest),
     Export(v1::SecretsExportRequest),
     Preview(Vec<u8>),
     Import(v1::SecretsImportRequest),
 }
 pub(super) enum Reply {
     Snapshot(v1::SecretSnapshot),
-    Lookup(v1::SecretLookupValue),
+    Lookup(v1::SecretWritable),
     Archive(v1::SecretArchive),
     Preview(v1::SecretImportPreview),
 }
@@ -326,25 +326,28 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
     let (changes, removed, generation) = match action {
         Action::List => return Ok(Reply::Snapshot(snapshot(context, &previous, false)?)),
         Action::Lookup(id) => {
-            return Ok(Reply::Lookup(v1::SecretLookupValue {
+            return Ok(Reply::Lookup(v1::SecretWritable {metadata:previous.entries.iter().find(|slot|slot.metadata.as_ref().is_some_and(|metadata|metadata.identifier==id)).and_then(|slot|slot.metadata.clone()),
                 value: Some(lookup(context, &previous, &id)?.to_string()),
             }));
         }
         Action::Put(request) => {
-            let metadata = request.metadata.ok_or_else(|| invalid("Supply Metadata When Saving a Secret"))?;
-            (vec![(metadata, request.value.map(Zeroizing::new))], Vec::new(), request.generation)
+            let generation=u64::from_be_bytes(request.expected_revision.as_slice().try_into().map_err(|_|invalid("Use the Revision from Get Secret"))?);
+            let value=request.value.ok_or_else(||invalid("Supply the Whole Secret Value"))?;
+            let metadata=value.metadata.ok_or_else(||invalid("Supply Secret Metadata"))?;
+            if metadata.identifier!=request.name {return Err(invalid("Keep the Secret Name and Metadata Identifier Consistent"));}
+            (vec![(metadata, value.value.map(Zeroizing::new))], Vec::new(), generation)
         }
-        Action::Remove(request) => (Vec::new(), request.identifiers, request.generation),
+        Action::Remove(request) => {let generation=u64::from_be_bytes(request.expected_revision.as_slice().try_into().map_err(|_|invalid("Use the Revision from Get Secret"))?);(Vec::new(),request.names,generation)},
         Action::Export(request) => {
             if request.generation != previous.generation {
                 return Err(invalid("Refresh the Secret Catalog Before Exporting"));
             }
-            if request.identifiers.is_empty() || request.identifiers.len() > CATALOG_ITEMS {
+            if request.names.is_empty() || request.names.len() > CATALOG_ITEMS {
                 return Err(invalid("Select a Nonempty Set Within the Entry Limit"));
             }
             let mut unique = BTreeSet::new();
             let mut entries = Vec::new();
-            for id in request.identifiers {
+            for id in request.names {
                 if !unique.insert(id.clone()) {
                     return Err(invalid("Select Each Identifier Only Once"));
                 }

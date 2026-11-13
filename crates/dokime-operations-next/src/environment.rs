@@ -48,10 +48,11 @@ pub fn declaration() -> Result<harmos_protocol::v1::OperationContract> {
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(resources: &Resources, _: BackendEnvironmentRequest) -> Result<BackendEnvironmentResponse> {
+pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -> Result<BackendEnvironmentResponse> {
     resources.check_action_scope(&resources.execution, ID)?;
     Ok(BackendEnvironmentResponse {
         backend_pid: std::process::id(),
+        resolved_at:Some(resources.store.resource_value(&resources.execution,"progress",request.at.as_ref())?.resolved_at),
         in_step: !resources.step.is_empty(),
     })
 }

@@ -33,7 +33,8 @@ int main(int argc, char **argv) {
     // Compose the Suite from Ordinary Values.
     dokime::Template value;
     *value.definition.mutable_metadata() = dokime::metadata("sample.check", "Check");
-    value.steps.push_back({dokime::metadata("measure", "Measure"), [](dokime::Context &ctx) { ctx.set(std::make_shared<double>(42)); }});
+    value.initialize = [](dokime::Context &ctx) { ctx.set(std::make_shared<double>(0)); };
+    value.steps.push_back({dokime::metadata("measure", "Measure"), [](dokime::Context &ctx) { *ctx.get<double>() = 42; }});
     value.criteria.push_back({dokime::metadata("valid", "Valid"), [](dokime::Context &ctx) { return *ctx.get<double>() == 42; }});
     dokime::Plugin plugin("sample", "0.1.0");
     plugin.suite({dokime::metadata("sample", "Sample"), {std::move(value)}});

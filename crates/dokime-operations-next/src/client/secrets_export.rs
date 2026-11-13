@@ -1,13 +1,13 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-// Client gRPC Services
+// Read Execution Progress at a Returned Durable Position
 
 /* === Modules === */
 
@@ -18,15 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::v1 as h;
 
 // Local Imports
-use super::secrets_store::{Action, Reply};
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
+
 /* === Constants === */
 
-pub const ID: &str = "dokime.secrets.export";
+pub const ID: &str = "dokime.v1.Secrets/Export";
 
 /* === Macros === */
 
@@ -42,18 +43,16 @@ pub const ID: &str = "dokime.secrets.export";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::SecretsExportRequest, v1::SecretArchive>(ID, settings.read_timeout)
+pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+    super::declaration::<v1::SecretsExportRequest, v1::SecretsExportResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::SecretsExportRequest) -> Result<v1::SecretArchive> {
+pub async fn handle(context: &Context, request: v1::SecretsExportRequest) -> Result<v1::SecretsExportResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-        let result = super::secrets_store::perform(context, Action::Export(request)).await?;
-        match result {
-            Reply::Archive(reply) => Ok(reply),
-            _ => Err(Error::Invalid("Secret Storage Returned the Wrong Reply; Restart the Host".into())),
-        }
-    })
-    .await
+let catalog=super::secrets_list::handle(context,v1::SecretsListRequest::default()).await?;
+let cut=super::secrets_list::cut(context,"",catalog.generation,request.at.as_ref())?;
+let super::secrets_store::Reply::Archive(archive)=super::secrets_store::perform(context,super::secrets_store::Action::Export(request)).await? else {return Err(Error::Invalid("Export Secrets: Restart the Secret Store".into()));};
+Ok(v1::SecretsExportResponse {archive:Some(archive),resolved_at:Some(cut)})
+    }).await
 }
 
 /* === Private Functions === */

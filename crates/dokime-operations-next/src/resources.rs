@@ -93,6 +93,13 @@ impl Resources {
     }
 }
 
+impl Resources {
+    pub fn evidence_requested(&self,action:&str,request_id:&str,fingerprint:&[u8],kind:&str,payload:Vec<u8>,source_ns:Option<i64>)->Result<(u64,harmos_protocol::v1::Receipt)> {
+        self.check_scope(&self.execution)?;let receipt_ns=self.clock.now_ns();
+        Ok(self.store.append_requested(&self.execution,action,request_id,fingerprint,Evidence {kind:kind.into(),step:self.step.clone(),operation:self.operation.clone(),attempt:self.attempt,source_ns:source_ns.unwrap_or(receipt_ns),receipt_ns,payload,..Default::default()})?)
+    }
+}
+
 /* === Public Functions === */
 
 pub fn timestamp_ns(at: &prost_types::Timestamp) -> Result<i64> {

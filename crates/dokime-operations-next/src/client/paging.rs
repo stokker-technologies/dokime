@@ -21,8 +21,8 @@
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::client::Context;
+
 
 /* === Constants === */
 
@@ -48,42 +48,19 @@ pub(super) fn bytes<M: prost::Message + prost_reflect::ReflectMessage>(message: 
     digest.finalize().to_vec()
 }
 
-pub(super) fn cursor(context: &Context, selection: String, rows: impl IntoIterator<Item = Vec<u8>>) -> v1::Cursor {
+pub(super) fn cursor(context: &Context, selection: String, rows: impl IntoIterator<Item = Vec<u8>>) -> harmos_protocol::v1::ReadCut {
     let mut digest = Sha256::new();
     for row in rows {
         digest.update((row.len() as u64).to_le_bytes());
         digest.update(row);
     }
     let bytes = digest.finalize();
-    v1::Cursor {
-        epoch: context.host.identity().epoch,
-        stream: selection,
-        position: u64::from_le_bytes(bytes[..8].try_into().unwrap()),
-    }
+    harmos_protocol::v1::ReadCut { positions:Vec::new(),revisions:vec![harmos_protocol::v1::ResourceRevision {
+        name:format!("{}/{selection}",context.host.identity().backend_id),revision:bytes.to_vec(),
+    }] }
 }
 
-pub(super) fn page<T>(
-    mut rows: Vec<T>, requested: u32, after: &str, supplied: Option<&v1::Cursor>, current: &v1::Cursor, maximum: usize,
-    id: impl Fn(&T) -> &str,
-) -> Result<(Vec<T>, Option<String>)> {
-    if supplied.is_some_and(|cursor| cursor != current) || (!after.is_empty() && supplied.is_none()) {
-        return Err(Error::Precondition("Restart Paging with the Same Selection and a Fresh Cursor".into()));
-    }
-    let start = if after.is_empty() {
-        0
-    } else {
-        rows.iter()
-            .position(|row| id(row) == after)
-            .ok_or_else(|| Error::Invalid("Restart Paging: the Continuation Is Outside the Selection".into()))?
-            + 1
-    };
-    let limit = super::projection::limit(requested, maximum);
-    let remaining = rows.split_off(start);
-    let more = remaining.len() > limit;
-    let rows: Vec<T> = remaining.into_iter().take(limit).collect();
-    let next = more.then(|| id(rows.last().unwrap()).to_owned());
-    Ok((rows, next))
-}
+
 
 /* === Private Functions === */
 

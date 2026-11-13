@@ -23,6 +23,7 @@ use std::collections::BTreeMap;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
+use prost::Message;
 use dokime_storage::{ExecutionSnapshot, ExecutionState};
 
 /* === Constants === */
@@ -69,12 +70,11 @@ pub(super) fn evidence(context: &Context, id: &str) -> Result<ExecutionSnapshot>
     }
     Ok(snapshot)
 }
-pub(super) fn observed(context: &Context) -> v1::Cursor {
-    v1::Cursor {
-        epoch: context.host.identity().epoch,
-        stream: "runtime.state".into(),
-        position: *context.host.changes().borrow(),
-    }
+pub(super) fn observed(context: &Context) -> harmos_protocol::v1::ReadCut {
+    harmos_protocol::v1::ReadCut { positions:Vec::new(), revisions:vec![harmos_protocol::v1::ResourceRevision {
+        name:format!("runtime/{}/{}",context.host.identity().backend_id,context.host.identity().epoch),
+        revision:context.host.changes().borrow().to_be_bytes().to_vec(),
+    }] }
 }
 pub(super) fn case(origin: &v1::Origin) -> Result<&v1::TestCase> {
     match origin.kind.as_ref() {
@@ -299,6 +299,55 @@ pub(super) fn archive_matches(scope: Option<i32>, archived: bool) -> Result<bool
 }
 pub(super) fn time(value: Option<prost_types::Timestamp>) -> (i64, i32) {
     value.map(|value| (value.seconds, value.nanos)).unwrap_or_default()
+}
+
+pub(super) fn detail(context:&Context,name:&str)->Result<v1::ExecutionDetail> {
+
+        let snapshot = super::execution_state::read(context, &name)?;
+        let progress = context.host.store().resource_value(&name, "progress", None)?;
+        let controls = context.host.controls(&name)?;
+        let summary = super::execution_state::summary(context, &snapshot)?;
+        let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
+        let cycle_counts = super::projection::counts(&outcomes);
+        let reports = context.host.store().reports(&name)?;
+        let schemas = super::projection::schemas(&snapshot)?;
+        let (started_at, finished_at) = context.host.store().execution_times(&name)?;
+        Ok(v1::ExecutionDetail {
+            progress: Some(v1::ExecutionProgressValue::decode(progress.payload.as_slice())?),
+            resolved_at: Some(progress.resolved_at),
+            started_at: started_at.map(super::projection::timestamp),
+            finished_at: if snapshot.state == dokime_storage::ExecutionState::Sealed {
+                finished_at.map(super::projection::timestamp)
+            } else {
+                None
+            },
+            input_parameter_count: snapshot
+                .execution
+                .origin
+                .as_ref()
+                .and_then(|origin| super::execution_state::case(origin).ok())
+                .map_or(0, |case| case.parameters.len() as u64),
+            step_count: snapshot
+                .execution
+                .origin
+                .as_ref()
+                .and_then(|origin| super::execution_state::case(origin).ok())
+                .map_or(0, |case| case.steps.len() as u64),
+            summary: Some(summary),
+            controls: Some(controls),
+            cycle_counts: Some(cycle_counts),
+            report: Some(v1::ReportStatus {
+                state: if reports.is_empty() { v1::ReportState::Pending } else { v1::ReportState::Ready } as i32,
+                ..Default::default()
+            }),
+            cycle_id: snapshot.execution.cycle.clone(),
+            scope: Some(super::projection::scope(&snapshot)),
+            origin: snapshot.execution.origin.clone(),
+            outcome: snapshot.execution.outcome.clone(),
+            seal: snapshot.seal.clone(),
+            schemas: Some(schemas),
+            ..Default::default()
+        })
 }
 
 /* === Private Functions === */
