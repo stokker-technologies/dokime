@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Settings/Set";
+pub const ID: &str = "dokime.client.v1.Settings/Set";
 
 /* === Macros === */
 
@@ -44,9 +43,14 @@ pub const ID: &str = "dokime.v1.Settings/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SettingsSetRequest, v1::SettingsSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::SettingsSetRequest, dokime_protocol::client::SettingsSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SettingsSetRequest) -> Result<v1::SettingsSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SettingsSetRequest,
+) -> Result<dokime_protocol::client::SettingsSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Settings: Supply the Whole Writable Value".into()))?;
         super::settings_preferences::validate(value)?;
@@ -59,8 +63,8 @@ pub async fn handle(context: &Context, request: v1::SettingsSetRequest) -> Resul
             &value.encode_to_vec(),
         )?;
         context.host.signal_change();
-        Ok(v1::SettingsSetResponse {
-            value: Some(v1::ApplicationSettings::decode(payload.as_slice())?),
+        Ok(dokime_protocol::client::SettingsSetResponse {
+            value: Some(dokime_protocol::client::ApplicationSettings::decode(payload.as_slice())?),
             revision,
             receipt: Some(receipt),
         })

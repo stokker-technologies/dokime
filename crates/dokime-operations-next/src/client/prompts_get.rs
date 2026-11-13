@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Prompts/Get";
+pub const ID: &str = "dokime.client.v1.Prompts/Get";
 
 /* === Macros === */
 
@@ -43,15 +42,17 @@ pub const ID: &str = "dokime.v1.Prompts/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::PromptsGetRequest, v1::PromptsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::PromptsGetRequest, dokime_protocol::client::PromptsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::PromptsGetRequest) -> Result<v1::PromptsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::PromptsGetRequest,
+) -> Result<dokime_protocol::client::PromptsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (prompt, cut) = super::views::read(context, &format!("prompt/{}", request.name), request.at.as_ref(), async {
             super::prompt_catalog::view(context, &request.name)
         })
         .await?;
-        Ok(v1::PromptsGetResponse {
+        Ok(dokime_protocol::client::PromptsGetResponse {
             prompt: Some(prompt),
             resolved_at: Some(cut),
         })

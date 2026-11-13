@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Prompts/Watch";
+pub const ID: &str = "dokime.client.v1.Prompts/Watch";
 
 /* === Macros === */
 
@@ -43,13 +42,18 @@ pub const ID: &str = "dokime.v1.Prompts/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::PromptsWatchRequest, v1::PromptsWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::PromptsWatchRequest, dokime_protocol::client::PromptsWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::PromptsWatchRequest) -> Result<super::Output<v1::PromptsWatchResponse>> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::PromptsWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::PromptsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::PromptsListRequest {
+        let mut selection = dokime_protocol::client::PromptsListRequest {
             parent: request.parent,
             cycle_id: request.cycle_id,
             execution_id: request.execution_id,
@@ -67,7 +71,7 @@ pub async fn handle(context: &Context, request: v1::PromptsWatchRequest) -> Resu
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::PromptsWatchResponse {
+                    let response = dokime_protocol::client::PromptsWatchResponse {
                         prompts: page.prompts,
                         resolved_at: cut.clone(),
                         opening,
@@ -100,7 +104,7 @@ pub async fn handle(context: &Context, request: v1::PromptsWatchRequest) -> Resu
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::PromptsWatchResponse {
+                                .send(Ok(dokime_protocol::client::PromptsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

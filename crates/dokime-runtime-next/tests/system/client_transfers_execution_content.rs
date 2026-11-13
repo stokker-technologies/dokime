@@ -63,11 +63,11 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
                 ..Default::default()
             })?;
         }
-        let file = v1::ExecutionFileMetadata {
+        let file = dokime_protocol::client::content::ExecutionFileMetadata {
             relative_path: "logs/output.txt".into(),
             content_type: Some("text/plain".into()),
-            kind: v1::ExecutionFileKind::Text as i32,
-            state: v1::ExecutionFileState::Streaming as i32,
+            kind: dokime_protocol::client::content::ExecutionFileKind::Text as i32,
+            state: dokime_protocol::client::content::ExecutionFileState::Streaming as i32,
             ..Default::default()
         };
         store.register_execution_file("file-original", "content-a", file.clone())?;
@@ -97,10 +97,10 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         store.finish_artifact("uploaded", bytes.len() as u64, &digest)?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut artifacts = v1::content::artifacts_client::ArtifactsClient::new(channel.clone());
-        let mut files = v1::content::execution_files_client::ExecutionFilesClient::new(channel);
+        let mut artifacts = dokime_protocol::client::content::artifacts_client::ArtifactsClient::new(channel.clone());
+        let mut files = dokime_protocol::client::content::execution_files_client::ExecutionFilesClient::new(channel);
         let first = artifacts
-            .list(v1::content::ArtifactsListRequest {
+            .list(dokime_protocol::client::content::ArtifactsListRequest {
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             })
@@ -108,7 +108,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
             .into_inner();
         assert_eq!(first.artifacts.len(), 1);
         let uploaded = artifacts
-            .get(v1::content::ArtifactsGetRequest {
+            .get(dokime_protocol::client::content::ArtifactsGetRequest {
                 name: "uploaded".into(),
                 ..Default::default()
             })
@@ -117,7 +117,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         let reference = uploaded.file.unwrap();
         assert_eq!(reference.length, bytes.len() as u64);
         assert_eq!(reference.sha256, sha2::Sha256::digest(&bytes).as_slice());
-        let request = v1::content::ArtifactsCreateRequest {
+        let request = dokime_protocol::client::content::ArtifactsCreateRequest {
             file: Some(reference.clone()),
             scope: Some(v1::ArtifactScope {
                 execution_id: Some("content-a".into()),
@@ -134,7 +134,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         foreign.scope.as_mut().unwrap().execution_id = Some("content-b".into());
         assert!(artifacts.create(foreign).await.is_err());
         let file = files
-            .get(v1::content::ExecutionFilesGetRequest {
+            .get(dokime_protocol::client::content::ExecutionFilesGetRequest {
                 parent: "content-a".into(),
                 name: "logs/output.txt".into(),
                 ..Default::default()
@@ -147,7 +147,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         assert_eq!(store.content_window("file-original", 0, 64)?, b"original\n");
         assert!(
             files
-                .get(v1::content::ExecutionFilesGetRequest {
+                .get(dokime_protocol::client::content::ExecutionFilesGetRequest {
                     parent: "content-b".into(),
                     name: "logs/output.txt".into(),
                     ..Default::default()
@@ -157,7 +157,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         );
         assert!(
             files
-                .get(v1::content::ExecutionFilesGetRequest {
+                .get(dokime_protocol::client::content::ExecutionFilesGetRequest {
                     parent: "content-a".into(),
                     name: "../logs/output.txt".into(),
                     ..Default::default()
@@ -166,7 +166,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
                 .is_err()
         );
         let listed = files
-            .list(v1::content::ExecutionFilesListRequest {
+            .list(dokime_protocol::client::content::ExecutionFilesListRequest {
                 parent: "content-a".into(),
                 ..Default::default()
             })
@@ -184,11 +184,11 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         store.close_streams("content-a")?;
         store.close("content-a", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
         store.seal("content-a")?;
-        let mut evidence = v1::evidence_client::EvidenceClient::connect(process.url.clone()).await?;
+        let mut evidence = dokime_protocol::client::evidence_client::EvidenceClient::connect(process.url.clone()).await?;
         let archived = evidence
-            .archive(v1::EvidenceArchiveRequest {
-                subject: Some(v1::EvidenceSubject {
-                    kind: Some(v1::evidence_subject::Kind::Execution("content-a".into())),
+            .archive(dokime_protocol::client::EvidenceArchiveRequest {
+                subject: Some(dokime_protocol::client::EvidenceSubject {
+                    kind: Some(dokime_protocol::client::evidence_subject::Kind::Execution("content-a".into())),
                 }),
                 ..Default::default()
             })
@@ -197,9 +197,9 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         assert!(archived.file.unwrap().length > bytes.len() as u64);
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut artifacts = v1::content::artifacts_client::ArtifactsClient::connect(process.url.clone()).await?;
+        let mut artifacts = dokime_protocol::client::content::artifacts_client::ArtifactsClient::connect(process.url.clone()).await?;
         let restored = artifacts
-            .get(v1::content::ArtifactsGetRequest {
+            .get(dokime_protocol::client::content::ArtifactsGetRequest {
                 name: attached.artifact_id.clone(),
                 ..Default::default()
             })

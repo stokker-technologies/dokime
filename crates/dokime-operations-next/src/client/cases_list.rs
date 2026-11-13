@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cases/List";
+pub const ID: &str = "dokime.client.v1.Cases/List";
 
 /* === Macros === */
 
@@ -43,14 +42,16 @@ pub const ID: &str = "dokime.v1.Cases/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CasesListRequest, v1::CasesListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::CasesListRequest, dokime_protocol::client::CasesListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::CasesListRequest) -> Result<v1::CasesListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CasesListRequest,
+) -> Result<dokime_protocol::client::CasesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             super::views::read(context, &format!("{ID}/{}/{}", request.parent, String::new()), request.at.as_ref(), async {
                 let cases = super::execution_state::cases(context, &request.parent)?;
-                Ok(v1::CasesListResponse { cases, ..Default::default() })
+                Ok(dokime_protocol::client::CasesListResponse { cases, ..Default::default() })
             })
             .await?;
         reply.resolved_at = Some(cut);

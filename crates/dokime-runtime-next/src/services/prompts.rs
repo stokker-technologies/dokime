@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,23 +37,27 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::prompts_server::Prompts for Services {
-    async fn get(&self, request: tonic::Request<v1::PromptsGetRequest>) -> Result<tonic::Response<v1::PromptsGetResponse>, tonic::Status> {
+impl dokime_protocol::client::prompts_server::Prompts for Services {
+    async fn get(
+        &self, request: tonic::Request<dokime_protocol::client::PromptsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::PromptsGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::prompts_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<v1::PromptsListRequest>,
-    ) -> Result<tonic::Response<v1::PromptsListResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::PromptsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::PromptsListResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::prompts_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations_next::client::Output<v1::PromptsWatchResponse>;
-    async fn watch(&self, request: tonic::Request<v1::PromptsWatchRequest>) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
+    type WatchStream = dokime_operations_next::client::Output<dokime_protocol::client::PromptsWatchResponse>;
+    async fn watch(
+        &self, request: tonic::Request<dokime_protocol::client::PromptsWatchRequest>,
+    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
         let reply = dokime_operations_next::client::prompts_watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

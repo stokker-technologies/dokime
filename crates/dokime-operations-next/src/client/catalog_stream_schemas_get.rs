@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.catalog.StreamSchemas/Get";
+pub const ID: &str = "dokime.client.v1.StreamSchemas/Get";
 
 /* === Macros === */
 
@@ -43,16 +42,21 @@ pub const ID: &str = "dokime.v1.catalog.StreamSchemas/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::catalog::StreamSchemasGetRequest, v1::catalog::StreamSchemasGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::StreamSchemasGetRequest, dokime_protocol::client::StreamSchemasGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::catalog::StreamSchemasGetRequest) -> Result<v1::catalog::StreamSchemasGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::StreamSchemasGetRequest,
+) -> Result<dokime_protocol::client::StreamSchemasGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         if request.schema_version != 0 && request.schema_version != 1 {
             return Err(Error::Invalid("Get Stream Schema: Select Schema Version 1".into()));
         }
         let reply = super::catalog_stream_schemas_list::handle(
             context,
-            v1::catalog::StreamSchemasListRequest { parent: request.parent, at: request.at },
+            dokime_protocol::client::StreamSchemasListRequest { parent: request.parent, at: request.at },
         )
         .await?;
         let value = reply
@@ -60,7 +64,7 @@ pub async fn handle(context: &Context, request: v1::catalog::StreamSchemasGetReq
             .into_iter()
             .find(|value| value.stream == request.name)
             .ok_or_else(|| Error::NotFound("Get StreamSchemas: Select a Declared Identifier".into()))?;
-        Ok(v1::catalog::StreamSchemasGetResponse {
+        Ok(dokime_protocol::client::StreamSchemasGetResponse {
             value: Some(value),
             resolved_at: reply.resolved_at,
         })

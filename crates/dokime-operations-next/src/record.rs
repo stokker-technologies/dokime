@@ -26,7 +26,7 @@ use crate::{Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.evidence.Records/Append";
+pub const ID: &str = "dokime.plugin.host.v1.evidence.Records/Append";
 
 /* === Macros === */
 

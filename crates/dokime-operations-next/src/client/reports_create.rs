@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Reports/Create";
+pub const ID: &str = "dokime.client.v1.Reports/Create";
 
 /* === Macros === */
 
@@ -43,9 +43,14 @@ pub const ID: &str = "dokime.v1.Reports/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ReportsCreateRequest, v1::ReportsCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::ReportsCreateRequest, dokime_protocol::client::ReportsCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ReportsCreateRequest) -> Result<v1::ReportsCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ReportsCreateRequest,
+) -> Result<dokime_protocol::client::ReportsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let subject = request.subject.as_ref().ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
         let (mut file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref())?;
@@ -90,7 +95,7 @@ pub async fn handle(context: &Context, request: v1::ReportsCreateRequest) -> Res
         }
         context.host.retain_report(retained, reference.clone())?;
         let position = context.host.store().evidence_position(None)?;
-        Ok(v1::ReportsCreateResponse {
+        Ok(dokime_protocol::client::ReportsCreateResponse {
             report: Some(metadata),
             file: Some(reference),
             resolved_at: Some(h::ReadCut {

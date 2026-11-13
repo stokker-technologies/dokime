@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.executions.Commands/Create";
+pub const ID: &str = "dokime.client.v1.executions.Commands/Create";
 
 /* === Macros === */
 
@@ -43,12 +42,17 @@ pub const ID: &str = "dokime.v1.executions.Commands/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::executions::CommandsCreateRequest, v1::executions::CommandsCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<
+        dokime_protocol::client::executions::CommandsCreateRequest,
+        dokime_protocol::client::executions::CommandsCreateResponse,
+    >(ID, settings.mutation_timeout)
 }
-pub async fn handle(context: &Context, request: v1::executions::CommandsCreateRequest) -> Result<v1::executions::CommandsCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::executions::CommandsCreateRequest,
+) -> Result<dokime_protocol::client::executions::CommandsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let command = context.host.submit_command(request.clone())?;
-        Ok(v1::executions::CommandsCreateResponse {
+        Ok(dokime_protocol::client::executions::CommandsCreateResponse {
             command: Some(command),
             receipt: Some(super::views::receipt(context, &request.request_id)?),
         })

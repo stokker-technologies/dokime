@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,18 +37,18 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::catalog::stream_schemas_server::StreamSchemas for Services {
+impl dokime_protocol::client::stream_schemas_server::StreamSchemas for Services {
     async fn get(
-        &self, request: tonic::Request<v1::catalog::StreamSchemasGetRequest>,
-    ) -> Result<tonic::Response<v1::catalog::StreamSchemasGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::StreamSchemasGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_stream_schemas_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<v1::catalog::StreamSchemasListRequest>,
-    ) -> Result<tonic::Response<v1::catalog::StreamSchemasListResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::StreamSchemasListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasListResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_stream_schemas_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

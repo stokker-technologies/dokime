@@ -31,7 +31,7 @@ use std::num::NonZeroUsize;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.plots.Snapshots/List";
+pub const ID: &str = "dokime.client.v1.plots.Snapshots/List";
 
 /* === Macros === */
 
@@ -48,20 +48,25 @@ pub const ID: &str = "dokime.v1.plots.Snapshots/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::plots::SnapshotsListRequest, v1::plots::SnapshotsListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::plots::SnapshotsListRequest, dokime_protocol::client::plots::SnapshotsListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::plots::SnapshotsListRequest) -> Result<v1::plots::SnapshotsListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::plots::SnapshotsListRequest,
+) -> Result<dokime_protocol::client::plots::SnapshotsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
             "plots/{}",
-            super::views::hex(&super::paging::bytes(&v1::plots::SnapshotsListRequest {
+            super::views::hex(&super::paging::bytes(&dokime_protocol::client::plots::SnapshotsListRequest {
                 requests: request.requests.clone(),
                 ..Default::default()
             }))
         );
         let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
-            let mut reply = v1::plots::SnapshotsListResponse::default();
+            let mut reply = dokime_protocol::client::plots::SnapshotsListResponse::default();
             for selected in request.requests {
                 reply.envelopes.push(query_one(context, selected).await?);
             }
@@ -72,7 +77,7 @@ pub async fn handle(context: &Context, request: v1::plots::SnapshotsListRequest)
             super::views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
         super::bounded_reply(
             context,
-            v1::plots::SnapshotsListResponse {
+            dokime_protocol::client::plots::SnapshotsListResponse {
                 envelopes,
                 resolved_at: Some(cut),
                 next_page_token,
@@ -83,13 +88,13 @@ pub async fn handle(context: &Context, request: v1::plots::SnapshotsListRequest)
 }
 
 /* === Private Functions === */
-pub(super) async fn query_one(context: &Context, request: v1::PlotRequest) -> Result<v1::PlotEnvelope> {
+pub(super) async fn query_one(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
     if request.analysis.is_some() {
         return super::plot_analysis::query(context, request).await;
     }
     query_base(context, request).await
 }
-pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> Result<v1::PlotEnvelope> {
+pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
     let (store, _cancel_on_drop) = context.host.store().read_session()?;
     let context = context.clone();
     tokio::task::spawn_blocking(move || {
@@ -132,7 +137,7 @@ pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> R
 }
 pub fn snapshot_at(
     store: &dokime_storage::Store, cut: &dokime_storage::ExecutionCut, request: &v1::PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
-) -> Result<v1::PlotEnvelope> {
+) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
     let execution = cut.execution.identifier.as_str();
     let original = request;
     let selection_key = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
@@ -279,7 +284,7 @@ pub fn snapshot_at(
         return Err(Error::Invalid("Query Plot: Choose Increasing Viewport Bounds".into()));
     }
     let resolution = ((i128::from(end_ns) - i128::from(start_ns) + 1 + bins.get() as i128 - 1) / bins.get() as i128).max(1) as u64;
-    let mut payload = v1::PlotPayload {
+    let mut payload = dokime_protocol::client::plots::PlotPayload {
         stream: stream.id.clone(),
         x_key: x.clone().unwrap_or_else(|| "timestamp".into()),
         series_by: group.clone(),
@@ -293,8 +298,8 @@ pub fn snapshot_at(
         }),
         ..Default::default()
     };
-    let mut frame = v1::PlotFrame {
-        mode: Some(v1::PlotCartesianMode::Faceted as i32),
+    let mut frame = dokime_protocol::client::plots::PlotFrame {
+        mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
         ..Default::default()
     };
     let mut examined = 0;
@@ -402,9 +407,9 @@ pub fn snapshot_at(
                     clip_to_observed: false,
                 });
                 let (analysis, count) = store.sigma_window(settings, options)?;
-                payload.analysis = Some(v1::PlotAnalysis {
-                    result: Some(v1::PlotAnalysisResult {
-                        kind: Some(v1::plot_analysis_result::Kind::SigmaInterval(analysis)),
+                payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
+                    result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                        kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(analysis)),
                     }),
                 });
                 count
@@ -420,9 +425,9 @@ pub fn snapshot_at(
                     request.x_scale == v1::AxisScale::Log as i32,
                     request.y_scale == v1::AxisScale::Log as i32,
                 )?;
-                payload.analysis = Some(v1::PlotAnalysis {
-                    result: Some(v1::PlotAnalysisResult {
-                        kind: Some(v1::plot_analysis_result::Kind::Contour(grid)),
+                payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
+                    result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                        kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid)),
                     }),
                 });
                 count
@@ -468,9 +473,9 @@ pub fn snapshot_at(
                 grid,
                 reduction,
             )?;
-            payload.analysis = Some(v1::PlotAnalysis {
-                result: Some(v1::PlotAnalysisResult {
-                    kind: Some(v1::plot_analysis_result::Kind::GridChart(frames)),
+            payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
+                result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                    kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(frames)),
                 }),
             });
             count
@@ -509,7 +514,7 @@ pub fn snapshot_at(
             let summary_window = NumericWindow { start_ns: from, end_ns: to, ..window };
             let stats = store.numeric_statistics(&summary_window)?;
             payload.summaries.retain(|summary| summary.series_id != field);
-            payload.summaries.push(v1::PlotSeriesSummary {
+            payload.summaries.push(dokime_protocol::client::plots::PlotSeriesSummary {
                 series_id: field.clone(),
                 count: stats.count,
                 min: (stats.count > 0).then_some(stats.min),
@@ -524,7 +529,7 @@ pub fn snapshot_at(
         examined += count;
         if let Some(groups) = column_groups {
             for (group, raw_points) in groups {
-                payload.series.push(v1::PlotSeries {
+                payload.series.push(dokime_protocol::client::plots::PlotSeries {
                     key: if group.is_empty() { field.clone() } else { format!("{field}/{group}") },
                     label: if group.is_empty() { field.clone() } else { group },
                     unit: request.unit.clone(),
@@ -534,7 +539,7 @@ pub fn snapshot_at(
                 });
             }
         } else {
-            payload.series.push(v1::PlotSeries {
+            payload.series.push(dokime_protocol::client::plots::PlotSeries {
                 key: field.clone(),
                 label: field,
                 unit: request.unit.clone(),
@@ -545,15 +550,19 @@ pub fn snapshot_at(
         }
     }
     if kind == v1::PlotKind::Histogram {
-        payload.analysis = Some(v1::PlotAnalysis {
-            result: Some(v1::PlotAnalysisResult {
-                kind: Some(v1::plot_analysis_result::Kind::Histogram(v1::PlotHistogramAnalysis { series: histograms })),
+        payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
+            result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(
+                    dokime_protocol::client::plots::PlotHistogramAnalysis { series: histograms },
+                )),
             }),
         });
     } else if kind == v1::PlotKind::BoxPlot {
-        payload.analysis = Some(v1::PlotAnalysis {
-            result: Some(v1::PlotAnalysisResult {
-                kind: Some(v1::plot_analysis_result::Kind::BoxPlot(v1::PlotBoxSummaryAnalysis { series: boxes, total: examined })),
+        payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
+            result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(
+                    dokime_protocol::client::plots::PlotBoxSummaryAnalysis { series: boxes, total: examined },
+                )),
             }),
         });
     } else if payload.analysis.is_none() {
@@ -563,7 +572,7 @@ pub fn snapshot_at(
         frame.signature = Sha256::digest(frame.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
     }
     if !request.marker_record_types.is_empty() {
-        let mut markers = std::collections::BTreeMap::<u64, (v1::PlotMarker, u64)>::new();
+        let mut markers = std::collections::BTreeMap::<u64, (dokime_protocol::client::plots::PlotMarker, u64)>::new();
         let mut cursor = after;
         loop {
             let page = store.evidence_page(execution, cursor, through, NonZeroUsize::new(maximum).unwrap())?;
@@ -582,7 +591,7 @@ pub fn snapshot_at(
                     continue;
                 }
                 let bucket = ((evidence.source_ns as i128 - start_ns as i128).max(0) as u128 / resolution.max(1) as u128) as u64;
-                let marker = v1::PlotMarker {
+                let marker = dokime_protocol::client::plots::PlotMarker {
                     x: Some(v1::Value {
                         kind: Some(v1::value::Kind::Number(evidence.source_ns as f64 / 1e9)),
                     }),
@@ -609,11 +618,19 @@ pub fn snapshot_at(
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            v1::plot_analysis_result::Kind::Histogram(histogram) => histogram.series.iter().map(|series| series.bins.len() as u64).sum(),
-            v1::plot_analysis_result::Kind::BoxPlot(boxes) => boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum(),
-            v1::plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
-            v1::plot_analysis_result::Kind::GridChart(grid) => grid.frames.iter().map(|frame| frame.values.len() as u64).sum(),
-            v1::plot_analysis_result::Kind::SigmaInterval(sigma) => sigma.series.iter().map(|series| series.bins.len() as u64).sum(),
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+                histogram.series.iter().map(|series| series.bins.len() as u64).sum()
+            }
+            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+                boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum()
+            }
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
+            dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid) => {
+                grid.frames.iter().map(|frame| frame.values.len() as u64).sum()
+            }
+            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(sigma) => {
+                sigma.series.iter().map(|series| series.bins.len() as u64).sum()
+            }
             _ => 0,
         }
     } else {
@@ -641,18 +658,18 @@ pub fn snapshot_at(
     if let Some(analysis) = payload.analysis.as_mut().and_then(|analysis| analysis.result.as_mut()).and_then(|result| result.kind.as_mut())
     {
         match analysis {
-            v1::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 for series in &mut histogram.series {
                     series.key = label(&series.key);
                 }
             }
-            v1::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 for series in &mut boxes.series {
                     series.key = label(&series.key);
                     series.label = label(&series.label);
                 }
             }
-            v1::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 for series in &mut interval.series {
                     series.key = label(&series.key);
                 }
@@ -676,12 +693,12 @@ pub fn snapshot_at(
                 .map_or("Group".into(), |expression| expression.label.clone()),
         );
     }
-    Ok(v1::PlotEnvelope {
+    Ok(dokime_protocol::client::plots::PlotEnvelope {
         plot_id: request.plot_id.clone().unwrap_or_else(|| stream.id.clone()),
         revision: cut.frontier,
         epoch: epoch.into(),
         selection: selection_key,
-        diagnostics: Some(v1::PlotPayloadDiagnostics {
+        diagnostics: Some(dokime_protocol::client::plots::PlotPayloadDiagnostics {
             series_count: payload.series.len() as u64,
             point_count,
             raw_point_count: examined,

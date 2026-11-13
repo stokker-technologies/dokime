@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.catalog.PromptDefinitions/List";
+pub const ID: &str = "dokime.client.v1.PromptDefinitions/List";
 
 /* === Macros === */
 
@@ -43,14 +42,17 @@ pub const ID: &str = "dokime.v1.catalog.PromptDefinitions/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::catalog::PromptDefinitionsListRequest, v1::catalog::PromptDefinitionsListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::PromptDefinitionsListRequest, dokime_protocol::client::PromptDefinitionsListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
 pub async fn handle(
-    context: &Context, request: v1::catalog::PromptDefinitionsListRequest,
-) -> Result<v1::catalog::PromptDefinitionsListResponse> {
+    context: &Context, request: dokime_protocol::client::PromptDefinitionsListRequest,
+) -> Result<dokime_protocol::client::PromptDefinitionsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) = super::views::read(context, &format!("catalog/prompts/{}", request.parent), request.at.as_ref(), async {
-            Ok(v1::catalog::PromptDefinitionsListResponse {
+            Ok(dokime_protocol::client::PromptDefinitionsListResponse {
                 values: super::prompt_catalog::definitions(context)?,
                 ..Default::default()
             })

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.content.Artifacts/Create";
+pub const ID: &str = "dokime.client.v1.content.Artifacts/Create";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.content.Artifacts/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::content::ArtifactsCreateRequest, v1::content::ArtifactsCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::content::ArtifactsCreateRequest, dokime_protocol::client::content::ArtifactsCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::content::ArtifactsCreateRequest) -> Result<v1::content::ArtifactsCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::content::ArtifactsCreateRequest,
+) -> Result<dokime_protocol::client::content::ArtifactsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let reply = context.host.store().attach_artifact(ID, request, context.host.now_ns())?;
         context.host.signal_change();

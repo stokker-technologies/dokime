@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Secrets/Set";
+pub const ID: &str = "dokime.client.v1.Secrets/Set";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Secrets/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SecretsSetRequest, v1::SecretsSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::SecretsSetRequest, dokime_protocol::client::SecretsSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SecretsSetRequest) -> Result<v1::SecretsSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SecretsSetRequest,
+) -> Result<dokime_protocol::client::SecretsSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let receipt = super::views::receipt(context, &request.request_id)?;
         let super::secrets_store::Reply::Snapshot(snapshot) =
@@ -54,8 +58,8 @@ pub async fn handle(context: &Context, request: v1::SecretsSetRequest) -> Result
             return Err(Error::Invalid("Set Secret: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(v1::SecretsSetResponse {
-            value: Some(v1::SecretWritable {
+        Ok(dokime_protocol::client::SecretsSetResponse {
+            value: Some(dokime_protocol::client::SecretWritable {
                 metadata: request.value.and_then(|value| value.metadata),
                 value: None,
             }),

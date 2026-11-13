@@ -23,7 +23,6 @@ use tokio_stream::{Stream, StreamExt};
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -39,8 +38,8 @@ pub const BUNDLE_BYTES: usize = 285212672;
 /* === Enums === */
 
 pub enum Upload {
-    Request(v1::PluginsInstallRequest),
-    Item(v1::InstallPluginFrame),
+    Request(dokime_protocol::client::PluginsInstallRequest),
+    Item(dokime_protocol::client::InstallPluginFrame),
     Finish,
     Cancel,
 }
@@ -52,12 +51,15 @@ pub enum Upload {
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::PluginsInstallRequest, v1::PluginInstallation>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::PluginsInstallRequest, dokime_protocol::client::PluginInstallation>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
 
 pub async fn handle(
     context: &Context, mut input: impl Stream<Item = std::result::Result<Upload, tonic::Status>> + Unpin,
-) -> Result<v1::PluginInstallation> {
+) -> Result<dokime_protocol::client::PluginInstallation> {
     let deadline = tokio::time::Instant::now() + context.settings.mutation_timeout;
     let bytes = super::complete(ID, context.settings.mutation_timeout, async {
         let Some(Upload::Request(_)) = input.next().await.transpose().map_err(|_| invalid("Send One Request First"))? else {
@@ -71,7 +73,7 @@ pub async fn handle(
                 Upload::Finish => break,
                 Upload::Request(_) => return Err(invalid("Send Exactly One Request Before the Upload")),
                 Upload::Item(frame) => match frame.frame.and_then(|frame| frame.kind) {
-                    Some(v1::install_plugin_frame_frame::Kind::Header(value)) if header.is_none() => {
+                    Some(dokime_protocol::client::install_plugin_frame_frame::Kind::Header(value)) if header.is_none() => {
                         if value.size_bytes == 0
                             || value.size_bytes > BUNDLE_BYTES as u64
                             || value.sha256.len() != 64
@@ -81,7 +83,7 @@ pub async fn handle(
                         }
                         header = Some(value);
                     }
-                    Some(v1::install_plugin_frame_frame::Kind::Chunk(chunk)) => {
+                    Some(dokime_protocol::client::install_plugin_frame_frame::Kind::Chunk(chunk)) => {
                         let expected = header.as_ref().ok_or_else(|| invalid("Send the Upload Header Before Its Chunks"))?;
                         if chunk.offset != bytes.len() as u64
                             || chunk.data.is_empty()

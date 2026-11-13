@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod analyses_list;
 pub mod backend_appearance;
 pub mod backend_overview_get;
 pub mod backend_overview_watch;
@@ -20,7 +21,6 @@ pub mod cases_get;
 pub mod cases_list;
 pub mod cases_parameters;
 pub mod cases_watch;
-pub mod catalog_analyses;
 mod catalog_inventory;
 pub mod catalog_prompt_definitions_get;
 pub mod catalog_prompt_definitions_list;
@@ -149,109 +149,109 @@ const DEFAULT_PAGE_ITEMS: usize = 50;
 const MAX_PAGE_ITEMS: usize = 500;
 
 pub const METHODS: &[&str] = &[
-    "/dokime.v1.Aggregates/Get",
-    "/dokime.v1.Backend/Appearance",
-    "/dokime.v1.Cases/Create",
-    "/dokime.v1.Cases/Delete",
-    "/dokime.v1.Cases/Get",
-    "/dokime.v1.Cases/List",
-    "/dokime.v1.Cases/Parameters",
-    "/dokime.v1.Cases/Watch",
-    "/dokime.v1.Catalog/Analyses",
-    "/dokime.v1.Content/DownloadAppearanceAsset",
-    "/dokime.v1.Cycles/Create",
-    "/dokime.v1.Cycles/Get",
-    "/dokime.v1.Cycles/List",
-    "/dokime.v1.Cycles/Seal",
-    "/dokime.v1.Cycles/Set",
-    "/dokime.v1.Cycles/Watch",
-    "/dokime.v1.Documents/Get",
-    "/dokime.v1.Documents/Watch",
-    "/dokime.v1.Evidence/Archive",
-    "/dokime.v1.Evidence/Statistics",
-    "/dokime.v1.Executions/Cancel",
-    "/dokime.v1.Executions/Create",
-    "/dokime.v1.Executions/Delete",
-    "/dokime.v1.Executions/Get",
-    "/dokime.v1.Executions/List",
-    "/dokime.v1.Executions/Parameters",
-    "/dokime.v1.Executions/Set",
-    "/dokime.v1.Executions/Start",
-    "/dokime.v1.Executions/Steps",
-    "/dokime.v1.Executions/Stop",
-    "/dokime.v1.Executions/Watch",
-    "/dokime.v1.Plugins/Add",
-    "/dokime.v1.Plugins/GetInstallation",
-    "/dokime.v1.Plugins/Install",
-    "/dokime.v1.Plugins/List",
-    "/dokime.v1.Plugins/ListAdmittedPlugins",
-    "/dokime.v1.Plugins/ListInstallations",
-    "/dokime.v1.Plugins/Reload",
-    "/dokime.v1.Plugins/Remove",
-    "/dokime.v1.Plugins/SetEnabled",
-    "/dokime.v1.Prompts/Get",
-    "/dokime.v1.Prompts/List",
-    "/dokime.v1.Prompts/Watch",
-    "/dokime.v1.Reports/Create",
-    "/dokime.v1.Reports/Get",
-    "/dokime.v1.Reports/Publish",
-    "/dokime.v1.Secrets/Delete",
-    "/dokime.v1.Secrets/Export",
-    "/dokime.v1.Secrets/Get",
-    "/dokime.v1.Secrets/Import",
-    "/dokime.v1.Secrets/List",
-    "/dokime.v1.Secrets/Set",
-    "/dokime.v1.Secrets/Watch",
-    "/dokime.v1.Settings/Get",
-    "/dokime.v1.Settings/Schema",
-    "/dokime.v1.Settings/Set",
-    "/dokime.v1.backend.Overview/Get",
-    "/dokime.v1.backend.Overview/Watch",
-    "/dokime.v1.catalog.PromptDefinitions/Get",
-    "/dokime.v1.catalog.PromptDefinitions/List",
-    "/dokime.v1.catalog.RecordSchemas/Get",
-    "/dokime.v1.catalog.RecordSchemas/List",
-    "/dokime.v1.catalog.StreamSchemas/Get",
-    "/dokime.v1.catalog.StreamSchemas/List",
-    "/dokime.v1.catalog.Suites/Get",
-    "/dokime.v1.catalog.Suites/List",
-    "/dokime.v1.content.Artifacts/Create",
-    "/dokime.v1.content.Artifacts/Get",
-    "/dokime.v1.content.Artifacts/List",
-    "/dokime.v1.content.Artifacts/Watch",
-    "/dokime.v1.content.ExecutionFiles/Get",
-    "/dokime.v1.content.ExecutionFiles/List",
-    "/dokime.v1.content.ExecutionFiles/Watch",
-    "/dokime.v1.evidence.HealthEvents/List",
-    "/dokime.v1.evidence.HealthEvents/Watch",
-    "/dokime.v1.evidence.Notes/Create",
-    "/dokime.v1.evidence.Notes/Get",
-    "/dokime.v1.evidence.Notes/List",
-    "/dokime.v1.evidence.Notes/Set",
-    "/dokime.v1.evidence.Notes/Watch",
-    "/dokime.v1.evidence.Records/List",
-    "/dokime.v1.evidence.Records/Watch",
-    "/dokime.v1.evidence.Samples/List",
-    "/dokime.v1.evidence.Samples/Watch",
-    "/dokime.v1.evidence.Traceability/Get",
-    "/dokime.v1.evidence.Traceability/Watch",
-    "/dokime.v1.executions.Commands/Create",
-    "/dokime.v1.executions.Commands/Get",
-    "/dokime.v1.executions.Progress/Get",
-    "/dokime.v1.executions.Progress/Watch",
-    "/dokime.v1.media.Captures/Create",
-    "/dokime.v1.media.Captures/Get",
-    "/dokime.v1.media.Captures/Stop",
-    "/dokime.v1.media.Captures/Watch",
-    "/dokime.v1.plots.Settings/Get",
-    "/dokime.v1.plots.Settings/Set",
-    "/dokime.v1.plots.Snapshots/List",
-    "/dokime.v1.plots.Snapshots/Watch",
-    "/dokime.v1.plugins.Settings/Get",
-    "/dokime.v1.plugins.Settings/Set",
-    "/dokime.v1.prompts.Answers/Create",
-    "/dokime.v1.storage.Sources/Get",
-    "/dokime.v1.storage.Sources/Set",
+    "/dokime.client.v1.Aggregates/Get",
+    "/dokime.client.v1.Backend/Appearance",
+    "/dokime.client.v1.Cases/Create",
+    "/dokime.client.v1.Cases/Delete",
+    "/dokime.client.v1.Cases/Get",
+    "/dokime.client.v1.Cases/List",
+    "/dokime.client.v1.Cases/Parameters",
+    "/dokime.client.v1.Cases/Watch",
+    "/dokime.client.v1.Analyses/List",
+    "/dokime.client.v1.Content/DownloadAppearanceAsset",
+    "/dokime.client.v1.Cycles/Create",
+    "/dokime.client.v1.Cycles/Get",
+    "/dokime.client.v1.Cycles/List",
+    "/dokime.client.v1.Cycles/Seal",
+    "/dokime.client.v1.Cycles/Set",
+    "/dokime.client.v1.Cycles/Watch",
+    "/dokime.client.v1.Documents/Get",
+    "/dokime.client.v1.Documents/Watch",
+    "/dokime.client.v1.Evidence/Archive",
+    "/dokime.client.v1.Evidence/Statistics",
+    "/dokime.client.v1.Executions/Cancel",
+    "/dokime.client.v1.Executions/Create",
+    "/dokime.client.v1.Executions/Delete",
+    "/dokime.client.v1.Executions/Get",
+    "/dokime.client.v1.Executions/List",
+    "/dokime.client.v1.Executions/Parameters",
+    "/dokime.client.v1.Executions/Set",
+    "/dokime.client.v1.Executions/Start",
+    "/dokime.client.v1.Executions/Steps",
+    "/dokime.client.v1.Executions/Stop",
+    "/dokime.client.v1.Executions/Watch",
+    "/dokime.client.v1.Plugins/Add",
+    "/dokime.client.v1.Plugins/GetInstallation",
+    "/dokime.client.v1.Plugins/Install",
+    "/dokime.client.v1.Plugins/List",
+    "/dokime.client.v1.Plugins/ListAdmittedPlugins",
+    "/dokime.client.v1.Plugins/ListInstallations",
+    "/dokime.client.v1.Plugins/Reload",
+    "/dokime.client.v1.Plugins/Remove",
+    "/dokime.client.v1.Plugins/SetEnabled",
+    "/dokime.client.v1.Prompts/Get",
+    "/dokime.client.v1.Prompts/List",
+    "/dokime.client.v1.Prompts/Watch",
+    "/dokime.client.v1.Reports/Create",
+    "/dokime.client.v1.Reports/Get",
+    "/dokime.client.v1.Reports/Publish",
+    "/dokime.client.v1.Secrets/Delete",
+    "/dokime.client.v1.Secrets/Export",
+    "/dokime.client.v1.Secrets/Get",
+    "/dokime.client.v1.Secrets/Import",
+    "/dokime.client.v1.Secrets/List",
+    "/dokime.client.v1.Secrets/Set",
+    "/dokime.client.v1.Secrets/Watch",
+    "/dokime.client.v1.Settings/Get",
+    "/dokime.client.v1.Settings/Schema",
+    "/dokime.client.v1.Settings/Set",
+    "/dokime.client.v1.backend.Overview/Get",
+    "/dokime.client.v1.backend.Overview/Watch",
+    "/dokime.client.v1.PromptDefinitions/Get",
+    "/dokime.client.v1.PromptDefinitions/List",
+    "/dokime.client.v1.RecordSchemas/Get",
+    "/dokime.client.v1.RecordSchemas/List",
+    "/dokime.client.v1.StreamSchemas/Get",
+    "/dokime.client.v1.StreamSchemas/List",
+    "/dokime.client.v1.Suites/Get",
+    "/dokime.client.v1.Suites/List",
+    "/dokime.client.v1.content.Artifacts/Create",
+    "/dokime.client.v1.content.Artifacts/Get",
+    "/dokime.client.v1.content.Artifacts/List",
+    "/dokime.client.v1.content.Artifacts/Watch",
+    "/dokime.client.v1.content.ExecutionFiles/Get",
+    "/dokime.client.v1.content.ExecutionFiles/List",
+    "/dokime.client.v1.content.ExecutionFiles/Watch",
+    "/dokime.client.v1.evidence.HealthEvents/List",
+    "/dokime.client.v1.evidence.HealthEvents/Watch",
+    "/dokime.client.v1.evidence.Notes/Create",
+    "/dokime.client.v1.evidence.Notes/Get",
+    "/dokime.client.v1.evidence.Notes/List",
+    "/dokime.client.v1.evidence.Notes/Set",
+    "/dokime.client.v1.evidence.Notes/Watch",
+    "/dokime.client.v1.evidence.Records/List",
+    "/dokime.client.v1.evidence.Records/Watch",
+    "/dokime.client.v1.evidence.Samples/List",
+    "/dokime.client.v1.evidence.Samples/Watch",
+    "/dokime.client.v1.evidence.Traceability/Get",
+    "/dokime.client.v1.evidence.Traceability/Watch",
+    "/dokime.client.v1.executions.Commands/Create",
+    "/dokime.client.v1.executions.Commands/Get",
+    "/dokime.client.v1.executions.Progress/Get",
+    "/dokime.client.v1.executions.Progress/Watch",
+    "/dokime.client.v1.media.Captures/Create",
+    "/dokime.client.v1.media.Captures/Get",
+    "/dokime.client.v1.media.Captures/Stop",
+    "/dokime.client.v1.media.Captures/Watch",
+    "/dokime.client.v1.plots.Settings/Get",
+    "/dokime.client.v1.plots.Settings/Set",
+    "/dokime.client.v1.plots.Snapshots/List",
+    "/dokime.client.v1.plots.Snapshots/Watch",
+    "/dokime.client.v1.plugins.Settings/Get",
+    "/dokime.client.v1.plugins.Settings/Set",
+    "/dokime.client.v1.prompts.Answers/Create",
+    "/dokime.client.v1.storage.Sources/Get",
+    "/dokime.client.v1.storage.Sources/Set",
 ];
 
 /* === Macros === */
@@ -316,29 +316,33 @@ pub trait Host: Send + Sync {
     fn changes(&self) -> watch::Receiver<u64>;
     fn shutting_down(&self) -> bool;
     fn signal_change(&self);
-    async fn start_existing(&self, execution: &str, mode: v1::ExecutionMode) -> Result<StartedCycle>;
+    async fn start_existing(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<StartedCycle>;
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()>;
-    fn submit_command(&self, request: v1::executions::CommandsCreateRequest) -> Result<v1::ExecutionCommandReceipt>;
+    fn submit_command(
+        &self, request: dokime_protocol::client::executions::CommandsCreateRequest,
+    ) -> Result<dokime_protocol::client::executions::ExecutionCommandReceipt>;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> HostIdentity;
-    fn bootstrap_paths(&self) -> v1::BootstrapPaths;
+    fn bootstrap_paths(&self) -> dokime_protocol::client::BootstrapPaths;
     fn register_sensitive(&self, value: &str) -> Result<()>;
-    fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
+    fn controls(&self, execution: &str) -> Result<dokime_protocol::client::ExecutionControls>;
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
     fn render_report(
-        &self, subject: &v1::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
-    ) -> Result<(std::fs::File, v1::ReportMetadata)>;
+        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+    ) -> Result<(std::fs::File, dokime_protocol::client::ReportMetadata)>;
     fn retain_report(&self, file: std::fs::File, reference: harmos_protocol::storage::FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, harmos_protocol::storage::FileReference)>>;
     fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report>;
     async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse>;
-    async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
-    fn plugins(&self) -> Result<Vec<v1::Plugin>>;
+    async fn add_remote(&self, url: &str) -> Result<dokime_protocol::client::Plugin>;
+    fn plugins(&self) -> Result<Vec<dokime_protocol::client::Plugin>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
     async fn restore_managed_plugins(&self) -> Result<()>;
-    fn installations(&self) -> Result<Vec<v1::PluginInstallation>>;
-    async fn install_plugin_bundle(&self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>) -> Result<v1::PluginInstallation>;
-    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation>;
+    fn installations(&self) -> Result<Vec<dokime_protocol::client::PluginInstallation>>;
+    async fn install_plugin_bundle(
+        &self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<dokime_protocol::client::PluginInstallation>;
+    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<dokime_protocol::client::PluginInstallation>;
     async fn remove_plugin_entry(&self, identifier: &str) -> Result<()>;
     async fn reload_plugin_entry(&self, identifier: &str) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, v1::Suite)>>;

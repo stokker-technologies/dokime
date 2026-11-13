@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cycles/List";
+pub const ID: &str = "dokime.client.v1.Cycles/List";
 
 /* === Macros === */
 
@@ -43,9 +43,11 @@ pub const ID: &str = "dokime.v1.Cycles/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CyclesListRequest, v1::CyclesListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::CyclesListRequest, dokime_protocol::client::CyclesListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::CyclesListRequest) -> Result<v1::CyclesListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CyclesListRequest,
+) -> Result<dokime_protocol::client::CyclesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let mut selection = request.clone();
@@ -82,13 +84,14 @@ pub async fn handle(context: &Context, request: v1::CyclesListRequest) -> Result
                 selected.push(cycle);
             }
             let order = request.order.unwrap_or_default();
-            let key = v1::CycleOrderKey::try_from(order.key).map_err(|_| Error::Invalid("List Cycles: Choose a Valid Order".into()))?;
+            let key = dokime_protocol::client::CycleOrderKey::try_from(order.key)
+                .map_err(|_| Error::Invalid("List Cycles: Choose a Valid Order".into()))?;
             selected.sort_by(|left, right| {
                 let order = match key {
-                    v1::CycleOrderKey::Label => {
+                    dokime_protocol::client::CycleOrderKey::Label => {
                         left.metadata.as_ref().map(|metadata| &metadata.label).cmp(&right.metadata.as_ref().map(|metadata| &metadata.label))
                     }
-                    v1::CycleOrderKey::CreatedAt => {
+                    dokime_protocol::client::CycleOrderKey::CreatedAt => {
                         super::execution_state::time(left.created_at).cmp(&super::execution_state::time(right.created_at))
                     }
                     _ => super::execution_state::time(left.updated_at).cmp(&super::execution_state::time(right.updated_at)),
@@ -105,14 +108,14 @@ pub async fn handle(context: &Context, request: v1::CyclesListRequest) -> Result
                         && (selection.phases.is_empty() || selection.phases.contains(&cycle.phase))
                 });
             }
-            Ok(v1::CyclesListResponse { cycles: selected, ..Default::default() })
+            Ok(dokime_protocol::client::CyclesListResponse { cycles: selected, ..Default::default() })
         })
         .await?;
         let (cycles, next_page_token) =
             super::views::page(saved.cycles, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
         super::bounded_reply(
             context,
-            v1::CyclesListResponse {
+            dokime_protocol::client::CyclesListResponse {
                 cycles,
                 resolved_at: Some(cut),
                 next_page_token,

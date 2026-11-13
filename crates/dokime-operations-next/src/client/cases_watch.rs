@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cases/Watch";
+pub const ID: &str = "dokime.client.v1.Cases/Watch";
 
 /* === Macros === */
 
@@ -43,13 +42,18 @@ pub const ID: &str = "dokime.v1.Cases/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CasesWatchRequest, v1::CasesWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::CasesWatchRequest, dokime_protocol::client::CasesWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CasesWatchRequest) -> Result<super::Output<v1::CasesWatchResponse>> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CasesWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::CasesWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::CasesListRequest { parent: request.parent, at: request.at };
+        let mut selection = dokime_protocol::client::CasesListRequest { parent: request.parent, at: request.at };
         let first = super::cases_list::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
@@ -60,7 +64,7 @@ pub async fn handle(context: &Context, request: v1::CasesWatchRequest) -> Result
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = String::new();
-                    let response = v1::CasesWatchResponse {
+                    let response = dokime_protocol::client::CasesWatchResponse {
                         cases: page.cases,
                         resolved_at: cut.clone(),
                         opening,
@@ -87,7 +91,7 @@ pub async fn handle(context: &Context, request: v1::CasesWatchRequest) -> Result
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::CasesWatchResponse {
+                                .send(Ok(dokime_protocol::client::CasesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

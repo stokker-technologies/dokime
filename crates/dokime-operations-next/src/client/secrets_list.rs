@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Secrets/List";
+pub const ID: &str = "dokime.client.v1.Secrets/List";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Secrets/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SecretsListRequest, v1::SecretsListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::SecretsListRequest, dokime_protocol::client::SecretsListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SecretsListRequest) -> Result<v1::SecretsListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SecretsListRequest,
+) -> Result<dokime_protocol::client::SecretsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let super::secrets_store::Reply::Snapshot(snapshot) =
             super::secrets_store::perform(context, super::secrets_store::Action::List).await?
@@ -53,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::SecretsListRequest) -> Resul
             return Err(Error::Invalid("List Secrets: Restart the Secret Store".into()));
         };
         let cut = cut(context, "", snapshot.generation, request.at.as_ref())?;
-        Ok(v1::SecretsListResponse {
+        Ok(dokime_protocol::client::SecretsListResponse {
             entries: snapshot.entries,
             generation: snapshot.generation,
             resolved_at: Some(cut),

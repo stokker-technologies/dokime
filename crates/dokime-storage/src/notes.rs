@@ -40,16 +40,18 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl Store {
-    pub fn note(&self, name: &str) -> Result<v1::OperatorNote> {
+    pub fn note(&self, name: &str) -> Result<dokime_protocol::client::evidence::OperatorNote> {
         let payload: Vec<u8> = self
             .lock()?
             .query_row("SELECT payload FROM notes WHERE id=?1", [name], |row| row.get(0))
             .optional()?
             .ok_or_else(|| Error::NotFound("Get Note: Select an Existing Note".into()))?;
-        Ok(v1::OperatorNote::decode(payload.as_slice())?)
+        Ok(dokime_protocol::client::evidence::OperatorNote::decode(payload.as_slice())?)
     }
 
-    pub fn set_note(&self, request: v1::evidence::NotesSetRequest, author: &str) -> Result<v1::evidence::NotesSetResponse> {
+    pub fn set_note(
+        &self, request: dokime_protocol::client::evidence::NotesSetRequest, author: &str,
+    ) -> Result<dokime_protocol::client::evidence::NotesSetResponse> {
         use harmos_protocol::v1::{History, Position, Receipt, Section};
         use sha2::{Digest, Sha256};
         if request.request_id.is_empty() {
@@ -66,10 +68,10 @@ impl Store {
             if saved.r#type != fingerprint {
                 return Err(Error::Conflict("Set Note: Use a New Request ID for Changed Content".into()));
             }
-            return Ok(v1::evidence::NotesSetResponse::decode(saved.payload.as_slice())?);
+            return Ok(dokime_protocol::client::evidence::NotesSetResponse::decode(saved.payload.as_slice())?);
         }
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM notes WHERE id=?1", [&request.name], |row| row.get(0))?;
-        let mut note = v1::OperatorNote::decode(payload.as_slice())?;
+        let mut note = dokime_protocol::client::evidence::OperatorNote::decode(payload.as_slice())?;
         if note.author.as_deref() != Some(author) {
             return Err(Error::Permission("Set Note: Sign In as Its Author".into()));
         }
@@ -93,7 +95,7 @@ impl Store {
             }),
             sequence,
         };
-        let response = v1::evidence::NotesSetResponse {
+        let response = dokime_protocol::client::evidence::NotesSetResponse {
             value: Some(value),
             revision: sequence.to_be_bytes().to_vec(),
             receipt: Some(Receipt {
@@ -124,7 +126,9 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(response)
     }
-    pub fn create_note(&self, receipt: v1::evidence::NotesCreateResponse) -> Result<v1::evidence::NotesCreateResponse> {
+    pub fn create_note(
+        &self, receipt: dokime_protocol::client::evidence::NotesCreateResponse,
+    ) -> Result<dokime_protocol::client::evidence::NotesCreateResponse> {
         let note = receipt.note.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Body".into()))?;
         let scope = note.scope.as_ref().ok_or_else(|| Error::Invalid("Create Note: Select Its Owner".into()))?;
         let mut connection = self.lock()?;
@@ -132,7 +136,7 @@ impl Store {
         let existing: Option<Vec<u8>> =
             transaction.query_row("SELECT receipt FROM notes WHERE id=?1", [&note.note_id], |row| row.get(0)).optional()?;
         if let Some(bytes) = existing {
-            let existing = v1::evidence::NotesCreateResponse::decode(bytes.as_slice())?;
+            let existing = dokime_protocol::client::evidence::NotesCreateResponse::decode(bytes.as_slice())?;
             if existing
                 .note
                 .as_ref()
@@ -151,14 +155,14 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(receipt)
     }
-    pub fn edit_note(&self, id: &str, author: &str, message: String) -> Result<v1::OperatorNote> {
+    pub fn edit_note(&self, id: &str, author: &str, message: String) -> Result<dokime_protocol::client::evidence::OperatorNote> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let bytes: Vec<u8> = transaction
             .query_row("SELECT payload FROM notes WHERE id=?1", [id], |row| row.get(0))
             .optional()?
             .ok_or_else(|| Error::NotFound("Edit Note: Select an Existing Note from List Notes".into()))?;
-        let mut note = v1::OperatorNote::decode(bytes.as_slice())?;
+        let mut note = dokime_protocol::client::evidence::OperatorNote::decode(bytes.as_slice())?;
         if note.author.as_deref() != Some(author) {
             return Err(Error::Permission("Edit Note: Sign In as Its Author".into()));
         }
@@ -201,11 +205,11 @@ impl Store {
     }
     pub fn notes_page(
         &self, cycle: Option<&str>, execution: Option<&str>, context: bool, after: &str, limit: usize,
-    ) -> Result<Vec<v1::OperatorNote>> {
+    ) -> Result<Vec<dokime_protocol::client::evidence::OperatorNote>> {
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT payload FROM notes WHERE id>?1 AND (?2 IS NULL OR cycle=?2) AND (?3 IS NULL OR execution=?3 OR (?4 AND execution IS NULL)) ORDER BY id LIMIT ?5")?;
         let rows = query.query_map(params![after, cycle, execution, context, limit as i64], |row| row.get::<_, Vec<u8>>(0))?;
-        rows.map(|row| Ok(v1::OperatorNote::decode(row?.as_slice())?)).collect()
+        rows.map(|row| Ok(dokime_protocol::client::evidence::OperatorNote::decode(row?.as_slice())?)).collect()
     }
     pub fn notes_fingerprint(&self) -> Result<Vec<u8>> {
         use sha2::{Digest, Sha256};

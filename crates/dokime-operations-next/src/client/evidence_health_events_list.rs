@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.HealthEvents/List";
+pub const ID: &str = "dokime.client.v1.evidence.HealthEvents/List";
 
 /* === Macros === */
 
@@ -43,9 +43,14 @@ pub const ID: &str = "dokime.v1.evidence.HealthEvents/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::HealthEventsListRequest, v1::evidence::HealthEventsListResponse>(ID, settings.read_timeout)
+    super::declaration::<
+        dokime_protocol::client::evidence::HealthEventsListRequest,
+        dokime_protocol::client::evidence::HealthEventsListResponse,
+    >(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::evidence::HealthEventsListRequest) -> Result<v1::evidence::HealthEventsListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::evidence::HealthEventsListRequest,
+) -> Result<dokime_protocol::client::evidence::HealthEventsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key =
@@ -64,17 +69,17 @@ pub async fn handle(context: &Context, request: v1::evidence::HealthEventsListRe
                     .host
                     .installations()?
                     .into_iter()
-                    .filter(|installation| installation.state == v1::PluginInstallationState::Disabled as i32)
+                    .filter(|installation| installation.state == dokime_protocol::client::PluginInstallationState::Disabled as i32)
                     .map(|installation| installation.install_id)
                     .collect();
                 for plugin in context.host.plugins()? {
                     if disabled.contains(&plugin.entry) {
                         continue;
                     }
-                    if plugin.state == v1::PluginState::Ready as i32 {
+                    if plugin.state == dokime_protocol::client::PluginState::Ready as i32 {
                         continue;
                     }
-                    items.push(v1::HealthItem {
+                    items.push(dokime_protocol::client::evidence::HealthItem {
                         health_item_id: plugin.entry,
                         message: if plugin.reason.is_empty() {
                             "Start or Reload the Plugin to Restore Its Services".into()
@@ -87,12 +92,12 @@ pub async fn handle(context: &Context, request: v1::evidence::HealthEventsListRe
                 }
             }
             items.sort_by(|left, right| left.health_item_id.cmp(&right.health_item_id));
-            Ok(v1::evidence::HealthEventsListResponse { events: items, ..Default::default() })
+            Ok(dokime_protocol::client::evidence::HealthEventsListResponse { events: items, ..Default::default() })
         })
         .await?;
         let (items, next_page_token) =
             super::views::page(saved.events, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
-        Ok(v1::evidence::HealthEventsListResponse {
+        Ok(dokime_protocol::client::evidence::HealthEventsListResponse {
             events: items,
             resolved_at: Some(cut),
             next_page_token,

@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.plugins.Settings/Set";
+pub const ID: &str = "dokime.client.v1.plugins.Settings/Set";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.plugins.Settings/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::plugins::SettingsSetRequest, v1::plugins::SettingsSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::plugins::SettingsSetRequest, dokime_protocol::client::plugins::SettingsSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::plugins::SettingsSetRequest) -> Result<v1::plugins::SettingsSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::plugins::SettingsSetRequest,
+) -> Result<dokime_protocol::client::plugins::SettingsSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let current = super::settings_preferences::plugin(context, &request.name)?;
         let values = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Plugin Settings: Supply the Whole Writable Value".into()))?;
@@ -60,7 +65,7 @@ pub async fn handle(context: &Context, request: v1::plugins::SettingsSetRequest)
             &values.encode_to_vec(),
         )?;
         context.host.signal_change();
-        Ok(v1::plugins::SettingsSetResponse {
+        Ok(dokime_protocol::client::plugins::SettingsSetResponse {
             value: Some(v1::MapValue::decode(payload.as_slice())?),
             revision,
             receipt: Some(receipt),

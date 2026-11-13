@@ -44,12 +44,14 @@ pub const ID: &str = "dokime.settings.read";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::ReadSettings, v1::SavedSettings>(
+    crate::declaration::<dokime_protocol::context::ReadSettings, dokime_protocol::context::SavedSettings>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(resources: &Resources, request: v1::ReadSettings) -> Result<v1::SavedSettings> {
+pub async fn handle(
+    resources: &Resources, request: dokime_protocol::context::ReadSettings,
+) -> Result<dokime_protocol::context::SavedSettings> {
     let _ = request;
     resources.check_action_scope(&resources.execution, ID)?;
     let snapshot = resources.store.cut(&resources.execution)?;
@@ -60,13 +62,13 @@ pub async fn handle(resources: &Resources, request: v1::ReadSettings) -> Result<
     let description = harmos_protocol::plugin::InstanceGetResponse::decode(resources.store.plugin(&plugin)?.as_slice())?;
     let settings = crate::client::settings_preferences::for_plugin(
         &resources.store,
-        v1::Plugin {
+        dokime_protocol::client::Plugin {
             entry: plugin,
             description: Some(description),
             ..Default::default()
         },
     )?;
-    Ok(v1::SavedSettings {
+    Ok(dokime_protocol::context::SavedSettings {
         values: settings.value.unwrap_or_default().values,
     })
 }

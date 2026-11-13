@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Steps";
+pub const ID: &str = "dokime.client.v1.Executions/Steps";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Executions/Steps";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsStepsRequest, v1::ExecutionsStepsResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsStepsRequest, dokime_protocol::client::ExecutionsStepsResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsStepsRequest) -> Result<v1::ExecutionsStepsResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsStepsRequest,
+) -> Result<dokime_protocol::client::ExecutionsStepsResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let position = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?.resolved_at;
 
@@ -60,13 +64,21 @@ pub async fn handle(context: &Context, request: v1::ExecutionsStepsRequest) -> R
             let finished_at =
                 evidence.iter().rev().find(|entry| entry.kind == "step:end").map(|entry| super::projection::timestamp(entry.receipt_ns));
             let status = if finished_at.is_some() {
-                if evidence.iter().any(|entry| entry.kind == "step:failure") { v1::StepStatus::Failed } else { v1::StepStatus::Passed }
+                if evidence.iter().any(|entry| entry.kind == "step:failure") {
+                    dokime_protocol::client::StepStatus::Failed
+                } else {
+                    dokime_protocol::client::StepStatus::Passed
+                }
             } else if started_at.is_some() {
-                if snapshot.state == dokime_storage::ExecutionState::Sealed { v1::StepStatus::Cancelled } else { v1::StepStatus::Running }
+                if snapshot.state == dokime_storage::ExecutionState::Sealed {
+                    dokime_protocol::client::StepStatus::Cancelled
+                } else {
+                    dokime_protocol::client::StepStatus::Running
+                }
             } else {
-                v1::StepStatus::Pending
+                dokime_protocol::client::StepStatus::Pending
             };
-            steps.push(v1::ExecutionStep {
+            steps.push(dokime_protocol::client::ExecutionStep {
                 step_id: identifier,
                 metadata: step.metadata.clone(),
                 ordinal: index as u64,
@@ -76,7 +88,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionsStepsRequest) -> R
                 ..Default::default()
             });
         }
-        Ok(v1::ExecutionsStepsResponse { steps, resolved_at: Some(position) })
+        Ok(dokime_protocol::client::ExecutionsStepsResponse { steps, resolved_at: Some(position) })
     })
     .await
 }

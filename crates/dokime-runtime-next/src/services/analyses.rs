@@ -7,7 +7,7 @@
  * ***
  */
 
-// Catalog Resource Service
+// Analyses Resource Service
 
 /* === Modules === */
 
@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,11 +37,11 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::catalog_server::Catalog for Services {
-    async fn analyses(
-        &self, request: tonic::Request<v1::CatalogAnalysesRequest>,
-    ) -> Result<tonic::Response<v1::CatalogAnalysesResponse>, tonic::Status> {
-        let reply = dokime_operations_next::client::catalog_analyses::handle(&self.context, request.into_inner())
+impl dokime_protocol::client::analyses_server::Analyses for Services {
+    async fn list(
+        &self, request: tonic::Request<dokime_protocol::client::AnalysesListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::AnalysesListResponse>, tonic::Status> {
+        let reply = dokime_operations_next::client::analyses_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))

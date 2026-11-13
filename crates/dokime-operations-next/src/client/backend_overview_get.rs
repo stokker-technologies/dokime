@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.backend.Overview/Get";
+pub const ID: &str = "dokime.client.v1.backend.Overview/Get";
 
 /* === Macros === */
 
@@ -44,16 +43,21 @@ pub const ID: &str = "dokime.v1.backend.Overview/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::backend::OverviewGetRequest, v1::backend::OverviewGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::backend::OverviewGetRequest, dokime_protocol::client::backend::OverviewGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::backend::OverviewGetRequest) -> Result<v1::backend::OverviewGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::backend::OverviewGetRequest,
+) -> Result<dokime_protocol::client::backend::OverviewGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (overview, cut) = super::views::read(context, &format!("{ID}/{}", context.host.identity().epoch), request.at.as_ref(), async {
             let cycles = super::execution_state::cycles(context)?;
             let cycle_summaries = cycles;
             let cursor = super::execution_state::observed(context);
             let next_after_cycle_id = None;
-            let mut counts = v1::EvidenceCounts::default();
+            let mut counts = dokime_protocol::client::backend::EvidenceCounts::default();
             for id in context.host.store().identifiers()? {
                 let cut = context.host.store().cut(&id)?;
                 let mut after = 0;
@@ -85,7 +89,7 @@ pub async fn handle(context: &Context, request: v1::backend::OverviewGetRequest)
                 }
             }
             counts.telemetry = context.host.store().sample_count()?;
-            let reply = v1::RuntimeShellSnapshot {
+            let reply = dokime_protocol::client::backend::RuntimeShellSnapshot {
                 session_id: context.host.identity().epoch,
                 revision: *context.host.changes().borrow(),
                 shutting_down: context.host.shutting_down(),
@@ -102,7 +106,7 @@ pub async fn handle(context: &Context, request: v1::backend::OverviewGetRequest)
             Ok(reply)
         })
         .await?;
-        Ok(v1::backend::OverviewGetResponse {
+        Ok(dokime_protocol::client::backend::OverviewGetResponse {
             overview: Some(overview),
             resolved_at: Some(cut),
         })

@@ -62,7 +62,7 @@ impl Store {
         )?;
         Ok((sequence as u64, v1::CycleSummary::decode(payload.as_slice())?))
     }
-    pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<v1::ExecutionsDeleteResponse>> {
+    pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<dokime_protocol::client::ExecutionsDeleteResponse>> {
         let saved: Option<(String, Vec<u8>)> = self
             .lock()?
             .query_row("SELECT execution,response FROM deletions WHERE request=?1", [request], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -73,10 +73,10 @@ impl Store {
         if previous != execution {
             return Err(Error::Conflict("Delete Execution: Use a New Request ID for a Different Execution".into()));
         }
-        Ok(Some(v1::ExecutionsDeleteResponse::decode(payload.as_slice())?))
+        Ok(Some(dokime_protocol::client::ExecutionsDeleteResponse::decode(payload.as_slice())?))
     }
     pub fn delete_sealed_execution(
-        &self, request: &str, execution: &str, expected: &[u8], response: &v1::ExecutionsDeleteResponse,
+        &self, request: &str, execution: &str, expected: &[u8], response: &dokime_protocol::client::ExecutionsDeleteResponse,
     ) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;

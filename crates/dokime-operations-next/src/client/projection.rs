@@ -143,10 +143,10 @@ pub(super) fn prompt_definition(
     }
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     for section in catalog.sections {
-        if section.r#type != "dokime.v1.PromptCatalog" {
+        if section.r#type != "dokime.v1.PromptDefinitions" {
             continue;
         }
-        for prompt in v1::PromptCatalog::decode(section.payload.as_slice())?.prompts {
+        for prompt in v1::PromptDefinitions::decode(section.payload.as_slice())?.prompts {
             if prompt.metadata.as_ref().is_some_and(|metadata| metadata.identifier == question.prompt_type) {
                 return Ok(prompt);
             }
@@ -154,13 +154,15 @@ pub(super) fn prompt_definition(
     }
     Err(Error::Invalid("Read Prompt Definition: Declare the Prompt in the Frozen Catalog".into()))
 }
-pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: v1::ExecutionControls) -> v1::ExecutionSummary {
+pub(super) fn summary(
+    snapshot: &ExecutionSnapshot, controls: dokime_protocol::client::ExecutionControls,
+) -> dokime_protocol::client::ExecutionSummary {
     let state = match snapshot.state {
         ExecutionState::Open => v1::ExecutionState::Open,
         ExecutionState::Closed => v1::ExecutionState::Closed,
         ExecutionState::Sealed => v1::ExecutionState::Sealed,
     };
-    v1::ExecutionSummary {
+    dokime_protocol::client::ExecutionSummary {
         execution_id: snapshot.execution.identifier.clone(),
         state: state as i32,
         outcome: snapshot.execution.outcome.clone(),
@@ -168,16 +170,16 @@ pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: v1::ExecutionContr
         ..Default::default()
     }
 }
-pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> v1::ExecutionOutcomeCounts {
+pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> dokime_protocol::client::ExecutionOutcomeCounts {
     let counts = dokime_storage::OutcomeCounts::from_outcomes(outcomes);
-    v1::ExecutionOutcomeCounts {
+    dokime_protocol::client::ExecutionOutcomeCounts {
         evaluated_count: counts.evaluated,
         not_evaluated_count: counts.not_evaluated,
         declared_count: counts.declared,
         result_status: counts.verdict.map(|verdict| verdict as i32),
     }
 }
-pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas> {
+pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<dokime_protocol::client::FrozenSchemas> {
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let mut records = Vec::new();
     for section in &catalog.sections {
@@ -202,9 +204,11 @@ pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas>
             ..Default::default()
         })
         .collect();
-    Ok(v1::FrozenSchemas { catalog: Some(catalog), records, streams })
+    Ok(dokime_protocol::client::FrozenSchemas { catalog: Some(catalog), records, streams })
 }
-pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>) -> Result<Vec<v1::CapturedRecord>> {
+pub(super) fn records(
+    snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>,
+) -> Result<Vec<dokime_protocol::client::evidence::CapturedRecord>> {
     let mut records = Vec::new();
     for evidence in &snapshot.evidence {
         let Some(kind) = evidence.kind.strip_prefix("record:") else {
@@ -219,7 +223,7 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
         let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         let mut scope = scope(snapshot);
         scope.step_id = Some(evidence.step.clone());
-        records.push(v1::CapturedRecord {
+        records.push(dokime_protocol::client::evidence::CapturedRecord {
             record_id: format!("{}:{}", snapshot.execution.identifier, evidence.position),
             sequence: evidence.position,
             timestamp: record.source_at,
@@ -233,7 +237,9 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
     }
     Ok(records)
 }
-pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>) -> Result<Vec<v1::TelemetrySample>> {
+pub(super) fn samples(
+    snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>,
+) -> Result<Vec<dokime_protocol::client::evidence::TelemetrySample>> {
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let pool = DescriptorPool::from_file_descriptor_set(
         catalog.types.clone().ok_or_else(|| Error::Invalid("Read Samples Requires Frozen Descriptors".into()))?,
@@ -259,7 +265,7 @@ pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
         for field in row.descriptor().fields() {
             values.insert(field.name().into(), value(row.get_field(&field).as_ref()));
         }
-        samples.push(v1::TelemetrySample {
+        samples.push(dokime_protocol::client::evidence::TelemetrySample {
             sample_id: format!("{}:{}", snapshot.execution.identifier, sample.position),
             stream: sample.stream.clone(),
             sequence: sample.sequence,

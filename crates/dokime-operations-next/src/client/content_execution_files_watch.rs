@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.content.ExecutionFiles/Watch";
+pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/Watch";
 
 /* === Macros === */
 
@@ -43,15 +42,18 @@ pub const ID: &str = "dokime.v1.content.ExecutionFiles/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::content::ExecutionFilesWatchRequest, v1::content::ExecutionFilesWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<
+        dokime_protocol::client::content::ExecutionFilesWatchRequest,
+        dokime_protocol::client::content::ExecutionFilesWatchResponse,
+    >(ID, settings.watch_timeout)
 }
 pub async fn handle(
-    context: &Context, request: v1::content::ExecutionFilesWatchRequest,
-) -> Result<super::Output<v1::content::ExecutionFilesWatchResponse>> {
+    context: &Context, request: dokime_protocol::client::content::ExecutionFilesWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::content::ExecutionFilesWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::content::ExecutionFilesListRequest {
+        let mut selection = dokime_protocol::client::content::ExecutionFilesListRequest {
             parent: request.parent,
             at: request.at,
             page: request.page,
@@ -66,7 +68,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::content::ExecutionFilesWatchResponse {
+                    let response = dokime_protocol::client::content::ExecutionFilesWatchResponse {
                         files: page.files,
                         resolved_at: cut.clone(),
                         opening,
@@ -95,7 +97,7 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::content::ExecutionFilesWatchResponse {
+                                .send(Ok(dokime_protocol::client::content::ExecutionFilesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

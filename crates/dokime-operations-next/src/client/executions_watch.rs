@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Watch";
+pub const ID: &str = "dokime.client.v1.Executions/Watch";
 
 /* === Macros === */
 
@@ -43,13 +42,18 @@ pub const ID: &str = "dokime.v1.Executions/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsWatchRequest, v1::ExecutionsWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsWatchRequest, dokime_protocol::client::ExecutionsWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsWatchRequest) -> Result<super::Output<v1::ExecutionsWatchResponse>> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::ExecutionsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::ExecutionsListRequest {
+        let mut selection = dokime_protocol::client::ExecutionsListRequest {
             parent: request.parent,
             selection: request.selection,
             filter: request.filter,
@@ -67,7 +71,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionsWatchRequest) -> R
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::ExecutionsWatchResponse {
+                    let response = dokime_protocol::client::ExecutionsWatchResponse {
                         executions: page.executions,
                         outcome_counts: page.outcome_counts,
                         resolved_at: cut.clone(),
@@ -97,7 +101,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionsWatchRequest) -> R
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::ExecutionsWatchResponse {
+                                .send(Ok(dokime_protocol::client::ExecutionsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

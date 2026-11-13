@@ -21,10 +21,8 @@
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-use dokime::v1::{
-    self,
-    evidence::{TraceabilityGetRequest, TraceabilityWatchRequest},
-};
+use dokime::v1;
+use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityWatchRequest};
 
 /* === Constants === */
 
@@ -61,8 +59,8 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         let client = dokime::Client::from_channel(channel.clone(), support::client_settings())?;
         host.plugins.add(plugin.endpoint()).await?;
         let cases = host.templates.materialize("content", "content.traceability", std::collections::HashMap::new()).await?;
-        let cycle = dokime::v1::cycles_client::CyclesClient::new(channel.clone())
-            .create(dokime::v1::CyclesCreateRequest {
+        let cycle = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone())
+            .create(dokime_protocol::client::CyclesCreateRequest {
                 origins: cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                 request_id: uuid::Uuid::now_v7().to_string(),
                 continue_automatically: true,
@@ -70,8 +68,8 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
             })
             .await?
             .into_inner();
-        let admitted = dokime::v1::executions_client::ExecutionsClient::new(channel.clone())
-            .list(dokime::v1::ExecutionsListRequest {
+        let admitted = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone())
+            .list(dokime_protocol::client::ExecutionsListRequest {
                 parent: cycle.cycle.unwrap().cycle_id,
                 at: Some(harmos_protocol::v1::ReadCut {
                     positions: vec![cycle.receipt.unwrap().durable_at.unwrap()],
@@ -85,7 +83,7 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         let mut progress = client
             .executions
             .progress
-            .watch(tonic::Request::new(v1::executions::ProgressWatchRequest { name: name.clone(), at: None }))
+            .watch(tonic::Request::new(dokime_protocol::client::executions::ProgressWatchRequest { name: name.clone(), at: None }))
             .await?;
         loop {
             if progress.next().await?.ok_or("Watch Traceability: Missing Prompt")?.phase == "prompt" {

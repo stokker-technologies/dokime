@@ -28,7 +28,6 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -72,7 +71,7 @@ struct Compatibility {
     requires_dokime: semver::VersionReq,
 }
 pub(super) struct Bundle {
-    pub metadata: v1::PluginMetadata,
+    pub metadata: dokime_protocol::client::PluginMetadata,
     pub executable: PathBuf,
     pub files: BTreeMap<String, Vec<u8>>,
 }
@@ -169,8 +168,8 @@ impl Bundle {
         }
         let executable = PathBuf::from(&executables[0].path);
         Ok(Self {
-            metadata: v1::PluginMetadata {
-                identity: Some(v1::PluginIdentity {
+            metadata: dokime_protocol::client::PluginMetadata {
+                identity: Some(dokime_protocol::client::PluginIdentity {
                     name: manifest.identity.name,
                     version: manifest.identity.version,
                     description: manifest.identity.description,

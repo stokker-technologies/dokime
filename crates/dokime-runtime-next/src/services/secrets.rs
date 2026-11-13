@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,53 +37,59 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::secrets_server::Secrets for Services {
-    async fn get(&self, request: tonic::Request<v1::SecretsGetRequest>) -> Result<tonic::Response<v1::SecretsGetResponse>, tonic::Status> {
+impl dokime_protocol::client::secrets_server::Secrets for Services {
+    async fn get(
+        &self, request: tonic::Request<dokime_protocol::client::SecretsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
-    async fn set(&self, request: tonic::Request<v1::SecretsSetRequest>) -> Result<tonic::Response<v1::SecretsSetResponse>, tonic::Status> {
+    async fn set(
+        &self, request: tonic::Request<dokime_protocol::client::SecretsSetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsSetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<v1::SecretsListRequest>,
-    ) -> Result<tonic::Response<v1::SecretsListResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SecretsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsListResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations_next::client::Output<v1::SecretsWatchResponse>;
-    async fn watch(&self, request: tonic::Request<v1::SecretsWatchRequest>) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
+    type WatchStream = dokime_operations_next::client::Output<dokime_protocol::client::SecretsWatchResponse>;
+    async fn watch(
+        &self, request: tonic::Request<dokime_protocol::client::SecretsWatchRequest>,
+    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn delete(
-        &self, request: tonic::Request<v1::SecretsDeleteRequest>,
-    ) -> Result<tonic::Response<v1::SecretsDeleteResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SecretsDeleteRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsDeleteResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_delete::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn export(
-        &self, request: tonic::Request<v1::SecretsExportRequest>,
-    ) -> Result<tonic::Response<v1::SecretsExportResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SecretsExportRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsExportResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_export::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn import(
-        &self, request: tonic::Request<v1::SecretsImportRequest>,
-    ) -> Result<tonic::Response<v1::SecretsImportResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SecretsImportRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SecretsImportResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::secrets_import::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

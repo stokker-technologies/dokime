@@ -50,7 +50,7 @@ impl Inventory {
         context.host.refresh_plugin_states().await?;
         let plugins = context.host.plugins()?;
         let mut catalogs = Vec::new();
-        for plugin in plugins.iter().filter(|plugin| plugin.state == v1::PluginState::Ready as i32) {
+        for plugin in plugins.iter().filter(|plugin| plugin.state == dokime_protocol::client::PluginState::Ready as i32) {
             catalogs.push(
                 plugin
                     .description

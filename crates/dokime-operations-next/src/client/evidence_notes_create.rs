@@ -22,12 +22,11 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 use sha2::Digest;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Notes/Create";
+pub const ID: &str = "dokime.client.v1.evidence.Notes/Create";
 
 /* === Macros === */
 
@@ -44,9 +43,14 @@ pub const ID: &str = "dokime.v1.evidence.Notes/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::NotesCreateRequest, v1::evidence::NotesCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::evidence::NotesCreateRequest, dokime_protocol::client::evidence::NotesCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::evidence::NotesCreateRequest) -> Result<v1::evidence::NotesCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::evidence::NotesCreateRequest,
+) -> Result<dokime_protocol::client::evidence::NotesCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Writable Value".into()))?;
         if value.message.trim().is_empty() || value.message.len() > context.settings.message_bytes / 2 {
@@ -56,8 +60,8 @@ pub async fn handle(context: &Context, request: v1::evidence::NotesCreateRequest
         let scope = context.host.store().note_owner(owner)?;
         let fingerprint = super::views::hex(&super::paging::bytes(&request));
         let note_id = super::views::hex(&sha2::Sha256::digest(format!("{}/{}", context.host.identity().backend_id, request.request_id)));
-        let reply = context.host.store().create_note(v1::evidence::NotesCreateResponse {
-            note: Some(v1::OperatorNote {
+        let reply = context.host.store().create_note(dokime_protocol::client::evidence::NotesCreateResponse {
+            note: Some(dokime_protocol::client::evidence::OperatorNote {
                 note_id,
                 scope: Some(scope),
                 author: Some("local-client".into()),

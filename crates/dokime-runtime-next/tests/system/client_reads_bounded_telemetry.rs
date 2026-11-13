@@ -56,7 +56,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![harmos_protocol::v1::StreamDeclaration {
                 id: "sensor".into(),
-                row: "dokime.v1.PlotDomain".into(),
+                row: "dokime.client.v1.plots.PlotDomain".into(),
                 ..Default::default()
             }],
             ..Default::default()
@@ -76,7 +76,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
                 stream: "sensor".into(),
                 source_ns: index * 1_000_000_000,
                 sequence: index as u64 + 1,
-                row: v1::PlotDomain { min: index as f64, max: -(index as f64) }.encode_to_vec(),
+                row: dokime_protocol::client::plots::PlotDomain { min: index as f64, max: -(index as f64) }.encode_to_vec(),
                 ..Default::default()
             })
             .collect::<Vec<_>>();
@@ -86,12 +86,12 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         store.seal("telemetry")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut telemetry = v1::evidence::samples_client::SamplesClient::new(channel);
+        let mut telemetry = dokime_protocol::client::evidence::samples_client::SamplesClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("telemetry".into()),
             ..Default::default()
         });
-        let mut request = v1::evidence::SamplesListRequest {
+        let mut request = dokime_protocol::client::evidence::SamplesListRequest {
             scope: scope.clone(),
             streams: vec!["sensor".into()],
             page: Some(harmos_protocol::v1::PageRequest { page_size: 137, ..Default::default() }),
@@ -115,7 +115,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         let raw = read
             .iter()
             .map(|row| match row.kind.as_ref().unwrap() {
-                v1::sample_row::Kind::Raw(sample) => sample,
+                dokime_protocol::client::evidence::sample_row::Kind::Raw(sample) => sample,
                 _ => panic!("Expected Raw Sample"),
             })
             .collect::<Vec<_>>();
@@ -125,7 +125,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
             samples.iter().map(|sample| sample.row.clone()).collect::<Vec<_>>()
         );
         let page = telemetry
-            .list(v1::evidence::SamplesListRequest {
+            .list(dokime_protocol::client::evidence::SamplesListRequest {
                 scope: scope.clone(),
                 between: Some(v1::Window {
                     start: Some(prost_types::Timestamp { seconds: 90, nanos: 0 }),
@@ -139,14 +139,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
             page.samples
                 .iter()
                 .map(|row| match row.kind.as_ref().unwrap() {
-                    v1::sample_row::Kind::Raw(sample) => sample.sequence,
+                    dokime_protocol::client::evidence::sample_row::Kind::Raw(sample) => sample.sequence,
                     _ => panic!("Expected Raw Sample"),
                 })
                 .collect::<Vec<_>>(),
             vec![91, 92, 93]
         );
         let tail = telemetry
-            .list(v1::evidence::SamplesListRequest {
+            .list(dokime_protocol::client::evidence::SamplesListRequest {
                 scope: scope.clone(),
                 latest: true,
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),
@@ -158,7 +158,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
             tail.samples
                 .iter()
                 .map(|row| match row.kind.as_ref().unwrap() {
-                    v1::sample_row::Kind::Raw(sample) => sample.sequence,
+                    dokime_protocol::client::evidence::sample_row::Kind::Raw(sample) => sample.sequence,
                     _ => panic!("Expected Raw Sample"),
                 })
                 .collect::<Vec<_>>(),
@@ -168,7 +168,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         changed.scope.as_mut().unwrap().execution_id = Some("foreign".into());
         assert!(telemetry.list(changed).await.is_err());
         let mut watch = telemetry
-            .watch(v1::evidence::SamplesWatchRequest {
+            .watch(dokime_protocol::client::evidence::SamplesWatchRequest {
                 scope: scope.clone(),
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 127, ..Default::default() }),
                 ..Default::default()
@@ -185,10 +185,10 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         assert_eq!(count, 2400);
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut telemetry = v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?;
+        let mut telemetry = dokime_protocol::client::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?;
         let first = first.unwrap();
         let replay = telemetry
-            .list(v1::evidence::SamplesListRequest {
+            .list(dokime_protocol::client::evidence::SamplesListRequest {
                 scope,
                 streams: vec!["sensor".into()],
                 at: first.resolved_at.clone(),

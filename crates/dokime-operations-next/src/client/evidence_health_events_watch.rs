@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.HealthEvents/Watch";
+pub const ID: &str = "dokime.client.v1.evidence.HealthEvents/Watch";
 
 /* === Macros === */
 
@@ -43,15 +42,18 @@ pub const ID: &str = "dokime.v1.evidence.HealthEvents/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::HealthEventsWatchRequest, v1::evidence::HealthEventsWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<
+        dokime_protocol::client::evidence::HealthEventsWatchRequest,
+        dokime_protocol::client::evidence::HealthEventsWatchResponse,
+    >(ID, settings.watch_timeout)
 }
 pub async fn handle(
-    context: &Context, request: v1::evidence::HealthEventsWatchRequest,
-) -> Result<super::Output<v1::evidence::HealthEventsWatchResponse>> {
+    context: &Context, request: dokime_protocol::client::evidence::HealthEventsWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::evidence::HealthEventsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::evidence::HealthEventsListRequest {
+        let mut selection = dokime_protocol::client::evidence::HealthEventsListRequest {
             selection: request.selection,
             at: request.at,
             page: request.page,
@@ -66,7 +68,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::evidence::HealthEventsWatchResponse {
+                    let response = dokime_protocol::client::evidence::HealthEventsWatchResponse {
                         events: page.events,
                         resolved_at: cut.clone(),
                         opening,
@@ -95,7 +97,7 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::evidence::HealthEventsWatchResponse {
+                                .send(Ok(dokime_protocol::client::evidence::HealthEventsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

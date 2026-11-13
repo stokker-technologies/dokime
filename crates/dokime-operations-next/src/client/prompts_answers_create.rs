@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.prompts.Answers/Create";
+pub const ID: &str = "dokime.client.v1.prompts.Answers/Create";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.prompts.Answers/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::prompts::AnswersCreateRequest, v1::prompts::AnswersCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::prompts::AnswersCreateRequest, dokime_protocol::client::prompts::AnswersCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::prompts::AnswersCreateRequest) -> Result<v1::prompts::AnswersCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::prompts::AnswersCreateRequest,
+) -> Result<dokime_protocol::client::prompts::AnswersCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let mut normalized = request.clone();
         normalized.action = normalized.action.trim().into();
@@ -58,7 +63,7 @@ pub async fn handle(context: &Context, request: v1::prompts::AnswersCreateReques
             .0;
         if let Some((saved, receipt)) = context.host.store().requested_evidence(execution, ID, &request.request_id, &fingerprint)? {
             let answer = dokime_protocol::context::PromptsCreateResponse::decode(saved.payload.as_slice())?;
-            return Ok(v1::prompts::AnswersCreateResponse {
+            return Ok(dokime_protocol::client::prompts::AnswersCreateResponse {
                 answer: Some(v1::PromptResponse {
                     prompt_id: request.parent,
                     action: answer.action,
@@ -106,7 +111,7 @@ pub async fn handle(context: &Context, request: v1::prompts::AnswersCreateReques
             },
         )?;
         let answer = super::prompt_catalog::view(context, &request.parent)?.response;
-        Ok(v1::prompts::AnswersCreateResponse { answer, receipt: Some(receipt) })
+        Ok(dokime_protocol::client::prompts::AnswersCreateResponse { answer, receipt: Some(receipt) })
     })
     .await
 }

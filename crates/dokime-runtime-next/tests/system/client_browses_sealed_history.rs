@@ -74,7 +74,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
                 "imported-capture",
                 Evidence {
                     kind: "artifact".into(),
-                    payload: v1::PublishArtifact {
+                    payload: dokime_protocol::context::content::PublishArtifact {
                         transfer_id: "capture".into(),
                         name: "capture.txt".into(),
                         mime: "text/plain".into(),
@@ -92,10 +92,10 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         store.register_execution_file(
             "history-file",
             "imported-capture",
-            v1::ExecutionFileMetadata {
+            dokime_protocol::client::content::ExecutionFileMetadata {
                 relative_path: "capture.txt".into(),
-                kind: v1::ExecutionFileKind::Text as i32,
-                state: v1::ExecutionFileState::Streaming as i32,
+                kind: dokime_protocol::client::content::ExecutionFileKind::Text as i32,
+                state: dokime_protocol::client::content::ExecutionFileState::Streaming as i32,
                 ..Default::default()
             },
         )?;
@@ -120,11 +120,11 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut executions = v1::executions_client::ExecutionsClient::new(channel.clone());
-        let mut files = v1::content::execution_files_client::ExecutionFilesClient::new(channel.clone());
-        let mut cycles = v1::cycles_client::CyclesClient::new(channel.clone());
+        let mut executions = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone());
+        let mut files = dokime_protocol::client::content::execution_files_client::ExecutionFilesClient::new(channel.clone());
+        let mut cycles = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone());
         let retained = executions
-            .get(v1::ExecutionsGetRequest {
+            .get(dokime_protocol::client::ExecutionsGetRequest {
                 name: "imported-capture".into(),
                 at: None,
             })
@@ -135,7 +135,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         invalid.history.as_mut().unwrap().store = "foreign".into();
         assert!(
             executions
-                .get(v1::ExecutionsGetRequest {
+                .get(dokime_protocol::client::ExecutionsGetRequest {
                     name: "imported-capture".into(),
                     at: Some(invalid)
                 })
@@ -143,7 +143,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
                 .is_err()
         );
         let file = files
-            .get(v1::content::ExecutionFilesGetRequest {
+            .get(dokime_protocol::client::content::ExecutionFilesGetRequest {
                 parent: "imported-capture".into(),
                 name: "capture.txt".into(),
                 ..Default::default()
@@ -155,7 +155,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         assert_eq!(Store::open(root.path())?.content_window(&reference.metadata.unwrap().id, 2, 3)?, b"cde");
         assert!(
             files
-                .get(v1::content::ExecutionFilesGetRequest {
+                .get(dokime_protocol::client::content::ExecutionFilesGetRequest {
                     parent: "imported-capture".into(),
                     name: "../capture.txt".into(),
                     ..Default::default()
@@ -170,7 +170,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         client.plugins.add(plugin.endpoint()).await?;
         let cases = client.templates.materialize("thermal", "thermal.cycle", std::collections::HashMap::new()).await?;
         let created = cycles
-            .create(v1::CyclesCreateRequest {
+            .create(dokime_protocol::client::CyclesCreateRequest {
                 origins: cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                 request_id: uuid::Uuid::now_v7().to_string(),
                 continue_automatically: true,
@@ -180,15 +180,15 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             .into_inner();
         let cycle = created.cycle.unwrap().cycle_id;
         let admitted = executions
-            .list(v1::ExecutionsListRequest {
+            .list(dokime_protocol::client::ExecutionsListRequest {
                 parent: cycle.clone(),
                 ..Default::default()
             })
             .await?
             .into_inner();
         let identifier = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
-        let mut progress = v1::executions::progress_client::ProgressClient::new(channel.clone())
-            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
+        let mut progress = dokime_protocol::client::executions::progress_client::ProgressClient::new(channel.clone())
+            .watch(dokime_protocol::client::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         while let Some(frame) = progress.message().await? {
@@ -198,7 +198,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         }
         assert!(
             executions
-                .get(v1::ExecutionsGetRequest { name: identifier.clone(), at: None })
+                .get(dokime_protocol::client::ExecutionsGetRequest { name: identifier.clone(), at: None })
                 .await?
                 .into_inner()
                 .execution
@@ -209,19 +209,20 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         let prompt = client.prompts.pending(identifier.clone()).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         client.prompts.respond(prompt, "yes", true).await?;
         while progress.message().await?.is_some() {}
-        let saved = executions.get(v1::ExecutionsGetRequest { name: identifier.clone(), at: None }).await?.into_inner();
+        let saved =
+            executions.get(dokime_protocol::client::ExecutionsGetRequest { name: identifier.clone(), at: None }).await?.into_inner();
         let steps = executions
-            .steps(v1::ExecutionsStepsRequest {
+            .steps(dokime_protocol::client::ExecutionsStepsRequest {
                 name: identifier.clone(),
                 at: saved.resolved_at.clone(),
             })
             .await?
             .into_inner();
         assert_eq!(steps.steps.len(), 2);
-        let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
+        let mut prompts = dokime_protocol::client::prompts_client::PromptsClient::new(channel.clone());
         assert_eq!(
             prompts
-                .list(v1::PromptsListRequest {
+                .list(dokime_protocol::client::PromptsListRequest {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
                 })
@@ -231,10 +232,10 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
                 .len(),
             1
         );
-        let mut records = v1::evidence::records_client::RecordsClient::new(channel.clone());
+        let mut records = dokime_protocol::client::evidence::records_client::RecordsClient::new(channel.clone());
         let page = records
-            .list(v1::evidence::RecordsListRequest {
-                selection: Some(v1::CapturedRecordSelection {
+            .list(dokime_protocol::client::evidence::RecordsListRequest {
+                selection: Some(dokime_protocol::client::evidence::CapturedRecordSelection {
                     scope: Some(v1::EvidenceScope {
                         execution_id: Some(identifier.clone()),
                         ..Default::default()
@@ -247,8 +248,8 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             .await?
             .into_inner();
         assert_eq!(page.records.len(), 1);
-        let mut telemetry = v1::evidence::samples_client::SamplesClient::new(channel);
-        let mut request = v1::evidence::SamplesListRequest {
+        let mut telemetry = dokime_protocol::client::evidence::samples_client::SamplesClient::new(channel);
+        let mut request = dokime_protocol::client::evidence::SamplesListRequest {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some(identifier.clone()),
                 ..Default::default()
@@ -271,18 +272,18 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
 
         // Cycle and Execution Pages Retain Their Selection Across Later Presentation Edits.
         let first = cycles
-            .list(v1::CyclesListRequest {
+            .list(dokime_protocol::client::CyclesListRequest {
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             })
             .await?
             .into_inner();
         assert!(!first.next_page_token.is_empty());
-        let current = cycles.get(v1::CyclesGetRequest { name: cycle.clone(), at: None }).await?.into_inner();
+        let current = cycles.get(dokime_protocol::client::CyclesGetRequest { name: cycle.clone(), at: None }).await?.into_inner();
         let mut value = current.value.unwrap();
         value.label = uuid::Uuid::now_v7().to_string();
         cycles
-            .set(v1::CyclesSetRequest {
+            .set(dokime_protocol::client::CyclesSetRequest {
                 name: cycle.clone(),
                 value: Some(value),
                 expected_revision: current.revision,
@@ -290,7 +291,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             })
             .await?;
         let continued = cycles
-            .list(v1::CyclesListRequest {
+            .list(dokime_protocol::client::CyclesListRequest {
                 at: first.resolved_at.clone(),
                 page: Some(harmos_protocol::v1::PageRequest {
                     page_size: 1,
@@ -303,7 +304,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             .into_inner();
         assert_eq!(continued.cycles.len(), 1);
         let first = executions
-            .list(v1::ExecutionsListRequest {
+            .list(dokime_protocol::client::ExecutionsListRequest {
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             })
@@ -311,7 +312,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             .into_inner();
         assert_eq!(first.outcome_counts.as_ref().unwrap().evaluated_count, 1);
         assert_eq!(first.outcome_counts.as_ref().unwrap().declared_count, 1);
-        let next = v1::ExecutionsListRequest {
+        let next = dokime_protocol::client::ExecutionsListRequest {
             at: first.resolved_at,
             page: Some(harmos_protocol::v1::PageRequest {
                 page_size: 1,
@@ -321,7 +322,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             ..Default::default()
         };
         let mut changed = next.clone();
-        changed.filter = Some(v1::ExecutionFilter {
+        changed.filter = Some(dokime_protocol::client::ExecutionFilter {
             text: identifier.clone(),
             ..Default::default()
         });
@@ -329,7 +330,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         assert_eq!(executions.list(next.clone()).await?.into_inner().executions.len(), 1);
 
         // A Sealed Deletion Replays Its Original Receipt After Restart and Invalidates Cuts.
-        let deletion = v1::ExecutionsDeleteRequest {
+        let deletion = dokime_protocol::client::ExecutionsDeleteRequest {
             name: "imported-capture".into(),
             request_id: "delete-capture".into(),
         };
@@ -338,10 +339,10 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         assert!(executions.list(next).await.is_err());
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut executions = v1::executions_client::ExecutionsClient::connect(process.url.clone()).await?;
+        let mut executions = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone()).await?;
         assert_eq!(
             executions
-                .get(v1::ExecutionsGetRequest {
+                .get(dokime_protocol::client::ExecutionsGetRequest {
                     name: identifier,
                     at: saved.resolved_at.clone()
                 })
@@ -352,7 +353,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         assert_eq!(executions.delete(deletion).await?.into_inner(), deleted);
         assert!(
             executions
-                .get(v1::ExecutionsGetRequest {
+                .get(dokime_protocol::client::ExecutionsGetRequest {
                     name: "imported-capture".into(),
                     at: None
                 })

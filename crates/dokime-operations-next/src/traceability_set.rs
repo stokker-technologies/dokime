@@ -27,7 +27,7 @@ use dokime_protocol::{context::evidence::TraceabilitySetRequest, context::eviden
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.evidence.Traceability/Set";
+pub const ID: &str = "dokime.plugin.host.v1.evidence.Traceability/Set";
 
 /* === Macros === */
 

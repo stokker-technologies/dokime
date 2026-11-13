@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,18 +37,18 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::catalog::suites_server::Suites for Services {
+impl dokime_protocol::client::suites_server::Suites for Services {
     async fn get(
-        &self, request: tonic::Request<v1::catalog::SuitesGetRequest>,
-    ) -> Result<tonic::Response<v1::catalog::SuitesGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SuitesGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SuitesGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_suites_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<v1::catalog::SuitesListRequest>,
-    ) -> Result<tonic::Response<v1::catalog::SuitesListResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SuitesListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SuitesListResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_suites_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

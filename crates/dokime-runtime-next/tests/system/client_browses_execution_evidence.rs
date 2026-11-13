@@ -59,7 +59,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     label: "Reading".into(),
                     ..Default::default()
                 }),
-                message: "dokime.context.v1.evidence.LogsAppendRequest".into(),
+                message: "dokime.plugin.host.v1.evidence.LogsAppendRequest".into(),
             }],
         };
         let catalog = harmos_protocol::v1::Catalog {
@@ -117,10 +117,10 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         }
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut schemas = v1::catalog::record_schemas_client::RecordSchemasClient::new(channel.clone());
-        let mut records = v1::evidence::records_client::RecordsClient::new(channel);
+        let mut schemas = dokime_protocol::client::record_schemas_client::RecordSchemasClient::new(channel.clone());
+        let mut records = dokime_protocol::client::evidence::records_client::RecordsClient::new(channel);
         let schema = schemas
-            .get(v1::catalog::RecordSchemasGetRequest {
+            .get(dokime_protocol::client::RecordSchemasGetRequest {
                 name: "reading".into(),
                 parent: "evidence-a".into(),
                 schema_version: 1,
@@ -134,14 +134,14 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             && field.value_type == v1::ValueType::Text as i32));
 
         // Continue One Fixed Selection Without Repeating a Record.
-        let selection = v1::CapturedRecordSelection {
+        let selection = dokime_protocol::client::evidence::CapturedRecordSelection {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some("evidence-a".into()),
                 ..Default::default()
             }),
             ..Default::default()
         };
-        let mut request = v1::evidence::RecordsListRequest {
+        let mut request = dokime_protocol::client::evidence::RecordsListRequest {
             selection: Some(selection.clone()),
             page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),
             ..Default::default()
@@ -168,17 +168,17 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         let mut changed = request.clone();
         changed.at = first.resolved_at.clone();
         changed.page.as_mut().unwrap().page_token = first.next_page_token.clone();
-        changed.selection = Some(v1::CapturedRecordSelection::default());
+        changed.selection = Some(dokime_protocol::client::evidence::CapturedRecordSelection::default());
         assert!(records.list(changed).await.is_err());
         let mut tiny = request.clone();
         tiny.page.as_mut().unwrap().max_bytes = 1;
         assert!(records.list(tiny).await.is_err());
 
         // Logs Are an Explicit Record Type, with Their Frozen Schema.
-        let logs = v1::evidence::records_client::RecordsClient::connect(process.url.clone())
+        let logs = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
             .await?
-            .list(v1::evidence::RecordsListRequest {
-                selection: Some(v1::CapturedRecordSelection {
+            .list(dokime_protocol::client::evidence::RecordsListRequest {
+                selection: Some(dokime_protocol::client::evidence::CapturedRecordSelection {
                     record_types: vec!["dokime.log".into()],
                     severities: vec![v1::Severity::Warning as i32],
                     ..selection.clone()
@@ -190,7 +190,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         assert_eq!(logs.records.len(), 1);
         assert_eq!(logs.records[0].severity, v1::Severity::Warning as i32);
         let schema = schemas
-            .get(v1::catalog::RecordSchemasGetRequest {
+            .get(dokime_protocol::client::RecordSchemasGetRequest {
                 name: "dokime.log".into(),
                 schema_version: 1,
                 ..Default::default()
@@ -202,9 +202,9 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         assert!(schema.fields.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "message")));
 
         // A Sealed Execution Finishes Its Bounded Opening with Successful Status.
-        let mut watch = v1::evidence::records_client::RecordsClient::connect(process.url.clone())
+        let mut watch = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
             .await?
-            .watch(v1::evidence::RecordsWatchRequest {
+            .watch(dokime_protocol::client::evidence::RecordsWatchRequest {
                 selection: Some(selection.clone()),
                 ..Default::default()
             })
@@ -222,9 +222,9 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         // Returned Positions Continue to Resolve After Restart.
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        let replay = v1::evidence::records_client::RecordsClient::connect(process.url.clone())
+        let replay = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
             .await?
-            .list(v1::evidence::RecordsListRequest {
+            .list(dokime_protocol::client::evidence::RecordsListRequest {
                 selection: Some(selection),
                 at: first.resolved_at.clone(),
                 page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),

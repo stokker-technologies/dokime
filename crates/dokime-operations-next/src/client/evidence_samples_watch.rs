@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Samples/Watch";
+pub const ID: &str = "dokime.client.v1.evidence.Samples/Watch";
 
 /* === Macros === */
 
@@ -43,15 +42,18 @@ pub const ID: &str = "dokime.v1.evidence.Samples/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::SamplesWatchRequest, v1::evidence::SamplesWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::evidence::SamplesWatchRequest, dokime_protocol::client::evidence::SamplesWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
 pub async fn handle(
-    context: &Context, request: v1::evidence::SamplesWatchRequest,
-) -> Result<super::Output<v1::evidence::SamplesWatchResponse>> {
+    context: &Context, request: dokime_protocol::client::evidence::SamplesWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::evidence::SamplesWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::evidence::SamplesListRequest {
+        let mut selection = dokime_protocol::client::evidence::SamplesListRequest {
             scope: request.scope,
             streams: request.streams,
             versions: request.versions,
@@ -74,7 +76,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::evidence::SamplesWatchResponse {
+                    let response = dokime_protocol::client::evidence::SamplesWatchResponse {
                         samples: page.samples,
                         schema: page.schema,
                         resolved_at: cut.clone(),
@@ -108,7 +110,7 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::evidence::SamplesWatchResponse {
+                                .send(Ok(dokime_protocol::client::evidence::SamplesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

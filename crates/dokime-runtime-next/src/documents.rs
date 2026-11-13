@@ -84,14 +84,14 @@ impl RenderedDocument {
 }
 impl Host {
     pub(crate) fn render_report(
-        &self, subject: &v1::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
         identity: &dokime_operations_next::client::HostIdentity, render_settings: crate::RenderSettings,
-    ) -> dokime_operations_next::Result<(std::fs::File, v1::ReportMetadata)> {
+    ) -> dokime_operations_next::Result<(std::fs::File, dokime_protocol::client::ReportMetadata)> {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
-            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
-            Some(v1::report_subject::Kind::Cycle(id)) => (None, id.clone()),
+            Some(dokime_protocol::client::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
+            Some(dokime_protocol::client::report_subject::Kind::Cycle(id)) => (None, id.clone()),
             None => return Err(dokime_operations_next::Error::Invalid("Render Report: Select an Execution or Cycle".into())),
         };
         let mut snapshots = Vec::new();
@@ -171,11 +171,11 @@ impl Host {
             output.rewind().map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
             output
         };
-        let metadata = v1::ReportMetadata {
+        let metadata = dokime_protocol::client::ReportMetadata {
             test_cycle_id: cycle,
             test_execution_id: execution.map(str::to_owned),
             identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
-            origin: v1::ReportOrigin::Current as i32,
+            origin: dokime_protocol::client::ReportOrigin::Current as i32,
             ..Default::default()
         };
         Ok((file, metadata))

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Stop";
+pub const ID: &str = "dokime.client.v1.Executions/Stop";
 
 /* === Macros === */
 
@@ -43,12 +42,17 @@ pub const ID: &str = "dokime.v1.Executions/Stop";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsStopRequest, v1::ExecutionsStopResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsStopRequest, dokime_protocol::client::ExecutionsStopResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsStopRequest) -> Result<v1::ExecutionsStopResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsStopRequest,
+) -> Result<dokime_protocol::client::ExecutionsStopResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         context.host.control_execution(&request.name, super::RunAction::Stop)?;
-        Ok(v1::ExecutionsStopResponse {
+        Ok(dokime_protocol::client::ExecutionsStopResponse {
             execution: Some(super::execution_state::detail(context, &request.name)?),
             receipt: Some(super::views::receipt(context, &request.request_id)?),
         })

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cycles/Watch";
+pub const ID: &str = "dokime.client.v1.Cycles/Watch";
 
 /* === Macros === */
 
@@ -43,13 +42,18 @@ pub const ID: &str = "dokime.v1.Cycles/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CyclesWatchRequest, v1::CyclesWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::CyclesWatchRequest, dokime_protocol::client::CyclesWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CyclesWatchRequest) -> Result<super::Output<v1::CyclesWatchResponse>> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CyclesWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::CyclesWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::CyclesListRequest {
+        let mut selection = dokime_protocol::client::CyclesListRequest {
             selection: request.selection,
             filter: request.filter,
             order: request.order,
@@ -66,7 +70,7 @@ pub async fn handle(context: &Context, request: v1::CyclesWatchRequest) -> Resul
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::CyclesWatchResponse {
+                    let response = dokime_protocol::client::CyclesWatchResponse {
                         cycles: page.cycles,
                         resolved_at: cut.clone(),
                         opening,
@@ -95,7 +99,7 @@ pub async fn handle(context: &Context, request: v1::CyclesWatchRequest) -> Resul
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::CyclesWatchResponse {
+                                .send(Ok(dokime_protocol::client::CyclesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

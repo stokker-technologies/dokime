@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cycles/Set";
+pub const ID: &str = "dokime.client.v1.Cycles/Set";
 
 /* === Macros === */
 
@@ -43,14 +43,19 @@ pub const ID: &str = "dokime.v1.Cycles/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CyclesSetRequest, v1::CyclesSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::CyclesSetRequest, dokime_protocol::client::CyclesSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CyclesSetRequest) -> Result<v1::CyclesSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CyclesSetRequest,
+) -> Result<dokime_protocol::client::CyclesSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
         let previous = super::cycles_get::handle(
             context,
-            v1::CyclesGetRequest {
+            dokime_protocol::client::CyclesGetRequest {
                 name: request.name.clone(),
                 ..Default::default()
             },
@@ -82,7 +87,7 @@ pub async fn handle(context: &Context, request: v1::CyclesSetRequest) -> Result<
         cycle.status = if value.paused { v1::CycleStatus::Paused } else { v1::CycleStatus::Ready } as i32;
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-        Ok(v1::CyclesSetResponse {
+        Ok(dokime_protocol::client::CyclesSetResponse {
             revision: super::paging::bytes(&value),
             value: Some(value),
             receipt: Some(super::views::receipt(context, &request.request_id)?),

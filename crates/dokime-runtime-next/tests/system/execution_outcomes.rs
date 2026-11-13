@@ -164,10 +164,10 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        let page = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+        let page = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
             .await?
-            .list(v1::ExecutionsListRequest {
-                selection: Some(v1::ExecutionSelection {
+            .list(dokime_protocol::client::ExecutionsListRequest {
+                selection: Some(dokime_protocol::client::ExecutionSelection {
                     cycle_ids: vec![cycle_identifier.clone()],
                     ..Default::default()
                 }),
@@ -184,9 +184,9 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         )));
 
         for row in &page.executions {
-            let detail = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            let detail = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
                 .await?
-                .get(v1::ExecutionsGetRequest {
+                .get(dokime_protocol::client::ExecutionsGetRequest {
                     name: row.summary.as_ref().unwrap().execution_id.clone(),
                     ..Default::default()
                 })

@@ -26,7 +26,7 @@ use crate::{Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.content.Artifacts/Create";
+pub const ID: &str = "dokime.plugin.host.v1.content.Artifacts/Create";
 
 /* === Macros === */
 
@@ -56,7 +56,7 @@ pub async fn handle(
     let metadata = request.metadata.ok_or_else(|| crate::Error::Invalid("Create Artifact: Supply Its Metadata".into()))?;
     let reply = resources.store.attach_artifact(
         ID,
-        dokime_protocol::v1::content::ArtifactsCreateRequest {
+        dokime_protocol::client::content::ArtifactsCreateRequest {
             file: request.file,
             scope: Some(dokime_protocol::v1::ArtifactScope {
                 execution_id: Some(request.execution),

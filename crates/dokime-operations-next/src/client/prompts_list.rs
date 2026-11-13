@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Prompts/List";
+pub const ID: &str = "dokime.client.v1.Prompts/List";
 
 /* === Macros === */
 
@@ -44,9 +43,14 @@ pub const ID: &str = "dokime.v1.Prompts/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::PromptsListRequest, v1::PromptsListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::PromptsListRequest, dokime_protocol::client::PromptsListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::PromptsListRequest) -> Result<v1::PromptsListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::PromptsListRequest,
+) -> Result<dokime_protocol::client::PromptsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         if request.pending_only && request.page.is_some() {
@@ -83,7 +87,7 @@ pub async fn handle(context: &Context, request: v1::PromptsListRequest) -> Resul
                     prompts.push(view);
                 }
             }
-            Ok(v1::PromptsListResponse { prompts, ..Default::default() })
+            Ok(dokime_protocol::client::PromptsListResponse { prompts, ..Default::default() })
         })
         .await?;
         let (prompts, next_page_token) = if request.pending_only {
@@ -93,7 +97,7 @@ pub async fn handle(context: &Context, request: v1::PromptsListRequest) -> Resul
         };
         super::bounded_reply(
             context,
-            v1::PromptsListResponse {
+            dokime_protocol::client::PromptsListResponse {
                 prompts,
                 resolved_at: Some(cut),
                 next_page_token,

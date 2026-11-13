@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,18 +37,18 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::catalog::prompt_definitions_server::PromptDefinitions for Services {
+impl dokime_protocol::client::prompt_definitions_server::PromptDefinitions for Services {
     async fn get(
-        &self, request: tonic::Request<v1::catalog::PromptDefinitionsGetRequest>,
-    ) -> Result<tonic::Response<v1::catalog::PromptDefinitionsGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_prompt_definitions_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<v1::catalog::PromptDefinitionsListRequest>,
-    ) -> Result<tonic::Response<v1::catalog::PromptDefinitionsListResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsListResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::catalog_prompt_definitions_list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

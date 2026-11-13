@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Settings/Get";
+pub const ID: &str = "dokime.client.v1.Settings/Get";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Settings/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SettingsGetRequest, v1::SettingsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::SettingsGetRequest, dokime_protocol::client::SettingsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SettingsGetRequest) -> Result<v1::SettingsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SettingsGetRequest,
+) -> Result<dokime_protocol::client::SettingsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             super::views::read(context, ID, request.at.as_ref(), async { super::settings_preferences::read(context) }).await?;
@@ -57,7 +61,7 @@ pub async fn handle(context: &Context, request: v1::SettingsGetRequest) -> Resul
 
 /* === Private Functions === */
 
-pub fn initial_preferences() -> v1::SettingsGetResponse {
+pub fn initial_preferences() -> dokime_protocol::client::SettingsGetResponse {
     super::settings_preferences::initial()
 }
 

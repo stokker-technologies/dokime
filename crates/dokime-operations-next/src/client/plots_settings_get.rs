@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.plots.Settings/Get";
+pub const ID: &str = "dokime.client.v1.plots.Settings/Get";
 
 /* === Macros === */
 
@@ -43,9 +43,14 @@ pub const ID: &str = "dokime.v1.plots.Settings/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::plots::SettingsGetRequest, v1::plots::SettingsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::plots::SettingsGetRequest, dokime_protocol::client::plots::SettingsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::plots::SettingsGetRequest) -> Result<v1::plots::SettingsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::plots::SettingsGetRequest,
+) -> Result<dokime_protocol::client::plots::SettingsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Get Plot Settings: Select Its Document Scope".into()))?;
         let key = format!("plot-settings:{}/{}/{}", scope.execution_id, request.document_id, request.plot_id);
@@ -56,8 +61,8 @@ pub async fn handle(context: &Context, request: v1::plots::SettingsGetRequest) -
                 .plot_preferences(&scope.execution_id, &request.document_id, &request.plot_id)?
                 .unwrap_or((None, v1::Downsample::Auto as i32));
             let (_, revision) = context.host.store().administration_value(&key, &[])?;
-            Ok(v1::plots::SettingsGetResponse {
-                value: Some(v1::plots::PlotSettingsValue { display_points: points, downsample }),
+            Ok(dokime_protocol::client::plots::SettingsGetResponse {
+                value: Some(dokime_protocol::client::plots::PlotSettingsValue { display_points: points, downsample }),
                 revision,
                 ..Default::default()
             })

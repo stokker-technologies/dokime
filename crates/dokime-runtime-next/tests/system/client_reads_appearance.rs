@@ -44,26 +44,25 @@
 #[tokio::test]
 async fn client_reads_appearance() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        use dokime::v1;
-
         // Open the Desktop Appearance on a Fresh Host
         let root = super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut appearance = v1::backend_client::BackendClient::connect(process.url.clone()).await?;
-        let snapshot = v1::backend_client::BackendClient::connect(process.url.clone())
+        let mut appearance = dokime_protocol::client::backend_client::BackendClient::connect(process.url.clone()).await?;
+        let snapshot = dokime_protocol::client::backend_client::BackendClient::connect(process.url.clone())
             .await?
-            .appearance(v1::BackendAppearanceRequest { ..Default::default() })
+            .appearance(dokime_protocol::client::BackendAppearanceRequest { ..Default::default() })
             .await?
             .into_inner()
             .appearance
             .unwrap();
         assert!(!snapshot.app_name.trim().is_empty());
-        assert!(v1::ThemeModePolicy::try_from(snapshot.mode_policy).is_ok());
-        let reply = appearance.appearance(v1::BackendAppearanceRequest::default()).await?.into_inner();
-        let replay = appearance.appearance(v1::BackendAppearanceRequest { at: reply.resolved_at.clone() }).await?.into_inner();
+        assert!(dokime_protocol::client::ThemeModePolicy::try_from(snapshot.mode_policy).is_ok());
+        let reply = appearance.appearance(dokime_protocol::client::BackendAppearanceRequest::default()).await?.into_inner();
+        let replay =
+            appearance.appearance(dokime_protocol::client::BackendAppearanceRequest { at: reply.resolved_at.clone() }).await?.into_inner();
         assert_eq!(reply, replay);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())

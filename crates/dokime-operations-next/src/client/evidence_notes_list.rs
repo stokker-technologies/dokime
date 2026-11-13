@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Notes/List";
+pub const ID: &str = "dokime.client.v1.evidence.Notes/List";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.evidence.Notes/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::NotesListRequest, v1::evidence::NotesListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::evidence::NotesListRequest, dokime_protocol::client::evidence::NotesListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::evidence::NotesListRequest) -> Result<v1::evidence::NotesListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::evidence::NotesListRequest,
+) -> Result<dokime_protocol::client::evidence::NotesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let selection = request.selection.clone().unwrap_or_default();
@@ -69,14 +73,14 @@ pub async fn handle(context: &Context, request: v1::evidence::NotesListRequest) 
                 after = page.last().unwrap().note_id.clone();
                 notes.extend(page);
             }
-            Ok(v1::evidence::NotesListResponse { notes, ..Default::default() })
+            Ok(dokime_protocol::client::evidence::NotesListResponse { notes, ..Default::default() })
         })
         .await?;
         let (notes, next_page_token) =
             super::views::page(saved.notes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
         super::bounded_reply(
             context,
-            v1::evidence::NotesListResponse {
+            dokime_protocol::client::evidence::NotesListResponse {
                 notes,
                 resolved_at: Some(cut),
                 next_page_token,

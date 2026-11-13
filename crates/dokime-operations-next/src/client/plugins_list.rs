@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -42,13 +41,13 @@ pub const ID: &str = "dokime.plugins.list";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::ListPlugins, v1::PluginEntries>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::ListPlugins, dokime_protocol::client::PluginEntries>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::ListPlugins) -> Result<v1::PluginEntries> {
+pub async fn handle(context: &Context, request: dokime_protocol::client::ListPlugins) -> Result<dokime_protocol::client::PluginEntries> {
     super::complete(ID, context.settings.read_timeout, async {
         context.host.refresh_plugin_states().await?;
         let _ = request;
-        Ok(v1::PluginEntries { plugins: context.host.plugins()? })
+        Ok(dokime_protocol::client::PluginEntries { plugins: context.host.plugins()? })
     })
     .await
 }

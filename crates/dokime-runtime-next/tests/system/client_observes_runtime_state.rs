@@ -56,16 +56,19 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut observation = v1::backend::overview_client::OverviewClient::new(channel.clone());
-        let initial = observation.get(v1::backend::OverviewGetRequest::default()).await?.into_inner();
+        let mut observation = dokime_protocol::client::backend::overview_client::OverviewClient::new(channel.clone());
+        let initial = observation.get(dokime_protocol::client::backend::OverviewGetRequest::default()).await?.into_inner();
         assert!(initial.overview.as_ref().unwrap().cycle_summaries.is_empty());
-        let mut watch = observation.watch(v1::backend::OverviewWatchRequest { at: initial.resolved_at.clone() }).await?.into_inner();
+        let mut watch = observation
+            .watch(dokime_protocol::client::backend::OverviewWatchRequest { at: initial.resolved_at.clone() })
+            .await?
+            .into_inner();
         let opening = watch.message().await?.unwrap();
         assert!(opening.opening);
         assert_eq!(opening.overview, initial.overview);
         let mut invalid = initial.resolved_at.unwrap();
         invalid.revisions[0].revision.push(0);
-        assert!(observation.get(v1::backend::OverviewGetRequest { at: Some(invalid) }).await.is_err());
+        assert!(observation.get(dokime_protocol::client::backend::OverviewGetRequest { at: Some(invalid) }).await.is_err());
         client.plugins.add(plugin.endpoint()).await?;
         let changed = watch.message().await?.unwrap();
         assert!(!changed.opening);
@@ -73,8 +76,8 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
         let cases = client.templates.materialize("thermal", "thermal.cycle", std::collections::HashMap::new()).await?;
         let cycle = client.cycles.start(cases).await?;
         let identifier = cycle.executions[0].clone();
-        let mut progress = v1::executions::progress_client::ProgressClient::new(channel.clone())
-            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
+        let mut progress = dokime_protocol::client::executions::progress_client::ProgressClient::new(channel.clone())
+            .watch(dokime_protocol::client::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         while let Some(frame) = progress.message().await? {
@@ -82,12 +85,12 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
                 break;
             }
         }
-        let shell = observation.get(v1::backend::OverviewGetRequest::default()).await?.into_inner().overview.unwrap();
+        let shell = observation.get(dokime_protocol::client::backend::OverviewGetRequest::default()).await?.into_inner().overview.unwrap();
         assert_eq!(shell.test_suite_count, 1);
         assert_eq!(shell.cycle_summaries[0].cycle_id, cycle.identifier);
         assert_eq!(shell.evidence_counts.unwrap().prompts, 1);
-        let traceability = v1::evidence::traceability_client::TraceabilityClient::new(channel)
-            .get(v1::evidence::TraceabilityGetRequest {
+        let traceability = dokime_protocol::client::evidence::traceability_client::TraceabilityClient::new(channel)
+            .get(dokime_protocol::client::evidence::TraceabilityGetRequest {
                 scope: Some(v1::EvidenceScope {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
@@ -97,7 +100,7 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
             .await?
             .into_inner();
         assert!(traceability.snapshots.is_empty());
-        let mut cancelled = observation.watch(v1::backend::OverviewWatchRequest::default()).await?.into_inner();
+        let mut cancelled = observation.watch(dokime_protocol::client::backend::OverviewWatchRequest::default()).await?.into_inner();
         cancelled.message().await?.unwrap();
         drop(cancelled);
         assert!(client.executions.get(identifier.clone()).await?.execution.unwrap().controls.unwrap().can_cancel);

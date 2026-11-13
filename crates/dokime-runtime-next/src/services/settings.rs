@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,26 +37,26 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::settings_server::Settings for Services {
+impl dokime_protocol::client::settings_server::Settings for Services {
     async fn get(
-        &self, request: tonic::Request<v1::SettingsGetRequest>,
-    ) -> Result<tonic::Response<v1::SettingsGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SettingsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SettingsGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::settings_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn set(
-        &self, request: tonic::Request<v1::SettingsSetRequest>,
-    ) -> Result<tonic::Response<v1::SettingsSetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SettingsSetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SettingsSetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::settings_set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn schema(
-        &self, request: tonic::Request<v1::SettingsSchemaRequest>,
-    ) -> Result<tonic::Response<v1::SettingsSchemaResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::SettingsSchemaRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::SettingsSchemaResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::settings_schema::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

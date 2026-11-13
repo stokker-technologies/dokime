@@ -53,8 +53,8 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut secrets = v1::secrets_client::SecretsClient::connect(process.url.clone()).await?;
-        let initial = secrets.list(v1::SecretsListRequest::default()).await?.into_inner();
+        let mut secrets = dokime_protocol::client::secrets_client::SecretsClient::connect(process.url.clone()).await?;
+        let initial = secrets.list(dokime_protocol::client::SecretsListRequest::default()).await?.into_inner();
         let secret = uuid::Uuid::now_v7().to_string();
         let metadata = v1::Metadata {
             identifier: "bench.access".into(),
@@ -62,9 +62,9 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             ..Default::default()
         };
         let saved = secrets
-            .set(v1::SecretsSetRequest {
+            .set(dokime_protocol::client::SecretsSetRequest {
                 name: metadata.identifier.clone(),
-                value: Some(v1::SecretWritable {
+                value: Some(dokime_protocol::client::SecretWritable {
                     metadata: Some(metadata.clone()),
                     value: Some(secret.clone()),
                 }),
@@ -74,7 +74,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             .await?
             .into_inner();
         let actual = secrets
-            .get(v1::SecretsGetRequest {
+            .get(dokime_protocol::client::SecretsGetRequest {
                 name: metadata.identifier.clone(),
                 ..Default::default()
             })
@@ -83,9 +83,9 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         assert_eq!(actual.value.unwrap().value.as_ref(), Some(&secret));
         assert_eq!(
             secrets
-                .set(v1::SecretsSetRequest {
+                .set(dokime_protocol::client::SecretsSetRequest {
                     name: metadata.identifier.clone(),
-                    value: Some(v1::SecretWritable {
+                    value: Some(dokime_protocol::client::SecretWritable {
                         metadata: Some(metadata.clone()),
                         value: None
                     }),
@@ -99,7 +99,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         );
         let generation = u64::from_be_bytes(saved.revision.as_slice().try_into()?);
         let archive = secrets
-            .export(v1::SecretsExportRequest {
+            .export(dokime_protocol::client::SecretsExportRequest {
                 names: vec![metadata.identifier.clone()],
                 generation,
                 ..Default::default()
@@ -109,7 +109,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             .archive
             .unwrap();
         let preview = secrets
-            .import(v1::SecretsImportRequest {
+            .import(dokime_protocol::client::SecretsImportRequest {
                 data: archive.data.clone(),
                 validate_only: true,
                 ..Default::default()
@@ -121,7 +121,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         assert!(preview.entries[0].exists);
         assert!(
             secrets
-                .import(v1::SecretsImportRequest {
+                .import(dokime_protocol::client::SecretsImportRequest {
                     data: b"invalid".to_vec(),
                     validate_only: true,
                     ..Default::default()
@@ -132,10 +132,10 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         process.close().await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut secrets = v1::secrets_client::SecretsClient::connect(process.url.clone()).await?;
+        let mut secrets = dokime_protocol::client::secrets_client::SecretsClient::connect(process.url.clone()).await?;
         assert_eq!(
             secrets
-                .get(v1::SecretsGetRequest {
+                .get(dokime_protocol::client::SecretsGetRequest {
                     name: metadata.identifier.clone(),
                     ..Default::default()
                 })
@@ -148,7 +148,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             Some(&secret)
         );
         secrets
-            .delete(v1::SecretsDeleteRequest {
+            .delete(dokime_protocol::client::SecretsDeleteRequest {
                 names: vec![metadata.identifier.clone()],
                 expected_revision: saved.revision,
                 request_id: "remove".into(),
@@ -156,20 +156,20 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             .await?;
         assert!(
             secrets
-                .get(v1::SecretsGetRequest {
+                .get(dokime_protocol::client::SecretsGetRequest {
                     name: metadata.identifier.clone(),
                     ..Default::default()
                 })
                 .await
                 .is_err()
         );
-        let empty = secrets.list(v1::SecretsListRequest::default()).await?.into_inner();
+        let empty = secrets.list(dokime_protocol::client::SecretsListRequest::default()).await?.into_inner();
         let imported = secrets
-            .import(v1::SecretsImportRequest {
+            .import(dokime_protocol::client::SecretsImportRequest {
                 data: archive.data,
-                choices: vec![v1::SecretImportChoice {
+                choices: vec![dokime_protocol::client::SecretImportChoice {
                     identifier: metadata.identifier.clone(),
-                    action: v1::SecretImportAction::Replace as i32,
+                    action: dokime_protocol::client::SecretImportAction::Replace as i32,
                 }],
                 generation: empty.generation,
                 request_id: "import".into(),
@@ -181,7 +181,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             .unwrap();
         assert_eq!(
             secrets
-                .get(v1::SecretsGetRequest {
+                .get(dokime_protocol::client::SecretsGetRequest {
                     name: metadata.identifier.clone(),
                     ..Default::default()
                 })
@@ -194,7 +194,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             Some(&secret)
         );
         let cleaned = secrets
-            .delete(v1::SecretsDeleteRequest {
+            .delete(dokime_protocol::client::SecretsDeleteRequest {
                 names: vec![metadata.identifier],
                 expected_revision: imported.generation.to_be_bytes().to_vec(),
                 request_id: "cleanup".into(),
@@ -202,7 +202,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
             .await?
             .into_inner();
         assert!(!cleaned.cleanup_pending);
-        assert!(secrets.list(v1::SecretsListRequest::default()).await?.into_inner().entries.is_empty());
+        assert!(secrets.list(dokime_protocol::client::SecretsListRequest::default()).await?.into_inner().entries.is_empty());
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })

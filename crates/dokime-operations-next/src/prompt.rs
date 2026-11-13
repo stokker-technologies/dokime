@@ -26,7 +26,7 @@ use crate::{Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.Prompts/Create";
+pub const ID: &str = "dokime.plugin.host.v1.Prompts/Create";
 
 /* === Macros === */
 

@@ -25,14 +25,12 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1::{
-    self,
-    evidence::{TraceabilityGetRequest, TraceabilityGetResponse},
-};
+use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityGetResponse};
+use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Traceability/Get";
+pub const ID: &str = "dokime.client.v1.evidence.Traceability/Get";
 
 /* === Macros === */
 
@@ -219,7 +217,7 @@ pub(super) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                 continuation = Some((index, event.position));
                 continue;
             }
-            let row = v1::TraceabilitySnapshot {
+            let row = dokime_protocol::client::evidence::TraceabilitySnapshot {
                 traceability_id: format!("{id}/{:020}", event.position),
                 scope: Some(actual),
                 created_at: Some(super::projection::timestamp(event.receipt_ns)),

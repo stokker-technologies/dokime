@@ -19,10 +19,7 @@
 
 // Third Party Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1::{
-    self,
-    evidence::{RecordsListRequest, RecordsListResponse},
-};
+use dokime_protocol::client::evidence::{RecordsListRequest, RecordsListResponse};
 use harmos_protocol::v1 as h;
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -32,7 +29,7 @@ use std::num::NonZeroUsize;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Records/List";
+pub const ID: &str = "dokime.client.v1.evidence.Records/List";
 
 /* === Macros === */
 
@@ -62,13 +59,13 @@ pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, afte
     let mut scope = selection.scope.clone().unwrap_or_default();
     if let Some(selected) = request.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
         match selected {
-            v1::record_scope::Kind::Execution(id) => {
+            dokime_protocol::client::evidence::record_scope::Kind::Execution(id) => {
                 if scope.execution_id.as_ref().is_some_and(|value| value != id) {
                     return Err(Error::Invalid("List Records: Keep Both Scope Selections Consistent".into()));
                 }
                 scope.execution_id = Some(id.clone());
             }
-            v1::record_scope::Kind::Cycle(cycle) => {
+            dokime_protocol::client::evidence::record_scope::Kind::Cycle(cycle) => {
                 if scope.cycle_id.as_ref().is_some_and(|value| value != &cycle.cycle_id) {
                     return Err(Error::Invalid("List Records: Keep Both Cycle Selections Consistent".into()));
                 }

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.executions.Commands/Get";
+pub const ID: &str = "dokime.client.v1.executions.Commands/Get";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.executions.Commands/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::executions::CommandsGetRequest, v1::executions::CommandsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::executions::CommandsGetRequest, dokime_protocol::client::executions::CommandsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::executions::CommandsGetRequest) -> Result<v1::executions::CommandsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::executions::CommandsGetRequest,
+) -> Result<dokime_protocol::client::executions::CommandsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let command = context
             .host
@@ -53,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::executions::CommandsGetReque
             .command(&request.parent, &request.name)?
             .ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         let resolved_at = context.host.store().resource_value(&request.parent, "progress", request.at.as_ref())?.resolved_at;
-        Ok(v1::executions::CommandsGetResponse {
+        Ok(dokime_protocol::client::executions::CommandsGetResponse {
             command: Some(command),
             resolved_at: Some(resolved_at),
         })

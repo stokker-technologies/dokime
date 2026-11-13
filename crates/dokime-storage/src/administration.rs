@@ -135,7 +135,7 @@ impl Store {
         Ok(())
     }
     pub fn save_plugin_administration(
-        &self, entries: &dokime_protocol::v1::PluginEntries, installations: &dokime_protocol::v1::InstallationPage,
+        &self, entries: &dokime_protocol::client::PluginEntries, installations: &dokime_protocol::client::InstallationPage,
         executables: &dokime_protocol::v1::MapValue,
     ) -> Result<()> {
         let mut connection = self.lock()?;

@@ -44,7 +44,6 @@
 #[tokio::test]
 async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        use dokime::v1;
         use harmos_protocol::v1::access;
 
         // Export a Pairing File and Connect Through Its Pinned Certificate
@@ -95,14 +94,17 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         assert_eq!(identity.host_id, std::fs::read_to_string(storage.join("backend-id"))?);
 
         // The Same Authorization Protects Settings and Plugin Pages
-        let mut settings = v1::settings_client::SettingsClient::new(channel.clone());
-        assert_eq!(settings.get(v1::SettingsGetRequest { ..Default::default() }).await.unwrap_err().code(), tonic::Code::Unauthenticated,);
-        let mut request = tonic::Request::new(v1::SettingsGetRequest { ..Default::default() });
+        let mut settings = dokime_protocol::client::settings_client::SettingsClient::new(channel.clone());
+        assert_eq!(
+            settings.get(dokime_protocol::client::SettingsGetRequest { ..Default::default() }).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated,
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::SettingsGetRequest { ..Default::default() });
         request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert!(settings.get(request).await?.into_inner().value.is_some());
-        let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        assert_eq!(plugins.list(v1::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::ListPlugins {});
+        let mut plugins = dokime_protocol::client::plugins_client::PluginsClient::new(channel.clone());
+        assert_eq!(plugins.list(dokime_protocol::client::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(dokime_protocol::client::ListPlugins {});
         request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert!(plugins.list(request).await?.into_inner().plugins.is_empty());
         drop(settings);
@@ -110,54 +112,61 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
 
         // Execution Services Use the Same Authenticated Route Composer
         let key = format!("Bearer {}", first.credential);
-        let executions = v1::executions_client::ExecutionsClient::new(channel.clone());
+        let executions = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone());
         assert_eq!(
-            v1::cycles_client::CyclesClient::new(channel.clone()).create(v1::CyclesCreateRequest::default()).await.unwrap_err().code(),
+            dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone())
+                .create(dokime_protocol::client::CyclesCreateRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::CyclesCreateRequest {
+        let mut request = tonic::Request::new(dokime_protocol::client::CyclesCreateRequest {
             request_id: "authorized-cycle".into(),
             ..Default::default()
         });
         request.metadata_mut().insert("authorization", key.parse()?);
-        let cycle = v1::cycles_client::CyclesClient::new(channel.clone()).create(request).await?.into_inner();
+        let cycle = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone()).create(request).await?.into_inner();
         assert!(!cycle.cycle.unwrap().cycle_id.is_empty());
 
-        let mut planning = v1::cases_client::CasesClient::new(channel.clone());
-        assert_eq!(planning.create(v1::CasesCreateRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::CasesCreateRequest {
-            plan: Some(v1::SelectionPlan::default()),
+        let mut planning = dokime_protocol::client::cases_client::CasesClient::new(channel.clone());
+        assert_eq!(
+            planning.create(dokime_protocol::client::CasesCreateRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::CasesCreateRequest {
+            plan: Some(dokime_protocol::client::SelectionPlan::default()),
             ..Default::default()
         });
         request.metadata_mut().insert("authorization", key.parse()?);
         assert_eq!(planning.create(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
 
-        let observation = v1::backend::overview_client::OverviewClient::new(channel.clone());
+        let observation = dokime_protocol::client::backend::overview_client::OverviewClient::new(channel.clone());
         assert_eq!(
-            v1::backend::overview_client::OverviewClient::new(channel.clone())
-                .get(v1::backend::OverviewGetRequest::default())
+            dokime_protocol::client::backend::overview_client::OverviewClient::new(channel.clone())
+                .get(dokime_protocol::client::backend::OverviewGetRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::backend::OverviewGetRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::backend::OverviewGetRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        v1::backend::overview_client::OverviewClient::new(channel.clone()).get(request).await?;
+        dokime_protocol::client::backend::overview_client::OverviewClient::new(channel.clone()).get(request).await?;
 
-        let prompts = v1::prompts_client::PromptsClient::new(channel.clone());
+        let prompts = dokime_protocol::client::prompts_client::PromptsClient::new(channel.clone());
         assert_eq!(
-            v1::catalog::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
-                .list(v1::catalog::PromptDefinitionsListRequest::default())
+            dokime_protocol::client::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
+                .list(dokime_protocol::client::PromptDefinitionsListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::catalog::PromptDefinitionsListRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::PromptDefinitionsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         assert!(
-            v1::catalog::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
+            dokime_protocol::client::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
                 .list(request)
                 .await?
                 .into_inner()
@@ -165,101 +174,115 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
                 .is_empty()
         );
 
-        let mut history = v1::cycles_client::CyclesClient::new(channel.clone());
-        assert_eq!(history.list(v1::CyclesListRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::CyclesListRequest::default());
+        let mut history = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone());
+        assert_eq!(
+            history.list(dokime_protocol::client::CyclesListRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::CyclesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         history.list(request).await?;
         drop((executions, planning, observation, prompts, history));
 
         // Every Data Service Uses the Same Authenticated Route Composer
-        let evidence = v1::evidence_client::EvidenceClient::new(channel.clone());
+        let evidence = dokime_protocol::client::evidence_client::EvidenceClient::new(channel.clone());
         assert_eq!(
-            v1::evidence::records_client::RecordsClient::new(channel.clone())
-                .list(v1::evidence::RecordsListRequest::default())
+            dokime_protocol::client::evidence::records_client::RecordsClient::new(channel.clone())
+                .list(dokime_protocol::client::evidence::RecordsListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::evidence::RecordsListRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::evidence::RecordsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        v1::evidence::records_client::RecordsClient::new(channel.clone()).list(request).await?;
+        dokime_protocol::client::evidence::records_client::RecordsClient::new(channel.clone()).list(request).await?;
         drop(evidence);
 
-        let telemetry = v1::evidence::samples_client::SamplesClient::new(channel.clone());
+        let telemetry = dokime_protocol::client::evidence::samples_client::SamplesClient::new(channel.clone());
         assert_eq!(
-            v1::evidence::samples_client::SamplesClient::new(channel.clone())
-                .list(v1::evidence::SamplesListRequest::default())
+            dokime_protocol::client::evidence::samples_client::SamplesClient::new(channel.clone())
+                .list(dokime_protocol::client::evidence::SamplesListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::evidence::SamplesListRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::evidence::SamplesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         assert_eq!(
-            v1::evidence::samples_client::SamplesClient::new(channel.clone()).list(request).await.unwrap_err().code(),
+            dokime_protocol::client::evidence::samples_client::SamplesClient::new(channel.clone()).list(request).await.unwrap_err().code(),
             tonic::Code::InvalidArgument
         );
         drop(telemetry);
 
-        let plots = v1::plots::snapshots_client::SnapshotsClient::new(channel.clone());
+        let plots = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::new(channel.clone());
         assert_eq!(
-            v1::catalog_client::CatalogClient::new(channel.clone())
-                .analyses(v1::CatalogAnalysesRequest::default())
+            dokime_protocol::client::analyses_client::AnalysesClient::new(channel.clone())
+                .list(dokime_protocol::client::AnalysesListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::CatalogAnalysesRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::AnalysesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        v1::catalog_client::CatalogClient::new(channel.clone()).analyses(request).await?;
+        dokime_protocol::client::analyses_client::AnalysesClient::new(channel.clone()).list(request).await?;
         drop(plots);
 
-        let mut documents = v1::plots::settings_client::SettingsClient::new(channel.clone());
-        assert_eq!(documents.set(v1::plots::SettingsSetRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::plots::SettingsSetRequest::default());
+        let mut documents = dokime_protocol::client::plots::settings_client::SettingsClient::new(channel.clone());
+        assert_eq!(
+            documents.set(dokime_protocol::client::plots::SettingsSetRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::plots::SettingsSetRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         assert_eq!(documents.set(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
         drop(documents);
 
-        let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
-        assert_eq!(reports.create(v1::ReportsCreateRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::ReportsCreateRequest::default());
+        let mut reports = dokime_protocol::client::reports_client::ReportsClient::new(channel.clone());
+        assert_eq!(
+            reports.create(dokime_protocol::client::ReportsCreateRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::ReportsCreateRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         assert_eq!(reports.create(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
         drop(reports);
 
-        let content = v1::content_client::ContentClient::new(channel.clone());
+        let content = dokime_protocol::client::content_client::ContentClient::new(channel.clone());
         assert_eq!(
-            v1::content::artifacts_client::ArtifactsClient::new(channel.clone())
-                .list(v1::content::ArtifactsListRequest::default())
+            dokime_protocol::client::content::artifacts_client::ArtifactsClient::new(channel.clone())
+                .list(dokime_protocol::client::content::ArtifactsListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::content::ArtifactsListRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::content::ArtifactsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
         assert!(
-            v1::content::artifacts_client::ArtifactsClient::new(channel.clone()).list(request).await?.into_inner().artifacts.is_empty()
+            dokime_protocol::client::content::artifacts_client::ArtifactsClient::new(channel.clone())
+                .list(request)
+                .await?
+                .into_inner()
+                .artifacts
+                .is_empty()
         );
         drop(content);
 
-        let notes = v1::evidence::notes_client::NotesClient::new(channel.clone());
+        let notes = dokime_protocol::client::evidence::notes_client::NotesClient::new(channel.clone());
         assert_eq!(
-            v1::evidence::notes_client::NotesClient::new(channel.clone())
-                .list(v1::evidence::NotesListRequest::default())
+            dokime_protocol::client::evidence::notes_client::NotesClient::new(channel.clone())
+                .list(dokime_protocol::client::evidence::NotesListRequest::default())
                 .await
                 .unwrap_err()
                 .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::evidence::NotesListRequest::default());
+        let mut request = tonic::Request::new(dokime_protocol::client::evidence::NotesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        v1::evidence::notes_client::NotesClient::new(channel.clone()).list(request).await?;
+        dokime_protocol::client::evidence::notes_client::NotesClient::new(channel.clone()).list(request).await?;
         drop(notes);
 
         // Independent Pairings Remain Valid Until Explicit Revocation

@@ -58,7 +58,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .map(|id| harmos_protocol::v1::StreamDeclaration {
                     id: id.into(),
-                    row: "dokime.v1.PlotDomain".into(),
+                    row: "dokime.client.v1.plots.PlotDomain".into(),
                     ..Default::default()
                 })
                 .collect(),
@@ -81,12 +81,12 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                     source_ns: index * 1_000_000_000,
                     sequence: index as u64 + 1,
                     row: if stream == "cells" {
-                        v1::PlotDomain {
+                        dokime_protocol::client::plots::PlotDomain {
                             min: (index % 2) as f64,
                             max: (index % 3) as f64,
                         }
                     } else {
-                        v1::PlotDomain {
+                        dokime_protocol::client::plots::PlotDomain {
                             min: (std::f64::consts::TAU * index as f64 / 8.0).sin(),
                             max: index as f64,
                         }
@@ -103,7 +103,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut plots = v1::plots::snapshots_client::SnapshotsClient::new(channel);
+        let mut plots = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("kinds".into()),
             ..Default::default()
@@ -180,9 +180,9 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 _ => (),
             }
-            let envelope = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            let envelope = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
                 .await?
-                .list(v1::plots::SnapshotsListRequest {
+                .list(dokime_protocol::client::plots::SnapshotsListRequest {
                     requests: vec![selected],
                     ..Default::default()
                 })
@@ -213,9 +213,9 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Keep Grouped Series Paired with Their Labels and Raw Counts
-        let grouped = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+        let grouped = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
             .await?
-            .list(v1::plots::SnapshotsListRequest {
+            .list(dokime_protocol::client::plots::SnapshotsListRequest {
                 requests: vec![v1::PlotRequest {
                     plot_type: v1::PlotKind::Bar as i32,
                     x_key: Some("min".into()),
@@ -234,7 +234,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
 
         // The Nested Watch Opens at the Same Fixed Selection.
         let mut watch = plots
-            .watch(v1::plots::SnapshotsWatchRequest {
+            .watch(dokime_protocol::client::plots::SnapshotsWatchRequest {
                 requests: vec![v1::PlotRequest {
                     plot_type: v1::PlotKind::TimeSeries as i32,
                     ..request.clone()
@@ -254,9 +254,9 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
             ..request.clone()
         };
         assert!(
-            v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
                 .await?
-                .list(v1::plots::SnapshotsListRequest {
+                .list(dokime_protocol::client::plots::SnapshotsListRequest {
                     requests: vec![duplicate],
                     ..Default::default()
                 })
@@ -264,9 +264,9 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                 .is_err()
         );
         assert!(
-            v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
                 .await?
-                .list(v1::plots::SnapshotsListRequest {
+                .list(dokime_protocol::client::plots::SnapshotsListRequest {
                     requests: vec![v1::PlotRequest {
                         plot_type: v1::PlotKind::Pie as i32,
                         hole: Some(1.0),

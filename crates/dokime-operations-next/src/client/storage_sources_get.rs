@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.storage.Sources/Get";
+pub const ID: &str = "dokime.client.v1.storage.Sources/Get";
 
 /* === Macros === */
 
@@ -44,15 +43,20 @@ pub const ID: &str = "dokime.v1.storage.Sources/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::storage::SourcesGetRequest, v1::storage::SourcesGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::storage::SourcesGetRequest, dokime_protocol::client::storage::SourcesGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::storage::SourcesGetRequest) -> Result<v1::storage::SourcesGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::storage::SourcesGetRequest,
+) -> Result<dokime_protocol::client::storage::SourcesGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) = super::views::read(context, ID, request.at.as_ref(), async {
-            let initial = v1::StorageSources::default();
+            let initial = dokime_protocol::client::storage::StorageSources::default();
             let (payload, revision) = context.host.store().administration_value("storage-sources", &initial.encode_to_vec())?;
-            Ok(v1::storage::SourcesGetResponse {
-                value: Some(v1::StorageSources::decode(payload.as_slice())?),
+            Ok(dokime_protocol::client::storage::SourcesGetResponse {
+                value: Some(dokime_protocol::client::storage::StorageSources::decode(payload.as_slice())?),
                 revision,
                 ..Default::default()
             })

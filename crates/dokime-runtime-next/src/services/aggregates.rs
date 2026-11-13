@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,12 +37,12 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::aggregates_server::Aggregates for Services {
+impl dokime_protocol::client::aggregates_server::Aggregates for Services {
     async fn get(
-        &self, request: tonic::Request<v1::AggregatesGetRequest>,
-    ) -> Result<tonic::Response<v1::AggregatesGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::AggregatesGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::AggregatesGetResponse>, tonic::Status> {
         let _ = request;
-        Err(tonic::Status::unimplemented("dokime.v1.Aggregates/Get: Operation Is Unavailable in This Host"))
+        Err(tonic::Status::unimplemented("dokime.client.v1.Aggregates/Get: Operation Is Unavailable in This Host"))
     }
 }
 

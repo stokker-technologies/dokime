@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.catalog.RecordSchemas/Get";
+pub const ID: &str = "dokime.client.v1.RecordSchemas/Get";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.catalog.RecordSchemas/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::catalog::RecordSchemasGetRequest, v1::catalog::RecordSchemasGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::RecordSchemasGetRequest, dokime_protocol::client::RecordSchemasGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::catalog::RecordSchemasGetRequest) -> Result<v1::catalog::RecordSchemasGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::RecordSchemasGetRequest,
+) -> Result<dokime_protocol::client::RecordSchemasGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let key = format!("record-schema/{}/{}/{}", request.parent, request.name, request.schema_version);
         let (value, cut) = super::views::read(context, &key, request.at.as_ref(), async {
@@ -66,7 +71,7 @@ pub async fn handle(context: &Context, request: v1::catalog::RecordSchemasGetReq
                 )?)
                 .map_err(|error| Error::Invalid(error.to_string()))?;
                 let descriptor = pool
-                    .get_message_by_name("dokime.context.v1.evidence.LogsAppendRequest")
+                    .get_message_by_name("dokime.plugin.host.v1.evidence.LogsAppendRequest")
                     .ok_or_else(|| Error::Invalid("Get Captured Log Schema: Rebuild the Host Protocol".into()))?;
                 return Ok(v1::RecordSchema {
                     record_type: request.name,
@@ -132,7 +137,7 @@ pub async fn handle(context: &Context, request: v1::catalog::RecordSchemasGetReq
             found.ok_or_else(|| Error::Invalid(format!("Get Captured Schema: Select a Captured Record Type {}", request.name)))
         })
         .await?;
-        Ok(v1::catalog::RecordSchemasGetResponse {
+        Ok(dokime_protocol::client::RecordSchemasGetResponse {
             value: Some(value),
             resolved_at: Some(cut),
         })

@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Create";
+pub const ID: &str = "dokime.client.v1.Executions/Create";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.Executions/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsCreateRequest, v1::ExecutionsCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsCreateRequest, dokime_protocol::client::ExecutionsCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsCreateRequest) -> Result<v1::ExecutionsCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsCreateRequest,
+) -> Result<dokime_protocol::client::ExecutionsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let cycle = super::execution_state::cycle(context, &request.parent)?;
         if cycle.sealed || request.executions.is_empty() || request.executions.len() > context.settings.max_cases {
@@ -68,7 +73,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionsCreateRequest) -> 
             let plugin = plugins
                 .iter()
                 .find(|plugin| {
-                    plugin.state == v1::PluginState::Ready as i32
+                    plugin.state == dokime_protocol::client::PluginState::Ready as i32
                         && plugin.description.as_ref().is_some_and(|description| description.id == run.plugin)
                 })
                 .ok_or_else(|| Error::Precondition("Append Executions: Reconnect the Case's Plugin Before Admission".into()))?;
@@ -95,10 +100,10 @@ pub async fn handle(context: &Context, request: v1::ExecutionsCreateRequest) -> 
         context.host.signal_change();
         if cycle.continue_automatically && cycle.status != v1::CycleStatus::Paused as i32 {
             for binding in &request.executions {
-                context.host.start_existing(&binding.execution_id, v1::ExecutionMode::Automatic).await?;
+                context.host.start_existing(&binding.execution_id, dokime_protocol::client::ExecutionMode::Automatic).await?;
             }
         }
-        Ok(v1::ExecutionsCreateResponse {
+        Ok(dokime_protocol::client::ExecutionsCreateResponse {
             executions: request
                 .executions
                 .iter()

@@ -29,7 +29,7 @@ use dokime_storage::StatisticsRead;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.Evidence/Statistics";
+pub const ID: &str = "dokime.plugin.host.v1.Evidence/Statistics";
 
 /* === Macros === */
 

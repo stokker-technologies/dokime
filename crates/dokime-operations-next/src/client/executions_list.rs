@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/List";
+pub const ID: &str = "dokime.client.v1.Executions/List";
 
 /* === Macros === */
 
@@ -43,9 +43,14 @@ pub const ID: &str = "dokime.v1.Executions/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsListRequest, v1::ExecutionsListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsListRequest, dokime_protocol::client::ExecutionsListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsListRequest) -> Result<v1::ExecutionsListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsListRequest,
+) -> Result<dokime_protocol::client::ExecutionsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let mut selection = request.clone();
@@ -73,10 +78,10 @@ pub async fn handle(context: &Context, request: v1::ExecutionsListRequest) -> Re
             }
             let outcomes = executions.iter().filter_map(|execution| execution.outcome.as_ref());
             let outcome_counts = super::projection::counts(outcomes);
-            Ok(v1::ExecutionsListResponse { executions, outcome_counts: Some(outcome_counts), ..Default::default() })
+            Ok(dokime_protocol::client::ExecutionsListResponse { executions, outcome_counts: Some(outcome_counts), ..Default::default() })
         }).await?;
         let (executions, next_page_token) = super::views::page(saved.executions, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
-        super::bounded_reply(context, v1::ExecutionsListResponse { executions, outcome_counts: saved.outcome_counts, resolved_at: Some(cut), next_page_token })
+        super::bounded_reply(context, dokime_protocol::client::ExecutionsListResponse { executions, outcome_counts: saved.outcome_counts, resolved_at: Some(cut), next_page_token })
     }).await
 }
 

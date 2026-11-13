@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.catalog.StreamSchemas/List";
+pub const ID: &str = "dokime.client.v1.StreamSchemas/List";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.catalog.StreamSchemas/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::catalog::StreamSchemasListRequest, v1::catalog::StreamSchemasListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::StreamSchemasListRequest, dokime_protocol::client::StreamSchemasListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::catalog::StreamSchemasListRequest) -> Result<v1::catalog::StreamSchemasListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::StreamSchemasListRequest,
+) -> Result<dokime_protocol::client::StreamSchemasListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let at = request.at.clone();
         let key = format!("catalog/stream_schemas/{}", request.parent);
@@ -56,10 +60,10 @@ pub async fn handle(context: &Context, request: v1::catalog::StreamSchemasListRe
                 super::catalog_inventory::Inventory::captured(context, &request.parent)?
             };
             let values = inventory.streams;
-            Ok(v1::catalog::StreamSchemasListResponse { values, ..Default::default() })
+            Ok(dokime_protocol::client::StreamSchemasListResponse { values, ..Default::default() })
         })
         .await?;
-        Ok(v1::catalog::StreamSchemasListResponse { resolved_at: Some(cut), ..saved })
+        Ok(dokime_protocol::client::StreamSchemasListResponse { resolved_at: Some(cut), ..saved })
     })
     .await
 }

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Evidence/Archive";
+pub const ID: &str = "dokime.client.v1.Evidence/Archive";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Evidence/Archive";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::EvidenceArchiveRequest, v1::EvidenceArchiveResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::EvidenceArchiveRequest, dokime_protocol::client::EvidenceArchiveResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::EvidenceArchiveRequest) -> Result<v1::EvidenceArchiveResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::EvidenceArchiveRequest,
+) -> Result<dokime_protocol::client::EvidenceArchiveResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let key =
             format!("archive/{}", super::views::hex(&request.subject.as_ref().map(prost::Message::encode_to_vec).unwrap_or_default()));
@@ -54,8 +58,10 @@ pub async fn handle(context: &Context, request: v1::EvidenceArchiveRequest) -> R
             let (store, _read_cancellation) = context.host.store().read_session()?;
             let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
             match subject.kind.as_ref() {
-                Some(v1::evidence_subject::Kind::Execution(execution)) => store.write_execution_archive(execution, &mut file)?,
-                Some(v1::evidence_subject::Kind::Cycle(cycle)) => {
+                Some(dokime_protocol::client::evidence_subject::Kind::Execution(execution)) => {
+                    store.write_execution_archive(execution, &mut file)?
+                }
+                Some(dokime_protocol::client::evidence_subject::Kind::Cycle(cycle)) => {
                     let mut count = 0;
                     let mut after = String::new();
                     loop {
@@ -105,7 +111,7 @@ pub async fn handle(context: &Context, request: v1::EvidenceArchiveRequest) -> R
                 ..Default::default()
             };
             context.host.retain_report(file, reference.clone())?;
-            Ok(v1::EvidenceArchiveResponse { file: Some(reference), resolved_at: None })
+            Ok(dokime_protocol::client::EvidenceArchiveResponse { file: Some(reference), resolved_at: None })
         })
         .await?;
         reply.resolved_at = Some(cut);

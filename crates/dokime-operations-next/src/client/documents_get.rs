@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Documents/Get";
+pub const ID: &str = "dokime.client.v1.Documents/Get";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.Documents/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::DocumentsGetRequest, v1::DocumentsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::DocumentsGetRequest, dokime_protocol::client::DocumentsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Result<v1::DocumentsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::DocumentsGetRequest,
+) -> Result<dokime_protocol::client::DocumentsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         if !request.page_token.is_empty() && request.at.is_none() {
             return Err(Error::Invalid("Get Document: Continue with the Returned Cut".into()));
@@ -77,7 +82,7 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                 execution_id: (!scope.execution_id.is_empty()).then(|| fixed.execution.identifier.clone()),
                 ..Default::default()
             };
-            let telemetry = v1::DocumentTelemetryCut {
+            let telemetry = dokime_protocol::client::DocumentTelemetryCut {
                 store: context.host.identity().backend_id,
                 epoch: if scope.execution_id.is_empty() {
                     format!("cycle:{}", fixed.execution.cycle)
@@ -86,18 +91,19 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                 },
                 position: fixed.frontier,
             };
-            let mut frames = vec![frame(v1::document_frame_frame::Kind::Header(v1::DocumentHeader {
-                document_id: request.document_id.clone(),
-                metadata: document.metadata.clone(),
-                scope: Some(evidence_scope.clone()),
-                frontiers: Some(v1::DocumentFrontiers {
-                    process_epoch: context.host.identity().epoch,
-                    state_revision: fixed.frontier,
-                    telemetry: Some(telemetry.clone()),
-                    evidence: Some(telemetry.clone()),
-                    ..Default::default()
-                }),
-            }))];
+            let mut frames =
+                vec![frame(dokime_protocol::client::document_frame_frame::Kind::Header(dokime_protocol::client::DocumentHeader {
+                    document_id: request.document_id.clone(),
+                    metadata: document.metadata.clone(),
+                    scope: Some(evidence_scope.clone()),
+                    frontiers: Some(dokime_protocol::client::DocumentFrontiers {
+                        process_epoch: context.host.identity().epoch,
+                        state_revision: fixed.frontier,
+                        telemetry: Some(telemetry.clone()),
+                        evidence: Some(telemetry.clone()),
+                        ..Default::default()
+                    }),
+                }))];
             let mut layout = Vec::new();
             let mut cards = Vec::new();
             let mut sections = document.sections.iter().rev().map(|section| (None, section)).collect::<Vec<_>>();
@@ -107,17 +113,21 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
             while let Some((parent, section)) = sections.pop() {
                 let section_ordinal = ordinal;
                 let node_id = section.metadata.as_ref().map_or(format!("section-{ordinal}"), |metadata| metadata.identifier.clone());
-                layout.push(frame(v1::document_frame_frame::Kind::LayoutNode(v1::DocumentLayoutNode {
-                    ordinal,
-                    parent_ordinal: parent,
-                    node: Some(v1::DocumentLayoutNodeNode {
-                        kind: Some(v1::document_layout_node_node::Kind::Section(v1::DocumentSection {
-                            node_id,
-                            metadata: section.metadata.clone(),
-                            repeat: None,
-                        })),
-                    }),
-                })));
+                layout.push(frame(dokime_protocol::client::document_frame_frame::Kind::LayoutNode(
+                    dokime_protocol::client::DocumentLayoutNode {
+                        ordinal,
+                        parent_ordinal: parent,
+                        node: Some(dokime_protocol::client::DocumentLayoutNodeNode {
+                            kind: Some(dokime_protocol::client::document_layout_node_node::Kind::Section(
+                                dokime_protocol::client::DocumentSection {
+                                    node_id,
+                                    metadata: section.metadata.clone(),
+                                    repeat: None,
+                                },
+                            )),
+                        }),
+                    },
+                )));
                 ordinal += 1;
                 section_count += 1;
                 for (index, card) in section.cards.iter().enumerate() {
@@ -132,46 +142,58 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                     let mut metadata = card.metadata.clone().unwrap_or_default();
                     metadata.identifier = id.clone();
                     let body = match card.body.as_ref() {
-                        Some(v1::card::Body::Markdown(value)) => v1::document_card_body::Kind::Markdown(value.clone()),
+                        Some(v1::card::Body::Markdown(value)) => dokime_protocol::client::document_card_body::Kind::Markdown(value.clone()),
                         Some(v1::card::Body::Table(table)) => {
-                            v1::document_card_body::Kind::Table(v1::DocumentTable { row_count: table.rows.len() as u64 })
+                            dokime_protocol::client::document_card_body::Kind::Table(dokime_protocol::client::DocumentTable {
+                                row_count: table.rows.len() as u64,
+                            })
                         }
-                        Some(v1::card::Body::Summary(summary)) => v1::document_card_body::Kind::Summary(v1::DocumentSummary {
-                            group_count: u64::from(!summary.tiles.is_empty()),
-                        }),
-                        Some(v1::card::Body::Plot(plot)) => v1::document_card_body::Kind::Owner(v1::DocumentOwnerReference {
-                            kind: v1::DocumentCardKind::Plot as i32,
-                            plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
-                            ..Default::default()
-                        }),
-                        Some(v1::card::Body::Evidence(kind)) => v1::document_card_body::Kind::Owner(v1::DocumentOwnerReference {
-                            kind: evidence_kind(*kind)? as i32,
-                            ..Default::default()
-                        }),
+                        Some(v1::card::Body::Summary(summary)) => {
+                            dokime_protocol::client::document_card_body::Kind::Summary(dokime_protocol::client::DocumentSummary {
+                                group_count: u64::from(!summary.tiles.is_empty()),
+                            })
+                        }
+                        Some(v1::card::Body::Plot(plot)) => {
+                            dokime_protocol::client::document_card_body::Kind::Owner(dokime_protocol::client::DocumentOwnerReference {
+                                kind: dokime_protocol::client::DocumentCardKind::Plot as i32,
+                                plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
+                                ..Default::default()
+                            })
+                        }
+                        Some(v1::card::Body::Evidence(kind)) => {
+                            dokime_protocol::client::document_card_body::Kind::Owner(dokime_protocol::client::DocumentOwnerReference {
+                                kind: evidence_kind(*kind)? as i32,
+                                ..Default::default()
+                            })
+                        }
                         None => return Err(Error::Invalid("Get Document: Supply Each Card's Body".into())),
                     };
-                    frames.push(frame(v1::document_frame_frame::Kind::Card(v1::DocumentCard {
+                    frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::Card(dokime_protocol::client::DocumentCard {
                         metadata: Some(metadata.clone()),
-                        body: Some(v1::DocumentCardBody { kind: Some(body) }),
+                        body: Some(dokime_protocol::client::DocumentCardBody { kind: Some(body) }),
                         filters: filters(card),
                     })));
                     let placement = card.layout.unwrap_or_default();
-                    layout.push(frame(v1::document_frame_frame::Kind::LayoutNode(v1::DocumentLayoutNode {
-                        ordinal,
-                        parent_ordinal: Some(section_ordinal),
-                        node: Some(v1::DocumentLayoutNodeNode {
-                            kind: Some(v1::document_layout_node_node::Kind::Placement(v1::DocumentPlacement {
-                                card_id: id.clone(),
-                                column_span: Some(v1::DocumentSpan {
-                                    base: placement.columns.max(1),
-                                    ..Default::default()
-                                }),
-                                row_span: placement.rows.max(1),
-                                order: placement.order,
-                                ..Default::default()
-                            })),
-                        }),
-                    })));
+                    layout.push(frame(dokime_protocol::client::document_frame_frame::Kind::LayoutNode(
+                        dokime_protocol::client::DocumentLayoutNode {
+                            ordinal,
+                            parent_ordinal: Some(section_ordinal),
+                            node: Some(dokime_protocol::client::DocumentLayoutNodeNode {
+                                kind: Some(dokime_protocol::client::document_layout_node_node::Kind::Placement(
+                                    dokime_protocol::client::DocumentPlacement {
+                                        card_id: id.clone(),
+                                        column_span: Some(dokime_protocol::client::DocumentSpan {
+                                            base: placement.columns.max(1),
+                                            ..Default::default()
+                                        }),
+                                        row_span: placement.rows.max(1),
+                                        order: placement.order,
+                                        ..Default::default()
+                                    },
+                                )),
+                            }),
+                        },
+                    )));
                     ordinal += 1;
                     cards.push((id, metadata, card));
                 }
@@ -183,45 +205,58 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
             // Define All Summary Sources Before Binding or Layout.
             for (id, metadata, card) in &cards {
                 if let Some(v1::card::Body::Summary(summary)) = &card.body {
-                    frames.push(frame(v1::document_frame_frame::Kind::GroupDefinition(v1::DocumentSummaryGroupDefinition {
-                        card_id: id.clone(),
-                        ordinal: 0,
-                        metadata: Some(metadata.clone()),
-                        tile_count: summary.tiles.len() as u64,
-                    })));
-                    for (ordinal, tile) in summary.tiles.iter().enumerate() {
-                        frames.push(frame(v1::document_frame_frame::Kind::TileDefinition(v1::DocumentSummaryTileDefinition {
+                    frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::GroupDefinition(
+                        dokime_protocol::client::DocumentSummaryGroupDefinition {
                             card_id: id.clone(),
-                            group_ordinal: 0,
-                            ordinal: ordinal as u64,
-                            metadata: tile.metadata.clone(),
-                            value: tile.value.clone(),
-                            filters: filters(card),
-                            unit: Some(tile.unit.clone()),
-                            ..Default::default()
-                        })));
+                            ordinal: 0,
+                            metadata: Some(metadata.clone()),
+                            tile_count: summary.tiles.len() as u64,
+                        },
+                    )));
+                    for (ordinal, tile) in summary.tiles.iter().enumerate() {
+                        frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::TileDefinition(
+                            dokime_protocol::client::DocumentSummaryTileDefinition {
+                                card_id: id.clone(),
+                                group_ordinal: 0,
+                                ordinal: ordinal as u64,
+                                metadata: tile.metadata.clone(),
+                                value: tile.value.clone(),
+                                filters: filters(card),
+                                unit: Some(tile.unit.clone()),
+                                ..Default::default()
+                            },
+                        )));
                     }
                 }
             }
             for (id, metadata, card) in &cards {
                 let result = match &card.body {
-                    Some(v1::card::Body::Summary(summary)) => v1::document_binding_result::Kind::Summary(v1::DocumentSummary {
-                        group_count: u64::from(!summary.tiles.is_empty()),
-                    }),
-                    Some(v1::card::Body::Markdown(_) | v1::card::Body::Table(_)) => v1::document_binding_result::Kind::Literal(true),
-                    _ => v1::document_binding_result::Kind::Pending(true),
+                    Some(v1::card::Body::Summary(summary)) => {
+                        dokime_protocol::client::document_binding_result::Kind::Summary(dokime_protocol::client::DocumentSummary {
+                            group_count: u64::from(!summary.tiles.is_empty()),
+                        })
+                    }
+                    Some(v1::card::Body::Markdown(_) | v1::card::Body::Table(_)) => {
+                        dokime_protocol::client::document_binding_result::Kind::Literal(true)
+                    }
+                    _ => dokime_protocol::client::document_binding_result::Kind::Pending(true),
                 };
-                frames.push(frame(v1::document_frame_frame::Kind::Binding(v1::DocumentBinding {
-                    source_id: id.clone(),
-                    metadata: Some(metadata.clone()),
-                    result: Some(v1::DocumentBindingResult { kind: Some(result) }),
-                })));
+                frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::Binding(
+                    dokime_protocol::client::DocumentBinding {
+                        source_id: id.clone(),
+                        metadata: Some(metadata.clone()),
+                        result: Some(dokime_protocol::client::DocumentBindingResult { kind: Some(result) }),
+                    },
+                )));
             }
-            let repeat_count =
-                expanded.frames.iter().filter(|kind| matches!(kind, v1::document_frame_frame::Kind::RepeatSelection(_))).count() as u64;
+            let repeat_count = expanded
+                .frames
+                .iter()
+                .filter(|kind| matches!(kind, dokime_protocol::client::document_frame_frame::Kind::RepeatSelection(_)))
+                .count() as u64;
             frames.extend(expanded.frames.into_iter().map(frame));
             frames.extend(layout);
-            let mut completion = v1::DocumentCompletion {
+            let mut completion = dokime_protocol::client::DocumentCompletion {
                 card_count: cards.len() as u64,
                 binding_count: cards.len() as u64,
                 layout_node_count: ordinal,
@@ -231,39 +266,45 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                 ..Default::default()
             };
             completion.frame_count = frames.len() as u64 + 1;
-            frames.push(frame(v1::document_frame_frame::Kind::StructureComplete(completion)));
-            frames.push(frame(v1::document_frame_frame::Kind::EvidenceCut(v1::DocumentEvidenceCut {
-                cut: Some(telemetry),
-                telemetry: true,
-                cacheable: if scope.execution_id.is_empty() {
-                    context.host.store().cycle_is_sealed(&fixed.execution.cycle)?
-                } else {
-                    fixed.state == dokime_storage::ExecutionState::Sealed
+            frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::StructureComplete(completion)));
+            frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::EvidenceCut(
+                dokime_protocol::client::DocumentEvidenceCut {
+                    cut: Some(telemetry),
+                    telemetry: true,
+                    cacheable: if scope.execution_id.is_empty() {
+                        context.host.store().cycle_is_sealed(&fixed.execution.cycle)?
+                    } else {
+                        fixed.state == dokime_storage::ExecutionState::Sealed
+                    },
                 },
-            })));
+            )));
             if !request.structure_only {
                 for (id, metadata, card) in cards {
                     if !request.card_ids.is_empty() && !request.card_ids.contains(&id) {
                         continue;
                     }
-                    let mut binding = v1::document_binding_result::Kind::Literal(true);
+                    let mut binding = dokime_protocol::client::document_binding_result::Kind::Literal(true);
                     match &card.body {
                         Some(v1::card::Body::Table(table)) => {
                             for (ordinal, row) in table.rows.iter().enumerate() {
-                                frames.push(frame(v1::document_frame_frame::Kind::TableRow(v1::DocumentTableRow {
-                                    card_id: id.clone(),
-                                    ordinal: ordinal as u64,
-                                    values: Some(row.clone()),
-                                })));
+                                frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::TableRow(
+                                    dokime_protocol::client::DocumentTableRow {
+                                        card_id: id.clone(),
+                                        ordinal: ordinal as u64,
+                                        values: Some(row.clone()),
+                                    },
+                                )));
                             }
                         }
                         Some(v1::card::Body::Summary(summary)) => {
-                            frames.push(frame(v1::document_frame_frame::Kind::SummaryGroup(v1::DocumentSummaryGroup {
-                                card_id: id.clone(),
-                                ordinal: 0,
-                                metadata: Some(metadata.clone()),
-                                tile_count: summary.tiles.len() as u64,
-                            })));
+                            frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::SummaryGroup(
+                                dokime_protocol::client::DocumentSummaryGroup {
+                                    card_id: id.clone(),
+                                    ordinal: 0,
+                                    metadata: Some(metadata.clone()),
+                                    tile_count: summary.tiles.len() as u64,
+                                },
+                            )));
                             for (ordinal, tile) in summary.tiles.iter().enumerate() {
                                 let expression = tile
                                     .value
@@ -274,23 +315,26 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                                     Ok(value) => (Some(value), None),
                                     Err(error) => (None, Some(error.to_string())),
                                 };
-                                frames.push(frame(v1::document_frame_frame::Kind::SummaryTile(v1::DocumentSummaryTile {
-                                    card_id: id.clone(),
-                                    group_ordinal: 0,
-                                    ordinal: ordinal as u64,
-                                    metadata: tile.metadata.clone(),
-                                    value,
-                                    unavailable,
-                                    unit: Some(tile.unit.clone()),
-                                    ..Default::default()
-                                })));
+                                frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::SummaryTile(
+                                    dokime_protocol::client::DocumentSummaryTile {
+                                        card_id: id.clone(),
+                                        group_ordinal: 0,
+                                        ordinal: ordinal as u64,
+                                        metadata: tile.metadata.clone(),
+                                        value,
+                                        unavailable,
+                                        unit: Some(tile.unit.clone()),
+                                        ..Default::default()
+                                    },
+                                )));
                             }
-                            binding = v1::document_binding_result::Kind::Summary(v1::DocumentSummary {
-                                group_count: u64::from(!summary.tiles.is_empty()),
-                            });
+                            binding =
+                                dokime_protocol::client::document_binding_result::Kind::Summary(dokime_protocol::client::DocumentSummary {
+                                    group_count: u64::from(!summary.tiles.is_empty()),
+                                });
                         }
                         Some(v1::card::Body::Plot(plot)) => {
-                            let prepared = (|| -> Result<v1::DocumentPlotDefinition> {
+                            let prepared = (|| -> Result<dokime_protocol::client::DocumentPlotDefinition> {
                                 let mut plot = plot.clone();
                                 plot.filters.extend(card.filters.clone());
                                 let mut selected = super::document_plot::request(&plot, evidence_scope.clone())?;
@@ -322,7 +366,7 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                                     context.host.now_ns(),
                                     &context.host.identity().epoch,
                                 )?;
-                                Ok(v1::DocumentPlotDefinition {
+                                Ok(dokime_protocol::client::DocumentPlotDefinition {
                                     request: Some(selected),
                                     presentation: Some(super::document_plot::presentation(&reader, &fixed, &plot)?),
                                     metadata: plot.metadata.clone(),
@@ -330,34 +374,40 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
                                 })
                             })();
                             binding = match prepared {
-                                Ok(plot) => v1::document_binding_result::Kind::Plot(plot),
-                                Err(error) => v1::document_binding_result::Kind::Failure(v1::DocumentCardFailure {
-                                    code: "plot_binding_failed".into(),
-                                    message: format!("Get Document Plot: {error}"),
-                                    budget: None,
-                                }),
+                                Ok(plot) => dokime_protocol::client::document_binding_result::Kind::Plot(plot),
+                                Err(error) => dokime_protocol::client::document_binding_result::Kind::Failure(
+                                    dokime_protocol::client::DocumentCardFailure {
+                                        code: "plot_binding_failed".into(),
+                                        message: format!("Get Document Plot: {error}"),
+                                        budget: None,
+                                    },
+                                ),
                             };
                         }
                         Some(v1::card::Body::Evidence(_)) if !card.filters.is_empty() => {
-                            binding = v1::document_binding_result::Kind::Failure(v1::DocumentCardFailure {
-                                code: "evidence_filters_unserved".into(),
-                                message: "Get Document Evidence Card: Clear Unsupported Filters".into(),
-                                budget: None,
-                            })
+                            binding = dokime_protocol::client::document_binding_result::Kind::Failure(
+                                dokime_protocol::client::DocumentCardFailure {
+                                    code: "evidence_filters_unserved".into(),
+                                    message: "Get Document Evidence Card: Clear Unsupported Filters".into(),
+                                    budget: None,
+                                },
+                            )
                         }
                         _ => (),
                     }
-                    frames.push(frame(v1::document_frame_frame::Kind::Binding(v1::DocumentBinding {
-                        source_id: id.clone(),
-                        metadata: Some(metadata),
-                        result: Some(v1::DocumentBindingResult { kind: Some(binding) }),
-                    })));
-                    frames.push(frame(v1::document_frame_frame::Kind::CardComplete(id)));
+                    frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::Binding(
+                        dokime_protocol::client::DocumentBinding {
+                            source_id: id.clone(),
+                            metadata: Some(metadata),
+                            result: Some(dokime_protocol::client::DocumentBindingResult { kind: Some(binding) }),
+                        },
+                    )));
+                    frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::CardComplete(id)));
                 }
             }
             completion.frame_count = frames.len() as u64 + 1;
-            frames.push(frame(v1::document_frame_frame::Kind::Completion(completion)));
-            Ok(v1::DocumentsGetResponse { frames, ..Default::default() })
+            frames.push(frame(dokime_protocol::client::document_frame_frame::Kind::Completion(completion)));
+            Ok(dokime_protocol::client::DocumentsGetResponse { frames, ..Default::default() })
         })
         .await?;
         let start = super::views::offset(&request.page_token, &cut)?;
@@ -370,7 +420,7 @@ pub async fn handle(context: &Context, request: v1::DocumentsGetRequest) -> Resu
             usize::try_from(request.max_bytes).unwrap_or(usize::MAX).min(context.settings.message_bytes)
         };
         let total = saved.frames.len();
-        let mut reply = v1::DocumentsGetResponse {
+        let mut reply = dokime_protocol::client::DocumentsGetResponse {
             resolved_at: Some(cut.clone()),
             ..Default::default()
         };
@@ -419,9 +469,9 @@ fn merge_sections(target: &mut Vec<v1::Section>, sections: Vec<v1::Section>) -> 
     }
     Ok(())
 }
-fn frame(kind: v1::document_frame_frame::Kind) -> v1::DocumentFrame {
-    v1::DocumentFrame {
-        frame: Some(v1::DocumentFrameFrame { kind: Some(kind) }),
+fn frame(kind: dokime_protocol::client::document_frame_frame::Kind) -> dokime_protocol::client::DocumentFrame {
+    dokime_protocol::client::DocumentFrame {
+        frame: Some(dokime_protocol::client::DocumentFrameFrame { kind: Some(kind) }),
     }
 }
 fn filters(card: &v1::Card) -> Vec<v1::PlotFilter> {
@@ -434,17 +484,17 @@ fn filters(card: &v1::Card) -> Vec<v1::PlotFilter> {
         })
         .collect()
 }
-fn evidence_kind(kind: i32) -> Result<v1::DocumentCardKind> {
+fn evidence_kind(kind: i32) -> Result<dokime_protocol::client::DocumentCardKind> {
     Ok(match v1::EvidenceCard::try_from(kind) {
-        Ok(v1::EvidenceCard::Steps) => v1::DocumentCardKind::Steps,
-        Ok(v1::EvidenceCard::Criteria) => v1::DocumentCardKind::Criteria,
-        Ok(v1::EvidenceCard::Traceability) => v1::DocumentCardKind::Traceability,
-        Ok(v1::EvidenceCard::Notes) => v1::DocumentCardKind::Notes,
-        Ok(v1::EvidenceCard::Records) => v1::DocumentCardKind::Records,
-        Ok(v1::EvidenceCard::Artifacts) => v1::DocumentCardKind::Artifacts,
-        Ok(v1::EvidenceCard::Media) => v1::DocumentCardKind::Media,
-        Ok(v1::EvidenceCard::Health) => v1::DocumentCardKind::Health,
-        Ok(v1::EvidenceCard::StreamContext) => v1::DocumentCardKind::TelemetryContext,
+        Ok(v1::EvidenceCard::Steps) => dokime_protocol::client::DocumentCardKind::Steps,
+        Ok(v1::EvidenceCard::Criteria) => dokime_protocol::client::DocumentCardKind::Criteria,
+        Ok(v1::EvidenceCard::Traceability) => dokime_protocol::client::DocumentCardKind::Traceability,
+        Ok(v1::EvidenceCard::Notes) => dokime_protocol::client::DocumentCardKind::Notes,
+        Ok(v1::EvidenceCard::Records) => dokime_protocol::client::DocumentCardKind::Records,
+        Ok(v1::EvidenceCard::Artifacts) => dokime_protocol::client::DocumentCardKind::Artifacts,
+        Ok(v1::EvidenceCard::Media) => dokime_protocol::client::DocumentCardKind::Media,
+        Ok(v1::EvidenceCard::Health) => dokime_protocol::client::DocumentCardKind::Health,
+        Ok(v1::EvidenceCard::StreamContext) => dokime_protocol::client::DocumentCardKind::TelemetryContext,
         _ => return Err(Error::Invalid("Capture Document: Select a Declared Evidence Card".into())),
     })
 }

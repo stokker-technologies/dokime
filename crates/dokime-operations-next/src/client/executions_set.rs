@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Set";
+pub const ID: &str = "dokime.client.v1.Executions/Set";
 
 /* === Macros === */
 
@@ -43,14 +42,19 @@ pub const ID: &str = "dokime.v1.Executions/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsSetRequest, v1::ExecutionsSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsSetRequest, dokime_protocol::client::ExecutionsSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsSetRequest) -> Result<v1::ExecutionsSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsSetRequest,
+) -> Result<dokime_protocol::client::ExecutionsSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
         let previous = super::executions_get::handle(
             context,
-            v1::ExecutionsGetRequest {
+            dokime_protocol::client::ExecutionsGetRequest {
                 name: request.name.clone(),
                 ..Default::default()
             },
@@ -68,7 +72,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionsSetRequest) -> Res
             context.host.control_execution(&request.name, if value.paused { super::RunAction::Pause } else { super::RunAction::Resume })?;
         }
         context.host.signal_change();
-        Ok(v1::ExecutionsSetResponse {
+        Ok(dokime_protocol::client::ExecutionsSetResponse {
             revision: super::paging::bytes(&value),
             value: Some(value),
             receipt: Some(super::views::receipt(context, &request.request_id)?),

@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Executions/Get";
+pub const ID: &str = "dokime.client.v1.Executions/Get";
 
 /* === Macros === */
 
@@ -44,19 +44,24 @@ pub const ID: &str = "dokime.v1.Executions/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ExecutionsGetRequest, v1::ExecutionsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::ExecutionsGetRequest, dokime_protocol::client::ExecutionsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::ExecutionsGetRequest) -> Result<v1::ExecutionsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ExecutionsGetRequest,
+) -> Result<dokime_protocol::client::ExecutionsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let progress = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?;
         let execution = super::execution_state::detail(context, &request.name)?;
-        let value = v1::ExecutionWritable {
+        let value = dokime_protocol::client::ExecutionWritable {
             label: context.host.store().execution_presentation(&request.name)?.1,
             paused: execution.controls.as_ref().is_some_and(|controls| controls.paused),
             archived: execution.summary.as_ref().is_some_and(|summary| summary.archived),
         };
         let revision = super::paging::bytes(&value);
-        Ok(v1::ExecutionsGetResponse {
+        Ok(dokime_protocol::client::ExecutionsGetResponse {
             value: Some(value),
             revision,
             progress: Some(v1::ExecutionProgressValue::decode(progress.payload.as_slice())?),

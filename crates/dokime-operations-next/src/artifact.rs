@@ -23,7 +23,6 @@ use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -44,12 +43,14 @@ pub const ID: &str = "dokime.execution.artifact";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::PublishArtifact, v1::ArtifactReceipt>(
+    crate::declaration::<dokime_protocol::context::content::PublishArtifact, dokime_protocol::context::content::ArtifactReceipt>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(resources: &Resources, request: v1::PublishArtifact) -> Result<v1::ArtifactReceipt> {
+pub async fn handle(
+    resources: &Resources, request: dokime_protocol::context::content::PublishArtifact,
+) -> Result<dokime_protocol::context::content::ArtifactReceipt> {
     resources.check_action_scope(&resources.execution, ID)?;
     dokime_storage::validate_artifact_name(&request.name).map_err(|error| crate::Error::Invalid(error.to_string()))?;
     if request.transfer_id.trim().is_empty()

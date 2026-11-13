@@ -43,7 +43,7 @@ pub struct ContentEntry {
     pub metadata: Vec<u8>,
     pub length: u64,
     pub sha256: String,
-    pub phase: v1::ExecutionFileState,
+    pub phase: dokime_protocol::client::content::ExecutionFileState,
     pub artifact: bool,
 }
 
@@ -97,8 +97,8 @@ pub struct CycleArchive {
 
 impl Store {
     pub fn attach_artifact(
-        &self, operation: &str, request: v1::content::ArtifactsCreateRequest, now_ns: i64,
-    ) -> Result<v1::content::ArtifactsCreateResponse> {
+        &self, operation: &str, request: dokime_protocol::client::content::ArtifactsCreateRequest, now_ns: i64,
+    ) -> Result<dokime_protocol::client::content::ArtifactsCreateResponse> {
         use harmos_protocol::v1::{History, Position, Receipt};
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Create Artifact: Supply a Request ID".into()));
@@ -197,7 +197,7 @@ impl Store {
             }),
             sequence,
         };
-        Ok(v1::content::ArtifactsCreateResponse {
+        Ok(dokime_protocol::client::content::ArtifactsCreateResponse {
             artifact: Some(artifact),
             receipt: Some(Receipt {
                 request_id: request.request_id,
@@ -208,8 +208,8 @@ impl Store {
         })
     }
     pub fn publish_artifact_chunk(
-        &self, execution: &str, request: v1::PublishArtifact, identifier: &str, now_ns: i64,
-    ) -> Result<v1::ArtifactReceipt> {
+        &self, execution: &str, request: dokime_protocol::context::content::PublishArtifact, identifier: &str, now_ns: i64,
+    ) -> Result<dokime_protocol::context::content::ArtifactReceipt> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         require_open(&transaction, execution)?;
@@ -225,7 +225,7 @@ impl Store {
             if expected != fingerprint {
                 return Err(Error::Invalid("Publish Artifact: Retry the Same Chunk or Use a New Transfer Identity".into()));
             }
-            return Ok(v1::ArtifactReceipt::decode(receipt.as_slice())?);
+            return Ok(dokime_protocol::context::content::ArtifactReceipt::decode(receipt.as_slice())?);
         }
         let transfer: Option<(String, i64, bool)> = transaction
             .query_row(
@@ -319,7 +319,7 @@ impl Store {
             "UPDATE artifact_transfers SET sequence=sequence+1,terminal=?3 WHERE execution=?1 AND transfer=?2",
             params![execution, request.transfer_id, request.last],
         )?;
-        let receipt = v1::ArtifactReceipt {
+        let receipt = dokime_protocol::context::content::ArtifactReceipt {
             artifact: object,
             size_bytes: length as u64,
             sealed: request.last && !request.aborted,
@@ -410,9 +410,11 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(metadata)
     }
-    pub fn register_execution_file(&self, identifier: &str, execution: &str, metadata: v1::ExecutionFileMetadata) -> Result<()> {
+    pub fn register_execution_file(
+        &self, identifier: &str, execution: &str, metadata: dokime_protocol::client::content::ExecutionFileMetadata,
+    ) -> Result<()> {
         crate::validate_execution_path(&metadata.relative_path)?;
-        if metadata.size_bytes != 0 || metadata.state != v1::ExecutionFileState::Streaming as i32 {
+        if metadata.size_bytes != 0 || metadata.state != dokime_protocol::client::content::ExecutionFileState::Streaming as i32 {
             return Err(Error::Invalid("Register Execution File: Start an Empty Streaming Production".into()));
         }
         let mut connection = self.lock()?;
@@ -592,16 +594,20 @@ impl Store {
 }
 
 impl ContentEntry {
-    pub fn file_metadata(&self) -> Result<v1::ExecutionFileMetadata> {
+    pub fn file_metadata(&self) -> Result<dokime_protocol::client::content::ExecutionFileMetadata> {
         if self.artifact {
             return Err(Error::Invalid("Read Execution File: Select a Registered File Production".into()));
         }
-        let mut metadata = v1::ExecutionFileMetadata::decode(self.metadata.as_slice())?;
+        let mut metadata = dokime_protocol::client::content::ExecutionFileMetadata::decode(self.metadata.as_slice())?;
         metadata.size_bytes = self.length;
         metadata.state = match self.phase {
-            v1::ExecutionFileState::Streaming => v1::ExecutionFileState::Streaming,
-            v1::ExecutionFileState::Finalized => v1::ExecutionFileState::Finalized,
-            _ => v1::ExecutionFileState::Interrupted,
+            dokime_protocol::client::content::ExecutionFileState::Streaming => {
+                dokime_protocol::client::content::ExecutionFileState::Streaming
+            }
+            dokime_protocol::client::content::ExecutionFileState::Finalized => {
+                dokime_protocol::client::content::ExecutionFileState::Finalized
+            }
+            _ => dokime_protocol::client::content::ExecutionFileState::Interrupted,
         } as i32;
         Ok(metadata)
     }
@@ -653,9 +659,9 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
 
 fn entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContentEntry> {
     let phase = match row.get::<_, i32>(6)? {
-        1 => v1::ExecutionFileState::Streaming,
-        2 => v1::ExecutionFileState::Finalized,
-        _ => v1::ExecutionFileState::Interrupted,
+        1 => dokime_protocol::client::content::ExecutionFileState::Streaming,
+        2 => dokime_protocol::client::content::ExecutionFileState::Finalized,
+        _ => dokime_protocol::client::content::ExecutionFileState::Interrupted,
     };
     Ok(ContentEntry {
         identifier: row.get(0)?,

@@ -97,7 +97,7 @@ pub(super) fn snapshots(context: &Context, cycle: &str) -> Result<Vec<ExecutionS
     }
     Ok(rows)
 }
-pub(super) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<v1::ExecutionSummary> {
+pub(super) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<dokime_protocol::client::ExecutionSummary> {
     let (case_id, _, archived) = context.host.store().execution_presentation(&snapshot.execution.identifier)?;
     let mut summary = super::projection::summary(snapshot, context.host.controls(&snapshot.execution.identifier)?);
     summary.case_id = case_id;
@@ -180,7 +180,7 @@ pub(super) fn cycles(context: &Context) -> Result<Vec<v1::CycleSummary>> {
     }
     ids.into_iter().map(|id| cycle(context, &id)).collect()
 }
-pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<v1::CaseSummary>> {
+pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<dokime_protocol::client::CaseSummary>> {
     cycle(context, cycle_id)?;
     let mut cases: BTreeMap<_, _> = context
         .host
@@ -190,14 +190,14 @@ pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<v1::CaseSum
         .map(|case| {
             (
                 case.case_id.clone(),
-                v1::CaseSummary {
+                dokime_protocol::client::CaseSummary {
                     case_id: case.case_id,
                     template_id: case.template_id,
                     suite_id: case.suite_id,
                     metadata: case.metadata,
                     ordinal: case.ordinal,
-                    status: v1::CaseStatus::Planned as i32,
-                    actions: Some(v1::CaseActions {
+                    status: dokime_protocol::client::CaseStatus::Planned as i32,
+                    actions: Some(dokime_protocol::client::CaseActions {
                         delete: true,
                         unavailable_reasons: Vec::new(),
                     }),
@@ -213,7 +213,7 @@ pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<v1::CaseSum
         let summary = summary(context, &snapshot)?;
         let id = if summary.case_id.is_empty() { snapshot.execution.identifier.clone() } else { summary.case_id };
         let run = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref());
-        let entry = cases.entry(id.clone()).or_insert_with(|| v1::CaseSummary {
+        let entry = cases.entry(id.clone()).or_insert_with(|| dokime_protocol::client::CaseSummary {
             case_id: id,
             template_id: match run {
                 Some(v1::origin::Kind::PluginRun(run)) => run.template.clone(),
@@ -227,24 +227,24 @@ pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<v1::CaseSum
         entry.latest_execution_outcome = snapshot.execution.outcome.clone();
         let controls = context.host.controls(&snapshot.execution.identifier)?;
         entry.status = if controls.can_cancel {
-            v1::CaseStatus::Running
+            dokime_protocol::client::CaseStatus::Running
         } else if snapshot.state != ExecutionState::Sealed {
-            v1::CaseStatus::Queued
+            dokime_protocol::client::CaseStatus::Queued
         } else {
             match snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()) {
                 Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == v1::ResultStatus::Passed as i32 => {
-                    v1::CaseStatus::Passed
+                    dokime_protocol::client::CaseStatus::Passed
                 }
-                Some(v1::execution_outcome::Attribution::Evaluated(_)) => v1::CaseStatus::Failed,
+                Some(v1::execution_outcome::Attribution::Evaluated(_)) => dokime_protocol::client::CaseStatus::Failed,
                 Some(v1::execution_outcome::Attribution::NotEvaluated(outcome))
                     if outcome.termination == v1::Termination::Cancelled as i32 =>
                 {
-                    v1::CaseStatus::Cancelled
+                    dokime_protocol::client::CaseStatus::Cancelled
                 }
-                _ => v1::CaseStatus::Interrupted,
+                _ => dokime_protocol::client::CaseStatus::Interrupted,
             }
         } as i32;
-        entry.actions = Some(v1::CaseActions {
+        entry.actions = Some(dokime_protocol::client::CaseActions {
             delete: false,
             unavailable_reasons: vec!["The Case Has Execution Evidence".into()],
         });
@@ -253,7 +253,7 @@ pub(super) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<v1::CaseSum
     cases.sort_by(|left, right| left.ordinal.cmp(&right.ordinal).then_with(|| left.case_id.cmp(&right.case_id)));
     Ok(cases)
 }
-pub(super) fn planned(context: &Context, cycle: &str, case: &str) -> Result<v1::PlannedCase> {
+pub(super) fn planned(context: &Context, cycle: &str, case: &str) -> Result<dokime_protocol::client::PlannedCase> {
     if !cases(context, cycle)?.iter().any(|entry| entry.case_id == case) {
         return Err(Error::NotFound("Inspect Case: Select a Case in This Cycle".into()));
     }
@@ -268,17 +268,17 @@ pub(super) fn planned(context: &Context, cycle: &str, case: &str) -> Result<v1::
         Some(v1::origin::Kind::PluginRun(run)) => run.template.clone(),
         _ => return Err(Error::NotFound("Inspect Case: Imports Have No Runnable Case".into())),
     };
-    Ok(v1::PlannedCase {
+    Ok(dokime_protocol::client::PlannedCase {
         case_id: case.into(),
         template_id,
         origin: snapshot.execution.origin,
         ..Default::default()
     })
 }
-pub(super) fn parameters(parameters: &std::collections::HashMap<String, v1::Value>) -> Vec<v1::CaseParameter> {
+pub(super) fn parameters(parameters: &std::collections::HashMap<String, v1::Value>) -> Vec<dokime_protocol::client::CaseParameter> {
     let mut rows: Vec<_> = parameters
         .iter()
-        .map(|(name, value)| v1::CaseParameter {
+        .map(|(name, value)| dokime_protocol::client::CaseParameter {
             name: name.clone(),
             value: Some(value.clone()),
         })
@@ -304,7 +304,7 @@ pub(super) fn time(value: Option<prost_types::Timestamp>) -> (i64, i32) {
     value.map(|value| (value.seconds, value.nanos)).unwrap_or_default()
 }
 
-pub(super) fn detail(context: &Context, name: &str) -> Result<v1::ExecutionDetail> {
+pub(super) fn detail(context: &Context, name: &str) -> Result<dokime_protocol::client::ExecutionDetail> {
     let snapshot = super::execution_state::read(context, name)?;
     let progress = context.host.store().resource_value(name, "progress", None)?;
     let controls = context.host.controls(name)?;
@@ -314,7 +314,7 @@ pub(super) fn detail(context: &Context, name: &str) -> Result<v1::ExecutionDetai
     let reports = context.host.store().reports(name)?;
     let schemas = super::projection::schemas(&snapshot)?;
     let (started_at, finished_at) = context.host.store().execution_times(name)?;
-    Ok(v1::ExecutionDetail {
+    Ok(dokime_protocol::client::ExecutionDetail {
         progress: Some(v1::ExecutionProgressValue::decode(progress.payload.as_slice())?),
         resolved_at: Some(progress.resolved_at),
         started_at: started_at.map(super::projection::timestamp),
@@ -338,8 +338,12 @@ pub(super) fn detail(context: &Context, name: &str) -> Result<v1::ExecutionDetai
         summary: Some(summary),
         controls: Some(controls),
         cycle_counts: Some(cycle_counts),
-        report: Some(v1::ReportStatus {
-            state: if reports.is_empty() { v1::ReportState::Pending } else { v1::ReportState::Ready } as i32,
+        report: Some(dokime_protocol::client::ReportStatus {
+            state: if reports.is_empty() {
+                dokime_protocol::client::ReportState::Pending
+            } else {
+                dokime_protocol::client::ReportState::Ready
+            } as i32,
             ..Default::default()
         }),
         cycle_id: snapshot.execution.cycle.clone(),

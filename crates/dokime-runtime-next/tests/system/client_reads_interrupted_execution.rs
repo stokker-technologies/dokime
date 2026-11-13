@@ -55,16 +55,16 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
+        let mut plugins = dokime_protocol::client::plugins_client::PluginsClient::new(channel.clone());
+        let entry = plugins.add(dokime_protocol::client::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
         let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
         let parameters = super::support::parameters(19.0, 0, true).into_iter().map(|(key, value)| (key, vec![value])).collect();
         let planned = client.templates.materialize("execution", "execution.capture", parameters).await?;
         let cycle = client.cycles.start(planned).await?;
         let identifier = cycle.executions[0].clone();
-        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+        let mut progress = dokime_protocol::client::executions::progress_client::ProgressClient::connect(process.url.clone())
             .await?
-            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
+            .watch(dokime_protocol::client::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         let mut prompted = false;
@@ -75,9 +75,9 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
             }
         }
         assert!(prompted);
-        let before = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+        let before = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
             .await?
-            .get(v1::ExecutionsGetRequest {
+            .get(dokime_protocol::client::ExecutionsGetRequest {
                 name: identifier.clone(),
                 ..Default::default()
             })
@@ -86,15 +86,18 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
             .execution
             .unwrap();
         assert!(before.controls.unwrap().can_cancel);
-        let request = v1::evidence::SamplesListRequest {
+        let request = dokime_protocol::client::evidence::SamplesListRequest {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some(identifier.clone()),
                 ..Default::default()
             }),
             ..Default::default()
         };
-        let samples =
-            v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?.list(request.clone()).await?.into_inner();
+        let samples = dokime_protocol::client::evidence::samples_client::SamplesClient::connect(process.url.clone())
+            .await?
+            .list(request.clone())
+            .await?
+            .into_inner();
         assert!(!samples.samples.is_empty());
         drop(progress);
 
@@ -103,10 +106,10 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
 
-        let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let recovered = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+        let mut plugins = dokime_protocol::client::plugins_client::PluginsClient::new(channel.clone());
+        let recovered = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
             .await?
-            .get(v1::ExecutionsGetRequest {
+            .get(dokime_protocol::client::ExecutionsGetRequest {
                 name: identifier.clone(),
                 ..Default::default()
             })
@@ -121,12 +124,17 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         assert!(controls.can_rerun && controls.can_inspect && controls.can_export);
         assert!(!controls.can_start && !controls.can_cancel);
         assert_eq!(
-            v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?.list(request).await?.into_inner().samples,
+            dokime_protocol::client::evidence::samples_client::SamplesClient::connect(process.url.clone())
+                .await?
+                .list(request)
+                .await?
+                .into_inner()
+                .samples,
             samples.samples
         );
-        let page = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+        let page = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
             .await?
-            .list(v1::ExecutionsListRequest::default())
+            .list(dokime_protocol::client::ExecutionsListRequest::default())
             .await?
             .into_inner();
         assert_eq!(
@@ -137,14 +145,18 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (0, 1, 0));
         assert_eq!(counts.result_status, None);
         assert_eq!(recovered.cycle_counts.as_ref(), Some(&counts));
-        let saved = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?.list(v1::ListPlugins {}).await?.into_inner();
+        let saved = dokime_protocol::client::plugins_client::PluginsClient::connect(process.url.clone())
+            .await?
+            .list(dokime_protocol::client::ListPlugins {})
+            .await?
+            .into_inner();
         assert_eq!(saved.plugins.len(), 1);
         assert_eq!(saved.plugins[0].entry, entry.entry);
-        assert_eq!(saved.plugins[0].state, v1::PluginState::Unavailable as i32);
+        assert_eq!(saved.plugins[0].state, dokime_protocol::client::PluginState::Unavailable as i32);
         assert_eq!(saved.plugins[0].description, entry.description);
-        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+        let mut progress = dokime_protocol::client::executions::progress_client::ProgressClient::connect(process.url.clone())
             .await?
-            .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
+            .watch(dokime_protocol::client::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
             .await?
             .into_inner();
         let mut terminal = false;
@@ -156,16 +168,21 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         assert!(terminal);
 
         // Reattach the Plugin Without Replaying or Changing Recovered Evidence
-        plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
+        plugins.add(dokime_protocol::client::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
         assert_eq!(
-            v1::plugins_client::PluginsClient::connect(process.url.clone()).await?.list(v1::ListPlugins {}).await?.into_inner().plugins[0]
+            dokime_protocol::client::plugins_client::PluginsClient::connect(process.url.clone())
+                .await?
+                .list(dokime_protocol::client::ListPlugins {})
+                .await?
+                .into_inner()
+                .plugins[0]
                 .state,
-            v1::PluginState::Ready as i32
+            dokime_protocol::client::PluginState::Ready as i32
         );
         assert_eq!(
-            v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
                 .await?
-                .get(v1::ExecutionsGetRequest { name: identifier, ..Default::default() })
+                .get(dokime_protocol::client::ExecutionsGetRequest { name: identifier, ..Default::default() })
                 .await?
                 .into_inner()
                 .execution

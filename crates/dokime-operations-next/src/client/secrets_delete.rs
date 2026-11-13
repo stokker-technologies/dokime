@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Secrets/Delete";
+pub const ID: &str = "dokime.client.v1.Secrets/Delete";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Secrets/Delete";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SecretsDeleteRequest, v1::SecretsDeleteResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::SecretsDeleteRequest, dokime_protocol::client::SecretsDeleteResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SecretsDeleteRequest) -> Result<v1::SecretsDeleteResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SecretsDeleteRequest,
+) -> Result<dokime_protocol::client::SecretsDeleteResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let receipt = super::views::receipt(context, &request.request_id)?;
         let super::secrets_store::Reply::Snapshot(snapshot) =
@@ -54,7 +58,7 @@ pub async fn handle(context: &Context, request: v1::SecretsDeleteRequest) -> Res
             return Err(Error::Invalid("Delete Secret: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(v1::SecretsDeleteResponse {
+        Ok(dokime_protocol::client::SecretsDeleteResponse {
             receipt: Some(receipt),
             cleanup_pending: snapshot.cleanup_pending,
         })

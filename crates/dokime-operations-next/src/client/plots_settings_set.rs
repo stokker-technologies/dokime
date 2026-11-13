@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.plots.Settings/Set";
+pub const ID: &str = "dokime.client.v1.plots.Settings/Set";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.plots.Settings/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::plots::SettingsSetRequest, v1::plots::SettingsSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::plots::SettingsSetRequest, dokime_protocol::client::plots::SettingsSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::plots::SettingsSetRequest) -> Result<v1::plots::SettingsSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::plots::SettingsSetRequest,
+) -> Result<dokime_protocol::client::plots::SettingsSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Set Plot Settings: Select Its Document Scope".into()))?;
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Plot Settings: Supply the Whole Writable Value".into()))?;
@@ -76,9 +81,9 @@ pub async fn handle(context: &Context, request: v1::plots::SettingsSetRequest) -
             fingerprint.as_bytes(),
             &value.encode_to_vec(),
         )?;
-        let value = v1::plots::PlotSettingsValue::decode(payload.as_slice())?;
+        let value = dokime_protocol::client::plots::PlotSettingsValue::decode(payload.as_slice())?;
         context.host.signal_change();
-        Ok(v1::plots::SettingsSetResponse {
+        Ok(dokime_protocol::client::plots::SettingsSetResponse {
             value: Some(value),
             revision,
             receipt: Some(receipt),

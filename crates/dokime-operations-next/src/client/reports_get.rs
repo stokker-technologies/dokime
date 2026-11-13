@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Reports/Get";
+pub const ID: &str = "dokime.client.v1.Reports/Get";
 
 /* === Macros === */
 
@@ -43,25 +42,27 @@ pub const ID: &str = "dokime.v1.Reports/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::ReportsGetRequest, v1::ReportsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::ReportsGetRequest, dokime_protocol::client::ReportsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::ReportsGetRequest) -> Result<v1::ReportsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::ReportsGetRequest,
+) -> Result<dokime_protocol::client::ReportsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let resource = format!(
             "report/{}/{}",
             request.name,
-            super::views::hex(&super::paging::bytes(&v1::ReportsGetRequest { at: None, ..request.clone() }))
+            super::views::hex(&super::paging::bytes(&dokime_protocol::client::ReportsGetRequest { at: None, ..request.clone() }))
         );
         let (mut reply, cut) = super::views::read(context, &resource, request.at.as_ref(), async {
             if let Some((_, reference)) = context.host.temporary_report(&request.name)? {
-                return Ok(v1::ReportsGetResponse {
+                return Ok(dokime_protocol::client::ReportsGetResponse {
                     file: Some(reference),
                     report: None,
                     resolved_at: None,
                 });
             }
             let execution = match request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {
-                Some(v1::report_subject::Kind::Execution(execution)) => execution,
+                Some(dokime_protocol::client::report_subject::Kind::Execution(execution)) => execution,
                 _ => return Err(Error::Invalid("Get Report: Select Its Published Execution".into())),
             };
             let report = context
@@ -92,13 +93,13 @@ pub async fn handle(context: &Context, request: v1::ReportsGetRequest) -> Result
                 ..Default::default()
             };
             context.host.retain_report(file, reference.clone())?;
-            Ok(v1::ReportsGetResponse {
-                report: Some(v1::ReportMetadata {
+            Ok(dokime_protocol::client::ReportsGetResponse {
+                report: Some(dokime_protocol::client::ReportMetadata {
                     test_cycle_id: cut.execution.cycle,
                     test_execution_id: Some(execution.clone()),
                     identifier: report.identifier,
                     metadata: report.document.and_then(|document| document.metadata),
-                    origin: v1::ReportOrigin::Sealed as i32,
+                    origin: dokime_protocol::client::ReportOrigin::Sealed as i32,
                     ..Default::default()
                 }),
                 file: Some(reference),

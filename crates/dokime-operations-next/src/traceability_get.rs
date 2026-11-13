@@ -29,7 +29,7 @@ use dokime_protocol::{
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.evidence.Traceability/Get";
+pub const ID: &str = "dokime.plugin.host.v1.evidence.Traceability/Get";
 
 /* === Macros === */
 

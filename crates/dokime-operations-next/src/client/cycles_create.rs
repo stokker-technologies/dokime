@@ -26,7 +26,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cycles/Create";
+pub const ID: &str = "dokime.client.v1.Cycles/Create";
 
 /* === Macros === */
 
@@ -43,9 +43,14 @@ pub const ID: &str = "dokime.v1.Cycles/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CyclesCreateRequest, v1::CyclesCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::CyclesCreateRequest, dokime_protocol::client::CyclesCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Result<v1::CyclesCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CyclesCreateRequest,
+) -> Result<dokime_protocol::client::CyclesCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let mut request = request;
         let mut skipped = Vec::new();
@@ -60,7 +65,7 @@ pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Resu
             for snapshot in super::execution_state::snapshots(context, &request.source_cycle)? {
                 match snapshot.execution.origin {
                     Some(origin) if matches!(origin.kind, Some(v1::origin::Kind::PluginRun(_))) => request.origins.push(origin),
-                    _ => skipped.push(v1::RerunCaseNotice {
+                    _ => skipped.push(dokime_protocol::client::RerunCaseNotice {
                         case_id: snapshot.execution.identifier,
                         reason: "Imported Evidence Has No Runnable TestCase".into(),
                         ..Default::default()
@@ -100,7 +105,7 @@ pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Resu
                     .enumerate()
                     .map(|(index, origin)| {
                         super::execution_state::case(&origin)?;
-                        Ok(v1::PlannedCase {
+                        Ok(dokime_protocol::client::PlannedCase {
                             origin: Some(origin),
                             ordinal: index as u64,
                             ..Default::default()
@@ -112,20 +117,20 @@ pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Resu
                     None,
                     &[],
                     &cycle.cycle_id,
-                    v1::CasesCreateResponse { cases, ..Default::default() },
+                    dokime_protocol::client::CasesCreateResponse { cases, ..Default::default() },
                     context.settings.message_bytes,
                 )?;
                 let bindings = registered
                     .cases
                     .into_iter()
-                    .map(|case| v1::ExecutionBinding {
+                    .map(|case| dokime_protocol::client::ExecutionBinding {
                         execution_id: uuid::Uuid::now_v7().to_string(),
                         case_id: case.case_id,
                     })
                     .collect();
                 let reply = super::executions_create::handle(
                     context,
-                    v1::ExecutionsCreateRequest {
+                    dokime_protocol::client::ExecutionsCreateRequest {
                         parent: cycle.cycle_id.clone(),
                         executions: bindings,
                         request_id: request.request_id.clone(),
@@ -144,7 +149,7 @@ pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Resu
         let _ = execution_ids;
         let admitted = super::executions_list::handle(
             context,
-            v1::ExecutionsListRequest {
+            dokime_protocol::client::ExecutionsListRequest {
                 parent: cycle.cycle_id.clone(),
                 ..Default::default()
             },
@@ -153,7 +158,7 @@ pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Resu
         let mut receipt = super::views::receipt(context, &request.request_id)?;
         receipt.durable_at = admitted.resolved_at.as_ref().and_then(|cut| cut.positions.first()).cloned();
         receipt.accepted_at = receipt.durable_at.clone();
-        Ok(v1::CyclesCreateResponse {
+        Ok(dokime_protocol::client::CyclesCreateResponse {
             cycle: Some(cycle),
             skipped,
             receipt: Some(receipt),

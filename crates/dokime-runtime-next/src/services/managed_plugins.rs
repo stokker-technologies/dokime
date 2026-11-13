@@ -42,7 +42,7 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl State {
-    pub(super) fn saved_installations(&self) -> Result<v1::InstallationPage> {
+    pub(super) fn saved_installations(&self) -> Result<dokime_protocol::client::InstallationPage> {
         Ok(self.host.store.administration("plugin-installations")?.unwrap_or_default())
     }
     pub(super) fn managed_executables(&self) -> Result<v1::MapValue> {
@@ -78,7 +78,7 @@ impl State {
         }
         Ok(self.root.join(relative))
     }
-    pub(super) fn list_installations(&self) -> Result<Vec<v1::PluginInstallation>> {
+    pub(super) fn list_installations(&self) -> Result<Vec<dokime_protocol::client::PluginInstallation>> {
         let entries = self.list_entries()?;
         let mut installations = self.saved_installations()?.installations;
         for installation in &mut installations {
@@ -95,7 +95,7 @@ impl State {
             if std::fs::read(path).map(|bytes| bundles::digest(&bytes) != installation.sha256).unwrap_or(true) {
                 installation.error = Some("Restore the Verified Bundle or Remove and Reinstall This Plugin".into());
                 if let Some(plugin) = &mut installation.plugin {
-                    plugin.state = v1::PluginState::Failed as i32;
+                    plugin.state = dokime_protocol::client::PluginState::Failed as i32;
                     plugin.reason = installation.error.clone().unwrap();
                 }
             }
@@ -105,7 +105,7 @@ impl State {
     }
     pub(super) async fn restore_managed(&self) -> Result<()> {
         for installation in self.saved_installations()?.installations {
-            if installation.state != v1::PluginInstallationState::Installed as i32 {
+            if installation.state != dokime_protocol::client::PluginInstallationState::Installed as i32 {
                 continue;
             }
             let entry = self.saved_entries()?.plugins.into_iter().find(|entry| entry.entry == installation.install_id);
@@ -117,7 +117,7 @@ impl State {
     }
     pub(super) async fn install_bundle(
         &self, bytes: Vec<u8>, mut cancelled: tokio::sync::oneshot::Receiver<()>,
-    ) -> Result<v1::PluginInstallation> {
+    ) -> Result<dokime_protocol::client::PluginInstallation> {
         let bundle = Bundle::read(&bytes).map_err(convert)?;
         let package = bundle.metadata.identity.as_ref().unwrap().name.clone();
         let mut installations = self.saved_installations()?;
@@ -125,7 +125,7 @@ impl State {
             .installations
             .iter()
             .find(|installation| {
-                installation.state != v1::PluginInstallationState::RemovalPending as i32
+                installation.state != dokime_protocol::client::PluginInstallationState::RemovalPending as i32
                     && installation
                         .metadata
                         .as_ref()
@@ -156,24 +156,32 @@ impl State {
                 kind: Some(v1::value::Kind::Text(relative)),
             },
         );
-        let disabled = previous.as_ref().is_some_and(|previous| previous.state == v1::PluginInstallationState::Disabled as i32);
-        let entry = v1::Plugin {
+        let disabled =
+            previous.as_ref().is_some_and(|previous| previous.state == dokime_protocol::client::PluginInstallationState::Disabled as i32);
+        let entry = dokime_protocol::client::Plugin {
             entry: identifier.clone(),
-            placement: Some(v1::plugin::Placement::Managed(v1::ManagedPlugin { bundle: identifier.clone() })),
-            state: if disabled { v1::PluginState::Unavailable } else { v1::PluginState::Starting } as i32,
+            placement: Some(dokime_protocol::client::plugin::Placement::Managed(dokime_protocol::client::ManagedPlugin {
+                bundle: identifier.clone(),
+            })),
+            state: if disabled { dokime_protocol::client::PluginState::Unavailable } else { dokime_protocol::client::PluginState::Starting }
+                as i32,
             reason: if disabled { "Enable This Plugin to Start It".into() } else { String::new() },
             ..Default::default()
         };
         let mut entries = self.saved_entries()?;
         entries.plugins.push(entry.clone());
-        let installation = v1::PluginInstallation {
+        let installation = dokime_protocol::client::PluginInstallation {
             install_id: identifier.clone(),
             sha256: digest,
             installed_at: Some(prost_types::Timestamp {
                 seconds: self.host.now_ns().div_euclid(1_000_000_000),
                 nanos: self.host.now_ns().rem_euclid(1_000_000_000) as i32,
             }),
-            state: if disabled { v1::PluginInstallationState::Disabled } else { v1::PluginInstallationState::Installed } as i32,
+            state: if disabled {
+                dokime_protocol::client::PluginInstallationState::Disabled
+            } else {
+                dokime_protocol::client::PluginInstallationState::Installed
+            } as i32,
             metadata: Some(bundle.metadata),
             plugin: Some(entry.clone()),
             ..Default::default()
@@ -195,19 +203,19 @@ impl State {
         let Some(connected) = connected else {
             self.remove_managed(&identifier).await?;
             if let Some(previous) = &previous
-                && previous.state == v1::PluginInstallationState::Installed as i32
+                && previous.state == dokime_protocol::client::PluginInstallationState::Installed as i32
             {
                 let previous_entry = self.saved_entries()?.plugins.into_iter().find(|entry| entry.entry == previous.install_id).unwrap();
                 let _ = self.connect_entry(previous_entry).await?;
             }
             return Err(Error::Cancelled("Install Plugin: Removed the Cancelled Installation".into()));
         };
-        if connected.state != v1::PluginState::Ready as i32 && !disabled {
+        if connected.state != dokime_protocol::client::PluginState::Ready as i32 && !disabled {
             if let Some(previous) = &previous {
                 let previous_entry = self.saved_entries()?.plugins.into_iter().find(|entry| entry.entry == previous.install_id).unwrap();
                 let _ = self.connect_entry(previous_entry).await?;
                 if let Some(current) = installations.installations.iter_mut().find(|installation| installation.install_id == identifier) {
-                    current.state = v1::PluginInstallationState::RemovalPending as i32;
+                    current.state = dokime_protocol::client::PluginInstallationState::RemovalPending as i32;
                     current.error = Some(connected.reason.clone());
                 }
                 self.host.store.save_administration("plugin-installations", &installations)?;
@@ -221,14 +229,14 @@ impl State {
             .find(|installation| installation.install_id == identifier)
             .ok_or_else(|| Error::Invalid("Install Plugin: Refresh the Installation List".into()))
     }
-    pub(super) async fn enable_managed(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation> {
+    pub(super) async fn enable_managed(&self, identifier: &str, enabled: bool) -> Result<dokime_protocol::client::PluginInstallation> {
         let mut installations = self.saved_installations()?;
         let installation = installations
             .installations
             .iter_mut()
             .find(|installation| installation.install_id == identifier)
             .ok_or_else(|| Error::Invalid("Enable Plugin: Select an Existing Installation".into()))?;
-        if installation.state == v1::PluginInstallationState::RemovalPending as i32 {
+        if installation.state == dokime_protocol::client::PluginInstallationState::RemovalPending as i32 {
             return Err(Error::Invalid("Remove This Installation Before Enabling It".into()));
         }
         let mut entries = self.saved_entries()?;
@@ -241,10 +249,14 @@ impl State {
             if let Some(description) = &entry.description {
                 self.host.detach_plugin(&description.id).await.map_err(convert)?;
             }
-            entry.state = v1::PluginState::Unavailable as i32;
+            entry.state = dokime_protocol::client::PluginState::Unavailable as i32;
             entry.reason = "Enable This Plugin to Start It".into();
         }
-        installation.state = if enabled { v1::PluginInstallationState::Installed } else { v1::PluginInstallationState::Disabled } as i32;
+        installation.state = if enabled {
+            dokime_protocol::client::PluginInstallationState::Installed
+        } else {
+            dokime_protocol::client::PluginInstallationState::Disabled
+        } as i32;
         let entry = entry.clone();
         self.host.store.save_plugin_administration(&entries, &installations, &self.managed_executables()?)?;
         self.host.signal_change();
@@ -271,7 +283,7 @@ impl State {
         {
             self.host.detach_plugin(&description.id).await.map_err(convert)?;
         }
-        installation.state = v1::PluginInstallationState::RemovalPending as i32;
+        installation.state = dokime_protocol::client::PluginInstallationState::RemovalPending as i32;
         self.host.store.save_administration("plugin-installations", &installations)?;
         let folder = self.root.join("plugins").canonicalize().map_err(crate::Error::from).map_err(convert)?;
         let target = folder.join(identifier);

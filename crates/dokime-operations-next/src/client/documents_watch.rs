@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Documents/Watch";
+pub const ID: &str = "dokime.client.v1.Documents/Watch";
 
 /* === Macros === */
 
@@ -43,13 +42,18 @@ pub const ID: &str = "dokime.v1.Documents/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::DocumentsWatchRequest, v1::DocumentsWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::DocumentsWatchRequest, dokime_protocol::client::DocumentsWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::DocumentsWatchRequest) -> Result<super::Output<v1::DocumentsWatchResponse>> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::DocumentsWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::DocumentsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::DocumentsGetRequest {
+        let mut selection = dokime_protocol::client::DocumentsGetRequest {
             scope: request.scope,
             document_id: request.document_id,
             structure_only: request.structure_only,
@@ -68,7 +72,7 @@ pub async fn handle(context: &Context, request: v1::DocumentsWatchRequest) -> Re
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::DocumentsWatchResponse {
+                    let response = dokime_protocol::client::DocumentsWatchResponse {
                         frames: page.frames,
                         resolved_at: cut.clone(),
                         opening,
@@ -106,7 +110,7 @@ pub async fn handle(context: &Context, request: v1::DocumentsWatchRequest) -> Re
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::DocumentsWatchResponse {
+                                .send(Ok(dokime_protocol::client::DocumentsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

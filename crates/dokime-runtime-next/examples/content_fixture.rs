@@ -58,18 +58,18 @@ fn main() -> Result<()> {
         Template::new("content.traceability", "Observe Traceability").step(Step::new("Traceability", revisioned_traceability));
     let plugin = Plugin::new("content_fixture", "1.0.0")
         .suite(Suite::new("content", "Content").template(template).template(progress).template(traceability))
-        .requires_host::<dokime::protocol::context::v1::evidence::TraceabilityGetRequest>()
-        .requires_host::<dokime::protocol::context::v1::evidence::TraceabilitySetRequest>()
-        .requires_host::<v1::PublishArtifact>()
-        .requires_host::<dokime::protocol::context::v1::executions::ProgressGetRequest>()
-        .requires_host::<dokime::protocol::context::v1::executions::ProgressSetRequest>()
-        .requires_host::<dokime::protocol::context::v1::PromptsCreateRequest>();
+        .requires_host::<dokime::protocol::plugin::host::v1::evidence::TraceabilityGetRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::evidence::TraceabilitySetRequest>()
+        .requires_host::<dokime_protocol::context::content::PublishArtifact>()
+        .requires_host::<dokime::protocol::plugin::host::v1::executions::ProgressGetRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::executions::ProgressSetRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::PromptsCreateRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn revisioned_progress(ctx: &Context) -> Result<()> {
-    use dokime::protocol::context::v1::executions::{ProgressGetRequest, ProgressSetRequest};
+    use dokime::protocol::plugin::host::v1::executions::{ProgressGetRequest, ProgressSetRequest};
 
     // Establish a Whole Value and Recover Its Original Receipt
     let initial = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
@@ -101,7 +101,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     }
 
     // Let the Client Retain This Value Before Replacing It
-    ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest {
+    ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
         prompt: "continue".into(),
         prompt_type: "content.continue".into(),
         definition: Some(v1::Prompt {
@@ -140,7 +140,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     Ok(())
 }
 async fn revisioned_traceability(ctx: &Context) -> Result<()> {
-    use dokime::protocol::context::v1::evidence::{TraceabilityGetRequest, TraceabilitySetRequest};
+    use dokime::protocol::plugin::host::v1::evidence::{TraceabilityGetRequest, TraceabilitySetRequest};
 
     // Establish Two Independently Revisioned Whole Entries
     let get = TraceabilityGetRequest {
@@ -222,7 +222,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
     }
 
     // Let the Client Retain the First Values
-    ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest {
+    ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
         prompt: "continue".into(),
         prompt_type: "content.continue".into(),
         definition: Some(v1::Prompt {
@@ -266,7 +266,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
 }
 async fn capture(ctx: &Context) -> Result<()> {
     // Start an Ordered Transfer
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "capture".into(),
         name: "producer.txt".into(),
         mime: "text/plain".into(),
@@ -277,7 +277,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     ctx.host(request).await?;
 
     // Refuse a Sequence Gap
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "capture".into(),
         name: "producer.txt".into(),
         mime: "text/plain".into(),
@@ -290,7 +290,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     }
 
     // Replace the Prefix Within the Same Transfer
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "capture".into(),
         name: "producer.txt".into(),
         mime: "text/plain".into(),
@@ -302,7 +302,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     ctx.host(request).await?;
 
     // Commit an Explicit Terminal Chunk
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "capture".into(),
         name: "producer.txt".into(),
         mime: "text/plain".into(),
@@ -317,7 +317,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     }
 
     // Abort Another Transfer Without Publishing Its Prefix
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "aborted".into(),
         name: "aborted.txt".into(),
         mime: "text/plain".into(),
@@ -325,7 +325,7 @@ async fn capture(ctx: &Context) -> Result<()> {
         ..Default::default()
     };
     ctx.host(request).await?;
-    let request = v1::PublishArtifact {
+    let request = dokime_protocol::context::content::PublishArtifact {
         transfer_id: "aborted".into(),
         name: "aborted.txt".into(),
         mime: "text/plain".into(),

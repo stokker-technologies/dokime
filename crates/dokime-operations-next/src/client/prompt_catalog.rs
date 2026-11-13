@@ -48,10 +48,10 @@ pub(super) fn definitions(context: &Context) -> Result<Vec<v1::Prompt>> {
             continue;
         };
         for section in catalog.sections {
-            if section.r#type != "dokime.v1.PromptCatalog" {
+            if section.r#type != "dokime.v1.PromptDefinitions" {
                 continue;
             }
-            for definition in v1::PromptCatalog::decode(section.payload.as_slice())?.prompts {
+            for definition in v1::PromptDefinitions::decode(section.payload.as_slice())?.prompts {
                 let id = definition
                     .metadata
                     .as_ref()
@@ -69,7 +69,7 @@ pub(super) fn definitions(context: &Context) -> Result<Vec<v1::Prompt>> {
     Ok(definitions.into_values().collect())
 }
 
-pub(super) fn view(context: &Context, identifier: &str) -> Result<v1::PromptView> {
+pub(super) fn view(context: &Context, identifier: &str) -> Result<dokime_protocol::client::PromptView> {
     let (execution, prompt) =
         identifier.split_once('/').ok_or_else(|| Error::Invalid("Read Prompt: Select an Identifier Returned by ListPending".into()))?;
     if !context.host.store().identifiers()?.iter().any(|id| id == execution) {
@@ -109,14 +109,14 @@ pub(super) fn view(context: &Context, identifier: &str) -> Result<v1::PromptView
         values: Some(v1::MapValue { values: answer.values }),
     });
     let kind = match v1::PromptArchetype::try_from(definition.archetype).unwrap_or_default() {
-        v1::PromptArchetype::Confirmation => v1::PromptKind::Confirmation,
-        v1::PromptArchetype::Form => v1::PromptKind::Form,
-        v1::PromptArchetype::Choice => v1::PromptKind::Choice,
-        v1::PromptArchetype::Status => v1::PromptKind::Status,
-        _ => v1::PromptKind::Unspecified,
+        v1::PromptArchetype::Confirmation => dokime_protocol::client::PromptKind::Confirmation,
+        v1::PromptArchetype::Form => dokime_protocol::client::PromptKind::Form,
+        v1::PromptArchetype::Choice => dokime_protocol::client::PromptKind::Choice,
+        v1::PromptArchetype::Status => dokime_protocol::client::PromptKind::Status,
+        _ => dokime_protocol::client::PromptKind::Unspecified,
     };
-    Ok(v1::PromptView {
-        prompt: Some(v1::PromptInstance {
+    Ok(dokime_protocol::client::PromptView {
+        prompt: Some(dokime_protocol::client::PromptInstance {
             prompt_id: identifier.into(),
             definition: Some(definition),
             kind: kind as i32,

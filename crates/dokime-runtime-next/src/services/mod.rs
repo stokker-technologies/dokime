@@ -13,12 +13,12 @@
 
 mod access_credentials;
 mod aggregates;
+mod analyses;
 mod backend;
 mod backend_overview;
 mod bundle_permissions;
 mod bundles;
 mod cases;
-mod catalog;
 mod catalog_prompt_definitions;
 mod catalog_record_schemas;
 mod catalog_stream_schemas;
@@ -69,7 +69,6 @@ use std::{net::SocketAddr, path::Path, sync::Arc};
 
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -244,172 +243,172 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
     manager.register_service(
-        v1::aggregates_server::AggregatesServer::new(services.clone())
+        dokime_protocol::client::aggregates_server::AggregatesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::backend_server::BackendServer::new(services.clone())
+        dokime_protocol::client::backend_server::BackendServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::cases_server::CasesServer::new(services.clone())
+        dokime_protocol::client::cases_server::CasesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog_server::CatalogServer::new(services.clone())
+        dokime_protocol::client::analyses_server::AnalysesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::content_server::ContentServer::new(services.clone())
+        dokime_protocol::client::content_server::ContentServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::plugins_server::PluginsServer::new(services.clone())
+        dokime_protocol::client::plugins_server::PluginsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::cycles_server::CyclesServer::new(services.clone())
+        dokime_protocol::client::cycles_server::CyclesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::documents_server::DocumentsServer::new(services.clone())
+        dokime_protocol::client::documents_server::DocumentsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence_server::EvidenceServer::new(services.clone())
+        dokime_protocol::client::evidence_server::EvidenceServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::executions_server::ExecutionsServer::new(services.clone())
+        dokime_protocol::client::executions_server::ExecutionsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::prompts_server::PromptsServer::new(services.clone())
+        dokime_protocol::client::prompts_server::PromptsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::reports_server::ReportsServer::new(services.clone())
+        dokime_protocol::client::reports_server::ReportsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::secrets_server::SecretsServer::new(services.clone())
+        dokime_protocol::client::secrets_server::SecretsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::settings_server::SettingsServer::new(services.clone())
+        dokime_protocol::client::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::backend::overview_server::OverviewServer::new(services.clone())
+        dokime_protocol::client::backend::overview_server::OverviewServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog::prompt_definitions_server::PromptDefinitionsServer::new(services.clone())
+        dokime_protocol::client::prompt_definitions_server::PromptDefinitionsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog::record_schemas_server::RecordSchemasServer::new(services.clone())
+        dokime_protocol::client::record_schemas_server::RecordSchemasServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog::stream_schemas_server::StreamSchemasServer::new(services.clone())
+        dokime_protocol::client::stream_schemas_server::StreamSchemasServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog::suites_server::SuitesServer::new(services.clone())
+        dokime_protocol::client::suites_server::SuitesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::content::artifacts_server::ArtifactsServer::new(services.clone())
+        dokime_protocol::client::content::artifacts_server::ArtifactsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::content::execution_files_server::ExecutionFilesServer::new(services.clone())
+        dokime_protocol::client::content::execution_files_server::ExecutionFilesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence::health_events_server::HealthEventsServer::new(services.clone())
+        dokime_protocol::client::evidence::health_events_server::HealthEventsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence::notes_server::NotesServer::new(services.clone())
+        dokime_protocol::client::evidence::notes_server::NotesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence::records_server::RecordsServer::new(services.clone())
+        dokime_protocol::client::evidence::records_server::RecordsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence::samples_server::SamplesServer::new(services.clone())
+        dokime_protocol::client::evidence::samples_server::SamplesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::evidence::traceability_server::TraceabilityServer::new(services.clone())
+        dokime_protocol::client::evidence::traceability_server::TraceabilityServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::executions::commands_server::CommandsServer::new(services.clone())
+        dokime_protocol::client::executions::commands_server::CommandsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::executions::progress_server::ProgressServer::new(services.clone())
+        dokime_protocol::client::executions::progress_server::ProgressServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::media::captures_server::CapturesServer::new(services.clone())
+        dokime_protocol::client::media::captures_server::CapturesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::plots::settings_server::SettingsServer::new(services.clone())
+        dokime_protocol::client::plots::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::plots::snapshots_server::SnapshotsServer::new(services.clone())
+        dokime_protocol::client::plots::snapshots_server::SnapshotsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::plugins::settings_server::SettingsServer::new(services.clone())
+        dokime_protocol::client::plugins::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::prompts::answers_server::AnswersServer::new(services.clone())
+        dokime_protocol::client::prompts::answers_server::AnswersServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::storage::sources_server::SourcesServer::new(services.clone())
+        dokime_protocol::client::storage::sources_server::SourcesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

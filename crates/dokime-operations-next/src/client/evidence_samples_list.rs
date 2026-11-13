@@ -28,7 +28,7 @@ use sha2::Digest;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Samples/List";
+pub const ID: &str = "dokime.client.v1.evidence.Samples/List";
 
 /* === Macros === */
 
@@ -45,9 +45,14 @@ pub const ID: &str = "dokime.v1.evidence.Samples/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::SamplesListRequest, v1::evidence::SamplesListResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::evidence::SamplesListRequest, dokime_protocol::client::evidence::SamplesListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::evidence::SamplesListRequest) -> Result<v1::evidence::SamplesListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::evidence::SamplesListRequest,
+) -> Result<dokime_protocol::client::evidence::SamplesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let identifier = super::projection::execution_scope(request.scope.as_ref())?;
         let store = context.host.store();
@@ -208,11 +213,11 @@ pub async fn handle(context: &Context, request: v1::evidence::SamplesListRequest
                 serde_json::to_string(&after).map_err(|error| Error::Invalid(format!("List Samples: Encode Continuation: {error}")))?
             )
         };
-        Ok(v1::evidence::SamplesListResponse {
+        Ok(dokime_protocol::client::evidence::SamplesListResponse {
             samples: samples
                 .into_iter()
-                .map(|sample| v1::SampleRow {
-                    kind: Some(v1::sample_row::Kind::Raw(sample)),
+                .map(|sample| dokime_protocol::client::evidence::SampleRow {
+                    kind: Some(dokime_protocol::client::evidence::sample_row::Kind::Raw(sample)),
                 })
                 .collect(),
             schema: None,

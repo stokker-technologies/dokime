@@ -7,7 +7,7 @@
  * ***
  */
 
-// Catalog Analyses
+// Analyses List
 
 /* === Modules === */
 
@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Catalog/Analyses";
+pub const ID: &str = "dokime.client.v1.Analyses/List";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.v1.Catalog/Analyses";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CatalogAnalysesRequest, v1::CatalogAnalysesResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::AnalysesListRequest, dokime_protocol::client::AnalysesListResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CatalogAnalysesRequest) -> Result<v1::CatalogAnalysesResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::AnalysesListRequest,
+) -> Result<dokime_protocol::client::AnalysesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) = super::views::read(context, ID, request.at.as_ref(), async {
             let mut definitions = std::collections::BTreeMap::new();
@@ -64,7 +69,7 @@ pub async fn handle(context: &Context, request: v1::CatalogAnalysesRequest) -> R
                     }
                 }
             }
-            Ok(v1::CatalogAnalysesResponse {
+            Ok(dokime_protocol::client::AnalysesListResponse {
                 definitions: definitions.into_values().collect(),
                 ..Default::default()
             })

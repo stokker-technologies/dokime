@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cases/Create";
+pub const ID: &str = "dokime.client.v1.Cases/Create";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Cases/Create";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CasesCreateRequest, v1::CasesCreateResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::CasesCreateRequest, dokime_protocol::client::CasesCreateResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::CasesCreateRequest) -> Result<v1::CasesCreateResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CasesCreateRequest,
+) -> Result<dokime_protocol::client::CasesCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         if !request.validate_only && request.request_id.trim().is_empty() {
             return Err(Error::Invalid("Register Selection: Supply a Stable Nonempty Idempotency Key".into()));

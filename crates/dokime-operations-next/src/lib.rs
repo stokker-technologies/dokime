@@ -46,7 +46,6 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -114,7 +113,9 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
                 .await?
                 .encode_to_vec())
         }
-        artifact::ID => Ok(artifact::handle(resources, v1::PublishArtifact::decode(payload)?).await?.encode_to_vec()),
+        artifact::ID => {
+            Ok(artifact::handle(resources, dokime_protocol::context::content::PublishArtifact::decode(payload)?).await?.encode_to_vec())
+        }
         log::ID => {
             Ok(log::handle(resources, dokime_protocol::context::evidence::LogsAppendRequest::decode(payload)?).await?.encode_to_vec())
         }
@@ -146,8 +147,8 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         prompt::ID => {
             Ok(prompt::handle(resources, dokime_protocol::context::PromptsCreateRequest::decode(payload)?).await?.encode_to_vec())
         }
-        secret::ID => Ok(secret::handle(resources, v1::ReadSecret::decode(payload)?).await?.encode_to_vec()),
-        settings::ID => Ok(settings::handle(resources, v1::ReadSettings::decode(payload)?).await?.encode_to_vec()),
+        secret::ID => Ok(secret::handle(resources, dokime_protocol::context::ReadSecret::decode(payload)?).await?.encode_to_vec()),
+        settings::ID => Ok(settings::handle(resources, dokime_protocol::context::ReadSettings::decode(payload)?).await?.encode_to_vec()),
         sleep::ID => Ok(sleep::handle(resources, harmos_protocol::context::TimeSleepRequest::decode(payload)?).await?.encode_to_vec()),
         _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
     }

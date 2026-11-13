@@ -219,7 +219,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![harmos_protocol::v1::StreamDeclaration {
                 id: "reading".into(),
-                row: "dokime.v1.PlotDomain".into(),
+                row: "dokime.client.v1.plots.PlotDomain".into(),
                 ..Default::default()
             }],
             sections: vec![harmos_protocol::v1::Section {
@@ -236,7 +236,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                         identifier: "measurement".into(),
                         ..Default::default()
                     }),
-                    message: "dokime.v1.PlotDomain".into(),
+                    message: "dokime.client.v1.plots.PlotDomain".into(),
                 }],
             }
             .encode_to_vec(),
@@ -256,7 +256,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                 .map(|index| Sample {
                     stream: "reading".into(),
                     source_ns: index * 1_000_000_000,
-                    row: v1::PlotDomain {
+                    row: dokime_protocol::client::plots::PlotDomain {
                         min: (index % 31) as f64,
                         max: index as f64,
                     }
@@ -274,7 +274,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                         payload: dokime_protocol::context::evidence::RecordsAppendRequest {
                             execution: id.into(),
                             kind: "measurement".into(),
-                            payload: v1::PlotDomain { min: value, max: value + 7.0 }.encode_to_vec(),
+                            payload: dokime_protocol::client::plots::PlotDomain { min: value, max: value + 7.0 }.encode_to_vec(),
                             ..Default::default()
                         }
                         .encode_to_vec(),
@@ -288,16 +288,16 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         }
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut documents = v1::documents_client::DocumentsClient::new(channel.clone());
+        let mut documents = dokime_protocol::client::documents_client::DocumentsClient::new(channel.clone());
 
-        let mut preferences = v1::plots::settings_client::SettingsClient::new(channel.clone());
-        let mut reports = v1::reports_client::ReportsClient::new(channel);
+        let mut preferences = dokime_protocol::client::plots::settings_client::SettingsClient::new(channel.clone());
+        let mut reports = dokime_protocol::client::reports_client::ReportsClient::new(channel);
         let scope = v1::DocumentScope {
             cycle_id: "documents".into(),
             execution_id: "documents-a".into(),
         };
         let current = preferences
-            .get(v1::plots::SettingsGetRequest {
+            .get(dokime_protocol::client::plots::SettingsGetRequest {
                 scope: Some(scope.clone()),
                 document_id: "measurements".into(),
                 plot_id: "trend".into(),
@@ -306,11 +306,11 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             .await?
             .into_inner();
         preferences
-            .set(v1::plots::SettingsSetRequest {
+            .set(dokime_protocol::client::plots::SettingsSetRequest {
                 scope: Some(scope.clone()),
                 document_id: "measurements".into(),
                 plot_id: "trend".into(),
-                value: Some(v1::plots::PlotSettingsValue {
+                value: Some(dokime_protocol::client::plots::PlotSettingsValue {
                     display_points: Some(32),
                     downsample: v1::Downsample::MinMax as i32,
                 }),
@@ -320,7 +320,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             .await?;
 
         // Read Bounded Pages at One Cut and Validate the Complete Frame Protocol.
-        let mut request = v1::DocumentsGetRequest {
+        let mut request = dokime_protocol::client::DocumentsGetRequest {
             scope: Some(scope.clone()),
             document_id: "measurements".into(),
             ..Default::default()
@@ -355,14 +355,15 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         let mut grouped_counts = Vec::new();
         for (index, frame) in frames.iter().enumerate() {
             match frame.frame.as_ref().unwrap().kind.as_ref().unwrap() {
-                v1::document_frame_frame::Kind::Card(card) => {
+                dokime_protocol::client::document_frame_frame::Kind::Card(card) => {
                     assert!(!structures);
                     assert!(cards.insert(card.metadata.as_ref().unwrap().identifier.clone()));
                 }
-                v1::document_frame_frame::Kind::GroupDefinition(_) | v1::document_frame_frame::Kind::TileDefinition(_) => {
+                dokime_protocol::client::document_frame_frame::Kind::GroupDefinition(_)
+                | dokime_protocol::client::document_frame_frame::Kind::TileDefinition(_) => {
                     assert!(!structures)
                 }
-                v1::document_frame_frame::Kind::Binding(value) => {
+                dokime_protocol::client::document_frame_frame::Kind::Binding(value) => {
                     assert_eq!(value.metadata.as_ref().unwrap().identifier, value.source_id);
                     if !structures {
                         bindings.insert(value.source_id.clone());
@@ -370,27 +371,27 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                         assert!(evidence_cut);
                         assert!(bindings.contains(&value.source_id));
                     }
-                    if let Some(v1::document_binding_result::Kind::Plot(plot)) =
+                    if let Some(dokime_protocol::client::document_binding_result::Kind::Plot(plot)) =
                         value.result.as_ref().and_then(|result| result.kind.as_ref())
                         && value.source_id == "trend-card"
                     {
                         binding = plot.request.clone();
                     }
                 }
-                v1::document_frame_frame::Kind::LayoutNode(node) => {
+                dokime_protocol::client::document_frame_frame::Kind::LayoutNode(node) => {
                     assert!(!structures);
                     layout_count += 1;
-                    if let Some(v1::document_layout_node_node::Kind::Section(section)) =
+                    if let Some(dokime_protocol::client::document_layout_node_node::Kind::Section(section)) =
                         node.node.as_ref().and_then(|node| node.kind.as_ref())
                     {
                         assert!(sections.insert(section.node_id.clone()));
                     }
                 }
-                v1::document_frame_frame::Kind::RepeatSelection(value) => {
+                dokime_protocol::client::document_frame_frame::Kind::RepeatSelection(value) => {
                     assert!(!structures);
                     repeats.insert(value.node_id.clone());
                 }
-                v1::document_frame_frame::Kind::StructureComplete(counts) => {
+                dokime_protocol::client::document_frame_frame::Kind::StructureComplete(counts) => {
                     assert!(!structures);
                     structures = true;
                     assert_eq!(counts.frame_count, index as u64 + 1);
@@ -400,12 +401,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     assert_eq!(counts.section_count, sections.len() as u64);
                     assert_eq!(counts.repeat_count, repeats.len() as u64);
                 }
-                v1::document_frame_frame::Kind::EvidenceCut(_) => {
+                dokime_protocol::client::document_frame_frame::Kind::EvidenceCut(_) => {
                     assert!(structures);
                     assert!(!evidence_cut);
                     evidence_cut = true;
                 }
-                v1::document_frame_frame::Kind::SummaryTile(tile) => {
+                dokime_protocol::client::document_frame_frame::Kind::SummaryTile(tile) => {
                     assert!(evidence_cut);
                     assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
                     if tile.card_id.starts_with("group-count.") {
@@ -414,16 +415,16 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                         summaries.insert(tile.metadata.as_ref().unwrap().identifier.clone(), tile.value.clone().unwrap());
                     }
                 }
-                v1::document_frame_frame::Kind::TableRow(_) => {
+                dokime_protocol::client::document_frame_frame::Kind::TableRow(_) => {
                     assert!(evidence_cut);
                     table_rows += 1;
                 }
-                v1::document_frame_frame::Kind::CardComplete(id) => {
+                dokime_protocol::client::document_frame_frame::Kind::CardComplete(id) => {
                     assert!(evidence_cut);
                     assert!(bindings.contains(id));
                     assert!(finished.insert(id.clone()));
                 }
-                v1::document_frame_frame::Kind::Completion(counts) => {
+                dokime_protocol::client::document_frame_frame::Kind::Completion(counts) => {
                     assert!(evidence_cut);
                     assert_eq!(counts.frame_count, index as u64 + 1);
                     assert_eq!(counts.binding_count, bindings.len() as u64);
@@ -456,9 +457,9 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         let plot = binding.unwrap();
         assert_eq!(plot.max_points, Some(32));
         assert!(plot.at.is_some());
-        let reply = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+        let reply = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
             .await?
-            .list(v1::plots::SnapshotsListRequest {
+            .list(dokime_protocol::client::plots::SnapshotsListRequest {
                 requests: vec![plot],
                 ..Default::default()
             })
@@ -470,7 +471,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
 
         // Replaying a Cut Preserves Structure and Its Page Boundary.
         let replay = documents
-            .get(v1::DocumentsGetRequest {
+            .get(dokime_protocol::client::DocumentsGetRequest {
                 scope: Some(scope.clone()),
                 document_id: "measurements".into(),
                 at: first.resolved_at.clone(),
@@ -479,7 +480,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             .await?
             .into_inner();
         assert_eq!(replay, first);
-        let mut structure = v1::DocumentsGetRequest {
+        let mut structure = dokime_protocol::client::DocumentsGetRequest {
             scope: Some(scope),
             document_id: "measurements".into(),
             structure_only: true,
@@ -490,10 +491,10 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             let page = documents.get(structure.clone()).await?.into_inner();
             for frame in page.frames {
                 match frame.frame.unwrap().kind.unwrap() {
-                    v1::document_frame_frame::Kind::EvidenceCut(_) => cut_seen = true,
-                    v1::document_frame_frame::Kind::CardComplete(_)
-                    | v1::document_frame_frame::Kind::SummaryTile(_)
-                    | v1::document_frame_frame::Kind::TableRow(_) => panic!("Structure-Only Capture Evaluated a Card"),
+                    dokime_protocol::client::document_frame_frame::Kind::EvidenceCut(_) => cut_seen = true,
+                    dokime_protocol::client::document_frame_frame::Kind::CardComplete(_)
+                    | dokime_protocol::client::document_frame_frame::Kind::SummaryTile(_)
+                    | dokime_protocol::client::document_frame_frame::Kind::TableRow(_) => panic!("Structure-Only Capture Evaluated a Card"),
                     _ => (),
                 }
             }
@@ -506,11 +507,11 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         assert!(cut_seen);
 
         // Preparing Never Publishes; Publication Requires the Exact Prepared Revision.
-        let subject = v1::ReportSubject {
-            kind: Some(v1::report_subject::Kind::Execution("documents-a".into())),
+        let subject = dokime_protocol::client::ReportSubject {
+            kind: Some(dokime_protocol::client::report_subject::Kind::Execution("documents-a".into())),
         };
         let prepared = reports
-            .create(v1::ReportsCreateRequest {
+            .create(dokime_protocol::client::ReportsCreateRequest {
                 subject: Some(subject.clone()),
                 document_id: "measurements".into(),
                 request_id: "preview".into(),
@@ -525,7 +526,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         assert_eq!(sha2::Sha256::digest(&frozen.html).as_slice(), reference.sha256);
         assert!(std::str::from_utf8(&frozen.html)?.contains("<svg"));
         assert!(store.reports("documents-a")?.is_empty());
-        let mut publish = v1::ReportsPublishRequest {
+        let mut publish = dokime_protocol::client::ReportsPublishRequest {
             name,
             subject: Some(subject),
             expected_revision: vec![0],
@@ -537,9 +538,9 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         reports.publish(publish).await?;
         assert_eq!(store.reports("documents-a")?.len(), 1);
         let cycle = reports
-            .create(v1::ReportsCreateRequest {
-                subject: Some(v1::ReportSubject {
-                    kind: Some(v1::report_subject::Kind::Cycle("documents".into())),
+            .create(dokime_protocol::client::ReportsCreateRequest {
+                subject: Some(dokime_protocol::client::ReportSubject {
+                    kind: Some(dokime_protocol::client::report_subject::Kind::Cycle("documents".into())),
                 }),
                 request_id: "cycle-preview".into(),
                 ..Default::default()
@@ -557,7 +558,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             }),
             ..Default::default()
         })?;
-        let mut cycle_request = v1::DocumentsGetRequest {
+        let mut cycle_request = dokime_protocol::client::DocumentsGetRequest {
             scope: Some(v1::DocumentScope {
                 cycle_id: "documents".into(),
                 execution_id: String::new(),
@@ -569,7 +570,9 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         loop {
             let page = documents.get(cycle_request.clone()).await?.into_inner();
             for frame in page.frames {
-                if let Some(v1::document_frame_frame::Kind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind) {
+                if let Some(dokime_protocol::client::document_frame_frame::Kind::EvidenceCut(cut)) =
+                    frame.frame.and_then(|frame| frame.kind)
+                {
                     cacheable = Some(cut.cacheable);
                 }
             }

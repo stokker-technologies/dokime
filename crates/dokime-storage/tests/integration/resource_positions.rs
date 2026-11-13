@@ -91,7 +91,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     store.close("first", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
     store.seal("first")?;
     let seal = store.cut("first")?.seal;
-    store.delete_sealed_execution("delete", "first", &seal, &v1::ExecutionsDeleteResponse::default())?;
+    store.delete_sealed_execution("delete", "first", &seal, &dokime_protocol::client::ExecutionsDeleteResponse::default())?;
     assert!(store.evidence_position(Some(&cut)).is_err());
     let replacement = store.evidence_position(None)?;
     assert_ne!(replacement.history, cut.history);

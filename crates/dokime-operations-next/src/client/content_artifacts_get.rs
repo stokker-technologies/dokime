@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.content.Artifacts/Get";
+pub const ID: &str = "dokime.client.v1.content.Artifacts/Get";
 
 /* === Macros === */
 
@@ -44,16 +44,21 @@ pub const ID: &str = "dokime.v1.content.Artifacts/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::content::ArtifactsGetRequest, v1::content::ArtifactsGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::content::ArtifactsGetRequest, dokime_protocol::client::content::ArtifactsGetResponse>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::content::ArtifactsGetRequest) -> Result<v1::content::ArtifactsGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::content::ArtifactsGetRequest,
+) -> Result<dokime_protocol::client::content::ArtifactsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) = super::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
             let entry = context.host.store().content(&request.name)?;
             if !entry.artifact {
                 return Err(Error::Invalid("Get Artifact: Select an Artifact Identifier".into()));
             }
-            Ok(v1::content::ArtifactsGetResponse {
+            Ok(dokime_protocol::client::content::ArtifactsGetResponse {
                 metadata: Some(v1::ArtifactMetadata::decode(entry.metadata.as_slice())?),
                 file: Some(reference(context, &entry)?),
                 ..Default::default()

@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,18 +37,18 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::backend::overview_server::Overview for Services {
+impl dokime_protocol::client::backend::overview_server::Overview for Services {
     async fn get(
-        &self, request: tonic::Request<v1::backend::OverviewGetRequest>,
-    ) -> Result<tonic::Response<v1::backend::OverviewGetResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::backend::OverviewGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::backend::OverviewGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::backend_overview_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations_next::client::Output<v1::backend::OverviewWatchResponse>;
+    type WatchStream = dokime_operations_next::client::Output<dokime_protocol::client::backend::OverviewWatchResponse>;
     async fn watch(
-        &self, request: tonic::Request<v1::backend::OverviewWatchRequest>,
+        &self, request: tonic::Request<dokime_protocol::client::backend::OverviewWatchRequest>,
     ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
         let reply = dokime_operations_next::client::backend_overview_watch::handle(&self.context, request.into_inner())
             .await

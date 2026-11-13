@@ -22,8 +22,6 @@
 // Local Imports
 use crate::{Error, Result, client::Context};
 
-use dokime_protocol::v1;
-
 /* === Constants === */
 
 pub const ID: &str = "dokime.plugins.list_installations";
@@ -43,16 +41,21 @@ pub const ID: &str = "dokime.plugins.list_installations";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::PluginsListInstallationsRequest, v1::InstallationPage>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::PluginsListInstallationsRequest, dokime_protocol::client::InstallationPage>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::PluginsListInstallationsRequest) -> Result<v1::InstallationPage> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::PluginsListInstallationsRequest,
+) -> Result<dokime_protocol::client::InstallationPage> {
     super::complete(ID, context.settings.read_timeout, async {
         context.host.refresh_plugin_states().await?;
         use prost::Message;
         use sha2::{Digest, Sha256};
         let installations = context.host.installations()?;
         let digest = Sha256::digest(
-            v1::InstallationPage {
+            dokime_protocol::client::InstallationPage {
                 installations: installations.clone(),
                 ..Default::default()
             }
@@ -73,12 +76,12 @@ pub async fn handle(context: &Context, request: v1::PluginsListInstallationsRequ
         let mut selected = installations.into_iter().filter(|installation| installation.install_id > after);
         let installations: Vec<_> = selected.by_ref().take(limit).collect();
         let next = selected.next().and_then(|_| {
-            installations.last().map(|installation| v1::InstallationCursor {
+            installations.last().map(|installation| dokime_protocol::client::InstallationCursor {
                 manifest_sha256: digest.clone(),
                 after_install_id: installation.install_id.clone(),
             })
         });
-        Ok(v1::InstallationPage {
+        Ok(dokime_protocol::client::InstallationPage {
             installations,
             next,
             total_count,

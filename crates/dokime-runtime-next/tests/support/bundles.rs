@@ -63,33 +63,34 @@ pub fn bundle(executable: &[u8], version: &str) -> Result<Vec<u8>, Box<dyn std::
     }
     Ok(archive.into_inner()?)
 }
-pub fn upload(bytes: Vec<u8>) -> Vec<dokime::v1::PluginsInstallInput> {
-    use dokime::v1;
+pub fn upload(bytes: Vec<u8>) -> Vec<dokime_protocol::client::PluginsInstallInput> {
     use sha2::Digest;
-    let header = v1::InstallPluginHeader {
+    let header = dokime_protocol::client::InstallPluginHeader {
         size_bytes: bytes.len() as u64,
         sha256: sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect(),
     };
     let mut frames = vec![
-        v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+        dokime_protocol::client::PluginsInstallInput {
+            value: Some(dokime_protocol::client::plugins_install_input::Value::Request(dokime_protocol::client::PluginsInstallRequest {})),
         },
-        v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Item(v1::InstallPluginFrame {
-                frame: Some(v1::InstallPluginFrameFrame {
-                    kind: Some(v1::install_plugin_frame_frame::Kind::Header(header)),
+        dokime_protocol::client::PluginsInstallInput {
+            value: Some(dokime_protocol::client::plugins_install_input::Value::Item(dokime_protocol::client::InstallPluginFrame {
+                frame: Some(dokime_protocol::client::InstallPluginFrameFrame {
+                    kind: Some(dokime_protocol::client::install_plugin_frame_frame::Kind::Header(header)),
                 }),
             })),
         },
     ];
     for (index, data) in bytes.chunks(1024 * 1024).enumerate() {
-        frames.push(v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Item(v1::InstallPluginFrame {
-                frame: Some(v1::InstallPluginFrameFrame {
-                    kind: Some(v1::install_plugin_frame_frame::Kind::Chunk(v1::InstallPluginChunk {
-                        offset: (index * 1024 * 1024) as u64,
-                        data: data.to_vec(),
-                    })),
+        frames.push(dokime_protocol::client::PluginsInstallInput {
+            value: Some(dokime_protocol::client::plugins_install_input::Value::Item(dokime_protocol::client::InstallPluginFrame {
+                frame: Some(dokime_protocol::client::InstallPluginFrameFrame {
+                    kind: Some(dokime_protocol::client::install_plugin_frame_frame::Kind::Chunk(
+                        dokime_protocol::client::InstallPluginChunk {
+                            offset: (index * 1024 * 1024) as u64,
+                            data: data.to_vec(),
+                        },
+                    )),
                 }),
             })),
         });

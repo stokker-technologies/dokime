@@ -65,12 +65,12 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
 
         // Secret Values Are Registered Before Host Events Can Retain Them
         let secret = "thermal";
-        let mut secrets = v1::secrets_client::SecretsClient::new(channel.clone());
-        let generation = secrets.list(v1::SecretsListRequest { ..Default::default() }).await?.into_inner().generation;
+        let mut secrets = dokime_protocol::client::secrets_client::SecretsClient::new(channel.clone());
+        let generation = secrets.list(dokime_protocol::client::SecretsListRequest { ..Default::default() }).await?.into_inner().generation;
         let saved = secrets
-            .set(v1::SecretsSetRequest {
+            .set(dokime_protocol::client::SecretsSetRequest {
                 name: "diagnostics.access".into(),
-                value: Some(v1::SecretWritable {
+                value: Some(dokime_protocol::client::SecretWritable {
                     metadata: Some(v1::Metadata {
                         identifier: "diagnostics.access".into(),
                         label: "Diagnostics Access".into(),
@@ -108,8 +108,8 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         let mut plugin =
             dokime_runtime_next::PluginProcess::start(&super::support::thermal_fixture()?, true, &super::support::settings().placement)
                 .await?;
-        let mut plugins = v1::plugins_client::PluginsClient::new(channel);
-        let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
+        let mut plugins = dokime_protocol::client::plugins_client::PluginsClient::new(channel);
+        let entry = plugins.add(dokime_protocol::client::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
         assert!(entry.description.as_ref().unwrap().id.contains(secret));
         loop {
             let frame = logs.next().await?.ok_or("Watch Logs: Closed Before Plugin Admission")?;
@@ -211,7 +211,7 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         }
         assert!(paths.contains(&std::path::PathBuf::from("dokime/protocol.json")));
         secrets
-            .delete(v1::SecretsDeleteRequest {
+            .delete(dokime_protocol::client::SecretsDeleteRequest {
                 names: vec!["diagnostics.access".into()],
                 expected_revision: saved.revision,
                 request_id: "cleanup".into(),

@@ -64,7 +64,7 @@ pub struct Report {
 impl Store {
     pub fn plot_preferences(&self, execution: &str, document: &str, plot: &str) -> Result<Option<(Option<u32>, i32)>> {
         Ok(self
-            .administration::<v1::plots::PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
+            .administration::<dokime_protocol::client::plots::PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
             .map(|value| (value.display_points, value.downsample)))
     }
     pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: v1::Document, html: Vec<u8>) -> Result<Report> {

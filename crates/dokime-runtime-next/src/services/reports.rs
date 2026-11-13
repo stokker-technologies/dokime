@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,24 +37,26 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::reports_server::Reports for Services {
-    async fn get(&self, request: tonic::Request<v1::ReportsGetRequest>) -> Result<tonic::Response<v1::ReportsGetResponse>, tonic::Status> {
+impl dokime_protocol::client::reports_server::Reports for Services {
+    async fn get(
+        &self, request: tonic::Request<dokime_protocol::client::ReportsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::ReportsGetResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::reports_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn create(
-        &self, request: tonic::Request<v1::ReportsCreateRequest>,
-    ) -> Result<tonic::Response<v1::ReportsCreateResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::ReportsCreateRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::ReportsCreateResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::reports_create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn publish(
-        &self, request: tonic::Request<v1::ReportsPublishRequest>,
-    ) -> Result<tonic::Response<v1::ReportsPublishResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::ReportsPublishRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::ReportsPublishResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::reports_publish::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

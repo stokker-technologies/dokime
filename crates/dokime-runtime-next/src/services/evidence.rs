@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -38,16 +37,16 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl v1::evidence_server::Evidence for Services {
+impl dokime_protocol::client::evidence_server::Evidence for Services {
     async fn statistics(
-        &self, request: tonic::Request<v1::EvidenceStatisticsRequest>,
-    ) -> Result<tonic::Response<v1::EvidenceStatisticsResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::EvidenceStatisticsRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::EvidenceStatisticsResponse>, tonic::Status> {
         let _ = request;
-        Err(tonic::Status::unimplemented("dokime.v1.Evidence/Statistics: Operation Is Unavailable in This Host"))
+        Err(tonic::Status::unimplemented("dokime.client.v1.Evidence/Statistics: Operation Is Unavailable in This Host"))
     }
     async fn archive(
-        &self, request: tonic::Request<v1::EvidenceArchiveRequest>,
-    ) -> Result<tonic::Response<v1::EvidenceArchiveResponse>, tonic::Status> {
+        &self, request: tonic::Request<dokime_protocol::client::EvidenceArchiveRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::EvidenceArchiveResponse>, tonic::Status> {
         let reply = dokime_operations_next::client::evidence_archive::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;

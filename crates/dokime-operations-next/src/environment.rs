@@ -25,7 +25,7 @@ use dokime_protocol::context::{BackendEnvironmentRequest, BackendEnvironmentResp
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.Backend/Environment";
+pub const ID: &str = "dokime.plugin.host.v1.Backend/Environment";
 
 /* === Macros === */
 

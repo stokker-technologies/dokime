@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.plots.Snapshots/Watch";
+pub const ID: &str = "dokime.client.v1.plots.Snapshots/Watch";
 
 /* === Macros === */
 
@@ -43,15 +42,18 @@ pub const ID: &str = "dokime.v1.plots.Snapshots/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::plots::SnapshotsWatchRequest, v1::plots::SnapshotsWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::plots::SnapshotsWatchRequest, dokime_protocol::client::plots::SnapshotsWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
 pub async fn handle(
-    context: &Context, request: v1::plots::SnapshotsWatchRequest,
-) -> Result<super::Output<v1::plots::SnapshotsWatchResponse>> {
+    context: &Context, request: dokime_protocol::client::plots::SnapshotsWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::plots::SnapshotsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::plots::SnapshotsListRequest {
+        let mut selection = dokime_protocol::client::plots::SnapshotsListRequest {
             requests: request.requests,
             at: request.at,
             page: request.page,
@@ -66,12 +68,12 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = v1::plots::SnapshotsWatchResponse {
+                    let response = dokime_protocol::client::plots::SnapshotsWatchResponse {
                         updates: page
                             .envelopes
                             .into_iter()
-                            .map(|envelope| v1::PlotStreamUpdate {
-                                kind: v1::PlotStreamKind::Snapshot as i32,
+                            .map(|envelope| dokime_protocol::client::plots::PlotStreamUpdate {
+                                kind: dokime_protocol::client::plots::PlotStreamKind::Snapshot as i32,
                                 envelope: Some(envelope),
                             })
                             .collect(),
@@ -108,7 +110,7 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::plots::SnapshotsWatchResponse {
+                                .send(Ok(dokime_protocol::client::plots::SnapshotsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

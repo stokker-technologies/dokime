@@ -40,29 +40,29 @@ use dokime_protocol::v1;
 /* === Public Functions === */
 
 // Product Defaults Are Copied from the Old Application Preferences; Delete the Old Owner at Cutover.
-pub(super) fn initial() -> v1::SettingsGetResponse {
-    v1::SettingsGetResponse {
+pub(super) fn initial() -> dokime_protocol::client::SettingsGetResponse {
+    dokime_protocol::client::SettingsGetResponse {
         revision: 0_u64.to_be_bytes().to_vec(),
-        value: Some(v1::ApplicationSettings {
-            appearance: Some(v1::ApplicationAppearance {
-                theme_mode: v1::ThemeMode::System as i32,
-                density: v1::Density::Comfortable as i32,
+        value: Some(dokime_protocol::client::ApplicationSettings {
+            appearance: Some(dokime_protocol::client::ApplicationAppearance {
+                theme_mode: dokime_protocol::client::ThemeMode::System as i32,
+                density: dokime_protocol::client::Density::Comfortable as i32,
                 ..Default::default()
             }),
-            report: Some(v1::ReportDefaults {
+            report: Some(dokime_protocol::client::ReportDefaults {
                 source_bytes: 64 * 1024 * 1024,
                 value_depth: 128,
                 table_rows: 32,
                 plot_points: 2000,
                 plot_downsample: v1::Downsample::Auto as i32,
             }),
-            client: Some(v1::ClientPreferences {
+            client: Some(dokime_protocol::client::ClientPreferences {
                 connect_timeout_ms: 10_000,
                 request_timeout_ms: 30_000,
             }),
-            telemetry: Some(v1::TelemetryPreferences { interval_ms: 1000 }),
+            telemetry: Some(dokime_protocol::client::TelemetryPreferences { interval_ms: 1000 }),
             listener: None,
-            plugins: Some(v1::PluginPreferences {
+            plugins: Some(dokime_protocol::client::PluginPreferences {
                 startup_timeout_s: 60,
                 stop_timeout_s: 10,
             }),
@@ -71,24 +71,24 @@ pub(super) fn initial() -> v1::SettingsGetResponse {
     }
 }
 
-pub(super) fn read(context: &Context) -> Result<v1::SettingsGetResponse> {
+pub(super) fn read(context: &Context) -> Result<dokime_protocol::client::SettingsGetResponse> {
     let (payload, revision) =
         context.host.store().administration_value("preferences", &prost::Message::encode_to_vec(&initial().value.unwrap()))?;
-    Ok(v1::SettingsGetResponse {
-        value: Some(<v1::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),
+    Ok(dokime_protocol::client::SettingsGetResponse {
+        value: Some(<dokime_protocol::client::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),
         revision,
         resolved_at: None,
     })
 }
 
-pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
+pub(super) fn validate(settings: &dokime_protocol::client::ApplicationSettings) -> Result<()> {
     let appearance = settings.appearance.as_ref().ok_or_else(|| invalid("Supply Appearance Preferences"))?;
     if appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256) {
         return Err(invalid("Choose a Theme Family of 1 to 256 Bytes"));
     }
-    if v1::ThemeMode::try_from(appearance.theme_mode).is_err()
+    if dokime_protocol::client::ThemeMode::try_from(appearance.theme_mode).is_err()
         || appearance.theme_mode == 0
-        || v1::Density::try_from(appearance.density).is_err()
+        || dokime_protocol::client::Density::try_from(appearance.density).is_err()
         || appearance.density == 0
     {
         return Err(invalid("Choose a Valid Theme Mode and Density"));
@@ -118,12 +118,12 @@ pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::plugins::SettingsGetResponse> {
+pub(super) fn plugin(context: &Context, identifier: &str) -> Result<dokime_protocol::client::plugins::SettingsGetResponse> {
     let plugin = plugin_owner(context, identifier)?;
     for_plugin(&context.host.store(), plugin)
 }
 
-pub(super) fn plugin_owner(context: &Context, identifier: &str) -> Result<v1::Plugin> {
+pub(super) fn plugin_owner(context: &Context, identifier: &str) -> Result<dokime_protocol::client::Plugin> {
     let plugin = context
         .host
         .plugins()?
@@ -138,13 +138,15 @@ pub(super) fn plugin_key(context: &Context, identifier: &str) -> Result<String> 
     Ok(format!("plugin-settings:{}", plugin.description.as_ref().map_or(plugin.entry.as_str(), |description| description.id.as_str())))
 }
 
-pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> Result<v1::plugins::SettingsGetResponse> {
+pub(crate) fn for_plugin(
+    store: &dokime_storage::Store, plugin: dokime_protocol::client::Plugin,
+) -> Result<dokime_protocol::client::plugins::SettingsGetResponse> {
     let settings_owner = plugin.description.as_ref().map(|description| description.id.clone()).unwrap_or_else(|| plugin.entry.clone());
-    let mut settings = v1::SettingsCatalog::default();
+    let mut settings = v1::SettingsDeclarations::default();
     if let Some(catalog) = plugin.description.and_then(|description| description.catalog) {
         for section in catalog.sections {
-            if section.r#type == "dokime.v1.SettingsCatalog" {
-                settings.settings.extend(<v1::SettingsCatalog as prost::Message>::decode(section.payload.as_slice())?.settings);
+            if section.r#type == "dokime.v1.SettingsDeclarations" {
+                settings.settings.extend(<v1::SettingsDeclarations as prost::Message>::decode(section.payload.as_slice())?.settings);
             }
         }
     }
@@ -174,12 +176,12 @@ pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> R
             continue;
         }
         let identifier = setting.metadata.as_ref().unwrap().identifier.clone();
-        secrets.push(v1::SecretAvailability {
+        secrets.push(dokime_protocol::client::plugins::SecretAvailability {
             available: super::secrets_store::availability(store, &identifier)?,
             identifier,
         });
     }
-    Ok(v1::plugins::SettingsGetResponse {
+    Ok(dokime_protocol::client::plugins::SettingsGetResponse {
         schema: Some(settings),
         value: Some(v1::MapValue { values }),
         secrets,
@@ -187,7 +189,7 @@ pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> R
     })
 }
 
-pub(super) fn validate_plugin(settings: &v1::SettingsCatalog, values: &v1::MapValue) -> Result<()> {
+pub(super) fn validate_plugin(settings: &v1::SettingsDeclarations, values: &v1::MapValue) -> Result<()> {
     for (key, value) in &values.values {
         let setting = settings
             .settings

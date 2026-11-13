@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.evidence.Records/List";
+pub const ID: &str = "dokime.plugin.host.v1.evidence.Records/List";
 
 /* === Macros === */
 
@@ -88,7 +87,7 @@ pub async fn handle(
         }
         count += 1;
         let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-        let record = v1::Record {
+        let record = dokime_protocol::context::evidence::Record {
             kind: record.kind,
             payload: record.payload,
             at: record.source_at,

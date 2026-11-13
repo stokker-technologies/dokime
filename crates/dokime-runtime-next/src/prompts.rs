@@ -121,7 +121,9 @@ impl PromptManager {
     pub fn record_answer(
         &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
     ) -> Result<harmos_protocol::v1::Receipt> {
-        if let Some((_, receipt)) = self.store.requested_evidence(execution, "dokime.v1.prompts.Answers/Create", request_id, fingerprint)? {
+        if let Some((_, receipt)) =
+            self.store.requested_evidence(execution, "dokime.client.v1.prompts.Answers/Create", request_id, fingerprint)?
+        {
             return Ok(receipt);
         }
         let mut pending = lock(&self.pending)?;
@@ -131,7 +133,7 @@ impl PromptManager {
         }
         let (_, receipt) = self.store.append_requested(
             execution,
-            "dokime.v1.prompts.Answers/Create",
+            "dokime.client.v1.prompts.Answers/Create",
             request_id,
             fingerprint,
             dokime_storage::Evidence {

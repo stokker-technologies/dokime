@@ -41,7 +41,7 @@ use prost::Message;
 
 /* === Public Functions === */
 
-pub(super) fn validate(selection: &v1::CapturedRecordSelection) -> Result<()> {
+pub(super) fn validate(selection: &dokime_protocol::client::evidence::CapturedRecordSelection) -> Result<()> {
     if selection.severities.iter().any(|severity| {
         !matches!(
             v1::Severity::try_from(*severity),
@@ -134,7 +134,7 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
     }
     true
 }
-pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<v1::CapturedRecord>> {
+pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<dokime_protocol::client::evidence::CapturedRecord>> {
     let (kind, payload, timestamp, severity, message) = if let Some(kind) = evidence.kind.strip_prefix("record:") {
         let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         (kind.into(), record.payload, record.source_at, v1::Severity::Info as i32, None)
@@ -148,7 +148,7 @@ pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<
         Some(v1::origin::Kind::PluginRun(run)) => run.plugin.clone(),
         _ => "import".into(),
     };
-    Ok(Some(v1::CapturedRecord {
+    Ok(Some(dokime_protocol::client::evidence::CapturedRecord {
         record_id: format!("{}:{}", cut.execution.identifier, evidence.position),
         sequence: evidence.position,
         timestamp: timestamp.or_else(|| Some(super::projection::timestamp(evidence.source_ns))),

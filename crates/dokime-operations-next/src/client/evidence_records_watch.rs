@@ -22,14 +22,14 @@ use crate::{
     Result,
     client::{Context, Output},
 };
-use dokime_protocol::v1::evidence::{RecordsListRequest, RecordsWatchRequest, RecordsWatchResponse};
+use dokime_protocol::client::evidence::{RecordsListRequest, RecordsWatchRequest, RecordsWatchResponse};
 use harmos_protocol::v1 as h;
 
 // Local Imports
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Records/Watch";
+pub const ID: &str = "dokime.client.v1.evidence.Records/Watch";
 
 /* === Macros === */
 
@@ -92,7 +92,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         .and_then(|selection| selection.scope.as_ref())
                         .and_then(|scope| scope.execution_id.as_deref())
                         .or_else(|| match selection.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
-                            Some(dokime_protocol::v1::record_scope::Kind::Execution(id)) => Some(id.as_str()),
+                            Some(dokime_protocol::client::evidence::record_scope::Kind::Execution(id)) => Some(id.as_str()),
                             _ => None,
                         });
                     if execution.is_some_and(|id| {

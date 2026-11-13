@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Cases/Get";
+pub const ID: &str = "dokime.client.v1.Cases/Get";
 
 /* === Macros === */
 
@@ -43,9 +42,11 @@ pub const ID: &str = "dokime.v1.Cases/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::CasesGetRequest, v1::CasesGetResponse>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::CasesGetRequest, dokime_protocol::client::CasesGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::CasesGetRequest) -> Result<v1::CasesGetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::CasesGetRequest,
+) -> Result<dokime_protocol::client::CasesGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             super::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
@@ -53,8 +54,8 @@ pub async fn handle(context: &Context, request: v1::CasesGetRequest) -> Result<v
                 let summary =
                     super::execution_state::cases(context, &request.parent)?.into_iter().find(|case| case.case_id == request.name);
                 let parameter_count = super::execution_state::case(case.origin.as_ref().unwrap())?.parameters.len() as u64;
-                Ok(v1::CasesGetResponse {
-                    value: Some(v1::CaseDetail {
+                Ok(dokime_protocol::client::CasesGetResponse {
+                    value: Some(dokime_protocol::client::CaseDetail {
                         summary,
                         parameter_count,
                         generation_index: case.ordinal,

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Notes/Set";
+pub const ID: &str = "dokime.client.v1.evidence.Notes/Set";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.evidence.Notes/Set";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::evidence::NotesSetRequest, v1::evidence::NotesSetResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::evidence::NotesSetRequest, dokime_protocol::client::evidence::NotesSetResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::evidence::NotesSetRequest) -> Result<v1::evidence::NotesSetResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::evidence::NotesSetRequest,
+) -> Result<dokime_protocol::client::evidence::NotesSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Note: Supply Its Whole Writable Value".into()))?;
         if value.message.trim().is_empty() {

@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.backend.Overview/Watch";
+pub const ID: &str = "dokime.client.v1.backend.Overview/Watch";
 
 /* === Macros === */
 
@@ -43,15 +42,18 @@ pub const ID: &str = "dokime.v1.backend.Overview/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::backend::OverviewWatchRequest, v1::backend::OverviewWatchResponse>(ID, settings.watch_timeout)
+    super::declaration::<dokime_protocol::client::backend::OverviewWatchRequest, dokime_protocol::client::backend::OverviewWatchResponse>(
+        ID,
+        settings.watch_timeout,
+    )
 }
 pub async fn handle(
-    context: &Context, request: v1::backend::OverviewWatchRequest,
-) -> Result<super::Output<v1::backend::OverviewWatchResponse>> {
+    context: &Context, request: dokime_protocol::client::backend::OverviewWatchRequest,
+) -> Result<super::Output<dokime_protocol::client::backend::OverviewWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = v1::backend::OverviewGetRequest { at: request.at };
+        let mut selection = dokime_protocol::client::backend::OverviewGetRequest { at: request.at };
         let first = super::backend_overview_get::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
@@ -62,7 +64,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = String::new();
-                    let response = v1::backend::OverviewWatchResponse {
+                    let response = dokime_protocol::client::backend::OverviewWatchResponse {
                         overview: page.overview,
                         resolved_at: cut.clone(),
                         opening,
@@ -89,7 +91,7 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(v1::backend::OverviewWatchResponse {
+                                .send(Ok(dokime_protocol::client::backend::OverviewWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

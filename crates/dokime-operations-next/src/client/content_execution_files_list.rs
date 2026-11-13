@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.content.ExecutionFiles/List";
+pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/List";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.content.ExecutionFiles/List";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::content::ExecutionFilesListRequest, v1::content::ExecutionFilesListResponse>(ID, settings.read_timeout)
+    super::declaration::<
+        dokime_protocol::client::content::ExecutionFilesListRequest,
+        dokime_protocol::client::content::ExecutionFilesListResponse,
+    >(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::content::ExecutionFilesListRequest) -> Result<v1::content::ExecutionFilesListResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::content::ExecutionFilesListRequest,
+) -> Result<dokime_protocol::client::content::ExecutionFilesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let (saved, cut) = super::views::read(context, &format!("files/{}", request.parent), request.at.as_ref(), async {
@@ -63,14 +67,14 @@ pub async fn handle(context: &Context, request: v1::content::ExecutionFilesListR
                     files.push(entry.file_metadata()?);
                 }
             }
-            Ok(v1::content::ExecutionFilesListResponse { files, ..Default::default() })
+            Ok(dokime_protocol::client::content::ExecutionFilesListResponse { files, ..Default::default() })
         })
         .await?;
         let (files, next_page_token) =
             super::views::page(saved.files, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
         super::bounded_reply(
             context,
-            v1::content::ExecutionFilesListResponse {
+            dokime_protocol::client::content::ExecutionFilesListResponse {
                 files,
                 resolved_at: Some(cut),
                 next_page_token,

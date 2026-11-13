@@ -22,11 +22,10 @@ use harmos_protocol::v1 as h;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.Secrets/Import";
+pub const ID: &str = "dokime.client.v1.Secrets/Import";
 
 /* === Macros === */
 
@@ -43,9 +42,14 @@ pub const ID: &str = "dokime.v1.Secrets/Import";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<v1::SecretsImportRequest, v1::SecretsImportResponse>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::SecretsImportRequest, dokime_protocol::client::SecretsImportResponse>(
+        ID,
+        settings.mutation_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::SecretsImportRequest) -> Result<v1::SecretsImportResponse> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::SecretsImportRequest,
+) -> Result<dokime_protocol::client::SecretsImportResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
         if request.validate_only {
             let super::secrets_store::Reply::Preview(preview) =
@@ -53,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::SecretsImportRequest) -> Res
             else {
                 return Err(Error::Invalid("Preview Secrets: Restart the Secret Store".into()));
             };
-            return Ok(v1::SecretsImportResponse {
+            return Ok(dokime_protocol::client::SecretsImportResponse {
                 preview: Some(preview),
                 ..Default::default()
             });
@@ -65,7 +69,7 @@ pub async fn handle(context: &Context, request: v1::SecretsImportRequest) -> Res
             return Err(Error::Invalid("Import Secrets: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(v1::SecretsImportResponse {
+        Ok(dokime_protocol::client::SecretsImportResponse {
             snapshot: Some(snapshot),
             receipt: Some(receipt),
             ..Default::default()
