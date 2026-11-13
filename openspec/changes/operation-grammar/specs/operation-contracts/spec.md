@@ -188,7 +188,7 @@ without repeating the service name, and SHALL NOT be split merely to shorten nam
 #### Scenario: Mixed-Resource Service
 
 - **WHEN** Access allocates a pairing or regenerates a certificate
-- **THEN** Access.CreatePairing and Access.CreateCertificate state those single lifecycle actions
+- **THEN** Access.Pairings.Create and Access.Certificates.Create state those lifecycle actions; Access.Pairings.List/Delete inspect and revoke independent pairings
 - **AND** the separately readable/writable listener uses Access.Listener.Get/Set
 
 ### Requirement: Resource Part Names
@@ -325,9 +325,9 @@ plugin carriers and the library's other existing surfaces SHALL remain separate.
 - **WHEN** product plugin/context declarations and mapped library dependencies are included, counting shared capabilities once per face
 - **THEN** the plugin face has 5 logical namespaces, 9 operations, 4 gRPC entry methods and 9 request/response pairs, with Instance its one wire service
 - **AND** context has 15 logical namespaces, 29 operations, zero independent gRPC entry methods and 29 request/response pairs, carried as child calls
-- **AND** the completed client face has 42 services, 127 operations/gRPC methods and 127 pairs, including seven generic library companions beyond the original 120-method mapping
+- **AND** the completed client face has 44 services, 128 operations/gRPC methods and 128 pairs, including seven generic library companions beyond the original 120-method mapping
 - **AND** product-only totals are 48 namespaces, 116 declarations, 93 gRPC methods and 116 pairs; mapped library dependencies are 14 namespaces, 49 declarations, 38 gRPC methods and 49 pairs
-- **AND** all-face totals are 62 logical namespaces, 43 wire services, 165 operations, 131 gRPC entry methods and 330 method wrappers; these are not the whole library protocol's totals
+- **AND** all-face totals are 64 logical namespaces, 45 wire services, 166 operations, 132 gRPC entry methods and 332 method wrappers; these are not the whole library protocol's totals
 - **AND** supporting payloads and protocol frames remain separate from method wrappers
 
 ### Requirement: Product Evidence Archive and Generic Delivery

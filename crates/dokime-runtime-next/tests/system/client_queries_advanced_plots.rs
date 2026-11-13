@@ -167,7 +167,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let (stop,stopped)=tokio::sync::oneshot::channel::<()>();
         let provider_task=tokio::spawn(async move{tonic::transport::Server::builder().add_service(harmos_protocol::plugin::instance_server::InstanceServer::new(provider)).serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener),async {let _=stopped.await;}).await});
         let channel=tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client=dokime::client::HostClient::new(channel);
+        let client=dokime::client::HostClient::new(channel, super::support::client_settings())?;
         client.plugins.add(endpoint).await?;
         assert_eq!(plots.list_analyses(v1::PlotsListAnalysesRequest::default()).await?.into_inner().definitions.len(),1);
         let analysis_request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:v1::PlotKind::TimeSeries as i32,y_keys:vec!["max".into()],viewport:Some(v1::PlotWindow {from:0.0,to:15.0}),analysis:Some(v1::AnalysisSelection {id:"analysis.scale".into(),version:1,parameters:None}),max_points:Some(5),..Default::default()};

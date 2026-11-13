@@ -117,8 +117,16 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         }
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone());
-        let identity = client.backend.identity().await?;
+        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
+        let identity = client
+            .status
+            .get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {}))
+            .await?
+            .into_inner()
+            .status
+            .unwrap()
+            .identity
+            .unwrap();
         let mut evidence = v1::evidence_client::EvidenceClient::new(channel);
 
         // Resolve a Captured Schema Without Connecting Its Plugin
@@ -126,7 +134,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
                 record_type: "reading".into(),
                 schema_version: 1,
-                epoch: identity.backend_id.clone(),
+                epoch: identity.host_id.clone(),
             })
             .await?
             .into_inner();
@@ -191,7 +199,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
                 record_type: "dokime.log".into(),
                 schema_version: 1,
-                epoch: identity.backend_id.clone(),
+                epoch: identity.host_id.clone(),
             })
             .await?
             .into_inner();
@@ -238,7 +246,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     v1::EvidenceGetCapturedRecordSchemaRequest {
                         record_type: "reading".into(),
                         schema_version: 1,
-                        epoch: identity.backend_id,
+                        epoch: identity.host_id,
                     },
                 )),
             }]))

@@ -56,7 +56,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel);
+    let client = dokime::client::HostClient::new(channel, settings.client())?;
     let identifier = match args.prompt {
         Some(identifier) => identifier,
         None => {

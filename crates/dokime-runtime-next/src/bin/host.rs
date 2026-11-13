@@ -82,13 +82,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         stream_buffer: 8,
     };
     use tracing_subscriber::prelude::*;
-    let diagnostics = services::Diagnostics::new(
-        host_settings.clock.clone(),
-        NonZeroUsize::new(settings.page_items).unwrap(),
-        NonZeroUsize::new(settings.message_bytes).unwrap(),
-    );
-    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(diagnostics.clone()))?;
-    let server = services::serve_with_diagnostics(endpoint, &root, host_settings, settings, diagnostics).await?;
+    let server = services::serve(endpoint, &root, host_settings, settings).await?;
+    let filter =
+        tracing_subscriber::EnvFilter::builder().with_default_directive(tracing::level_filters::LevelFilter::INFO.into()).from_env()?;
+    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(filter).with(server.status().layer()))?;
     tracing::info!("Execution Host Is Ready");
     println!("http://{}", server.endpoint());
     std::io::stdout().flush()?;

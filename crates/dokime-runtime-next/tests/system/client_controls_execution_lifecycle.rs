@@ -55,7 +55,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = HostClient::new(channel.clone());
+        let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         client.plugins.add(plugin.endpoint()).await?;
         let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
         let mut observation = v1::observation_client::ObservationClient::new(channel.clone());

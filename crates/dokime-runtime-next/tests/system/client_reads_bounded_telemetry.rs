@@ -86,7 +86,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         store.seal("telemetry")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone());
+        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("telemetry".into()),

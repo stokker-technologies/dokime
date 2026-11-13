@@ -55,7 +55,7 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = HostClient::new(channel.clone());
+        let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
         let mut watch = observation.watch_runtime(v1::ObservationWatchRuntimeRequest::default()).await?.into_inner();
         let Some(v1::observation_watch_runtime_output::Value::Item(initial)) = watch.message().await?.unwrap().value else { panic!("Missing Initial Runtime State"); };

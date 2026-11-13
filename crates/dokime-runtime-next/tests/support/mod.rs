@@ -172,6 +172,16 @@ pub fn python() -> PathBuf {
     })
 }
 
+pub fn client_settings() -> dokime::client::ClientSettings {
+    let bounds = settings();
+    dokime::client::ClientSettings {
+        retained_bytes: bounds.placement.message_bytes,
+        message_bytes: bounds.placement.message_bytes,
+        input_items: bounds.placement.stream_window,
+        input_bytes: bounds.placement.message_bytes,
+    }
+}
+
 /* === Private Functions === */
 
 fn fixture_root() -> PathBuf {

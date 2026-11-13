@@ -140,8 +140,14 @@ inside that pinned dependency revision; other paths resolve in this repository.
    and live rotation. The new host serves library Access.Listener,
    Access.Pairings and Access.Certificates through GrpcManager, with product
    credential persistence in `services/access_credentials.rs`. Its former Remote
-   service and operations are removed. Other generic copies remain.
-   **Status:** Access composition landed; remaining composition is locked direction (`operation-grammar`).
+   service and operations are removed. Status.Get/Watch, Logs, TraceEvents and
+   ranged Diagnostics.Get are served by ServiceManager. `services/status.rs`
+   implements Contribution for product health and diagnostic entries; generic
+   Backend/Runtime services and product collection machinery are removed.
+   `client_collects_backend_diagnostics` proves health events, redaction and ranged
+   archives; `client_reads_runtime` proves status observation and stable restart identity.
+   The old loop retains its shared protocol until atomic cutover.
+   **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects

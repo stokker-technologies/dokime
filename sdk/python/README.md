@@ -199,4 +199,6 @@ in-process authoring story. Build prerequisites and named host runs are in
 The async `Client` exposes the library resource root, including
 `client.access.listener.get`, `client.access.pairings.create` and
 `client.access.certificates.create`, with the client's configured metadata.
-Use requests from the matching `harmos.v1.access` modules.
+Use requests from the matching `harmos.v1.access` modules. Generic identity and
+health use `client.status.get`; logs, trace events and diagnostics are nested
+under that same root. Connection identity checks use the library's stable host ID.

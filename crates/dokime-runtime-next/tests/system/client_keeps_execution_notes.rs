@@ -66,9 +66,8 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         // Create a Note and Resolve a Retried Mutation
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone());
-        let epoch = client.backend.identity().await?.epoch;
         let mut notes = v1::notes_client::NotesClient::new(channel);
+        let epoch = notes.list_notes(v1::NotesListNotesRequest::default()).await?.into_inner().cursor.unwrap().epoch;
         let owner = v1::AnnotationOwner {
             owner: Some(v1::AnnotationOwnerOwner {
                 kind: Some(v1::annotation_owner_owner::Kind::Execution(v1::ExecutionNoteOwner {

@@ -42,7 +42,7 @@ use dokime_storage::Store;
 pub(super) struct State {
     pub host: Host,
     pub administration: std::sync::Arc<tokio::sync::Mutex<()>>,
-    pub diagnostics: super::diagnostics::Diagnostics,
+    pub status: std::sync::Arc<harmos_runtime::services::status::Status>,
     pub root: std::path::PathBuf,
     pub render_settings: crate::RenderSettings,
     pub identity: v1::BackendIdentity,
@@ -94,11 +94,8 @@ impl ClientHost for State {
     fn now_ns(&self) -> i64 {
         self.host.now_ns()
     }
-    fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)> {
-        Ok(self.diagnostics.snapshot(scope))
-    }
-    fn diagnostic_changes(&self) -> tokio::sync::broadcast::Receiver<()> {
-        self.diagnostics.changes()
+    fn register_sensitive(&self, value: &str) -> Result<()> {
+        self.status.redaction.register(value.to_owned()).map_err(|error| Error::Unavailable(format!("Register Secret Redaction: {error}")))
     }
     fn bootstrap_paths(&self) -> v1::BootstrapPaths {
         let root = self.root.to_string_lossy().into_owned();

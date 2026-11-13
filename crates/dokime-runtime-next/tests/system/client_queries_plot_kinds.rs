@@ -102,7 +102,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         store.seal("kinds")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone());
+        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut plots = v1::plots_client::PlotsClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("kinds".into()),

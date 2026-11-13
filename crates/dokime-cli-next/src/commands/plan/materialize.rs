@@ -60,7 +60,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel);
+    let client = dokime::client::HostClient::new(channel, settings.client())?;
     let mut parameters = HashMap::new();
     if let Some(path) = args.parameters {
         let input: HashMap<String, Vec<serde_json::Value>> = serde_json::from_slice(&std::fs::read(path)?)?;

@@ -96,12 +96,17 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel);
-        let identity = client.backend.identity().await?;
-        assert_eq!(client.backend.health().await?.readiness, v1::BackendReadiness::Ready as i32);
+        let client = dokime::client::HostClient::new(channel, super::support::client_settings())?;
+        let status = client.status.get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {})).await?.into_inner();
+        let identity = status.status.as_ref().unwrap().identity.as_ref().unwrap().clone();
+        assert!(status.status.as_ref().unwrap().available);
         client.health.list().await?;
-        let availability = client.backend.availability().await?;
-        assert!(availability.methods.iter().any(|method| method == "/dokime.v1.Plugins/Add"));
+        let catalog = client.catalog_entries.list(tonic::Request::new(harmos_protocol::v1::CatalogEntriesListRequest {
+            kind: harmos_protocol::v1::CatalogKind::Operations as i32,
+            page: Some(harmos_protocol::v1::PageRequest { page_size: 1000, max_bytes: 4 * 1024 * 1024, page_token: String::new() }),
+            ..Default::default()
+        })).await?.into_inner();
+        assert!(catalog.operations.iter().any(|operation| operation.contract.as_ref().is_some_and(|contract| contract.id == "harmos.v1.Status/Get")));
 
         // Add by URL and Read the Admitted Catalog Through the SDK's Generated Clients
         let entry = client.plugins.add(plugin.endpoint()).await?;
@@ -251,16 +256,16 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         process.close().await?;
         let restarted = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(restarted.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel);
+        let client = dokime::client::HostClient::new(channel, super::support::client_settings())?;
         let restored = client.executions.get(execution_id.clone()).await?;
         assert_eq!(restored, detail);
         let restored_records = client.records.list(execution_id.clone()).await?;
         assert_eq!(restored_records, records);
         let restored_samples = client.samples.list(execution_id).await?;
         assert_eq!(restored_samples, samples);
-        let restored_identity = client.backend.identity().await?;
-        assert_eq!(restored_identity.backend_id, identity.backend_id);
-        assert_ne!(restored_identity.epoch, identity.epoch);
+        let restored = client.status.get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {})).await?.into_inner();
+        assert_eq!(restored.status.unwrap().identity.unwrap().host_id, identity.host_id);
+        assert_ne!(restored.resolved_at.unwrap().history.unwrap().epoch, status.resolved_at.unwrap().history.unwrap().epoch);
         client.close();
         restarted.close().await?;
         plugin.close().await?;

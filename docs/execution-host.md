@@ -83,7 +83,7 @@ Dokime implements the library CredentialStore with atomic revision checks in pro
 storage and private keys in the OS credential store. The library is the sole writer.
 Linux host-process stories retain one isolated credential-store session across restart.
 
-Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime and Health
+Plugins, Catalog, Settings, Secrets, Appearance and evidence Health
 serve every declared method, including their Run transports. Plugin installation
 accepts verified v1 `.dokime` tar bundles with one native sidecar per target,
 portable regular-file paths, matching size/digest inventory and a compatible
@@ -110,18 +110,33 @@ an available OS credential store for secret writes and TLS key persistence.
 
 Catalog and Health paging binds the current process epoch and inventory;
 installation paging binds its manifest digest. Restart paging after a stale
-cursor refusal. Backend availability lists only served methods. Diagnostics
-streams a verifiable ZIP containing backend identity and a bounded tracing tail;
-log/trace follows await events and redact secret-looking structured fields.
+cursor refusal. Generic status now uses the library root:
+
+```text
+Status.Get / Watch
+Status.Logs.List / Watch
+Status.TraceEvents.List / Watch
+Status.Diagnostics.Get
+```
+
+Get includes application/library identity, stable host ID, availability and health
+components. Product health changes notify the library contribution registration.
+Logs and trace events are bounded process diagnostics: keep List continuation at
+its issued position, and resynchronize explicitly after a Watch retention gap.
+Diagnostics.Get freezes a bounded tar archive, then reads ranges by its returned
+name, offset and length; verify SHA-256 after the final range. The product contributes
+protocol and path entries, and retains no second collector. Secret values are
+registered before publication and after reopening their protected storage; sensitive
+field names also redact. Capture honors `RUST_LOG`, with INFO as the host default.
 
 Planning, Execution, Observation, Prompts and History serve every declared
 operation and its Run form. Evidence, Telemetry, Reports and Notes also serve
 every direct and Run method. Content serves artifact, evidence archive and
 execution-file methods; its appearance asset download remains refused. Query
 ListExecutions is served; its remaining operations and Media are held for the
-owner’s API decision. Backend availability advertises every served method.
+owner’s API decision. Generic library contracts are discoverable through CatalogEntries.List.
 Refused methods return `UNIMPLEMENTED` naming the action; the owning OpenSpec
-task lists them. The same authenticated route composer registers all services
+task lists them. The library gRPC manager registers all services
 on both the loopback and remote listeners.
 Requests using unserved filter/cursor variants are explicitly refused.
 Evidence additionally serves captured-schema lookup and record watches, with
@@ -448,7 +463,7 @@ field 1. Content metadata and bounded chunks travel in fields 7 and 8 of each
 execution archive. The shape stays at v1 under the development storage policy.
 Notes support create/edit/list and Run envelopes, durable idempotent creation,
 selection-bound paging and closed-owner refusal. The loopback listener uses one
-local client principal until remote authentication lands.
+local client principal; the separate Access listener authenticates paired callers.
 
 Build the content-story fixture before its client journey:
 

@@ -119,7 +119,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         // Read an Existing Saved Seal and Its Bounded Artifact Window
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = HostClient::new(channel.clone());
+        let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut history = v1::history_client::HistoryClient::new(channel.clone());
         let checkpoint = history
             .get_execution_checkpoint(v1::HistoryGetExecutionCheckpointRequest {

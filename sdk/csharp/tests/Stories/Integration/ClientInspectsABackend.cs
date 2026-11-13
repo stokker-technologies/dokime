@@ -18,27 +18,26 @@ public sealed class ClientInspectsABackend
     var server = await FakeBackend.StartAsync();
     await using var app = server.App;
     await using var client = Client.Connect("http://localhost", new GrpcChannelOptions { HttpHandler = server.Handler });
-    var backend = client.Service(invoker => new Backend.BackendClient(invoker));
     var plugins = client.Service(invoker => new Plugins.PluginsClient(invoker));
 
     // Observe the Transport's Authentication Failure Before Supplying a Token.
-    using var denied = backend.GetIdentityAsync(new GetBackendIdentity());
+    using var denied = client.Status.Get(new Harmos.V1.StatusGetRequest());
     var failure = await Assert.ThrowsAsync<RpcException>(() => denied.ResponseAsync);
     Assert.Equal(StatusCode.Unauthenticated, failure.StatusCode);
 
     // Inspect the Backend Identity with Explicit Per-Call Credentials.
     var headers = new Grpc.Core.Metadata { { "authorization", "Bearer test-token" } };
-    using var identity = backend.GetIdentityAsync(new GetBackendIdentity(), headers);
+    using var identity = client.Status.Get(new Harmos.V1.StatusGetRequest(), new CallOptions(headers));
     var observed = await identity.ResponseAsync;
-    Assert.Equal("bench", observed.BackendId);
-    Assert.Equal("boot-a", observed.Epoch);
+    Assert.Equal("bench", observed.Status.Identity.HostId);
+    Assert.True(observed.Status.Available);
 
     // Drain a Finite Server Stream and Observe Successful Completion.
-    using var logs = backend.WatchLogs(new WatchBackendLogs(), headers);
-    List<BackendWatchLogsOutput> frames = [];
+    using var logs = client.Status.Logs.Watch(new Harmos.V1.StatusResources.LogsWatchRequest { MaxBytes = 4096, MaxEvents = 8 }, new CallOptions(headers));
+    List<Harmos.V1.StatusResources.LogsWatchResponse> frames = [];
     await foreach (var frame in logs.ResponseStream.ReadAllAsync()) frames.Add(frame);
-    Assert.Equal(new[] { LogLevel.Info, LogLevel.Error }, frames.Where(frame => frame.Item is not null).Select(frame => frame.Item.Level));
-    Assert.NotNull(frames[^1].Response);
+    Assert.Empty(frames[0].Events);
+    Assert.Equal(new[] { "INFO", "ERROR" }, frames.SelectMany(frame => frame.Events).Select(item => item.Level));
     Assert.Equal(StatusCode.OK, logs.GetStatus().StatusCode);
 
     // Add a Remote Entry and Read It Back Through the Generated Plugin Client.

@@ -55,7 +55,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = HostClient::new(channel.clone());
+        let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
         client.plugins.add(plugin.endpoint()).await?;
 

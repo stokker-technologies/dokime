@@ -38,6 +38,7 @@ dokime-storage = { workspace = true }
 # Git
 harmos-protocol = { workspace = true, features = ["host"] }
 harmos-runtime = { workspace = true }
+harmos-storage = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -48,11 +49,8 @@ tracing-subscriber = { workspace = true }
 
 # Utilities
 keyring = { workspace = true }
-rand = { workspace = true }
-rcgen = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
-subtle = { workspace = true }
 tar = { workspace = true }
 uuid = { workspace = true }
 zeroize = { workspace = true }

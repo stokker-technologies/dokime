@@ -63,7 +63,8 @@ private:
 
 class Client {
 public:
-  explicit Client(std::shared_ptr<grpc::Channel> channel) : access(channel), status(channel), storage(channel), channel_(std::move(channel)) {
+  explicit Client(std::shared_ptr<grpc::Channel> channel)
+      : access(channel), status(channel), storage(channel), channel_(std::move(channel)) {
     if (!channel_)
       throw std::invalid_argument("Client Channel Is Required");
   }

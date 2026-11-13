@@ -13,13 +13,14 @@ pub struct HostClient {
     pub records: Records,
     pub samples: Samples,
     pub reports: Reports,
-    pub backend: Backend,
+    transport: harmos::Client,
     pub health: Health,
 }
 
 impl HostClient {
-    pub fn new(channel: Channel) -> Self {
-        Self {
+    pub fn new(channel: Channel, settings: super::ClientSettings) -> Result<Self, Status> {
+        let transport = harmos::Client::new(channel.clone(), settings)?;
+        Ok(Self {
             plugins: Plugins(channel.clone()),
             suites: Suites(channel.clone()),
             templates: Templates(channel.clone()),
@@ -29,13 +30,20 @@ impl HostClient {
             records: Records(channel.clone()),
             samples: Samples(channel.clone()),
             reports: Reports(channel.clone()),
-            backend: Backend(channel.clone()),
+            transport,
             health: Health(channel.clone()),
-        }
+        })
     }
     /// Release This Client's Connections; Finish Owned Watches Before Closing.
     pub fn close(self) {
         drop(self);
+    }
+}
+
+impl std::ops::Deref for HostClient {
+    type Target = harmos::Client;
+    fn deref(&self) -> &Self::Target {
+        &self.transport
     }
 }
 
@@ -56,8 +64,6 @@ pub struct Records(Channel);
 pub struct Samples(Channel);
 
 pub struct Reports(Channel);
-
-pub struct Backend(Channel);
 
 pub struct Health(Channel);
 
@@ -148,21 +154,6 @@ impl Samples {
             ..Default::default()
         };
         Ok(v1::telemetry_client::TelemetryClient::new(self.0.clone()).list_samples(request).await?.into_inner())
-    }
-}
-
-impl Backend {
-    pub async fn identity(&self) -> Result<v1::BackendIdentity, Status> {
-        let request = v1::GetBackendIdentity {};
-        Ok(v1::backend_client::BackendClient::new(self.0.clone()).get_identity(request).await?.into_inner())
-    }
-    pub async fn health(&self) -> Result<v1::BackendHealth, Status> {
-        let request = v1::GetBackendHealth {};
-        Ok(v1::backend_client::BackendClient::new(self.0.clone()).get_health(request).await?.into_inner())
-    }
-    pub async fn availability(&self) -> Result<v1::BackendAvailability, Status> {
-        let request = v1::GetBackendAvailability {};
-        Ok(v1::backend_client::BackendClient::new(self.0.clone()).get_availability(request).await?.into_inner())
     }
 }
 

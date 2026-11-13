@@ -108,6 +108,16 @@ pub(super) enum Reply {
 
 /* === Public Functions === */
 
+pub fn register_redactions(context: &Context) -> Result<()> {
+    let catalog: Catalog = context.host.store().administration("secrets")?.unwrap_or_default();
+    for slot in &catalog.entries {
+        if let Some(metadata) = &slot.metadata {
+            lookup(context, &catalog, &metadata.identifier)?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) async fn perform(context: &Context, action: Action) -> Result<Reply> {
     let context = context.clone();
     // Own Secure Publication Through Cancellation and Serialize Readers with Writers.
@@ -201,6 +211,7 @@ fn lookup(context: &Context, catalog: &Catalog, id: &str) -> Result<Zeroizing<St
         .ok_or_else(|| invalid("Set the Named Secret Before Looking It Up"))?;
     let result = Zeroizing::new(entry(context, &slot.slot)?.get_password().map_err(credential_read_error)?);
     value(&result)?;
+    context.host.register_sensitive(&result)?;
     Ok(result)
 }
 fn snapshot(context: &Context, catalog: &Catalog, cleanup_pending: bool) -> Result<v1::SecretSnapshot> {
@@ -402,6 +413,7 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
         }
         if let Some(secret) = secret {
             value(secret)?;
+            context.host.register_sensitive(secret)?;
         }
         let old = previous
             .entries

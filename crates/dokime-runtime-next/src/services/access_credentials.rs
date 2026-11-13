@@ -130,9 +130,15 @@ impl CredentialStore for Store {
                     })
                     .collect(),
             };
-            if let Err(error) = self.storage.save_administration("access", &snapshot) {
-                let _ = key.delete_credential();
-                return Err(error.into());
+            match self.storage.compare_administration("access", previous.as_ref(), &snapshot) {
+                Ok(true) => {}
+                outcome => {
+                    let _ = key.delete_credential();
+                    return match outcome {
+                        Err(error) => Err(error.into()),
+                        _ => Err(std::io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into()),
+                    };
+                }
             }
             if let Some(previous) = previous {
                 // The Saved Pointer Owns Publication; an Unreferenced Old Key Cannot Restore Access.

@@ -2439,6 +2439,13 @@ of silence between frames under their transfer policy; ordinary requests keep
 their 30 s client default. HTML bytes never cross the WebView.
 Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
+The additive execution host serves library Status.Get/Watch, Status.Logs,
+Status.TraceEvents and ranged Status.Diagnostics.Get. Its tar archive includes
+product contributions and redacts registered secret values. See
+[New Execution Host](execution-host.md#serve-client-grpc) for bounded paging,
+resumption and logging configuration. The desktop still uses the existing host
+until its atomic cutover.
+
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
 

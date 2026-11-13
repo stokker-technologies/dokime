@@ -13,14 +13,12 @@
 
 mod access_credentials;
 mod appearance;
-mod backend;
 mod bundle_permissions;
 mod bundles;
 mod catalog;
 mod clock;
 mod composition;
 mod content;
-mod diagnostics;
 mod documents;
 mod evidence;
 mod execution;
@@ -37,16 +35,15 @@ mod plugins;
 mod prompts;
 mod query;
 mod reports;
-mod runtime;
 mod secrets;
 mod settings;
 mod state;
+mod status;
 mod telemetry;
 
 /* === Re-Exports === */
 
 pub use clock::WallClock;
-pub use diagnostics::Diagnostics;
 pub use dokime_operations_next::client::ClientSettings;
 
 /* === Imports === */
@@ -78,6 +75,9 @@ pub struct Server {
     runtime: harmos_runtime::Runtime<composition::Application>,
     listener: Option<harmos_runtime::grpc::Attached>,
     close_timeout: std::time::Duration,
+    status: Arc<harmos_runtime::services::status::Status>,
+    status_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    _status_registration: Arc<harmos_runtime::services::status::Registration>,
 }
 
 /* === Enums === */
@@ -90,8 +90,14 @@ impl Server {
     pub fn endpoint(&self) -> SocketAddr {
         self.endpoint
     }
+    pub fn status(&self) -> &Arc<harmos_runtime::services::status::Status> {
+        &self.status
+    }
     pub async fn close(mut self) -> Result<()> {
         self.host.shutdown().await?;
+        if let Some(task) = self.status_task.take() {
+            task.await??;
+        }
         if let Some(listener) = self.listener.take() {
             listener.detach().await?;
         }
@@ -100,19 +106,17 @@ impl Server {
     }
 }
 
+impl Drop for Server {
+    fn drop(&mut self) {
+        if let Some(task) = self.status_task.take() {
+            task.abort();
+        }
+    }
+}
+
 /* === Public Functions === */
 
 pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSettings, settings: ClientSettings) -> Result<Server> {
-    let diagnostics = Diagnostics::new(
-        host_settings.clock.clone(),
-        std::num::NonZeroUsize::new(settings.page_items).ok_or_else(|| Error::Invalid("Serve with Positive Page Items".into()))?,
-        std::num::NonZeroUsize::new(settings.message_bytes).ok_or_else(|| Error::Invalid("Serve with Positive Message Bytes".into()))?,
-    );
-    serve_with_diagnostics(endpoint, root, host_settings, settings, diagnostics).await
-}
-pub async fn serve_with_diagnostics(
-    endpoint: SocketAddr, root: &Path, host_settings: HostSettings, settings: ClientSettings, diagnostics: Diagnostics,
-) -> Result<Server> {
     if !endpoint.ip().is_loopback() {
         return Err(Error::Invalid("Use the Authenticated Remote Listener for Non-Loopback Access".into()));
     }
@@ -160,10 +164,12 @@ pub async fn serve_with_diagnostics(
         display_name: "Dokime Execution Host".into(),
         ..Default::default()
     };
+    let runtime = composition::launch(clock).await?;
+    let status = runtime.services().configure_status(status::settings(&settings, backend_id.clone()))?;
     let administration = Arc::new(tokio::sync::Mutex::new(()));
     let state = state::State {
         administration: administration.clone(),
-        diagnostics,
+        status: status.clone(),
         root: root.to_owned(),
         host: host.clone(),
         render_settings: crate::RenderSettings {
@@ -180,8 +186,15 @@ pub async fn serve_with_diagnostics(
         settings: settings.clone(),
     };
     context.host.restore_managed_plugins().await.map_err(|error| Error::Invalid(error.to_string()))?;
+    dokime_operations_next::client::register_redactions(&context)?;
+    let registration = Arc::new(
+        status
+            .contribute(Arc::new(status::Facts(Arc::downgrade(&context.host))))
+            .map_err(|source| status::failure("Contribute Host Status", source))?,
+    );
+    let mut changes = context.host.changes();
+    let weak_host = Arc::downgrade(&context.host);
     let services = Services { context };
-    let runtime = composition::launch(clock).await?;
     register_services(runtime.grpc(), services.clone())?;
     runtime
         .grpc()
@@ -191,12 +204,25 @@ pub async fn serve_with_diagnostics(
     transport.address = endpoint;
     let listener = runtime.grpc().attach(transport).await?;
     let endpoint = listener.local_addr();
+    let changed_registration = registration.clone();
+    let status_task = tokio::spawn(async move {
+        while changes.changed().await.is_ok() {
+            changed_registration.changed().map_err(|source| status::failure("Refresh Host Status", source))?;
+            if weak_host.upgrade().is_none_or(|host| host.shutting_down()) {
+                break;
+            }
+        }
+        Ok(())
+    });
     Ok(Server {
         endpoint,
         host,
         runtime,
         listener: Some(listener),
         close_timeout,
+        status,
+        status_task: Some(status_task),
+        _status_registration: registration,
     })
 }
 
@@ -206,11 +232,6 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
     let message_bytes = services.context.settings.message_bytes;
     manager.register_service(
         v1::appearance_server::AppearanceServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::backend_server::BackendServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
@@ -291,11 +312,6 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
     )?;
     manager.register_service(
         v1::reports_server::ReportsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::runtime_server::RuntimeServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

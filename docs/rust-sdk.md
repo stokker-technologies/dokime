@@ -179,21 +179,12 @@ endpoint selection and wire/queue bounds. Authentication and per-call metadata
 are forwarded through Harmos; operation policy stays with the server.
 
 ```rust
-use dokime::{Client, client::{CatalogEntriesListRequest, CatalogKind, PageRequest}, v1};
+use dokime::{Client, client::v1};
 
-async fn health(client: &Client) -> Result<v1::BackendHealth, tonic::Status> {
-    let page = client.catalog(CatalogEntriesListRequest {
-        kind: CatalogKind::Operations as i32,
-        page: Some(PageRequest { page_size: 64, max_bytes: 1_048_576, page_token: String::new() }),
-        ..Default::default()
-    }).await?.into_inner();
-    let contract = page.operations.into_iter()
-        .filter_map(|entry| entry.contract)
-        .find(|contract| contract.id == "dokime.backend.get_health")
-        .ok_or_else(|| tonic::Status::not_found("Discover the Backend Health Operation"))?;
-    let method = client.method::<v1::GetBackendHealth, v1::BackendHealth>(contract)?;
-    Ok(client.call(&method, v1::GetBackendHealth {}).await?.into_inner())
+async fn status(client: &Client) -> Result<v1::StatusGetResponse, tonic::Status> {
+    Ok(client.status.get(tonic::Request::new(v1::StatusGetRequest {})).await?.into_inner())
 }
+
 ```
 
 Follow catalog cursors until the desired contract is found. `Method` checks public
@@ -203,15 +194,16 @@ returns Harmos's managed call with `send`, `finish_input`, `next`, `join` and
 cancellation. `take_input` separates concurrent input from output draining.
 No SDK transport codec, retry loop or host policy duplicates Harmos.
 
-The protocol crate currently provides generated Appearance, Backend and Plugins
-services through `dokime::v1`, including their managed-call envelopes. The SDK's
-Harmos client binds their generated payloads to the host's discovered contracts.
-All 23 generated client service declarations are available. The new host serves
+Legacy product declarations remain for the existing loop's pending atomic cutover.
+The new host serves generic identity/health/availability through the library Status
+resource and no longer binds product Backend or Runtime services. `HostClient`
+accepts explicit client limits and exposes the same library root through its transport.
+The new host serves
 the subset listed in [Execution Host](execution-host.md), refusing the rest by name.
-`client::HostClient::new(channel)` supplies thin service conveniences:
+`client::HostClient::new(channel, limits)?` supplies thin service conveniences:
 
 ```rust
-let client = dokime::client::HostClient::new(channel);
+let client = dokime::client::HostClient::new(channel, limits)?;
 let cases = client.templates.materialize(suite_id, "thermal.cycle", parameters).await?;
 let cycle = client.cycles.start(cases).await?;
 let mut progress = cycle.watch();

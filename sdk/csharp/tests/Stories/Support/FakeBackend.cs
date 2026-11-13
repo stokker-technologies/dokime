@@ -10,20 +10,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Stories.Support;
 
-public class FakeBackend : Backend.BackendBase
+public class FakeBackend : Harmos.V1.Status.StatusBase
 {
-  public override Task<BackendIdentity> GetIdentity(GetBackendIdentity request, ServerCallContext context)
+  public override Task<Harmos.V1.StatusGetResponse> Get(Harmos.V1.StatusGetRequest request, ServerCallContext context)
   {
     if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
-      throw new RpcException(new Status(StatusCode.Unauthenticated, "Missing token"));
-    return Task.FromResult(new BackendIdentity { BackendId = "bench", Epoch = "boot-a", ProductVersion = "1.0.0" });
-  }
-
-  public override async Task WatchLogs(WatchBackendLogs request, IServerStreamWriter<BackendWatchLogsOutput> response, ServerCallContext context)
-  {
-    await response.WriteAsync(new BackendWatchLogsOutput { Item = new LogFrame { Level = Dokime.V1.LogLevel.Info, Message = "ready" } });
-    await response.WriteAsync(new BackendWatchLogsOutput { Item = new LogFrame { Level = Dokime.V1.LogLevel.Error, Message = "fixture failure" } });
-    await response.WriteAsync(new BackendWatchLogsOutput { Response = new BackendWatchLogsCompletion() });
+      throw new RpcException(new Status(StatusCode.Unauthenticated, "Read Status: Supply Credentials"));
+    return Task.FromResult(new Harmos.V1.StatusGetResponse
+    {
+      Status = new Harmos.V1.HostStatus
+      {
+        Identity = new Harmos.V1.HostIdentity { HostId = "bench", ApplicationVersion = "1.0.0" },
+        Available = true
+      }
+    });
   }
 
   internal static async Task<(WebApplication App, HttpMessageHandler Handler)> StartAsync()
@@ -35,10 +35,26 @@ public class FakeBackend : Backend.BackendBase
     builder.Services.AddSingleton<FakePlugins>();
     var app = builder.Build();
     app.MapGrpcService<FakeBackend>();
+    app.MapGrpcService<FakeLogs>();
     app.MapGrpcService<FakePlugins>();
     await app.StartAsync();
     var handler = app.GetTestServer().CreateHandler();
     return (app, handler);
+  }
+}
+
+public sealed class FakeLogs : Harmos.V1.StatusResources.Logs.LogsBase
+{
+  public override async Task Watch(Harmos.V1.StatusResources.LogsWatchRequest request,
+      IServerStreamWriter<Harmos.V1.StatusResources.LogsWatchResponse> response, ServerCallContext context)
+  {
+    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
+      throw new RpcException(new Status(StatusCode.Unauthenticated, "Watch Logs: Supply Credentials"));
+    await response.WriteAsync(new Harmos.V1.StatusResources.LogsWatchResponse());
+    var batch = new Harmos.V1.StatusResources.LogsWatchResponse();
+    batch.Events.Add(new Harmos.V1.StatusResources.Event { Level = "INFO", Message = "ready" });
+    batch.Events.Add(new Harmos.V1.StatusResources.Event { Level = "ERROR", Message = "fixture failure" });
+    await response.WriteAsync(batch);
   }
 }
 

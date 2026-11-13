@@ -40,6 +40,8 @@ dokime-runtime-next = { workspace = true }
 thiserror = { workspace = true }
 
 # Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
 sha2 = { workspace = true }
@@ -89,6 +91,8 @@ tonic = { workspace = true }
 # Error Handling
 
 # Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
 

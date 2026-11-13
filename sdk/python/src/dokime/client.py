@@ -298,8 +298,10 @@ async def connect(
     client = Client(channel, metadata=metadata)
     try:
         if expected_backend_id:
-            identity = await client.call(message("GetBackendIdentity"))
-            if identity.backend_id != expected_backend_id:
+            from harmos.v1.status_pb2 import StatusGetRequest
+
+            response = await client.status.get(StatusGetRequest())
+            if response.status.identity.host_id != expected_backend_id:
                 raise ValueError("Backend identity differs from the paired backend")
         else:
             await channel.channel_ready()

@@ -36,6 +36,9 @@ pub enum Error {
     #[error(transparent)]
     Library(#[from] harmos_runtime::Error),
 
+    #[error("Start Composed Services: {0}")]
+    ComposedStartup(#[source] Box<dyn std::error::Error + Send + Sync>),
+
     #[error(transparent)]
     Storage(#[from] dokime_storage::Error),
 

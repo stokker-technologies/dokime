@@ -47,7 +47,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, true).await?;
-    let client = dokime::client::HostClient::new(channel.clone());
+    let client = dokime::client::HostClient::new(channel.clone(), settings.client())?;
     let pending = client.prompts.pending(args.execution.clone()).await?;
     if let Some(prompt) = pending.prompts.first() {
         return crate::output::print(prompt, args.json);

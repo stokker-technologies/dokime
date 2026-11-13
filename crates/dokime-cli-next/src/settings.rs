@@ -127,6 +127,14 @@ impl Settings {
             stream_buffer: self.stream_buffer.get(),
         }
     }
+    pub fn client(&self) -> dokime::client::ClientSettings {
+        dokime::client::ClientSettings {
+            retained_bytes: self.retained_bytes,
+            message_bytes: self.message_bytes,
+            input_items: self.stream_buffer,
+            input_bytes: self.message_bytes,
+        }
+    }
     pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<tonic::transport::Channel> {
         let endpoint =
             endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --endpoint http://HOST:PORT or Configure endpoint".into()))?;

@@ -12,13 +12,6 @@
 /* === Modules === */
 
 pub mod appearance_get_appearance;
-pub mod backend_collect_diagnostics;
-pub mod backend_get_availability;
-pub mod backend_get_health;
-pub mod backend_get_identity;
-mod backend_streams;
-pub mod backend_watch_logs;
-pub mod backend_watch_trace;
 pub mod catalog_get_record_schema;
 pub mod catalog_get_suite;
 pub mod catalog_get_telemetry_schema;
@@ -126,8 +119,6 @@ pub mod reports_download_execution_report;
 pub mod reports_materialize_report;
 pub mod reports_publish_execution_report;
 pub mod run_call;
-pub mod runtime_get_health;
-pub mod runtime_get_identity;
 pub mod secrets_export;
 pub mod secrets_import;
 pub mod secrets_list;
@@ -149,6 +140,8 @@ pub mod telemetry_list_samples;
 pub mod telemetry_watch_samples;
 
 /* === Re-Exports === */
+
+pub use secrets_store::register_redactions;
 
 /* === Imports === */
 
@@ -174,18 +167,6 @@ const MAX_PAGE_ITEMS: usize = 500;
 pub const METHODS: &[&str] = &[
     "/dokime.v1.Appearance/GetAppearance",
     "/dokime.v1.Appearance/RunGetAppearance",
-    "/dokime.v1.Backend/CollectDiagnostics",
-    "/dokime.v1.Backend/GetAvailability",
-    "/dokime.v1.Backend/GetHealth",
-    "/dokime.v1.Backend/GetIdentity",
-    "/dokime.v1.Backend/RunCollectDiagnostics",
-    "/dokime.v1.Backend/RunGetAvailability",
-    "/dokime.v1.Backend/RunGetHealth",
-    "/dokime.v1.Backend/RunGetIdentity",
-    "/dokime.v1.Backend/RunWatchLogs",
-    "/dokime.v1.Backend/RunWatchTrace",
-    "/dokime.v1.Backend/WatchLogs",
-    "/dokime.v1.Backend/WatchTrace",
     "/dokime.v1.Catalog/GetRecordSchema",
     "/dokime.v1.Catalog/GetSuite",
     "/dokime.v1.Catalog/GetTelemetrySchema",
@@ -367,10 +348,6 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Reports/RunDownloadExecutionReport",
     "/dokime.v1.Reports/RunMaterializeReport",
     "/dokime.v1.Reports/RunPublishExecutionReport",
-    "/dokime.v1.Runtime/GetHealth",
-    "/dokime.v1.Runtime/GetIdentity",
-    "/dokime.v1.Runtime/RunGetHealth",
-    "/dokime.v1.Runtime/RunGetIdentity",
     "/dokime.v1.Secrets/Export",
     "/dokime.v1.Secrets/Import",
     "/dokime.v1.Secrets/List",
@@ -472,8 +449,7 @@ pub trait Host: Send + Sync {
     fn now_ns(&self) -> i64;
     fn identity(&self) -> v1::BackendIdentity;
     fn bootstrap_paths(&self) -> v1::BootstrapPaths;
-    fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)>;
-    fn diagnostic_changes(&self) -> tokio::sync::broadcast::Receiver<()>;
+    fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
     fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)>;

@@ -2443,6 +2443,8 @@ dependencies = [
  "tokio-stream",
  "toml 1.1.8+spec-1.1.0",
  "tonic",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2763,17 +2765,15 @@ dependencies = [
  "dokime-storage",
  "harmos-protocol",
  "harmos-runtime 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1)",
+ "harmos-storage 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=b5f595087967a085662689654bfadeff3d77ffa1)",
  "keyring",
  "prost",
  "prost-reflect",
  "prost-types",
- "rand 0.10.3",
- "rcgen",
  "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
- "subtle",
  "tar",
  "tempfile",
  "thiserror 2.0.21",

@@ -1225,8 +1225,10 @@ these contracts or claim implementation.
 
 Closed: library declarations own the composed names: Access.Listener.Get/Set, Access.Pairings.Create/List/Delete, Access.Certificates.Create, Status.Get/Watch and Status.Diagnostics.Get.
 
-The new host removes its Access handlers and settings ownership. The old loop still
-compiles against client_remote.proto and the shared listener DTOs; those declarations
+The new host removes its Access handlers/settings ownership and generic Backend,
+Runtime and diagnostic collection handlers. The old loop still
+compiles against client_remote.proto, client_backend.proto, client_runtime.proto
+and their shared DTOs; those declarations
 remain solely for that loop until its separately locked atomic desktop cutover.
 Deleting them now requires changing that loop's protocol and desktop consumers,
 which this slice does not migrate. No product Remote service is registered in the new host.

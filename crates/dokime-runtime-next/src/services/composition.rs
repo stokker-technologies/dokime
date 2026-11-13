@@ -88,9 +88,11 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<harmos_run
     });
     harmos_runtime::Runtime::<Application>::launch_with((), (), |setup| {
         setup.settings().clock(clock);
+        setup.resource::<Option<Arc<harmos_storage::StorageManager>>>(None);
+        setup.catalog(harmos_runtime::builtins::host_catalog(), harmos_runtime::operations::Lane::default());
     })
     .await
-    .map_err(|error| crate::Error::Invalid(format!("Start Composed Services: {error}")))
+    .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))
 }
 
 pub(super) fn transport(settings: &ClientSettings) -> harmos_runtime::grpc::Settings {

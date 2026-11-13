@@ -55,7 +55,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     let cases = v1::PreviewSelectionReply::decode(std::fs::read(args.cases)?.as_slice())?;
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel);
+    let client = dokime::client::HostClient::new(channel, settings.client())?;
     let cycle = client.cycles.start(cases.cases).await?;
     let value = v1::CreateCycleReply {
         cycle_id: cycle.identifier,

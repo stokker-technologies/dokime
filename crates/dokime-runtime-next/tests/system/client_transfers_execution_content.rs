@@ -323,7 +323,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         let settings = super::support::settings();
         let mut plugin = dokime_runtime_next::PluginProcess::start(&fixture, true, &settings.placement).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel);
+        let client = dokime::client::HostClient::new(channel, super::support::client_settings())?;
         client.plugins.add(plugin.endpoint()).await?;
         let cases = client.templates.materialize("content", "content.capture", std::collections::HashMap::new()).await?;
         let cycle = client.cycles.start(cases).await?;
