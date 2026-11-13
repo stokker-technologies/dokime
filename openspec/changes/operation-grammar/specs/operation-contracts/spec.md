@@ -428,18 +428,20 @@ Paging SHALL apply only to data rows that can grow unbounded in size. Small
 bounded sets SHALL return whole in one response, with no page controls or
 continuation. This includes catalog entries, plugins, pairings, suites and schemas.
 Executions, records, samples, log lines, files and notes SHALL remain paged and
-position-resolved. Amended by the owner on 2026-11-13.
-
-Paged reads SHALL use `page_size`, `max_bytes`, `page_token`, `next_page_token`
-and `resolved_at`. Tokens SHALL bind cut, selection, ordering and schema/projection
-revision. Continuation SHALL be exclusive in stable order, with row and byte
-bounds independent of physical work limits.
+position-resolved.
 
 #### Scenario: Bounded Declaration List
 
 - **WHEN** a caller lists a suite catalog or its schema declarations
 - **THEN** the response contains the whole declaration set with no continuation
 - **AND** evidence lists still use bounded pages at a resolved position
+
+### Requirement: Position-Resolved Page Continuation
+
+Paged reads SHALL use `page_size`, `max_bytes`, `page_token`, `next_page_token`
+and `resolved_at`. Tokens SHALL bind cut, selection, ordering and schema/projection
+revision. Continuation SHALL be exclusive in stable order, with row and byte
+bounds independent of physical work limits.
 
 #### Scenario: Collection Changes Between Pages
 
@@ -543,10 +545,17 @@ scope consistently.
 The library storage manager SHALL own one unary transfer mechanism behind separate
 context/client declarations: Storage.CreateFileProduction, GetFileProduction,
 AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction.
+
+#### Scenario: Context and Client Uploads
+
+- **WHEN** a plugin or client uploads a file
+- **THEN** its face's separate declarations use the library storage manager's one unary transfer mechanism
+- **AND** the mechanism provides Storage.CreateFileProduction, GetFileProduction, AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction
+
+### Requirement: Bounded Replay-Safe Upload Chunks
+
 Append SHALL accept bounded ordered chunks, replay identical bytes and refuse
-conflicts. Publish SHALL verify complete bytes, length and digest before visibility; Delete SHALL
-abandon. Expiry SHALL be explicit. Default chunks SHALL be 4 MiB and the default
-message limit SHALL be 8 MiB, amended by the owner on 2026-11-13.
+conflicts.
 
 #### Scenario: Resume After Lost Reply
 
@@ -554,16 +563,31 @@ message limit SHALL be 8 MiB, amended by the owner on 2026-11-13.
 - **THEN** Storage.GetFileProduction reports the accepted offset and an identical Storage.AppendFileBytes replays safely
 - **AND** CreateFileWriter fences the old writer when resume needs a new writer generation, while different bytes at an accepted offset conflict without changing content
 
-#### Scenario: Partial Upload and Expiry
-
-- **WHEN** publication is requested with missing bytes, a wrong digest or an expired session
-- **THEN** it fails explicitly without publishing partial content or silently creating a replacement session
-
 #### Scenario: Ordered and Bounded Chunks
 
 - **WHEN** a new chunk starts after the next accepted offset or exceeds the configured chunk bound
 - **THEN** Storage.AppendFileBytes refuses it without changing session data
 - **AND** Storage.GetFileProduction exposes the accepted offset, length, digest and session state to resume
+
+### Requirement: Verified Upload Publication and Abandonment
+
+Publish SHALL verify complete bytes, length and digest before visibility; Delete SHALL
+abandon. Expiry SHALL be explicit.
+
+#### Scenario: Partial Upload and Expiry
+
+- **WHEN** publication is requested with missing bytes, a wrong digest or an expired session
+- **THEN** it fails explicitly without publishing partial content or silently creating a replacement session
+
+### Requirement: Default Unary Transfer Limits
+
+Default chunks SHALL be 4 MiB and the default
+message limit SHALL be 8 MiB.
+
+#### Scenario: Default Transfer Configuration
+
+- **WHEN** the default chunk size and message limit are used
+- **THEN** chunks are 4 MiB and the message limit is 8 MiB
 
 ### Requirement: Shared Unary Ranged Downloads
 
