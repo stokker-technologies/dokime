@@ -238,7 +238,8 @@ impl Context {
             execution: self.execution_id().into(),
             kind: record.identifier().into(),
             payload: value.encode_to_vec(),
-            at: None,
+            source_at: None,
+            request_id: uuid::Uuid::now_v7().to_string(),
         })
         .await
     }
@@ -250,7 +251,8 @@ impl Context {
             execution: self.execution_id().into(),
             kind: kind.into(),
             step: step.into(),
-            limit,
+            page: Some(harmos_protocol::v1::PageRequest { page_size: limit, ..Default::default() }),
+            at: None,
         })
         .await
     }
@@ -263,6 +265,7 @@ impl Context {
             stream: stream.into(),
             field: field.into(),
             step: step.into(),
+            at: None,
         })
         .await
     }
@@ -285,6 +288,7 @@ impl Context {
             severity: severity as i32,
             message: message.into(),
             at: None,
+            request_id: uuid::Uuid::now_v7().to_string(),
         })
         .await?;
         Ok(())

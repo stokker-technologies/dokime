@@ -134,14 +134,24 @@ impl Request for dokime_protocol::context::BackendEnvironmentRequest {
     const ID: &'static str = "dokime.context.v1.Backend/Environment";
 }
 
-impl Request for crate::v1::PrepareEffect {
-    type Response = crate::v1::Ticket;
-    const ID: &'static str = "dokime.execution.effect.prepare";
+impl Request for dokime_protocol::context::EffectsCreateRequest {
+    type Response = dokime_protocol::context::EffectsCreateResponse;
+    const ID: &'static str = "dokime.context.v1.Effects/Create";
 }
 
-impl Request for crate::v1::ConfirmEffect {
-    type Response = crate::v1::ConfirmEffectResponse;
-    const ID: &'static str = "dokime.execution.effect.applied";
+impl Request for dokime_protocol::context::EffectsGetRequest {
+    type Response = dokime_protocol::context::EffectsGetResponse;
+    const ID: &'static str = "dokime.context.v1.Effects/Get";
+}
+
+impl Request for dokime_protocol::context::EffectsSetRequest {
+    type Response = dokime_protocol::context::EffectsSetResponse;
+    const ID: &'static str = "dokime.context.v1.Effects/Set";
+}
+
+impl Request for dokime_protocol::context::content::ArtifactsCreateRequest {
+    type Response = dokime_protocol::context::content::ArtifactsCreateResponse;
+    const ID: &'static str = "dokime.context.v1.content.Artifacts/Create";
 }
 
 /* === Public Functions === */
