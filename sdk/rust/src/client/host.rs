@@ -22,7 +22,7 @@
 use tonic::{Status, transport::Channel};
 
 // Local Imports
-use crate::v1;
+use dokime_protocol::{client, v1};
 
 /* === Constants === */
 
@@ -75,7 +75,7 @@ pub struct Cycle {
 pub struct Progress {
     client: super::Client,
     pending: std::collections::VecDeque<String>,
-    stream: Option<harmos::client::Watching<v1::executions::ProgressWatchResponse>>,
+    stream: Option<harmos::client::Watching<client::executions::ProgressWatchResponse>>,
     terminal: bool,
 }
 
@@ -116,61 +116,61 @@ impl std::ops::Deref for HostClient {
 }
 
 impl Plugins {
-    pub async fn add(&self, url: impl Into<String>) -> Result<v1::Plugin, Status> {
-        let request = v1::AddRemotePlugin { url: url.into() };
-        Ok(v1::plugins_client::PluginsClient::new(self.0.clone()).add(request).await?.into_inner())
+    pub async fn add(&self, url: impl Into<String>) -> Result<client::Plugin, Status> {
+        let request = client::AddRemotePlugin { url: url.into() };
+        Ok(client::plugins_client::PluginsClient::new(self.0.clone()).add(request).await?.into_inner())
     }
-    pub async fn list(&self) -> Result<v1::PluginEntries, Status> {
-        let request = v1::ListPlugins {};
-        Ok(v1::plugins_client::PluginsClient::new(self.0.clone()).list(request).await?.into_inner())
+    pub async fn list(&self) -> Result<client::PluginEntries, Status> {
+        let request = client::ListPlugins {};
+        Ok(client::plugins_client::PluginsClient::new(self.0.clone()).list(request).await?.into_inner())
     }
-    pub async fn reload(&self, request: v1::PluginsReloadRequest) -> Result<v1::ClientEmpty, Status> {
-        Ok(v1::plugins_client::PluginsClient::new(self.0.clone()).reload(request).await?.into_inner())
+    pub async fn reload(&self, request: client::PluginsReloadRequest) -> Result<v1::ClientEmpty, Status> {
+        Ok(client::plugins_client::PluginsClient::new(self.0.clone()).reload(request).await?.into_inner())
     }
 }
 
 impl Suites {
-    pub async fn list(&self) -> Result<v1::catalog::SuitesListResponse, Status> {
-        let request = v1::catalog::SuitesListRequest::default();
-        Ok(self.0.catalog.suites.list(tonic::Request::new(request)).await?.into_inner())
+    pub async fn list(&self) -> Result<client::SuitesListResponse, Status> {
+        let request = client::SuitesListRequest::default();
+        Ok(self.0.suites.list(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn get(&self, identifier: impl Into<String>) -> Result<v1::catalog::SuitesGetResponse, Status> {
-        let request = v1::catalog::SuitesGetRequest {
+    pub async fn get(&self, identifier: impl Into<String>) -> Result<client::SuitesGetResponse, Status> {
+        let request = client::SuitesGetRequest {
             name: identifier.into(),
             ..Default::default()
         };
-        Ok(self.0.catalog.suites.get(tonic::Request::new(request)).await?.into_inner())
+        Ok(self.0.suites.get(tonic::Request::new(request)).await?.into_inner())
     }
 }
 
 impl Executions {
-    pub async fn get(&self, identifier: impl Into<String>) -> Result<v1::ExecutionsGetResponse, Status> {
-        let request = v1::ExecutionsGetRequest { name: identifier.into(), at: None };
+    pub async fn get(&self, identifier: impl Into<String>) -> Result<client::ExecutionsGetResponse, Status> {
+        let request = client::ExecutionsGetRequest { name: identifier.into(), at: None };
         Ok(self.0.executions.get(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn list(&self) -> Result<v1::ExecutionsListResponse, Status> {
-        let request = v1::ExecutionsListRequest::default();
+    pub async fn list(&self) -> Result<client::ExecutionsListResponse, Status> {
+        let request = client::ExecutionsListRequest::default();
         Ok(self.0.executions.list(tonic::Request::new(request)).await?.into_inner())
     }
 }
 
 impl Prompts {
-    pub async fn pending(&self, execution: impl Into<String>) -> Result<v1::PromptsListResponse, Status> {
-        let request = v1::PromptsListRequest {
+    pub async fn pending(&self, execution: impl Into<String>) -> Result<client::PromptsListResponse, Status> {
+        let request = client::PromptsListRequest {
             execution_id: Some(execution.into()),
             pending_only: true,
             ..Default::default()
         };
         Ok(self.0.prompts.list(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn get(&self, identifier: impl Into<String>) -> Result<v1::PromptsGetResponse, Status> {
-        let request = v1::PromptsGetRequest { name: identifier.into(), at: None };
+    pub async fn get(&self, identifier: impl Into<String>) -> Result<client::PromptsGetResponse, Status> {
+        let request = client::PromptsGetRequest { name: identifier.into(), at: None };
         Ok(self.0.prompts.get(tonic::Request::new(request)).await?.into_inner())
     }
     pub async fn respond(
         &self, identifier: impl Into<String>, action: impl Into<String>, accepted: bool,
-    ) -> Result<v1::prompts::AnswersCreateResponse, Status> {
-        let request = v1::prompts::AnswersCreateRequest {
+    ) -> Result<client::prompts::AnswersCreateResponse, Status> {
+        let request = client::prompts::AnswersCreateRequest {
             parent: identifier.into(),
             action: action.into(),
             accepted,
@@ -182,9 +182,9 @@ impl Prompts {
 }
 
 impl Records {
-    pub async fn list(&self, execution: impl Into<String>) -> Result<v1::evidence::RecordsListResponse, Status> {
-        let request = v1::evidence::RecordsListRequest {
-            selection: Some(v1::CapturedRecordSelection {
+    pub async fn list(&self, execution: impl Into<String>) -> Result<client::evidence::RecordsListResponse, Status> {
+        let request = client::evidence::RecordsListRequest {
+            selection: Some(client::evidence::CapturedRecordSelection {
                 scope: Some(v1::EvidenceScope {
                     execution_id: Some(execution.into()),
                     ..Default::default()
@@ -198,8 +198,8 @@ impl Records {
 }
 
 impl Samples {
-    pub async fn list(&self, execution: impl Into<String>) -> Result<v1::evidence::SamplesListResponse, Status> {
-        let request = v1::evidence::SamplesListRequest {
+    pub async fn list(&self, execution: impl Into<String>) -> Result<client::evidence::SamplesListResponse, Status> {
+        let request = client::evidence::SamplesListRequest {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some(execution.into()),
                 ..Default::default()
@@ -211,8 +211,8 @@ impl Samples {
 }
 
 impl Health {
-    pub async fn list(&self) -> Result<v1::evidence::HealthEventsListResponse, Status> {
-        let request = v1::evidence::HealthEventsListRequest::default();
+    pub async fn list(&self) -> Result<client::evidence::HealthEventsListResponse, Status> {
+        let request = client::evidence::HealthEventsListRequest::default();
         Ok(self.0.evidence.health_events.list(tonic::Request::new(request)).await?.into_inner())
     }
 }
@@ -220,21 +220,21 @@ impl Health {
 impl Templates {
     pub async fn materialize(
         &self, suite: impl Into<String>, template: impl Into<String>, parameters: std::collections::HashMap<String, Vec<v1::Value>>,
-    ) -> Result<Vec<v1::PlannedCase>, Status> {
-        let selection = v1::RegisteredSelection {
+    ) -> Result<Vec<client::PlannedCase>, Status> {
+        let selection = client::RegisteredSelection {
             suite_id: suite.into(),
             template_id: template.into(),
             parameters: parameters
                 .into_iter()
-                .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
+                .map(|(key, values)| client::RegisteredSelectionParametersEntry {
                     key,
-                    value: Some(v1::SelectionValues { values }),
+                    value: Some(client::SelectionValues { values }),
                 })
                 .collect(),
             ..Default::default()
         };
-        let request = v1::CasesCreateRequest {
-            plan: Some(v1::SelectionPlan {
+        let request = client::CasesCreateRequest {
+            plan: Some(client::SelectionPlan {
                 selections: vec![selection],
                 ..Default::default()
             }),
@@ -246,12 +246,12 @@ impl Templates {
 }
 
 impl Cycles {
-    pub async fn start(&self, cases: Vec<v1::PlannedCase>) -> Result<Cycle, Status> {
+    pub async fn start(&self, cases: Vec<client::PlannedCase>) -> Result<Cycle, Status> {
         let origins = cases
             .into_iter()
             .map(|case| case.origin.ok_or_else(|| Status::invalid_argument("Start Cycle: Case Has No Frozen Origin")))
             .collect::<Result<Vec<_>, _>>()?;
-        let request = v1::CyclesCreateRequest {
+        let request = client::CyclesCreateRequest {
             origins,
             request_id: uuid::Uuid::now_v7().to_string(),
             continue_automatically: true,
@@ -264,7 +264,7 @@ impl Cycles {
             .and_then(|receipt| receipt.durable_at)
             .ok_or_else(|| Status::data_loss("Start Cycle: Missing Durable Receipt"))?;
         let mut executions = Vec::new();
-        let mut request = v1::ExecutionsListRequest {
+        let mut request = client::ExecutionsListRequest {
             parent: cycle.cycle_id.clone(),
             at: Some(harmos_protocol::v1::ReadCut {
                 positions: vec![durable_at],
@@ -307,13 +307,13 @@ impl Cycle {
 }
 
 impl Progress {
-    pub async fn next(&mut self) -> Result<Option<v1::executions::ProgressWatchResponse>, Status> {
+    pub async fn next(&mut self) -> Result<Option<client::executions::ProgressWatchResponse>, Status> {
         loop {
             if self.stream.is_none() {
                 let Some(identifier) = self.pending.pop_front() else {
                     return Ok(None);
                 };
-                let request = v1::executions::ProgressWatchRequest { name: identifier, at: None };
+                let request = client::executions::ProgressWatchRequest { name: identifier, at: None };
                 self.stream = Some(self.client.executions.progress.watch(tonic::Request::new(request)).await?);
                 self.terminal = false;
             }
@@ -334,13 +334,13 @@ impl Progress {
 }
 
 impl Reports {
-    pub async fn get(&self, request: v1::ReportsGetRequest) -> Result<v1::ReportsGetResponse, Status> {
+    pub async fn get(&self, request: client::ReportsGetRequest) -> Result<client::ReportsGetResponse, Status> {
         Ok(self.0.reports.get(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn create(&self, request: v1::ReportsCreateRequest) -> Result<v1::ReportsCreateResponse, Status> {
+    pub async fn create(&self, request: client::ReportsCreateRequest) -> Result<client::ReportsCreateResponse, Status> {
         Ok(self.0.reports.create(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn publish(&self, request: v1::ReportsPublishRequest) -> Result<v1::ReportsPublishResponse, Status> {
+    pub async fn publish(&self, request: client::ReportsPublishRequest) -> Result<client::ReportsPublishResponse, Status> {
         Ok(self.0.reports.publish(tonic::Request::new(request)).await?.into_inner())
     }
 }

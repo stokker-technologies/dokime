@@ -221,14 +221,14 @@ impl Context {
     ) -> Result<dokime_protocol::context::PromptsCreateResponse> {
         self.host(question).await
     }
-    pub async fn settings(&self) -> Result<v1::SavedSettings> {
-        self.host(v1::ReadSettings {}).await
+    pub async fn settings(&self) -> Result<dokime_protocol::context::SavedSettings> {
+        self.host(dokime_protocol::context::ReadSettings {}).await
     }
     pub async fn typed_settings<T: Message>(&self) -> Result<T> {
         data::decode(&self.settings().await?.values)
     }
-    pub async fn secret(&self, identifier: impl Into<String>) -> Result<v1::Secret> {
-        self.host(v1::ReadSecret { identifier: identifier.into() }).await
+    pub async fn secret(&self, identifier: impl Into<String>) -> Result<dokime_protocol::context::Secret> {
+        self.host(dokime_protocol::context::ReadSecret { identifier: identifier.into() }).await
     }
 
     pub async fn record<T: Message>(
