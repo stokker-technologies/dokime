@@ -197,7 +197,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - [ ] 5.8 Wave 5: delete `dokime-server`, per-service adapters, superseded generation/build dependencies and dead wire conversions after all behavior and consumers move.
 - [ ] 5.9 Wave 5: dissolve `dokime-domain`; migrate definitions to protocol messages, admission/expansion/expression rules to their operations and persisted shapes beside storage, migrating all consumers and deleting duplicate models and superseded guidance.
 - [ ] 5.10 Wave 5: remove the operations contract-only surface and `runtime` feature once no consumer needs them; preserve Harmos built-in declaration/handler co-location and enforce protocol → storage → operations → runtime → CLI/desktop dependencies without reverse edges.
-- [ ] 5.11 Wave 5: retain `dokime-tracing` as small development support and reconcile manifests, examples, README and guides with the target crate ownership.
+- [x] 5.11 Owner amendment (2026-11-13): delete `dokime-tracing` with the retired loop; current host stories own their tracing support. Reconcile manifests, examples and guides with the remaining crates.
 
 ## 6. Final Validation
 
@@ -455,7 +455,7 @@ SDKs and starters for the subsequent grammar slices. Desktop source is excluded.
 The owner authorizes deletion before the desktop and face cutovers (2026-11-13).
 All work remains local on feat/grpc-plugins under the existing implementing marker.
 
-- [ ] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
+- [x] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
 - [x] Retain current bundle production/inspection without facade dependencies.
 - [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
 - [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.

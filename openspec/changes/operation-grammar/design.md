@@ -16,8 +16,9 @@ See proposal.md for the decision register and motivation.
 The read-only product and library research reports supplied for this change are
 inputs, not contracts. Current product protocols are in `proto/dokime/v1/`;
 the new host and handlers are in `crates/dokime-runtime-next/` and
-`crates/dokime-operations-next/`. The existing loop and desktop still coexist
-with them. `grpc-plugins/design.md` owns that eventual atomic cutover. The owner authorizes implementation under the combined grpc-plugins marker.
+`crates/dokime-operations-next/`. The old loop is removed; the desktop native package remains outside workspace
+membership until its independent host switch merges. `grpc-plugins/design.md`
+owns that combined restoration. The owner authorizes implementation under the combined grpc-plugins marker.
 
 ## Goals and Boundaries
 
@@ -1221,12 +1222,8 @@ these contracts or claim implementation.
 Closed: library declarations own the composed names: Access.Listener.Get/Set, Access.Pairings.Create/List/Delete, Access.Certificates.Create, Status.Get/Watch and Status.Diagnostics.Get.
 
 The new host removes its Access handlers/settings ownership and generic Backend,
-Runtime and diagnostic collection handlers. The old loop still
-compiles against client_remote.proto, client_backend.proto, client_runtime.proto
-and their shared DTOs; those declarations
-remain solely for that loop until its separately locked atomic desktop cutover.
-Deleting them now requires changing that loop's protocol and desktop consumers,
-which this slice does not migrate. No product Remote service is registered in the new host.
+Runtime and diagnostic collection handlers. Final face generation must remove unserved product Access/Status declarations
+and migrate the remaining SDK fixture consumers together. No product Remote service is registered in the new host.
 
 Transfers are deferred because the pinned Storage service cannot register the
 product's already-owned immutable content sources. Its ranged Get requires a

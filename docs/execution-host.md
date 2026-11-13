@@ -542,4 +542,3 @@ its independent host switch is completed. Restore workspace/default membership,
 native Product builds, generated settings checks, hosted native/system stories,
 benchmarks, distribution/installer packaging and signing together using the task
 in `openspec/changes/grpc-plugins/tasks.md`. The frontend source remains present.
-
