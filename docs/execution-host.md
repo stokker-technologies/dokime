@@ -72,16 +72,18 @@ The `dokime-host-next` binary accepts `--endpoint HOST:PORT --storage PATH`.
 It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
 Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode.
 The storage root retains a backend identity; each process has a new boot epoch.
-The bootstrap listener accepts loopback addresses. Remote manages a separate
-TLS listener with one rotating backend access key. Export a pairing to enable it,
-then import its endpoints, certificate and key on the client. Exporting again
-invalidates every previous key, including on open channels; certificate rotation
-requires a fresh pairing export. Reconfiguring the listener closes its existing
-remote calls; reconnect and inspect the committed listener state after an uncertain
-acknowledgement. TLS private keys remain in the OS credential
-store; SQLite retains their slot identity and the access-key verifier.
+The bootstrap listener accepts loopback addresses. The library's Access.Listener.Get/Set
+owns the separate authenticated TLS listener. Enable it with the revision from Get,
+then use Access.Pairings.Create to obtain an endpoint, pinned certificate and bearer
+credential. Pairings are independent: List returns metadata and Delete revokes one.
+Access.Certificates.Create rotates live TLS trust and revokes all pairings; existing
+connections survive and fresh pairings authorize them. New connections trust the new
+certificate. Listener settings no longer belong to product application preferences.
+Dokime implements the library CredentialStore with atomic revision checks in product
+storage and private keys in the OS credential store. The library is the sole writer.
+Linux host-process stories retain one isolated credential-store session across restart.
 
-Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health
+Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime and Health
 serve every declared method, including their Run transports. Plugin installation
 accepts verified v1 `.dokime` tar bundles with one native sidecar per target,
 portable regular-file paths, matching size/digest inventory and a compatible
@@ -279,7 +281,7 @@ plugin. Hosting uses the same EOF/interrupt close contract as `dokime-host-next`
 
 `--config PATH` reads explicit TOML settings; endpoint and storage may be supplied
 there or on the command line. Unknown keys, zero bounds and zero deadlines fail.
-`retained_bytes` also bounds CLI case files. The bootstrap host listener remains loopback; Remote manages authenticated TLS access.
+`retained_bytes` also bounds CLI case files. The bootstrap host listener remains loopback; Access.Listener manages authenticated TLS access.
 
 ```toml
 endpoint = "http://127.0.0.1:7000"

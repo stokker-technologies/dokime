@@ -34,6 +34,9 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
+    Library(#[from] harmos_runtime::Error),
+
+    #[error(transparent)]
     Storage(#[from] dokime_storage::Error),
 
     #[error(transparent)]

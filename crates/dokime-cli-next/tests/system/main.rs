@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+#[path = "../../../dokime-runtime-next/tests/support/credentials.rs"]
+mod credentials;
 mod first_hour;
 mod remote_first_hour;
 mod scaffold;

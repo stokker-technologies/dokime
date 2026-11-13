@@ -49,6 +49,8 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retain More Than Two Million Samples as Ordinary Durable Evidence
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let catalog = harmos_protocol::v1::Catalog {
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
@@ -89,7 +91,7 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
         store.close_streams("plot-execution")?;
         store.close("plot-execution", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
         store.seal("plot-execution")?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plots = v1::plots_client::PlotsClient::connect(process.url.clone()).await?;
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("plot-execution".into()),

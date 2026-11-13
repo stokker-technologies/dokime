@@ -193,3 +193,10 @@ frozen test case, ordered records/steps/logs, samples and outcome with Rust.
 It reopens the sealed evidence after shutdown. The starter retains its own
 in-process authoring story. Build prerequisites and named host runs are in
 [Execution Host](../../docs/execution-host.md).
+
+## Composed Client Services
+
+The async `Client` exposes the library resource root, including
+`client.access.listener.get`, `client.access.pairings.create` and
+`client.access.certificates.create`, with the client's configured metadata.
+Use requests from the matching `harmos.v1.access` modules.

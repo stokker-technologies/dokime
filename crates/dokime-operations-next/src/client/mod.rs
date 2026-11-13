@@ -121,10 +121,6 @@ pub mod prompts_list_definitions;
 pub mod prompts_list_pending;
 pub mod prompts_respond;
 pub mod query_list_executions;
-pub mod remote_create_pairing;
-pub mod remote_read_listener;
-pub mod remote_regenerate_certificate;
-pub mod remote_update_listener;
 pub mod reports_download_cycle_report;
 pub mod reports_download_execution_report;
 pub mod reports_materialize_report;
@@ -363,14 +359,6 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Prompts/RunListPending",
     "/dokime.v1.Prompts/RunRespond",
     "/dokime.v1.Query/ListExecutions",
-    "/dokime.v1.Remote/CreatePairing",
-    "/dokime.v1.Remote/ReadListener",
-    "/dokime.v1.Remote/RegenerateCertificate",
-    "/dokime.v1.Remote/RunCreatePairing",
-    "/dokime.v1.Remote/RunReadListener",
-    "/dokime.v1.Remote/RunRegenerateCertificate",
-    "/dokime.v1.Remote/RunUpdateListener",
-    "/dokime.v1.Remote/UpdateListener",
     "/dokime.v1.Reports/DownloadCycleReport",
     "/dokime.v1.Reports/DownloadExecutionReport",
     "/dokime.v1.Reports/MaterializeReport",
@@ -486,10 +474,6 @@ pub trait Host: Send + Sync {
     fn bootstrap_paths(&self) -> v1::BootstrapPaths;
     fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)>;
     fn diagnostic_changes(&self) -> tokio::sync::broadcast::Receiver<()>;
-    async fn read_remote_listener(&self) -> Result<v1::RemoteListenerStatus>;
-    async fn update_remote_listener(&self, settings: v1::RemoteListenerSettings) -> Result<v1::RemoteListenerStatus>;
-    async fn create_pairing(&self, label: String) -> Result<v1::CreatedPairing>;
-    async fn regenerate_certificate(&self, names: Vec<String>) -> Result<v1::RemoteListenerStatus>;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
     fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)>;

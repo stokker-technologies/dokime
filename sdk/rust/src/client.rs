@@ -115,6 +115,13 @@ impl Client {
     }
 }
 
+impl std::ops::Deref for Client {
+    type Target = harmos::Client;
+    fn deref(&self) -> &Self::Target {
+        &self.transport
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */

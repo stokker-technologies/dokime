@@ -49,6 +49,8 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Materialize an Evaluated and a Criterion-Free Execution
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let executable = super::support::execution_fixture()?;
         let host = Host::open(root.path(), settings.clone())?;
@@ -125,7 +127,8 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(OutcomeCounts::from_outcomes([]).verdict, None);
 
         // Read Mixed Attributions and Counts Through the Client Services
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut query = v1::query_client::QueryClient::connect(process.url.clone()).await?;
         let page = query
             .list_executions(v1::QueryListExecutionsRequest {

@@ -49,6 +49,8 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare a Frozen Catalog with an Authored Document
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let mut plot = dokime_protocol::builders::Plot::time_series(v1::FieldReference::new("reading").field("min")).message;
         plot.metadata = Some(v1::Metadata {
@@ -284,7 +286,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             store.close(id, v1::Termination::Completed, v1::ExecutionOutcome::default())?;
             store.seal(id)?;
         }
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut documents = v1::documents_client::DocumentsClient::new(channel.clone());
         let mut plots = v1::plots_client::PlotsClient::new(channel.clone());

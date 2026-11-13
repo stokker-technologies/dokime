@@ -48,7 +48,10 @@ async fn client_inspects_health() -> Result<(), Box<dyn std::error::Error>> {
 
         // Open the Backend Health Page on a Fresh Host
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut health = v1::health_client::HealthClient::connect(process.url.clone()).await?;
         let empty = health.list_health(v1::HealthListHealthRequest::default()).await?.into_inner();
         assert!(empty.items.is_empty());

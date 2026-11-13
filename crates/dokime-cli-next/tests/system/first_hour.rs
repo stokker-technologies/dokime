@@ -58,8 +58,10 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
 
         // Start a Host With an Explicit Endpoint and Controlled Clock
+        let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
         let storage = directory.path().join("storage");
         let mut host = super::command()
+            .envs(credentials.environment.iter().cloned())
             .args(["--endpoint", "127.0.0.1:0", "server", "--controlled-clock", "--storage"])
             .arg(&storage)
             .stdin(Stdio::piped())

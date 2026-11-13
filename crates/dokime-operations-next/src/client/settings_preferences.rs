@@ -57,13 +57,7 @@ pub(super) fn initial() -> v1::SettingsSnapshot {
                 request_timeout_ms: 30_000,
             }),
             telemetry: Some(v1::TelemetryPreferences { interval_ms: 1000 }),
-            listener: Some(v1::RemoteListenerSettings {
-                address: "127.0.0.1:0".into(),
-                tls_enabled: true,
-                authentication_enabled: true,
-                certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
-                ..Default::default()
-            }),
+            listener: None,
             plugins: Some(v1::PluginPreferences {
                 startup_timeout_s: 60,
                 stop_timeout_s: 10,
@@ -105,8 +99,9 @@ pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
     if !(1..=3600).contains(&plugins.startup_timeout_s) || !(1..=3600).contains(&plugins.stop_timeout_s) {
         return Err(invalid("Choose Plugin Timeouts from 1 to 3600 Seconds"));
     }
-    let listener = settings.listener.as_ref().ok_or_else(|| invalid("Supply Listener Preferences"))?;
-    super::remote_update_listener::validate_settings(listener)?;
+    if settings.listener.is_some() {
+        return Err(invalid("Configure the Listener Through Access.Listener.Set"));
+    }
     Ok(())
 }
 pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::PluginRuntimeSettings> {

@@ -46,7 +46,10 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host and Inspect Desktop Bootstrap Identity
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut runtime = dokime::v1::runtime_client::RuntimeClient::connect(process.url.clone()).await?;
         let mut backend = dokime::v1::backend_client::BackendClient::connect(process.url.clone()).await?;
         let identity = runtime.get_identity(dokime::v1::RuntimeGetIdentityRequest {}).await?.into_inner();
@@ -71,7 +74,8 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
         process.close().await?;
 
         // Reopen the Same Root with a New Boot Epoch and Stable Identity
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut runtime = dokime::v1::runtime_client::RuntimeClient::connect(process.url.clone()).await?;
         let reopened = runtime.get_identity(dokime::v1::RuntimeGetIdentityRequest {}).await?.into_inner();
         assert_eq!(reopened.backend_id, identity.backend_id);

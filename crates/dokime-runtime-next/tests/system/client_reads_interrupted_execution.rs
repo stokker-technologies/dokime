@@ -49,9 +49,11 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start an Execution in the Real Host and Wait for Its Prompt
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
         let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
@@ -114,7 +116,7 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
 
         // Kill the Host and Inspect the Interrupted Evidence Through the Same Reads
         process.kill().await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
         let mut query = v1::query_client::QueryClient::new(channel.clone());

@@ -155,3 +155,10 @@ SDK `build` task. The `cpp_plugin_matches_rust_thermal_evidence` host story runs
 the executable in remote and managed placements, compares the frozen case and
 all ordered evidence/sample fields with Rust, and reopens the sealed evidence.
 See [Execution Host](execution-host.md) for prerequisites and focused runs.
+
+## Composed Client Services
+
+`dokime::Client` exposes the library `access`, `status` and `storage` resource
+roots over its channel, such as `client.access.listener.get(request)`.
+The pinned library root currently creates its own gRPC client context; authenticated
+root calls need the metadata/cancellation capability recorded in Library Requests.

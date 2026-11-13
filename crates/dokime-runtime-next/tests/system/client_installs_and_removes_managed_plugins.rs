@@ -110,7 +110,10 @@ async fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn std
         let executable = std::fs::read(super::support::thermal_fixture()?)?;
         let first_archive = bundle(&executable, "1.0.0")?;
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let installed = plugins.install(tokio_stream::iter(upload(first_archive.clone()))).await?.into_inner();
         assert_eq!(installed.plugin.as_ref().unwrap().state, v1::PluginState::Ready as i32);
@@ -169,7 +172,8 @@ async fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn std
         process.close().await?;
 
         // Restart Starts the Verified Managed Process, Then Remove Only Its Installation
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let restarted = plugins
             .get_installation(v1::PluginsGetInstallationRequest {

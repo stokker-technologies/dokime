@@ -85,6 +85,7 @@ plugin-host = { path = "plugins/sidecars/host", default-features = false }
 # Git
 harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b5f595087967a085662689654bfadeff3d77ffa1" }
 harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b5f595087967a085662689654bfadeff3d77ffa1" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b5f595087967a085662689654bfadeff3d77ffa1" }
 harmos-sdk-derive = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b5f595087967a085662689654bfadeff3d77ffa1" }
 
 # Error Handling

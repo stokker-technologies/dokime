@@ -51,6 +51,8 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Sealed Evidence and Its Selected Document
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let document = host.catalog(&entry)?.suites[0].templates[0].documents[0].clone();
@@ -63,7 +65,7 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
         let before = host.execution(&identifier)?;
         host.shutdown().await?;
         drop(host);
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
         let mut execution = v1::execution_client::ExecutionClient::new(channel);
@@ -128,7 +130,7 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
         process.close().await?;
 
         // Restart and Download Exactly the Published Bytes Without Republishing
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut reports = v1::reports_client::ReportsClient::connect(process.url.clone()).await?;
         let mut stream = reports
             .download_execution_report(v1::ReportsDownloadExecutionReportRequest { execution_id: identifier.clone() })

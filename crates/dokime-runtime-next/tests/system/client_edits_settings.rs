@@ -48,6 +48,8 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
 
         // Open Settings and Save a Revision-Checked Preference
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         // An Unavailable Plugin Retains Editable Settings Without Startup Injection
         let catalog = dokime::Plugin::new("settings.fixture", "0.1.0")
             .setting(v1::Setting {
@@ -67,7 +69,8 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
         };
         store.save_plugin("settings.fixture", &prost::Message::encode_to_vec(&description))?;
         drop(store);
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut settings = v1::settings_client::SettingsClient::connect(process.url.clone()).await?;
         let frame = settings.get_settings(v1::SettingsGetSettingsRequest {}).await?.into_inner();
         assert_eq!(std::path::Path::new(&frame.bootstrap_paths.unwrap().storage), root.path());
@@ -157,7 +160,8 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
         process.close().await?;
 
         // Reopen Settings Without Losing the Saved Revision
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut settings = v1::settings_client::SettingsClient::connect(process.url.clone()).await?;
         assert_eq!(settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await?.into_inner(), saved);
         assert_eq!(

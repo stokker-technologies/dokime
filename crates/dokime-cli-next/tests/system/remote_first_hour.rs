@@ -52,7 +52,9 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
             let project = directory.path().join(language);
             super::run(&["new", project.to_str().unwrap(), "--lang", language]).await?;
             let storage = directory.path().join("storage");
+            let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
             let mut host = super::command()
+                .envs(credentials.environment.iter().cloned())
                 .args(["--endpoint", "127.0.0.1:0", "server", "--controlled-clock", "--storage"])
                 .arg(storage)
                 .stdin(Stdio::piped())

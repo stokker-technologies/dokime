@@ -48,10 +48,13 @@ async fn client_manages_plugin_entries() -> Result<(), Box<dyn std::error::Error
 
         // Add a Remote Plugin and Read Its Complete Entry
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let mut plugin =
             dokime_runtime_next::PluginProcess::start(&super::support::thermal_fixture()?, true, &super::support::settings().placement)
                 .await?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
         assert_eq!(entry.state, v1::PluginState::Ready as i32);
@@ -65,7 +68,8 @@ async fn client_manages_plugin_entries() -> Result<(), Box<dyn std::error::Error
         process.close().await?;
 
         // Retain Placement While Unavailable and Explicitly Reconnect
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let saved = plugins.list(v1::ListPlugins {}).await?.into_inner().plugins.remove(0);
         assert_eq!(saved.entry, entry.entry);

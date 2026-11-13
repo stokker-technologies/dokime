@@ -51,6 +51,8 @@ async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std:
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let python = std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
             let directory = if std::env::consts::EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
@@ -61,7 +63,7 @@ async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std:
         let settings = super::support::settings();
         let executable = super::support::thermal_fixture()?;
         let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
-        let process = HostProcess::start(&root.path().join("store")).await?;
+        let process = HostProcess::start_with_environment(&root.path().join("store"), &credentials.environment).await?;
 
         // Drive the Complete Journey with the Pure Python Package's Generated Clients
         let output = Command::from(dokime_runtime_next::process::command(&python))
@@ -75,7 +77,7 @@ async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std:
         process.close().await?;
 
         // Reconnect After a Real Process Restart and Compare All Stored Evidence
-        let process = HostProcess::start(&root.path().join("store")).await?;
+        let process = HostProcess::start_with_environment(&root.path().join("store"), &credentials.environment).await?;
         let output = Command::from(dokime_runtime_next::process::command(&python))
             .arg(&script)
             .args(["read", &process.url, plugin.endpoint()])

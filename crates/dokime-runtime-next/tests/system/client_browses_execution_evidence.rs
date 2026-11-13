@@ -49,6 +49,8 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Two Independent Imported Executions with Frozen Schemas
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let contracts = v1::RecordContracts {
             records: vec![v1::RecordContract {
@@ -113,7 +115,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             store.close(id, v1::Termination::Completed, v1::ExecutionOutcome::default())?;
             store.seal(id)?;
         }
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel.clone());
         let identity = client.backend.identity().await?;

@@ -48,7 +48,10 @@ async fn client_reads_appearance() -> Result<(), Box<dyn std::error::Error>> {
 
         // Open the Desktop Appearance on a Fresh Host
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut appearance = v1::appearance_client::AppearanceClient::connect(process.url.clone()).await?;
         let snapshot = appearance.get_appearance(v1::GetAppearance {}).await?.into_inner();
         assert!(!snapshot.app_name.trim().is_empty());

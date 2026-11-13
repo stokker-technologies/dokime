@@ -157,3 +157,9 @@ The named assertion `csharp_frozen_record_schema_decodes_door` passes in both
 placements at the pinned Harmos revision. `Record<T>` calls descriptor-only
 `Message<T>()`, retaining Door and its dependencies without an artificial
 operation, stream or section. The frozen catalog decodes the exact record bytes.
+
+## Composed Client Services
+
+`Dokime.Client` exposes the library `Access`, `Status` and `Storage` resources
+over its call invoker. For example, use `client.Access.Listener.Get` and
+`client.Access.Pairings.Create` with the matching Harmos requests and call options.

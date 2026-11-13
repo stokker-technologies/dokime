@@ -37,6 +37,7 @@ dokime-storage = { workspace = true }
 
 # Git
 harmos-protocol = { workspace = true, features = ["host"] }
+harmos-runtime = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }

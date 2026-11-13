@@ -366,8 +366,8 @@ service Progress {
 Library listener configuration follows the same grammar:
 `harmos/v1/access/listener.proto`, package `harmos.v1.access`, service Listener,
 Get/Set with `ListenerGetRequest/Response` and `ListenerSetRequest/Response`.
-Access.CreatePairing and Access.CreateCertificate allocate lifecycle resources;
-their single creation paths keep distinguishing nouns on the mixed-resource parent.
+Access.Pairings.Create and Access.Certificates.Create allocate lifecycle resources;
+their resource-specific operations live in the access sub-package.
 
 ### Shared Shape Sketch
 
@@ -773,10 +773,10 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | Present Operation | Locked Destination on the Client Face | Destination Owner | Disposition and Reason | Callers |
 | --- | --- | --- | --- | --- |
 | `Appearance.GetAppearance` | `Backend.Appearance` | Product | Merged: Move appearance ownership. | G |
-| `Backend.CollectDiagnostics` | `Status.Diagnostics` | Library | Renamed: Read bounded diagnostic output. | G |
-| `Backend.GetAvailability` | `Status.Availability` | Library | Renamed: Retain availability. | CS |
-| `Backend.GetHealth` | `Status.Health` | Library | Merged: One health owner. | CS |
-| `Backend.GetIdentity` | `Status.Identity` | Library | Merged: One identity owner. | GCS |
+| `Backend.CollectDiagnostics` | `Status.Diagnostics.Get` | Library | Renamed: Read bounded diagnostic output. | G |
+| `Backend.GetAvailability` | `Status.Get` | Library | Renamed: Retain availability. | CS |
+| `Backend.GetHealth` | `Status.Get` | Library | Merged: One health owner. | CS |
+| `Backend.GetIdentity` | `Status.Get` | Library | Merged: One identity owner. | GCS |
 | `Backend.WatchLogs` | `Status.Logs.Watch` | Library | Kept: Durable log watch. | T |
 | `Backend.WatchTrace` | `Status.TraceEvents.Watch` | Library | Renamed: Name trace event resource. | G |
 | `Catalog.GetRecordSchema` | `Catalog.RecordSchemas.Get` | Product | Merged: Catalog or frozen execution parent. | N |
@@ -877,16 +877,16 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Query.ListExecutions` | `Executions.List` | Product | Merged: Preserve projection/filter semantics. | TS |
 | `Query.ListRecords` | `Evidence.Records.List` | Product | Merged: One canonical evidence read. | T |
 | `Query.ListSamples` | `Evidence.Samples.List` | Product | Merged: One canonical sample read. | T |
-| `Remote.CreatePairing` | `Access.CreatePairing` | Library | Kept: Preserve access material lifecycle. | G |
+| `Remote.CreatePairing` | `Access.Pairings.Create` | Library | Kept: Preserve access material lifecycle. | G |
 | `Remote.ReadListener` | `Access.Listener.Get` | Library | Renamed: Derived listener state. | G |
-| `Remote.RegenerateCertificate` | `Access.CreateCertificate` | Library | Renamed: Allocate replacement certificate. | G |
+| `Remote.RegenerateCertificate` | `Access.Certificates.Create` | Library | Renamed: Allocate replacement certificate. | G |
 | `Remote.UpdateListener` | `Access.Listener.Set` | Library | Renamed: Whole listener writable settings and revision from GetListener. | G |
 | `Reports.PublishExecutionReport` | `Reports.Publish` | Product | Renamed: Explicit durable publication, never implicit download. | S |
 | `Reports.DownloadCycleReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` | Product + Library | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.DownloadExecutionReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` | Product + Library | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.MaterializeReport` | `Reports.Create` | Product | Merged: Render only, no publication. | N |
-| `Runtime.GetHealth` | `Status.Health` | Library | Removed: Remove duplicate health gRPC method. | C |
-| `Runtime.GetIdentity` | `Status.Identity` | Library | Removed: Remove duplicate identity gRPC method. | C |
+| `Runtime.GetHealth` | `Status.Get` | Library | Removed: Remove duplicate health gRPC method. | C |
+| `Runtime.GetIdentity` | `Status.Get` | Library | Removed: Remove duplicate identity gRPC method. | C |
 | `Secrets.Export` | `Secrets.Export` | Product | Renamed: Existing Base64 JSON transfer, not encryption. | G |
 | `Secrets.Import` | `Secrets.Import` | Product | Merged: Preserve choices and generation conflict. | G |
 | `Secrets.List` | `Secrets.List` | Product | Renamed: Bounded metadata, not secret values. | G |
@@ -931,29 +931,27 @@ implementation must census them separately. No automatic twins are counted.
 | Context / Library Dependencies | 3 | 0 | 11 | 0 | 11 | 11 | 22 |
 | Context / Product | 12 | 0 | 18 | 0 | 18 | 18 | 36 |
 | Context Combined | 15 | 0 | 29 | 0 | 29 | 29 | 58 |
-| Client API / Library Dependencies | 10 | 10 | 34 | 34 | 34 | 34 | 68 |
+| Client API / Library Dependencies | 12 | 12 | 35 | 35 | 35 | 35 | 70 |
 | Client API / Product | 32 | 32 | 93 | 93 | 93 | 93 | 186 |
-| Client API Combined | 42 | 42 | 127 | 127 | 127 | 127 | 254 |
-| All Faces, Each Declaration Counted | 62 | 43 | 165 | 131 | 165 | 165 | 330 |
+| Client API Combined | 44 | 44 | 128 | 128 | 128 | 128 | 256 |
+| All Faces, Each Declaration Counted | 64 | 45 | 166 | 132 | 166 | 166 | 332 |
 
 The product declares 48 logical services and 116 operations/pairs across the
 three faces (32/93 client, 12/18 context, 4/5 plugin). The mapped library
-contributes 14 logical services and 49 operations/pairs (10/34 client, 3/11
-context, 1/4 plugin protocol), with 38 gRPC entry methods. These are declaration
+contributes 16 logical services and 50 operations/pairs (12/35 client, 3/11
+context, 1/4 plugin protocol), with 39 gRPC entry methods. These are declaration
 counts: a capability on two faces counts twice, and a shared handler counts
 neither as a third declaration nor as a second registry.
 
 ### Client Mapping and Companion Coverage
 
-The 132 ordinary mapping rows remain 7 kept, 52 renamed, 71 merged and 2 duplicate
-gRPC methods removed. All 132 automatic Run twins are removed. Their mapped
-client surface is still 39 services (23 nested), 120 methods and 240 wrappers:
-7 library services/27 methods plus 32 product services/93 methods. It is 144 fewer
-methods than the 264 current product methods. Seven library client companions
-complete the generic client access needed here: CatalogEntries.List,
-Invocations.Get/Watch/Cancel/Invoke and Time.Get/Sleep. This yields 42 client
-services (23 nested), 127 methods and 254 wrappers; the 132 source rows are not
-rewritten as if these companions had present product callers.
+The original mapping had 39 services and 120 methods. Converging on the library
+adds Access.Pairings.List/Delete and Status.Watch, merges the three generic status
+reads into Status.Get, and moves diagnostics into Status.Diagnostics.Get. With
+CatalogEntries.List, Invocations.Get/Watch/Cancel/Invoke and Time.Get/Sleep, the
+mapped client surface has 44 services (26 nested), 128 methods and 256 wrappers.
+The 132 ordinary source rows and their removed Run twins remain the source census;
+new library companions are not represented as existing product callers.
 
 Each row below is one service on the **client face**. Dots express hierarchy;
 namespace-only parents are not empty services. The package column is exact.
@@ -961,9 +959,11 @@ namespace-only parents are not empty services. The package column is exact.
 | Owner | Client Package | Locked Service | Nested | Count | Operations |
 | --- | --- | --- | --- | ---: | --- |
 | Library | `harmos.v1` | Plugins | No | 7 | `Get`, `List`, `Watch`, `Create`, `Set`, `Delete`, `Restart` |
-| Library | `harmos.v1` | Access | No | 2 | `CreatePairing`, `CreateCertificate` |
+| Library | `harmos.v1.access` | Access.Pairings | Yes | 3 | `Create`, `List`, `Delete` |
+| Library | `harmos.v1.access` | Access.Certificates | Yes | 1 | `Create` |
 | Library | `harmos.v1.access` | Access.Listener | Yes | 2 | `Get`, `Set` |
-| Library | `harmos.v1` | Status | No | 4 | `Identity`, `Health`, `Availability`, `Diagnostics` |
+| Library | `harmos.v1` | Status | No | 2 | `Get`, `Watch` |
+| Library | `harmos.v1.status` | Status.Diagnostics | Yes | 1 | `Get` |
 | Library | `harmos.v1.status` | Status.Logs | Yes | 2 | `List`, `Watch` |
 | Library | `harmos.v1.status` | Status.TraceEvents | Yes | 2 | `List`, `Watch` |
 | Library | `harmos.v1` | Storage | No | 8 | `CreateFileProduction`, `GetFileProduction`, `CreateFileWriter`, `AppendFileBytes`, `DeleteFileProduction`, `PublishFileProduction`, `GetFileBytes`, `WatchFileBytes` |
@@ -1003,13 +1003,9 @@ namespace-only parents are not empty services. The package column is exact.
 | Library | `harmos.v1` | Invocations | No | 4 | `Get`, `Watch`, `Cancel`, `Invoke` |
 | Library | `harmos.v1` | Time | No | 2 | `Get`, `Sleep` |
 
-The original mapping reaches 102 distinct destinations; these 18 companions
-complete that 120-method surface: Cases.Watch, Content.Artifacts.Watch,
-Content.ExecutionFiles.Watch, Cycles.Watch, Documents.Watch,
-Evidence.HealthEvents.Watch, Evidence.Notes.Get/Watch, Evidence.Traceability.Watch,
-Executions.Progress.Get, Executions.Watch, Media.Captures.Get, Plots.Settings.Get,
-Plugins.Watch, Prompts.Watch, Secrets.Watch, Status.Logs.List and
-Status.TraceEvents.List. The seven generic companions above are additional.
+The mapping reaches 100 distinct destinations. The original companions plus
+Access.Pairings.List/Delete and Status.Watch complete the resource workflows;
+CatalogEntries, Invocations and Time add the generic client capabilities.
 Invocations.Invoke names the generic client invocation path required by this
 lock; Get/Watch/Cancel retain invocation observation/control, and CatalogEntries.List
 provides authorized discovery. It is a client operation, not another plugin
@@ -1156,7 +1152,7 @@ checkout named by its report:
   `proto/dokime/v1/*.proto` gives 953. This confirms the reports' correction of
   131/262. PublishExecutionReport is present. Remove 264 twin-envelope messages;
   the final payload-message total remains unknown; neither subtraction nor the
-  330 scoped method messages establishes it.
+  332 scoped method messages establishes it.
 - `crates/dokime-runtime-next/src/services/mod.rs`: 13 registered client services,
   not complete serving of all 23. `dokime-operations-next/src/lib.rs` declares and
   dispatches exactly log, progress, record, records, statistics, prompt and library
@@ -1227,15 +1223,13 @@ these contracts or claim implementation.
    the plugin protocol's own carriers and proven settlement; current product
    twins establish no such promise.
 
-6. **Converged library service names:** the adopted library declares
-   Access.Pairings.Create/List/Delete, Access.Certificates.Create,
-   Status.Get/Watch and Status.Diagnostics.Get. The locked product mapping still
-   names Access.CreatePairing/CreateCertificate and Status.Identity/Health/
-   Availability/Diagnostics. Both exact method sets cannot be served by direct
-   composition without forbidden product redeclarations or aliases. The closest
-   invariant-preserving implementation is to compose the actual library services;
-   reconcile the mapping before their client cutover. No alternate method set has
-   been implemented in this pin-adoption slice.
+Closed: library declarations own the composed names: Access.Listener.Get/Set, Access.Pairings.Create/List/Delete, Access.Certificates.Create, Status.Get/Watch and Status.Diagnostics.Get.
+
+The new host removes its Access handlers and settings ownership. The old loop still
+compiles against client_remote.proto and the shared listener DTOs; those declarations
+remain solely for that loop until its separately locked atomic desktop cutover.
+Deleting them now requires changing that loop's protocol and desktop consumers,
+which this slice does not migrate. No product Remote service is registered in the new host.
 
 ### Library Admission Request
 

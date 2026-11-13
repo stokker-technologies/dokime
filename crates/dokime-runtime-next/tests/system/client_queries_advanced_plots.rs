@@ -110,6 +110,8 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
         // Retain Correlated Streams and Numeric Group Labels
         let root=tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store=Store::open(root.path())?;
         let catalog=harmos_protocol::v1::Catalog {types:Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),streams:["cells","calibration"].into_iter().map(|id|harmos_protocol::v1::StreamDeclaration {id:id.into(),row:"dokime.v1.PlotDomain".into(),..Default::default()}).collect(),..Default::default()};
         let mut catalog=catalog;
@@ -125,7 +127,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         store.close_streams("advanced")?;
         store.close("advanced",v1::Termination::Completed,v1::ExecutionOutcome::default())?;
         store.seal("advanced")?;
-        let process=HostProcess::start(root.path()).await?;
+        let process=HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel=tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut plots=v1::plots_client::PlotsClient::new(channel);
         let scope=Some(v1::EvidenceScope {execution_id:Some("advanced".into()),..Default::default()});

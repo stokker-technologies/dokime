@@ -49,9 +49,11 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Create a Mutable Cycle and Register Its Cases Without Running
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone());
         client.plugins.add(plugin.endpoint()).await?;

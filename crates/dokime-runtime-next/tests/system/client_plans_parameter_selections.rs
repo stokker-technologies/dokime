@@ -49,9 +49,11 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Inspect the Library and Preview Repeated Selections Without Starting
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone());
         client.plugins.add(plugin.endpoint()).await?;
@@ -156,7 +158,7 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         process.close().await?;
 
         // Resolve the Same Registration After Restart Without the Plugin
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let recovered = v1::planning_client::PlanningClient::new(channel)
             .register_selection(v1::PlanningRegisterSelectionRequest {

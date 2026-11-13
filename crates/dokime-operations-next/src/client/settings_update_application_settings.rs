@@ -50,12 +50,7 @@ pub async fn handle(context: &Context, request: v1::SettingsUpdateApplicationSet
         let update = request.update.ok_or_else(|| Error::Invalid("Save Settings: Supply a Revision and Settings".into()))?;
         let settings = update.settings.as_ref().ok_or_else(|| Error::Invalid("Save Settings: Supply the Complete Settings".into()))?;
         super::settings_preferences::validate(settings)?;
-        let previous = super::settings_preferences::read(context)?;
-        let listener_changed = previous.settings.as_ref().and_then(|settings| settings.listener.as_ref()) != settings.listener.as_ref();
         let saved = context.host.store().update_preferences(update, &super::settings_preferences::initial())?;
-        if listener_changed && let Some(listener) = saved.settings.as_ref().and_then(|settings| settings.listener.clone()) {
-            context.host.update_remote_listener(listener).await?;
-        }
         Ok(saved)
     })
     .await

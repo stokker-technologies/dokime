@@ -13,6 +13,11 @@ is claimed here. Obtain one complete CI candidate as described below; its native
 installation and workflow checks must pass before treating it as validated.
 A version string alone does not identify compatible candidate bytes.
 
+The additive execution-host candidate uses the library's revisioned Access.Listener
+and independent Access.Pairings services. Its setup and rotation workflow is in
+[New Execution Host](../execution-host.md#serve-client-grpc); the desktop workflow
+below continues to use the existing host until its atomic cutover.
+
 ## Obtain One Matching Candidate
 
 Open [Dokime's GitHub Actions](https://github.com/stokker-technologies/dokime/actions)

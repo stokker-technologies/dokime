@@ -17,7 +17,9 @@ import json
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -26,6 +28,7 @@ import grpc
 from google.protobuf import descriptor_pool, message_factory
 from google.protobuf.descriptor import MethodDescriptor
 from google.protobuf.message import Message
+from harmos.client import Client as LibraryClient
 
 # Local Imports
 from .v1 import descriptors, message, services
@@ -53,6 +56,11 @@ class Client:
         self.channel = channel
         self.metadata = metadata
         self.closed = False
+        resource_channel = SimpleNamespace(
+            unary_unary=lambda *args, **kwargs: partial(channel.unary_unary(*args, **kwargs), metadata=self.metadata),
+            unary_stream=lambda *args, **kwargs: partial(channel.unary_stream(*args, **kwargs), metadata=self.metadata),
+        )
+        self._library = LibraryClient(resource_channel)
         self.stubs = {name: stub(channel) for name, stub in services().items()}
         self._methods = []
         for definition in descriptors().file:
@@ -70,6 +78,9 @@ class Client:
         self.records = Records(self)
         self.samples = Samples(self)
         self.reports = Reports(self)
+
+    def __getattr__(self, name: str):
+        return getattr(self._library, name)
 
     def call(self, request, *, method: MethodDescriptor | None = None, timeout: float | None = None):
         if self.closed:

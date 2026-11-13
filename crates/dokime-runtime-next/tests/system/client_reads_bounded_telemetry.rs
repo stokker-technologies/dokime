@@ -49,6 +49,8 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retain Exact Sample Bytes and Frozen Numeric Descriptors
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let catalog = harmos_protocol::v1::Catalog {
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
@@ -82,7 +84,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         store.close_streams("telemetry")?;
         store.close("telemetry", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
         store.seal("telemetry")?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel.clone());
         let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel);

@@ -50,6 +50,8 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Registered Files and an Independent Execution
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         for id in ["content-a", "content-b"] {
             store.create(&Execution {
@@ -76,7 +78,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         store.finish_execution_file("file-replacement", false)?;
 
         // Upload Ordered Chunks with an Explicit Digest Completion
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut content = v1::content_client::ContentClient::new(channel);
         let bytes = vec![42; 140_003];
@@ -399,7 +401,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         // Reopen Published Content Without Exposing Abandoned Uploads
         process.close().await?;
         plugin.close().await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut content = v1::content_client::ContentClient::new(channel);
         assert_eq!(content.list_artifacts(v1::ContentListArtifactsRequest::default()).await?.into_inner().artifacts, artifacts);

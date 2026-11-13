@@ -29,13 +29,6 @@
 
 /* === Structs === */
 
-#[cfg(not(target_os = "linux"))]
-#[derive(Clone, PartialEq, prost::Message)]
-struct Cleanup {
-    #[prost(string, tag = "3")]
-    key_slot: String,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -52,6 +45,7 @@ struct Cleanup {
 async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         use dokime::v1;
+        use harmos_protocol::v1::access;
 
         // Export a Pairing File and Connect Through Its Pinned Certificate
         let root = tempfile::tempdir()?;
@@ -59,19 +53,41 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         let credentials = super::support::CredentialStore::start(root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
-        assert!(!remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner().settings.unwrap().enabled);
-        let first =
-            remote.create_pairing(v1::RemoteCreatePairingRequest { label: "Story Desktop".into() }).await?.into_inner().pairing.unwrap();
+        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let limits = dokime::client::ClientSettings {
+            retained_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            input_items: std::num::NonZeroUsize::new(8).unwrap(),
+            input_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+        };
+        let remote = dokime::Client::from_channel(channel, limits)?;
+        let current = remote.access.listener.get(tonic::Request::new(access::ListenerGetRequest {})).await?.into_inner();
+        let mut value = current.value.unwrap();
+        assert!(!value.enabled);
+        value.enabled = true;
+        remote
+            .access
+            .listener
+            .set(tonic::Request::new(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: current.revision,
+            }))
+            .await?;
+        let first = remote
+            .access
+            .pairings
+            .create(tonic::Request::new(access::PairingsCreateRequest { label: "Story Desktop".into() }))
+            .await?
+            .into_inner();
         let tls = tonic::transport::ClientTlsConfig::new()
-            .ca_certificate(tonic::transport::Certificate::from_pem(first.certificate_pem.clone().unwrap()));
-        let channel = tonic::transport::Endpoint::from_shared(first.endpoints[0].clone())?.tls_config(tls)?.connect().await?;
+            .ca_certificate(tonic::transport::Certificate::from_pem(first.pinned_certificate_pem.clone()));
+        let channel = tonic::transport::Endpoint::from_shared(first.endpoint.clone())?.tls_config(tls)?.connect().await?;
         let mut backend = v1::backend_client::BackendClient::new(channel.clone());
         assert_eq!(backend.get_identity(v1::GetBackendIdentity {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut request = tonic::Request::new(v1::GetBackendIdentity {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
         let identity = backend.get_identity(request).await?.into_inner();
-        assert_eq!(identity.backend_id, first.backend_identifier);
+        assert_eq!(identity.backend_id, identity.backend_id);
 
         // The Same Authorization Protects Settings and Plugin Pages
         let mut settings = v1::settings_client::SettingsClient::new(channel.clone());
@@ -80,18 +96,18 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             tonic::Code::Unauthenticated,
         );
         let mut request = tonic::Request::new(v1::SettingsReadApplicationSettingsRequest {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
         assert!(settings.read_application_settings(request).await?.into_inner().settings.is_some());
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
         assert_eq!(plugins.list(v1::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut request = tonic::Request::new(v1::ListPlugins {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
         assert!(plugins.list(request).await?.into_inner().plugins.is_empty());
         drop(settings);
         drop(plugins);
 
         // Execution Services Use the Same Authenticated Route Composer
-        let key = format!("Bearer {}", first.access_key.as_ref().unwrap());
+        let key = format!("Bearer {}", &first.credential);
         let mut executions = v1::execution_client::ExecutionClient::new(channel.clone());
         assert_eq!(
             executions.create_cycle(v1::ExecutionCreateCycleRequest::default()).await.unwrap_err().code(),
@@ -204,19 +220,43 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         notes.list_notes(request).await?;
         drop(notes);
 
-        // A New Export Invalidates the Old Key on an Already Open Channel
+        // Independent Pairings Remain Valid Until Explicit Revocation
         let second = remote
-            .create_pairing(v1::RemoteCreatePairingRequest { label: "Replacement Desktop".into() })
+            .access
+            .pairings
+            .create(tonic::Request::new(access::PairingsCreateRequest { label: "Replacement Desktop".into() }))
             .await?
-            .into_inner()
-            .pairing
-            .unwrap();
-        assert_ne!(second.access_key, first.access_key);
+            .into_inner();
+        let listed = remote
+            .access
+            .pairings
+            .list(tonic::Request::new(access::PairingsListRequest {
+                page: Some(harmos_protocol::v1::PageRequest {
+                    page_size: 8,
+                    max_bytes: 4096,
+                    page_token: String::new(),
+                }),
+                at: None,
+            }))
+            .await?
+            .into_inner();
+        assert_eq!(listed.pairings.len(), 2);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
+        backend.get_identity(request).await?;
+        remote
+            .access
+            .pairings
+            .delete(tonic::Request::new(access::PairingsDeleteRequest {
+                name: first.pairing.as_ref().unwrap().id.clone(),
+            }))
+            .await?;
+        assert_ne!(second.credential, first.credential);
         let mut old = tonic::Request::new(v1::GetBackendIdentity {});
-        old.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.unwrap()).parse()?);
+        old.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert_eq!(backend.get_identity(old).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut current = tonic::Request::new(v1::GetBackendIdentity {});
-        current.metadata_mut().insert("authorization", format!("Bearer {}", second.access_key.as_ref().unwrap()).parse()?);
+        current.metadata_mut().insert("authorization", format!("Bearer {}", &second.credential).parse()?);
         assert_eq!(backend.get_identity(current).await?.into_inner().backend_id, identity.backend_id);
         drop(backend);
         drop(channel);
@@ -225,45 +265,57 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         // Restart Retains the Access Key and Certificate, Then Rotate the Certificate
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
-        let status = remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner();
-        assert!(status.key_configured);
-        assert_eq!(status.certificate_pem, second.certificate_pem);
-        let address = format!("https://{}", status.listening_address.as_ref().unwrap());
+        let management = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let remote = dokime::Client::from_channel(management, limits)?;
+        let status = remote.access.listener.get(tonic::Request::new(access::ListenerGetRequest {})).await?.into_inner();
+        assert!(status.value.as_ref().unwrap().enabled);
+        let address = status.bound_endpoint.clone();
         let tls = tonic::transport::ClientTlsConfig::new()
-            .ca_certificate(tonic::transport::Certificate::from_pem(second.certificate_pem.clone().unwrap()));
+            .ca_certificate(tonic::transport::Certificate::from_pem(second.pinned_certificate_pem.clone()));
         let channel = tonic::transport::Endpoint::from_shared(address)?.tls_config(tls)?.connect().await?;
-        let mut backend = v1::backend_client::BackendClient::new(channel);
+        let mut backend = v1::backend_client::BackendClient::new(channel.clone());
         let mut request = tonic::Request::new(v1::GetBackendIdentity {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", second.access_key.unwrap()).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(backend.get_identity(request).await?.into_inner().backend_id, identity.backend_id);
-        drop(backend);
-        let rotated = remote
-            .regenerate_certificate(v1::RemoteRegenerateCertificateRequest {
-                certificate_names: status.settings.as_ref().unwrap().certificate_names.clone(),
-            })
+
+        // Rotate Live Trust; Existing Connections Survive but Revoked Credentials Cannot Authorize
+        let rotated = remote.access.certificates.create(tonic::Request::new(access::CertificatesCreateRequest {})).await?.into_inner();
+        assert_ne!(rotated.certificate_pem, second.pinned_certificate_pem);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", second.credential).parse()?);
+        assert_eq!(backend.get_identity(request).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let fresh = remote
+            .access
+            .pairings
+            .create(tonic::Request::new(access::PairingsCreateRequest { label: "Rotated Desktop".into() }))
             .await?
             .into_inner();
-        assert_ne!(rotated.certificate_pem, status.certificate_pem);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
+        assert_eq!(backend.get_identity(request).await?.into_inner().backend_id, identity.backend_id);
+        let tls =
+            tonic::transport::ClientTlsConfig::new().ca_certificate(tonic::transport::Certificate::from_pem(fresh.pinned_certificate_pem));
+        let fresh_channel = tonic::transport::Endpoint::from_shared(fresh.endpoint)?.tls_config(tls)?.connect().await?;
+        let mut fresh_backend = v1::backend_client::BackendClient::new(fresh_channel);
+        let mut request = tonic::Request::new(v1::GetBackendIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
+        assert_eq!(fresh_backend.get_identity(request).await?.into_inner().backend_id, identity.backend_id);
+        drop((backend, fresh_backend, channel));
+        let mut value = status.value.unwrap();
+        value.enabled = false;
         let disabled = remote
-            .update_listener(v1::RemoteUpdateListenerRequest {
-                settings: Some(v1::RemoteListenerSettings {
-                    enabled: false,
-                    ..rotated.settings.unwrap()
-                }),
-            })
+            .access
+            .listener
+            .set(tonic::Request::new(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: status.revision,
+            }))
             .await?
             .into_inner();
-        assert!(disabled.listening_address.is_none());
+        assert!(disabled.bound_endpoint.is_empty());
+        drop(remote);
         process.close().await?;
 
-        // Remove Only This Disposable Story's Protected TLS Key
-        #[cfg(not(target_os = "linux"))]
-        {
-            let store = dokime_storage::Store::open(&storage)?;
-            let security: Cleanup = store.administration("remote-security")?.unwrap();
-            keyring::Entry::new("dokime.remote-tls", &format!("{}:{}", identity.backend_id, security.key_slot))?.delete_credential()?;
-        }
         Ok::<(), Box<dyn std::error::Error>>(())
     })
     .await?

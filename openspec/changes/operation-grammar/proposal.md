@@ -33,17 +33,12 @@ with no client-facing gRPC binding; Public permits other plugins by declared
 requirement and clients, always through the host. All four SDKs
 require explicit visibility with no default.
 
-This product's target plus its mapped library dependencies totals 62 logical
-service namespaces, 165 operations, 131 gRPC entry methods and 165 request/response
-pairs (330 wrappers). By face: plugin protocol 5 namespaces/9 operations/4 gRPC
-methods/18 wrappers (one wire service, Instance; five product lifecycle operations
-are catalog declarations); context 15 namespaces/29 operations/0 independent gRPC
-methods/58 wrappers; client 42 services/127 operations and gRPC methods/254 wrappers.
-Client totals include the original 39-service/120-method mapping plus three generic
-library services with seven companions for discovery, invocation and time.
-Product-only totals are 48 namespaces/116 operations/93 gRPC methods/232 wrappers.
-Library numbers cover mapped dependencies, not its whole protocol. Per-face
-inventories, duplicated capabilities and count definitions are in design.md.
+This product's target plus its mapped library dependencies totals 64 logical
+service namespaces, 166 operations, 132 gRPC entry methods and 166 request/response
+pairs (332 wrappers). The client mapping now uses the library-owned Access and
+Status declarations; design.md records the per-face inventory. Product-only totals
+remain 48 namespaces/116 operations/93 gRPC methods/232 wrappers. Counts cover
+mapped dependencies, not the library's whole protocol.
 Every decision below is Owner and LOCKED on 2026-11-12. These are target counts,
 not landed behavior.
 

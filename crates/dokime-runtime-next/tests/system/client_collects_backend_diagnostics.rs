@@ -48,7 +48,10 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
 
         // Read Backend Capabilities and Follow Actual Host Logs
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut backend = v1::backend_client::BackendClient::connect(process.url.clone()).await?;
         let identity = backend.get_identity(v1::GetBackendIdentity {}).await?.into_inner();
         assert_eq!(

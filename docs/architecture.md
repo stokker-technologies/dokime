@@ -135,8 +135,13 @@ inside that pinned dependency revision; other paths resolve in this repository.
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [current composition](../crates/dokime-runtime-next/Cargo.toml),
    [product settings](../crates/dokime-operations-next/src/settings.rs).
-   **Proof:** No proof yet for direct library service composition; A6. Current host
-   depends on the protocol and still owns generic copies. **Status:** locked direction (`operation-grammar`).
+   **Proof:** `client_pairs_and_rotates_remote_access` exercises direct library
+   composition, bearer authorization of product services, revocation, restart
+   and live rotation. The new host serves library Access.Listener,
+   Access.Pairings and Access.Certificates through GrpcManager, with product
+   credential persistence in `services/access_credentials.rs`. Its former Remote
+   service and operations are removed. Other generic copies remain.
+   **Status:** Access composition landed; remaining composition is locked direction (`operation-grammar`).
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects

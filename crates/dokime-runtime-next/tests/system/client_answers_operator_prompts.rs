@@ -49,9 +49,11 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Connect the Operator to a Real Host and Plugin
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone());
         let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
@@ -242,7 +244,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
 
         // Reopen the Host and Resolve the Frozen Question and Answer
         process.close().await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let reopened =
             v1::prompts_client::PromptsClient::new(channel).get_prompt(v1::PromptsGetPromptRequest { prompt_id }).await?.into_inner();

@@ -49,6 +49,8 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Independent Draft Executions
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         for id in ["notes-a", "notes-b"] {
             store.create(&Execution {
@@ -62,7 +64,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         }
 
         // Create a Note and Resolve a Retried Mutation
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel.clone());
         let epoch = client.backend.identity().await?.epoch;
@@ -153,7 +155,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
 
         // Reopen Durable Notes and Refuse Stale Epoch Mutations
         process.close().await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut notes = v1::notes_client::NotesClient::new(channel);
         let page = notes.list_notes(v1::NotesListNotesRequest { selection, ..Default::default() }).await?.into_inner();

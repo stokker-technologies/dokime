@@ -42,7 +42,6 @@ use dokime_storage::Store;
 pub(super) struct State {
     pub host: Host,
     pub administration: std::sync::Arc<tokio::sync::Mutex<()>>,
-    pub remote: std::sync::Arc<super::remote_access::Control>,
     pub diagnostics: super::diagnostics::Diagnostics,
     pub root: std::path::PathBuf,
     pub render_settings: crate::RenderSettings,
@@ -94,18 +93,6 @@ impl ClientHost for State {
     }
     fn now_ns(&self) -> i64 {
         self.host.now_ns()
-    }
-    async fn read_remote_listener(&self) -> Result<v1::RemoteListenerStatus> {
-        self.remote.read().await.map_err(convert)
-    }
-    async fn update_remote_listener(&self, settings: v1::RemoteListenerSettings) -> Result<v1::RemoteListenerStatus> {
-        self.remote.update(settings).await.map_err(convert)
-    }
-    async fn create_pairing(&self, label: String) -> Result<v1::CreatedPairing> {
-        self.remote.pair(label).await.map_err(convert)
-    }
-    async fn regenerate_certificate(&self, names: Vec<String>) -> Result<v1::RemoteListenerStatus> {
-        self.remote.rotate(names).await.map_err(convert)
     }
     fn diagnostic_events(&self, scope: Option<&v1::TraceScope>) -> Result<(Vec<v1::TraceEvent>, u64, u64)> {
         Ok(self.diagnostics.snapshot(scope))

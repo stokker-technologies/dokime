@@ -51,6 +51,8 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Imported Artifact Evidence Without Inventing a Plugin Run
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         store.create(&Execution {
             identifier: "imported-capture".into(),
@@ -115,7 +117,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         drop(store);
 
         // Read an Existing Saved Seal and Its Bounded Artifact Window
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone());
         let mut history = v1::history_client::HistoryClient::new(channel.clone());
@@ -314,7 +316,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
         };
         assert!(history.delete_execution(deletion.clone()).await?.into_inner().local_complete);
         process.close().await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut history = v1::history_client::HistoryClient::new(channel);
         assert_eq!(

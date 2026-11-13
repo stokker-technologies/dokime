@@ -48,10 +48,13 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
 
         // Start a Real Host and Admit the Shared Plugin
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let mut plugin =
             dokime_runtime_next::PluginProcess::start(&super::support::thermal_fixture()?, true, &super::support::settings().placement)
                 .await?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let mut catalog = v1::catalog_client::CatalogClient::connect(process.url.clone()).await?;
         plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
@@ -93,7 +96,8 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
         // A Cursor from Another Boot Cannot Continue This Catalog
         let old_cursor = suites.cursor;
         process.close().await?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut catalog = v1::catalog_client::CatalogClient::connect(process.url.clone()).await?;
         assert!(catalog.list_suites(v1::CatalogListSuitesRequest { cursor: old_cursor, ..Default::default() }).await.is_err());
         process.close().await?;

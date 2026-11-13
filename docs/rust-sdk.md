@@ -302,3 +302,9 @@ matrix proof remain separate from local Windows runs.
 
 These migrations belong to the host/consumer owner. The Rust SDK adds no host-enabling
 features and leaves those existing crates and plugins untouched.
+
+## Composed Client Services
+
+`dokime::Client` exposes the library client root, including `client.access.listener`,
+`client.access.pairings` and `client.access.certificates`, on its existing transport.
+Use the library request wrappers and explicit request metadata.

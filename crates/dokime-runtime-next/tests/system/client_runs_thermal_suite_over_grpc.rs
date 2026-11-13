@@ -48,9 +48,6 @@ pub(super) struct HostProcess {
 /* === Implementations === */
 
 impl HostProcess {
-    pub(super) async fn start(root: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::start_with_environment(root, &[]).await
-    }
     pub(super) async fn start_with_environment(
         root: &std::path::Path, environment: &[(&str, std::ffi::OsString)],
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -92,10 +89,12 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host Process and the Shared Thermal Plugin
         let root = tempfile::tempdir()?;
+        let credential_root = tempfile::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let executable = super::support::thermal_fixture()?;
         let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
-        let process = HostProcess::start(root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel);
         let identity = client.backend.identity().await?;
@@ -250,7 +249,7 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         drop(cycle);
         client.close();
         process.close().await?;
-        let restarted = HostProcess::start(root.path()).await?;
+        let restarted = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(restarted.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel);
         let restored = client.executions.get(execution_id.clone()).await?;
