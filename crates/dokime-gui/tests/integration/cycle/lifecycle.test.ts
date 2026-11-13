@@ -761,10 +761,10 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   const frame = await fetchNativeSettingsFrame(session);
   assert.equal(frame.sections[0].owner.kind, "installed_plugin");
   assert.equal(frame.cards[0].state, "ready");
-  assert.equal(frame.cards[0].body.blocks[0].type, "text");
+  assert.equal(frame.cards[0].body.blocks?.[0].type, "text");
   const projected = await getNativePluginSettings(session, "entry");
   assert.equal(projected.values.power, true);
-  assert.equal(projected.settings.contributions[0].kind, "boolean");
+  assert.equal(projected.settings.contributions?.[0].kind, "boolean");
   assert.equal(projected.restart, undefined);
   await updateNativePluginSettings(session, "entry", { power: false });
 });

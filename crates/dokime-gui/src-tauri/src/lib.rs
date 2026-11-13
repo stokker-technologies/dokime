@@ -18,6 +18,7 @@ pub mod connection;
 mod error;
 pub mod native_session;
 pub mod parameters;
+pub mod paths;
 pub mod rpc;
 #[cfg(feature = "testing")]
 #[doc(hidden)]

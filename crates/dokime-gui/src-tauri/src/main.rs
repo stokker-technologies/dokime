@@ -45,7 +45,7 @@
 // feature so developers keep the process output.
 
 fn main() {
-    let _trace = dokime::diagnostics::test_trace::pending();
+    let _trace = dokime_tracing::pending();
     dokime_gui::run();
 }
 

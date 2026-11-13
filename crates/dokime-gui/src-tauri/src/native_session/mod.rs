@@ -217,7 +217,7 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
         reason: StorageResetReason::Failed,
         message,
     };
-    let application = window.state::<dokime::paths::ApplicationPaths>().root.clone();
+    let application = window.state::<crate::paths::ApplicationPaths>().root.clone();
     storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)
 }
 

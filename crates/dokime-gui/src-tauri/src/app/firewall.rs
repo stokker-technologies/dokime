@@ -113,7 +113,7 @@ async fn run(app: AppHandle, action: &'static str, port: u16, bind_address: Stri
         use tauri::Manager;
         let program = std::env::current_exe().map_err(|error| error.to_string())?;
         let identifier =
-            dokime::paths::distribution_identity(&program, &app.config().identifier).map_err(|error| error.to_string())?.identifier;
+            crate::paths::distribution_identity(&program, &app.config().identifier).map_err(|error| error.to_string())?.identifier;
         let label = app.state::<super::organization::OrganizationState>().label().to_owned();
         let literal = |value: &str| format!("'{}'", value.replace('\'', "''"));
         let script = format!(

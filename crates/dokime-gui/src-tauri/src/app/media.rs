@@ -129,7 +129,7 @@ pub(crate) async fn release_all(app: &AppHandle) {
 /* === Private Functions === */
 
 fn media_root(app: &AppHandle) -> PathBuf {
-    app.state::<dokime::paths::ApplicationPaths>().cache().join("media")
+    app.state::<crate::paths::ApplicationPaths>().cache().join("media")
 }
 
 async fn release_with<F>(media_root: &Path, generation: &str, remove: impl FnOnce(PathBuf) -> F) -> Result<(), String>

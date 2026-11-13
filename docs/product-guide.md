@@ -2461,8 +2461,10 @@ The additive execution host serves library Status.Get/Watch, Status.Logs,
 Status.TraceEvents and ranged Status.Diagnostics.Get. Its tar archive includes
 product contributions and redacts registered secret values. See
 [New Execution Host](execution-host.md#serve-client-grpc) for bounded paging,
-resumption and logging configuration. The desktop still uses the existing host
-until its atomic cutover.
+resumption and logging configuration. The desktop embeds or attaches to this host
+through its SDK connection, including trace snapshot/Watch and verified diagnostics
+TAR ranges. Native facade support dependencies and complete WebView journey proof
+remain under the [Desktop GUI cutover](gui.md#host-connection).
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.

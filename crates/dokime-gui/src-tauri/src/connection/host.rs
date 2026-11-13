@@ -64,6 +64,7 @@ pub struct Session {
     endpoint: String,
     identity: dokime_sdk::client::v1::StatusGetResponse,
     product_epoch: String,
+    methods: Vec<String>,
     cancellation: CancellationToken,
     watches: Arc<tokio::sync::Mutex<tokio::task::JoinSet<()>>>,
     stream_buffer: usize,
@@ -220,6 +221,10 @@ impl Session {
         &self.identity
     }
 
+    pub(crate) fn methods(&self) -> &[String] {
+        &self.methods
+    }
+
     pub(crate) fn product_epoch(&self) -> &str {
         &self.product_epoch
     }
@@ -342,6 +347,7 @@ impl Session {
             endpoint: endpoint.to_owned(),
             identity: Default::default(),
             product_epoch: String::new(),
+            methods: Vec::new(),
             cancellation: CancellationToken::new(),
             watches: Arc::new(tokio::sync::Mutex::new(tokio::task::JoinSet::new())),
             stream_buffer: settings.client.input_items.get(),
@@ -366,6 +372,49 @@ impl Session {
             .unary("/dokime.v1.Execution/ListCycles", dokime_sdk::v1::ExecutionListCyclesRequest { limit: 1, ..Default::default() })
             .await?;
         session.product_epoch = cycles.cursor.filter(|cursor| !cursor.epoch.is_empty()).ok_or(Error::IncompleteIdentity)?.epoch;
+        let mut methods = std::collections::BTreeSet::new();
+        let mut tokens = std::collections::BTreeSet::new();
+        let mut token = String::new();
+        let mut retained_bytes = 0usize;
+        loop {
+            let page: dokime_sdk::client::v1::CatalogEntriesListResponse = session
+                .unary(
+                    "/harmos.v1.CatalogEntries/List",
+                    dokime_sdk::client::v1::CatalogEntriesListRequest {
+                        kind: dokime_sdk::client::v1::CatalogKind::Operations as i32,
+                        page: Some(dokime_sdk::client::v1::PageRequest {
+                            page_size: settings
+                                .services
+                                .page_items
+                                .try_into()
+                                .map_err(|_| Status::invalid_argument("Discover Host Operations: Configure a Valid Page Bound"))?,
+                            max_bytes: settings.services.message_bytes as u64,
+                            page_token: token,
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            for operation in page.operations.into_iter().filter(|operation| operation.grpc_available) {
+                if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
+                    let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method);
+                    retained_bytes = retained_bytes.saturating_add(path.len());
+                    methods.insert(path);
+                }
+            }
+            token = page.next_page_token;
+            retained_bytes = retained_bytes.saturating_add(token.len());
+            if retained_bytes > settings.client.retained_bytes.get() {
+                return Err(Status::resource_exhausted("Discover Host Operations: Catalog Exceeds the Connection Retention Budget").into());
+            }
+            if token.is_empty() {
+                break;
+            }
+            if !tokens.insert(token.clone()) {
+                return Err(Status::data_loss("Discover Host Operations: Page Cursor Did Not Advance").into());
+            }
+        }
+        session.methods = methods.into_iter().collect();
         Ok(session)
     }
 }

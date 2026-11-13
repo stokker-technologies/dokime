@@ -37,6 +37,7 @@ import { toast } from "@/lib/notifications";
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
   identity: vi.fn(),
+  cycles: vi.fn(),
   cancel: vi.fn(),
   clear: vi.fn(),
   select: vi.fn(),
@@ -116,7 +117,7 @@ vi.mock("@/app/AppProviders", () => ({ AppProviders: "fixture-providers" }));
 vi.mock("@/app/native-session/ConnectionScreen", () => ({ ConnectionScreen: "fixture-connection" }));
 vi.mock("@/app/native-session/NativeSessionProvider", () => ({ NativeSessionProvider: "fixture-session" }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
-vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity }));
+vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity, executionListCycles: fixture.cycles }));
 vi.mock("@/app/query-client", () => ({ createDokimeQueryClient: () => ({ cancelQueries: fixture.cancel, clear: fixture.clear }) }));
 
 beforeEach(() => {
@@ -124,6 +125,7 @@ beforeEach(() => {
   fixture.effects.length = 0;
   fixture.states.length = 0;
   fixture.phase = "disconnected";
+  fixture.cycles.mockResolvedValue({ cursor: { epoch: "epoch" } });
   fixture.identity.mockResolvedValue({ status: { identity: { hostId: "fixture" } }, resolvedAt: { history: { epoch: "epoch" } } });
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_backend_use") return connected().connection;
@@ -361,4 +363,18 @@ test("Remote Import Refresh Retains the Native Connection Failure", async () => 
   const owner = new NativeSession();
   await owner.refresh();
   assert.deepEqual(owner.snapshot(), { phase: "failed", error: { kind: "identity_changed" } });
+});
+
+test("Readiness Separates Status History from the Product Execution Epoch", async () => {
+  fixture.identity.mockResolvedValue({
+    status: { identity: { hostId: "fixture" } },
+    resolvedAt: { history: { epoch: "library-status-history" } },
+  });
+  const owner = new NativeSession();
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "connected");
+  await owner.disconnect();
+  fixture.cycles.mockResolvedValue({ cursor: { epoch: "different-product-epoch" } });
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "failed");
 });

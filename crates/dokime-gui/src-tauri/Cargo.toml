@@ -47,6 +47,7 @@ dokime = { workspace = true, features = ["native", "diagnostics"] }
 dokime-sdk = { package = "dokime", path = "../../../sdk/rust" }
 dokime-runtime-next = { workspace = true }
 dokime-protocol = { workspace = true }
+dokime-tracing = { workspace = true }
 
 # Git
 
@@ -148,7 +149,6 @@ criterion = { workspace = true }
 # Local
 dokime = { package = "dokime-facade", path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
 dokime-server = { workspace = true }
-dokime-tracing = { workspace = true }
 
 # Git
 

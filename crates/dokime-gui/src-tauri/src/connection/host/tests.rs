@@ -144,6 +144,8 @@ async fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dy
     let root = tempfile::tempdir()?;
     let mut owner = Connection::new(settings())?;
     let session = owner.start(root.path()).await?;
+    let discovered = crate::connection::transport::backend(&session);
+    assert!(discovered.methods.iter().any(|method| method == "/harmos.v1.access.Listener/Get"));
     let request = v1::ObservationWatchRuntimeRequest::default().encode_to_vec();
     let mut watch = session.watch_raw("/dokime.v1.Observation/WatchRuntime", &request).await?;
     let opening = watch.next().await.ok_or("Watch Runtime: Missing Initial Frame")??;

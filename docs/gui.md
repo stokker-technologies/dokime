@@ -31,7 +31,7 @@ projects durable state, attributed outcome and optional live controls separately
 Run buttons use the host capabilities, including the absence of controls on imports.
 Telemetry plots, incremental document frames and content read/follow/upload adapters
 also consume canonical messages. The connection reads the product process epoch
-from its client; library status history is a separate resource identity. Listener values in the
+from its client and validates readiness against that execution epoch; library status history is a separate resource identity. Listener values in the
 preferences view come from Access; application preference saves never write that
 separately revisioned resource. Missing host logo content is reported independently
 of native installer appearance. Native plugin installation, pairing export, firewall
@@ -39,14 +39,16 @@ registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 
-The immutable checkpoint/history, plugin inventory/settings and diagnostics view
-adapters still import the old generated message projections. They require
-canonical request construction and view projections before those screens can
-claim new-host support. In particular, old tagged state unions, flat Value nodes,
-paged cursors and artifact origins do not represent the new contracts. Native
-SDK stories prove host behavior; they do not prove those WebView consumers.
-The desktop system drivers also still start the old CLI and fixtures and require
-replacement before either desktop lane can certify this cutover.
+The running checkpoint/history, plugin inventory/settings and diagnostics adapters
+use canonical host messages. SDK and binary adapter stories prove their boundaries;
+full WebView journey proof remains open. Native method availability comes from the
+SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
+catalog currently omits those bindings, so storage source changes remain disabled
+with a visible reason and a Host Request.
+The desktop system drivers still start the old CLI and fixtures and require
+replacement before either desktop lane can certify this cutover. Their WebView
+RPC helper now uses the canonical host schemas and descriptor fence, including
+numeric enums and fully qualified library service paths.
 
 ### Remaining Journey Adapters
 
@@ -59,7 +61,7 @@ replacement before either desktop lane can certify this cutover.
 | Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. Unserved boot/restart/applied-field facts stay absent. File installation streams SDK frames. Seven native-install frontend stories pass. Full WebView plugin proof remains open. |
 | Remote Access | Pairing export, pinned connection and certificate rotation use the SDK. `native-remote.ts` projects Access listener state and owns its opaque revision. Remote preferences commit through `Access.Listener.Set`; application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. Full remote/ownership WebView proof remains open. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
-| Dependency Removal | The manifest still uses the facade for native paths, installed appearance, build identity, release metadata and tracing; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |
+| Dependency Removal | Native paths/distribution identity and build identity are desktop-owned, and tracing uses its independent crate directly. The manifest still uses the facade for filesystem publication, installed appearance and release metadata; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |
 
 ### Native Commands and Events
 

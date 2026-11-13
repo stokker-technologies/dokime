@@ -142,12 +142,11 @@ impl std::fmt::Debug for DesktopSaveDocument {
 /* === Public Functions === */
 
 pub fn desktop_build() -> DesktopBuild {
-    let build = dokime::version::current();
-    let source_revision = build.revision.map(|revision| revision.full());
+    let source_revision = Some(env!("DOKIME_SOURCE_REVISION")).filter(|value| *value != "unknown").map(str::to_owned);
     DesktopBuild {
-        product_version: build.version,
+        product_version: env!("CARGO_PKG_VERSION"),
         source_revision,
-        channel: build.channel,
+        channel: Some(env!("DOKIME_BUILD_CHANNEL")).filter(|value| !value.is_empty()),
     }
 }
 
@@ -338,7 +337,7 @@ pub async fn desktop_save_document(
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, kind) = validate_save_document(&generation, &document)?;
     let filename = if kind == DesktopSaveKind::SecretArchive {
-        let suggested = format!("{}-secrets.b64", app.state::<dokime::paths::ApplicationPaths>().distribution.slug());
+        let suggested = format!("{}-secrets.b64", app.state::<crate::paths::ApplicationPaths>().distribution.slug());
         sanitize_filename(&suggested, kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?
     } else {
         filename
@@ -424,7 +423,7 @@ pub async fn desktop_artifact_deliver(
     }
     let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
-    let directory = app.state::<dokime::paths::ApplicationPaths>().cache().join("documents");
+    let directory = app.state::<crate::paths::ApplicationPaths>().cache().join("documents");
     let cache = directory.clone();
     tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&cache))
         .await

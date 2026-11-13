@@ -72,7 +72,7 @@ pub(crate) fn backend(session: &super::host::Session) -> BackendSnapshot {
         target: String::new(),
         api_version: "v1".into(),
         descriptor_sha256: String::new(),
-        methods: Vec::new(),
+        methods: session.methods().to_vec(),
         limits: BackendLimits {
             max_request_bytes: crate::rpc::protocol::FRAME_BYTES.to_string(),
             max_response_bytes: crate::rpc::protocol::FRAME_BYTES.to_string(),

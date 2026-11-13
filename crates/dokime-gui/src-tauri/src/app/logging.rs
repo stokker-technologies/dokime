@@ -34,7 +34,7 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 /* === Structs === */
 
 pub(crate) struct LoggingGuards {
-    _trace: Option<dokime::diagnostics::test_trace::Guard>,
+    _trace: Option<dokime_tracing::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -69,7 +69,7 @@ pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &
         }
     }
 
-    let installed = dokime::diagnostics::test_trace::configure(layers);
+    let installed = dokime_tracing::configure(layers);
     let trace = if std::env::var_os("DOKIME_TEST_TRACE_DIR").is_some() {
         Some(installed.expect("install desktop subscriber"))
     } else {
