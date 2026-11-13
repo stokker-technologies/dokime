@@ -80,6 +80,27 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
         let environment = super::command().env("DOKIME_REMOTE", &path).args(["status", "--json"]).output().await?;
         assert!(environment.status.success());
 
+        // Register an Owned Development Plugin Through the Pairing Connection
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let executable = super::fixtures().join(format!("dokime-starter{}", std::env::consts::EXE_SUFFIX));
+        let mut plugin = super::command()
+            .args(["--remote", path.to_str().unwrap(), "plugin", "dev", "--executable"])
+            .arg(executable)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()?;
+        let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
+        let endpoint = lines.next_line().await?.ok_or("Development Plugin Did Not Announce Readiness")?;
+        let entries: serde_json::Value =
+            serde_json::from_str(&super::run(&["--remote", path.to_str().unwrap(), "plugin", "list", "--json"]).await?)?;
+        assert!(entries["plugins"].as_array().unwrap().iter().any(|entry| entry["remote"]["url"] == endpoint));
+        drop(plugin.stdin.take());
+        assert!(plugin.wait().await?.success());
+        let entries: serde_json::Value =
+            serde_json::from_str(&super::run(&["--remote", path.to_str().unwrap(), "plugin", "list", "--json"]).await?)?;
+        assert!(entries.get("plugins").and_then(serde_json::Value::as_array).is_none_or(Vec::is_empty));
+
         // Continue Past an Endpoint With Different TLS Trust
         let other = super::HostProcess::start().await?;
         let other_path = other._root.path().join("other.dokime-remote");

@@ -477,7 +477,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] `version`: report compiled JSON/source/channel metadata; `operator_identifies_build`.
   - [x] Pairing-file connection and access pairing export; `operator_pairs_with_host` proves pinned TLS, backend identity, product reads and revocation.
   - [ ] Installer packaging: waits for desktop packaging restoration.
-  - [ ] Plugin development supervision and plugin-specific protocol export: waits for exit notification and source export described under Host Requests.
+  - [ ] Plugin development supervision and plugin-specific protocol export: normal startup, admission and entry cleanup pass in `operator_pairs_with_host`; unexpected-exit notification and source export wait for Host Requests.
   - [ ] `execution export`: download a saved evidence archive and files.
   - [ ] `execution run`: drive interactive commands.
   - [x] `plan preview`: validate canonical protobuf JSON selection requests without registration.

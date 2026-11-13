@@ -312,7 +312,8 @@ is `version`, `endpoints`, `backend_identifier`, `label`, `ca_certificate_pem` a
 backend identity must both pass before any command runs. No local credential or
 profile is created. Use the host's Access pairing deletion operation to revoke it.
 
-`plugin dev` serves an owned built process and closes it on stdin EOF or Ctrl+C.
+`plugin dev` serves an owned built process, registers it through an endpoint or
+pairing when supplied, and removes that entry before closing on stdin EOF or Ctrl+C.
 Detecting an unexpected exit and plugin-specific `.proto` source export await the
 host/API requests listed in the parity checklist; embedded product export remains
 `proto export --out proto`.
