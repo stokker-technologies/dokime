@@ -29,7 +29,7 @@ import type { RpcError } from "./rpc";
  * `Backend.CollectDiagnostics` frames and so has no artifact, execution-file or
  * cycle id to pull it by, so `diagnostics_bundle` crosses inline under the
  * 32 MiB document bound. Its extension is required rather than
- * appended: a `diagnostics_bundle` filename must already name a `.zip`.
+ * appended: a `diagnostics_bundle` filename must already name a `.tar`.
  * `json_document` is JSON assembled in the webview, such as an execution's
  * traceability; it crosses inline under the same bound, and the shell appends
  * `.json` when the name lacks it. `html_report` uses a verified native pull.

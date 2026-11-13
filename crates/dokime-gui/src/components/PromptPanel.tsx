@@ -134,6 +134,7 @@ function verificationConditionLabel(prompt: PromptRequest) {
   if (!condition) {
     return "Verification Condition";
   }
+  if (condition.kind === "host") return condition.label;
   if (condition.kind === "record") {
     const detailLabels = Object.entries(condition.details ?? {}).map(([key, value]) => `${key}=${String(value)}`);
     return detailLabels.length ? `${condition.record_type} with ${detailLabels.join(", ")}` : condition.record_type;

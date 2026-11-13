@@ -14,6 +14,10 @@ name: Validation / Build Tests
         description: Build One Independent SDK Fixture Instead of the Tests Archive
         type: string
         default: ''
+      bench:
+        description: Build Native Benchmarks Instead of the Tests Archive
+        type: boolean
+        default: false
 permissions:
   contents: read
 env:
@@ -29,7 +33,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   build_tests:
-    if: inputs.fixture-language == ''
+    if: inputs.fixture-language == '' && !inputs.bench
     name: Build / Tests (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.minutes }}
@@ -105,6 +109,79 @@ jobs:
           minutes: 120
           inputs: ''
           outputs: '[{"archive":"target/ci/build-tests-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/tests","target/build/{profile}/{target}/fixtures"]}]'
+  build_bench:
+    if: inputs.bench
+    name: Build / Bench (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - id: setup
+      uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]' || '[]' }}
+    - run: mise run build -- --artifact bench --binary system-desktop
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-bench-${{ matrix.platform }}
+        path: target/ci/build-bench-${{ matrix.platform }}.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
+      if: success()
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
+      with:
+        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
+        path: ${{ steps.setup.outputs.cargo_downloads-path }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
+      with:
+        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
+        path: ${{ steps.setup.outputs.mise-path }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
+        steps.setup.outputs.pnpm-path != ''
+      with:
+        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
+        path: ${{ steps.setup.outputs.pnpm-path }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
+      with:
+        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
+        path: ${{ steps.setup.outputs.uv-path }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
+        && steps.setup.outputs.sccache-path != ''
+      with:
+        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
+        path: ${{ steps.setup.outputs.sccache-path }}
+    env:
+      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,cmake,dotnet,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      DOKIME_HOST_FIXTURE_LANGUAGE: ${{ inputs.channel == 'nightly' && 'none' || 'rust' }}
+      CI_TRANSPORT: 'true'
+      CI_OUTPUTS: ${{ matrix.outputs }}
+      CI_CACHE_PROFILE: bench
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          inputs: ''
+          outputs: '[{"archive":"target/ci/build-bench-unix.tar.zst","paths":["target/build/bench/{target}"]}]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          inputs: ''
+          outputs: '[{"archive":"target/ci/build-bench-windows.tar.zst","paths":["target/build/bench/{target}"]}]'
   build_fixture:
     if: inputs.fixture-language != ''
     name: Build / Fixture / ${{ inputs.fixture-language }} (${{ matrix.platform }})

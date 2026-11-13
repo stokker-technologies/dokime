@@ -15,13 +15,12 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 
 // Third Party Imports
 
@@ -36,7 +35,7 @@ import {
   terminate,
   prepareNativeFixture,
   openNativeReport,
-} from "./native-desktop.mjs";
+} from "./native-fixture.mjs";
 import { call, invoke } from "./native-rpc.mjs";
 
 /* === Re-Exports === */
@@ -137,33 +136,29 @@ try {
   const backend = await startBackend(work, evidence, undefined, "backend", true, { dataRoot });
   const a = await desktop("a", backend.endpoint);
   await a.connected();
-  await invoke(a, "desktop_session_select", {
-    selection: { kind: "attach", request: { target: { kind: "local", endpoint: backend.endpoint }, expectedBackendId: null } },
-  });
-  await a.goto("/settings/remote", { reload: true });
-  await a.connected();
 
-  // Export Through The Same Native Adapter As Settings → Remote Access.
+  // Listener and Pairings Have Independent Library Resource Owners.
   const address = `127.0.0.1:${await unusedPort()}`;
-  await call(a, "Remote", "UpdateListener", {
-    settings: {
-      enabled: true,
-      address,
-      tlsEnabled: true,
-      authenticationEnabled: true,
-      certificateNames: ["localhost", "127.0.0.1"],
-    },
+  const listener = await call(a, "harmos.v1.access.Listener", "Get");
+  await call(a, "harmos.v1.access.Listener", "Set", {
+    value: { enabled: true, endpoint: address, certificateNames: ["localhost", "127.0.0.1"] },
+    expectedRevision: listener.revision,
   });
-  const access = join(work, "shared.pair");
-  assert.equal(await pick(a, "desktop_pairing_create", {}, access, "Save"), access);
-  const pairing = JSON.parse(await readFile(access, "utf8"));
-  assert.ok(pairing.certificate_pem && pairing.access_key, "The exported file carries the native trust anchor and credential");
-  // Each Desktop Imports A Complete Pairing Into Its Own Folder.
   const b = await desktop("b");
+  const imported = [];
   for (const [name, gui] of [
     ["a", a],
     ["b", b],
   ]) {
+    const before = await call(a, "harmos.v1.access.Pairings", "List");
+    const access = join(work, `client-${name}.pair`);
+    assert.equal(await pick(a, "desktop_pairing_create", {}, access, "Save"), access);
+    const pairing = JSON.parse(await readFile(access, "utf8"));
+    assert.ok(pairing.certificate_pem && pairing.access_key);
+    const after = await call(a, "harmos.v1.access.Pairings", "List");
+    const admitted = after.pairings.find((item) => !before.pairings.some((prior) => prior.id === item.id));
+    assert.ok(admitted, "Each Desktop Receives Its Own Revocable Pairing");
+    imported.push({ name: admitted.id, pairing, access });
     await pick(gui, "desktop_backend_import_pairing", { identifier: `story-${name}` }, access);
     await gui.connected();
     const selected = await invoke(gui, "desktop_session_status");
@@ -172,158 +167,131 @@ try {
     assert.equal(new URL(selected.connection.endpoint).origin, `https://${address}`);
     const profiles = await invoke(gui, "desktop_backends_list");
     assert.ok(profiles.profiles.some((profile) => profile.identifier === `story-${name}`));
-    assert.ok(
-      !profiles.profiles.some((profile) => profile.identifier === `story-${name === "a" ? "b" : "a"}`),
-      "Each desktop persists an independent backend registry",
-    );
-    const browserStorage = await gui.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
-    assert.ok(!browserStorage.includes(pairing.access_key), "Imported credentials remain native");
+    assert.ok(!profiles.profiles.some((profile) => profile.identifier === `story-${name === "a" ? "b" : "a"}`));
+    const storage = await gui.execute("return JSON.stringify([Object.entries(localStorage),Object.entries(sessionStorage)]);");
+    assert.ok(!storage.includes(pairing.access_key), "Pairing Credentials Stay in Native Storage");
   }
 
-  // Interleave Catalog And Mutation Calls Through Both Native IPC Bridges.
+  // Register Frozen Cases Before Appending Explicit Execution Attempts.
   const catalogA = await call(a, "Catalog", "ListSuites");
-  const catalogB = await call(b, "Catalog", "ListSuites");
-  assert.deepEqual(catalogB.suites, catalogA.suites);
-  const suite = catalogA.suites.find((candidate) => candidate.metadata.label === "Charger Start-Up");
-  assert.ok(suite, "The real OBC fixture is registered");
-  const definitionA = await call(a, "Catalog", "GetSuite", { suiteId: suite.suiteId });
-  const definitionB = await call(b, "Catalog", "GetSuite", { suiteId: suite.suiteId });
-  assert.deepEqual(definitionB.templates, definitionA.templates);
-  const template = definitionA.templates.find((candidate) => candidate.metadata.label === "Start-Up Sequence");
-  assert.ok(template);
+  assert.deepEqual((await call(b, "Catalog", "ListSuites")).suites, catalogA.suites);
+  const suite = catalogA.suites.find((item) => item.metadata.label === "Thermal");
+  assert.ok(suite, "The Shared SDK Fixture Is Admitted");
+  const definition = await call(a, "Catalog", "GetSuite", { suiteId: suite.suiteId });
+  assert.deepEqual((await call(b, "Catalog", "GetSuite", { suiteId: suite.suiteId })).templates, definition.templates);
   await b.goto("/cycles");
   const title = "Shared Remote Campaign";
   const cycle = await call(a, "Execution", "CreateCycle", { metadata: { label: title } });
-  await until("GUI B observes the new cycle without navigation or refresh", async () => (await b.text()).includes(title));
-  const plan = await call(a, "Planning", "MaterializeTemplate", {
-    selection: {
-      suiteId: suite.suiteId,
-      templateId: template.templateId,
-      parameters: [
-        { key: "duration_s", value: { values: [{ nodes: [{ kind: { Number: { field0: 0.004 } } }] }] } },
-        { key: "sample_interval_s", value: { values: [{ nodes: [{ kind: { Number: { field0: 0.001 } } }] }] } },
-        { key: "realtime", value: { values: [{ nodes: [{ kind: { Bool: { field0: false } } }] }] } },
-      ],
-    },
+  await until("Second Desktop Observes New Cycle Without Refresh", async () => (await b.text()).includes(title));
+  const plan = await call(a, "Planning", "RegisterSelection", {
+    plan: { cycleId: cycle.cycleId, selections: [{ suiteId: suite.suiteId, templateId: definition.templates[0].metadata.identifier }] },
+    idempotencyKey: randomUUID(),
   });
-  assert.equal(plan.cases.length, 1, "One selection materializes one deterministic case");
+  assert.equal(plan.cases.length, 1);
   const executionId = randomUUID();
   await call(a, "Execution", "AppendExecutions", { cycleId: cycle.cycleId, executions: [{ executionId, caseId: plan.cases[0].caseId }] });
   for (const gui of [a, b]) {
-    await gui.goto("/cycles");
-    await gui.clickNamed("button", title);
-    await until("shared cycle selected", async () => (await gui.location()).pathname === `/cycles/${cycle.cycleId}`);
+    await gui.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
+    await until("Shared Execution Selected", () => gui.find("css selector", `li[data-execution-id="${executionId}"]`));
     await gui.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
-    assert.equal((await invoke(gui, "desktop_session_status")).connection.remote, true);
   }
-  await call(a, "Execution", "StartExecution", { executionId, mode: { Automatic: {} } });
-  await until("GUI B watches execution reach its deterministic operator checkpoint", async () =>
-    b.execute(`const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
-      return Boolean(panel && panel.innerText.includes('Inspect Powered Charger'));`),
+  await a.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
+  await a.clickNamed("menuitem", "Start Execution");
+  for (const gui of [a, b])
+    await until("Remote Operator Prompt", () => gui.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
+  await b.clickNamed("button", "Yes");
+  await until(
+    "Both Desktops Observe Sealed Result",
+    async () => (await a.text()).includes("Passed") && (await b.text()).includes("Passed"),
   );
-  const scope = { executionId };
-  const records = await call(b, "Evidence", "ListRecords", { selection: { scope } });
-  assert.ok(records.records.some((record) => record.recordType === "obc.charger.startup.initialized"));
-  const samples = await call(b, "Telemetry", "ListSamples", { scope, streams: ["obc.charger.startup.samples"] });
-  await b.dump("live-evidence", { records, samples });
-  assert.equal(samples.samples.length, 2, "GUI B reads the two pre-inspection samples from GUI A's execution");
-  await b.clickNamed("button", "Stop Execution");
-  const stopped = await until("GUI A observes GUI B's saved stop without refresh", async () => {
-    if (!/Stopped|Interrupted/.test(await a.text())) return null;
-    const snapshot = await call(a, "Execution", "GetExecution", { executionId });
-    return snapshot.summary.sealed ? snapshot : null;
-  });
-  assert.ok("Cancelled" in stopped.summary.status || "Interrupted" in stopped.summary.status);
-  await call(b, "Execution", "SealCycle", { cycleId: cycle.cycleId });
+  const detailA = await call(a, "Execution", "GetExecution", { executionId });
+  const detailB = await call(b, "Execution", "GetExecution", { executionId });
+  assert.equal(detailA.summary.state, "EXECUTION_STATE_SEALED");
+  assert.deepEqual(detailB, detailA);
+  assert.equal(detailA.outcome.evaluated.status, "RESULT_STATUS_PASSED");
+  const recordsA = await call(a, "Evidence", "ListRecords", { selection: { scope: { executionId } } });
+  const samplesA = await call(a, "Telemetry", "ListSamples", { scope: { executionId } });
+  assert.ok(recordsA.records.some((item) => item.payload));
+  assert.ok(samplesA.samples.some((item) => item.payload));
+  assert.deepEqual(await call(b, "Evidence", "ListRecords", { selection: { scope: { executionId } } }), recordsA);
+  assert.deepEqual(await call(b, "Telemetry", "ListSamples", { scope: { executionId } }), samplesA);
 
-  // Both Clients Save, Reopen And Compare The Same Sealed Evidence.
-  const reports = [];
-  const archives = [];
+  // Each Native Owner Saves and Reopens the Same Verified Sealed Report.
+  await call(a, "Reports", "PublishExecutionReport", {
+    executionId,
+    document: {
+      metadata: { identifier: "desktop.report", label: "Thermal Evidence" },
+      sections: [
+        {
+          metadata: { identifier: "records", label: "Captured Evidence" },
+          cards: [{ metadata: { identifier: "records.list", label: "Records" }, evidence: "EVIDENCE_CARD_RECORDS" }],
+        },
+      ],
+    },
+  });
+  const hashes = [],
+    archives = [];
   for (const [name, gui] of [
     ["a", a],
     ["b", b],
   ]) {
-    const report = await deliver(gui, { kind: "execution_report", executionId }, "report.html", "html_report");
+    const report = await deliver(gui, { kind: "execution_report", executionId }, "execution.html", "html_report");
     assert.equal(report.origin, "sealed");
-    const html = await readFile(report.path, "utf8");
-    const data = JSON.parse(html.split('<script id="hub-report-data" type="application/json">')[1].split("</script>")[0]);
-    assert.deepEqual(
-      data.test_executions.map((execution) => execution.test_execution_id),
-      [executionId],
-    );
-    for (const artifact of data.snapshot.artifacts) {
-      assert.ok(artifact.href.split("/").every((part) => part && part !== "." && part !== ".." && !/[\\:]/.test(part)));
-      const saved = await deliver(
-        gui,
-        { kind: "artifact", artifactId: artifact.artifact_id },
-        artifact.path.split("/").at(-1),
-        "artifact",
-        join(dirname(report.path), artifact.href),
-      );
-      assert.equal((await readFile(saved.path)).length, artifact.size_bytes);
-    }
+    const html = await readFile(report.path);
+    assert.ok(html.toString("utf8").includes("Thermal"));
+    hashes.push(createHash("sha256").update(html).digest("hex"));
     await openNativeReport(report.path);
-    reports.push(createHash("sha256").update(html).digest("hex"));
-    const archive = await deliver(gui, { kind: "execution_evidence", executionId }, "evidence.zip", "artifact");
-    const inspected = await promisify(execFile)(
-      "python",
-      [
-        "-c",
-        "import hashlib,json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1])\nassert z.testzip() is None\nmanifest=json.loads(z.read('manifest.json'))\nfor payload in manifest['payloads']:\n data=z.read(payload['path'])\n assert len(data)==payload['size_bytes']\n assert hashlib.sha256(data).hexdigest()==payload['sha256']\nprint(json.dumps(manifest))",
-        archive.path,
-      ],
-      { windowsHide: true },
+    const archive = await deliver(gui, { kind: "execution_evidence", executionId }, "execution.evidence", "artifact");
+    archives.push(
+      createHash("sha256")
+        .update(await readFile(archive.path))
+        .digest("hex"),
     );
-    const manifest = JSON.parse(inspected.stdout);
-    assert.ok(JSON.stringify(manifest.subject).includes(executionId), "Reopened evidence manifest names the shared execution");
-    assert.equal(manifest.complete, true, "The evidence export contains its closed frontier");
-    assert.equal(manifest.executions.length, 1, "The execution export contains exactly the shared execution");
-    const bundledReport = manifest.payloads.find((payload) => payload.path === `reports/execution-${executionId}.html`);
-    assert.equal(bundledReport?.sha256, reports.at(-1), "Evidence reopens the same report downloaded separately");
-    archives.push(manifest.executions.map(({ revision, counts }) => ({ revision, counts })));
     await cp(gui.downloads, join(evidence, name, "downloads"), { recursive: true });
-    await writeFile(join(evidence, `${name}-records.json`), JSON.stringify(records));
   }
-  assert.equal(reports[0], reports[1], "Both clients receive the same sealed report");
-  assert.deepEqual(archives[0], archives[1], "Both clients receive the same sealed checkpoints and evidence counts");
-  // A Third Desktop Refuses A Tampered Identity Before Ordinary Commands.
+  assert.equal(hashes[0], hashes[1]);
+  assert.equal(archives[0], archives[1]);
+
+  // A Third Native Owner Refuses Identity Substitution and Occupied Storage.
   const c = await desktop("tampered");
   const tampered = join(work, "tampered.pair");
-  await writeFile(tampered, JSON.stringify({ ...pairing, backend_identifier: randomUUID() }));
+  await writeFile(tampered, JSON.stringify({ ...imported[0].pairing, backend_identifier: randomUUID() }));
   await assert.rejects(
     pick(c, "desktop_backend_import_pairing", { identifier: "tampered" }, tampered),
     (error) => error.detail.kind === "identity_changed",
   );
-  const refused = await invoke(c, "desktop_session_status");
-  assert.equal(refused.connection.phase, "failed");
-  assert.equal(refused.connection.backend, null, "An unverified backend never becomes callable");
-  await until("GUI shows identity refusal", async () => /identity.*match|identity.*changed/i.test(await c.text()));
-
-  // Starting A Second Backend Against The Owned Root Returns The Typed Error.
+  assert.equal((await invoke(c, "desktop_session_status")).connection.backend, null);
   await c.clickNamed("button", "Start Local Backend");
-  await until("GUI preserves controls and shows occupied storage", async () => /in use by another instance/.test(await c.text()));
-  let occupied;
-  await assert.rejects(invoke(c, "desktop_session_select", { selection: { kind: "owned_local" } }), (error) => {
-    occupied = error.detail;
-    return occupied.kind === "backend_running";
-  });
-  assert.equal(await realpath(occupied.root), await realpath(dataRoot));
+  await until("Occupied Storage Recovery", async () => /in use by another host/.test(await c.text()));
+  await assert.rejects(
+    invoke(c, "desktop_session_select", { selection: { kind: "owned_local" } }),
+    (error) => error.detail.kind === "backend_running",
+  );
   assert.ok(await c.exists("button", "Start Local Backend"));
-  assert.equal((await call(a, "Execution", "GetExecution", { executionId })).summary.sealed, true);
 
-  // Rotating The Backend Key Invalidates The Shared Pairing For Both Clients.
-  await call(a, "Remote", "CreatePairing", { label: "Replacement" });
-  for (const gui of [a, b]) {
-    await assert.rejects(call(gui, "Catalog", "ListSuites"), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
-    await gui.clickNamed("button", "Library");
-    await until("GUI renders rotated credential failure", async () =>
-      /invalid credentials|unauthenticated|valid access token/i.test(await gui.text()),
-    );
-    assert.ok(
-      await gui.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"),
-      "Key rotation leaves a responsive WebView",
-    );
-  }
+  // Revocation Removes Only One Pairing and Preserves the Other Client.
+  await call(a, "harmos.v1.access.Pairings", "Delete", { name: imported[1].name });
+  await assert.rejects(call(b, "Catalog", "ListSuites"), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
+  assert.deepEqual((await call(a, "Catalog", "ListSuites")).suites, catalogA.suites);
+  assert.ok(await b.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"));
+
+  // Certificate Rotation Refuses the Old Trust Pin and a New Pairing Recovers.
+  await call(a, "harmos.v1.access.Certificates", "Create", {});
+  await assert.rejects(invoke(a, "desktop_backend_use", { identifier: "story-a" }));
+  await invoke(a, "desktop_session_select", {
+    selection: {
+      kind: "attach",
+      request: {
+        target: { kind: "local", endpoint: backend.endpoint },
+        expectedBackendId: null,
+      },
+    },
+  });
+  const replacement = join(work, "replacement.pair");
+  await pick(a, "desktop_pairing_create", {}, replacement, "Save");
+  await pick(a, "desktop_backend_import_pairing", { identifier: "replacement" }, replacement);
+  await a.connected();
+  assert.equal((await call(a, "Execution", "GetExecution", { executionId })).summary.state, "EXECUTION_STATE_SEALED");
 } catch (error) {
   failure = error;
   for (const [index, gui] of sessions.entries()) {

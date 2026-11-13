@@ -37,6 +37,7 @@ import { toast } from "@/lib/notifications";
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
   identity: vi.fn(),
+  cycles: vi.fn(),
   cancel: vi.fn(),
   clear: vi.fn(),
   select: vi.fn(),
@@ -116,7 +117,7 @@ vi.mock("@/app/AppProviders", () => ({ AppProviders: "fixture-providers" }));
 vi.mock("@/app/native-session/ConnectionScreen", () => ({ ConnectionScreen: "fixture-connection" }));
 vi.mock("@/app/native-session/NativeSessionProvider", () => ({ NativeSessionProvider: "fixture-session" }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
-vi.mock("@/lib/rpc/generated/client", () => ({ backendGetIdentity: fixture.identity }));
+vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity, executionListCycles: fixture.cycles }));
 vi.mock("@/app/query-client", () => ({ createDokimeQueryClient: () => ({ cancelQueries: fixture.cancel, clear: fixture.clear }) }));
 
 beforeEach(() => {
@@ -124,7 +125,8 @@ beforeEach(() => {
   fixture.effects.length = 0;
   fixture.states.length = 0;
   fixture.phase = "disconnected";
-  fixture.identity.mockResolvedValue({ backendId: "fixture", epoch: "epoch" });
+  fixture.cycles.mockResolvedValue({ cursor: { epoch: "epoch" } });
+  fixture.identity.mockResolvedValue({ status: { identity: { hostId: "fixture" } }, resolvedAt: { history: { epoch: "epoch" } } });
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_backend_use") return connected().connection;
     if (command === "desktop_session_status") return connected();
@@ -165,10 +167,10 @@ test("Failed Selection Stays Failed Until an Explicit New Selection", async () =
   assert.equal(owner.snapshot().phase, "connected");
 });
 
-test("Confirmed Recovery Publishes the Archive and Connects a Fresh Generation", async () => {
+test("Unavailable Host Recovery Preserves the Failure Without Announcing Success", async () => {
   const announce = vi.spyOn(toast, "success").mockReturnValue("fixture");
-  const snapshot = { ...connected("9"), ownership: "owned_local" as const, archive: "/fixture/saved.zip" };
-  fixture.invoke.mockResolvedValueOnce(snapshot);
+  const failure = { kind: "storage_reset", reason: "failed", message: "recovery unavailable" };
+  fixture.invoke.mockRejectedValueOnce(failure);
   const owner = new NativeSession();
   const states: unknown[] = [];
   owner.subscribe(() => states.push(owner.snapshot()));
@@ -179,9 +181,9 @@ test("Confirmed Recovery Publishes the Archive and Connects a Fresh Generation",
       { directory: "/fixture/data", archive: "/fixture/saved.zip" },
     ]);
     assert.deepEqual(states[0], { phase: "connecting", reset: "backup" });
-    assert.equal(owner.snapshot().phase, "connected");
-    assert.equal(announce.mock.calls[0]?.[1]?.description, "/fixture/saved.zip");
-    assert.equal(fixture.identity.mock.calls[0]?.[0]?.generation, "9");
+    assert.deepEqual(owner.snapshot(), { phase: "failed", error: failure });
+    assert.equal(announce.mock.calls.length, 0);
+    assert.equal(fixture.identity.mock.calls.length, 0);
     await owner.disconnect();
   } finally {
     announce.mockRestore();
@@ -241,6 +243,8 @@ test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async 
 test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
+    if (command === "desktop_session_status")
+      return { ...connected(), connection: { ...connected().connection, phase: "disconnected", backend: null } };
     if (command === "desktop_backends_list") return { profiles: [] };
     throw new Error(`Unexpected Command: ${command}`);
   });
@@ -249,8 +253,9 @@ test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command]) => command),
-    ["desktop_session_launch"],
+    ["desktop_session_launch", "desktop_session_status"],
   );
+  assert.equal(fixture.select.mock.calls.length, 0);
   cleanup();
 });
 
@@ -361,4 +366,18 @@ test("Remote Import Refresh Retains the Native Connection Failure", async () => 
   const owner = new NativeSession();
   await owner.refresh();
   assert.deepEqual(owner.snapshot(), { phase: "failed", error: { kind: "identity_changed" } });
+});
+
+test("Readiness Separates Status History from the Product Execution Epoch", async () => {
+  fixture.identity.mockResolvedValue({
+    status: { identity: { hostId: "fixture" } },
+    resolvedAt: { history: { epoch: "library-status-history" } },
+  });
+  const owner = new NativeSession();
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "connected");
+  await owner.disconnect();
+  fixture.cycles.mockResolvedValue({ cursor: { epoch: "different-product-epoch" } });
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "failed");
 });

@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub mod pack;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -27,7 +29,8 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 // Local Imports
-use dokime::config::organization::{ResolvedPack, policy};
+use super::updates::policy;
+use pack::ResolvedPack;
 
 /* === Constants === */
 
@@ -161,7 +164,7 @@ impl OrganizationState {
 /* === Public Functions === */
 
 pub(crate) fn resolve() -> OrganizationState {
-    match dokime::config::organization::resolve().and_then(loaded) {
+    match pack::resolve().and_then(loaded) {
         Ok(pack) => OrganizationState { pack: Some(pack), error: None },
         Err(error) => OrganizationState { pack: None, error: Some(error) },
     }
@@ -344,11 +347,11 @@ pub(crate) mod testing {
 
     /* === Public Functions === */
 
-    pub(crate) fn inspect_resolved(pack: ResolvedPack) -> Result<serde_json::Value, String> {
+    pub fn inspect_resolved(pack: ResolvedPack) -> Result<serde_json::Value, String> {
         serde_json::to_value(loaded(pack)?).map_err(|error| error.to_string())
     }
 
-    pub(crate) fn inspect_css(pack: &ResolvedPack, css: &str) -> Result<String, String> {
+    pub fn inspect_css(pack: &ResolvedPack, css: &str) -> Result<String, String> {
         inline_urls(pack, "theme/base.css", css)
     }
 

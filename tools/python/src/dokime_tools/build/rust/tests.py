@@ -47,7 +47,7 @@ def build(profile: str, *, timings: bool = False) -> list[str]:
     # Compile Test Targets Through The Shared Archive Owner.
     started = perf_counter()
     print(f"[build:tests] Archive started profile={profile}", flush=True)
-    built = cargo.archive(ROOT, profile, extra=["--timings"] if timings else [])
+    built = cargo.archive(ROOT, profile, extra=["--features", "dokime-gui/testing", *(["--timings"] if timings else [])])
     print(f"[build:tests] Archive finished in {perf_counter() - started:.2f}s", flush=True)
 
     metadata = built.with_name("metadata.json")

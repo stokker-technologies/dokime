@@ -108,9 +108,9 @@ jobs:
           runner: ubuntu-22.04
           minutes: 120
           inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-next"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'
+          outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript","target/build/{profile}/{target}/generated/host"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-next.exe"]},{"archive":"target/ci/build-clients-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-packaging-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'
+          outputs: '[{"archive":"target/ci/build-cli-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin"]},{"archive":"target/ci/build-clients-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript","target/build/{profile}/{target}/generated/host"]},{"archive":"target/ci/build-packaging-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'

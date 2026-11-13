@@ -13,37 +13,12 @@
 
 /* === Local Imports === */
 
-import type {
-  Row14 as GeneratedExecutionAvailability,
-  Row15 as GeneratedExecutionBrowseLifecycle,
-  Row8 as GeneratedExecutionStatus,
-  Row12 as GeneratedHistoricalExecutionMetadata,
-  Row6 as GeneratedHistoryIssue,
-  Row2 as GeneratedNativeExecutionBrowsePage,
-  Row13 as GeneratedNativeExecutionCheckpoint,
-} from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type {
-  Row3 as GeneratedArtifactFrame,
-  Row11 as GeneratedArtifactMetadata,
-  Row15 as GeneratedArtifactState,
-} from "@generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row2 as GeneratedCheckpointContext } from "@generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedCheckpointDocument } from "@generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
-import type {
-  Row2 as GeneratedCheckpointEvidence,
-  Row15 as GeneratedExecutionFileKind,
-  Row5 as GeneratedExecutionFileMetadata,
-  Row16 as GeneratedExecutionFileState,
-} from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type {
-  Row7 as GeneratedCapturedRecord,
-  Row2 as GeneratedCheckpointRecordPage,
-  Row10 as GeneratedSeverity,
-} from "@generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
-import type { Row4 as GeneratedExecutionFileWindow } from "@generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
+import * as v1 from "@host/dokime/v1/client_types_pb.js";
+import { Severity as HostSeverity } from "@host/dokime/v1/execution_pb.js";
+import { mapCyclePhase, mapStepStatus, projectExecutionStatus } from "./native-planning";
+import { decodeFrozenRecords } from "./native-evidence";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
   CheckpointCursor,
@@ -53,36 +28,38 @@ import type {
   ExecutionCheckpoint,
   SavedCycleSummary,
 } from "@/lib/types/view-contracts";
-import { mapCyclePhase } from "./native-planning";
-import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
+
+import { NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
 
 const GUI_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
 const GUI_CHECKPOINT_IDENTITY_BYTES = 4_096;
 const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
 
-type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
+type NativeExecutionCheckpoint = Wire<v1.ExecutionCheckpoint>;
 type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
-type Severity = Wire<GeneratedSeverity>;
-type ArtifactFrame = Wire<GeneratedArtifactFrame>;
-type ArtifactMetadata = Wire<GeneratedArtifactMetadata>;
-type ArtifactState = Wire<GeneratedArtifactState>;
-type ExecutionFileKind = Wire<GeneratedExecutionFileKind>;
-type ExecutionFileState = Wire<GeneratedExecutionFileState>;
-type ExecutionFileMetadata = Wire<GeneratedExecutionFileMetadata>;
-type ExecutionFileWindow = Wire<GeneratedExecutionFileWindow>;
-type CapturedRecord = Wire<GeneratedCapturedRecord>;
-type ExecutionStatus = Wire<GeneratedExecutionStatus>;
-type ResultStatus = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>["result"]>["status"];
-type CheckpointContext = Wire<GeneratedCheckpointContext>;
-type CheckpointDocument = Wire<GeneratedCheckpointDocument>;
-type CheckpointEvidence = Wire<GeneratedCheckpointEvidence>;
-type CheckpointRecordPage = Wire<GeneratedCheckpointRecordPage>;
-type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
-type ExecutionAvailability = Wire<GeneratedExecutionAvailability>;
-type ExecutionBrowseLifecycle = Wire<GeneratedExecutionBrowseLifecycle>;
-type HistoricalExecutionMetadata = Wire<GeneratedHistoricalExecutionMetadata>;
-type HistoryIssue = Wire<GeneratedHistoryIssue>;
-type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
+type ExecutionStatus = v1.ExecutionState;
+type ResultStatus = v1.ResultStatus;
+type Severity = HostSeverity;
+type NativeExecutionBrowsePage = Wire<v1.ExecutionBrowsePage>;
+type CheckpointRecordPage = Omit<Wire<v1.CheckpointRecordPage>, "records"> & {
+  records: (Wire<v1.SavedRecord> & { decoded?: import("@/lib/types").HubRecord })[];
+};
+type ArtifactFrame = Wire<v1.ArtifactFrame>;
+type ArtifactMetadata = Wire<v1.ArtifactMetadata>;
+type ArtifactState = Wire<v1.ArtifactState>;
+type ExecutionFileKind = Wire<v1.ExecutionFileKind>;
+type ExecutionFileState = Wire<v1.ExecutionFileState>;
+type ExecutionFileMetadata = Wire<v1.ExecutionFileMetadata>;
+type ExecutionFileWindow = Wire<v1.ExecutionFileWindow>;
+type CapturedRecord = Wire<v1.CapturedRecord>;
+type CheckpointContext = Wire<v1.CheckpointContext>;
+type CheckpointDocument = Wire<v1.CheckpointDocument>;
+type CheckpointEvidence = Wire<v1.CheckpointEvidence>;
+type CheckpointTelemetryPage = Wire<v1.CheckpointTelemetryPage>;
+type ExecutionAvailability = Wire<v1.ExecutionAvailability>;
+type ExecutionBrowseLifecycle = Wire<v1.ExecutionBrowseLifecycle>;
+type HistoricalExecutionMetadata = Wire<v1.HistoricalExecutionMetadata>;
+type HistoryIssue = Wire<v1.HistoryIssue>;
 
 /* === Limits and session ownership === */
 
@@ -346,14 +323,14 @@ function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): Exe
 }
 
 function mapBrowseLifecycle(value: ExecutionBrowseLifecycle | undefined): ExecutionBrowseCycle["lifecycle"] {
-  switch (value?.HarmosVariant.case) {
-    case "Running":
+  switch (value) {
+    case v1.ExecutionBrowseLifecycle.RUNNING:
       return "running";
-    case "Interrupted":
+    case v1.ExecutionBrowseLifecycle.INTERRUPTED:
       return "interrupted";
-    case "Uncheckpointed":
+    case v1.ExecutionBrowseLifecycle.UNCHECKPOINTED:
       return "uncheckpointed";
-    case "Completed":
+    case v1.ExecutionBrowseLifecycle.COMPLETED:
       return "completed";
     default:
       return "pending";
@@ -382,55 +359,42 @@ function mapExecutionMetadata(metadata: HistoricalExecutionMetadata) {
     template_id: metadata.templateId ?? null,
     suite_label: metadata.suiteLabel ?? null,
     title: metadata.title || metadata.executionId,
-    status: executionStatusLabel(metadata.status),
+    status: executionStatusLabel(metadata.status, metadata.outcome, metadata.startedAt !== undefined),
     started_at: timestampIso(metadata.startedAt),
     finished_at: timestampIso(metadata.finishedAt),
-    result: metadata.result
-      ? {
-          status: mapResultStatus(metadata.result.status),
-          passed: metadata.result.passed,
-          failed: metadata.result.failed,
-          blocked: metadata.result.blocked,
-          skipped: metadata.result.skipped,
-        }
-      : null,
+    result: null,
+    origin: metadata.origin,
+    outcome: metadata.outcome,
   };
 }
 
 export function executionStatusLabel(
-  status: ExecutionStatus | undefined,
-): "skipped" | "invalidated" | "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" {
-  switch (status?.HarmosVariant.case) {
-    case "Skipped":
-      return "skipped";
-    case "Running":
-      return "running";
-    case "Passed":
-      return "passed";
-    case "Failed":
-      return "failed";
-    case "Blocked":
-      return "blocked";
-    case "Cancelled":
-      return "cancelled";
-    case "Interrupted":
-      return "interrupted";
-    case "Invalidated":
-      return "invalidated";
-    default:
-      return "pending";
-  }
+  state: ExecutionStatus | undefined,
+  outcome?: Wire<v1.ExecutionOutcome>,
+  started = false,
+): "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" | "skipped" {
+  if (state === v1.ExecutionState.OPEN) return started ? "running" : "pending";
+  const attribution = outcome?.attribution;
+  if ((attribution?.case === "evaluated" || attribution?.case === "declared") && attribution.value.status === v1.ResultStatus.BLOCKED)
+    return "blocked";
+  const status = projectExecutionStatus(state, outcome);
+  if (status === "stopped") return "cancelled";
+  if (status === "planned" || status === "finalizing") return "pending";
+  if (status === "invalidated") return "skipped";
+  if (status === "created" || status === "disconnected") return "pending";
+  if (status === "waiting_for_prompt") return "running";
+  return status;
 }
 
 function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
-  switch (status?.HarmosVariant.case) {
-    case "Passed":
+  switch (status) {
+    case v1.ResultStatus.PASSED:
       return "passed";
-    case "Failed":
+    case v1.ResultStatus.FAILED:
       return "failed";
-    case "Blocked":
+    case v1.ResultStatus.BLOCKED:
       return "blocked";
-    case "Cancelled":
+    case v1.ResultStatus.CANCELLED:
       return "cancelled";
     default:
       return "pending";
@@ -438,12 +402,12 @@ function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed"
 }
 
 function mapAvailability(value: ExecutionAvailability | undefined): ExecutionBrowseEntry["availability"] {
-  switch (value?.HarmosVariant.case) {
-    case "Live":
+  switch (value) {
+    case v1.ExecutionAvailability.LIVE:
       return "live";
-    case "Stored":
+    case v1.ExecutionAvailability.STORED:
       return "stored";
-    case "Interrupted":
+    case v1.ExecutionAvailability.INTERRUPTED:
       return "interrupted";
     default:
       return "uncheckpointed";
@@ -479,10 +443,10 @@ export async function fetchNativeCheckpointEvidence(
   const reply = await rpc.historyGetCheckpointEvidence(session, {
     checkpoint: nativeCheckpoint(checkpoint),
     sections: [
-      { HarmosVariant: { case: "Outputs", value: {} } },
-      { HarmosVariant: { case: "Artifacts", value: {} } },
-      { HarmosVariant: { case: "RecordSchemas", value: {} } },
-      { HarmosVariant: { case: "TelemetryTables", value: {} } },
+      v1.EvidenceSection.OUTPUTS,
+      v1.EvidenceSection.ARTIFACTS,
+      v1.EvidenceSection.RECORD_SCHEMAS,
+      v1.EvidenceSection.TELEMETRY_TABLES,
     ],
   });
   assertActive(session, signal, "History.GetCheckpointEvidence");
@@ -512,7 +476,14 @@ export async function fetchNativeCheckpointRecords(
   if (reply.records.some((row) => !row.epoch || !row.record)) {
     throw new NativeApiLimitError("History.ListCheckpointRecords", "record source identity is missing");
   }
-  return reply;
+  const document = await fetchNativeCheckpointDocument(session, checkpoint, signal);
+  const catalog = document.document?.execution?.schemas?.catalog;
+  const records = reply.records.map((row) => {
+    if (!row.record) throw new Error("Read Checkpoint Records: Missing Captured Record");
+    return row.record;
+  });
+  const decoded = decodeFrozenRecords(records, catalog);
+  return { ...reply, records: reply.records.map((row, index) => ({ ...row, decoded: decoded[index] })) };
 }
 
 export async function fetchNativeCheckpointTelemetry(
@@ -649,18 +620,18 @@ async function assembleCheckpointArtifact(
   for await (const frame of reader) {
     if (!active()) throw new Error("History.DownloadCheckpointArtifact was cancelled.");
     if (complete) throw new Error("History.DownloadCheckpointArtifact continued after completion.");
-    switch (frame.payload?.HarmosVariant.case) {
-      case "Metadata": {
-        if (metadata || !frame.payload.HarmosVariant.value.field0 || frame.payload.HarmosVariant.value.field0.artifactId !== artifactId) {
+    switch (frame.payload?.kind.case) {
+      case "metadata": {
+        if (metadata || !frame.payload.kind.value || frame.payload.kind.value.artifactId !== artifactId) {
           throw new Error("History.DownloadCheckpointArtifact metadata identity is invalid.");
         }
-        metadata = frame.payload.HarmosVariant.value.field0;
+        metadata = frame.payload.kind.value;
         validateArtifactMetadata(metadata);
         break;
       }
-      case "Chunk": {
+      case "chunk": {
         if (!metadata) throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
-        const chunk = frame.payload.HarmosVariant.value.field0;
+        const chunk = frame.payload.kind.value;
         if (!chunk) throw new Error("Artifact chunk payload is missing.");
         if (chunk.offset !== expectedOffset) {
           throw new Error("History.DownloadCheckpointArtifact chunks are not contiguous.");
@@ -673,9 +644,9 @@ async function assembleCheckpointArtifact(
         expectedOffset = total;
         break;
       }
-      case "Complete": {
+      case "complete": {
         if (!metadata) throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
-        const completion = frame.payload.HarmosVariant.value.field0;
+        const completion = frame.payload.kind.value;
         if (!completion) throw new Error("Artifact completion payload is missing.");
         completionSize = completion.sizeBytes;
         completionSha = normalizedSha(completion.sha256, "artifact completion");
@@ -711,7 +682,7 @@ async function assembleCheckpointArtifact(
 }
 
 function validateArtifactMetadata(metadata: ArtifactMetadata): void {
-  if (metadata.state?.HarmosVariant.case !== "Complete") {
+  if (metadata.state !== v1.ArtifactState.COMPLETE) {
     throw new Error("History.DownloadCheckpointArtifact metadata is not complete.");
   }
   if (metadata.sizeBytes > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
@@ -737,12 +708,12 @@ export function checkpointFileLabel(file: ExecutionFileMetadata): string {
 }
 
 export function checkpointFileKind(kind: ExecutionFileKind | undefined): "text" | "binary" | "media" | "unknown" {
-  switch (kind?.HarmosVariant.case) {
-    case "Text":
+  switch (kind) {
+    case v1.ExecutionFileKind.TEXT:
       return "text";
-    case "Binary":
+    case v1.ExecutionFileKind.BINARY:
       return "binary";
-    case "Media":
+    case v1.ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -754,12 +725,12 @@ export function checkpointFileState(state: ExecutionFileState | undefined): stri
 }
 
 function fileStateLabel(state: ExecutionFileState | undefined): string {
-  switch (state?.HarmosVariant.case) {
-    case "Streaming":
+  switch (state) {
+    case v1.ExecutionFileState.STREAMING:
       return "streaming";
-    case "Finalized":
+    case v1.ExecutionFileState.FINALIZED:
       return "finalized";
-    case "Interrupted":
+    case v1.ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "unspecified";
@@ -767,21 +738,24 @@ function fileStateLabel(state: ExecutionFileState | undefined): string {
 }
 
 export function artifactStateLabel(state: ArtifactState | undefined): string {
-  switch (state?.HarmosVariant.case) {
-    case "Complete":
+  switch (state) {
+    case v1.ArtifactState.COMPLETE:
       return "complete";
-    case "Cancelled":
+    case v1.ArtifactState.CANCELLED:
       return "cancelled";
-    case "Rejected":
+    case v1.ArtifactState.REJECTED:
       return "rejected";
-    case "Failed":
+    case v1.ArtifactState.FAILED:
       return "failed";
     default:
       return "unspecified";
   }
 }
 
-export function nativeRecordText(record: CapturedRecord): {
+export function nativeRecordText(
+  record: CapturedRecord,
+  decoded?: import("@/lib/types").HubRecord,
+): {
   timestamp: string;
   severity: string;
   details: Record<string, unknown>;
@@ -789,10 +763,12 @@ export function nativeRecordText(record: CapturedRecord): {
   return {
     timestamp: timestampIso(record.timestamp) ?? "Unknown Time",
     severity: severityLabel(record.severity),
-    details: nativeValueObjectToJson(record.details),
+    details: decoded?.details ?? {},
   };
 }
 
 function severityLabel(value: Severity | undefined): string {
-  return value?.HarmosVariant.case?.toLowerCase() ?? "unspecified";
+  return value === undefined ? "unspecified" : (HostSeverity[value]?.toLowerCase() ?? "unspecified");
 }
+
+export const checkpointStepStatus = mapStepStatus;

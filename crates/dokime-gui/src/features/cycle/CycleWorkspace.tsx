@@ -71,7 +71,6 @@ import {
   isTerminalExecutionStatus,
   selectedCycleRow,
 } from "./cycle-workspace-model";
-import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
 import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
@@ -348,7 +347,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       runningRow?.execution && progress
         ? {
             ordinal: runningRow.ordinal,
-            step: stepLabel(runningRow.execution, progress.stepId),
+            step: progress.label,
           }
         : null,
   });

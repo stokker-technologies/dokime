@@ -51,7 +51,14 @@ def export(root: Path, profile: str) -> Path:
         "NOTICE": root / "target/notices/NOTICE",
         "THIRD-PARTY-NOTICES": root / "target/notices/THIRD-PARTY-NOTICES",
         f"bin/dokime-next{suffix}": build / "bin" / f"dokime-next{suffix}",
+        f"bin/dokime-gui{suffix}": build / "bin" / f"dokime-gui{suffix}",
     }
+    organization = root / "organization"
+    for path in organization.rglob("*"):
+        if path.is_symlink() or path.is_junction():
+            raise ValueError(f"distribution appearance input must not contain links: {path}")
+        if path.is_file():
+            source[path.relative_to(root).as_posix()] = path
 
     # Validate Inputs Before Replacing the Owned Export
     invalid = [path for path in source.values() if path.is_symlink() or not path.is_file()]

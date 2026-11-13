@@ -11,6 +11,8 @@
 
 /* === External Imports === */
 
+import { PluginInstallationState as InstallationState } from "@host/dokime/v1/client_types_pb.js";
+import { PluginState } from "@host/dokime/v1/plugins_pb.js";
 import { Channel } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
@@ -18,7 +20,7 @@ import { Channel } from "@tauri-apps/api/core";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { commands } from "@/lib/desktop/commands";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
@@ -61,7 +63,7 @@ export async function getNativePlugin(session: SessionIdentity, installId: strin
 }
 
 export async function removeNativePlugin(session: SessionIdentity, installId: string): Promise<void> {
-  await rpc.pluginsRemove(session, { installId });
+  await rpc.pluginsRemove(session, { entry: installId });
 }
 
 export async function setNativePluginEnabled(session: SessionIdentity, installId: string, enabled: boolean): Promise<PluginEntry> {
@@ -148,14 +150,14 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
   if (!installedAt) {
     throw new Error(`Native plugin ${installation.installId} has no valid installation timestamp.`);
   }
-  const lastBoot = mapPluginLastBoot(installation.lastBoot);
+  const plugin = installation.plugin;
 
   return {
     install_id: installation.installId,
     sha256: installation.sha256,
     installed_at: installedAt,
     state: mapPluginState(installation.state),
-    last_boot: lastBoot,
+    last_boot: null,
     metadata: installation.metadata
       ? {
           identity: installation.metadata.identity
@@ -171,98 +173,52 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
           size_bytes: safeNumber(installation.metadata.sizeBytes, "Plugins plugin size"),
         }
       : null,
-    error: installation.error ?? null,
-    active: installation.active,
-    restart: mapPluginRestart(installation.restart),
-    boot_failed: installation.bootFailed,
+    error: installation.error || plugin?.reason || null,
+    active: plugin ? plugin.state === PluginState.READY : undefined,
+    restart: plugin?.state === PluginState.STARTING || plugin?.state === PluginState.CONNECTING ? "restarting" : undefined,
+    boot_failed: plugin ? plugin.state === PluginState.FAILED : undefined,
   };
 }
 
 function mapPluginState(state: PluginInstallationState): PluginEntry["state"] {
-  switch (state?.HarmosVariant.case) {
-    case "Installed":
+  switch (state) {
+    case InstallationState.INSTALLED:
       return "installed";
-    case "Disabled":
+    case InstallationState.DISABLED:
       return "disabled";
-    case "RemovalPending":
+    case InstallationState.REMOVAL_PENDING:
       return "removal_pending";
     default:
       throw new Error("Native plugin returned an unknown installation state.");
   }
 }
 
-function mapPluginRestart(restart: PluginInstallation["restart"]): PluginEntry["restart"] {
-  switch (restart?.HarmosVariant.case) {
-    case "Idle":
-      return "idle";
-    case "Restarting":
-      return "restarting";
-    case "Pending":
-      return "pending";
-    default:
-      throw new Error("Native plugin returned an unknown restart state.");
-  }
-}
-
-function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntry["last_boot"] {
-  if (!lastBoot) return null;
-  const at = timestampIso(lastBoot.at);
-  if (!at) throw new Error("Native plugin returned a last-boot result without a timestamp.");
-  switch (lastBoot.result?.HarmosVariant.case) {
-    case "Loaded":
-      return { state: "loaded", at };
-    case "Error": {
-      const failure = lastBoot.result.HarmosVariant.value.field0;
-      if (!failure) throw new Error("Native plugin returned a failed boot without a reason.");
-      return {
-        state: "failed",
-        at,
-        failure: {
-          plugin_id: failure.pluginId,
-          plugin_name: failure.pluginName,
-          message: failure.message,
-          code: failure.code ?? null,
-          missing_secret: failure.missingSecret ?? null,
-          consequences: failure.consequences,
-        },
-      };
-    }
-    default:
-      throw new Error("Native plugin returned a last-boot result without an outcome.");
-  }
-}
-
 function mapAdmittedPlugin(artifact: AdmittedPlugin): RuntimeInstalledPluginRecord {
-  const owner = artifact.owner?.HarmosVariant;
-  let projectedOwner: RuntimeInstalledPluginRecord["owner"] = null;
-  if (owner?.case === "Host") projectedOwner = { kind: "host" };
-  if (owner?.case === "Bundle") {
-    const bundle = owner.value.field0;
-    if (!bundle) throw new Error("Admitted plugin omitted its bundle owner.");
-    projectedOwner = {
-      kind: "bundle",
-      package: bundle.package,
-      path: bundle.path ?? null,
-      installation: bundle.installationId ?? null,
-      content_digest: bundle.contentDigest,
-    };
-  }
-  if (owner?.case === "Embedded") {
-    const embedded = owner.value.field0;
-    if (!embedded) throw new Error("Admitted plugin omitted its embedded owner.");
-    projectedOwner = { kind: "embedded", generation: embedded.generation };
-  }
+  const plugin = artifact.plugin;
+  if (!plugin?.entry) throw new Error("Read Plugins: Missing Entry Identity");
+  const placement = plugin.placement;
   return {
-    plugin_id: artifact.pluginId,
-    owner: projectedOwner,
-    label: artifact.label,
-    version: artifact.version,
-    enabled: artifact.enabled,
-    // The original view model only has a code-defined runtime kind. Native
-    // admitted artifacts are the code catalog exposed by Plugins, so preserve
-    // that existing badge contract while retaining the owner discriminator.
-    runtime: "code",
-    status: artifact.enabled ? "ready" : "disabled",
-    error: null,
+    plugin_id: plugin.entry,
+    owner:
+      placement.case === "managed"
+        ? { kind: "bundle", package: placement.value.bundle, path: null, installation: plugin.entry }
+        : placement.case === "remote"
+          ? { kind: "remote", url: placement.value.url }
+          : null,
+    label: plugin.description?.id || plugin.entry,
+    version: plugin.description?.version || "",
+    enabled: plugin.state !== PluginState.UNAVAILABLE,
+    runtime: placement.case || "code",
+    status:
+      plugin.state === PluginState.READY
+        ? "ready"
+        : plugin.state === PluginState.STARTING
+          ? "starting"
+          : plugin.state === PluginState.CONNECTING
+            ? "connecting"
+            : plugin.state === PluginState.FAILED
+              ? "failed"
+              : "unavailable",
+    error: plugin.reason || null,
   };
 }

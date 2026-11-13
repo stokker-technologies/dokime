@@ -45,12 +45,14 @@ export async function getInstalledPluginDetail(session: SessionIdentity, pluginI
         version: entry.metadata.identity.version,
         enabled: entry.state === "installed",
         runtime: "code",
-        status: RESTART_STATUS[entry.restart] ?? (entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "not_running"),
+        status:
+          (entry.restart ? RESTART_STATUS[entry.restart] : null) ??
+          (entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "not_running"),
         error: entry.error,
       };
     }
   }
   if (!plugin) return null;
   const config = await getNativePluginSettings(session, pluginId);
-  return { ...plugin, ...config, status: RESTART_STATUS[config.restart] ?? plugin.status };
+  return { ...plugin, ...config, status: (config.restart ? RESTART_STATUS[config.restart] : null) ?? plugin.status };
 }

@@ -117,6 +117,11 @@ export async function openHarness() {
         const path = relative(dirname(destination), target).split(sep).join("/");
         specifier = path.startsWith(".") ? path : `./${path}`;
       }
+      if (specifier.startsWith("@host/")) {
+        const target = resolve(temporary, "host", specifier.slice("@host/".length));
+        const path = relative(dirname(destination), target).split(sep).join("/");
+        specifier = path.startsWith(".") ? path : `./${path}`;
+      }
       if (!specifier.startsWith("./") && !specifier.startsWith("../")) return `${prefix}${import.meta.resolve(specifier)}${suffix}`;
       const basename = specifier.slice(specifier.lastIndexOf("/") + 1);
       const extension = basename.includes(".") ? "" : ".js";
@@ -146,6 +151,7 @@ export async function openHarness() {
   const canonical = resolve(temporary, "canonical");
   await compile(resolve(gui, "src/lib/rpc"), rpc);
   await compile(generated, canonical);
+  await compile(resolve(gui, "../../target/generated/host"), resolve(temporary, "host"));
   // The transport's runtime imports outside `src/lib/rpc`; type-only imports erase.
   for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping", "src/lib/notification-details"]) {
     const input = resolve(gui, `${module}.ts`);
@@ -157,6 +163,7 @@ export async function openHarness() {
     invoke,
     load: (path) => import(pathToFileURL(resolve(rpc, path))),
     loadCanonical: (path) => import(pathToFileURL(resolve(canonical, path))),
+    loadHost: (path) => import(pathToFileURL(resolve(temporary, "host", path))),
     /** Report one observation to the driving test without awaiting a reply. */
     report(value) {
       process.stdout.write(`${JSON.stringify(value)}\n`);

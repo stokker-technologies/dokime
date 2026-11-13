@@ -125,7 +125,7 @@ fn firewall_effective_policy_checks_program_port_profile_and_blocks() {
         let script = format!("{fixture}\n{}", include_str!("../../../src/app/firewall.ps1"));
         let executable =
             std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32/WindowsPowerShell/v1.0/powershell.exe");
-        let mut child = dokime::domain::process::command(executable)
+        let mut child = dokime_runtime_next::process::command(executable)
             .args([
                 "-NoProfile",
                 "-NonInteractive",

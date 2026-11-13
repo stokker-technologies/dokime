@@ -84,6 +84,27 @@ name = "{product}-distribution-{version}-x86_64-pc-windows-msvc.zip"
 path = "target/package/{profile}/{target}/rust/dokime-distribution-{version}-x86_64-pc-windows-msvc.zip"
 target = "windows-x86_64"
 
+[[release.assets]]
+kind = "installer"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-pc-windows-msvc-setup.exe"
+target = "windows-x86_64"
+
+[[release.assets]]
+kind = "installer"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu.deb"
+target = "linux-x86_64"
+
+[[release.assets]]
+kind = "installer"
+path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu.rpm"
+target = "linux-x86_64"
+
+[[release.assets]]
+kind = "installer"
+path = "target/package/{profile}/{target}/rust/latest.json"
+signed_only = true
+target = "windows-x86_64"
+
 [version]
 files = [
   "Cargo.toml",

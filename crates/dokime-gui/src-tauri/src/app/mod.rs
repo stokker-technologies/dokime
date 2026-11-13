@@ -93,7 +93,7 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
 fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Result<()> {
     // Resolve Distribution Paths Before Logging Or Windows.
     let mut context = tauri::generate_context!();
-    let paths = dokime::paths::ApplicationPaths::resolve(&context.config().identifier)?;
+    let paths = crate::paths::ApplicationPaths::resolve(&context.config().identifier)?;
     context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(paths.root.clone()));
     let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize, &paths.distribution.slug(), organization.label());
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
@@ -105,7 +105,6 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
         .manage(organization)
-        .manage(_log_guards.journal.clone())
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())
@@ -212,7 +211,7 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
-        tauri::RunEvent::Exit => dokime::diagnostics::test_trace::flush(),
+        tauri::RunEvent::Exit => {}
         tauri::RunEvent::WindowEvent {
             event: tauri::WindowEvent::CloseRequested { api, .. },
             ..
@@ -234,7 +233,7 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         let navigation_config = app.config().clone();
         let brand = app.state::<organization::OrganizationState>().initialization_script();
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
-            .data_directory(app.state::<dokime::paths::ApplicationPaths>().webview())
+            .data_directory(app.state::<crate::paths::ApplicationPaths>().webview())
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
         let organization = app.state::<organization::OrganizationState>();

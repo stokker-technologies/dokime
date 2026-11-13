@@ -22,7 +22,11 @@ export function AppRoot() {
         if (!active) return;
         setLaunch(configuration);
         if (configuration.error) return;
-        if (configuration.target) {
+        const current = await commands.desktopSessionStatus();
+        if (!active) return;
+        if (current.connection.phase === "connected" && current.connection.backend) {
+          await owner.refresh();
+        } else if (configuration.target) {
           void owner.select({
             kind: "attach",
             request: {

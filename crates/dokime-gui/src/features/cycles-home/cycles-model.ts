@@ -12,10 +12,10 @@
 
 /* === Local Imports === */
 
-import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import { CyclePhase, CycleStatus } from "@host/dokime/v1/client_types_pb.js";
 import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
 import { mapCycleStatus } from "@/lib/api/native-planning";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { CycleSummary } from "@/lib/api/native-planning";
 import type { PromptRequest } from "@/lib/types";
 
 /* === Constants === */
@@ -30,8 +30,6 @@ const STATE_TONES: Record<CycleState["variant"], CycleRow["statusTone"]> = {
 
 /* === Types === */
 
-type CycleSummary = Wire<GeneratedCycleSummary>;
-
 export type CycleGroupId = "attention" | "active" | "recent" | "archived";
 
 export type CycleRow = {
@@ -45,7 +43,7 @@ export type CycleRow = {
   executionCount: number;
   label: string;
   phase: "Active" | "Sealing" | "SealFailed" | "Sealed" | "Unknown";
-  status: NonNullable<NonNullable<CycleSummary["status"]>["HarmosVariant"]["case"]>;
+  status: string;
   statusLabel: string;
   statusTone: "neutral" | "good" | "warn" | "bad";
   updatedAtIso: string | null;
@@ -74,8 +72,22 @@ export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMa
       finishedCount: finishedCases(cycle),
       executionCount: Number(cycle.executionCount),
       label: cycle.metadata?.label || cycle.cycleId,
-      phase: cycle.phase?.HarmosVariant.case ?? "Unknown",
-      status: cycle.status?.HarmosVariant.case ?? "Unspecified",
+      phase:
+        cycle.phase === CyclePhase.ACTIVE
+          ? "Active"
+          : cycle.phase === CyclePhase.SEALING
+            ? "Sealing"
+            : cycle.phase === CyclePhase.SEAL_FAILED
+              ? "SealFailed"
+              : cycle.phase === CyclePhase.SEALED
+                ? "Sealed"
+                : "Unknown",
+      status:
+        cycle.status === CycleStatus.BLOCKED
+          ? "Blocked"
+          : mapCycleStatus(cycle.status) === "planned"
+            ? "Ready"
+            : mapCycleStatus(cycle.status).replace(/^./, (letter) => letter.toUpperCase()),
       statusLabel: state.label,
       statusTone: STATE_TONES[state.variant],
       updatedAtIso: isoOrNull(timestampMs(cycle)),
@@ -160,12 +172,12 @@ export function applyFrozenOrder(rows: CycleRow[], frozenIds: readonly string[])
 /* === Private Functions === */
 
 function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
-  switch (cycle.phase?.HarmosVariant.case) {
-    case "Sealing":
+  switch (cycle.phase) {
+    case CyclePhase.SEALING:
       return "sealing";
-    case "SealFailed":
+    case CyclePhase.SEAL_FAILED:
       return "seal_failed";
-    case "Sealed":
+    case CyclePhase.SEALED:
       return "sealed";
     default:
       return "active";

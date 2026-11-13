@@ -10,13 +10,15 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import type { Row6 as GeneratedHistoryIssue } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type {
-  Row2 as GeneratedCheckpointContext,
-  Row23 as GeneratedSeverity,
-} from "@generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedNativeCheckpointEvidence } from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+  HistoryIssue as GeneratedHistoryIssue,
+  CheckpointContext as GeneratedCheckpointContext,
+  CheckpointEvidence as GeneratedNativeCheckpointEvidence,
+  CheckpointTelemetryPage as GeneratedCheckpointTelemetryPage,
+} from "@host/dokime/v1/client_types_pb.js";
+import { ArtifactState } from "@host/dokime/v1/client_types_pb.js";
+import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { nativeValuesToJson } from "@/lib/host/values";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
@@ -33,7 +35,7 @@ import {
   nativeRecordText,
 } from "@/lib/api/native-checkpoints";
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
-import { nativeValueObjectToJson, timestampIso } from "@/lib/api/native-values";
+import { timestampIso } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
 import {
@@ -46,7 +48,6 @@ import {
 
 const GUI_ERROR_PREVIEW_CHARS = 500;
 
-type Severity = Wire<GeneratedSeverity>;
 type CheckpointContext = Wire<GeneratedCheckpointContext>;
 type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
 type HistoryIssue = Wire<GeneratedHistoryIssue>;
@@ -147,7 +148,7 @@ function Records({ checkpoint, session }: SessionProps) {
       {query.data.records.map((row) => {
         const record = row.record;
         if (!record || !row.epoch) throw new Error("Checkpoint record source identity is missing");
-        const text = nativeRecordText(record);
+        const text = nativeRecordText(record, row.decoded);
         const message = record.message ?? record.error?.message ?? "";
         return (
           <details className="min-w-0 rounded border p-2 text-sm" key={`${row.epoch}:${record.sequence.toString()}:${record.recordId}`}>
@@ -247,12 +248,12 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
         return (
           <div key={`${row.epoch}:${row.ordinal}:${sample.sampleId}`} className="min-w-0 border-b pb-2 text-sm">
             <p className="text-muted-foreground">{timestampIso(sample.timestamp) ?? "Unknown Time"}</p>
-            <ValueObjectView value={sample.values} />
+            <ValueObjectView value={sample.values?.values} />
             {sample.summary && (
               <details className="mt-2">
                 <summary className="cursor-pointer text-xs text-muted-foreground">Summary</summary>
                 <pre className="overflow-auto whitespace-pre-wrap break-all text-xs">
-                  {formatStructured(nativeValueObjectToJson(sample.summary))}
+                  {formatStructured(nativeValuesToJson(sample.summary.values))}
                 </pre>
               </details>
             )}
@@ -328,7 +329,7 @@ function Files({ checkpoint, session }: SessionProps) {
       <h3 className="font-medium">Attachments</h3>
       {!query.data.artifacts.length && <p>No attachments.</p>}
       {query.data.artifacts.map((artifact) =>
-        artifact.state?.HarmosVariant.case === "Complete" ? (
+        artifact.state === ArtifactState.COMPLETE ? (
           <Download key={artifact.artifactId} checkpoint={checkpoint} session={session} id={artifact.artifactId} name={artifact.filename} />
         ) : (
           <p key={artifact.artifactId}>
@@ -431,9 +432,9 @@ function Context({ checkpoint, session }: SessionProps) {
       {!context.prompts.length && <p>No prompts captured.</p>}
       {context.prompts.map((prompt) => (
         <div key={prompt.promptId} className="rounded border p-2">
-          <p>{prompt.definition?.title || prompt.promptId}</p>
+          <p>{prompt.definition?.metadata?.label || prompt.promptId}</p>
           <pre className="overflow-auto whitespace-pre-wrap break-all text-xs">
-            {formatStructured(nativeValueObjectToJson(prompt.values))}
+            {formatStructured(nativeValuesToJson(prompt.values?.values))}
           </pre>
         </div>
       ))}
@@ -450,8 +451,8 @@ function Context({ checkpoint, session }: SessionProps) {
   );
 }
 
-function ValueObjectView({ value }: { value?: Parameters<typeof nativeValueObjectToJson>[0] }) {
-  const object = nativeValueObjectToJson(value);
+function ValueObjectView({ value }: { value?: Parameters<typeof nativeValuesToJson>[0] }) {
+  const object = nativeValuesToJson(value);
   if (!Object.keys(object).length) return <p className="text-muted-foreground">No values.</p>;
   return (
     <dl className="grid gap-1">
@@ -466,7 +467,7 @@ function ValueObjectView({ value }: { value?: Parameters<typeof nativeValueObjec
 }
 
 function severityLabel(value: Severity | undefined): string {
-  return value?.HarmosVariant.case?.toLowerCase() ?? "unspecified";
+  return value === undefined ? "unspecified" : (Severity[value]?.toLowerCase() ?? "unspecified");
 }
 
 function formatStructured(value: unknown): string {

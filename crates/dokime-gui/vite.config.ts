@@ -43,6 +43,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
+      "@host": fileURLToPath(new URL("../../target/generated/host", import.meta.url)),
     },
   },
   server: {
@@ -55,7 +56,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: mode === "report" ? "../dokime-runtime/dist-report" : "dist",
+    outDir: mode === "report" ? "dist-report" : "dist",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {

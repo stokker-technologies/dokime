@@ -65,8 +65,8 @@ export async function saveNativeDocument(session: SessionIdentity, request: Nati
  * Save the support archive through the main-window native picker, and say
  * where it landed.
  *
- * The archive is assembled in the webview from `Backend.CollectDiagnostics`
- * frames, so it has no artifact, execution-file or cycle id for the verified
+ * The archive is assembled in the webview from `Status.Diagnostics.Get`
+ * ranges, so it has no artifact, execution-file or cycle id for the verified
  * server pull to address; it crosses inline under the 32 MiB document bound.
  * Its own command, rather than `desktop_save_document`, because
  * this is the one save whose *path* the caller needs: the row offers the
@@ -79,8 +79,8 @@ export async function saveNativeDiagnosticsBundle(session: SessionIdentity, requ
   /* The shell requires the extension rather than appending it, so a filename
      the backend named something else is refused here, with the reason, rather
      than by an IPC error. */
-  if (!request.filename.trim().toLowerCase().endsWith(".zip")) {
-    throw new Error(`The diagnostics bundle must be saved as a .zip archive; the backend named it "${request.filename}".`);
+  if (!request.filename.trim().toLowerCase().endsWith(".tar")) {
+    throw new Error(`The diagnostics bundle must be saved as a .tar archive; the backend named it "${request.filename}".`);
   }
   const document = prepareNativeDocument(session, { ...request, kind: "diagnostics_bundle" });
   const path = await commands.desktopSaveDiagnosticsBundle(session.generation, document);

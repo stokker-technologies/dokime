@@ -170,11 +170,12 @@ export class ReportBrowser {
             if (location.href !== ${JSON.stringify(url)}) return false;
             return new Promise(resolve => {
               const ready = () => {
-                const root = document.getElementById('root');
-                const data = document.getElementById('hub-report-data');
-                if (!root?.childElementCount || !data) return false;
-                const report = JSON.parse(data.textContent);
-                if (report.test_executions.length && !document.querySelector('[data-level="case"]')) return false;
+                // Host Reports Are Self-Contained HTML With Frozen Evidence.
+                if (document.readyState !== 'complete') return false;
+                if (!document.querySelector('h1')?.textContent?.trim()) return false;
+                const identity = [...document.querySelectorAll('body > dl dt')].map(node => node.textContent);
+                if (!identity.includes('Execution') || !identity.includes('Cycle')) return false;
+                if (!document.querySelector('section h2') || !document.querySelector('section ol li')) return false;
                 resolve(true);
                 return true;
               };

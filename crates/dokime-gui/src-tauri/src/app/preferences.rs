@@ -15,17 +15,12 @@
 
 /* === Imports === */
 
-// Standard Library Imports
-
-// Third Party Imports
-use serde::Serialize;
-use tauri::{AppHandle, State};
-
-// Local Imports
-use crate::connection::{ConnectionSession, registry};
+use crate::connection::{ConnectionSession, host::Session};
 use crate::native_session::DesktopSessionControl;
-use dokime::domain::model::settings::application::{SettingsScope, SettingsSnapshot, UpdateSettings};
-use dokime::operations::settings::{ReadApplicationSettings, UpdateApplicationSettings};
+use dokime_sdk::v1;
+use prost::Message;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, State};
 
 /* === Constants === */
 
@@ -36,6 +31,13 @@ use dokime::operations::settings::{ReadApplicationSettings, UpdateApplicationSet
 /* === Structs === */
 
 /* === Enums === */
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SettingsScope {
+    Local,
+    Backend,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -54,56 +56,110 @@ pub enum SettingsCommandError {
 
 pub async fn desktop_settings_read(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
-) -> Result<SettingsSnapshot, SettingsCommandError> {
+) -> Result<tauri::ipc::Response, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    client.call(ReadApplicationSettings {}).await.map_err(command_error)
+    let snapshot: v1::SettingsSnapshot = client
+        .unary("/dokime.v1.Settings/ReadApplicationSettings", v1::SettingsReadApplicationSettingsRequest {})
+        .await
+        .map_err(command_error)?;
+    let snapshot = with_listener(&client, snapshot).await?;
+    Ok(tauri::ipc::Response::new(snapshot.encode_to_vec()))
 }
 
 pub async fn desktop_settings_update(
     app: AppHandle, owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
-    update: UpdateSettings,
-) -> Result<SettingsSnapshot, SettingsCommandError> {
+    update: Vec<u8>,
+) -> Result<tauri::ipc::Response, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    let current = client.call(ReadApplicationSettings {}).await.map_err(command_error)?;
-    update.settings.validate_scope(&current.settings, scope).map_err(|message| SettingsCommandError::Validation { message })?;
-    let saved = client.call(UpdateApplicationSettings { update }).await.map_err(command_error)?;
-    if current.settings.listener.enabled
-        && !saved.settings.listener.enabled
+    if update.len() > crate::rpc::protocol::FRAME_BYTES as usize {
+        return Err(SettingsCommandError::Validation {
+            message: "Save Preferences: The Request Exceeds the Desktop Frame Limit".into(),
+        });
+    }
+    let update =
+        v1::UpdateSettings::decode(update.as_slice()).map_err(|error| SettingsCommandError::Validation { message: error.to_string() })?;
+    let current: v1::SettingsSnapshot = client
+        .unary("/dokime.v1.Settings/ReadApplicationSettings", v1::SettingsReadApplicationSettingsRequest {})
+        .await
+        .map_err(command_error)?;
+    let previous = current.settings.as_ref().ok_or_else(|| SettingsCommandError::Validation {
+        message: "Read Preferences: Host Omitted Settings".into(),
+    })?;
+    let proposed = update.settings.as_ref().ok_or_else(|| SettingsCommandError::Validation {
+        message: "Save Preferences: Supply Settings".into(),
+    })?;
+    if proposed.listener.is_some() {
+        return Err(SettingsCommandError::Validation {
+            message: "Save Preferences: Configure Remote Access Through Its Listener Resource".into(),
+        });
+    }
+    let valid = match scope {
+        SettingsScope::Local => {
+            proposed.report == previous.report
+                && proposed.telemetry == previous.telemetry
+                && proposed.listener == previous.listener
+                && proposed.plugins == previous.plugins
+        }
+        SettingsScope::Backend => proposed.appearance == previous.appearance && proposed.client == previous.client,
+    };
+    if !valid {
+        return Err(SettingsCommandError::Validation {
+            message: "Save Preferences: Change Only Fields Owned by the Selected Scope".into(),
+        });
+    }
+    let saved: v1::SettingsSnapshot = client
+        .unary("/dokime.v1.Settings/UpdateApplicationSettings", v1::SettingsUpdateApplicationSettingsRequest { update: Some(update) })
+        .await
+        .map_err(command_error)?;
+    let saved = with_listener(&client, saved).await?;
+    if saved.settings.as_ref().and_then(|settings| settings.listener.as_ref()).is_some_and(|listener| !listener.enabled)
         && matches!(owner.status().ownership, crate::native_session::BackendOwnership::OwnedLocal)
         && let Err(error) = super::firewall::remove(app).await
     {
         tracing::warn!(%error, "Firewall cleanup could not complete");
     }
-    if matches!(scope, SettingsScope::Local) {
-        connection.set_preferences(saved.settings.client);
+    if matches!(scope, SettingsScope::Local)
+        && let Some(preferences) = saved.settings.as_ref().and_then(|settings| settings.client)
+    {
+        connection.set_preferences(preferences);
     }
-    Ok(saved)
+    Ok(tauri::ipc::Response::new(saved.encode_to_vec()))
 }
 
 /* === Private Functions === */
 
 async fn client(
     owner: &DesktopSessionControl, connection: &ConnectionSession, scope: SettingsScope,
-) -> Result<dokime::client::Client, SettingsCommandError> {
+) -> Result<Session, SettingsCommandError> {
     if matches!(scope, SettingsScope::Local) {
-        return owner.local_client().await.map_err(|error| SettingsCommandError::Persistence {
-            message: format!("{:?}", registry::session_error(error)),
-        });
+        return owner.local_client().await.map_err(|error| SettingsCommandError::Persistence { message: format!("{error:?}") });
     }
-    let status = connection.status();
-    connection.lease(&status.generation).map(|lease| lease.client()).map_err(|_| SettingsCommandError::Disconnected)
+    connection.lease(&connection.status().generation).map(|lease| lease.client()).map_err(|_| SettingsCommandError::Disconnected)
 }
 
-fn command_error(error: dokime::client::Error) -> SettingsCommandError {
-    if let dokime::client::Error::ExecutionRejected { rejection } = &error {
-        if rejection.code == "settings_conflict" {
-            return SettingsCommandError::Conflict { message: rejection.message.clone() };
-        }
-        if rejection.code == "invalid_settings" {
-            return SettingsCommandError::Validation { message: rejection.message.clone() };
-        }
-    }
-    if let dokime::client::Error::Rpc(status) = &error {
+// Access Owns Listener State; Application Preferences Only Project Its Current Value.
+async fn with_listener(client: &Session, mut snapshot: v1::SettingsSnapshot) -> Result<v1::SettingsSnapshot, SettingsCommandError> {
+    use dokime_sdk::client::v1::access;
+    let listener: access::ListenerGetResponse =
+        client.unary("/harmos.v1.access.Listener/Get", access::ListenerGetRequest {}).await.map_err(command_error)?;
+    let value = listener.value.ok_or_else(|| SettingsCommandError::Validation {
+        message: "Read Preferences: Host Omitted Its Listener Value".into(),
+    })?;
+    let settings = snapshot.settings.as_mut().ok_or_else(|| SettingsCommandError::Validation {
+        message: "Read Preferences: Host Omitted Application Settings".into(),
+    })?;
+    settings.listener = Some(v1::RemoteListenerSettings {
+        enabled: value.enabled,
+        address: value.endpoint,
+        certificate_names: value.certificate_names,
+        tls_enabled: true,
+        authentication_enabled: true,
+    });
+    Ok(snapshot)
+}
+
+fn command_error(error: crate::connection::host::Error) -> SettingsCommandError {
+    if let crate::connection::host::Error::Rpc(status) = &error {
         match status.code() {
             tonic::Code::Aborted | tonic::Code::AlreadyExists => {
                 return SettingsCommandError::Conflict { message: status.message().into() };
@@ -112,9 +168,6 @@ fn command_error(error: dokime::client::Error) -> SettingsCommandError {
             tonic::Code::Unavailable => return SettingsCommandError::Disconnected,
             _ => {}
         }
-    }
-    if matches!(error, dokime::client::Error::Closed | dokime::client::Error::BackendUnavailable) {
-        return SettingsCommandError::Disconnected;
     }
     SettingsCommandError::Persistence { message: error.to_string() }
 }

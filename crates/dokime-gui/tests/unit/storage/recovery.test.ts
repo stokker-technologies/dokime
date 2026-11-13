@@ -19,12 +19,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import {
-  STORAGE_RESET_CONFIRMATION,
-  type StorageResetContext,
-  storageResetAvailable,
-  storageResetConfirmed,
-} from "@/features/settings/storage-reset-model";
+import { type StorageResetContext, storageResetAvailable } from "@/features/settings/storage-reset-model";
 import { ConnectionScreen } from "@/app/native-session/ConnectionScreen";
 import { storageRecoveryAvailable } from "@/app/native-session/errors";
 
@@ -117,23 +112,15 @@ async function renderConnection() {
   );
 }
 
-test("Startup Recovery Confirms Both Paths Before Calling Reset and Allows Cancellation", async () => {
+test("Unavailable Host Recovery Cannot Open a Picker or Mutate Storage", async () => {
   await renderConnection();
   const trigger = container.querySelector<HTMLButtonElement>('[data-action="backup-reset"]');
   assert.ok(trigger);
+  assert.equal(trigger.disabled, true);
   await act(async () => trigger.click());
-  assert.equal(fixture.reset.mock.calls.length, 0);
-  const dialog = document.querySelector('[role="dialog"]');
-  assert.ok(dialog?.querySelector('[data-path="/fixture/data"]'));
-  assert.ok(dialog?.querySelector('[data-path="/fixture/archive.zip"]'));
-  await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(fixture.destination.mock.calls.length, 0);
   assert.equal(fixture.reset.mock.calls.length, 0);
   assert.equal(document.querySelector('[role="dialog"]'), null);
-  await act(async () => trigger.click());
-  const confirm = document.querySelector<HTMLButtonElement>('[data-action="confirm-backup-reset"]');
-  assert.ok(confirm);
-  await act(async () => confirm.click());
-  assert.deepEqual(fixture.reset.mock.calls, [["/fixture/data", "/fixture/archive.zip"]]);
 });
 
 test("Another Backend's Folder Never Offers Recovery", async () => {
@@ -189,11 +176,5 @@ test("Storage Reset", () => {
   // The Reset Waits Until the Backend Names Its Data Directory
   for (const directory of ["", null, undefined]) {
     assert.equal(storageResetAvailable(resetContext({ directory })), false, String(directory));
-  }
-
-  // Only the Exact Confirmation Word Arms the Reset
-  assert.equal(storageResetConfirmed(STORAGE_RESET_CONFIRMATION), true);
-  for (const typed of ["", "reset", "Reset", " RESET", "RESET ", "RESETS", "RES"]) {
-    assert.equal(storageResetConfirmed(typed), false, JSON.stringify(typed));
   }
 });

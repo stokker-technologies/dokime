@@ -410,7 +410,11 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
   const transport = await import("@/lib/rpc/transport");
   const refusal = normalizeRpcError({ kind: "busy" });
   vi.spyOn(ipc, "unary").mockRejectedValueOnce(refusal);
-  const request = Object.assign(create(StatusSchema), { requestId: "fixture-request-id", invocationId: "fixture-invocation-id" });
+  const request = Object.assign(create(StatusSchema), {
+    operationId: "fixture-operation-id",
+    requestId: "fixture-request-id",
+    invocationId: "fixture-invocation-id",
+  });
   await assert.rejects(
     transport.unary("/dokime.v1.Execution/StartExecution", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
     (error: unknown) => {
@@ -420,7 +424,7 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     },
   );
   const admission = (await history.notificationPage()).records.find((record) => record.title === "fixture-admission");
-  assert.equal(admission?.failure?.operationId, "dokime.execution.start_execution");
+  assert.equal(admission?.failure?.operationId, request.operationId);
   assert.equal(admission?.failure?.requestId, request.requestId);
   assert.equal(admission?.failure?.invocationId, request.invocationId);
 });

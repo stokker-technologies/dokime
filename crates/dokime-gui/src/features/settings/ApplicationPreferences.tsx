@@ -333,13 +333,23 @@ function PreferencesForm({
             {label}
           </span>
         }
-        description={field.help}
+        description={
+          field.group === "listener" && (field.key === "tls_enabled" || field.key === "authentication_enabled")
+            ? "This Host Requires TLS and Pairing Authentication."
+            : field.help
+        }
         htmlFor={`${scope}-${name}`}
         error={error}
         status={<span data-state={error ? "error" : edited.has(name) ? state : "saved"} className="inline-block min-h-5" />}
       >
         {field.kind === "boolean" ? (
-          <Switch id={`${scope}-${name}`} aria-label={label} checked={Boolean(value)} onCheckedChange={change} />
+          <Switch
+            disabled={field.group === "listener" && (field.key === "tls_enabled" || field.key === "authentication_enabled")}
+            id={`${scope}-${name}`}
+            aria-label={label}
+            checked={Boolean(value)}
+            onCheckedChange={change}
+          />
         ) : field.options ? (
           <Select value={String(value)} onValueChange={change}>
             <SelectTrigger className="w-full" id={`${scope}-${name}`} aria-label={label}>

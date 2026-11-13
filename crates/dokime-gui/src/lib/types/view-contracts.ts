@@ -6,7 +6,7 @@
  * server API types.
  */
 
-import type { Row13 as GeneratedNativeExecutionCheckpoint } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type { ExecutionCheckpoint as GeneratedNativeExecutionCheckpoint } from "@host/dokime/v1/client_types_pb.js";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { ValueFormat } from "./format";
 
@@ -306,7 +306,7 @@ export type PluginEntry = {
    * Whether the running backend still applies this installation: it starts,
    * replaces or stops the bundle now, or once the executions using it finish.
    */
-  restart: PluginRestart;
+  restart?: PluginRestart;
   boot_failed?: boolean;
 } & Installation;
 
@@ -336,6 +336,7 @@ export type PluginMetadata = {
 export type PluginState = "installed" | "disabled" | "removal_pending";
 
 export type RecordScope = {
+  origin?: { kind: "default" | "initialization" | "cleanup" } | { kind: "step_attempt"; attemptId: string };
   session_id?: SessionId | null;
   test_cycle_id?: TestCycleId | null;
   test_case_id?: CaseId | null;
@@ -380,7 +381,7 @@ export type RuntimeAppearanceFrame = {
 };
 
 export type RuntimePluginSettings = {
-  unapplied: string[];
+  unapplied?: string[];
   settings: Settings;
   values: { [key in string]: Value };
   /**
@@ -394,7 +395,7 @@ export type RuntimePluginSettings = {
   /**
    * Whether an explicit reload is restarting or waiting for active work.
    */
-  restart: PluginRestart;
+  restart?: PluginRestart;
 };
 
 export type PluginRestart = "idle" | "restarting" | "pending";

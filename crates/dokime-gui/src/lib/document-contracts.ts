@@ -40,11 +40,12 @@ export type DataSource =
   | { type: "parameter"; name: string }
   | { type: "dimension"; name: string }
   | { type: "record"; record_type: string }
-  | { type: "artifact"; artifact: string };
+  | { type: "artifact"; artifact: string }
+  | { type: "literal"; value: unknown };
 
 /* One member of the Harmos aggregate vocabulary by its display name; a
    percentile is `p` and a whole rank from 0 to 100. */
-export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | `p${number}`;
+export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | "first" | "last" | `p${number}`;
 
 export type DataTransform =
   | { type: "scale"; factor: number }

@@ -56,7 +56,6 @@ struct State {
     phase: Option<String>,
     archived: Option<u64>,
     archive: Option<String>,
-    recoverable: bool,
     // The log the last failed owned start reported; the only file the shell
     // opens on the WebView's behalf.
     startup_log: Option<PathBuf>,
@@ -64,8 +63,7 @@ struct State {
 
 #[derive(Default)]
 struct Resources {
-    local: Option<dokime_server::host::Session>,
-    settings_client: Option<dokime::client::Client>,
+    local: Option<crate::connection::host::Connection>,
 }
 
 /* === Enums === */
@@ -95,7 +93,6 @@ impl DesktopSession {
                 phase: None,
                 archived: None,
                 archive: None,
-                recoverable: false,
                 startup_log: None,
             }),
             status_updates,
@@ -110,6 +107,8 @@ impl DesktopSession {
     pub fn with_local_configuration(connection: ConnectionSession, backend: Result<Backend, String>) -> Self {
         let mut owner = Self::attached(connection);
         Arc::get_mut(&mut owner.0).expect("new owner").local = Some(backend);
+        #[cfg(any(test, feature = "testing"))]
+        crate::test_support::register(owner.clone());
         owner
     }
     pub fn status(&self) -> DesktopSessionSnapshot {
@@ -143,13 +142,6 @@ impl DesktopSession {
             self.publish_status(&mut state);
         }
     }
-    fn report_archived(&self, revision: u64, bytes: u64) {
-        let mut state = self.0.state.lock().expect("desktop owner poisoned");
-        if state.revision == revision {
-            state.archived = Some(bytes);
-            self.publish_status(&mut state);
-        }
-    }
     pub fn startup_log(&self) -> Option<PathBuf> {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         state.startup_log.clone()
@@ -175,7 +167,7 @@ impl DesktopSession {
         let selected = if let BackendSelection::Profile { identifier } = &selection {
             let document = super::super::connection::registry::load().await.map_err(|error| Error::Connection { error })?;
             Some(
-                dokime::client::profiles::get(&document, identifier)
+                crate::connection::registry::get(&document, identifier)
                     .map_err(|error| Error::Startup {
                         message: error.to_string(),
                         diagnostics: None,
@@ -203,7 +195,6 @@ impl DesktopSession {
         if matches!(selection, BackendSelection::OwnedLocal) {
             self.backend()?;
         }
-        let local_attempt = matches!(selection, BackendSelection::OwnedLocal);
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.select_owned(revision, selection).await }).await.map_err(|error| Error::Startup {
@@ -217,12 +208,6 @@ impl DesktopSession {
         // the failed start's log for the shell to open.
         if let Err(error) = &result {
             self.fail(revision, error);
-            if local_attempt {
-                let mut state = self.0.state.lock().expect("desktop owner poisoned");
-                if state.revision == revision {
-                    state.recoverable = matches!(error, Error::Startup { .. });
-                }
-            }
         }
         if let (Ok(snapshot), Some(profile)) = (&result, selected)
             && let Err(error) = self.0.connection.selected_profile(&snapshot.connection.generation, profile.identifier)
@@ -237,22 +222,6 @@ impl DesktopSession {
         }
         result
     }
-    async fn local_preferences(
-        &self, resources: &mut Resources,
-    ) -> Result<dokime::domain::model::settings::application::ClientPreferences, Error> {
-        if resources.local.is_none() {
-            let backend = self.backend()?;
-            let (local, _) = super::backend::start(&backend, |_| {}).await?;
-            resources.local = Some(local);
-        }
-        let endpoint = resources.local.as_ref().expect("local owner initialized").endpoint();
-        let target = dokime::client::Target::local(endpoint).map_err(|error| Error::Connection { error: error.into() })?;
-        let client =
-            dokime::client::Client::connect(target, None, None).await.map_err(|error| Error::Connection { error: error.into() })?;
-        let result = client.call(dokime::operations::settings::ReadApplicationSettings {}).await;
-        client.close();
-        result.map(|snapshot| snapshot.settings.client).map_err(|error| Error::Connection { error: error.into() })
-    }
     pub fn remove_profile(&self, identifier: &str) -> Result<(), Error> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
         if self.0.connection.disconnect_profile(identifier).map_err(|error| Error::Connection { error })? {
@@ -263,79 +232,25 @@ impl DesktopSession {
         }
         Ok(())
     }
-    pub async fn local_client(&self) -> Result<dokime::client::Client, Error> {
+    pub async fn local_client(&self) -> Result<crate::connection::host::Session, Error> {
         let mut resources = self.0.transition.lock().await;
         if resources.local.is_none() {
             let backend = self.backend()?;
             let (local, _) = super::backend::start(&backend, |_| {}).await?;
             resources.local = Some(local);
         }
-        if let Some(client) = &resources.settings_client {
-            return Ok(client.clone());
-        }
-        let endpoint = resources.local.as_ref().expect("local owner initialized").endpoint();
-        let target = dokime::client::Target::local(endpoint).map_err(|error| Error::Connection { error: error.into() })?;
-        let client =
-            dokime::client::Client::connect(target, None, None).await.map_err(|error| Error::Connection { error: error.into() })?;
-        resources.settings_client = Some(client.clone());
-        Ok(client)
-    }
-
-    pub async fn reset_local_storage(&self, confirmed: &Path, root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
-        // Refuse Before Touching the Running Backend
-        if self.status().ownership != BackendOwnership::OwnedLocal {
-            return Err(Error::StorageReset {
-                reason: StorageResetReason::NotOwned,
-                message: "Only a backend this desktop started can have its storage reset.".to_owned(),
-            });
-        }
-        root.verify(confirmed)?;
-        self.backend()?;
-
-        // Reset Under a New Revision
-        let revision = self.begin(false)?;
-        let owner = self.clone();
-        let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await }).await.map_err(|error| Error::Startup {
+        resources.local.as_ref().expect("local host initialized").session().map_err(|error| Error::Startup {
             message: error.to_string(),
             diagnostics: None,
-        })?;
-        if let Err(error) = &result {
-            self.fail(revision, error);
-        }
-        result
+        })
     }
-    pub async fn backup_and_reset_local_storage(&self, root: StorageRoot, destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
-        // Refuse While Any Backend Is Connected
-        self.backend()?;
-        let allowed = {
-            let state = self.0.state.lock().expect("desktop owner poisoned");
-            state.recoverable && state.ownership == BackendOwnership::None
-        };
-        if !allowed {
-            return Err(Error::StorageReset {
-                reason: StorageResetReason::NotOwned,
-                message: "Local storage can be backed up and reset only after the local backend failed to start.".to_owned(),
-            });
-        }
-        root.verify(root.path())?;
 
-        // Back Up and Reset Under a New Revision
-        let revision = self.begin(false)?;
-        let owner = self.clone();
-        let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await }).await.map_err(|error| {
-            Error::Startup {
-                message: error.to_string(),
-                diagnostics: None,
-            }
-        })?;
-        if let Err(error) = &result {
-            self.fail(revision, error);
-            let mut state = self.0.state.lock().expect("desktop owner poisoned");
-            if state.revision == revision {
-                state.recoverable = true;
-            }
-        }
-        result
+    pub async fn reset_local_storage(&self, _confirmed: &Path, _root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
+        Err(reset_failure("Back Up and Reset is unavailable until the host can preserve installed plugins, settings, identity and secrets independently of the evidence schema. Preserve this root for backup and select a fresh one.".into()))
+    }
+
+    pub async fn backup_and_reset_local_storage(&self, _root: StorageRoot, _destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
+        Err(reset_failure("Back Up and Reset is unavailable until the host can preserve installed plugins, settings, identity and secrets independently of the evidence schema. Preserve this root for backup and select a fresh one.".into()))
     }
     pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, Error> {
         self.stop(false).await
@@ -360,7 +275,6 @@ impl DesktopSession {
         state.phase = None;
         state.archived = None;
         state.archive = None;
-        state.recoverable = false;
         state.startup_log = None;
         // A closing desktop keeps an established connection until its backend
         // has stopped: the window goes on showing what it showed, and nothing
@@ -391,6 +305,7 @@ impl DesktopSession {
                 owner.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
                 owner.publish_status(&mut state);
             }
+            owner.0.connection.join_retired().await;
             Ok(owner.status())
         })
         .await
@@ -413,7 +328,17 @@ impl DesktopSession {
                     let (process, _) = super::backend::start(&backend, move |phase| self.report_phase(revision, phase)).await?;
                     resources.local = Some(process);
                 }
-                let endpoint = resources.local.as_ref().expect("local owner initialized").endpoint();
+                let endpoint = resources
+                    .local
+                    .as_ref()
+                    .expect("local owner initialized")
+                    .session()
+                    .map_err(|error| Error::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?
+                    .endpoint()
+                    .to_owned();
                 (
                     ConnectRequest {
                         target: ConnectionTarget::Local { endpoint },
@@ -428,11 +353,34 @@ impl DesktopSession {
             return Err(error);
         }
         if matches!(&self.0.local, Some(Ok(_))) {
-            match self.local_preferences(resources).await {
-                Ok(local) => self.0.connection.set_preferences(local),
-                // An Attached Backend Must Remain Usable While Another Instance Owns Local.
-                // Keep This Connection's Existing Client Preferences In That Case.
-                Err(Error::BackendRunning { .. }) => {}
+            let preferences = async {
+                if resources.local.is_none() {
+                    let backend = self.backend()?;
+                    let (local, _) = super::backend::start(&backend, |_| {}).await?;
+                    resources.local = Some(local);
+                }
+                let session = resources.local.as_ref().expect("local host initialized").session().map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                    diagnostics: None,
+                })?;
+                let snapshot: dokime_sdk::v1::SettingsSnapshot = session
+                    .unary("/dokime.v1.Settings/ReadApplicationSettings", dokime_sdk::v1::SettingsReadApplicationSettingsRequest {})
+                    .await
+                    .map_err(|error| Error::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?;
+                snapshot.settings.and_then(|settings| settings.client).ok_or_else(|| Error::Startup {
+                    message: "Read Local Preferences: Host Omitted Client Settings".into(),
+                    diagnostics: None,
+                })
+            }
+            .await;
+            match preferences {
+                Ok(preferences) => self.0.connection.set_preferences(preferences),
+                Err(error) if matches!(&ownership, BackendOwnership::Attached) => {
+                    tracing::warn!(?error, "Read Local Preferences Failed During Attachment; Keeping Current Client Limits");
+                }
                 Err(error) => return Err(error),
             }
         }
@@ -470,90 +418,13 @@ impl DesktopSession {
             }
         }
     }
-    async fn reset_owned(&self, revision: u64, root: StorageRoot, backup: Option<PathBuf>) -> Result<DesktopSessionSnapshot, Error> {
-        // Stop the Owned Backend
-        // The transition lock stays held until the new backend is ready, so
-        // no other selection starts a backend on a half-deleted root.
-        let mut resources = self.0.transition.lock().await;
-        self.current(revision)?;
-        self.report_phase(revision, "stopping");
-        resources.shutdown(&self.0.abandon).await?;
-        self.current(revision)?;
-
-        // Archive the Data Root First, When Asked
-        let Some(destination) = backup else {
-            return self.clear_and_restart(revision, root, &mut resources).await;
-        };
-        self.report_phase(revision, "archiving");
-        let owner = self.clone();
-        let source = root.clone();
-        let archive = tokio::task::spawn_blocking(move || source.archive(&destination, |bytes| owner.report_archived(revision, bytes)))
-            .await
-            .map_err(|error| Error::StorageReset {
-                reason: StorageResetReason::Failed,
-                message: error.to_string(),
-            })??;
-        tracing::warn!(archive = %archive.display(), "local storage archived");
-        {
-            let mut state = self.0.state.lock().expect("desktop owner poisoned");
-            if state.revision == revision {
-                state.archive = Some(archive.display().to_string());
-                self.publish_status(&mut state);
-            }
-        }
-        self.clear_and_restart(revision, root, &mut resources).await.map_err(|error| Error::Archived {
-            archive: archive.display().to_string(),
-            error: Box::new(error),
-        })
-    }
-    async fn clear_and_restart(
-        &self, revision: u64, root: StorageRoot, resources: &mut Resources,
-    ) -> Result<DesktopSessionSnapshot, Error> {
-        // Preserve Installations Independently Of The Execution Store's Format.
-        let application = dokime::paths::ApplicationPaths::new(root.application());
-        let source = root.path().to_path_buf();
-        let paths = application.clone();
-        let plugins = tokio::task::spawn_blocking(move || dokime::plugins::PluginRecovery::capture(&source, &paths))
-            .await
-            .map_err(|error| reset_failure(error.to_string()))?
-            .map_err(|error| reset_failure(error.to_string()))?;
-
-        // Delete the Contents of the Data Root
-        self.current(revision)?;
-        self.report_phase(revision, "deleting");
-        let path = root.path().to_path_buf();
-        tracing::warn!(root = %path.display(), "resetting local storage");
-        let source = root.path().to_path_buf();
-        tokio::task::spawn_blocking(move || root.clear())
-            .await
-            .map_err(|error| Error::StorageReset {
-                reason: StorageResetReason::Failed,
-                message: error.to_string(),
-            })?
-            .inspect_err(|error| {
-                tracing::error!(root = %path.display(), ?error, "local storage reset refused");
-            })?;
-        tracing::warn!(root = %path.display(), "local storage deleted");
-
-        self.report_phase(revision, "reinstalling");
-        // Once Clear Completes, Restore Installations Even If Closing Superseded This Revision.
-        plugins.restore(&source, &application).await.map_err(|error| reset_failure(error.to_string()))?;
-
-        // Start Again on the Empty Root
-        self.current(revision)?;
-        self.report_phase(revision, "starting");
-        self.establish(revision, BackendSelection::OwnedLocal, resources).await
-    }
 }
 
 impl Resources {
     async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<(), Error> {
-        if let Some(client) = self.settings_client.take() {
-            client.close_and_wait().await;
-        }
-        if let Some(local) = self.local.as_mut() {
+        if let Some(mut local) = self.local.take() {
             tokio::select! {
-                result = local.shutdown() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
+                result = local.close() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
                 () = abandon.cancelled() => {
                     tracing::warn!("exiting without finishing the embedded server drain");
                     return Err(Error::Shutdown { message: "The local server drain was interrupted.".to_owned() });
@@ -597,11 +468,6 @@ mod tests {
         assert_eq!(phase.phase.as_deref(), Some("storage"));
         assert_eq!(phase.status_revision, 2);
 
-        owner.report_archived(revision, 4096);
-        let archived = next_status(&mut updates).await;
-        assert_eq!(archived.archived_bytes, Some(4096));
-        assert_eq!(archived.status_revision, 3);
-
         owner.fail(
             revision,
             &Error::Startup {
@@ -612,7 +478,7 @@ mod tests {
         let failed = next_status(&mut updates).await;
         assert_eq!(failed.phase, None);
         assert_eq!(failed.archived_bytes, None);
-        assert_eq!(failed.status_revision, 4);
+        assert_eq!(failed.status_revision, 3);
 
         let next_revision = owner.begin(false).unwrap();
         let restarted = next_status(&mut updates).await;

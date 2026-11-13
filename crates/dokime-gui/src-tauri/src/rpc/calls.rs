@@ -22,7 +22,7 @@ use std::{str::FromStr, time::Duration};
 // Third Party Imports
 use tauri::ipc::{Channel, JavaScriptChannelId, Response};
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 
 // Local Imports
 use super::*;
@@ -79,7 +79,7 @@ struct Delivery {
 
 struct Opening {
     path: String,
-    deadline: Duration,
+    deadline: Option<Duration>,
     payload: Vec<u8>,
     keep_input: bool,
 }
@@ -109,15 +109,15 @@ impl Streams {
         });
     }
 
-    fn open(&self, context: Context, channel: Channel<Response>, opening: Opening) -> Result<Response, RpcError> {
+    fn open(&self, context: Context, channel: Channel<Response>, mut opening: Opening) -> Result<Response, RpcError> {
         context.check()?;
         let client = context.client();
-        let max_request_bytes = client.max_request_bytes();
+        let max_request_bytes = DESKTOP_FRAME_BYTES as usize;
         if opening.payload.len() > max_request_bytes {
             return Err(RpcError::LimitExceeded);
         }
         let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
-        sender.try_send(opening.payload).map_err(|_| RpcError::Busy)?;
+        sender.try_send(std::mem::take(&mut opening.payload)).map_err(|_| RpcError::Busy)?;
         let entry = Arc::new(Entry {
             owner: context.owner.clone(),
             generation: context.generation,
@@ -146,9 +146,8 @@ impl Streams {
                     &context,
                     &client,
                     &channel,
-                    &opening.path,
+                    &opening,
                     receiver,
-                    opening.deadline,
                 )) => result,
             };
             // Cancelling deregisters under this lock, so the outcome is settled
@@ -240,7 +239,8 @@ pub async fn rpc<R: tauri::Runtime>(
         let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
         let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
         let client = context.client();
-        let response = context.execute(client.call_raw(path, payload.to_vec(), deadline)).await?;
+        let client = if header(request.headers(), DEADLINE_HEADER)?.is_some() { client.with_timeout(deadline) } else { client };
+        let response = context.execute(client.call_raw(path, payload)).await?;
         context.reply_bytes(&response)
     })
     .await
@@ -255,7 +255,9 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
     let headers = request.headers();
     let opening = Opening {
         path: path(headers)?.to_owned(),
-        deadline: deadline(headers, Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS))?,
+        deadline: header(headers, DEADLINE_HEADER)?
+            .map(|_| deadline(headers, Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS)))
+            .transpose()?,
         payload: payload.to_vec(),
         keep_input: match header(headers, INPUT_HEADER)? {
             None | Some("closed") => false,
@@ -322,13 +324,23 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 /* === Private Functions === */
 
 async fn forward(
-    entry: &Entry, context: &Context, client: &dokime::client::Client, channel: &Channel<Response>, path: &str,
-    receiver: mpsc::Receiver<Vec<u8>>, deadline: Duration,
+    entry: &Entry, context: &Context, client: &crate::connection::host::Session, channel: &Channel<Response>, opening: &Opening,
+    mut receiver: mpsc::Receiver<Vec<u8>>,
 ) -> Result<(), RpcError> {
-    let mut incoming = client.stream_raw(path, ReceiverStream::new(receiver), deadline).await?;
+    if opening.keep_input {
+        let response = client.input_raw(&opening.path, receiver).await?;
+        context.check()?;
+        entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
+        entry.delivery.lock().expect("RPC stream credit poisoned").sent += 1;
+        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &response))).map_err(|_| RpcError::Cancelled)?;
+        return Ok(());
+    }
+    let payload = receiver.recv().await.ok_or(RpcError::InvalidRequest)?;
+    let client = opening.deadline.map(|deadline| client.with_watch_timeout(deadline)).unwrap_or_else(|| client.clone());
+    let mut incoming = client.watch_raw(&opening.path, &payload).await?;
     loop {
         entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
-        let Some(message) = incoming.message().await? else {
+        let Some(message) = incoming.next().await.transpose()? else {
             return Ok(());
         };
         context.check()?;

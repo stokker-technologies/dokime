@@ -60,7 +60,7 @@ impl DesktopSessionControl {
     pub fn abandon(&self) {
         self.0.abandon();
     }
-    pub async fn local_client(&self) -> Result<dokime::client::Client, DesktopSessionError> {
+    pub async fn local_client(&self) -> Result<crate::connection::host::Session, DesktopSessionError> {
         self.0.local_client().await
     }
     pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -217,7 +217,7 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
         reason: StorageResetReason::Failed,
         message,
     };
-    let application = window.state::<dokime::paths::ApplicationPaths>().root.clone();
+    let application = window.state::<crate::paths::ApplicationPaths>().root.clone();
     storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)
 }
 

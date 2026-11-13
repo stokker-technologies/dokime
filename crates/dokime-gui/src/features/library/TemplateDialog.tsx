@@ -25,7 +25,6 @@ import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
-import { operationIds } from "@/lib/rpc/generated/operations";
 
 /* === Local Imports === */
 
@@ -128,7 +127,6 @@ export function TemplateDialog({
           notificationFailure: {
             reason: "validation",
             operation: "Planning.PreviewSelection",
-            operationId: operationIds["/dokime.v1.Planning/PreviewSelection"],
             problems: editorProblems(rows, fileRows, template.file_definitions),
           },
         },

@@ -16,15 +16,13 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 /* === Local Imports === */
 
-import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import { ArchiveScope, CycleOrderKey } from "@host/dokime/v1/client_types_pb.js";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { CycleSummary } from "@/lib/api/native-planning";
 import type { PromptRequest } from "@/lib/types";
-
-type CycleSummary = Wire<GeneratedCycleSummary>;
 
 /* === Types === */
 
@@ -61,11 +59,9 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
     filter: {
       text: selection.text?.trim() ?? "",
       statuses: [],
-      archive: {
-        HarmosVariant: selection.archived ? { case: "Archived", value: {} } : { case: "Unarchived", value: {} },
-      },
+      archive: selection.archived ? ArchiveScope.ARCHIVED : ArchiveScope.UNARCHIVED,
     },
-    order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
+    order: { key: CycleOrderKey.UPDATED_AT, descending: true },
   };
 }
 

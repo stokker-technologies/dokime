@@ -102,6 +102,48 @@ jobs:
           bootstrap: '[]'
           archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Desktop / Execution
+          command: test -- --language typescript --layer system --select native-desktop
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Desktop / Connections
+          command: test -- --language typescript --layer system --select two-gui-remote
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Rust / Acceptance
+          command: test -- --language rust --layer acceptance
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Desktop / Execution
+          command: test -- --language typescript --layer system --select native-desktop
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Desktop / Connections
+          command: test -- --language typescript --layer system --select two-gui-remote
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Rust / Acceptance
+          command: test -- --language rust --layer acceptance
+          bootstrap: '[]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
+        - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: TypeScript / Unit

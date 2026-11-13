@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*};
 
 // Local Imports
 
@@ -34,8 +34,6 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 /* === Structs === */
 
 pub(crate) struct LoggingGuards {
-    pub journal: std::sync::Arc<dokime_server::trace::Journal>,
-    _trace: Option<dokime::diagnostics::test_trace::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -53,10 +51,9 @@ pub(crate) fn active_log() -> Option<PathBuf> {
 }
 
 pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &str) -> LoggingGuards {
-    let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
-    let mut layers: Vec<BoxedLayer> = vec![stderr_layer, dokime_server::trace::layer(journal.clone())];
+    let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
     let mut log_path = None;
@@ -71,24 +68,14 @@ pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &
         }
     }
 
-    let installed = dokime::diagnostics::test_trace::configure(layers);
-    let trace = if std::env::var_os("DOKIME_TEST_TRACE_DIR").is_some() {
-        Some(installed.expect("install desktop subscriber"))
-    } else {
-        installed.ok()
-    };
+    let _ = tracing_subscriber::registry().with(layers).try_init();
 
     if let Some(path) = log_path {
         let _ = ACTIVE_LOG.set(path.clone());
         tracing::info!(path = %path.display(), "{label} desktop shell log file");
     }
 
-    LoggingGuards {
-        journal,
-        _trace: trace,
-        _stderr: stderr_guard,
-        _file: file_guard,
-    }
+    LoggingGuards { _stderr: stderr_guard, _file: file_guard }
 }
 
 /* === Private Functions === */

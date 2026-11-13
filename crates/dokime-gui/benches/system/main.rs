@@ -31,8 +31,6 @@ use std::{
 // Third Party Imports
 use criterion::Criterion;
 // Local Imports
-use dokime::Runtime;
-use dokime_server::grpc::{Config, Service};
 use tracing_subscriber::{Layer, filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt};
 
 /* === Constants === */
@@ -73,6 +71,10 @@ impl<S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'
 /* === Private Functions === */
 
 fn main() {
+    if std::env::args().any(|argument| argument == "--remote") {
+        fixture::serve().unwrap();
+        return;
+    }
     if std::env::args().any(|argument| argument == "--fixture-host") {
         host();
         return;
@@ -80,7 +82,7 @@ fn main() {
 
     // Start The Real Native Desktop Driver Once Outside Criterion's Timers.
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let mut child = dokime::domain::process::command("node")
+    let mut child = dokime_runtime_next::process::command("node")
         .arg(directory.join("benches/system/driver.mjs"))
         .env("DOKIME_DESKTOP_BENCH_HOST", std::env::current_exe().unwrap())
         .stdin(Stdio::piped())
@@ -133,68 +135,31 @@ fn host() {
         .clone()
         .with_filter(filter_fn(|metadata| matches!(metadata.name(), "plot.query" | "plot.watch.frames" | "plot.watch.send")));
     tracing_subscriber::registry().with(probe).init();
-    let prepared = Service::prepare(Config::local()).unwrap();
-    let hold = Arc::new(fixture::Hold { entered: tokio::sync::Notify::new() });
-    let mut owner = executor
-        .block_on(Runtime::with_execution_fixture(prepared.configuration(fixture::config(&root)), "bench_pipeline", hold.clone()))
-        .unwrap();
-    let handle = owner.handle();
-    let manifest = root.join("bench-fixture.json");
-    let cycle: dokime::TestCycleId = if restoring {
-        let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
-        serde_json::from_value(saved["cycle"].clone()).unwrap()
-    } else {
-        executor.block_on(fixture::register_execution(&handle, &hold))
-    };
-    let server = executor.block_on(async { prepared.ready().await.unwrap().listen().await.unwrap() });
+    let fixture = executor.block_on(fixture::Fixture::start(&root, restoring));
     println!(
         "{}",
-        serde_json::json!({"endpoint":server.local_endpoint(), "execution":fixture::execution_id().to_string(),
-        "cycle": cycle.to_string(), "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S,
-        "shutdown_ms": dokime::operations::MUTATION.timeout.as_millis(),
+        serde_json::json!({"endpoint":fixture.session.endpoint(), "execution":fixture.execution,
+        "cycle": fixture.cycle, "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S,
+        "shutdown_ms": Duration::from_secs(30).as_millis(),
         "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
     );
     std::io::stdout().flush().unwrap();
-    let mut sequence = fixture::ROWS;
     let mut history_ready = restoring;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
         // Prove Native Launch Before Admitting The Multi-Million-Row History.
         if line == "prepare" && !history_ready {
-            executor.block_on(async {
-                for first in (0..fixture::ROWS).step_by(4096) {
-                    let count = (fixture::ROWS - first).min(4096);
-                    let receipt = handle.publish_telemetry_batch(fixture::batch(first, count, false, first, &cycle)).await.unwrap();
-                    assert_eq!(receipt.accepted, count as u64, "{receipt:?}");
-                    assert_eq!(receipt.dropped, 0, "{receipt:?}");
-                    if (first + count).is_multiple_of(262_144) || first + count == fixture::ROWS {
-                        eprintln!("Desktop fixture: admitted {}/{} sample rows", first + count, fixture::ROWS);
-                    }
-                }
-                handle.storage().flush().await.unwrap();
-            });
-            std::fs::write(&manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle.clone()})).unwrap()).unwrap();
+            executor.block_on(fixture.prepared());
             history_ready = true;
         }
         if line == "live" || line == "late" {
-            executor.block_on(async {
-                let first = if line == "late" { fixture::ROWS - 480 + (sequence - fixture::ROWS) % 400 } else { sequence };
-                let publication = sequence;
-                sequence += 8;
-                let receipt = handle.publish_telemetry_batch(fixture::batch(first, 8, line == "late", publication, &cycle)).await.unwrap();
-                assert_eq!(receipt.accepted, 8, "{receipt:?}");
-                handle.storage().flush().await.unwrap();
-            });
+            executor.block_on(fixture.publish(&line));
         }
         let times = std::mem::take(&mut *queries.0.lock().unwrap());
         println!("{}", serde_json::json!({"stages": times}));
         std::io::stdout().flush().unwrap();
     }
-    eprintln!("Desktop fixture shutdown: stopping listener");
-    executor.block_on(server.shutdown()).unwrap();
-    drop(handle);
-    eprintln!("Desktop fixture shutdown: checkpointing runtime");
-    executor.block_on(owner.shutdown()).unwrap();
+    executor.block_on(fixture.close());
     eprintln!("Desktop fixture shutdown: complete");
 }
 

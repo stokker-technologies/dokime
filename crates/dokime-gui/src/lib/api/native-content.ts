@@ -15,13 +15,12 @@
 
 import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
 
-import type { Row3 as ArtifactDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
-import type { Row3 as FileFollowFrame } from "@generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
+import * as v1 from "@host/dokime/v1/client_types_pb.js";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ArtifactRecord,
@@ -39,8 +38,8 @@ const GUI_SMALL_PAGE_ITEMS = 100;
 /* === Canonical Types === */
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
-type ArtifactFrame = Wire<ArtifactDownloadFrame>;
-type ExecutionFileFollowFrame = Wire<FileFollowFrame>;
+type ArtifactFrame = Wire<v1.ArtifactFrame>;
+type ExecutionFileFollowFrame = Wire<v1.ExecutionFileFollowFrame>;
 type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["artifacts"][number];
 type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["files"][number];
 type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["cursor"]>;
@@ -379,12 +378,12 @@ function mapArtifactScope(scope?: ArtifactScope): ArtifactRecord["scope"] {
 }
 
 function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
-  switch (state?.HarmosVariant.case) {
-    case "Complete":
+  switch (state) {
+    case v1.ArtifactState.COMPLETE:
       return "finalized";
-    case "Cancelled":
-    case "Rejected":
-    case "Failed":
+    case v1.ArtifactState.CANCELLED:
+    case v1.ArtifactState.REJECTED:
+    case v1.ArtifactState.FAILED:
       return "interrupted";
     default:
       return "static";
@@ -427,12 +426,12 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
 }
 
 function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
-  switch (kind?.HarmosVariant.case) {
-    case "Text":
+  switch (kind) {
+    case v1.ExecutionFileKind.TEXT:
       return "text";
-    case "Binary":
+    case v1.ExecutionFileKind.BINARY:
       return "binary";
-    case "Media":
+    case v1.ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -440,12 +439,12 @@ function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "un
 }
 
 function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
-  switch (state?.HarmosVariant.case) {
-    case "Streaming":
+  switch (state) {
+    case v1.ExecutionFileState.STREAMING:
       return "streaming";
-    case "Finalized":
+    case v1.ExecutionFileState.FINALIZED:
       return "finalized";
-    case "Interrupted":
+    case v1.ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "static";
@@ -453,10 +452,10 @@ function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
 }
 
 function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEvent {
-  const payload = frame.payload?.HarmosVariant;
+  const payload = frame.payload?.kind;
   switch (payload?.case) {
-    case "Metadata": {
-      const metadata = payload.value.field0;
+    case "metadata": {
+      const metadata = payload.value;
       const identity = metadata?.identity;
       if (!metadata || !identity?.history || !identity.fileId) {
         throw new Error("Content.FollowExecutionFile metadata has no original identity.");
@@ -475,8 +474,8 @@ function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEve
         offset: safeNumber(metadata.offset, "Content.FollowExecutionFile offset"),
       };
     }
-    case "Chunk": {
-      const chunk = payload.value.field0;
+    case "chunk": {
+      const chunk = payload.value;
       if (!chunk) throw new Error("Content.FollowExecutionFile chunk is missing.");
       return {
         kind: "chunk",
@@ -484,8 +483,8 @@ function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEve
         data: chunk.data,
       };
     }
-    case "Terminal": {
-      const terminal = payload.value.field0;
+    case "terminal": {
+      const terminal = payload.value;
       if (!terminal) throw new Error("Content.FollowExecutionFile terminal is missing.");
       const sha256 = terminal.sealed?.sha256.toLowerCase() ?? null;
       if (sha256 !== null && !/^[0-9a-f]{64}$/u.test(sha256)) {
@@ -504,10 +503,17 @@ function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEve
 }
 
 function mapFollowPhase<const Allowed extends readonly ("Producing" | "Finished" | "Abandoned")[]>(
-  phase: { HarmosVariant: { case: string | undefined } } | undefined,
+  phase: v1.ExecutionFilePhase | undefined,
   allowed: Allowed,
 ): Lowercase<Allowed[number]> {
-  const name = phase?.HarmosVariant.case;
+  const name =
+    phase === v1.ExecutionFilePhase.PRODUCING
+      ? "Producing"
+      : phase === v1.ExecutionFilePhase.FINISHED
+        ? "Finished"
+        : phase === v1.ExecutionFilePhase.ABANDONED
+          ? "Abandoned"
+          : undefined;
   const match = allowed.find((candidate) => candidate === name);
   if (!match) throw new Error(`Content.FollowExecutionFile phase ${name ?? "unset"} is invalid here.`);
   return match.toLowerCase() as Lowercase<Allowed[number]>;
@@ -525,12 +531,12 @@ async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifa
   for await (const frame of reader) {
     if (!active()) throw new Error("Artifact transfer cancelled.");
     if (completed) throw new Error("Artifact transfer continued after completion.");
-    const payload = frame.payload?.HarmosVariant;
-    if (!payload?.case || !payload.value.field0) throw new Error("Content transfer contained an incomplete frame.");
+    const payload = frame.payload?.kind;
+    if (!payload?.case || !payload.value) throw new Error("Content transfer contained an incomplete frame.");
     switch (payload.case) {
-      case "Metadata": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
-        const metadata = payload.value.field0;
+      case "metadata": {
+        if (!payload.value) throw new Error("Transfer frame payload is missing.");
+        const metadata = payload.value;
         if (metadata.artifactId !== artifactId || metadataSize !== undefined) {
           throw new Error("Artifact metadata identity is invalid.");
         }
@@ -542,12 +548,12 @@ async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifa
         if (metadataSize > NATIVE_CONTENT_BYTES) throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
         break;
       }
-      case "Chunk": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+      case "chunk": {
+        if (!payload.value) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined) {
           throw new Error("Artifact data arrived before metadata.");
         }
-        const chunk = payload.value.field0;
+        const chunk = payload.value;
         if (chunk.data.byteLength === 0) {
           throw new Error("Artifact chunk size is invalid.");
         }
@@ -559,12 +565,12 @@ async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifa
         expectedOffset += chunk.data.byteLength;
         break;
       }
-      case "Complete": {
-        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+      case "complete": {
+        if (!payload.value) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined || completeSize !== undefined) {
           throw new Error("Artifact completed before metadata or twice.");
         }
-        const completion = payload.value.field0;
+        const completion = payload.value;
         completeSize = safeNumber(completion.sizeBytes, "Content.ArtifactCompletion size");
         completeSha = completion.sha256.toLowerCase();
         if (!/^[0-9a-f]{64}$/u.test(completeSha)) {

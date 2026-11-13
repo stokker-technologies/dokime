@@ -7,15 +7,7 @@
  * ***
  */
 
-/*
- * The gate in front of the one destructive action in the application.
- *
- * Resetting local storage deletes every cycle, execution, record and file in
- * the owned backend's data directory. It is offered only to a development
- * build whose session owns a local backend, and it runs only once the
- * operator has typed the confirmation word exactly. The module imports types
- * only, so a node test can load it directly.
- */
+/* Visibility of the Disabled Development Recovery Control. */
 
 /* === Local Imports === */
 
@@ -33,10 +25,6 @@ export type StorageResetContext = {
   directory: string | null | undefined;
 };
 
-/* === Public Constants === */
-
-export const STORAGE_RESET_CONFIRMATION = "RESET";
-
 /* === Public Functions === */
 
 /** Whether the Development card offers the reset at all. */
@@ -48,9 +36,4 @@ export function storageResetAvailable(context: StorageResetContext): boolean {
     typeof context.directory === "string" &&
     context.directory.length > 0
   );
-}
-
-/** Whether the typed text arms the reset: the exact word, nothing else. */
-export function storageResetConfirmed(typed: string): boolean {
-  return typed === STORAGE_RESET_CONFIRMATION;
 }

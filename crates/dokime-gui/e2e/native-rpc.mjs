@@ -16,11 +16,12 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 
 // Third Party Imports
+import { transformWithOxc } from "vite";
 import { fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
 
 // Local Imports
@@ -29,10 +30,23 @@ import { fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
 
 /* === Constants === */
 
-const generated = new URL("../../../target/generated/typescript/", import.meta.url);
-const inventory = await readFile(new URL("../src/lib/rpc/generated/client.ts", import.meta.url), "utf8");
-const identity = await readFile(new URL("../src/lib/rpc/generated/identity.ts", import.meta.url), "utf8");
+const generated = new URL("../../../target/generated/host/", import.meta.url);
+const inventory = await readFile(new URL("client.ts", generated), "utf8");
+const identity = await readFile(new URL("identity.ts", generated), "utf8");
 const digest = Buffer.from(identity.match(/descriptorSha256 = "([a-f0-9]+)"/)[1], "hex");
+const compiled = new Map();
+const pending = [generated];
+while (pending.length) {
+  const directory = pending.pop();
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const source = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+    if (entry.isDirectory()) pending.push(source);
+    else if (entry.name.endsWith(".ts")) {
+      const result = await transformWithOxc(await readFile(source, "utf8"), fileURLToPath(source), { target: "es2022", lang: "ts" });
+      compiled.set(source.href, result.code);
+    }
+  }
+}
 
 // Generated Buf Modules Use JavaScript Specifiers For Their TypeScript Siblings.
 registerHooks({
@@ -43,6 +57,14 @@ registerHooks({
       if (existsSync(source)) return { url: source.href, shortCircuit: true };
     }
     return next(specifier, context);
+  },
+  load(url, context, next) {
+    if (url.startsWith(generated.href) && url.endsWith(".ts")) {
+      const source = compiled.get(url);
+      assert.ok(source, `Prepared Host Module Exists: ${url}`);
+      return { format: "module", source, shortCircuit: true };
+    }
+    return next(url, context);
   },
 });
 
@@ -64,7 +86,7 @@ export async function invoke(desktop, command, args = {}) {
 }
 
 export async function call(desktop, service, method, request = {}) {
-  const path = `/dokime.v1.${service}/${method}`;
+  const path = `/${service.includes(".") ? service : `dokime.v1.${service}`}/${method}`;
   const declaration = inventory.match(new RegExp(`unary\\("${path}", (\\w+), (\\w+),`));
   assert.ok(declaration, `Canonical unary contract exists for ${path}`);
   const input = await schema(declaration[1]);
@@ -78,7 +100,7 @@ export async function call(desktop, service, method, request = {}) {
   const result = await desktop.executeAsync(
     `const done = arguments[arguments.length - 1];
      window.__TAURI_INTERNALS__.invoke('rpc', Uint8Array.from(arguments[0]), {headers: {
-       'dokime-rpc-path': arguments[1], 'dokime-rpc-deadline-ms': '60000'
+       'dokime-rpc-path': arguments[1]
      }}).then(value => done({bytes: [...new Uint8Array(value)]}), error => done({failure: error}));`,
     [[...bytes], path],
   );
@@ -91,7 +113,7 @@ export async function call(desktop, service, method, request = {}) {
 /* === Private Functions === */
 
 async function schema(alias) {
-  const declaration = inventory.match(new RegExp(`import \\{ (\\w+) as ${alias} \\} from "@generated/([^"]+)"`));
+  const declaration = inventory.match(new RegExp(`import \\{ (\\w+) as ${alias} \\} from "\\./([^"]+)"`));
   assert.ok(declaration, `Generated schema import exists for ${alias}`);
   const module = new URL(declaration[2].replace(/\.js$/, ".ts"), generated);
   assert.ok(existsSync(module), `Prepared protobuf source exists: ${fileURLToPath(module)}`);

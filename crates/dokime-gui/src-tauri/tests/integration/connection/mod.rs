@@ -12,6 +12,7 @@
 mod client;
 #[cfg(feature = "testing")]
 mod delivery;
+#[cfg(feature = "testing")]
 mod fixture;
 mod session;
 

@@ -21,7 +21,7 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { Row3Schema as WatchFrameSchema } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
+import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind } from "@host/dokime/v1/client_types_pb.js";
 import { mapNativePlotStreamFrame, toNativePlotRequest } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
@@ -117,8 +117,8 @@ test("Viewport and Panel Width Reach the Native Request With Defaults Enabled", 
 
 test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => {
   const wire = create(WatchFrameSchema, {
-    updates: ["Delta", "Statistics"].map((kind) => ({
-      kind: { HarmosVariant: { case: kind as "Delta" | "Statistics", value: {} } },
+    updates: [PlotStreamKind.DELTA, PlotStreamKind.STATISTICS].map((kind) => ({
+      kind,
       envelope: {
         plotId: "signal",
         epoch: "epoch",

@@ -142,12 +142,11 @@ impl std::fmt::Debug for DesktopSaveDocument {
 /* === Public Functions === */
 
 pub fn desktop_build() -> DesktopBuild {
-    let build = dokime::version::current();
-    let source_revision = build.revision.map(|revision| revision.full());
+    let source_revision = Some(env!("DOKIME_SOURCE_REVISION")).filter(|value| *value != "unknown").map(str::to_owned);
     DesktopBuild {
-        product_version: build.version,
+        product_version: env!("CARGO_PKG_VERSION"),
         source_revision,
-        channel: build.channel,
+        channel: Some(env!("DOKIME_BUILD_CHANNEL")).filter(|value| !value.is_empty()),
     }
 }
 
@@ -167,15 +166,17 @@ pub async fn desktop_pairing_create(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle,
 ) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
-    use dokime::operations::remote::ReadListener;
     let local = |message: String| ConnectionError::Registry { message, cause: None };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();
     let lease = state.lease(&status.generation)?;
     let client = lease.client();
-    let listener = client.call(ReadListener {}).await?;
-    let settings = listener.settings.ok_or_else(|| local("Listener settings unavailable".into()))?;
-    let enable = listener.listening_address.is_none();
+    let listener = client
+        .execute(client.client().access.listener.get(client.request(dokime_sdk::client::v1::access::ListenerGetRequest {})?))
+        .await?
+        .into_inner();
+    let settings = listener.value.ok_or_else(|| local("Listener settings unavailable".into()))?;
+    let enable = listener.bound_endpoint.is_empty();
     let confirm_app = app.clone();
     let confirmed = if enable {
         tauri::async_runtime::spawn_blocking(move || {
@@ -209,7 +210,7 @@ pub async fn desktop_pairing_create(
         now.minute(),
         now.second()
     );
-    if settings.address.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
+    if settings.endpoint.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
         label.push_str(" (Same PC)");
     }
     let filename = sanitize_filename(&label, DesktopSaveKind::Artifact, 128).map_err(local)?;
@@ -254,10 +255,8 @@ pub async fn desktop_pairing_create(
     state.with_current(&status.generation, || ())?;
     let client = lease.client();
     let mut created = create_remote_access(&client, label, enable).await?;
-    let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
-    if let Some(key) = created.pairing.access_key.as_mut() {
-        zeroize::Zeroize::zeroize(key);
-    }
+    let bytes = serde_json::to_vec_pretty(&created).map(zeroize::Zeroizing::new);
+    zeroize::Zeroize::zeroize(&mut created.access_key);
     let session = state.inner().clone();
     let generation = status.generation;
     let destination = path.clone();
@@ -272,9 +271,9 @@ pub async fn desktop_pairing_create(
             session
                 .with_current(&generation, || {
                     if overwrite {
-                        dokime::harmos::filesystem::publication::replace(staged.path(), &destination)
+                        harmos_runtime::filesystem::publication::replace(staged.path(), &destination)
                     } else {
-                        dokime::harmos::filesystem::publication::install(staged.path(), &destination)
+                        harmos_runtime::filesystem::publication::install(staged.path(), &destination)
                     }
                 })
                 .map_err(|error| format!("{error:?}"))?
@@ -292,18 +291,43 @@ pub async fn desktop_pairing_create(
 }
 
 pub async fn create_remote_access(
-    client: &dokime::client::Client, label: String, enable: bool,
-) -> Result<dokime::domain::model::remote::CreatedPairing, crate::Error> {
-    use dokime::operations::remote::{CreatePairing, ReadListener, UpdateListener};
+    client: &crate::connection::host::Session, label: String, enable: bool,
+) -> Result<crate::connection::host::Pairing, crate::Error> {
+    use dokime_sdk::client::v1::access;
     if enable {
-        let mut settings = client.call(ReadListener {}).await?.settings.ok_or_else(|| crate::connection::ConnectionError::Registry {
+        let current =
+            client.execute(client.client().access.listener.get(client.request(access::ListenerGetRequest {})?)).await?.into_inner();
+        let mut value = current.value.ok_or_else(|| crate::connection::ConnectionError::Registry {
             message: "Listener settings unavailable".into(),
             cause: None,
         })?;
-        settings.enabled = true;
-        client.call(UpdateListener { settings: Some(settings) }).await?;
+        value.enabled = true;
+        client
+            .execute(client.client().access.listener.set(client.request(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: current.revision,
+            })?))
+            .await?;
     }
-    Ok(client.call(CreatePairing { label }).await?)
+    let created = client
+        .execute(client.client().access.pairings.create(client.request(access::PairingsCreateRequest { label: label.clone() })?))
+        .await?
+        .into_inner();
+    Ok(crate::connection::host::Pairing {
+        version: 1,
+        backend_identifier: client
+            .identity()
+            .status
+            .as_ref()
+            .and_then(|status| status.identity.as_ref())
+            .expect("ready host")
+            .host_id
+            .clone(),
+        label,
+        endpoints: vec![created.endpoint],
+        certificate_pem: created.pinned_certificate_pem,
+        access_key: created.credential,
+    })
 }
 
 pub async fn desktop_save_document(
@@ -313,7 +337,7 @@ pub async fn desktop_save_document(
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, kind) = validate_save_document(&generation, &document)?;
     let filename = if kind == DesktopSaveKind::SecretArchive {
-        let suggested = format!("{}-secrets.b64", app.state::<dokime::paths::ApplicationPaths>().distribution.slug());
+        let suggested = format!("{}-secrets.b64", app.state::<crate::paths::ApplicationPaths>().distribution.slug());
         sanitize_filename(&suggested, kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?
     } else {
         filename
@@ -348,7 +372,7 @@ pub async fn desktop_pick_secret_archive(
         ensure_document_session(&session, &generation)?;
         let path = picked.into_path().map_err(|error| error.to_string())?;
         let maximum = 699_052u64 as usize;
-        let bytes = dokime::harmos::filesystem::input::read(&path, maximum).map_err(|_| "Secret archive is unreadable or oversized")?;
+        let bytes = harmos_runtime::filesystem::input::read(&path, maximum).map_err(|_| "Secret archive is unreadable or oversized")?;
         ensure_document_session(&session, &generation)?;
         Ok(Some(BASE64.encode(bytes)))
     })
@@ -368,7 +392,7 @@ pub async fn desktop_save_diagnostics_bundle(
     ensure_document_session(&session, &generation)?;
     let downloads = app.path().download_dir().map_err(|error| format!("The Downloads folder could not be resolved: {error}"))?;
     let path = downloads.join(filename);
-    // `dokime::harmos::filesystem::publication::write` stages beside the destination and
+    // `harmos_runtime::filesystem::publication::write` stages beside the destination and
     // renames into place, so a partially written archive is never visible under
     // the final name and a missing Downloads folder is created first.
     write_document(&session, &generation, path.clone(), bytes, false).await?;
@@ -399,7 +423,7 @@ pub async fn desktop_artifact_deliver(
     }
     let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
-    let directory = app.state::<dokime::paths::ApplicationPaths>().cache().join("documents");
+    let directory = app.state::<crate::paths::ApplicationPaths>().cache().join("documents");
     let cache = directory.clone();
     tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&cache))
         .await
@@ -518,16 +542,16 @@ pub(super) fn ensure_generation_token(generation: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
+pub(crate) fn ensure_private_directory(path: &Path) -> Result<(), String> {
     protect(
         path,
         true,
-        |path| dokime::harmos::filesystem::publication::create_dir_all(path).map_err(|error| error.to_string()),
+        |path| harmos_runtime::filesystem::publication::create_dir_all(path).map_err(|error| error.to_string()),
         restrict_to_owner,
     )
 }
 
-pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
+pub(crate) fn set_private_file(path: &Path) -> Result<(), String> {
     protect(path, false, |_| Ok(()), restrict_to_owner)
 }
 
@@ -580,7 +604,7 @@ fn apply_dialog_filter(
         DesktopSaveKind::HtmlReport => dialog.add_filter("HTML Report", &["html"]),
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
-        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["zip"]),
+        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["tar"]),
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON Document", &["json"]),
         DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
@@ -590,7 +614,7 @@ fn apply_dialog_filter(
 fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
     match kind {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
-        DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
+        DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".tar"),
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
         DesktopSaveKind::SecretArchive => ExtensionPolicy::Append(".b64"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
@@ -745,7 +769,7 @@ async fn write_document(session: &ConnectionSession, generation: &str, path: Pat
         if private && let Some(parent) = path.parent() {
             ensure_private_directory(parent)?;
         }
-        dokime::harmos::filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
+        harmos_runtime::filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
         if private {
             set_private_file(&path)?;
         }
@@ -799,9 +823,9 @@ pub async fn move_verified_file(
         let staged_path = &source;
         let published = session.with_current(&generation, || {
             if overwrite {
-                dokime::harmos::filesystem::publication::replace(staged_path, &destination)
+                harmos_runtime::filesystem::publication::replace(staged_path, &destination)
             } else {
-                dokime::harmos::filesystem::publication::install(staged_path, &destination)
+                harmos_runtime::filesystem::publication::install(staged_path, &destination)
             }
         });
         let published = published.map_err(|error| format!("Native delivery lost its owning connection: {error:?}"))?;
@@ -821,7 +845,7 @@ mod tests {
     fn pairing_validation_error_retains_native_rpc_reason() {
         let status = tonic::Status::invalid_argument("fixture-endpoint-rejection");
         let expected = status.message().to_owned();
-        let error = crate::Error::from(dokime::client::Error::Rpc(status));
+        let error = crate::Error::from(status);
         let encoded = serde_json::to_value(error).unwrap();
         assert_eq!(encoded["kind"], "grpc");
         assert_eq!(encoded["detail"]["code"], 3);

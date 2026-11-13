@@ -7,7 +7,7 @@
  * ***
  */
 
-// Deterministic Three-Day History At Eight Sample Rows Per Second.
+// SDK-Owned Three-Day History and Condition-Driven Live Publications
 
 /* === Modules === */
 
@@ -15,21 +15,23 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+use std::{path::Path, time::Duration};
+
+// Third Party Imports
+use tokio_stream::StreamExt;
+
 // Local Imports
-use dokime::definition::{TestCase, TestCaseTemplate, TestSuite};
-use dokime::domain::model::identity::{CaseId, CommandId, TemplateId};
-use dokime::harmos::{Message, schema::Described};
-use dokime::runtime::command::CommandContext;
-use dokime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
-use dokime::{Identifier, InstalledPlugin, Metadata, RuntimeConfig, Timestamp, ValueType};
+use dokime_gui::{
+    connection::{ConnectionSession, host::Session},
+    native_session::{BackendSelection, DesktopSession, backend::Backend},
+};
+use dokime_sdk::{prelude::*, v1};
 
 /* === Constants === */
 
 pub const ROWS: usize = 3 * 24 * 60 * 60 * 8;
-pub const PLOTS: usize = 3;
 pub const ORIGIN_S: f64 = 1_767_225_600.0;
-const STREAM: &str = "bench.pipeline";
-const OWNER: &str = "bench_pipeline";
 
 /* === Macros === */
 
@@ -37,17 +39,21 @@ const OWNER: &str = "bench_pipeline";
 
 /* === Structs === */
 
-#[dokime::harmos::message(harmos_path = ::dokime::harmos)]
-#[derive(Clone, PartialEq)]
+#[derive(dokime_sdk::Row)]
+#[harmos(package = "desktop.benchmark.v1")]
 struct Row {
-    timestamp: String,
+    timestamp: f64,
     y0: f64,
     y1: f64,
     y2: f64,
 }
 
-pub struct Hold {
-    pub entered: tokio::sync::Notify,
+pub struct Fixture {
+    pub owner: DesktopSession,
+    pub session: Session,
+    pub cycle: String,
+    pub execution: String,
+    plugin: Option<dokime_runtime_next::PluginProcess>,
 }
 
 /* === Enums === */
@@ -56,162 +62,203 @@ pub struct Hold {
 
 /* === Implementations === */
 
-impl dokime::ExecutionFixture for Hold {
-    fn run_cycle<'a>(
-        &'a self, context: dokime::ExecutionFixtureContext, _cycle: &'a dokime::domain::model::execution::result::CycleView,
-        _target: &'a dokime::domains::ExecutionProviderTarget,
-    ) -> dokime::ExecutionFixtureFuture<'a> {
-        Box::pin(async move {
-            self.entered.notify_one();
-            context.cancelled().await;
-            Err(dokime::transport::ProviderExecutionFailure::new("cancel", "benchmark closed"))
-        })
+impl Fixture {
+    pub async fn start(root: &Path, restoring: bool) -> Self {
+        // Start the Desktop's Current Embedded Host
+        let owner = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.to_owned()));
+        owner.select(BackendSelection::OwnedLocal).await.unwrap();
+        let session = owner.local_client().await.unwrap();
+        let manifest = root.join("bench-fixture.json");
+        if restoring {
+            let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+            return Self {
+                owner,
+                session,
+                cycle: saved["cycle"].as_str().unwrap().into(),
+                execution: saved["execution"].as_str().unwrap().into(),
+                plugin: None,
+            };
+        }
+
+        // Admit the SDK Fixture as a Remote Plugin Through the Host Adapter
+        let placement = dokime_runtime_next::PlacementSettings {
+            connect_timeout: Duration::from_secs(30),
+            reconnect_delay: Duration::from_millis(25),
+            stop_grace: Duration::from_secs(30),
+            stream_window: std::num::NonZeroUsize::new(8).unwrap(),
+            message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+        };
+        let plugin = dokime_runtime_next::PluginProcess::start(&std::env::current_exe().unwrap(), true, &placement).await.unwrap();
+        let _: v1::Plugin = session.unary("/dokime.v1.Plugins/Add", v1::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
+        let plan: v1::PreviewSelectionReply = session
+            .unary(
+                "/dokime.v1.Planning/MaterializeTemplate",
+                v1::PlanningMaterializeTemplateRequest {
+                    selection: Some(v1::RegisteredSelection {
+                        suite_id: "bench.pipeline".into(),
+                        template_id: "bench.pipeline.capture".into(),
+                        ..Default::default()
+                    }),
+                },
+            )
+            .await
+            .unwrap();
+        let created: v1::CreateCycleReply = session
+            .unary(
+                "/dokime.v1.Execution/CreateCycle",
+                v1::ExecutionCreateCycleRequest {
+                    origins: plan.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
+                    continue_automatically: true,
+                    metadata: Some(v1::Metadata {
+                        label: "Pipeline Bench".into(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let cycle = created.cycle_id;
+        let execution = created.execution_ids[0].clone();
+        std::fs::write(manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle, "execution": execution})).unwrap()).unwrap();
+        Self {
+            owner,
+            session,
+            cycle,
+            execution,
+            plugin: Some(plugin),
+        }
+    }
+
+    pub async fn publish(&self, action: &str) {
+        // Await the Producer's Question Before Releasing Its Next Publication
+        let mut changes = self.session.watch_raw("/dokime.v1.Observation/WatchRuntime", &[]).await.unwrap();
+        loop {
+            let pending: v1::ListPendingPromptsReply = self
+                .session
+                .unary(
+                    "/dokime.v1.Prompts/ListPending",
+                    v1::PromptsListPendingRequest {
+                        execution_id: Some(self.execution.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            if let Some(prompt) = pending.prompts.first() {
+                let _: v1::PromptResponseReceipt = self
+                    .session
+                    .unary(
+                        "/dokime.v1.Prompts/Respond",
+                        v1::PromptsRespondRequest {
+                            prompt_id: prompt.prompt_id.clone(),
+                            action: action.into(),
+                            accepted: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .unwrap();
+                return;
+            }
+            changes.next().await.expect("Benchmark Host Watch Remains Open").unwrap();
+        }
+    }
+
+    pub async fn prepared(&self) {
+        // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
+        let request = v1::PlotsWatchRequest {
+            requests: vec![v1::PlotRequest {
+                stream: "bench.pipeline".into(),
+                y_keys: vec!["y1".into()],
+                scope: Some(v1::EvidenceScope {
+                    execution_id: Some(self.execution.clone()),
+                    ..Default::default()
+                }),
+                max_points: Some(32),
+                ..Default::default()
+            }],
+        };
+        let bytes = prost::Message::encode_to_vec(&request);
+        let mut watch = self.session.watch_raw("/dokime.v1.Plots/Watch", &bytes).await.unwrap();
+        while let Some(frame) = watch.next().await {
+            let frame = <v1::PlotsWatchOutput as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
+            if let Some(v1::plots_watch_output::Value::Item(frame)) = frame.value
+                && frame
+                    .updates
+                    .iter()
+                    .filter_map(|update| update.envelope.as_ref())
+                    .filter_map(|envelope| envelope.payload.as_ref())
+                    .flat_map(|payload| &payload.series)
+                    .any(|series| series.raw_points >= ROWS as u64)
+            {
+                return;
+            }
+        }
+        panic!("Benchmark History Must Become Visible Before Drawing");
+    }
+
+    pub async fn close(mut self) {
+        self.owner.shutdown().await.unwrap();
+        if let Some(plugin) = &mut self.plugin {
+            plugin.close().await.unwrap();
+        }
     }
 }
 
 /* === Public Functions === */
 
-pub fn config(root: &std::path::Path) -> RuntimeConfig {
-    let schema = dokime::harmos::schema::graph::Schema::from_declaration(Row::DEFINITION, &Default::default()).unwrap();
-    let contract = TelemetryContract {
-        stream: Identifier::new(STREAM).unwrap(),
-        schema_version: dokime::harmos::domain::streams::revision(&schema, 1).unwrap(),
-        metadata: Metadata::new(Identifier::new(STREAM).unwrap(), "Pipeline Samples", None),
-        template_id: None,
-        owner: None,
-        storage_schema: Some(schema),
-        columns: (0..PLOTS)
-            .map(|column| {
-                let key = format!("y{column}");
-                TelemetryColumn::new(Metadata::new(Identifier::new(key).unwrap(), "Value", None), ValueType::Number, TelemetryRole::Value)
-            })
-            .collect(),
-        default_x: Some("timestamp".into()),
-        interval: None,
-        allow_extra_fields: false,
-        scalar: false,
-        validation_mode: None,
-        foreign: false,
-    };
-    let plugin = InstalledPlugin {
-        source: OWNER.into(),
-        version: "bench".into(),
-        enabled: true,
-        telemetry_contracts: vec![contract],
-        ..Default::default()
-    };
-    RuntimeConfig::new(root, Metadata::new(Identifier::new("bench.pipeline").unwrap(), "Pipeline Bench", None))
-        .with_installed_plugins([plugin])
-}
-
-pub async fn register_execution(runtime: &dokime::RuntimeHandle, hold: &Hold) -> dokime::TestCycleId {
-    let metadata = Metadata::new(Identifier::new("bench.pipeline").unwrap(), "Pipeline Bench", None);
-    let template_id = TemplateId::from_seed("pipeline-template");
-    let suite = TestSuite {
-        metadata: metadata.clone(),
-        tags: Vec::new(),
-        parameter_groups: Vec::new(),
-        test_case_templates: vec![TestCaseTemplate {
-            test_case_template_id: template_id.clone(),
-            metadata: metadata.clone(),
-            tags: Vec::new(),
-            parameter_groups: Vec::new(),
-            parameters: Vec::new(),
-            files: Vec::new(),
-            phases: Vec::new(),
-            criteria: Vec::new(),
-            prompt_definitions: Vec::new(),
-            subscriptions: Vec::new(),
-            document: None,
-            attributes: Default::default(),
-        }],
-    };
-    runtime
-        .set_suites(
-            "provider:bench_pipeline",
-            dokime::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
-                suite_id: "bench.pipeline".into(),
-                tags: Vec::new(),
-                workflow: Some("run".into()),
-                suite,
-                record_contracts: Vec::new(),
-                telemetry_contracts: Vec::new(),
-            }]),
-        )
-        .await
-        .unwrap();
-    let case_id = CaseId::from_seed("pipeline-case");
-    let case = TestCase {
-        suite_id: "bench.pipeline".into(),
-        test_case_id: case_id.clone(),
-        test_case_template_id: template_id,
-        metadata: metadata.clone(),
-        suite: Some(metadata.clone()),
-        parameters: Default::default(),
-        generation_index: 0,
-        label_number: 0,
-    };
-    runtime.register_cases(CommandId::from_seed("pipeline-registration"), vec![case]).await.unwrap();
-    let cycle = runtime
-        .create_cycle(dokime::transactions::CycleDefinition { metadata, continue_automatically: false }, CommandContext::default())
-        .await
-        .unwrap();
-    runtime.append_executions(cycle.clone(), vec![(execution_id(), case_id)]).await.unwrap();
-    let receipt = runtime
-        .start_execution(execution_id(), dokime::domain::model::execution::ExecutionMode::Automatic, CommandContext::default())
-        .await;
-    assert_eq!(receipt.status, dokime::runtime::command::CommandStatus::Accepted, "{receipt:?}");
-    hold.entered.notified().await;
-    cycle
-}
-
-pub fn execution_id() -> dokime::TestExecutionId {
-    dokime::TestExecutionId::from_seed("pipeline-execution")
-}
-
-pub fn batch(first: usize, count: usize, late: bool, publication: usize, cycle: &dokime::TestCycleId) -> TelemetryBatch {
-    let stream = Identifier::new(STREAM).unwrap();
-    let samples = (first..first + count)
-        .map(|index| {
-            let timestamp = Timestamp::from_datetime(
-                time::OffsetDateTime::UNIX_EPOCH
-                    + time::Duration::seconds(ORIGIN_S as i64)
-                    + time::Duration::milliseconds(index as i64 * 125)
-                    + time::Duration::milliseconds(if late { 500 } else { 0 }),
-            );
-            let values = [(index % 8) as f64, if late { 150.0 } else { (index % 776) as f64 / 8.0 }, ((index / 8) % 8) as f64];
-            let row = Row {
-                timestamp: timestamp.as_str().to_owned(),
-                y0: values[0],
-                y1: values[1],
-                y2: values[2],
-            };
-            let mut sample = TelemetrySample::new(
-                dokime::domain::model::identity::TelemetrySampleId::from_seed(format!("pipeline:{index}:{late}:{publication}")),
-                stream.clone(),
-                0,
-                timestamp,
-                OWNER,
-            );
-            for (column, value) in values.into_iter().enumerate() {
-                sample.values.insert(format!("y{column}"), value.into());
-            }
-            sample.scope = Some(dokime::RecordScope {
-                test_cycle_id: Some(cycle.clone()),
-                test_execution_id: Some(execution_id()),
-                ..Default::default()
-            });
-            sample.storage_payload = Some(row.encode());
-            sample
-        })
-        .collect();
-    TelemetryBatch::new(
-        dokime::domain::model::identity::TelemetryBatchId::from_seed(format!("pipeline:{first}:{count}:{late}:{publication}")),
-        stream,
-        samples,
-    )
+pub fn serve() -> dokime_sdk::Result<()> {
+    let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples").publish_on(publish);
+    let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
+        .step(Step::new("Capture", async |_: &Context| std::future::pending().await))
+        .stream(stream);
+    Plugin::new("desktop-benchmark", "1.0.0")
+        .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
+        .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
+        .requires_host::<dokime_sdk::protocol::context::v1::PromptsCreateRequest>()
+        .remote()
+        .serve()
 }
 
 /* === Private Functions === */
+
+async fn publish(context: &Context, publisher: Publisher<Row>) -> dokime_sdk::Result<()> {
+    // Produce History Through the Same SDK Sample Carrier as Product Plugins
+    let mut sequence = 0;
+    let mut first = 0;
+    let mut count = ROWS;
+    let mut late = false;
+    loop {
+        for index in first..first + count {
+            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
+            publisher
+                .publish_at(
+                    Row {
+                        timestamp: source_ns as f64 / 1_000_000_000.0,
+                        y0: (index % 8) as f64,
+                        y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
+                        y2: ((index / 8) % 8) as f64,
+                    },
+                    Some(prost_types::Timestamp {
+                        seconds: source_ns.div_euclid(1_000_000_000),
+                        nanos: source_ns.rem_euclid(1_000_000_000) as i32,
+                    }),
+                )
+                .await?;
+        }
+        sequence += count;
+        let answer = context
+            .prompt(dokime_sdk::protocol::context::v1::PromptsCreateRequest {
+                prompt: format!("next-{sequence}"),
+                prompt_type: "bench.next".into(),
+                ..Default::default()
+            })
+            .await?;
+        late = answer.action == "late";
+        first = if late { ROWS - 480 + (sequence - ROWS) % 400 } else { sequence };
+        count = 8;
+    }
+}
 
 /* === Tests === */

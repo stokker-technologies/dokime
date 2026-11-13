@@ -11,30 +11,11 @@
 
 /* === External Imports === */
 
-import type {
-  Row107 as NativeElapsed,
-  Row19 as NativeFormat,
-  Row4 as NativeSeverity,
-  Row16 as NativeValueType,
-} from "@generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
-import type {
-  Row6 as NativeMetadata,
-  Row11 as NativeTimestamp,
-  Row19 as NativeValue,
-} from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row2 as NativeExecutionDetail } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
 import type { Value as SerializedValue } from "@/lib/document-contracts";
 import { isDatetimeValue } from "@/lib/record-display";
-import type { Wire } from "@/lib/rpc/canonical";
-import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
+import type { JsonObject } from "@/lib/types";
 
-type Value = Wire<NativeValue>;
-type Metadata = Wire<NativeMetadata>;
-type Timestamp = Wire<NativeTimestamp>;
-type EvidenceScope = NonNullable<Wire<NativeExecutionDetail>["scope"]>;
-type ValueType = Wire<NativeValueType>;
-type NativeValueFormat = Wire<NativeFormat>;
-type NativeElapsedUnit = Wire<NativeElapsed>;
+type Timestamp = { seconds: bigint; nanos: number };
 
 /* === Constants === */
 
@@ -42,7 +23,6 @@ const DOCUMENTS_VALUE_DEPTH = 128;
 const GUI_CASE_ITEMS = 1_000;
 const GUI_CONCURRENT_READS = 4;
 const GUI_MAXIMUM_PAGES = 100;
-const GUI_NATIVE_VALUE_DEPTH = 64;
 const GUI_NUMBER_TEXT_CHARS = 1_024;
 const GUI_PAGE_ITEMS = 500;
 const GUI_SMALL_PAGE_ITEMS = 100;
@@ -208,63 +188,6 @@ export function reviveNativeValues(value: unknown): unknown {
   return value;
 }
 
-/** Convert a protobuf value to the JSON-shaped values used by the old UI. */
-export function nativeValueToJson(value?: Value): unknown {
-  if (!value) return undefined;
-  const { nodes } = value;
-  if (!nodes.length) throw new Error("Native value has no root node.");
-  const members = new Set<number>();
-  function rebuild(index: number, depth: number): unknown {
-    if (depth > GUI_NATIVE_VALUE_DEPTH) throw new Error("Native value exceeds the configured nesting bound.");
-    const kind = nodes[index]?.kind?.HarmosVariant;
-    if (!kind?.case) throw new Error(`Native value node ${index} has no kind.`);
-    function child(member: number): unknown {
-      if (!Number.isInteger(member) || member <= index || member >= nodes.length)
-        throw new Error("Native value member index is out of order or range.");
-      if (members.has(member)) throw new Error("Native value node has multiple owners.");
-      members.add(member);
-      return rebuild(member, depth + 1);
-    }
-    switch (kind.case) {
-      case "Null":
-        return null;
-      case "Bool":
-      case "Text":
-        return kind.value.field0;
-      case "Number":
-        return new NativeNumberValue(kind.value.field0);
-      case "Integer": {
-        const integer = kind.value.field0;
-        const number = Number(integer);
-        return Number.isSafeInteger(number) ? number : new NativeIntegerValue(integer);
-      }
-      case "Unsigned":
-        return new NativeIntegerValue(kind.value.field0, true);
-      case "Datetime": {
-        const timestamp = timestampIso(kind.value.field0);
-        if (!timestamp) throw new Error("Native value timestamp is invalid.");
-        return { $datetime: timestamp };
-      }
-      case "Array": {
-        if (!kind.value.field0) throw new Error("Native value array has no members.");
-        return kind.value.field0.items.map(child);
-      }
-      case "Object": {
-        if (!kind.value.field0) throw new Error("Native value object has no fields.");
-        const entries = new Map<string, unknown>();
-        for (const field of kind.value.field0.fields) {
-          if (entries.has(field.key)) throw new Error("Native value object repeats a key.");
-          entries.set(field.key, child(field.value));
-        }
-        return nativeObjectValue(Object.fromEntries(entries));
-      }
-    }
-  }
-  const result = rebuild(0, 0);
-  if (members.size !== value.nodes.length - 1) throw new Error("Native value has unowned nodes.");
-  return result;
-}
-
 /** Keep authored objects distinct from the reserved scalar projection markers. */
 export function nativeObjectValue(fields: JsonObject): JsonObject | NativeObjectValue {
   return isDatetimeValue(fields) || isNativeIntegerJson(fields) || isNativeNumber(fields) || isNativeObjectJson(fields)
@@ -324,204 +247,7 @@ function serializedValue(value: SerializedValue, depth: number): unknown {
   }
 }
 
-export function nativeValueObjectToJson(value?: Value): JsonObject {
-  if (!value) return {};
-  if (value.nodes[0]?.kind?.HarmosVariant.case !== "Object") throw new Error("Native object value has no object root.");
-  const converted = nativeValueToJson(value);
-  if (isNativeObjectJson(converted)) return converted.fields;
-  if (typeof converted !== "object" || converted === null || Array.isArray(converted)) throw new Error("Native object value is invalid.");
-  return Object.fromEntries(Object.entries(converted));
-}
-
-/** Flatten a JSON-shaped value into the canonical native node graph. */
-export function jsonToNativeValue(value: unknown): Value {
-  const nodes: Value["nodes"] = [];
-  const containers = new Set<object>();
-  function push(value: unknown, depth: number): number {
-    if (depth > 64) throw new Error("Native value exceeds 64 levels.");
-    const index = nodes.length;
-    nodes.push({});
-    let variant: NonNullable<Value["nodes"][number]["kind"]>["HarmosVariant"];
-    if (value === null) variant = { case: "Null", value: {} };
-    else if (typeof value === "boolean") variant = { case: "Bool", value: { field0: value } };
-    else if (typeof value === "string") variant = { case: "Text", value: { field0: value } };
-    else if (value instanceof NativeIntegerValue || isNativeIntegerJson(value)) {
-      const integer = nativeIntegerFromJson(value);
-      variant = {
-        case: integer.unsigned ? "Unsigned" : "Integer",
-        value: { field0: BigInt(integer.decimal) },
-      };
-    } else if (isNativeNumber(value)) {
-      variant = {
-        case: "Number",
-        value: { field0: NativeNumberValue.prototype.valueOf.call(value) },
-      };
-    } else if (typeof value === "bigint") {
-      const unsigned = value >= 1n << 63n;
-      assertIntegerRange(value, unsigned);
-      variant = { case: unsigned ? "Unsigned" : "Integer", value: { field0: value } };
-    } else if (typeof value === "number") {
-      if (Number.isInteger(value) && !Object.is(value, -0)) {
-        if (!Number.isSafeInteger(value)) throw new Error("Native integers must be safe JavaScript integers.");
-        const integer = BigInt(value);
-        assertIntegerRange(integer);
-        variant = { case: "Integer", value: { field0: integer } };
-      } else variant = { case: "Number", value: { field0: value } };
-    } else if (isDatetimeValue(value) && !isNativeObjectJson(value)) {
-      const match = /^(.*?)(?:\.(\d{1,9}))?Z$/.exec(value.$datetime);
-      const milliseconds = Date.parse(value.$datetime);
-      if (!Number.isFinite(milliseconds)) throw new Error("Invalid native datetime.");
-      const seconds = BigInt(Math.floor(milliseconds / 1000));
-      const nanos = match?.[2] ? Number(match[2].padEnd(9, "0")) : (((milliseconds % 1000) + 1000) % 1000) * 1000000;
-      variant = { case: "Datetime", value: { field0: { seconds, nanos } } };
-    } else if (typeof value === "object" && value !== null) {
-      if (containers.has(value)) throw new Error("Native values cannot contain cycles.");
-      containers.add(value);
-      if (Array.isArray(value))
-        variant = {
-          case: "Array",
-          value: { field0: { items: value.map((item) => push(item, depth + 1)) } },
-        };
-      else {
-        const fields = isNativeObjectJson(value) ? value.fields : value;
-        const entries = Object.entries(fields).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
-        variant = {
-          case: "Object",
-          value: {
-            field0: {
-              fields: entries.map(([key, item]) => ({ key, value: push(item, depth + 1) })),
-            },
-          },
-        };
-      }
-      containers.delete(value);
-    } else throw new Error("Native values cannot contain undefined or functions.");
-    nodes[index] = { kind: { HarmosVariant: variant } };
-    return index;
-  }
-  push(value, 0);
-  return { nodes };
-}
-
-/* === Mapping and bounded reads === */
-
-export function metadataJson(metadata?: Metadata): JsonObject {
-  return metadata
-    ? {
-        identifier: metadata.identifier,
-        label: metadata.label,
-        ...(metadata.description !== undefined ? { description: metadata.description } : {}),
-        tags: metadata.tags,
-        attributes: Object.fromEntries(metadata.attributes.map(({ key, value }) => [key, nativeValueToJson(value)])),
-        created_at: timestampIso(metadata.createdAt),
-        updated_at: timestampIso(metadata.updatedAt),
-      }
-    : {};
-}
-
-/** Preserve every ownership field at the native projection boundary. */
-export function nativeEvidenceScope(scope?: RecordScope | null): EvidenceScope | undefined {
-  if (!scope) return undefined;
-  return {
-    sessionId: scope.session_id ?? undefined,
-    cycleId: scope.test_cycle_id ?? undefined,
-    caseId: scope.test_case_id ?? undefined,
-    executionId: scope.test_execution_id ?? undefined,
-    stepId: scope.step_id ?? undefined,
-    criterionId: scope.criterion_id ?? undefined,
-    templateId: scope.template_id ?? undefined,
-    suiteId: scope.suite_id ?? undefined,
-  };
-}
-
-export function recordScopeFromNative(
-  scope?: Pick<EvidenceScope, "sessionId" | "cycleId" | "caseId" | "executionId" | "stepId" | "criterionId" | "templateId" | "suiteId">,
-): RecordScope | null {
-  if (!scope) return null;
-  return {
-    session_id: scope.sessionId ?? null,
-    test_cycle_id: scope.cycleId ?? null,
-    test_case_id: scope.caseId ?? null,
-    test_execution_id: scope.executionId ?? null,
-    step_id: scope.stepId ?? null,
-    criterion_id: scope.criterionId ?? null,
-    template_id: scope.templateId ?? null,
-    suite_id: scope.suiteId ?? null,
-  };
-}
-
-/** Map a canonical enum variant into a GUI label. */
-export function enumTail<Label extends string>(
-  _schema: unknown,
-  value: { HarmosVariant: { case: string | undefined } } | undefined,
-  fallback: Label,
-  overrides?: Partial<Record<string, Label>>,
-): Label {
-  const member = value?.HarmosVariant.case;
-  if (!member || member === "Unspecified") return fallback;
-  return overrides?.[member] ?? (member.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() as Label);
-}
-
-export function mapNativeSeverity(value?: Wire<NativeSeverity>): Severity {
-  return enumTail(undefined, value, "info", { Trace: "debug", Debug: "debug", Warn: "warning" });
-}
-
-export function valueTypeName(valueType?: ValueType): string {
-  switch (valueType?.HarmosVariant.case) {
-    case "Boolean":
-      return "boolean";
-    case "Integer":
-      return "integer";
-    case "Number":
-      return "number";
-    case "Text":
-      return "string";
-    case "File":
-      return "path";
-    case "Object":
-      return "object";
-    case "Array":
-      return "array";
-    case "Datetime":
-      return "datetime";
-    default:
-      return "unknown";
-  }
-}
-
-export function mapNativeValueFormat(format?: NativeValueFormat): ValueFormat | null {
-  const kind = format?.kind?.HarmosVariant;
-  if (!kind?.case || !kind.value.field0) return null;
-  switch (kind.case) {
-    case "Normal":
-      return { kind: "normal", max_fraction_digits: kind.value.field0.maxFractionDigits ?? null };
-    case "Fixed":
-      return { kind: "fixed", decimals: kind.value.field0.decimals };
-    case "Scientific":
-      return { kind: "scientific", significant_digits: kind.value.field0.significantDigits };
-    case "Engineering":
-      return { kind: "engineering", significant_digits: kind.value.field0.significantDigits };
-    case "SiPrefix":
-      return { kind: "si_prefix", significant_digits: kind.value.field0.significantDigits };
-    case "AbsoluteTime":
-      return { kind: "absolute_time", pattern: kind.value.field0.pattern };
-    case "ElapsedSinceRun":
-      return { kind: "elapsed_since_run", unit: mapNativeElapsedUnit(kind.value.field0.unit) };
-    case "ElapsedSinceCycle":
-      return { kind: "elapsed_since_cycle", unit: mapNativeElapsedUnit(kind.value.field0.unit) };
-  }
-}
-
-function mapNativeElapsedUnit(unit?: NativeElapsedUnit): ElapsedUnit {
-  switch (unit?.HarmosVariant.case) {
-    case "Milliseconds":
-      return "milliseconds";
-    case "Minutes":
-      return "minutes";
-    default:
-      return "seconds";
-  }
-}
+/* === Mapping and Bounded Reads === */
 
 export function timestampIso(timestamp?: Timestamp): string | null {
   if (!timestamp || !Number.isInteger(timestamp.nanos) || timestamp.nanos < 0 || timestamp.nanos >= 1_000_000_000) return null;

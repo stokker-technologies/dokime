@@ -37,7 +37,7 @@ import {
   stopBackend,
   terminate,
   until,
-} from "./native-desktop.mjs";
+} from "./native-fixture.mjs";
 import { call, invoke } from "./native-rpc.mjs";
 
 /* === Re-Exports === */
@@ -63,7 +63,7 @@ const environment = {
   GIT_CONFIG_GLOBAL: join(work, "empty-gitconfig"),
   GIT_CONFIG_COUNT: "0",
   DOKIME_TEST_HUB_OPERATOR: "Bench Operator",
-  RUST_LOG: "info,dokime_runtime::domains::execution::run::session=debug",
+  RUST_LOG: "info,dokime_runtime_next=debug",
 };
 let session;
 let backend;

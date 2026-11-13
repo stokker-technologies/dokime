@@ -37,8 +37,9 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 ### GUI
 
-Desktop integration is in progress. Its native package is outside this candidate's
-Cargo workspace; frontend source checks remain available. See [GUI Guidance](docs/gui.md).
+The native desktop is back in the Cargo workspace and uses the execution host.
+Its Product includes native installers; the remaining document-capture limitation
+and unavailable host controls are listed in [GUI Guidance](docs/gui.md).
 
 #### Examples
 

@@ -58,7 +58,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => fixture.query,
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
-vi.mock("@/lib/rpc/generated/client", () => ({}));
+vi.mock("@/lib/host/client", () => ({}));
 vi.mock("@/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/components/NotificationMessage", () => ({
   NotificationMessage: (props: unknown) => {
@@ -96,7 +96,7 @@ beforeEach(() => {
 test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
   fixture.session = {
     identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/dokime.v1.Remote/ReadListener"] } } },
+    snapshot: { connection: { backend: { methods: ["/harmos.v1.access.Listener/Get"] } } },
   };
   for (let page = 0; page < 3; page++) {
     const html = renderToStaticMarkup(createElement(RemoteSection, {}));
@@ -117,7 +117,7 @@ test("Unavailable Remote Settings Stay Inline Without Notifications", () => {
 test("Export Endpoint Preview", () => {
   fixture.session = {
     identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/dokime.v1.Remote/ReadListener"] } } },
+    snapshot: { connection: { backend: { methods: ["/harmos.v1.access.Listener/Get"] } } },
   };
   const endpoints = [
     { address: "bench-host" },
@@ -183,7 +183,7 @@ test("saved intent without a bound address is not running", () => {
 });
 
 test("TLS Certificate Guard", () => {
-  const missing: ListenerStatus = { ...STOPPED, certificatePem: undefined };
+  const missing: ListenerStatus = { ...STOPPED, certificatePem: "" };
   const issue = certificateIssue(missing);
   assert.ok(issue);
   assert.equal(certificateIssue(STOPPED), null);

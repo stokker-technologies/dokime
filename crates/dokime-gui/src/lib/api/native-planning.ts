@@ -13,27 +13,30 @@
 
 /* === Local Imports === */
 
-import type { Row19 as GeneratedValue } from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row2 as GeneratedCaseDetail } from "@generated/dokime/v1/ExecutionMessages/GetCase/messages_pb";
-import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
-import type { Row3 as GeneratedParameterCursor } from "@generated/dokime/v1/ExecutionMessages/ListCaseParameters/messages_pb";
-import type {
-  Row6 as GeneratedCaseStatus,
-  Row4 as GeneratedCaseSummary,
-  Row8 as GeneratedNativeCaseActions,
-} from "@generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
-import type { Row3 as GeneratedCursor } from "@generated/dokime/v1/ExecutionMessages/ListCycles/messages_pb";
-import type {
-  Row23 as GeneratedCriterionStatus,
-  Row8 as GeneratedStepStatus,
-} from "@generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
-import type {
-  Row5 as GeneratedExecutionStatus,
-  Row4 as GeneratedExecutionSummary,
-} from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
+import {
+  CaseStatus,
+  CriterionStatus,
+  CyclePhase,
+  CycleStatus,
+  CycleOrderKey,
+  ExecutionState,
+  LiveExecutionState,
+  ResultStatus,
+  StepStatus,
+  type CaseDetail as HostCaseDetail,
+  type CaseSummary as HostCaseSummary,
+  type CycleSummary as HostCycleSummary,
+  type ExecutionSummary as HostExecutionSummary,
+  type CaseActions as HostCaseActions,
+  type Cursor as HostCursor,
+  type ExecutionOutcome,
+  type ExecutionControls,
+} from "@host/dokime/v1/client_types_pb.js";
+import { Termination } from "@host/dokime/v1/execution_pb.js";
+import type { Value as HostValue } from "@host/dokime/v1/values_pb.js";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
-import { operationIds } from "@/lib/rpc/generated/operations";
+import * as rpc from "@/lib/host/client";
+import { jsonToNativeValue, metadataJson, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   CaseActions,
@@ -50,36 +53,26 @@ import type {
   TestExecution,
   TestTemplateMetadata,
 } from "@/lib/types";
-import { fetchNativeSuite, fetchNativeSuites } from "./native-catalog";
+import { fetchNativeSuite, fetchNativeSuites } from "@/lib/host/catalog";
 import {
   durationSeconds,
-  jsonToNativeValue,
   mapBounded,
-  metadataJson,
   NATIVE_CASE_LIMIT,
   NATIVE_MAX_PAGES,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
-  nativeValueObjectToJson,
-  nativeValueToJson,
   nowIso,
   safeNumber,
   timestampIso,
 } from "./native-values";
 
-type Cursor = Wire<GeneratedCursor>;
-type CaseDetail = Wire<GeneratedCaseDetail>;
-type CaseSummary = Wire<GeneratedCaseSummary>;
-type ExecutionSummary = Wire<GeneratedExecutionSummary>;
-type CycleSummary = Wire<GeneratedCycleSummary>;
-type NativeCaseActions = Wire<GeneratedNativeCaseActions>;
-type ParameterCursor = Wire<GeneratedParameterCursor>;
-type Value = Wire<GeneratedValue>;
-type CycleStatus = CycleSummary["status"];
-type CaseStatus = Wire<GeneratedCaseStatus>;
-type ExecutionStatus = Wire<GeneratedExecutionStatus>;
-type StepStatus = Wire<GeneratedStepStatus>;
-type CriterionStatus = Wire<GeneratedCriterionStatus>;
+type Cursor = Wire<HostCursor>;
+type CaseDetail = Wire<HostCaseDetail>;
+type CaseSummary = Wire<HostCaseSummary>;
+type ExecutionSummary = Wire<HostExecutionSummary>;
+export type CycleSummary = Wire<HostCycleSummary>;
+type NativeCaseActions = Wire<HostCaseActions>;
+type Value = Wire<HostValue>;
 
 /* === Planning and execution === */
 
@@ -95,7 +88,7 @@ export async function previewNativeTestCycle(
       suite_id: item.suiteId,
       case_id: item.caseId,
       template_id: item.templateId,
-      parameters: nativeValueObjectToJson(item.parameters),
+      parameters: nativeValuesToJson(item.origin?.kind.case === "pluginRun" ? item.origin.kind.value.testCase?.parameters : undefined),
       generation_index: safeNumber(item.ordinal, "planned case ordinal"),
       label: item.metadata?.label || item.caseId,
       metadata: metadataJson(item.metadata),
@@ -126,7 +119,7 @@ export async function createNativeTestCycle(session: SessionIdentity, request: N
       label: request.label,
       description: request.description,
       tags: [],
-      attributes: [],
+      attributes: {},
     },
     continueAutomatically: request.continueAutomatically,
     context: { correlationId: crypto.randomUUID() },
@@ -140,14 +133,11 @@ export async function appendNativeTestCycle(
   selections: TestCycleSelection[],
 ): Promise<StartTestCycleResponse> {
   const destination = await rpc.executionGetCycle(session, { cycleId });
-  if (destination.phase?.HarmosVariant.case !== "Active") throw new Error("Choose an Active cycle before adding cases.");
+  if (destination.phase !== CyclePhase.ACTIVE) throw new Error("Choose an Active cycle before adding cases.");
   /* Materialize Reusable Cases Before Registering Explicit Attempts */
   const plan = await nativeSelectionPlan(session, { parameters: {}, selections }, cycleId);
-  const materialized = [];
-  for (const selection of plan.selections ?? []) {
-    const reply = await rpc.planningMaterializeTemplate(session, { selection });
-    materialized.push(...reply.cases);
-  }
+  const registered = await rpc.planningRegisterSelection(session, { plan, idempotencyKey: crypto.randomUUID() });
+  const materialized = registered.cases;
   const executions = materialized.map((item) => ({ executionId: crypto.randomUUID(), caseId: item.caseId }));
   if (executions.length > NATIVE_CASE_LIMIT)
     throw new NativeApiLimitError("Execution.AppendExecutions", `more than ${NATIVE_CASE_LIMIT} cases`);
@@ -216,7 +206,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
       current_queue_item_id: active?.case_id ?? null,
       continue_automatically: summary.continueAutomatically,
       started_at: timestampIso(summary.startedAt),
-      finished_at: summary.phase?.HarmosVariant.case === "Sealed" ? timestampIso(summary.updatedAt) : null,
+      finished_at: summary.phase === CyclePhase.SEALED ? timestampIso(summary.updatedAt) : null,
       seal_failure: summary.sealFailure ?? null,
       rerun_of: summary.rerunOf ?? null,
       duration_s: durationSeconds(summary.startedAt, summary.updatedAt),
@@ -234,14 +224,14 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
 }
 
 export function mapCyclePhase(phase: CycleSummary["phase"]): TestCycle["phase"] {
-  switch (phase?.HarmosVariant.case) {
-    case "Active":
+  switch (phase) {
+    case CyclePhase.ACTIVE:
       return "active";
-    case "Sealing":
+    case CyclePhase.SEALING:
       return "sealing";
-    case "SealFailed":
+    case CyclePhase.SEAL_FAILED:
       return "seal_failed";
-    case "Sealed":
+    case CyclePhase.SEALED:
       return "sealed";
     default:
       throw new Error("The cycle has no container phase.");
@@ -270,7 +260,7 @@ export function mapNativeExecutionSummary(item: ExecutionSummary, cases: TestCas
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   return {
     archived: item.archived,
-    sealed: item.sealed,
+    sealed: item.state === ExecutionState.SEALED,
     test_execution_id: item.executionId,
     test_cycle_id: cycle.cycleId,
     queue_item_id: item.caseId,
@@ -278,7 +268,7 @@ export function mapNativeExecutionSummary(item: ExecutionSummary, cases: TestCas
     template_id: testCase?.template_id ?? "",
     attempt_index: safeNumber(item.ordinal, "execution ordinal"),
     invalidation: null,
-    status: projectExecutionStatus(item.status, null, item.sealed),
+    status: projectExecutionStatus(item.state, item.outcome, item.controls),
     started_at: null,
     finished_at: null,
     parameters: null,
@@ -326,7 +316,8 @@ function mapQueueItem(summary: CycleSummary, item: CaseSummary, ordinal: number)
     repeat_index: 0,
     status: mapCaseStatus(item.status),
     current_test_execution_id: item.latestExecutionId ?? null,
-    current_test_execution_status: item.latestExecutionStatus === undefined ? null : mapExecutionStatus(item.latestExecutionStatus),
+    current_test_execution_status:
+      item.latestExecutionStatus === undefined ? null : projectExecutionStatus(item.latestExecutionStatus, item.latestExecutionOutcome),
     attempt_count: item.attemptCount,
     actions: mapCaseActions(item.actions),
     blocked_reason: null,
@@ -378,9 +369,7 @@ async function nativeSelectionPlan(
       files: Object.entries(selection.files ?? {}).map(([key, value]) => ({
         key,
         value: {
-          kind: {
-            HarmosVariant: value === null ? { case: "Clear" as const, value: {} } : { case: "Value" as const, value: { field0: value } },
-          },
+          kind: { kind: value === null ? { case: "clear" as const, value: {} } : { case: "value" as const, value } },
         },
       })),
     };
@@ -405,13 +394,13 @@ export type NativeStartAdmission = { commandId: string; jobId: string | null };
  * why, rather than leaving a control that did nothing.
  */
 export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof rpc.executionStartExecution>>>): NativeStartAdmission {
-  if (reply.outcome?.HarmosVariant.case === "Accepted") {
-    const accepted = reply.outcome.HarmosVariant.value.field0;
+  if (reply.outcome?.kind.case === "accepted") {
+    const accepted = reply.outcome.kind.value;
     if (!accepted) throw new Error("Native execution admission has no accepted payload.");
     return { commandId: accepted.commandId, jobId: accepted.jobId ?? null };
   }
-  if (reply.outcome?.HarmosVariant.case === "Rejected") {
-    const detail = reply.outcome.HarmosVariant.value.field0;
+  if (reply.outcome?.kind.case === "rejected") {
+    const detail = reply.outcome.kind.value;
     if (!detail) throw new Error("Native execution admission has no rejection payload.");
     const issues = detail.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
     /* The code travels with the message. It is the runtime's own vocabulary
@@ -424,7 +413,7 @@ export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof 
       notificationFailure: {
         reason: detail.code,
         operation: "Execution.StartExecution",
-        operationId: operationIds["/dokime.v1.Execution/StartExecution"],
+        operationId: "dokime.execution.start_execution",
         problems: detail.issues.map((issue) => ({
           label: issue.path,
           message: issue.message,
@@ -461,7 +450,7 @@ export async function listNativeCycles(session: SessionIdentity, selection: Nati
      by reference on every page of this read. */
   const filter = selection.filter ?? { text: "", statuses: [] };
   const order = selection.order ?? {
-    key: { HarmosVariant: { case: "UpdatedAt", value: {} } },
+    key: CycleOrderKey.UPDATED_AT,
     descending: true,
   };
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
@@ -483,24 +472,7 @@ export async function listNativeCycles(session: SessionIdentity, selection: Nati
 }
 
 export async function listNativeCases(session: SessionIdentity, cycleId: string): Promise<CaseSummary[]> {
-  const result: CaseSummary[] = [];
-  let afterCaseId = "";
-  let cursor: Cursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListCases(session, {
-      cycleId,
-      limit: NATIVE_PAGE_SIZE,
-      afterCaseId,
-      cursor,
-    });
-    result.push(...reply.cases);
-    const next = reply.nextAfterCaseId;
-    if (!next) return result;
-    if (next === afterCaseId) throw new NativeApiLimitError("Execution.ListCases", `cursor did not advance at ${next}`);
-    afterCaseId = next;
-    cursor = reply.cursor;
-  }
-  throw new NativeApiLimitError("Execution.ListCases", `more than ${NATIVE_MAX_PAGES} pages`);
+  return (await rpc.executionListCases(session, { cycleId })).cases;
 }
 
 export async function listNativeExecutions(session: SessionIdentity, cycleId: string): Promise<ExecutionSummary[]> {
@@ -525,119 +497,90 @@ export async function listNativeExecutions(session: SessionIdentity, cycleId: st
 }
 
 export async function listNativeCaseParameters(session: SessionIdentity, cycleId: string, caseId: string) {
-  const result: { name: string; value?: Value }[] = [];
-  let afterName = "";
-  let cursor: ParameterCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListCaseParameters(session, {
-      cycleId,
-      caseId,
-      limit: NATIVE_PAGE_SIZE,
-      afterName,
-      cursor,
-    });
-    result.push(...reply.parameters);
-    const next = reply.nextAfterName;
-    if (!next) return result;
-    if (next === afterName) throw new NativeApiLimitError("Execution.ListCaseParameters", `cursor did not advance at ${next}`);
-    afterName = next;
-    cursor = reply.cursor;
-  }
-  throw new NativeApiLimitError("Execution.ListCaseParameters", `more than ${NATIVE_MAX_PAGES} pages`);
+  return (await rpc.executionListCaseParameters(session, { cycleId, caseId })).parameters;
 }
 
 export function mapCycleStatus(status: CycleStatus | undefined): TestCyclePlan["test_cycle"]["status"] {
-  switch (status?.HarmosVariant.case) {
-    case "Running":
+  switch (status) {
+    case CycleStatus.RUNNING:
       return "running";
-    case "Paused":
+    case CycleStatus.PAUSED:
       return "paused";
-    case "Stopping":
+    case CycleStatus.STOPPING:
       return "stopping";
-    case "Completed":
+    case CycleStatus.COMPLETED:
       return "completed";
-    case "Failed":
-    case "Blocked":
+    case CycleStatus.FAILED:
+    case CycleStatus.BLOCKED:
       return "failed";
-    case "Stopped":
+    case CycleStatus.STOPPED:
       return "stopped";
     default:
       return "planned";
   }
 }
 
-export function mapExecutionStatus(status: ExecutionStatus | undefined): TestExecution["status"] {
-  switch (status?.HarmosVariant.case) {
-    case "Skipped":
-      return "skipped";
-    case "Running":
-      return "running";
-    case "Passed":
-      return "passed";
-    case "Failed":
-      return "failed";
-    case "Blocked":
-      return "failed";
-    case "Cancelled":
-      return "stopped";
-    case "Interrupted":
-      return "interrupted";
-    case "Invalidated":
-      return "invalidated";
-    default:
-      return "created";
-  }
-}
-
-/**
- * An Unsealed Skipped Attempt Is Still Unstarted
- *
- * Its own durable seal distinguishes an unstarted attempt from a completed
- * skip. A sibling's outcome and the cycle's aggregate status cannot settle it.
- */
+/** Durable Attribution Determines the Verdict; Live Controls Only Describe Active Work. */
 export function projectExecutionStatus(
-  status: ExecutionStatus | undefined,
-  startedAt: string | null,
-  sealed: boolean,
+  state: ExecutionState | undefined,
+  outcome?: Wire<ExecutionOutcome>,
+  controls?: Wire<ExecutionControls>,
+  liveState?: LiveExecutionState,
 ): TestExecution["status"] {
-  if (status?.HarmosVariant.case === "Skipped" && !startedAt && !sealed) {
-    return "planned";
+  if (state === ExecutionState.OPEN) {
+    if (liveState === LiveExecutionState.CLEANING_UP) return "finalizing";
+    return controls?.requestId || (liveState !== undefined && liveState !== LiveExecutionState.QUEUED) ? "running" : "planned";
   }
-  return mapExecutionStatus(status);
+  const attribution = outcome?.attribution;
+  if (attribution?.case === "evaluated" || attribution?.case === "declared") {
+    switch (attribution.value.status) {
+      case ResultStatus.PASSED:
+        return "passed";
+      case ResultStatus.FAILED:
+      case ResultStatus.BLOCKED:
+        return "failed";
+      case ResultStatus.CANCELLED:
+        return "stopped";
+      default:
+        throw new Error("Read Execution: Missing Evaluated Verdict");
+    }
+  }
+  if (attribution?.case === "notEvaluated") {
+    switch (attribution.value.termination) {
+      case Termination.FAILED:
+        return "failed";
+      case Termination.CANCELLED:
+        return "stopped";
+      case Termination.INTERRUPTED:
+        return "interrupted";
+      default:
+        return "skipped";
+    }
+  }
+  throw new Error("Read Execution: Closed Execution Has No Outcome Attribution");
 }
 
-/**
- * A case's own state, as `CaseSummary.status` projects its latest attempt.
- *
- * This is the whole reason the client join is gone: PLANNED and QUEUED are the
- * two pre-dispatch states the runtime distinguishes — no attempt at all, and a
- * materialized attempt nobody has dispatched — and neither is an outcome.
- * BLOCKED keeps its own word here because a case list has room to say it,
- * where the attempt projection folds it into `failed`. UNSPECIFIED is the
- * historical projection: a captured cycle grouping retains the plan without
- * its attempt records and so states nothing about a case's state.
- */
 export function mapCaseStatus(status: CaseStatus | undefined): ExecutionQueueItem["status"] {
-  switch (status?.HarmosVariant.case) {
-    case "Planned":
+  switch (status) {
+    case CaseStatus.PLANNED:
       return "planned";
-    case "Queued":
+    case CaseStatus.QUEUED:
       return "queued";
-    case "Running":
+    case CaseStatus.RUNNING:
       return "running";
-    case "Passed":
+    case CaseStatus.PASSED:
       return "passed";
-    case "Failed":
+    case CaseStatus.FAILED:
       return "failed";
-    case "Blocked":
+    case CaseStatus.BLOCKED:
       return "blocked";
-    case "Cancelled":
+    case CaseStatus.CANCELLED:
       return "stopped";
-    case "Interrupted":
+    case CaseStatus.INTERRUPTED:
       return "interrupted";
-    case "Skipped":
+    case CaseStatus.SKIPPED:
       return "skipped";
-    case "Invalidated":
+    case CaseStatus.INVALIDATED:
       return "invalidated";
     default:
       return "unknown";
@@ -645,16 +588,16 @@ export function mapCaseStatus(status: CaseStatus | undefined): ExecutionQueueIte
 }
 
 export function mapStepStatus(status: StepStatus | undefined): StepExecutionRecord["status"] {
-  switch (status?.HarmosVariant.case) {
-    case "Running":
+  switch (status) {
+    case StepStatus.RUNNING:
       return "running";
-    case "Passed":
+    case StepStatus.PASSED:
       return "passed";
-    case "Failed":
+    case StepStatus.FAILED:
       return "failed";
-    case "Skipped":
+    case StepStatus.SKIPPED:
       return "skipped";
-    case "Cancelled":
+    case StepStatus.CANCELLED:
       return "stopped";
     default:
       return "pending";
@@ -662,16 +605,20 @@ export function mapStepStatus(status: StepStatus | undefined): StepExecutionReco
 }
 
 export function mapCriterionStatus(status: CriterionStatus | undefined): StepExecutionRecord["status"] {
-  switch (status?.HarmosVariant.case) {
-    case "Passed":
+  switch (status) {
+    case CriterionStatus.PASSED:
       return "passed";
-    case "Failed":
+    case CriterionStatus.FAILED:
       return "failed";
-    case "Indeterminate":
+    case CriterionStatus.INDETERMINATE:
       return "indeterminate";
-    case "Skipped":
+    case CriterionStatus.SKIPPED:
       return "skipped";
     default:
       return "pending";
   }
+}
+
+export function isNativeCycleLive(status: CycleStatus): boolean {
+  return [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING, CycleStatus.BLOCKED].includes(status);
 }

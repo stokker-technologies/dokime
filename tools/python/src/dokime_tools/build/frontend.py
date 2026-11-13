@@ -86,13 +86,30 @@ def build(profile: str) -> Path:
     return output
 
 
+def build_report(args: list[str]) -> None:
+    """Generate the Desktop's Standalone Report Renderer."""
+    organization.generate()
+    with tempfile.TemporaryDirectory(prefix="dokime-gui-report-") as directory:
+        subprocess.run(
+            ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", directory, *args],
+            cwd=WEB_ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        sync_output(Path(directory), WEB_ROOT / "dist-report")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["live"])
+    parser.add_argument("command", choices=["live", "report"])
     args, extra = parser.parse_known_args()
-    if args.command != "live" and extra:
-        parser.error(f"unexpected arguments: {extra}")
-    build_live(extra)
+    if args.command == "report":
+        build_report(extra)
+    else:
+        build_live(extra)
 
 
 # === Private Functions === #

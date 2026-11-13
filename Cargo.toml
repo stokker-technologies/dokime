@@ -10,6 +10,7 @@
 
 [workspace]
 members = [
+  "crates/dokime-gui/src-tauri",
   "crates/dokime-cli-next",
   "crates/dokime-protocol",
   "crates/dokime-storage",
@@ -20,6 +21,7 @@ members = [
   "tools/protocol",
 ]
 default-members = [
+  "crates/dokime-gui/src-tauri",
   "crates/dokime-cli-next",
   "crates/dokime-runtime-next",
   "crates/dokime-storage",

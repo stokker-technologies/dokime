@@ -73,7 +73,7 @@ function record(sequence: number): HubRecord {
     message: `event ${sequence}`,
     record_id: `trace-${sequence}`,
     record_type: "log",
-    source: "dokime::test",
+    source: "desktop::fixture",
     timestamp: "",
   } as unknown as HubRecord;
 }
@@ -146,7 +146,10 @@ vi.mock("zustand", () => ({
     select(store.getState()),
 }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
-vi.mock("@/lib/api/native-logs", () => ({ openTraceStream: fixture.open }));
+vi.mock("@/lib/api/native-logs", async (original) => ({
+  ...(await original<typeof import("@/lib/api/native-logs")>()),
+  openTraceStream: fixture.open,
+}));
 vi.mock("@/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
 
 beforeEach(() => {

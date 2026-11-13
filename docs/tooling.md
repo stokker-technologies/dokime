@@ -55,35 +55,57 @@ before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
-The native desktop is outside Cargo membership until its host switch merges.
-The restoration checklist in `openspec/changes/grpc-plugins/tasks.md` owns native
-Product builds, generated preference/settings checks, system stories, benchmarks,
-installer packaging and signing. The frontend retains formatting/lint and protobuf
-message generation. Unit/integration stories independent of the removed native message exporter
-remain selected. The desktop restoration task lists the deferred suites and the
-notification story that import that exporter, along with the preferences journey
-and its native default exporter. Their source remains in the desktop tree.
+The desktop native package is restored to workspace and default membership.
+Build it with `mise run build -- --package dokime-gui`; add
+`--features tauri/custom-protocol` to embed the prepared live frontend.
+Product builds prepare generated clients, icons and the production frontend before
+compiling and exporting the native shell with `custom-protocol`. Tests Build also
+prepares the SDK desktop bundle. Run focused native desktop stories with
+`--features testing`; their disposable-root owner removes credentials after the
+runtime stops, including on failure. WebView lanes are available through
+`mise run test -- --language typescript --layer system --select native-desktop`
+and the same command with `--select two-gui-remote`. Both drivers use the current
+host and SDK thermal fixture. Frontend unit and integration selection includes all
+retained suites. PR and Nightly select native acceptance plus both WebView lanes
+on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 
-`mise run generate` generates frontend protobuf modules from the authoritative
-checked-in descriptor, without compiling a host. `mise run generate -- --protocol`
-regenerates checked-in Rust protocol output; add `--check` to prove its drift.
+`mise run generate` builds the desktop's `export_preferences` example and reads
+canonical defaults through its embedded host, then generates protobuf messages,
+preference view models and native command declarations. The exporter owns a fresh
+temporary host and removes its credentials through the host operation after joining
+shutdown, including on failure. Previous generator and user roots stay intact.
+Generation requires the platform credential store, as ordinary host startup does.
+`mise -C crates/dokime-gui run generate:host-frontend` regenerates canonical host
+messages and native dispatch. Product staging carries both `generated/typescript`
+and `generated/host`; consumers restore both before importing the frontend.
+`mise -C crates/dokime-gui run build:frontend` typechecks and builds the live shell.
+`mise -C crates/dokime-gui run generate:report` builds the standalone renderer into
+GUI-owned `dist-report/`, without recreating a retired runtime package.
+
+`mise run generate -- --protocol` regenerates checked-in Rust protocol output;
+add `--check` to prove its drift. Never edit generated files.
 The protocol task also generates four-language SDK roots through the pinned
 library's descriptor table/generator; its check verifies those outputs for drift.
-`generate --check` requires `--protocol` while native client generation is detached.
 Never edit generated files.
 
 ## Build and Delivery Artifacts
 
 `mise run build` produces the current host/CLI workspace. Tests Build produces
 one archive plus host/CLI fixtures and the vendored protobuf compiler input.
-No native desktop, sidecar plugin or removed macro/compiler fixture is selected.
-The current Cargo workspace contains protocol, storage, operations-next,
-runtime-next, CLI-next, SDK and bundle inspection packages.
+The native desktop package compiles with workspace selections; Product now exports
+its shell and frontend inputs for the restored hosted consumers. Shipping sidecar
+plugins and removed macro/compiler fixtures are not selected. The current Cargo
+workspace also contains protocol, storage, operations-next, runtime-next, CLI-next,
+SDK and bundle inspection packages.
 
 Product outputs live under `target/build/<profile>/<target>/`; packages under
 `target/package/<profile>/<target>/`. CLI archives retain the `dokime-next` binary.
-The distribution ZIP contains that CLI and legal notices. Desktop installers and
-shipping sidecar feeds return only after their restoration/re-authoring tasks.
+The distribution ZIP contains that CLI, the desktop, authored organization resources
+and legal notices. Native Tauri packaging consumes those verified Product bytes
+without compiling or patching them and produces Windows NSIS or Linux DEB/RPM
+installers. Stable publication signs the validated Windows Product, refreshes its
+distribution inventory and packages it before generating updater signatures;
+Nightly stays unsigned. Shipping sidecar feeds await their re-authoring tasks.
 The pure Python wheel/source pair uses the shared `any/python/` target.
 
 `tools/project.toml` owns package/release/test policy; `mise.toml` owns commands

@@ -14,16 +14,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{path::Path, sync::Arc};
-// Third Party Imports
+use std::path::Path;
 
 // Local Imports
-use super::artifact;
-use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
-use dokime_gui::native_session::BackendSelection;
-use dokime_server::grpc::{Config, Server};
-use {dokime::Identifier, dokime::Metadata, dokime::Runtime, dokime::RuntimeConfig};
+use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
+use dokime_sdk::v1;
 
 /* === Constants === */
 
@@ -35,15 +31,13 @@ use {dokime::Identifier, dokime::Metadata, dokime::Runtime, dokime::RuntimeConfi
 
 pub struct Fixture {
     pub session: ConnectionSession,
-    pub server: Server,
-    pub runtime: Runtime,
-    pub artifacts: Arc<artifact::Provider>,
-    _root: tempfile::TempDir,
+    pub owner: DesktopSession,
+    _root: dokime_gui::test_support::Root,
 }
 
 pub struct Published {
-    runtime: Runtime,
-    server: Server,
+    owner: DesktopSession,
+    endpoint: String,
 }
 
 /* === Enums === */
@@ -54,71 +48,72 @@ pub struct Published {
 
 impl Fixture {
     pub async fn new() -> Self {
-        // Runtime with a Calibration Record
-        let root = tempfile::tempdir().unwrap();
-        let artifacts = Arc::new(artifact::Provider::default());
-        let mut config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None));
-        super::settings::configure(&mut config);
-        config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
-        let server_config = Config::local().with_max_message_bytes(1024 * 1024);
-        let prepared_runtime = dokime_server::grpc::Service::prepare(server_config).unwrap();
-        let runtime = Runtime::with_execution_fixture(prepared_runtime.configuration(config), "fixture", artifacts.clone()).await.unwrap();
-        let calibration = model::records::product::ProductCalibrationDetails::new(
-            "rpc-device",
-            model::records::product::ProductCalibrationKind::Field,
-            model::records::product::ProductCalibrationPhase::Completed,
-        );
-        runtime.handle().publish_product_record(calibration.into_draft("rpc.fixture")).await.unwrap();
-
-        // Native Server and Session
-        // Keep The 1.2 MB Artifact In Multiple Frames While Admitting 256 KiB Upload Chunks.
-
-        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
-        let session = ConnectionSession::default();
-        session
-            .connect(ConnectRequest {
-                target: ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                expected_backend_id: None,
+        // Seed an Imported Evidence Container Through the Current Storage Owner
+        let root = dokime_gui::test_support::tempdir().unwrap();
+        let storage = dokime_storage::Store::open(root.path()).unwrap();
+        storage
+            .create(&dokime_storage::Execution {
+                identifier: "desktop-content".into(),
+                cycle: "desktop-cycle".into(),
+                origin: Some(v1::Origin {
+                    kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+                }),
+                ..Default::default()
             })
-            .await
             .unwrap();
+        drop(storage);
 
-        Self {
-            session,
-            server,
-            runtime,
-            artifacts,
-            _root: root,
-        }
+        // Start the Same Embedded Host and SDK Connection as the Running Desktop
+        let session = ConnectionSession::default();
+        let owner = DesktopSession::with_local_backend(session.clone(), Backend::new(root.path().to_owned()));
+        owner.select(BackendSelection::OwnedLocal).await.unwrap();
+        Self { session, owner, _root: root }
     }
 
     pub fn generation(&self) -> u64 {
         self.session.status().generation.parse().unwrap()
     }
 
-    pub async fn close(mut self) {
-        self.session.disconnect().unwrap();
-        self.server.shutdown().await.unwrap();
-        self.runtime.shutdown().await.unwrap();
+    pub async fn client(&self) -> dokime_gui::connection::host::Session {
+        self.owner.local_client().await.unwrap()
+    }
+
+    pub async fn thermal(&self) -> dokime_runtime_next::PluginProcess {
+        // Use the Shared SDK Fixture Produced Before This Story
+        let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
+        let placement = dokime_runtime_next::PlacementSettings {
+            connect_timeout: std::time::Duration::from_secs(30),
+            reconnect_delay: std::time::Duration::from_millis(25),
+            stop_grace: std::time::Duration::from_secs(30),
+            stream_window: std::num::NonZeroUsize::new(8).unwrap(),
+            message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+        };
+        let plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &placement).await.unwrap();
+        let _: v1::Plugin =
+            self.client().await.unary("/dokime.v1.Plugins/Add", v1::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
+        plugin
+    }
+
+    pub async fn close(self) {
+        self.owner.shutdown().await.unwrap();
     }
 }
 
 impl Published {
     pub async fn start(root: &Path) -> Self {
-        let config = dokime::config::Config::local(root);
-        let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-        let runtime = dokime::app::launch_with(config, vec![prepared_runtime.composition()]).await.unwrap();
-        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
-        Self { runtime, server }
+        let owner = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.to_owned()));
+        let endpoint = owner.select(BackendSelection::OwnedLocal).await.unwrap().connection.endpoint.unwrap();
+        Self { owner, endpoint }
     }
 
     pub fn endpoint(&self) -> String {
-        self.server.local_endpoint()
+        self.endpoint.clone()
     }
 
-    pub async fn shutdown(mut self) {
-        self.server.shutdown().await.unwrap();
-        self.runtime.shutdown().await.unwrap();
+    pub async fn shutdown(self) {
+        self.owner.shutdown().await.unwrap();
     }
 }
 

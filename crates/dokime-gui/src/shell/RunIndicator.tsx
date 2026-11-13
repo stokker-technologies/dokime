@@ -27,6 +27,7 @@ import { useNativeSession } from "@/app/native-session/context";
 import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
 import { workflowQueryKeys } from "@/features/cycle/server-state";
 import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
+import { isNativeCycleLive } from "@/lib/api/native-planning";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
 /* === Re-Exports === */
@@ -44,9 +45,7 @@ export function RunIndicator() {
   const session = useNativeSession();
   const cycles = useCyclesQuery();
   const navigate = useNavigate();
-  const activeCycles = (cycles.data ?? []).filter((cycle) =>
-    ["Running", "Paused", "Stopping", "Blocked"].includes(cycle.status?.HarmosVariant.case ?? ""),
-  );
+  const activeCycles = (cycles.data ?? []).filter((cycle) => isNativeCycleLive(cycle.status));
   const details = useQueries({
     queries: activeCycles.map((cycle) => ({
       queryKey: [...workflowQueryKeys.cycleDetail(cycle.cycleId), session.identity.generation],

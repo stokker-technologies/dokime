@@ -11,19 +11,17 @@
 
 import { failureOf } from "@/lib/notification-details";
 import { Download, TriangleAlert } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { useState } from "react";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
-import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
+import { storageResetAvailable } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-document-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
@@ -65,7 +63,7 @@ export function DiagnosticsSection() {
  * The support archive, as an action rather than a path.
  *
  * What the operator does with this row is send the archive to the developers,
- * so the row hands them the archive: one button that pulls the zip and saves
+ * so the row hands them the archive: one button that pulls the archive and saves
  * it, and a toast that offers the folder it landed in. Where the backend
  * happened to build it is not their problem.
  *
@@ -129,73 +127,18 @@ export function DiagnosticsBundleRow() {
   );
 }
 
-/**
- * The development storage reset, behind a typed confirmation.
- *
- * The dialog names the directory and arms only on the exact confirmation word.
- * Confirming hands the session to the connection screen, which shows the
- * shell's Stopping, Deleting, Reinstalling and Starting steps and reconnects with fresh
- * queries, exactly as after any restart; a backend that refuses the empty root
- * leaves its diagnostics there like any failed start.
- */
+/** Recovery Waits for the Host's Preservation Contract. */
 function StorageResetRow({ directory }: { directory: string }) {
-  const owner = useNativeSessionController();
-  const inputId = useId();
-  const [open, setOpen] = useState(false);
-  const [typed, setTyped] = useState("");
-  const armed = storageResetConfirmed(typed);
-
-  function change(next: boolean) {
-    setOpen(next);
-    setTyped("");
-  }
-
-  function confirm(event: FormEvent) {
-    event.preventDefault();
-    if (!armed) return;
-    change(false);
-    void owner.resetLocalStorage(directory);
-  }
-
   return (
     <SettingsRow
-      description="Deletes cycles, executions, records and evidence files, restores installed plugins and valid settings, then restarts the backend. Secrets are retained."
+      description="Recovery is unavailable until the host can preserve plugins, settings, identity and secrets. Preserve this folder and select a fresh storage root."
       label="Reset Local Storage"
     >
-      <Button onClick={() => change(true)} size="sm" variant="destructive">
+      <code className="text-xs break-all">{directory}</code>
+      <Button disabled size="sm" variant="destructive">
         <TriangleAlert data-icon="inline-start" />
         Reset Local Storage
       </Button>
-      <Dialog onOpenChange={change} open={open}>
-        <DialogContent className="sm:max-w-lg">
-          <form className="grid gap-4" onSubmit={confirm}>
-            <DialogHeader>
-              <DialogTitle>Reset Local Storage</DialogTitle>
-              <DialogDescription>
-                Every cycle, execution, record and evidence file in this directory is permanently deleted. Installed plugins, valid plugin
-                settings and secrets are retained. The backend then restarts. Deleted evidence cannot be recovered without a backup.
-              </DialogDescription>
-            </DialogHeader>
-            <code className="block rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
-              {directory}
-            </code>
-            <div className="grid gap-2">
-              <label className="text-sm" htmlFor={inputId}>
-                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span> To Confirm
-              </label>
-              <Input autoComplete="off" id={inputId} onChange={(event) => setTyped(event.target.value)} spellCheck={false} value={typed} />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button onClick={() => change(false)} type="button" variant="outline">
-                Cancel
-              </Button>
-              <Button disabled={!armed} type="submit" variant="destructive">
-                Delete and Restart
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </SettingsRow>
   );
 }

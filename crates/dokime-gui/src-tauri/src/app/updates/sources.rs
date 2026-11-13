@@ -21,7 +21,7 @@ use serde::Deserialize;
 use url::Url;
 
 // Local Imports
-use dokime::config::organization::policy::{Mode, Source, UpdatePolicy, https_url};
+use super::policy::{Mode, Source, UpdatePolicy, https_url};
 
 /* === Constants === */
 
@@ -34,11 +34,6 @@ const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-pub(super) struct ReleaseSource {
-    pub feed: Url,
-    assets: Option<BTreeMap<String, Url>>,
-}
 
 #[derive(Deserialize)]
 struct GithubRelease {
@@ -73,19 +68,6 @@ struct GitlabAsset {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl ReleaseSource {
-    pub fn asset(&self, name: &str) -> Result<Url, String> {
-        if !dokime::domain::model::plugins::release::filename(name) {
-            return Err("Invalid release asset name".into());
-        }
-        if let Some(assets) = &self.assets {
-            return assets.get(name).cloned().ok_or_else(|| format!("The release has no {name} asset"));
-        }
-        let url = self.feed.join(name).map_err(|error| error.to_string())?;
-        https_url(url.as_str())
-    }
-}
 
 /* === Public Functions === */
 
@@ -122,11 +104,7 @@ pub(super) async fn fetch(url: &Url, maximum: usize) -> Result<Vec<u8>, String> 
     Ok(bytes)
 }
 
-pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str) -> Result<Url, String> {
-    Ok(release_source(policy, asset).await?.feed)
-}
-
-pub(super) async fn release_source(policy: &UpdatePolicy, feed_name: &str) -> Result<ReleaseSource, String> {
+pub(super) async fn resolve(policy: &UpdatePolicy, feed_name: &str) -> Result<Url, String> {
     policy.validate()?;
     if policy.mode == Mode::Disabled {
         return Err("Updates are disabled".into());
@@ -135,7 +113,7 @@ pub(super) async fn release_source(policy: &UpdatePolicy, feed_name: &str) -> Re
     let source = policy.sources.get(selected).ok_or("The selected release source is unavailable")?;
     let entries: Vec<(String, String)> = match source {
         Source::Direct { manifest, .. } => {
-            return Ok(ReleaseSource { feed: https_url(manifest)?, assets: None });
+            return https_url(manifest);
         }
         Source::Github { repository } => {
             let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"))?;
@@ -162,7 +140,7 @@ pub(super) async fn release_source(policy: &UpdatePolicy, feed_name: &str) -> Re
     };
     let assets = named_assets(entries)?;
     let feed = assets.get(feed_name).cloned().ok_or_else(|| format!("The release has no {feed_name} asset"))?;
-    Ok(ReleaseSource { feed, assets: Some(assets) })
+    Ok(feed)
 }
 
 /* === Private Functions === */

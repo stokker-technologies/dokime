@@ -8,7 +8,7 @@
  */
 
 /* === Value format types ===
-   Mirrors `dokime_domain::model::values::format::ValueFormat` (crates/dokime-domain/src/model/values/format.rs).
+   Projects the host value-format contract into the desktop view model.
    Five number kinds, three time kinds; `kind` is the serde tag. */
 
 export type ElapsedUnit = "seconds" | "milliseconds" | "minutes";

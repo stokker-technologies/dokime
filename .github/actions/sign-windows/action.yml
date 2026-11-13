@@ -1,0 +1,124 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+name: Sign and Package Windows
+description: Sign Windows executables and the installer before updater signatures and package checksums.
+inputs:
+  profile:
+    description: Existing product build profile (dev or release).
+    required: true
+  azure-tenant-id:
+    description: Azure tenant ID.
+    default: ''
+  azure-client-id:
+    description: Azure application client ID.
+    default: ''
+  azure-client-secret:
+    description: Azure application client secret.
+    default: ''
+  azure-endpoint:
+    description: Artifact Signing regional endpoint.
+    default: ''
+  azure-account:
+    description: Artifact Signing account name.
+    default: ''
+  azure-profile:
+    description: Artifact Signing certificate profile name.
+    default: ''
+  pfx-base64:
+    description: Base64-encoded PFX certificate and private key; alternative to Azure.
+    default: ''
+  pfx-password:
+    description: PFX password.
+    default: ''
+  timestamp-url:
+    description: RFC 3161 timestamp service URL.
+    default: http://timestamp.acs.microsoft.com
+outputs:
+  provider:
+    description: Selected provider (azure, pfx or none).
+    value: ${{ steps.configure.outputs.provider }}
+runs:
+  using: composite
+  steps:
+    - name: Select Signing Provider
+      id: configure
+      shell: pwsh
+      env:
+        DOKIME_PROFILE: ${{ inputs.profile }}
+        AZURE_TENANT_ID: ${{ inputs.azure-tenant-id }}
+        AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
+        AZURE_CLIENT_SECRET: ${{ inputs.azure-client-secret }}
+        DOKIME_SIGNING_ENDPOINT: ${{ inputs.azure-endpoint }}
+        DOKIME_SIGNING_ACCOUNT: ${{ inputs.azure-account }}
+        DOKIME_SIGNING_PROFILE: ${{ inputs.azure-profile }}
+        DOKIME_SIGNING_PFX: ${{ inputs.pfx-base64 }}
+        DOKIME_SIGNING_PFX_PASSWORD: ${{ inputs.pfx-password }}
+      run: |
+        if ($env:RUNNER_OS -ne 'Windows') { throw 'This action requires Windows.' }
+        if ($env:DOKIME_PROFILE -notin @('dev', 'release')) { throw 'Profile must be dev or release.' }
+        mise exec -- uv run --no-sync --project tools/python python -c "from dokime_tools.ci.transport import receive; receive()"
+        if ($LASTEXITCODE -ne 0) { throw 'Product archive extraction failed.' }
+        $provider = & ./tools/powershell/authenticode.ps1 -Operation Select
+        if ($LASTEXITCODE -ne 0) { throw 'Invalid signing configuration.' }
+        "provider=$provider" >> $env:GITHUB_OUTPUT
+        $bin = (Resolve-Path "target/build/$env:DOKIME_PROFILE/windows-x86_64/bin").Path
+        if (-not (Test-Path -LiteralPath "$bin/dokime-gui.exe") -or -not (Test-Path -LiteralPath "$bin/dokime-next.exe")) {
+          throw 'The matching Desktop and CLI product binaries are required.'
+        }
+        "bin=$bin" >> $env:GITHUB_OUTPUT
+        if ($provider -eq 'none') { Write-Host '::notice::Authenticode skipped: no signing secrets configured; packaging continues.' }
+
+    - name: Sign Exported Executables with Azure Artifact Signing
+      if: steps.configure.outputs.provider == 'azure'
+      uses: Azure/artifact-signing-action@29de24bf030cfee71b1ad0207ab4d69e74514a42
+      with:
+        azure-tenant-id: ${{ inputs.azure-tenant-id }}
+        azure-client-id: ${{ inputs.azure-client-id }}
+        azure-client-secret: ${{ inputs.azure-client-secret }}
+        endpoint: ${{ inputs.azure-endpoint }}
+        signing-account-name: ${{ inputs.azure-account }}
+        certificate-profile-name: ${{ inputs.azure-profile }}
+        files-folder: ${{ steps.configure.outputs.bin }}
+        files-folder-filter: exe
+        file-digest: SHA256
+        timestamp-rfc3161: ${{ inputs.timestamp-url }}
+        timestamp-digest: SHA256
+        exclude-azure-cli-credential: 'true'
+        cache-dependencies: 'false'
+
+    - name: Verify Executables and Package Signed Installer
+      shell: pwsh
+      env:
+        DOKIME_PROFILE: ${{ inputs.profile }}
+        DOKIME_BIN: ${{ steps.configure.outputs.bin }}
+        DOKIME_AUTHENTICODE_PROVIDER: ${{ steps.configure.outputs.provider }}
+        AZURE_TENANT_ID: ${{ inputs.azure-tenant-id }}
+        AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
+        AZURE_CLIENT_SECRET: ${{ inputs.azure-client-secret }}
+        DOKIME_SIGNING_ENDPOINT: ${{ inputs.azure-endpoint }}
+        DOKIME_SIGNING_ACCOUNT: ${{ inputs.azure-account }}
+        DOKIME_SIGNING_PROFILE: ${{ inputs.azure-profile }}
+        DOKIME_SIGNING_PFX: ${{ inputs.pfx-base64 }}
+        DOKIME_SIGNING_PFX_PASSWORD: ${{ inputs.pfx-password }}
+        DOKIME_SIGNING_TIMESTAMP: ${{ inputs.timestamp-url }}
+      run: |
+        if ($env:DOKIME_AUTHENTICODE_PROVIDER -ne 'none') {
+          $operation = if ($env:DOKIME_AUTHENTICODE_PROVIDER -eq 'pfx') { 'Sign' } else { 'Verify' }
+          foreach ($file in Get-ChildItem -LiteralPath $env:DOKIME_BIN -Filter '*.exe' -File) {
+            & ./tools/powershell/authenticode.ps1 -Operation $operation -Path $file.FullName
+            if ($LASTEXITCODE -ne 0) { throw 'Executable signing or verification failed.' }
+          }
+          # Re-Export Signed Product Bytes Before Packaging Validates Their Inventory
+          mise run build:distribution --profile $env:DOKIME_PROFILE
+          if ($LASTEXITCODE -ne 0) { throw 'Signed distribution export failed.' }
+        }
+        $env:CI_INPUT_ARCHIVES = '[]'
+        mise run package -- --language rust --profile $env:DOKIME_PROFILE
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+

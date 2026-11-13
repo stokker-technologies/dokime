@@ -86,7 +86,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
       : undefined,
   }));
   // Changes apply in the running backend; re-read the list until each one has.
-  usePluginRestartRefresh(entries.find((entry) => entry.restart !== "idle")?.restart);
+  usePluginRestartRefresh(entries.find((entry) => entry.restart !== undefined && entry.restart !== "idle")?.restart);
 
   /* A plugin's settings page is its contributed section. The frame keys those
      by installed plugin, and an artifact names the installation it came
@@ -187,11 +187,18 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
+                  disabled={
+                    !desktop || releaseMutation.isPending || installMutation.isPending || Boolean(releaseMutation.unavailableReason)
+                  }
                   onClick={() => releaseMutation.mutate()}
                 >
                   Check for Updates
                 </Button>
+                {releaseMutation.unavailableReason ? (
+                  <span className="text-muted-foreground text-sm" role="status">
+                    {releaseMutation.unavailableReason}
+                  </span>
+                ) : null}
               </>
             }
             entries={entries}

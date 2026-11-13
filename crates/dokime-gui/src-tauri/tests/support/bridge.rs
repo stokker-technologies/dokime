@@ -27,13 +27,9 @@ use std::{
 // Third Party Imports
 use base64::Engine;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime_gui::{
-    connection::ConnectionSession,
-    rpc::{Bridge, FILE_DESCRIPTOR_SET},
-};
+use dokime_gui::{connection::ConnectionSession, rpc::Bridge};
 
 /* === Constants === */
 
@@ -54,6 +50,8 @@ pub struct Harness {
     channels: AtomicU32,
 }
 
+pub struct Process(pub Child);
+
 #[derive(Clone, Default)]
 struct Writer(Arc<Mutex<Option<ChildStdin>>>);
 
@@ -70,6 +68,13 @@ pub enum Local {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 impl Writer {
     fn line(&self, value: &Value) {
@@ -239,7 +244,7 @@ pub fn invoke(window: &Window, cmd: &str, bytes: Vec<u8>, headers: &Value) -> Re
 
 pub fn fenced(generation: u64, payload: &[u8]) -> Vec<u8> {
     let mut bytes = generation.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
+    bytes.extend(dokime_gui::rpc::descriptor_digest());
     bytes.extend_from_slice(payload);
     bytes
 }
