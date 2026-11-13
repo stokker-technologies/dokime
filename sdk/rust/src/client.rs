@@ -21,7 +21,7 @@ pub use host::{
 
 pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
 pub use harmos_protocol::v1::{
-    CatalogEntriesListRequest, CatalogEntriesListResponse, CatalogKind, DiscoveredContract, DiscoveredOperation,
+    CatalogEntriesListRequest, CatalogEntriesListResponse, CatalogKind, DiscoveredContract, DiscoveredOperation, PageRequest,
 };
 
 /* === Imports === */

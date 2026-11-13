@@ -49,6 +49,7 @@ pub struct Step {
     handler: Action<()>,
     policy: harmos::OperationPolicy,
     repeatable: bool,
+    replay_safe: bool,
     invalid_retries: bool,
 }
 
@@ -87,6 +88,7 @@ impl Step {
             handler: operation::action(handler),
             policy: harmos::OperationPolicy::default(),
             repeatable: false,
+            replay_safe: false,
             invalid_retries: false,
         }
     }
@@ -101,12 +103,17 @@ impl Step {
     // Retrying Is Host Policy; the SDK Does Not Loop or Sleep Locally.
     pub fn retries(mut self, retries: u32) -> Self {
         self.invalid_retries = retries == u32::MAX;
+        self.replay_safe = retries > 0;
         self.policy.retries = (retries > 0).then_some(harmos::RetryPolicy {
             total_attempts: u64::from(retries) + 1,
             initial: Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 }),
             maximum: None,
             deterministic_jitter: false,
         });
+        self
+    }
+    pub fn replay_safe(mut self) -> Self {
+        self.replay_safe = true;
         self
     }
     pub fn policy(mut self, policy: harmos::OperationPolicy) -> Self {
@@ -298,8 +305,8 @@ impl Template {
                     Ok(Wire(v1::StepResponse {}))
                 },
             )
-            .policy(step.policy)
-            .replay_safe();
+            .policy(step.policy);
+            let handler = if step.replay_safe { handler.replay_safe() } else { handler };
             plugin = plugin.operation(handler);
         }
         for (index, criterion) in self.criteria.into_iter().enumerate() {

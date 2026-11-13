@@ -1227,6 +1227,16 @@ these contracts or claim implementation.
    the plugin protocol's own carriers and proven settlement; current product
    twins establish no such promise.
 
+6. **Converged library service names:** the adopted library declares
+   Access.Pairings.Create/List/Delete, Access.Certificates.Create,
+   Status.Get/Watch and Status.Diagnostics.Get. The locked product mapping still
+   names Access.CreatePairing/CreateCertificate and Status.Identity/Health/
+   Availability/Diagnostics. Both exact method sets cannot be served by direct
+   composition without forbidden product redeclarations or aliases. The closest
+   invariant-preserving implementation is to compose the actual library services;
+   reconcile the mapping before their client cutover. No alternate method set has
+   been implemented in this pin-adoption slice.
+
 ### Library Admission Request
 
 The converged revision's non-reserved `OperationContract::from_protobuf` path

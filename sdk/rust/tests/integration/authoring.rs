@@ -81,6 +81,10 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         3
     );
 
+    // Only the Step Authored With Retries Advertises Replay Safety.
+    assert!(catalog.operations.iter().find(|operation| operation.id == "thermal.cycle.step.0").unwrap().replay_safe);
+    assert!(!catalog.operations.iter().find(|operation| operation.id == "thermal.cycle.step.1").unwrap().replay_safe);
+
     // Admit the Suite and Materialize It Through the Published Harmos Reference Host.
     let runtime = reference::start().await?;
     let attached = runtime.attach_grpc(Placement::Remote(process.address.clone()), reference::placement()).await?;

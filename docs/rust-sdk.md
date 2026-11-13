@@ -98,7 +98,7 @@ The SDK generates Protected `<template>.materialize`, optional
 `<template>.initialize`, `<template>.step.<index>`, `<template>.criterion.<index>` and
 `<template>.cleanup` operations. Step/criterion evidence identifiers are separate
 from operation identifiers; `.identifier(...)` overrides their label-derived defaults.
-`.retries(n)` advertises host retry policy with a 100 ms backoff when none was
+`.retries(n)` declares replay safety when `n > 0` and advertises host retry policy with a 100 ms backoff when none was
 provided; it does not retry inside the plugin.
 `.policy(...)` accepts Harmos's full operation policy.
 An execution stream also gets a no-op initialize operation when there is no author
@@ -118,7 +118,9 @@ change the host's resolved parameter set. Duplicate identifiers fail catalog
 construction before serving. All execution calls must include the frozen case and
 matching `PluginRun` origin, and their execution must equal inherited Harmos scope.
 
-Ordinary typed operations compose through `Operation::new` with
+Use `Step::replay_safe()` to declare replay safety with a custom retry policy.
+
+Ordinary typed operations compose through `Operation::new(id, visibility, handler)` with
 `(&Context, Request) -> Result<Response>`. `OperationRequest` connects a message to
 its response and stable operation identifier. `.operation(...)` serves it;
 `.requires::<Request>()` declares a child-call dependency. Such calls run through
@@ -177,13 +179,12 @@ endpoint selection and wire/queue bounds. Authentication and per-call metadata
 are forwarded through Harmos; operation policy stays with the server.
 
 ```rust
-use dokime::{Client, client::{Catalog, CatalogKind}, v1};
+use dokime::{Client, client::{CatalogEntriesListRequest, CatalogKind, PageRequest}, v1};
 
 async fn health(client: &Client) -> Result<v1::BackendHealth, tonic::Status> {
-    let page = client.catalog(Catalog {
+    let page = client.catalog(CatalogEntriesListRequest {
         kind: CatalogKind::Operations as i32,
-        rows: Some(64),
-        bytes: Some(1_048_576),
+        page: Some(PageRequest { page_size: 64, max_bytes: 1_048_576, page_token: String::new() }),
         ..Default::default()
     }).await?.into_inner();
     let contract = page.operations.into_iter()
