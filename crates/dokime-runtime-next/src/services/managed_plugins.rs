@@ -384,14 +384,14 @@ mod tests {
             ..Default::default()
         };
         let temporary_report_limit = settings.max_cases;
-        let remote = super::super::remote_access::Control::new(host.store.clone(), identity.clone(), settings, administration.clone())?;
+        let runtime = super::super::composition::launch(clock).await?;
+        let status = runtime.services().configure_status(super::super::status::settings(&settings, identity.backend_id.clone()))?;
         let state = State {
             host,
             administration,
-            remote,
+            status,
             root: storage.clone(),
             identity,
-            diagnostics: super::super::Diagnostics::new(clock, NonZeroUsize::new(100).unwrap(), placement.message_bytes),
             render_settings: crate::RenderSettings {
                 page_size: NonZeroUsize::new(100).unwrap(),
                 display_points: NonZeroUsize::new(100).unwrap(),
