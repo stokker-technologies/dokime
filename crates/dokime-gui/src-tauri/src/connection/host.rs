@@ -20,6 +20,7 @@ mod tests;
 
 /* === Re-Exports === */
 
+pub(crate) use operations::DESCRIPTOR_SHA256;
 pub use pairing::Pairing;
 
 /* === Imports === */
@@ -58,12 +59,16 @@ pub struct ConnectionSettings {
 #[derive(Clone)]
 pub struct Session {
     client: Client,
+    channel: tonic::transport::Channel,
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
     identity: dokime_sdk::client::v1::StatusGetResponse,
     cancellation: CancellationToken,
     watches: Arc<tokio::sync::Mutex<tokio::task::JoinSet<()>>>,
     stream_buffer: usize,
+    read_timeout: Duration,
+    watch_timeout: Duration,
+    mutation_timeout: Duration,
 }
 
 /// The Desktop Owns Only The Host It Embeds, Never An Attached Host.
@@ -116,6 +121,92 @@ impl ConnectionSettings {
 }
 
 impl Session {
+    pub(crate) fn cancel(&self) {
+        self.cancellation.cancel();
+    }
+
+    pub(crate) async fn join(&self) {
+        self.cancel();
+        let mut watches = self.watches.lock().await;
+        while watches.join_next().await.is_some() {}
+    }
+
+    pub(crate) async fn connect_target(target: &super::ConnectionTarget, settings: &ConnectionSettings) -> Result<Self, Error> {
+        match target {
+            super::ConnectionTarget::Local { endpoint } => {
+                validate_local(endpoint)?;
+                Self::connect(endpoint, None, settings).await
+            }
+            super::ConnectionTarget::Remote { pairing_file } => {
+                let pairing = Arc::new(Pairing::read(Path::new(pairing_file))?);
+                let mut failure = None;
+                for endpoint in &pairing.endpoints {
+                    match Self::connect(endpoint, Some(pairing.clone()), settings).await {
+                        Ok(session) => return Ok(session),
+                        Err(error @ Error::Transport(_)) => failure = Some(error),
+                        Err(error) => return Err(error),
+                    }
+                }
+                Err(failure.expect("validated pairing endpoints"))
+            }
+        }
+    }
+
+    pub async fn unary<Q: Message, R: Message + Default>(&self, path: &str, request: Q) -> Result<R, Error> {
+        let bytes = self.call_raw(path, &request.encode_to_vec()).await?;
+        R::decode(bytes.as_slice()).map_err(|error| Status::data_loss(error.to_string()).into())
+    }
+
+    pub async fn upload_artifact(
+        &self, items: impl tokio_stream::Stream<Item = dokime_sdk::v1::UploadArtifactFrame> + Send + 'static,
+    ) -> Result<dokime_sdk::v1::ArtifactMetadata, Error> {
+        use dokime_sdk::v1;
+        use tokio_stream::StreamExt;
+        let opening = v1::ContentUploadArtifactInput {
+            value: Some(v1::content_upload_artifact_input::Value::Request(v1::ContentUploadArtifactRequest {})),
+        };
+        let items = tokio_stream::once(opening).chain(items.map(|item| v1::ContentUploadArtifactInput {
+            value: Some(v1::content_upload_artifact_input::Value::Item(item)),
+        }));
+        let mut request = self.request(items)?;
+        request.set_timeout(self.mutation_timeout);
+        let mut client = v1::content_client::ContentClient::new(self.channel.clone());
+        Ok(self.execute(client.upload_artifact(request)).await?.into_inner())
+    }
+
+    pub async fn install_plugin(
+        &self, items: impl tokio_stream::Stream<Item = dokime_sdk::v1::InstallPluginFrame> + Send + 'static,
+    ) -> Result<dokime_sdk::v1::PluginInstallation, Error> {
+        use dokime_sdk::v1;
+        use tokio_stream::StreamExt;
+        let opening = v1::PluginsInstallInput {
+            value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+        };
+        let items = tokio_stream::once(opening).chain(items.map(|item| v1::PluginsInstallInput {
+            value: Some(v1::plugins_install_input::Value::Item(item)),
+        }));
+        let mut request = self.request(items)?;
+        request.set_timeout(self.mutation_timeout);
+        let mut client = v1::plugins_client::PluginsClient::new(self.channel.clone());
+        Ok(self.execute(client.install(request)).await?.into_inner())
+    }
+
+    pub(crate) fn mutation_timeout(&self) -> Duration {
+        self.mutation_timeout
+    }
+
+    pub(crate) fn with_timeout(&self, timeout: Duration) -> Self {
+        let mut session = self.clone();
+        session.read_timeout = timeout;
+        session
+    }
+
+    pub(crate) fn with_watch_timeout(&self, timeout: Duration) -> Self {
+        let mut session = self.clone();
+        session.watch_timeout = timeout;
+        session
+    }
+
     pub fn client(&self) -> &Client {
         &self.client
     }
@@ -135,6 +226,7 @@ impl Session {
     /// Generated Library Roots Accept Metadata On Each Request.
     pub fn request<T>(&self, message: T) -> Result<Request<T>, Error> {
         let mut request = Request::new(message);
+        request.set_timeout(self.read_timeout);
         if let Some(pairing) = &self.pairing {
             request.metadata_mut().insert("authorization", pairing.authorization()?);
         }
@@ -154,13 +246,13 @@ impl Session {
     }
 
     pub async fn call_raw(&self, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
-        operations::call(self, path, payload).await
+        Box::pin(operations::call(self, path, payload)).await
     }
 
     pub async fn watch_raw(
         &self, path: &str, payload: &[u8],
     ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<Vec<u8>, Error>>, Error> {
-        operations::watch(self, path, payload).await
+        Box::pin(operations::watch(self, path, payload)).await
     }
 
     async fn call<Q, R>(&self, path: &'static str, payload: &[u8]) -> Result<Vec<u8>, Error>
@@ -185,7 +277,8 @@ impl Session {
         O: ReflectMessage + Default + Send + 'static,
     {
         let value = Q::decode(payload).map_err(|error| Status::invalid_argument(format!("{path}: {error}")))?;
-        let request = self.request(value)?;
+        let mut request = self.request(value)?;
+        request.set_timeout(self.watch_timeout);
         let transport = self.client.transport_handle();
         let mut watch = self
             .execute(transport.watch_known::<Q, O>(path.parse().expect("generated operation path"), request, O::default().descriptor()))
@@ -233,18 +326,22 @@ impl Session {
             )?;
         }
         let channel = transport.connect().await?;
-        let mut client = Client::from_channel(channel, settings.client)?;
+        let mut client = Client::from_channel(channel.clone(), settings.client)?;
         if let Some(pairing) = &pairing {
             client = client.authorization(pairing.authorization()?);
         }
         let mut session = Self {
             client,
+            channel,
             pairing,
             endpoint: endpoint.to_owned(),
             identity: Default::default(),
             cancellation: CancellationToken::new(),
             watches: Arc::new(tokio::sync::Mutex::new(tokio::task::JoinSet::new())),
             stream_buffer: settings.client.input_items.get(),
+            read_timeout: settings.services.read_timeout,
+            watch_timeout: settings.services.watch_timeout,
+            mutation_timeout: settings.services.mutation_timeout,
         };
         let request = session.request(dokime_sdk::client::v1::StatusGetRequest {})?;
         let reply = session.client.status.get(request).await?.into_inner();
@@ -344,9 +441,44 @@ impl Drop for Connection {
 
 /* === Public Functions === */
 
+pub(crate) fn desktop_settings() -> ConnectionSettings {
+    use dokime_runtime_next::{HostSettings, PlacementSettings};
+    use std::num::NonZeroUsize;
+    let message_bytes = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).expect("desktop frame bound");
+    let stream_buffer = NonZeroUsize::new(8).expect("desktop stream buffer");
+    ConnectionSettings {
+        host: HostSettings {
+            clock: Arc::new(services::WallClock),
+            placement: PlacementSettings {
+                connect_timeout: Duration::from_secs(30),
+                reconnect_delay: Duration::from_millis(25),
+                stop_grace: Duration::from_secs(30),
+                stream_window: stream_buffer,
+                message_bytes,
+            },
+        },
+        services: services::ClientSettings {
+            read_timeout: Duration::from_secs(30),
+            mutation_timeout: Duration::from_secs(30),
+            watch_timeout: Duration::from_secs(3600),
+            max_cases: 1000,
+            page_items: 1000,
+            message_bytes: message_bytes.get(),
+            stream_buffer: stream_buffer.get(),
+        },
+        client: ClientSettings {
+            retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).expect("desktop retained bytes"),
+            message_bytes,
+            input_items: stream_buffer,
+            input_bytes: message_bytes,
+        },
+        connect_timeout: Duration::from_secs(30),
+    }
+}
+
 /* === Private Functions === */
 
-fn validate_local(endpoint: &str) -> Result<(), Error> {
+pub(super) fn validate_local(endpoint: &str) -> Result<(), Error> {
     let url = url::Url::parse(endpoint).map_err(|error| Error::Target(error.to_string()))?;
     let loopback = match url.host() {
         Some(url::Host::Ipv4(address)) => address.is_loopback(),

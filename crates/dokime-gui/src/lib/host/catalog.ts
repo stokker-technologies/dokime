@@ -12,20 +12,12 @@
 /* === External Imports === */
 
 import type { Parameter, ParameterExpression, Suite, TestCaseTemplate } from "@host/dokime/v1/catalog_pb.js";
-import type { SuiteIdentity, Cursor } from "@host/dokime/v1/client_types_pb.js";
+import type { SuiteIdentity } from "@host/dokime/v1/client_types_pb.js";
 import { ValueType } from "@host/dokime/v1/values_pb.js";
 
 /* === Local Imports === */
 
-import {
-  mapBounded,
-  NATIVE_CASE_LIMIT,
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  safeNumber,
-  uniqueStrings,
-} from "@/lib/api/native-values";
+import { mapBounded, NATIVE_CASE_LIMIT, NativeApiLimitError, safeNumber, uniqueStrings } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { ParameterDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
@@ -48,19 +40,8 @@ export async function fetchNativeSuite(session: SessionIdentity, suiteId: string
 }
 
 async function listSuites(session: SessionIdentity): Promise<Wire<SuiteIdentity>[]> {
-  const result: Wire<SuiteIdentity>[] = [];
-  let afterSuiteId = "";
-  let cursor: Wire<Cursor> | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await client.catalogListSuites(session, { limit: NATIVE_PAGE_SIZE, afterSuiteId, cursor });
-    result.push(...reply.suites);
-    const next = reply.nextAfterSuiteId;
-    if (!next) return result;
-    if (next === afterSuiteId) throw new NativeApiLimitError("List Suites", "Continuation Did Not Advance");
-    afterSuiteId = next;
-    cursor = reply.cursor;
-  }
-  throw new NativeApiLimitError("List Suites", "Page Budget Reached");
+  const reply = await client.catalogListSuites(session, {});
+  return reply.suites;
 }
 
 export function mapSuite(definition: Wire<Suite>, identity: Wire<SuiteIdentity>): TestSuiteEntry {

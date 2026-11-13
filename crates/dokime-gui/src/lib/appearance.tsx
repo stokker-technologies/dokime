@@ -9,6 +9,8 @@
 
 /* === Imports === */
 
+import { ThemeModePolicy } from "@host/dokime/v1/appearance_pb.js";
+
 import { failureOf } from "@/lib/notification-details";
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
 import { toast } from "@/lib/notifications";
@@ -168,7 +170,7 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
       label: theme.label,
       description: theme.description ?? null,
       stylesheet: theme.stylesheet ?? null,
-      variables: Object.fromEntries(theme.variables.map(({ key, value }) => [key, value])),
+      variables: { ...theme.variables },
       corner_radii: theme.cornerRadii
         ? {
             base: theme.cornerRadii.base ?? null,
@@ -182,11 +184,11 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
           }
         : undefined,
       light: {
-        variables: Object.fromEntries((theme.light?.variables ?? []).map(({ key, value }) => [key, value])),
+        variables: { ...theme.light?.variables },
         plot_palette: [...(theme.light?.plotPalette ?? [])],
       },
       dark: {
-        variables: Object.fromEntries((theme.dark?.variables ?? []).map(({ key, value }) => [key, value])),
+        variables: { ...theme.dark?.variables },
         plot_palette: [...(theme.dark?.plotPalette ?? [])],
       },
     })),
@@ -199,12 +201,12 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
 }
 
 function nativeModePolicy(policy: AppearanceResource["appearance"]["modePolicy"]): RuntimeThemeModePolicy {
-  switch (policy?.HarmosVariant.case) {
-    case "ForceSystem":
+  switch (policy) {
+    case ThemeModePolicy.FORCE_SYSTEM:
       return "force_system";
-    case "ForceLight":
+    case ThemeModePolicy.FORCE_LIGHT:
       return "force_light";
-    case "ForceDark":
+    case ThemeModePolicy.FORCE_DARK:
       return "force_dark";
     default:
       return "user_or_system";

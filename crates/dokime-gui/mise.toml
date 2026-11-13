@@ -30,3 +30,10 @@ run = "node tools/host-bindings.mjs --frontend"
 hide = true
 description = "Generate the Embedded Report"
 run = "pnpm run build:report"
+
+# === Build === #
+
+[tasks."build:frontend"]
+hide = true
+description = "Build the Desktop Frontend from Prepared Messages"
+run = ["pnpm run typecheck", "pnpm run build:live"]

@@ -5,7 +5,7 @@ import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { toast } from "@/lib/notifications";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 export interface SessionControls {
@@ -111,8 +111,8 @@ export class NativeSession {
         for (const dispose of disposers) dispose();
         disposers.clear();
       };
-      const identity = await rpc.backendGetIdentity(session.identity, {});
-      if (identity.backendId !== backend.backendId || identity.epoch !== backend.epoch) {
+      const ready = await rpc.statusGet(session.identity, {});
+      if (ready.status?.identity?.hostId !== backend.backendId || ready.resolvedAt?.history?.epoch !== backend.epoch) {
         throw new Error("The bridge reached a different backend identity or epoch.");
       }
       if (revision !== this.revision) return;

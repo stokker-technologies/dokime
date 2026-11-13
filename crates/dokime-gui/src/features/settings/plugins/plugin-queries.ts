@@ -128,13 +128,17 @@ export function useInstallPluginMutation() {
 
 export function usePluginReleaseMutation() {
   const session = useNativeSession();
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async () => {
       const release = await commands.desktopPluginReleaseCheck(session.identity.generation);
       if (!session.identity.isCurrent()) throw new Error("The backend changed while checking plugin releases.");
       return release;
     },
   });
+  const unavailableReason = session.snapshot.connection.backend?.target
+    ? null
+    : "The host does not publish its build target. Install a verified bundle file until release selection is available.";
+  return { ...mutation, unavailableReason };
 }
 
 export function useRemovePluginMutation() {

@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -26,12 +25,13 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
+use dokime_sdk::v1;
+use sha2::{Digest, Sha256};
+const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 /* === Constants === */
 
 // Each progress message re-renders the webview; bound how often one is sent.
-const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 // A native drop is installed right after the webview sees it; an older one is stale.
 const DROP_VALIDITY: Duration = Duration::from_secs(30);
 
@@ -141,41 +141,41 @@ async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<Pat
 
 pub(super) async fn install(
     lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
-) -> Result<dokime::domain::model::plugins::wire::PluginInstallation, String> {
-    // Hash Once, off the Async Workers
-    let started = Instant::now();
-    let size_bytes = bytes.len();
+) -> Result<v1::PluginInstallation, String> {
+    let size_bytes = bytes.len() as u64;
     let hashing = move || {
-        let sha256 = dokime::client::plugin_bundle_digest(&bytes);
-        (bytes, sha256)
+        let digest = Sha256::digest(&bytes);
+        (bytes, digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>())
     };
     let (bytes, sha256) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
     if expected_digest.is_some_and(|expected| !expected.eq_ignore_ascii_case(&sha256)) {
         return Err("The downloaded plugin does not match the release SHA-256".into());
     }
-
-    // Stream the Advertised Chunk Size over the Shared Client
-    let frame_limit = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).ok_or("The desktop upload frame limit is invalid")?;
-    let client = lease.client().with_frame_limit(frame_limit);
-    let mut reported: Option<Instant> = None;
-    let report = move |sent: u64, total: u64| {
-        if sent == total {
-            let _ = progress.send(InstallProgress::Installing);
-            return;
-        }
-        if reported.is_some_and(|last| last.elapsed() < PROGRESS_INTERVAL) {
-            return;
-        }
-        reported = Some(Instant::now());
-        let _ = progress.send(InstallProgress::Uploading { sent, total });
+    let header = v1::InstallPluginFrame {
+        frame: Some(v1::InstallPluginFrameFrame {
+            kind: Some(v1::install_plugin_frame_frame::Kind::Header(v1::InstallPluginHeader { size_bytes, sha256 })),
+        }),
     };
-    let installing = client.plugins_install_bundle(bytes, sha256, report);
-    let installed = lease.guard(installing).await.map_err(|error| format!("{error:?}"))?;
-    let installed = installed.map_err(|error| match error {
-        dokime::client::UploadError::Client(dokime::client::Error::Rpc(status)) => format!("{}: {}", status.code(), status.message()),
-        error => error.to_string(),
-    })?;
-    tracing::info!(size_bytes, elapsed_ms = started.elapsed().as_millis(), "plugin bundle installed from the desktop");
+    let (sender, receiver) = tokio::sync::mpsc::channel(2);
+    sender.send(header).await.map_err(text)?;
+    let uploading = async move {
+        let mut offset = 0;
+        for chunk in bytes.chunks(64 * 1024) {
+            let frame = v1::InstallPluginFrame {
+                frame: Some(v1::InstallPluginFrameFrame {
+                    kind: Some(v1::install_plugin_frame_frame::Kind::Chunk(v1::InstallPluginChunk { offset, data: chunk.to_vec() })),
+                }),
+            };
+            sender.send(frame).await.map_err(text)?;
+            offset += chunk.len() as u64;
+            let _ = progress.send(InstallProgress::Uploading { sent: offset, total: size_bytes });
+        }
+        let _ = progress.send(InstallProgress::Installing);
+        Ok::<_, String>(())
+    };
+    let session = lease.client();
+    let installing = async { session.install_plugin(tokio_stream::wrappers::ReceiverStream::new(receiver)).await.map_err(text) };
+    let (_, installed) = lease.guard(async { tokio::try_join!(uploading, installing) }).await.map_err(|error| format!("{error:?}"))??;
     Ok(installed)
 }
 

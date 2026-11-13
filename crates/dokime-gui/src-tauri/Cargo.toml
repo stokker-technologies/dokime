@@ -43,8 +43,7 @@ testing = []
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
-dokime-server = { workspace = true }
+dokime = { workspace = true, features = ["native", "diagnostics"] }
 dokime-sdk = { package = "dokime", path = "../../../sdk/rust" }
 dokime-runtime-next = { workspace = true }
 dokime-protocol = { workspace = true }
@@ -61,7 +60,6 @@ tracing-subscriber = { workspace = true }
 
 # Utilities
 harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
@@ -112,7 +110,6 @@ tauri-plugin-updater = { workspace = true, optional = true }
 
 [build-dependencies]
 # Local
-dokime = { workspace = true }
 
 # Git
 
@@ -121,7 +118,6 @@ dokime = { workspace = true }
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -151,6 +147,7 @@ tauri-build = { workspace = true, features = [] }
 criterion = { workspace = true }
 # Local
 dokime = { package = "dokime-facade", path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
+dokime-server = { workspace = true }
 dokime-tracing = { workspace = true }
 
 # Git
@@ -160,6 +157,7 @@ dokime-tracing = { workspace = true }
 # Logging
 
 # Utilities
+harmos-sdk = { workspace = true, features = ["grpc"] }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
@@ -199,7 +197,12 @@ tauri = { workspace = true, features = ["test"] }
 # Logging
 
 # Utilities
-windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_WindowsAndMessaging"] }
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Security_Authorization",
+  "Win32_System_Com",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 # Serialization
 

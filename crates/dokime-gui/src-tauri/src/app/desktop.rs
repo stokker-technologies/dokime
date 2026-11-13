@@ -167,15 +167,17 @@ pub async fn desktop_pairing_create(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle,
 ) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
-    use dokime::operations::remote::ReadListener;
     let local = |message: String| ConnectionError::Registry { message, cause: None };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();
     let lease = state.lease(&status.generation)?;
     let client = lease.client();
-    let listener = client.call(ReadListener {}).await?;
-    let settings = listener.settings.ok_or_else(|| local("Listener settings unavailable".into()))?;
-    let enable = listener.listening_address.is_none();
+    let listener = client
+        .execute(client.client().access.listener.get(client.request(dokime_sdk::client::v1::access::ListenerGetRequest {})?))
+        .await?
+        .into_inner();
+    let settings = listener.value.ok_or_else(|| local("Listener settings unavailable".into()))?;
+    let enable = listener.bound_endpoint.is_empty();
     let confirm_app = app.clone();
     let confirmed = if enable {
         tauri::async_runtime::spawn_blocking(move || {
@@ -209,7 +211,7 @@ pub async fn desktop_pairing_create(
         now.minute(),
         now.second()
     );
-    if settings.address.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
+    if settings.endpoint.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
         label.push_str(" (Same PC)");
     }
     let filename = sanitize_filename(&label, DesktopSaveKind::Artifact, 128).map_err(local)?;
@@ -254,10 +256,8 @@ pub async fn desktop_pairing_create(
     state.with_current(&status.generation, || ())?;
     let client = lease.client();
     let mut created = create_remote_access(&client, label, enable).await?;
-    let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
-    if let Some(key) = created.pairing.access_key.as_mut() {
-        zeroize::Zeroize::zeroize(key);
-    }
+    let bytes = serde_json::to_vec_pretty(&created).map(zeroize::Zeroizing::new);
+    zeroize::Zeroize::zeroize(&mut created.access_key);
     let session = state.inner().clone();
     let generation = status.generation;
     let destination = path.clone();
@@ -292,18 +292,43 @@ pub async fn desktop_pairing_create(
 }
 
 pub async fn create_remote_access(
-    client: &dokime::client::Client, label: String, enable: bool,
-) -> Result<dokime::domain::model::remote::CreatedPairing, crate::Error> {
-    use dokime::operations::remote::{CreatePairing, ReadListener, UpdateListener};
+    client: &crate::connection::host::Session, label: String, enable: bool,
+) -> Result<crate::connection::host::Pairing, crate::Error> {
+    use dokime_sdk::client::v1::access;
     if enable {
-        let mut settings = client.call(ReadListener {}).await?.settings.ok_or_else(|| crate::connection::ConnectionError::Registry {
+        let current =
+            client.execute(client.client().access.listener.get(client.request(access::ListenerGetRequest {})?)).await?.into_inner();
+        let mut value = current.value.ok_or_else(|| crate::connection::ConnectionError::Registry {
             message: "Listener settings unavailable".into(),
             cause: None,
         })?;
-        settings.enabled = true;
-        client.call(UpdateListener { settings: Some(settings) }).await?;
+        value.enabled = true;
+        client
+            .execute(client.client().access.listener.set(client.request(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: current.revision,
+            })?))
+            .await?;
     }
-    Ok(client.call(CreatePairing { label }).await?)
+    let created = client
+        .execute(client.client().access.pairings.create(client.request(access::PairingsCreateRequest { label: label.clone() })?))
+        .await?
+        .into_inner();
+    Ok(crate::connection::host::Pairing {
+        version: 1,
+        backend_identifier: client
+            .identity()
+            .status
+            .as_ref()
+            .and_then(|status| status.identity.as_ref())
+            .expect("ready host")
+            .host_id
+            .clone(),
+        label,
+        endpoints: vec![created.endpoint],
+        certificate_pem: created.pinned_certificate_pem,
+        access_key: created.credential,
+    })
 }
 
 pub async fn desktop_save_document(
@@ -518,7 +543,7 @@ pub(super) fn ensure_generation_token(generation: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
+pub(crate) fn ensure_private_directory(path: &Path) -> Result<(), String> {
     protect(
         path,
         true,
@@ -527,7 +552,7 @@ pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
     )
 }
 
-pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
+pub(crate) fn set_private_file(path: &Path) -> Result<(), String> {
     protect(path, false, |_| Ok(()), restrict_to_owner)
 }
 
@@ -821,7 +846,7 @@ mod tests {
     fn pairing_validation_error_retains_native_rpc_reason() {
         let status = tonic::Status::invalid_argument("fixture-endpoint-rejection");
         let expected = status.message().to_owned();
-        let error = crate::Error::from(dokime::client::Error::Rpc(status));
+        let error = crate::Error::from(status);
         let encoded = serde_json::to_value(error).unwrap();
         assert_eq!(encoded["kind"], "grpc");
         assert_eq!(encoded["detail"]["code"], 3);

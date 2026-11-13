@@ -71,6 +71,11 @@ pub async fn desktop_plugin_release_check(
     generation: String,
 ) -> Result<Vec<Release>, String> {
     let lease = plugins::admit(&window, &connection, &generation)?;
+    let client = lease.client();
+    let backend = crate::connection::transport::backend(&client);
+    if backend.target.is_empty() {
+        return Err("Check Plugin Releases: The Host Does Not Yet Publish Its Target; Install a Verified Bundle File Instead".into());
+    }
     let (policy, policy_generation) = state.snapshot()?;
     let source = sources::release_source(&policy, "release.json").await?;
     let bytes = sources::fetch(&source.feed, sources::DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
@@ -81,8 +86,6 @@ pub async fn desktop_plugin_release_check(
     distribution::verify(&bytes, feed_hash)?;
     let feed = release_feed(&bytes)?;
 
-    let client = lease.client();
-    let backend = client.backend();
     let mut releases = Vec::new();
     let mut candidates = Vec::new();
     for plugin in feed.plugins {
@@ -144,8 +147,8 @@ pub async fn desktop_plugin_release_install(
     }
     let client = lease.client();
     selected.plugin.select(
-        &client.backend().product_version,
-        &client.backend().target,
+        &crate::connection::transport::backend(&client).product_version,
+        &crate::connection::transport::backend(&client).target,
         app.state::<crate::app::organization::OrganizationState>().label(),
     )?;
     let archive = sources::fetch(&selected.archive_url, distribution::ARCHIVE_MAX_BYTES).await?;

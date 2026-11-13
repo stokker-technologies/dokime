@@ -88,6 +88,19 @@ to reuse its compiled harness without Cargo compilation. Archived exact package
 and binary selections unpack only the matching test harnesses and keep runtime
 inputs. Frontend and wheel inputs remain necessary for stories that use them.
 
+With canonical host messages already generated, build the desktop frontend without
+requiring a complete Product artifact:
+
+```sh
+mise -C crates/dokime-gui run generate:host-frontend
+mise -C crates/dokime-gui run build:frontend
+mise run test -- --package dokime-gui --target lib --story connection::
+```
+
+The SDK/native-owner stories exercise the new host. The two WebView lanes below
+still use their old CLI/fixture driver and remain migration work; passing a
+native SDK story does not establish a passing WebView lane.
+
 For a focused GUI integration story with already prepared, unchanged protocol
 modules, `mise run test:typescript:integration -- --prepared --select tests/integration/plots/nominal.test.ts`
 uses those inputs without compiling the generator. Omit `--prepared` when

@@ -88,12 +88,14 @@ const nativeBindings = [...nativeSource.matchAll(nativePattern)];
 if (nativeBindings.length !== 6) throw new Error("Native preferences command inventory is incomplete.");
 const nativeType = (rust) => {
   const type = rust.trim();
+  if (type === "Vec<u8>") return "number[]";
+  if (type === "tauri::ipc::Response") return "ArrayBuffer";
   if (type.startsWith("Option<") && type.endsWith(">")) return `${nativeType(type.slice(7, -1))} | null`;
   return type === "String" ? "string" : type.split("::").at(-1);
 };
 const nativeLines = [
   "// Generated From The Native Command Inventory. Do Not Edit.",
-  'import type { Document, SettingsScope, SettingsSnapshot, UpdateSettings } from "./application-settings";',
+  'import type { Document, SettingsScope } from "./application-settings";',
   'import type { ConnectionSnapshot } from "@/lib/desktop/connection";',
   "export function createPreferencesCommands(invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>) {",
   "  return {",
@@ -180,26 +182,12 @@ for (const file of set.file)
       );
     }
 emit(resolve(gui, "src/lib/rpc/generated/client.ts"), `${lines.join("\n")}\n`);
-// Follow The Canonical Response Fields Instead Of Duplicating Domain Error Schemas.
-function responseType(serviceName, methodName) {
-  const method = set.file
-    .flatMap((file) => file.service)
-    .find((service) => service.name === serviceName)
-    ?.method.find((method) => method.name === methodName);
-  if (!method) throw new Error(`Missing canonical ${serviceName}.${methodName}`);
-  return method.outputType;
-}
-const rejectionType = fieldType(fieldType(fieldType(responseType("Execution", "StartExecution"), "outcome"), "Rejected"), "field0");
-const capturedType = fieldType(fieldType(responseType("Evidence", "ListRecords"), "records"), "error");
-const errorLines = ["// Generated From Canonical Harmos Descriptors And The Standard Status Envelope. Do Not Edit."];
-for (const [type, alias] of [
-  [".google.rpc.Status", "StatusSchema"],
-  [rejectionType, "RejectionSchema"],
-  [capturedType, "CapturedRecordErrorSchema"],
-]) {
-  schema(type, alias, errorLines);
-  errorLines.push(`export { ${alias} };`);
-}
+// Decode Product Failures with the Active Host's Canonical Messages.
+const errorLines = [
+  "// Generated From Canonical Host Messages And The Standard Status Envelope. Do Not Edit.",
+  'export { StatusSchema } from "@generated/google/rpc/status_pb.js";',
+  'export { RejectionSchema, CapturedRecordErrorSchema } from "@host/dokime/v1/client_types_pb.js";',
+];
 emit(resolve(gui, "src/lib/rpc/generated/errors.ts"), `${errorLines.join("\n")}\n`);
 const operationIds = Object.fromEntries(
   contracts

@@ -187,11 +187,18 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
+                  disabled={
+                    !desktop || releaseMutation.isPending || installMutation.isPending || Boolean(releaseMutation.unavailableReason)
+                  }
                   onClick={() => releaseMutation.mutate()}
                 >
                   Check for Updates
                 </Button>
+                {releaseMutation.unavailableReason ? (
+                  <span className="text-muted-foreground text-sm" role="status">
+                    {releaseMutation.unavailableReason}
+                  </span>
+                ) : null}
               </>
             }
             entries={entries}

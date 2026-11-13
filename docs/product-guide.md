@@ -9,6 +9,21 @@ relies on operating-system disk encryption, which the customer must enable.
 Archiving hides evidence rather than deleting it; scheduled retention and
 per-execution deletion are not available.
 
+## Desktop Host Support
+
+The development desktop embeds the execution host or attaches through a pinned
+pairing file. Host identity, Library catalog, local/backend application preferences,
+native bundle installation, pairing export, secret catalog/transfer and verified native downloads use that
+connection. Execution and saved-data screen adapters are still being converted;
+see [Host Connection](gui.md#host-connection) for the current boundary.
+
+Host media capture and provider logo delivery are unavailable and show their
+reason. Plugin release lookup is unavailable until the connected host supplies
+its build target; installation from a selected bundle remains available.
+An incompatible local storage root is preserved and refused. Recovery is disabled
+until the host can preserve plugins, settings, identity and secrets; explicitly
+choose a fresh root after preserving the original folder.
+
 ## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,

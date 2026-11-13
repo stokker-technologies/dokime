@@ -105,7 +105,6 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
         .manage(organization)
-        .manage(_log_guards.journal.clone())
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())

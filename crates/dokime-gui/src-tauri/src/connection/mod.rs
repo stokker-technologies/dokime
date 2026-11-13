@@ -13,7 +13,7 @@ mod contract;
 mod errors;
 pub mod host;
 pub mod registry;
-mod transport;
+pub(crate) mod transport;
 
 /* === Re-Exports === */
 
@@ -31,7 +31,6 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use dokime::domain::model::settings::application::ClientPreferences;
 
 /* === Constants === */
 
@@ -43,7 +42,7 @@ use dokime::domain::model::settings::application::ClientPreferences;
 
 #[derive(Clone)]
 pub struct ConnectionSession {
-    preferences: Arc<Mutex<ClientPreferences>>,
+    preferences: Arc<Mutex<dokime_sdk::v1::ClientPreferences>>,
     inner: Arc<Mutex<SessionState>>,
 }
 
@@ -53,13 +52,14 @@ struct SessionState {
     snapshot: ConnectionSnapshot,
     lease: Option<SessionLease>,
     profile: Option<String>,
+    retired: Vec<host::Session>,
 }
 
 #[derive(Clone)]
 pub struct SessionLease {
-    client: dokime::client::Client,
+    preferences: Arc<Mutex<dokime_sdk::v1::ClientPreferences>>,
+    client: host::Session,
     cancellation: CancellationToken,
-    preferences: Arc<Mutex<ClientPreferences>>,
 }
 
 /* === Enums === */
@@ -70,16 +70,12 @@ pub struct SessionLease {
 
 impl Default for ConnectionSession {
     fn default() -> Self {
-        Self::with_settings(ClientPreferences::default())
+        Self::new()
     }
 }
 
 impl ConnectionSession {
-    pub(crate) fn preferences(&self) -> ClientPreferences {
-        *self.preferences.lock().expect("client preferences poisoned")
-    }
-
-    pub(crate) fn set_preferences(&self, preferences: ClientPreferences) {
+    pub(crate) fn set_preferences(&self, preferences: dokime_sdk::v1::ClientPreferences) {
         *self.preferences.lock().expect("client preferences poisoned") = preferences;
     }
 
@@ -104,9 +100,13 @@ impl ConnectionSession {
         Ok(())
     }
 
-    fn with_settings(settings: ClientPreferences) -> Self {
+    fn new() -> Self {
+        let settings = host::desktop_settings();
         Self {
-            preferences: Arc::new(Mutex::new(settings)),
+            preferences: Arc::new(Mutex::new(dokime_sdk::v1::ClientPreferences {
+                connect_timeout_ms: settings.connect_timeout.as_millis() as u64,
+                request_timeout_ms: settings.services.read_timeout.as_millis() as u64,
+            })),
             inner: Arc::new(Mutex::new(SessionState {
                 generation: 0,
                 cancellation: CancellationToken::new(),
@@ -120,6 +120,7 @@ impl ConnectionSession {
                 },
                 lease: None,
                 profile: None,
+                retired: Vec::new(),
             })),
         }
     }
@@ -163,6 +164,13 @@ impl ConnectionSession {
         Ok(state.snapshot.clone())
     }
 
+    pub(crate) async fn join_retired(&self) {
+        let retired = std::mem::take(&mut self.inner.lock().expect("connection state poisoned").retired);
+        for session in retired {
+            session.join().await;
+        }
+    }
+
     pub async fn connect(&self, request: ConnectRequest) -> Result<ConnectionSnapshot, ConnectionError> {
         // Reject malformed targets before disturbing an existing valid connection.
         let target = transport::Target::parse(request.target)?;
@@ -174,6 +182,7 @@ impl ConnectionSession {
             state.snapshot.remote = target.remote;
             (state.generation, state.cancellation.clone())
         };
+        self.join_retired().await;
         let result = tokio::select! {
             biased;
             _ = cancellation.cancelled() => Err(ConnectionError::Superseded),
@@ -185,7 +194,7 @@ impl ConnectionSession {
         }
         match result {
             Ok((lease, backend)) => {
-                state.snapshot.endpoint = Some(lease.client().endpoint().to_owned());
+                state.snapshot.endpoint = Some(lease.client.endpoint().to_owned());
                 state.lease = Some(lease);
                 state.snapshot.backend = Some(backend);
                 state.snapshot.phase = ConnectionPhase::Connected;
@@ -203,19 +212,21 @@ impl ConnectionSession {
     async fn establish(
         &self, target: &transport::Target, expected_id: Option<&str>, cancellation: CancellationToken,
     ) -> Result<(SessionLease, BackendSnapshot), ConnectionError> {
-        let client = dokime::client::Client::connect(
-            target.inner.clone().with_settings(self.preferences()),
-            target.access_key.as_deref().map(String::as_str),
-            target.expected_backend_id.as_deref().or(expected_id),
-        )
-        .await
-        .map_err(ConnectionError::from)?;
-        let backend = transport::backend(client.backend());
+        let mut settings = host::desktop_settings();
+        let preferences = *self.preferences.lock().expect("client preferences poisoned");
+        settings.connect_timeout = std::time::Duration::from_millis(preferences.connect_timeout_ms);
+        settings.services.read_timeout = std::time::Duration::from_millis(preferences.request_timeout_ms);
+        let client = host::Session::connect_target(&target.target, &settings).await.map_err(ConnectionError::from)?;
+        let backend = transport::backend(&client);
+        if expected_id.is_some_and(|expected| expected != backend.backend_id) {
+            client.cancel();
+            return Err(ConnectionError::IdentityChanged);
+        }
         Ok((
             SessionLease {
+                preferences: self.preferences.clone(),
                 client,
                 cancellation,
-                preferences: Arc::clone(&self.preferences),
             },
             backend,
         ))
@@ -227,7 +238,8 @@ impl SessionState {
         let generation = self.generation.checked_add(1).ok_or(ConnectionError::GenerationExhausted)?;
         self.cancellation.cancel();
         if let Some(lease) = self.lease.take() {
-            lease.client.close();
+            lease.client.cancel();
+            self.retired.push(lease.client);
         }
         self.generation = generation;
         self.cancellation = CancellationToken::new();
@@ -243,22 +255,22 @@ impl Drop for SessionState {
     fn drop(&mut self) {
         self.cancellation.cancel();
         if let Some(lease) = self.lease.take() {
-            lease.client.close();
+            lease.client.cancel();
         }
     }
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> dokime::client::Client {
-        let preferences = *self.preferences.lock().expect("client preferences poisoned");
-        self.client.with_timeout(std::time::Duration::from_millis(preferences.request_timeout_ms))
+    pub(crate) fn client(&self) -> host::Session {
+        let timeout_ms = self.preferences.lock().expect("client preferences poisoned").request_timeout_ms;
+        self.client.with_timeout(std::time::Duration::from_millis(timeout_ms))
     }
 
     pub(crate) async fn guard<T>(&self, future: impl Future<Output = T>) -> Result<T, ConnectionError> {
         let result = tokio::select! {
             biased;
             _ = self.cancellation.cancelled() => return Err(ConnectionError::Superseded),
-            result = self.client.guard(future) => result.map_err(ConnectionError::from)?,
+            result = future => result,
         };
         if self.cancellation.is_cancelled() {
             return Err(ConnectionError::Superseded);

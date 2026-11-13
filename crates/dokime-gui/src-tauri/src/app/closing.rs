@@ -35,7 +35,7 @@ use crate::native_session::{DesktopSessionControl, DesktopSessionError};
 /* === Constants === */
 
 const DESKTOP_CLOSING_VISIBLE_MS: u64 = 1_000;
-const DESKTOP_STOP_GRACE_MS: u64 = 30_000;
+const DESKTOP_STOP_GRACE_MS: u64 = 5_000;
 
 // The event the WebView follows (`src/lib/desktop/stopping.ts`).
 const STOPPING_EVENT: &str = "desktop://stopping";
@@ -136,7 +136,9 @@ impl Closing {
         let control = app.state::<DesktopSessionControl>();
         let shutdown = control.shutdown();
         let visible = tokio::time::sleep(Duration::from_millis(DESKTOP_CLOSING_VISIBLE_MS));
-        let deadline = tokio::time::sleep(dokime::operations::STOP_SETTLEMENT.timeout + Duration::from_millis(DESKTOP_STOP_GRACE_MS));
+        let deadline = tokio::time::sleep(
+            crate::connection::host::desktop_settings().host.placement.stop_grace + Duration::from_millis(DESKTOP_STOP_GRACE_MS),
+        );
         tokio::pin!(shutdown, visible, deadline);
         let mut shown = false;
         loop {

@@ -124,7 +124,10 @@ async fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root
     let error = owner.start(existing.path()).await.err().ok_or("Start Host: Expected Incompatible Storage Refusal")?;
     assert!(matches!(error, Error::Host(dokime_runtime_next::Error::Storage(_))));
     assert_eq!(std::fs::read(&evidence)?, original);
-    assert_eq!(std::fs::read_dir(existing.path())?.count(), 1);
+    let mut entries =
+        std::fs::read_dir(existing.path())?.map(|entry| entry.map(|entry| entry.file_name())).collect::<Result<Vec<_>, _>>()?;
+    entries.sort();
+    assert_eq!(entries, vec![std::ffi::OsString::from("existing-evidence.bin"), std::ffi::OsString::from("local.lock")]);
     assert!(!owner.is_embedded());
 
     // The Operator Can Select Another Root Without Touching the Original
@@ -314,6 +317,22 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
         let response = session.call_raw("/dokime.v1.Prompts/ListPending", &request).await?;
         let prompts = v1::ListPendingPromptsReply::decode(response.as_slice())?;
         let prompt = prompts.prompts.first().ok_or("Answer Desktop Prompt: Missing Pending Question")?;
+        // Upload Through the Same Owned SDK Session While Its Execution Is Open
+        use sha2::Digest;
+        let attachment = vec![42; 140_003];
+        let attachment_digest = sha2::Sha256::digest(&attachment).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let mut upload = vec![v1::UploadArtifactFrame {
+            payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Header(v1::UploadArtifactHeader {
+                scope: Some(v1::ArtifactScope { execution_id: Some(execution.clone()), cycle_id: Some(cycle.cycle_id.clone()), ..Default::default() }),
+                filename: "attachment.bin".into(), size_bytes: attachment.len() as u64, sha256: Some(attachment_digest.clone()), ..Default::default()
+            })) }),
+        }];
+        for (index, data) in attachment.chunks(64 * 1024).enumerate() {
+            upload.push(v1::UploadArtifactFrame { payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Chunk(v1::ArtifactChunk { offset: (index * 64 * 1024) as u64, data: data.to_vec() })) }) });
+        }
+        upload.push(v1::UploadArtifactFrame { payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Complete(v1::ArtifactCompletion { size_bytes: attachment.len() as u64, sha256: attachment_digest.clone() })) }) });
+        let artifact = session.upload_artifact(tokio_stream::iter(upload)).await?;
+
         let request = v1::PromptsRespondRequest { prompt_id: prompt.prompt_id.clone(), action: "yes".into(), accepted: true, ..Default::default() }.encode_to_vec();
         session.call_raw("/dokime.v1.Prompts/Respond", &request).await?;
         let mut terminal = false;
@@ -348,7 +367,7 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
         assert!(samples.samples.iter().any(|sample| !sample.payload.is_empty()));
 
         // Read the Report Through SDK Delivery and Verify Every Byte Against Its Completion
-        let request = v1::ReportsDownloadExecutionReportRequest { execution_id: execution }.encode_to_vec();
+        let request = v1::ReportsDownloadExecutionReportRequest { execution_id: execution.clone() }.encode_to_vec();
         let mut report = session.watch_raw("/dokime.v1.Reports/DownloadExecutionReport", &request).await?;
         let mut bytes = Vec::new();
         let mut completion = None;
@@ -372,9 +391,24 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
         let completion = completion.ok_or("Read Desktop Report: Missing Verified Completion")?;
         assert!(terminal);
         assert_eq!(completion.size_bytes, bytes.len() as u64);
-        use sha2::Digest;
         let digest = sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         assert_eq!(completion.sha256, digest);
+
+        // Export Through the Native Delivery Owner, Requiring Completion and Final Status
+        let active = crate::connection::ConnectionSession::default();
+        let connected = active.connect(crate::connection::ConnectRequest { target: crate::connection::ConnectionTarget::Local { endpoint: session.endpoint().to_owned() }, expected_backend_id: None }).await.map_err(|error| format!("{error:?}"))?;
+        let lease = active.lease(&connected.generation).map_err(|error| format!("{error:?}"))?;
+        let destination = root.path().join("native-export.html");
+        let exported = crate::app::content::fetch_verified(&lease, &crate::app::desktop::ArtifactSource::ExecutionReport { execution_id: execution }, &destination, crate::rpc::protocol::FRAME_BYTES as usize).await?;
+        assert_eq!(exported.size_bytes, completion.size_bytes);
+        assert_eq!(exported.sha256, completion.sha256);
+        assert_eq!(std::fs::read(destination)?, bytes);
+        let destination = root.path().join("native-attachment.bin");
+        let exported = crate::app::content::fetch_verified(&lease, &crate::app::desktop::ArtifactSource::Artifact { artifact_id: artifact.artifact_id }, &destination, crate::rpc::protocol::FRAME_BYTES as usize).await?;
+        assert_eq!(exported.sha256, attachment_digest);
+        assert_eq!(std::fs::read(destination)?, attachment);
+        active.disconnect().map_err(|error| format!("{error:?}"))?;
+
         Ok::<(), Box<dyn std::error::Error>>(())
     }.await;
     let host_close = owner.close().await;
@@ -382,5 +416,115 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
     result?;
     host_close?;
     plugin_close?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::connection::ConnectionSession;
+    use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
+
+    // Start Through the Application's Actual Native Owner
+    let root = tempfile::tempdir()?;
+    let connection = ConnectionSession::default();
+    let owner = DesktopSession::with_local_backend(connection.clone(), Backend::new(root.path().to_path_buf()));
+    let ready = owner.select(BackendSelection::OwnedLocal).await.map_err(|error| format!("{error:?}"))?;
+    assert_eq!(ready.ownership, BackendOwnership::OwnedLocal);
+    let first = connection.lease(&ready.connection.generation).map_err(|error| format!("{error:?}"))?;
+    let endpoint = ready.connection.endpoint.clone().ok_or("missing embedded endpoint")?;
+    let generation = ready.connection.generation.parse::<u64>()?;
+
+    // Dispatch the Same Descriptor-Fenced IPC Command Used by the WebView
+    let selected = connection.clone();
+    let response = tokio::task::spawn_blocking(move || {
+        let app = tauri::test::mock_builder()
+            .manage(selected)
+            .manage(crate::rpc::Bridge::default())
+            .invoke_handler(crate::rpc::handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        let mut bytes = generation.to_le_bytes().to_vec();
+        bytes.extend(crate::rpc::descriptor_digest());
+        bytes.extend(library::StatusGetRequest {}.encode_to_vec());
+        let response = tauri::test::get_ipc_response(
+            &window,
+            tauri::webview::InvokeRequest {
+                cmd: "rpc".into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: if cfg!(target_os = "windows") { "http://tauri.localhost" } else { "tauri://localhost" }.parse().unwrap(),
+                body: tauri::ipc::InvokeBody::Raw(bytes),
+                headers: [(
+                    tauri::http::HeaderName::from_static(crate::rpc::PATH_HEADER),
+                    tauri::http::HeaderValue::from_static("/harmos.v1.Status/Get"),
+                )]
+                .into_iter()
+                .collect(),
+                invoke_key: tauri::test::INVOKE_KEY.into(),
+            },
+        )
+        .map_err(|error| format!("{error:?}"))?;
+        let tauri::ipc::InvokeResponseBody::Raw(response) = response else {
+            return Err("IPC returned JSON instead of canonical bytes".to_owned());
+        };
+        assert_eq!(u64::from_le_bytes(response[..8].try_into().unwrap()), generation);
+        library::StatusGetResponse::decode(&response[8..]).map_err(|error| error.to_string())
+    })
+    .await??;
+    assert_eq!(
+        response.status.as_ref().and_then(|status| status.identity.as_ref()).map(|identity| &identity.host_id),
+        ready.connection.backend.as_ref().map(|backend| &backend.backend_id)
+    );
+
+    // Replacing the Selection Cancels the Old Lease Without Ending the Owned Host
+    owner
+        .select(BackendSelection::Attach {
+            request: crate::connection::ConnectRequest {
+                target: crate::connection::ConnectionTarget::Local { endpoint },
+                expected_backend_id: None,
+            },
+        })
+        .await
+        .map_err(|error| format!("{error:?}"))?;
+    assert!(first.cancellation().is_cancelled());
+    assert!(connection.lease(&ready.connection.generation).is_err());
+    let next = connection.lease(&connection.status().generation).map_err(|error| format!("{error:?}"))?;
+    let suites: v1::ListSuitesReply = next.client().unary("/dokime.v1.Catalog/ListSuites", v1::CatalogListSuitesRequest::default()).await?;
+    assert!(suites.suites.is_empty());
+    owner.shutdown().await.map_err(|error| format!("{error:?}"))?;
+    assert!(next.cancellation().is_cancelled());
+    assert_eq!(owner.status().ownership, BackendOwnership::None);
+    Ok(())
+}
+
+#[tokio::test]
+async fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+    use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, backend::Backend};
+    let root = tempfile::tempdir()?;
+    let mut first = Connection::new(settings())?;
+    let session = first.start(root.path()).await?;
+    let active = ConnectionSession::default();
+    let second = DesktopSession::with_local_backend(active.clone(), Backend::new(root.path().to_path_buf()));
+    let refused = second.select(BackendSelection::OwnedLocal).await;
+    assert!(matches!(refused, Err(DesktopSessionError::BackendRunning { root: occupied, .. }) if occupied == root.path()));
+    let attached = second
+        .select(BackendSelection::Attach {
+            request: ConnectRequest {
+                target: ConnectionTarget::Local { endpoint: session.endpoint().to_owned() },
+                expected_backend_id: None,
+            },
+        })
+        .await
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(attached.ownership, BackendOwnership::Attached);
+    second.shutdown().await.map_err(|error| format!("{error:?}"))?;
+    let status: library::StatusGetResponse = session.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await?;
+    assert!(status.status.and_then(|value| value.identity).is_some());
+    first.close().await?;
+    let third = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.path().to_path_buf()));
+    third.select(BackendSelection::OwnedLocal).await.map_err(|error| format!("{error:?}"))?;
+    third.shutdown().await.map_err(|error| format!("{error:?}"))?;
     Ok(())
 }

@@ -25,6 +25,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 // Local Imports
 use super::*;
+use sha2::{Digest, Sha256};
 
 /* === Constants === */
 
@@ -58,7 +59,7 @@ struct Upload {
 }
 
 struct UploadWriter {
-    sender: Option<mpsc::Sender<dokime::domain::model::content::wire::UploadArtifactFrame>>,
+    sender: Option<mpsc::Sender<dokime_protocol::v1::UploadArtifactFrame>>,
     next_sequence: u64,
     offset: u64,
     digest: Sha256,
@@ -66,7 +67,7 @@ struct UploadWriter {
 
 #[derive(Default)]
 struct Outcome {
-    result: Mutex<Option<Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError>>>,
+    result: Mutex<Option<Result<dokime_protocol::v1::ArtifactMetadata, RpcError>>>,
     ready: Notify,
 }
 
@@ -79,7 +80,7 @@ struct SettleOnDrop(Arc<Outcome>);
 /* === Implementations === */
 
 impl Outcome {
-    fn complete(&self, result: Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError>) {
+    fn complete(&self, result: Result<dokime_protocol::v1::ArtifactMetadata, RpcError>) {
         let mut guard = self.result.lock().expect("artifact upload outcome poisoned");
         if guard.is_some() {
             return;
@@ -89,7 +90,7 @@ impl Outcome {
         self.ready.notify_waiters();
     }
 
-    async fn wait(&self) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError> {
+    async fn wait(&self) -> Result<dokime_protocol::v1::ArtifactMetadata, RpcError> {
         loop {
             // Register the notification before inspecting the result. A
             // completion between those operations must wake this waiter.
@@ -122,20 +123,19 @@ impl Drop for SettleOnDrop {
 }
 
 impl ArtifactUploads {
-    fn open(
-        &self, context: Context, header: dokime::domain::model::content::wire::UploadArtifactHeader,
-    ) -> Result<tauri::ipc::Response, RpcError> {
+    fn open(&self, context: Context, header: dokime_protocol::v1::UploadArtifactHeader) -> Result<tauri::ipc::Response, RpcError> {
         context.check()?;
         let mut encoded = Vec::new();
-        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<_>>::encode(&header, &mut encoded)
-            .map_err(|_| RpcError::InvalidRequest)?;
+        prost::Message::encode(&header, &mut encoded).map_err(|_| RpcError::InvalidRequest)?;
         if encoded.len() > DESKTOP_FRAME_BYTES as usize {
             return Err(RpcError::LimitExceeded);
         }
         let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
         sender
-            .try_send(dokime::domain::model::content::wire::UploadArtifactFrame {
-                payload: Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)),
+            .try_send(dokime_protocol::v1::UploadArtifactFrame {
+                payload: Some(dokime_protocol::v1::UploadArtifactFramePayload {
+                    kind: Some(dokime_protocol::v1::upload_artifact_frame_payload::Kind::Header(header)),
+                }),
             })
             .map_err(|_| RpcError::Busy)?;
         let context = Arc::new(context);
@@ -166,7 +166,7 @@ impl ArtifactUploads {
             let result = tokio::select! {
                 biased;
                 _ = task_cancel.cancelled() => Err(RpcError::Cancelled),
-                result = task_context.execute(client.content_upload_artifact(stream)) => result,
+                result = task_context.execute(client.upload_artifact(stream)) => result,
             };
             task_outcome.complete(result);
         });
@@ -236,10 +236,13 @@ impl ArtifactUploads {
         let offset = writer.offset;
         let length = bytes.len() as u64;
         writer.digest.update(&bytes);
-        let frame = dokime::domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Chunk(
-                dokime::domain::model::content::wire::ArtifactChunk { offset, data: bytes },
-            )),
+        let frame = dokime_protocol::v1::UploadArtifactFrame {
+            payload: Some(dokime_protocol::v1::UploadArtifactFramePayload {
+                kind: Some(dokime_protocol::v1::upload_artifact_frame_payload::Kind::Chunk(dokime_protocol::v1::ArtifactChunk {
+                    offset,
+                    data: bytes,
+                })),
+            }),
         };
         let sent = tokio::select! {
             biased;
@@ -286,13 +289,13 @@ impl ArtifactUploads {
         let size_bytes = writer.offset;
         let digest = std::mem::replace(&mut writer.digest, Sha256::new());
         drop(writer);
-        let completion = dokime::domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Complete(
-                dokime::domain::model::content::wire::ArtifactCompletion {
+        let completion = dokime_protocol::v1::UploadArtifactFrame {
+            payload: Some(dokime_protocol::v1::UploadArtifactFramePayload {
+                kind: Some(dokime_protocol::v1::upload_artifact_frame_payload::Kind::Complete(dokime_protocol::v1::ArtifactCompletion {
                     size_bytes,
                     sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
-                },
-            )),
+                })),
+            }),
         };
         // A closed receiver here just means the remote call already ended;
         // the outcome wait below surfaces that failure.
@@ -336,7 +339,7 @@ impl Registry {
     fn prune(&mut self) {
         self.entries.retain(|_, upload| {
             let expired = upload.last_access.lock().expect("artifact upload idle timer poisoned").elapsed()
-                >= <dokime::operations::content::UploadArtifact as dokime::harmos::operations::OperationDeclaration>::POLICY.timeout;
+                >= upload.context.lease.client().mutation_timeout();
             if upload.cancel.is_cancelled()
                 || upload.context.owner_cancel.is_cancelled()
                 || upload.context.lease.cancellation().is_cancelled()
@@ -358,8 +361,7 @@ pub async fn artifact_upload_open<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) =
-        bridge.prepare::<dokime::domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
+    let (context, header) = bridge.prepare::<dokime_protocol::v1::UploadArtifactHeader>(&session, webview.label(), request.body())?;
     bridge.uploads.open(context, header)
 }
 
@@ -404,7 +406,7 @@ pub async fn artifact_upload_cancel<R: tauri::Runtime>(
 
 /* === Private Functions === */
 
-async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError> {
+async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime_protocol::v1::ArtifactMetadata, RpcError> {
     let outcome = upload.outcome.wait();
     tokio::pin!(outcome);
     loop {

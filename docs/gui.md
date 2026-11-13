@@ -15,25 +15,45 @@ and `src/report`.
 
 ## Host Connection
 
-The desktop has one native connection owner. The WebView sends generation-fenced
+The desktop has one native SDK connection owner. The WebView sends generation-fenced
 commands and receives bounded Tauri channel frames; it never opens a host socket.
-The table records the new host operations available for the desktop data layer.
-The existing shell still uses its portable projection until the cutover is closed;
-an available operation does not establish a migrated or proven screen.
+`src-tauri/src/connection/host.rs` owns embedded startup, readiness through
+`Status.Get`, pinned remote pairing, cancellation and joined Watch/host shutdown.
+`native_session/owner.rs` selects that connection and `rpc/` dispatches canonical
+protobuf bytes through it. An attached host is never shut down by the desktop.
 
-`src-tauri/src/connection/host.rs` owns the new SDK connection: embedded startup,
-readiness through `Status.Get`, pinned remote pairing, connection cancellation,
-and joined Watch/host shutdown. Its native journeys cover attach/detach,
-restart identity, incompatible-root preservation, certificate rotation and live
-SDK delivery. The shared thermal fixture also proves catalog reads, an execution
-through its prompt to sealing, record and telemetry reads, and report bytes with
-digest verification through that same adapter. The Tauri command bridge and
-view adapters still require cutover.
+`src/lib/host/` owns canonical frontend projections. The running shell uses its
+host identity, catalog, scoped client/application preferences and appearance
+projections, together with secret catalog and transfer. Listener values in the
+preferences view come from Access; application preference saves never write that
+separately revisioned resource. Missing host logo content is reported independently
+of native installer appearance. Native plugin installation, pairing export, firewall
+registration and verified artifact/report delivery also use the SDK connection.
+The provider owns connect/read/watch/mutation timeouts; a call may explicitly
+override its deadline. Replacing a generation cancels and joins its watches.
 
-`src/lib/host/` is the canonical frontend data boundary. Its catalog projection
-reads the host's suite/template identities, structured units and typed parameter
-expressions; steps come from materialized cases. The catalog projection is
-covered by the Library unit story and is not yet wired into the running shell.
+The execution/planning, observation/prompt, evidence/telemetry/plot,
+document/report/history, plugin inventory/settings and diagnostics view
+adapters still import the old generated message projections. They require
+canonical request construction and view projections before those screens can
+claim new-host support. In particular, old tagged state unions, flat Value nodes,
+paged cursors and artifact origins do not represent the new contracts. Native
+SDK stories prove host behavior; they do not prove those WebView consumers.
+The desktop system drivers also still start the old CLI and fixtures and require
+replacement before either desktop lane can certify this cutover.
+
+### Remaining Journey Adapters
+
+| Journey | Required Replacement |
+| --- | --- |
+| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` still construct tagged unions and cursor requests. Use canonical numeric lifecycle enums, separate execution state/outcome/live controls, recursive values and Watch envelopes; resynchronize from a fresh snapshot on gaps. |
+| Evidence, Telemetry and Plots | `native-evidence.ts`, `native-plots.ts`, `native-aggregate.ts` and `native-checkpoints.ts` still use flat values, old evidence origins and paged read projections. Project canonical origin/scope, captured record payloads, sample values and plot frames together. |
+| Documents and Reports | `native-documents.ts`, `native-content.ts` and `native-reports.ts` still use old document/render bindings and report origins. Native verified delivery already consumes canonical frames; its WebView selectors and document projections remain. |
+| History | The saved execution path shares the execution/evidence adapters above; replace those projections before history can read the same durable evidence as the SDK story. |
+| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` still expect old settings blocks, plugin owners, boot results and installation paging. Canonical plugin entries carry placement, current state and description. File installation already streams canonical SDK frames. |
+| Remote Access | Native pairing export, pinned connection and certificate rotation use the SDK. The settings cards and WebView remote/ownership drivers still expect old listener and identity projections. |
+| Status, Health and Diagnostics | `native-diagnostics.ts`, `native-logs.ts` and the settings blocks still call removed Backend/Runtime paths. Route them through the pinned library Status services and transfer owner. |
+| Dependency Removal | The manifest still uses the facade for native paths, installed appearance, build identity, release metadata and tracing; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |
 
 ### Native Commands and Events
 
@@ -205,13 +225,13 @@ on their view models. `missing` identifies a host refusal, never an old-host fal
 
 ## About and Build Versions
 
-Settings › About shows **Desktop Version** from the native `desktop_build` command
-and, while connected, **Backend Version** from the backend identity, since a remote
-backend may run another build. Each reads `v0.1.2 · 766330b7 · nightly`: the short
-commit, `-dirty` for uncommitted local changes or `unknown`, then the channel when
-one is known. Clicking the short commit copies the full commit. Formatting lives in
-`src/features/settings/sections/build-version.ts`. A browser build without the
-native shell shows only the bundled frontend version.
+Settings > About reads **Desktop Version** through `desktop_build` and
+**Backend Version** from the connected host's `Status.Get` identity. A remote
+host may run another version. The native desktop build includes its source
+revision and channel when known; the current host identity supplies application
+name and version without product source revision, channel or artifact target.
+Those absent facts remain absent. Plugin release lookup explains why it cannot
+select a host bundle until the host supplies its target.
 
 ## Desktop Launches and Storage Ownership
 
@@ -221,83 +241,33 @@ window. Startup resolves the distribution identifier before configuring Tauri's
 application directories, logs, settings and WebView profile;
 a distribution does not create a second root under the compiled default identifier.
 
-The local backend keeps an exclusive `local.lock` lease on its data folder.
-An occupied folder fails immediately as `storage::Error::Owned`, becomes the
-server's `host::Error::BackendRunning { root }`, and reaches the connection screen
-as `DesktopSessionError::BackendRunning { root, message }`. The message identifies
-the folder and the other instance's backend. The window retains Start Local
-Backend, saved-backend connection controls and Settings: connect to another or
-remote backend, or close the other instance and retry. An attached connection uses
-its existing client preferences when the occupied Local backend cannot supply them.
-Storage reset and backup still refuse an occupied folder with `BackendRunning`.
+The local host keeps an exclusive `local.lock` lease on its storage folder.
+`dokime_runtime_next::Error::OccupiedRoot` reaches the connection screen as
+`DesktopSessionError::BackendRunning { root, message }`. Close the other owner
+before retrying, or attach to its host. An attached connection keeps its client
+preferences when an occupied local root cannot supply them.
 
-After Start Local Backend fails, including corrupt data, decode errors or an
-incompatible storage format, the connection screen offers **Back Up and Reset**.
-It is absent for `BackendRunning`. The confirmation names the data folder and
-timestamped ZIP destination beside it, and explains that the folder's contents
-will be removed after backup. Cancelling changes nothing. A failed backup never
-deletes data. The existing reset steps report stopping, archiving (with bytes),
-deleting, reinstalling plugins and starting. Success shows the archive path in
-Notifications; a later restart failure retains it on the connection screen.
+An incompatible root is refused and preserved. **Back Up and Reset** is disabled
+with a visible reason: the host does not yet expose recovery that preserves its
+plugins, settings, identity and secret catalog. Native recovery commands refuse
+before stopping the host or touching files. Preserve the existing folder and
+choose a fresh application root explicitly; the desktop never resets it silently.
 
-Recovery copies installed bundles before clearing execution storage and restores
-their readable enabled state and settings that the current declarations accept.
-It reads plugin metadata independently of execution schema validation; when that
-metadata is unreadable, bundle files are recovered with default enabled state and
-settings. Readable metadata limits restoration to recorded installations; removed
-installations and orphan bundle files stay uninstalled. Bundled plugins use normal startup
-installation. Each restored bundle passes ordinary verification and admission:
-a refused bundle stays visible with its failure in Settings › Plugins and does
-not prevent recovery or startup. Credentials are untouched; readable node identity
-and the secret catalog survive so existing secrets remain addressable. The ZIP
-retains the original files even when their metadata cannot be decoded.
+## Cycles and Saved Executions
 
-## Cycle Lists and Restart Recovery
+The host owns planning, execution lifecycle, frozen origins and durable evidence.
+Its canonical client separates execution state, attributed outcome and live
+controls; a closed or sealed execution is not itself a pass or failure.
+Materialized cases retain their authored suite/template origin. The desktop SDK
+story runs the shared thermal suite through its watched operator prompt,
+completion, captured records, telemetry and a verified report download.
 
-Finished executions whose template is absent from the connected backend's live
-catalog show **Plugin Unavailable** in Control. Their saved evidence stays
-readable; the execution card and its menu offer no re-run. A Python plugin is
-available only while its registering backend runs. Start that backend again,
-or install the original native plugin revision, before running its cases again.
-The catalog's pending or failed read never asserts that a plugin is absent.
-
-While a step runs, Control states the step's label as its plugin names it, or
-its humanized id before a step record exists; the id itself stays in the
-journal and logs. Beside the bar it shows the runtime's progress phase and
-count, `Samples 38/100`, or the count alone when the phase is empty. The cycle's
-Control reads `Execution 2 · Sample Loop` with the same bar.
-
-The cycle's menu offers **Rerun Cycle** in every phase, sealed and archived
-alike. It calls `Execution.RerunCycle` and opens the new cycle. When the reply
-skips cases or drops parameters, that cycle's Control card states them, one line
-per reason: `2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares
-this case`. The notices live in `src/stores/rerun-notice-store.ts` for the
-session only. A rerun cycle's summary reads `Rerun of <source title>`, linking to
-the source.
-
-The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
-current live cycles and durable sealed cycle headers as one list, with the same
-filter, ordering and continuation rules. A live cycle supersedes its saved
-checkpoint; each cycle appears once. Recent cycles remain visible after starting
-another cycle or restarting the desktop. Archive selection applies to both sources.
-
-`state.json` and `state.jsonl` under the data root recover current work. Sealed
-cycles are retired from that state to keep checkpoints bounded; their durable
-history remains the source for subsequent reads.
-
-Sealed executions retain their control summary and frozen plan in managed state;
-generated telemetry outputs and artifact inventories are read from their durable
-execution revisions. Completed request receipts and consumed case registrations
-leave managed state with their sealed cycle. Reusing a case reloads its saved
-definition and revision; retirement never permits reusing an execution identity.
-The final shutdown checkpoint also retires the latest sealed cycle.
-
-Startup marks unfinished executions Interrupted, records the restart reason, and closes admission to their
-cycles before accepting new work. Interrupted cycles report Stopped. Pending
-report finalization resumes from its frozen terminal header. A seal that cannot
-complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
-and the cycle's control card shows the cause with Retry Seal and Archive, each
-behind a confirmation. Startup does not retry a Seal Failed cycle.
+The existing Control, Cycles and History view adapters still require that
+projection. Their former tagged statuses, flat values, plugin identities and
+cursor shapes must be removed together with their old generated client imports.
+Their WebView journeys remain open; native host proof does not establish the
+screens' behavior. Storage and restart recovery belong to the host's v1 store,
+not to a desktop checkpoint file.
 
 ## Organization Pack Loading
 

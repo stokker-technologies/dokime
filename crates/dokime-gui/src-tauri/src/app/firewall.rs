@@ -63,12 +63,21 @@ pub async fn desktop_firewall(
     if !matches!(owner.status().ownership, BackendOwnership::OwnedLocal) {
         return Ok(FirewallStatus { required: false, message: None });
     }
-    let listener = lease.client().call(dokime::operations::remote::ReadListener {}).await.map_err(|error| error.to_string())?;
-    let address = listener.listening_address.as_deref().and_then(|address| address.parse::<std::net::SocketAddr>().ok());
+    let session = lease.client();
+    let client = session.client();
+    let listener = session
+        .execute(
+            client
+                .access
+                .listener
+                .get(session.request(dokime_sdk::client::v1::access::ListenerGetRequest {}).map_err(|error| error.to_string())?),
+        )
+        .await
+        .map_err(|error| error.to_string())?
+        .into_inner();
+    let address = listener.bound_endpoint.parse::<std::net::SocketAddr>().ok();
     let exposed = address.is_some_and(|address| !address.ip().to_canonical().is_loopback());
-    let preferences =
-        lease.client().call(dokime::operations::settings::ReadApplicationSettings {}).await.map_err(|error| error.to_string())?;
-    let enabled = preferences.settings.listener.enabled;
+    let enabled = listener.value.as_ref().is_some_and(|value| value.enabled);
     if allow && (!exposed || !enabled) {
         return Err("Remote access is not listening on a network address.".into());
     }

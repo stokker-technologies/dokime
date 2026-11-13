@@ -42,10 +42,6 @@ fn main() {
     let label = brand_text("default-organization.json", "label");
     println!("cargo:rustc-env=DOKIME_BRAND_LABEL={label}");
 
-    let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR for build scripts"));
-    let contracts =
-        dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>().expect("canonical desktop transfer contracts");
-    harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations")).expect("desktop transfer descriptors");
     // Track Added and Removed Files When the Frontend Is Embedded.
     if !tauri_build::is_dev() {
         let frontend = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dist");

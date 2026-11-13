@@ -34,7 +34,6 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 /* === Structs === */
 
 pub(crate) struct LoggingGuards {
-    pub journal: std::sync::Arc<dokime_server::trace::Journal>,
     _trace: Option<dokime::diagnostics::test_trace::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
@@ -53,10 +52,9 @@ pub(crate) fn active_log() -> Option<PathBuf> {
 }
 
 pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &str) -> LoggingGuards {
-    let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
-    let mut layers: Vec<BoxedLayer> = vec![stderr_layer, dokime_server::trace::layer(journal.clone())];
+    let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
     let mut log_path = None;
@@ -84,7 +82,6 @@ pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &
     }
 
     LoggingGuards {
-        journal,
         _trace: trace,
         _stderr: stderr_guard,
         _file: file_guard,

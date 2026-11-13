@@ -60,7 +60,7 @@ impl DesktopSessionControl {
     pub fn abandon(&self) {
         self.0.abandon();
     }
-    pub async fn local_client(&self) -> Result<dokime::client::Client, DesktopSessionError> {
+    pub async fn local_client(&self) -> Result<crate::connection::host::Session, DesktopSessionError> {
         self.0.local_client().await
     }
     pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {

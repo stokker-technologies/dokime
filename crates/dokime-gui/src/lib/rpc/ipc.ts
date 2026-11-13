@@ -17,7 +17,7 @@ import { FRAME_BYTES as DESKTOP_FRAME_BYTES, STREAM_CREDIT as DESKTOP_STREAM_CRE
 import type { RpcError } from "../desktop/rpc";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
-import { descriptorSha256 } from "./generated/identity";
+import { descriptorSha256 } from "@host/identity";
 import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";
 
 /* === Types === */
