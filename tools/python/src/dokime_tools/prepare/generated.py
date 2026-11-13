@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import cargo, paths
 from dokime_tools.package.staging import sync_output
 
 # Type Checking Imports
@@ -40,8 +40,21 @@ MODULES = ROOT / "target/generated/typescript"
 
 def prepare() -> None:
     """Generate Frontend Message Modules From The Checked-In Protocol Descriptor."""
+    status = cargo.focused(
+        ROOT,
+        "run",
+        ["--locked", "--package", "dokime-gui", "--example", "export_preferences", "--", str(ROOT / "target/generated/preferences")],
+    )
+    if status:
+        raise SystemExit(status)
     subprocess.run(
         ["node", str(ROOT / "tools/typescript/generate.mjs")],
+        cwd=ROOT,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    subprocess.run(
+        ["mise", "-C", str(ROOT / "crates/dokime-gui"), "run", "generate:host-frontend"],
         cwd=ROOT,
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -52,6 +65,7 @@ def stage(profile: str) -> Path:
     """Copy The Freshly Generated Modules Into The Build Output."""
     staged = paths.output(ROOT, "build", profile) / "generated/typescript"
     sync_output(MODULES, staged)
+    sync_output(ROOT / "target/generated/host", staged.parent / "host")
     return staged
 
 
@@ -61,7 +75,11 @@ def restore(profile: str) -> None:
     staged = output / "generated/typescript"
     if not staged.is_dir():
         raise SystemExit(f"missing Product generated modules {staged}; run `mise run build`")
+    host = staged.parent / "host"
+    if not host.is_dir():
+        raise SystemExit(f"missing Product host modules {host}; run `mise run build -- --language typescript`")
     sync_output(staged, MODULES)
+    sync_output(host, ROOT / "target/generated/host")
 
 
 def main() -> int:

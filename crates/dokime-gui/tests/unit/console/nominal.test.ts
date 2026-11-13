@@ -73,7 +73,7 @@ function record(sequence: number): HubRecord {
     message: `event ${sequence}`,
     record_id: `trace-${sequence}`,
     record_type: "log",
-    source: "dokime::test",
+    source: "desktop::fixture",
     timestamp: "",
   } as unknown as HubRecord;
 }

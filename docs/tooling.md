@@ -53,28 +53,37 @@ own an isolated session bus/keyring for credential storage; install `dbus` and
 
 ## Desktop Integration
 
-The native desktop is outside Cargo membership until its host switch merges.
-The restoration checklist in `openspec/changes/grpc-plugins/tasks.md` owns native
-Product builds, generated preference/settings checks, system stories, benchmarks,
-installer packaging and signing. The frontend retains formatting/lint and protobuf
-message generation. Unit/integration stories independent of the removed native message exporter
-remain selected. The desktop restoration task lists the deferred suites and the
-notification story that import that exporter, along with the preferences journey
-and its native default exporter. Their source remains in the desktop tree.
+The desktop native package is restored to workspace and default membership.
+Build it with `mise run build -- --package dokime-gui`; add
+`--features tauri/custom-protocol` to embed the prepared live frontend.
+Hosted desktop lanes, Product exports, benchmarks, installers and signing remain
+in the restoration checklist until their fixtures and drivers use the current host.
+The retained frontend suite exclusions have not yet been removed.
 
-`mise run generate` generates frontend protobuf modules from the authoritative
-checked-in descriptor, without compiling a host. `mise run generate -- --protocol`
-regenerates checked-in Rust protocol output; add `--check` to prove its drift.
-`generate --check` requires `--protocol` while native client generation is detached.
-Never edit generated files.
+`mise run generate` builds the desktop's `export_preferences` example and reads
+canonical defaults through its embedded host, then generates protobuf messages,
+preference view models and native command declarations. Its generator-owned host
+root is `target/generated/preferences/host`; it is never silently reset.
+Generation requires the platform credential store, as ordinary host startup does.
+`mise -C crates/dokime-gui run generate:host-frontend` regenerates canonical host
+messages and native dispatch. Product staging carries both `generated/typescript`
+and `generated/host`; consumers restore both before importing the frontend.
+`mise -C crates/dokime-gui run build:frontend` typechecks and builds the live shell.
+`mise -C crates/dokime-gui run generate:report` builds the standalone renderer into
+GUI-owned `dist-report/`, without recreating a retired runtime package.
+
+`mise run generate -- --protocol` regenerates checked-in Rust protocol output;
+add `--check` to prove its drift. Never edit generated files.
 
 ## Build and Delivery Artifacts
 
 `mise run build` produces the current host/CLI workspace. Tests Build produces
 one archive plus host/CLI fixtures and the vendored protobuf compiler input.
-No native desktop, sidecar plugin or removed macro/compiler fixture is selected.
-The current Cargo workspace contains protocol, storage, operations-next,
-runtime-next, CLI-next, SDK and bundle inspection packages.
+The native desktop package compiles with workspace selections, but its exported
+Product bytes and hosted consumers remain restoration work. Shipping sidecar
+plugins and removed macro/compiler fixtures are not selected. The current Cargo
+workspace also contains protocol, storage, operations-next, runtime-next, CLI-next,
+SDK and bundle inspection packages.
 
 Product outputs live under `target/build/<profile>/<target>/`; packages under
 `target/package/<profile>/<target>/`. CLI archives retain the `dokime-next` binary.

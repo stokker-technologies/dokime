@@ -54,23 +54,23 @@ thiserror = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-tracing-appender = { version = "0.2.5"  }
+tracing-appender = { version = "0.2.5" }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos-packaging = { version = "=0.1.14"  }
-rand = { version = "0.10.3"  }
+harmos-packaging = { version = "=0.1.14" }
+rand = { version = "0.10.3" }
 sha2 = { workspace = true }
-time = { version = "0.3.55", features = ["formatting", "parsing"]  }
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
 zeroize = { workspace = true }
 # Storage Backups And Plugin Archives Use ZIP.
-zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"]  }
+zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization
 base64 = { workspace = true }
 prost = { workspace = true }
 prost-reflect = { workspace = true }
-image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"]  }
+image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
@@ -82,7 +82,7 @@ toml = { workspace = true }
 tempfile = { workspace = true }
 
 # Parsing
-percent-encoding = { version = "2.3.2"  }
+percent-encoding = { version = "2.3.2" }
 
 # Concurrency
 
@@ -95,15 +95,15 @@ tokio-util = { workspace = true, features = ["rt"] }
 reqwest = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
-url = { version = "2.5.8"  }
+url = { version = "2.5.8" }
 
 # Storage
 
 # UI
-tauri = { version = "2.12.5", features = ["tray-icon", "image-png"]  }
-tauri-plugin-dialog = { version = "2.8.2"  }
-tauri-plugin-opener = { version = "2.7.1"  }
-tauri-plugin-updater = { version = "2.14.1", optional = true  }
+tauri = { version = "2.12.5", features = ["tray-icon", "image-png"] }
+tauri-plugin-dialog = { version = "2.8.2" }
+tauri-plugin-opener = { version = "2.7.1" }
+tauri-plugin-updater = { version = "2.14.1", optional = true }
 
 # Testing
 
@@ -138,14 +138,14 @@ serde_json = { workspace = true }
 # Storage
 
 # UI
-tauri-build = { version = "2.7.2", features = []  }
+tauri-build = { version = "2.7.2", features = [] }
 
 # Testing
 
 # === Dev Dependencies === #
 
 [dev-dependencies]
-criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"]  }
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 # Local
 
 # Git
@@ -155,8 +155,8 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 # Logging
 
 # Utilities
-harmos-sdk = { version = "=0.1.14", features = ["grpc"]  }
-harmos-packaging = { version = "=0.1.14", features = ["generate-proto"]  }
+harmos-sdk = { version = "=0.1.14", features = ["grpc"] }
+harmos-packaging = { version = "=0.1.14", features = ["generate-proto"] }
 
 # Serialization
 
@@ -174,12 +174,12 @@ tokio = { workspace = true, features = ["test-util"] }
 tokio-stream = { workspace = true, features = ["net"] }
 
 # Networking
-rcgen = { version = "0.14.10", features = ["x509-parser"]  }
+rcgen = { version = "0.14.10", features = ["x509-parser"] }
 
 # Storage
 
 # UI
-tauri = { version = "2.12.5", features = ["test"]  }
+tauri = { version = "2.12.5", features = ["test"] }
 
 # Testing
 
@@ -200,7 +200,7 @@ windows = { version = "0.62.2", features = [
   "Win32_Security_Authorization",
   "Win32_System_Com",
   "Win32_UI_WindowsAndMessaging",
-]  }
+] }
 
 # Serialization
 

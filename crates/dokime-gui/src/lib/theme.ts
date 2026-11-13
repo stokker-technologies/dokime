@@ -27,7 +27,7 @@ export type ThemeCornerRadii = {
 /* === Constants === */
 
 let managedThemeVariables = new Set<string>();
-const runtimeThemeStyleId = "dokime-runtime-theme";
+const runtimeThemeStyleId = "dokime-host-theme";
 
 const cornerRadiusVariables = [
   ["base", "brand-radius"],

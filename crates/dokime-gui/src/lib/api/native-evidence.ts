@@ -15,7 +15,8 @@ import { create, createFileRegistry, fromBinary, ScalarType, type DescMessage } 
 import { FileDescriptorSetSchema, FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
 import { RecordContractsSchema } from "@host/dokime/v1/catalog_pb.js";
-import { Severity, WriteLogSchema } from "@host/dokime/v1/execution_pb.js";
+import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { LogsAppendRequestSchema } from "@host/dokime/context/v1/evidence/logs_pb.js";
 
 /* === Local Imports === */
 
@@ -200,7 +201,7 @@ async function decodeRecords(
   return mapBounded(records, async (record) => {
     if (!session.isCurrent()) throw new Error("Read Records: Owning Connection Changed");
     if (record.recordType === "dokime.log") {
-      const log = fromBinary(WriteLogSchema, record.payload);
+      const log = fromBinary(LogsAppendRequestSchema, record.payload);
       return mapNativeRecord(record, { message: log.message, severity: log.severity });
     }
     const executionId = record.scope?.executionId;
@@ -285,7 +286,7 @@ export function decodeFrozenRecords(records: CapturedRecord[], catalog?: Paramet
   const schemas = catalog ? frozenRecords(catalog) : undefined;
   return records.map((record) => {
     if (record.recordType === "dokime.log") {
-      const log = fromBinary(WriteLogSchema, record.payload);
+      const log = fromBinary(LogsAppendRequestSchema, record.payload);
       return mapNativeRecord(record, { message: log.message, severity: log.severity });
     }
     const message = schemas?.messages.get(record.recordType);

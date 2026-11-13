@@ -685,7 +685,7 @@ test("History Projects Attributed Outcomes Without Inventing Criterion Counts", 
 
 test("Checkpoint Records Use Frozen Evidence and Preserve the Captured Log", async () => {
   const { fetchNativeCheckpointRecords, nativeRecordText } = await import("@/lib/api/native-checkpoints");
-  const { WriteLogSchema } = await import("@host/dokime/v1/execution_pb.js");
+  const { LogsAppendRequestSchema } = await import("@host/dokime/context/v1/evidence/logs_pb.js");
   const position = { history: { store: "stored", epoch: "captured" }, sequence: 7n };
   const checkpoint = { executionIdentifier: "archived", position, evidenceThrough: position, version: new Uint8Array([1]) };
   fixture.extra.mockImplementation(async (path) => {
@@ -702,7 +702,10 @@ test("Checkpoint Records Use Frozen Evidence and Preserve the Captured Log", asy
               recordType: "dokime.log",
               source: "thermal",
               severity: Severity.INFO,
-              payload: toBinary(WriteLogSchema, create(WriteLogSchema, { severity: Severity.INFO, message: "Captured Measurement" })),
+              payload: toBinary(
+                LogsAppendRequestSchema,
+                create(LogsAppendRequestSchema, { severity: Severity.INFO, message: "Captured Measurement" }),
+              ),
             },
           },
         ],

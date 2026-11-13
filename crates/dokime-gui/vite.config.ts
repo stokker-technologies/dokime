@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: mode === "report" ? "../dokime-runtime/dist-report" : "dist",
+    outDir: mode === "report" ? "dist-report" : "dist",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {
