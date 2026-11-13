@@ -1,0 +1,16 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+
+message RecordContracts { repeated .dokime.v1.RecordContract records = 1; }
+
+message RecordContract {
+  .dokime.v1.Metadata metadata = 1;
+  // Fully qualified protobuf message in the pinned library catalog descriptors.
+  string message = 2;
+}
+
+message Listeners { repeated .dokime.v1.RecordListener listeners = 1; }
+
+message RecordListener { string operation = 1; string record = 2; }

@@ -1,0 +1,7 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+
+message TraceabilityEntry { .dokime.v1.Metadata metadata = 1; .dokime.v1.Value value = 2; string source = 3; string unit = 4; }

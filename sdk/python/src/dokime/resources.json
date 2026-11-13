@@ -6,18 +6,38 @@
     "parents": [],
     "service": "Aggregates",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "aggregates",
       "get"
     ],
-    "request": "dokime.v1.AggregatesGetRequest",
-    "response": "dokime.v1.AggregatesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.AggregatesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.AggregatesGetResponse",
+    "request": "dokime.client.v1.AggregatesGetRequest",
+    "response": "dokime.client.v1.AggregatesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.AggregatesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.AggregatesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/aggregates.proto"
+    "file": "dokime/client/v1/aggregates.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Analyses",
+    "method": "List",
+    "package": "dokime.client.v1",
+    "path": [
+      "analyses",
+      "list"
+    ],
+    "request": "dokime.client.v1.AnalysesListRequest",
+    "response": "dokime.client.v1.AnalysesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.AnalysesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.AnalysesListResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/analyses.proto"
   },
   {
     "owner": "dokime",
@@ -28,19 +48,19 @@
     ],
     "service": "Overview",
     "method": "Get",
-    "package": "dokime.v1.backend",
+    "package": "dokime.client.v1.backend",
     "path": [
       "backend",
       "overview",
       "get"
     ],
-    "request": "dokime.v1.backend.OverviewGetRequest",
-    "response": "dokime.v1.backend.OverviewGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.BackendResources.OverviewGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.BackendResources.OverviewGetResponse",
+    "request": "dokime.client.v1.backend.OverviewGetRequest",
+    "response": "dokime.client.v1.backend.OverviewGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.BackendResources.OverviewGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.BackendResources.OverviewGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/backend/overview.proto"
+    "file": "dokime/client/v1/backend/overview.proto"
   },
   {
     "owner": "dokime",
@@ -51,19 +71,19 @@
     ],
     "service": "Overview",
     "method": "Watch",
-    "package": "dokime.v1.backend",
+    "package": "dokime.client.v1.backend",
     "path": [
       "backend",
       "overview",
       "watch"
     ],
-    "request": "dokime.v1.backend.OverviewWatchRequest",
-    "response": "dokime.v1.backend.OverviewWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.BackendResources.OverviewWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.BackendResources.OverviewWatchResponse",
+    "request": "dokime.client.v1.backend.OverviewWatchRequest",
+    "response": "dokime.client.v1.backend.OverviewWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.BackendResources.OverviewWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.BackendResources.OverviewWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/backend/overview.proto"
+    "file": "dokime/client/v1/backend/overview.proto"
   },
   {
     "owner": "dokime",
@@ -72,18 +92,18 @@
     "parents": [],
     "service": "Backend",
     "method": "Appearance",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "backend",
       "appearance"
     ],
-    "request": "dokime.v1.BackendAppearanceRequest",
-    "response": "dokime.v1.BackendAppearanceResponse",
-    "request_csharp": "Dokime.Protocol.V1.BackendAppearanceRequest",
-    "response_csharp": "Dokime.Protocol.V1.BackendAppearanceResponse",
+    "request": "dokime.client.v1.BackendAppearanceRequest",
+    "response": "dokime.client.v1.BackendAppearanceResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.BackendAppearanceRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.BackendAppearanceResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/backend.proto"
+    "file": "dokime/client/v1/backend.proto"
   },
   {
     "owner": "dokime",
@@ -92,18 +112,18 @@
     "parents": [],
     "service": "Cases",
     "method": "Create",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "create"
     ],
-    "request": "dokime.v1.CasesCreateRequest",
-    "response": "dokime.v1.CasesCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesCreateResponse",
+    "request": "dokime.client.v1.CasesCreateRequest",
+    "response": "dokime.client.v1.CasesCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cases.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -112,18 +132,18 @@
     "parents": [],
     "service": "Cases",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "get"
     ],
-    "request": "dokime.v1.CasesGetRequest",
-    "response": "dokime.v1.CasesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesGetResponse",
+    "request": "dokime.client.v1.CasesGetRequest",
+    "response": "dokime.client.v1.CasesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cases.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -132,18 +152,18 @@
     "parents": [],
     "service": "Cases",
     "method": "List",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "list"
     ],
-    "request": "dokime.v1.CasesListRequest",
-    "response": "dokime.v1.CasesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesListResponse",
+    "request": "dokime.client.v1.CasesListRequest",
+    "response": "dokime.client.v1.CasesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cases.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -152,18 +172,18 @@
     "parents": [],
     "service": "Cases",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "watch"
     ],
-    "request": "dokime.v1.CasesWatchRequest",
-    "response": "dokime.v1.CasesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesWatchResponse",
+    "request": "dokime.client.v1.CasesWatchRequest",
+    "response": "dokime.client.v1.CasesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/cases.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -172,18 +192,18 @@
     "parents": [],
     "service": "Cases",
     "method": "Delete",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "delete"
     ],
-    "request": "dokime.v1.CasesDeleteRequest",
-    "response": "dokime.v1.CasesDeleteResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesDeleteRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesDeleteResponse",
+    "request": "dokime.client.v1.CasesDeleteRequest",
+    "response": "dokime.client.v1.CasesDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesDeleteResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cases.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -192,222 +212,18 @@
     "parents": [],
     "service": "Cases",
     "method": "Parameters",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cases",
       "parameters"
     ],
-    "request": "dokime.v1.CasesParametersRequest",
-    "response": "dokime.v1.CasesParametersResponse",
-    "request_csharp": "Dokime.Protocol.V1.CasesParametersRequest",
-    "response_csharp": "Dokime.Protocol.V1.CasesParametersResponse",
+    "request": "dokime.client.v1.CasesParametersRequest",
+    "response": "dokime.client.v1.CasesParametersResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CasesParametersRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CasesParametersResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cases.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "PromptDefinitions",
-    "method": "Get",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "prompt_definitions",
-      "get"
-    ],
-    "request": "dokime.v1.catalog.PromptDefinitionsGetRequest",
-    "response": "dokime.v1.catalog.PromptDefinitionsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/prompt_definitions.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "PromptDefinitions",
-    "method": "List",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "prompt_definitions",
-      "list"
-    ],
-    "request": "dokime.v1.catalog.PromptDefinitionsListRequest",
-    "response": "dokime.v1.catalog.PromptDefinitionsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/prompt_definitions.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "RecordSchemas",
-    "method": "Get",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "record_schemas",
-      "get"
-    ],
-    "request": "dokime.v1.catalog.RecordSchemasGetRequest",
-    "response": "dokime.v1.catalog.RecordSchemasGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.RecordSchemasGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.RecordSchemasGetResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/record_schemas.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "RecordSchemas",
-    "method": "List",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "record_schemas",
-      "list"
-    ],
-    "request": "dokime.v1.catalog.RecordSchemasListRequest",
-    "response": "dokime.v1.catalog.RecordSchemasListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.RecordSchemasListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.RecordSchemasListResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/record_schemas.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "StreamSchemas",
-    "method": "Get",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "stream_schemas",
-      "get"
-    ],
-    "request": "dokime.v1.catalog.StreamSchemasGetRequest",
-    "response": "dokime.v1.catalog.StreamSchemasGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.StreamSchemasGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.StreamSchemasGetResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/stream_schemas.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "StreamSchemas",
-    "method": "List",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "stream_schemas",
-      "list"
-    ],
-    "request": "dokime.v1.catalog.StreamSchemasListRequest",
-    "response": "dokime.v1.catalog.StreamSchemasListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.StreamSchemasListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.StreamSchemasListResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/stream_schemas.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "Suites",
-    "method": "Get",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "suites",
-      "get"
-    ],
-    "request": "dokime.v1.catalog.SuitesGetRequest",
-    "response": "dokime.v1.catalog.SuitesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.SuitesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.SuitesGetResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/suites.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [
-      "catalog"
-    ],
-    "service": "Suites",
-    "method": "List",
-    "package": "dokime.v1.catalog",
-    "path": [
-      "catalog",
-      "suites",
-      "list"
-    ],
-    "request": "dokime.v1.catalog.SuitesListRequest",
-    "response": "dokime.v1.catalog.SuitesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogResources.SuitesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogResources.SuitesListResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog/suites.proto"
-  },
-  {
-    "owner": "dokime",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Catalog",
-    "method": "Analyses",
-    "package": "dokime.v1",
-    "path": [
-      "catalog",
-      "analyses"
-    ],
-    "request": "dokime.v1.CatalogAnalysesRequest",
-    "response": "dokime.v1.CatalogAnalysesResponse",
-    "request_csharp": "Dokime.Protocol.V1.CatalogAnalysesRequest",
-    "response_csharp": "Dokime.Protocol.V1.CatalogAnalysesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "dokime/v1/catalog.proto"
+    "file": "dokime/client/v1/cases.proto"
   },
   {
     "owner": "dokime",
@@ -418,19 +234,19 @@
     ],
     "service": "Artifacts",
     "method": "Get",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "artifacts",
       "get"
     ],
-    "request": "dokime.v1.content.ArtifactsGetRequest",
-    "response": "dokime.v1.content.ArtifactsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsGetResponse",
+    "request": "dokime.client.v1.content.ArtifactsGetRequest",
+    "response": "dokime.client.v1.content.ArtifactsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/content/artifacts.proto"
+    "file": "dokime/client/v1/content/artifacts.proto"
   },
   {
     "owner": "dokime",
@@ -441,19 +257,19 @@
     ],
     "service": "Artifacts",
     "method": "Create",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "artifacts",
       "create"
     ],
-    "request": "dokime.v1.content.ArtifactsCreateRequest",
-    "response": "dokime.v1.content.ArtifactsCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsCreateResponse",
+    "request": "dokime.client.v1.content.ArtifactsCreateRequest",
+    "response": "dokime.client.v1.content.ArtifactsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/content/artifacts.proto"
+    "file": "dokime/client/v1/content/artifacts.proto"
   },
   {
     "owner": "dokime",
@@ -464,19 +280,19 @@
     ],
     "service": "Artifacts",
     "method": "List",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "artifacts",
       "list"
     ],
-    "request": "dokime.v1.content.ArtifactsListRequest",
-    "response": "dokime.v1.content.ArtifactsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsListResponse",
+    "request": "dokime.client.v1.content.ArtifactsListRequest",
+    "response": "dokime.client.v1.content.ArtifactsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/content/artifacts.proto"
+    "file": "dokime/client/v1/content/artifacts.proto"
   },
   {
     "owner": "dokime",
@@ -487,19 +303,19 @@
     ],
     "service": "Artifacts",
     "method": "Watch",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "artifacts",
       "watch"
     ],
-    "request": "dokime.v1.content.ArtifactsWatchRequest",
-    "response": "dokime.v1.content.ArtifactsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ArtifactsWatchResponse",
+    "request": "dokime.client.v1.content.ArtifactsWatchRequest",
+    "response": "dokime.client.v1.content.ArtifactsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ArtifactsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/content/artifacts.proto"
+    "file": "dokime/client/v1/content/artifacts.proto"
   },
   {
     "owner": "dokime",
@@ -510,19 +326,19 @@
     ],
     "service": "ExecutionFiles",
     "method": "Get",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "execution_files",
       "get"
     ],
-    "request": "dokime.v1.content.ExecutionFilesGetRequest",
-    "response": "dokime.v1.content.ExecutionFilesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesGetResponse",
+    "request": "dokime.client.v1.content.ExecutionFilesGetRequest",
+    "response": "dokime.client.v1.content.ExecutionFilesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/content/execution_files.proto"
+    "file": "dokime/client/v1/content/execution_files.proto"
   },
   {
     "owner": "dokime",
@@ -533,19 +349,19 @@
     ],
     "service": "ExecutionFiles",
     "method": "List",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "execution_files",
       "list"
     ],
-    "request": "dokime.v1.content.ExecutionFilesListRequest",
-    "response": "dokime.v1.content.ExecutionFilesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesListResponse",
+    "request": "dokime.client.v1.content.ExecutionFilesListRequest",
+    "response": "dokime.client.v1.content.ExecutionFilesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/content/execution_files.proto"
+    "file": "dokime/client/v1/content/execution_files.proto"
   },
   {
     "owner": "dokime",
@@ -556,19 +372,19 @@
     ],
     "service": "ExecutionFiles",
     "method": "Watch",
-    "package": "dokime.v1.content",
+    "package": "dokime.client.v1.content",
     "path": [
       "content",
       "execution_files",
       "watch"
     ],
-    "request": "dokime.v1.content.ExecutionFilesWatchRequest",
-    "response": "dokime.v1.content.ExecutionFilesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchResponse",
+    "request": "dokime.client.v1.content.ExecutionFilesWatchRequest",
+    "response": "dokime.client.v1.content.ExecutionFilesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ContentResources.ExecutionFilesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/content/execution_files.proto"
+    "file": "dokime/client/v1/content/execution_files.proto"
   },
   {
     "owner": "dokime",
@@ -577,18 +393,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "get"
     ],
-    "request": "dokime.v1.CyclesGetRequest",
-    "response": "dokime.v1.CyclesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesGetResponse",
+    "request": "dokime.client.v1.CyclesGetRequest",
+    "response": "dokime.client.v1.CyclesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -597,18 +413,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "Set",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "set"
     ],
-    "request": "dokime.v1.CyclesSetRequest",
-    "response": "dokime.v1.CyclesSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesSetResponse",
+    "request": "dokime.client.v1.CyclesSetRequest",
+    "response": "dokime.client.v1.CyclesSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -617,18 +433,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "List",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "list"
     ],
-    "request": "dokime.v1.CyclesListRequest",
-    "response": "dokime.v1.CyclesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesListResponse",
+    "request": "dokime.client.v1.CyclesListRequest",
+    "response": "dokime.client.v1.CyclesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -637,18 +453,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "watch"
     ],
-    "request": "dokime.v1.CyclesWatchRequest",
-    "response": "dokime.v1.CyclesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesWatchResponse",
+    "request": "dokime.client.v1.CyclesWatchRequest",
+    "response": "dokime.client.v1.CyclesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -657,18 +473,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "Create",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "create"
     ],
-    "request": "dokime.v1.CyclesCreateRequest",
-    "response": "dokime.v1.CyclesCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesCreateResponse",
+    "request": "dokime.client.v1.CyclesCreateRequest",
+    "response": "dokime.client.v1.CyclesCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -677,18 +493,18 @@
     "parents": [],
     "service": "Cycles",
     "method": "Seal",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "cycles",
       "seal"
     ],
-    "request": "dokime.v1.CyclesSealRequest",
-    "response": "dokime.v1.CyclesSealResponse",
-    "request_csharp": "Dokime.Protocol.V1.CyclesSealRequest",
-    "response_csharp": "Dokime.Protocol.V1.CyclesSealResponse",
+    "request": "dokime.client.v1.CyclesSealRequest",
+    "response": "dokime.client.v1.CyclesSealResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.CyclesSealRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.CyclesSealResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/cycles.proto"
+    "file": "dokime/client/v1/cycles.proto"
   },
   {
     "owner": "dokime",
@@ -697,18 +513,18 @@
     "parents": [],
     "service": "Documents",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "documents",
       "get"
     ],
-    "request": "dokime.v1.DocumentsGetRequest",
-    "response": "dokime.v1.DocumentsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.DocumentsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.DocumentsGetResponse",
+    "request": "dokime.client.v1.DocumentsGetRequest",
+    "response": "dokime.client.v1.DocumentsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.DocumentsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.DocumentsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/documents.proto"
+    "file": "dokime/client/v1/documents.proto"
   },
   {
     "owner": "dokime",
@@ -717,18 +533,18 @@
     "parents": [],
     "service": "Documents",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "documents",
       "watch"
     ],
-    "request": "dokime.v1.DocumentsWatchRequest",
-    "response": "dokime.v1.DocumentsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.DocumentsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.DocumentsWatchResponse",
+    "request": "dokime.client.v1.DocumentsWatchRequest",
+    "response": "dokime.client.v1.DocumentsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.DocumentsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.DocumentsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/documents.proto"
+    "file": "dokime/client/v1/documents.proto"
   },
   {
     "owner": "dokime",
@@ -739,19 +555,19 @@
     ],
     "service": "HealthEvents",
     "method": "List",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "health_events",
       "list"
     ],
-    "request": "dokime.v1.evidence.HealthEventsListRequest",
-    "response": "dokime.v1.evidence.HealthEventsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.HealthEventsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.HealthEventsListResponse",
+    "request": "dokime.client.v1.evidence.HealthEventsListRequest",
+    "response": "dokime.client.v1.evidence.HealthEventsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.HealthEventsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.HealthEventsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/health_events.proto"
+    "file": "dokime/client/v1/evidence/health_events.proto"
   },
   {
     "owner": "dokime",
@@ -762,19 +578,19 @@
     ],
     "service": "HealthEvents",
     "method": "Watch",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "health_events",
       "watch"
     ],
-    "request": "dokime.v1.evidence.HealthEventsWatchRequest",
-    "response": "dokime.v1.evidence.HealthEventsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchResponse",
+    "request": "dokime.client.v1.evidence.HealthEventsWatchRequest",
+    "response": "dokime.client.v1.evidence.HealthEventsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.HealthEventsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.HealthEventsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/evidence/health_events.proto"
+    "file": "dokime/client/v1/evidence/health_events.proto"
   },
   {
     "owner": "dokime",
@@ -785,19 +601,19 @@
     ],
     "service": "Notes",
     "method": "Get",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "notes",
       "get"
     ],
-    "request": "dokime.v1.evidence.NotesGetRequest",
-    "response": "dokime.v1.evidence.NotesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesGetResponse",
+    "request": "dokime.client.v1.evidence.NotesGetRequest",
+    "response": "dokime.client.v1.evidence.NotesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/notes.proto"
+    "file": "dokime/client/v1/evidence/notes.proto"
   },
   {
     "owner": "dokime",
@@ -808,19 +624,19 @@
     ],
     "service": "Notes",
     "method": "Set",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "notes",
       "set"
     ],
-    "request": "dokime.v1.evidence.NotesSetRequest",
-    "response": "dokime.v1.evidence.NotesSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesSetResponse",
+    "request": "dokime.client.v1.evidence.NotesSetRequest",
+    "response": "dokime.client.v1.evidence.NotesSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/notes.proto"
+    "file": "dokime/client/v1/evidence/notes.proto"
   },
   {
     "owner": "dokime",
@@ -831,19 +647,19 @@
     ],
     "service": "Notes",
     "method": "List",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "notes",
       "list"
     ],
-    "request": "dokime.v1.evidence.NotesListRequest",
-    "response": "dokime.v1.evidence.NotesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesListResponse",
+    "request": "dokime.client.v1.evidence.NotesListRequest",
+    "response": "dokime.client.v1.evidence.NotesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/notes.proto"
+    "file": "dokime/client/v1/evidence/notes.proto"
   },
   {
     "owner": "dokime",
@@ -854,19 +670,19 @@
     ],
     "service": "Notes",
     "method": "Watch",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "notes",
       "watch"
     ],
-    "request": "dokime.v1.evidence.NotesWatchRequest",
-    "response": "dokime.v1.evidence.NotesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesWatchResponse",
+    "request": "dokime.client.v1.evidence.NotesWatchRequest",
+    "response": "dokime.client.v1.evidence.NotesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/evidence/notes.proto"
+    "file": "dokime/client/v1/evidence/notes.proto"
   },
   {
     "owner": "dokime",
@@ -877,19 +693,19 @@
     ],
     "service": "Notes",
     "method": "Create",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "notes",
       "create"
     ],
-    "request": "dokime.v1.evidence.NotesCreateRequest",
-    "response": "dokime.v1.evidence.NotesCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.NotesCreateResponse",
+    "request": "dokime.client.v1.evidence.NotesCreateRequest",
+    "response": "dokime.client.v1.evidence.NotesCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.NotesCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/notes.proto"
+    "file": "dokime/client/v1/evidence/notes.proto"
   },
   {
     "owner": "dokime",
@@ -900,19 +716,19 @@
     ],
     "service": "Records",
     "method": "List",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "records",
       "list"
     ],
-    "request": "dokime.v1.evidence.RecordsListRequest",
-    "response": "dokime.v1.evidence.RecordsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.RecordsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.RecordsListResponse",
+    "request": "dokime.client.v1.evidence.RecordsListRequest",
+    "response": "dokime.client.v1.evidence.RecordsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.RecordsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.RecordsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/records.proto"
+    "file": "dokime/client/v1/evidence/records.proto"
   },
   {
     "owner": "dokime",
@@ -923,19 +739,19 @@
     ],
     "service": "Records",
     "method": "Watch",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "records",
       "watch"
     ],
-    "request": "dokime.v1.evidence.RecordsWatchRequest",
-    "response": "dokime.v1.evidence.RecordsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.RecordsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.RecordsWatchResponse",
+    "request": "dokime.client.v1.evidence.RecordsWatchRequest",
+    "response": "dokime.client.v1.evidence.RecordsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.RecordsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.RecordsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/evidence/records.proto"
+    "file": "dokime/client/v1/evidence/records.proto"
   },
   {
     "owner": "dokime",
@@ -946,19 +762,19 @@
     ],
     "service": "Samples",
     "method": "List",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "samples",
       "list"
     ],
-    "request": "dokime.v1.evidence.SamplesListRequest",
-    "response": "dokime.v1.evidence.SamplesListResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.SamplesListRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.SamplesListResponse",
+    "request": "dokime.client.v1.evidence.SamplesListRequest",
+    "response": "dokime.client.v1.evidence.SamplesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.SamplesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.SamplesListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/samples.proto"
+    "file": "dokime/client/v1/evidence/samples.proto"
   },
   {
     "owner": "dokime",
@@ -969,19 +785,19 @@
     ],
     "service": "Samples",
     "method": "Watch",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "samples",
       "watch"
     ],
-    "request": "dokime.v1.evidence.SamplesWatchRequest",
-    "response": "dokime.v1.evidence.SamplesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.SamplesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.SamplesWatchResponse",
+    "request": "dokime.client.v1.evidence.SamplesWatchRequest",
+    "response": "dokime.client.v1.evidence.SamplesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.SamplesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.SamplesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/evidence/samples.proto"
+    "file": "dokime/client/v1/evidence/samples.proto"
   },
   {
     "owner": "dokime",
@@ -992,19 +808,19 @@
     ],
     "service": "Traceability",
     "method": "Get",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "traceability",
       "get"
     ],
-    "request": "dokime.v1.evidence.TraceabilityGetRequest",
-    "response": "dokime.v1.evidence.TraceabilityGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.TraceabilityGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.TraceabilityGetResponse",
+    "request": "dokime.client.v1.evidence.TraceabilityGetRequest",
+    "response": "dokime.client.v1.evidence.TraceabilityGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.TraceabilityGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.TraceabilityGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence/traceability.proto"
+    "file": "dokime/client/v1/evidence/traceability.proto"
   },
   {
     "owner": "dokime",
@@ -1015,19 +831,19 @@
     ],
     "service": "Traceability",
     "method": "Watch",
-    "package": "dokime.v1.evidence",
+    "package": "dokime.client.v1.evidence",
     "path": [
       "evidence",
       "traceability",
       "watch"
     ],
-    "request": "dokime.v1.evidence.TraceabilityWatchRequest",
-    "response": "dokime.v1.evidence.TraceabilityWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchResponse",
+    "request": "dokime.client.v1.evidence.TraceabilityWatchRequest",
+    "response": "dokime.client.v1.evidence.TraceabilityWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.TraceabilityWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceResources.TraceabilityWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/evidence/traceability.proto"
+    "file": "dokime/client/v1/evidence/traceability.proto"
   },
   {
     "owner": "dokime",
@@ -1036,18 +852,18 @@
     "parents": [],
     "service": "Evidence",
     "method": "Statistics",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "evidence",
       "statistics"
     ],
-    "request": "dokime.v1.EvidenceStatisticsRequest",
-    "response": "dokime.v1.EvidenceStatisticsResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceStatisticsRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceStatisticsResponse",
+    "request": "dokime.client.v1.EvidenceStatisticsRequest",
+    "response": "dokime.client.v1.EvidenceStatisticsResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceStatisticsRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceStatisticsResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence.proto"
+    "file": "dokime/client/v1/evidence.proto"
   },
   {
     "owner": "dokime",
@@ -1056,18 +872,18 @@
     "parents": [],
     "service": "Evidence",
     "method": "Archive",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "evidence",
       "archive"
     ],
-    "request": "dokime.v1.EvidenceArchiveRequest",
-    "response": "dokime.v1.EvidenceArchiveResponse",
-    "request_csharp": "Dokime.Protocol.V1.EvidenceArchiveRequest",
-    "response_csharp": "Dokime.Protocol.V1.EvidenceArchiveResponse",
+    "request": "dokime.client.v1.EvidenceArchiveRequest",
+    "response": "dokime.client.v1.EvidenceArchiveResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.EvidenceArchiveRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.EvidenceArchiveResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/evidence.proto"
+    "file": "dokime/client/v1/evidence.proto"
   },
   {
     "owner": "dokime",
@@ -1078,19 +894,19 @@
     ],
     "service": "Commands",
     "method": "Get",
-    "package": "dokime.v1.executions",
+    "package": "dokime.client.v1.executions",
     "path": [
       "executions",
       "commands",
       "get"
     ],
-    "request": "dokime.v1.executions.CommandsGetRequest",
-    "response": "dokime.v1.executions.CommandsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsResources.CommandsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsResources.CommandsGetResponse",
+    "request": "dokime.client.v1.executions.CommandsGetRequest",
+    "response": "dokime.client.v1.executions.CommandsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.CommandsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.CommandsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions/commands.proto"
+    "file": "dokime/client/v1/executions/commands.proto"
   },
   {
     "owner": "dokime",
@@ -1101,19 +917,19 @@
     ],
     "service": "Commands",
     "method": "Create",
-    "package": "dokime.v1.executions",
+    "package": "dokime.client.v1.executions",
     "path": [
       "executions",
       "commands",
       "create"
     ],
-    "request": "dokime.v1.executions.CommandsCreateRequest",
-    "response": "dokime.v1.executions.CommandsCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsResources.CommandsCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsResources.CommandsCreateResponse",
+    "request": "dokime.client.v1.executions.CommandsCreateRequest",
+    "response": "dokime.client.v1.executions.CommandsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.CommandsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.CommandsCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions/commands.proto"
+    "file": "dokime/client/v1/executions/commands.proto"
   },
   {
     "owner": "dokime",
@@ -1124,19 +940,19 @@
     ],
     "service": "Progress",
     "method": "Get",
-    "package": "dokime.v1.executions",
+    "package": "dokime.client.v1.executions",
     "path": [
       "executions",
       "progress",
       "get"
     ],
-    "request": "dokime.v1.executions.ProgressGetRequest",
-    "response": "dokime.v1.executions.ProgressGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsResources.ProgressGetResponse",
+    "request": "dokime.client.v1.executions.ProgressGetRequest",
+    "response": "dokime.client.v1.executions.ProgressGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.ProgressGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.ProgressGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions/progress.proto"
+    "file": "dokime/client/v1/executions/progress.proto"
   },
   {
     "owner": "dokime",
@@ -1147,19 +963,19 @@
     ],
     "service": "Progress",
     "method": "Watch",
-    "package": "dokime.v1.executions",
+    "package": "dokime.client.v1.executions",
     "path": [
       "executions",
       "progress",
       "watch"
     ],
-    "request": "dokime.v1.executions.ProgressWatchRequest",
-    "response": "dokime.v1.executions.ProgressWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsResources.ProgressWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsResources.ProgressWatchResponse",
+    "request": "dokime.client.v1.executions.ProgressWatchRequest",
+    "response": "dokime.client.v1.executions.ProgressWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/executions/progress.proto"
+    "file": "dokime/client/v1/executions/progress.proto"
   },
   {
     "owner": "dokime",
@@ -1168,18 +984,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "get"
     ],
-    "request": "dokime.v1.ExecutionsGetRequest",
-    "response": "dokime.v1.ExecutionsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsGetResponse",
+    "request": "dokime.client.v1.ExecutionsGetRequest",
+    "response": "dokime.client.v1.ExecutionsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1188,18 +1004,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Set",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "set"
     ],
-    "request": "dokime.v1.ExecutionsSetRequest",
-    "response": "dokime.v1.ExecutionsSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsSetResponse",
+    "request": "dokime.client.v1.ExecutionsSetRequest",
+    "response": "dokime.client.v1.ExecutionsSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1208,18 +1024,18 @@
     "parents": [],
     "service": "Executions",
     "method": "List",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "list"
     ],
-    "request": "dokime.v1.ExecutionsListRequest",
-    "response": "dokime.v1.ExecutionsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsListResponse",
+    "request": "dokime.client.v1.ExecutionsListRequest",
+    "response": "dokime.client.v1.ExecutionsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1228,18 +1044,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "watch"
     ],
-    "request": "dokime.v1.ExecutionsWatchRequest",
-    "response": "dokime.v1.ExecutionsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsWatchResponse",
+    "request": "dokime.client.v1.ExecutionsWatchRequest",
+    "response": "dokime.client.v1.ExecutionsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1248,18 +1064,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Create",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "create"
     ],
-    "request": "dokime.v1.ExecutionsCreateRequest",
-    "response": "dokime.v1.ExecutionsCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsCreateResponse",
+    "request": "dokime.client.v1.ExecutionsCreateRequest",
+    "response": "dokime.client.v1.ExecutionsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1268,18 +1084,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Start",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "start"
     ],
-    "request": "dokime.v1.ExecutionsStartRequest",
-    "response": "dokime.v1.ExecutionsStartResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsStartRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsStartResponse",
+    "request": "dokime.client.v1.ExecutionsStartRequest",
+    "response": "dokime.client.v1.ExecutionsStartResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsStartRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsStartResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1288,18 +1104,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Stop",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "stop"
     ],
-    "request": "dokime.v1.ExecutionsStopRequest",
-    "response": "dokime.v1.ExecutionsStopResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsStopRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsStopResponse",
+    "request": "dokime.client.v1.ExecutionsStopRequest",
+    "response": "dokime.client.v1.ExecutionsStopResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsStopRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsStopResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1308,18 +1124,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Cancel",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "cancel"
     ],
-    "request": "dokime.v1.ExecutionsCancelRequest",
-    "response": "dokime.v1.ExecutionsCancelResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsCancelRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsCancelResponse",
+    "request": "dokime.client.v1.ExecutionsCancelRequest",
+    "response": "dokime.client.v1.ExecutionsCancelResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsCancelRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsCancelResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1328,18 +1144,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Delete",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "delete"
     ],
-    "request": "dokime.v1.ExecutionsDeleteRequest",
-    "response": "dokime.v1.ExecutionsDeleteResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsDeleteRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsDeleteResponse",
+    "request": "dokime.client.v1.ExecutionsDeleteRequest",
+    "response": "dokime.client.v1.ExecutionsDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsDeleteResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1348,18 +1164,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Parameters",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "parameters"
     ],
-    "request": "dokime.v1.ExecutionsParametersRequest",
-    "response": "dokime.v1.ExecutionsParametersResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsParametersRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsParametersResponse",
+    "request": "dokime.client.v1.ExecutionsParametersRequest",
+    "response": "dokime.client.v1.ExecutionsParametersResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsParametersRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsParametersResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1368,18 +1184,18 @@
     "parents": [],
     "service": "Executions",
     "method": "Steps",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "executions",
       "steps"
     ],
-    "request": "dokime.v1.ExecutionsStepsRequest",
-    "response": "dokime.v1.ExecutionsStepsResponse",
-    "request_csharp": "Dokime.Protocol.V1.ExecutionsStepsRequest",
-    "response_csharp": "Dokime.Protocol.V1.ExecutionsStepsResponse",
+    "request": "dokime.client.v1.ExecutionsStepsRequest",
+    "response": "dokime.client.v1.ExecutionsStepsResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsStepsRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsStepsResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/executions.proto"
+    "file": "dokime/client/v1/executions.proto"
   },
   {
     "owner": "dokime",
@@ -1390,19 +1206,19 @@
     ],
     "service": "Captures",
     "method": "Create",
-    "package": "dokime.v1.media",
+    "package": "dokime.client.v1.media",
     "path": [
       "media",
       "captures",
       "create"
     ],
-    "request": "dokime.v1.media.CapturesCreateRequest",
-    "response": "dokime.v1.media.CapturesCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.MediaResources.CapturesCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.MediaResources.CapturesCreateResponse",
+    "request": "dokime.client.v1.media.CapturesCreateRequest",
+    "response": "dokime.client.v1.media.CapturesCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/media/captures.proto"
+    "file": "dokime/client/v1/media/captures.proto"
   },
   {
     "owner": "dokime",
@@ -1413,19 +1229,19 @@
     ],
     "service": "Captures",
     "method": "Get",
-    "package": "dokime.v1.media",
+    "package": "dokime.client.v1.media",
     "path": [
       "media",
       "captures",
       "get"
     ],
-    "request": "dokime.v1.media.CapturesGetRequest",
-    "response": "dokime.v1.media.CapturesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.MediaResources.CapturesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.MediaResources.CapturesGetResponse",
+    "request": "dokime.client.v1.media.CapturesGetRequest",
+    "response": "dokime.client.v1.media.CapturesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/media/captures.proto"
+    "file": "dokime/client/v1/media/captures.proto"
   },
   {
     "owner": "dokime",
@@ -1436,19 +1252,19 @@
     ],
     "service": "Captures",
     "method": "Watch",
-    "package": "dokime.v1.media",
+    "package": "dokime.client.v1.media",
     "path": [
       "media",
       "captures",
       "watch"
     ],
-    "request": "dokime.v1.media.CapturesWatchRequest",
-    "response": "dokime.v1.media.CapturesWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.MediaResources.CapturesWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.MediaResources.CapturesWatchResponse",
+    "request": "dokime.client.v1.media.CapturesWatchRequest",
+    "response": "dokime.client.v1.media.CapturesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/media/captures.proto"
+    "file": "dokime/client/v1/media/captures.proto"
   },
   {
     "owner": "dokime",
@@ -1459,19 +1275,19 @@
     ],
     "service": "Captures",
     "method": "Stop",
-    "package": "dokime.v1.media",
+    "package": "dokime.client.v1.media",
     "path": [
       "media",
       "captures",
       "stop"
     ],
-    "request": "dokime.v1.media.CapturesStopRequest",
-    "response": "dokime.v1.media.CapturesStopResponse",
-    "request_csharp": "Dokime.Protocol.V1.MediaResources.CapturesStopRequest",
-    "response_csharp": "Dokime.Protocol.V1.MediaResources.CapturesStopResponse",
+    "request": "dokime.client.v1.media.CapturesStopRequest",
+    "response": "dokime.client.v1.media.CapturesStopResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesStopRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.MediaResources.CapturesStopResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/media/captures.proto"
+    "file": "dokime/client/v1/media/captures.proto"
   },
   {
     "owner": "dokime",
@@ -1482,19 +1298,19 @@
     ],
     "service": "Settings",
     "method": "Get",
-    "package": "dokime.v1.plots",
+    "package": "dokime.client.v1.plots",
     "path": [
       "plots",
       "settings",
       "get"
     ],
-    "request": "dokime.v1.plots.SettingsGetRequest",
-    "response": "dokime.v1.plots.SettingsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.PlotsResources.SettingsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.PlotsResources.SettingsGetResponse",
+    "request": "dokime.client.v1.plots.SettingsGetRequest",
+    "response": "dokime.client.v1.plots.SettingsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SettingsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SettingsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/plots/settings.proto"
+    "file": "dokime/client/v1/plots/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1505,19 +1321,19 @@
     ],
     "service": "Settings",
     "method": "Set",
-    "package": "dokime.v1.plots",
+    "package": "dokime.client.v1.plots",
     "path": [
       "plots",
       "settings",
       "set"
     ],
-    "request": "dokime.v1.plots.SettingsSetRequest",
-    "response": "dokime.v1.plots.SettingsSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.PlotsResources.SettingsSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.PlotsResources.SettingsSetResponse",
+    "request": "dokime.client.v1.plots.SettingsSetRequest",
+    "response": "dokime.client.v1.plots.SettingsSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SettingsSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SettingsSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/plots/settings.proto"
+    "file": "dokime/client/v1/plots/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1528,19 +1344,19 @@
     ],
     "service": "Snapshots",
     "method": "List",
-    "package": "dokime.v1.plots",
+    "package": "dokime.client.v1.plots",
     "path": [
       "plots",
       "snapshots",
       "list"
     ],
-    "request": "dokime.v1.plots.SnapshotsListRequest",
-    "response": "dokime.v1.plots.SnapshotsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.PlotsResources.SnapshotsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.PlotsResources.SnapshotsListResponse",
+    "request": "dokime.client.v1.plots.SnapshotsListRequest",
+    "response": "dokime.client.v1.plots.SnapshotsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SnapshotsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SnapshotsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/plots/snapshots.proto"
+    "file": "dokime/client/v1/plots/snapshots.proto"
   },
   {
     "owner": "dokime",
@@ -1551,19 +1367,19 @@
     ],
     "service": "Snapshots",
     "method": "Watch",
-    "package": "dokime.v1.plots",
+    "package": "dokime.client.v1.plots",
     "path": [
       "plots",
       "snapshots",
       "watch"
     ],
-    "request": "dokime.v1.plots.SnapshotsWatchRequest",
-    "response": "dokime.v1.plots.SnapshotsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.PlotsResources.SnapshotsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.PlotsResources.SnapshotsWatchResponse",
+    "request": "dokime.client.v1.plots.SnapshotsWatchRequest",
+    "response": "dokime.client.v1.plots.SnapshotsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SnapshotsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PlotsResources.SnapshotsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/plots/snapshots.proto"
+    "file": "dokime/client/v1/plots/snapshots.proto"
   },
   {
     "owner": "dokime",
@@ -1574,19 +1390,19 @@
     ],
     "service": "Settings",
     "method": "Get",
-    "package": "dokime.v1.plugins",
+    "package": "dokime.client.v1.plugins",
     "path": [
       "plugins",
       "settings",
       "get"
     ],
-    "request": "dokime.v1.plugins.SettingsGetRequest",
-    "response": "dokime.v1.plugins.SettingsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.PluginsResources.SettingsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.PluginsResources.SettingsGetResponse",
+    "request": "dokime.client.v1.plugins.SettingsGetRequest",
+    "response": "dokime.client.v1.plugins.SettingsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PluginsResources.SettingsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PluginsResources.SettingsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/plugins/settings.proto"
+    "file": "dokime/client/v1/plugins/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1597,19 +1413,59 @@
     ],
     "service": "Settings",
     "method": "Set",
-    "package": "dokime.v1.plugins",
+    "package": "dokime.client.v1.plugins",
     "path": [
       "plugins",
       "settings",
       "set"
     ],
-    "request": "dokime.v1.plugins.SettingsSetRequest",
-    "response": "dokime.v1.plugins.SettingsSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.PluginsResources.SettingsSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.PluginsResources.SettingsSetResponse",
+    "request": "dokime.client.v1.plugins.SettingsSetRequest",
+    "response": "dokime.client.v1.plugins.SettingsSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PluginsResources.SettingsSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PluginsResources.SettingsSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/plugins/settings.proto"
+    "file": "dokime/client/v1/plugins/settings.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "PromptDefinitions",
+    "method": "Get",
+    "package": "dokime.client.v1",
+    "path": [
+      "prompt_definitions",
+      "get"
+    ],
+    "request": "dokime.client.v1.PromptDefinitionsGetRequest",
+    "response": "dokime.client.v1.PromptDefinitionsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptDefinitionsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptDefinitionsGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/prompt_definitions.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "PromptDefinitions",
+    "method": "List",
+    "package": "dokime.client.v1",
+    "path": [
+      "prompt_definitions",
+      "list"
+    ],
+    "request": "dokime.client.v1.PromptDefinitionsListRequest",
+    "response": "dokime.client.v1.PromptDefinitionsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptDefinitionsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptDefinitionsListResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/prompt_definitions.proto"
   },
   {
     "owner": "dokime",
@@ -1620,19 +1476,19 @@
     ],
     "service": "Answers",
     "method": "Create",
-    "package": "dokime.v1.prompts",
+    "package": "dokime.client.v1.prompts",
     "path": [
       "prompts",
       "answers",
       "create"
     ],
-    "request": "dokime.v1.prompts.AnswersCreateRequest",
-    "response": "dokime.v1.prompts.AnswersCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.PromptsResources.AnswersCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.PromptsResources.AnswersCreateResponse",
+    "request": "dokime.client.v1.prompts.AnswersCreateRequest",
+    "response": "dokime.client.v1.prompts.AnswersCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptsResources.AnswersCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptsResources.AnswersCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/prompts/answers.proto"
+    "file": "dokime/client/v1/prompts/answers.proto"
   },
   {
     "owner": "dokime",
@@ -1641,18 +1497,18 @@
     "parents": [],
     "service": "Prompts",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "prompts",
       "get"
     ],
-    "request": "dokime.v1.PromptsGetRequest",
-    "response": "dokime.v1.PromptsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.PromptsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.PromptsGetResponse",
+    "request": "dokime.client.v1.PromptsGetRequest",
+    "response": "dokime.client.v1.PromptsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/prompts.proto"
+    "file": "dokime/client/v1/prompts.proto"
   },
   {
     "owner": "dokime",
@@ -1661,18 +1517,18 @@
     "parents": [],
     "service": "Prompts",
     "method": "List",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "prompts",
       "list"
     ],
-    "request": "dokime.v1.PromptsListRequest",
-    "response": "dokime.v1.PromptsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.PromptsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.PromptsListResponse",
+    "request": "dokime.client.v1.PromptsListRequest",
+    "response": "dokime.client.v1.PromptsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/prompts.proto"
+    "file": "dokime/client/v1/prompts.proto"
   },
   {
     "owner": "dokime",
@@ -1681,18 +1537,58 @@
     "parents": [],
     "service": "Prompts",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "prompts",
       "watch"
     ],
-    "request": "dokime.v1.PromptsWatchRequest",
-    "response": "dokime.v1.PromptsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.PromptsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.PromptsWatchResponse",
+    "request": "dokime.client.v1.PromptsWatchRequest",
+    "response": "dokime.client.v1.PromptsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.PromptsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.PromptsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/prompts.proto"
+    "file": "dokime/client/v1/prompts.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "RecordSchemas",
+    "method": "Get",
+    "package": "dokime.client.v1",
+    "path": [
+      "record_schemas",
+      "get"
+    ],
+    "request": "dokime.client.v1.RecordSchemasGetRequest",
+    "response": "dokime.client.v1.RecordSchemasGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.RecordSchemasGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.RecordSchemasGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/record_schemas.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "RecordSchemas",
+    "method": "List",
+    "package": "dokime.client.v1",
+    "path": [
+      "record_schemas",
+      "list"
+    ],
+    "request": "dokime.client.v1.RecordSchemasListRequest",
+    "response": "dokime.client.v1.RecordSchemasListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.RecordSchemasListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.RecordSchemasListResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/record_schemas.proto"
   },
   {
     "owner": "dokime",
@@ -1701,18 +1597,18 @@
     "parents": [],
     "service": "Reports",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "reports",
       "get"
     ],
-    "request": "dokime.v1.ReportsGetRequest",
-    "response": "dokime.v1.ReportsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.ReportsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.ReportsGetResponse",
+    "request": "dokime.client.v1.ReportsGetRequest",
+    "response": "dokime.client.v1.ReportsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ReportsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ReportsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/reports.proto"
+    "file": "dokime/client/v1/reports.proto"
   },
   {
     "owner": "dokime",
@@ -1721,18 +1617,18 @@
     "parents": [],
     "service": "Reports",
     "method": "Create",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "reports",
       "create"
     ],
-    "request": "dokime.v1.ReportsCreateRequest",
-    "response": "dokime.v1.ReportsCreateResponse",
-    "request_csharp": "Dokime.Protocol.V1.ReportsCreateRequest",
-    "response_csharp": "Dokime.Protocol.V1.ReportsCreateResponse",
+    "request": "dokime.client.v1.ReportsCreateRequest",
+    "response": "dokime.client.v1.ReportsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ReportsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ReportsCreateResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/reports.proto"
+    "file": "dokime/client/v1/reports.proto"
   },
   {
     "owner": "dokime",
@@ -1741,18 +1637,18 @@
     "parents": [],
     "service": "Reports",
     "method": "Publish",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "reports",
       "publish"
     ],
-    "request": "dokime.v1.ReportsPublishRequest",
-    "response": "dokime.v1.ReportsPublishResponse",
-    "request_csharp": "Dokime.Protocol.V1.ReportsPublishRequest",
-    "response_csharp": "Dokime.Protocol.V1.ReportsPublishResponse",
+    "request": "dokime.client.v1.ReportsPublishRequest",
+    "response": "dokime.client.v1.ReportsPublishResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ReportsPublishRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ReportsPublishResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/reports.proto"
+    "file": "dokime/client/v1/reports.proto"
   },
   {
     "owner": "dokime",
@@ -1761,18 +1657,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "get"
     ],
-    "request": "dokime.v1.SecretsGetRequest",
-    "response": "dokime.v1.SecretsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsGetResponse",
+    "request": "dokime.client.v1.SecretsGetRequest",
+    "response": "dokime.client.v1.SecretsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1781,18 +1677,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Set",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "set"
     ],
-    "request": "dokime.v1.SecretsSetRequest",
-    "response": "dokime.v1.SecretsSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsSetResponse",
+    "request": "dokime.client.v1.SecretsSetRequest",
+    "response": "dokime.client.v1.SecretsSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1801,18 +1697,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "List",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "list"
     ],
-    "request": "dokime.v1.SecretsListRequest",
-    "response": "dokime.v1.SecretsListResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsListRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsListResponse",
+    "request": "dokime.client.v1.SecretsListRequest",
+    "response": "dokime.client.v1.SecretsListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsListResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1821,18 +1717,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Watch",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "watch"
     ],
-    "request": "dokime.v1.SecretsWatchRequest",
-    "response": "dokime.v1.SecretsWatchResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsWatchRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsWatchResponse",
+    "request": "dokime.client.v1.SecretsWatchRequest",
+    "response": "dokime.client.v1.SecretsWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsWatchResponse",
     "client_streaming": false,
     "server_streaming": true,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1841,18 +1737,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Delete",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "delete"
     ],
-    "request": "dokime.v1.SecretsDeleteRequest",
-    "response": "dokime.v1.SecretsDeleteResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsDeleteRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsDeleteResponse",
+    "request": "dokime.client.v1.SecretsDeleteRequest",
+    "response": "dokime.client.v1.SecretsDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsDeleteResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1861,18 +1757,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Export",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "export"
     ],
-    "request": "dokime.v1.SecretsExportRequest",
-    "response": "dokime.v1.SecretsExportResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsExportRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsExportResponse",
+    "request": "dokime.client.v1.SecretsExportRequest",
+    "response": "dokime.client.v1.SecretsExportResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsExportRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsExportResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1881,18 +1777,18 @@
     "parents": [],
     "service": "Secrets",
     "method": "Import",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "secrets",
       "import"
     ],
-    "request": "dokime.v1.SecretsImportRequest",
-    "response": "dokime.v1.SecretsImportResponse",
-    "request_csharp": "Dokime.Protocol.V1.SecretsImportRequest",
-    "response_csharp": "Dokime.Protocol.V1.SecretsImportResponse",
+    "request": "dokime.client.v1.SecretsImportRequest",
+    "response": "dokime.client.v1.SecretsImportResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SecretsImportRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SecretsImportResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/secrets.proto"
+    "file": "dokime/client/v1/secrets.proto"
   },
   {
     "owner": "dokime",
@@ -1901,18 +1797,18 @@
     "parents": [],
     "service": "Settings",
     "method": "Get",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "settings",
       "get"
     ],
-    "request": "dokime.v1.SettingsGetRequest",
-    "response": "dokime.v1.SettingsGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.SettingsGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.SettingsGetResponse",
+    "request": "dokime.client.v1.SettingsGetRequest",
+    "response": "dokime.client.v1.SettingsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SettingsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SettingsGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/settings.proto"
+    "file": "dokime/client/v1/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1921,18 +1817,18 @@
     "parents": [],
     "service": "Settings",
     "method": "Set",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "settings",
       "set"
     ],
-    "request": "dokime.v1.SettingsSetRequest",
-    "response": "dokime.v1.SettingsSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.SettingsSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.SettingsSetResponse",
+    "request": "dokime.client.v1.SettingsSetRequest",
+    "response": "dokime.client.v1.SettingsSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SettingsSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SettingsSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/settings.proto"
+    "file": "dokime/client/v1/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1941,18 +1837,18 @@
     "parents": [],
     "service": "Settings",
     "method": "Schema",
-    "package": "dokime.v1",
+    "package": "dokime.client.v1",
     "path": [
       "settings",
       "schema"
     ],
-    "request": "dokime.v1.SettingsSchemaRequest",
-    "response": "dokime.v1.SettingsSchemaResponse",
-    "request_csharp": "Dokime.Protocol.V1.SettingsSchemaRequest",
-    "response_csharp": "Dokime.Protocol.V1.SettingsSchemaResponse",
+    "request": "dokime.client.v1.SettingsSchemaRequest",
+    "response": "dokime.client.v1.SettingsSchemaResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SettingsSchemaRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SettingsSchemaResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/settings.proto"
+    "file": "dokime/client/v1/settings.proto"
   },
   {
     "owner": "dokime",
@@ -1963,19 +1859,19 @@
     ],
     "service": "Sources",
     "method": "Get",
-    "package": "dokime.v1.storage",
+    "package": "dokime.client.v1.storage",
     "path": [
       "storage",
       "sources",
       "get"
     ],
-    "request": "dokime.v1.storage.SourcesGetRequest",
-    "response": "dokime.v1.storage.SourcesGetResponse",
-    "request_csharp": "Dokime.Protocol.V1.StorageResources.SourcesGetRequest",
-    "response_csharp": "Dokime.Protocol.V1.StorageResources.SourcesGetResponse",
+    "request": "dokime.client.v1.storage.SourcesGetRequest",
+    "response": "dokime.client.v1.storage.SourcesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.StorageResources.SourcesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.StorageResources.SourcesGetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/storage/sources.proto"
+    "file": "dokime/client/v1/storage/sources.proto"
   },
   {
     "owner": "dokime",
@@ -1986,19 +1882,99 @@
     ],
     "service": "Sources",
     "method": "Set",
-    "package": "dokime.v1.storage",
+    "package": "dokime.client.v1.storage",
     "path": [
       "storage",
       "sources",
       "set"
     ],
-    "request": "dokime.v1.storage.SourcesSetRequest",
-    "response": "dokime.v1.storage.SourcesSetResponse",
-    "request_csharp": "Dokime.Protocol.V1.StorageResources.SourcesSetRequest",
-    "response_csharp": "Dokime.Protocol.V1.StorageResources.SourcesSetResponse",
+    "request": "dokime.client.v1.storage.SourcesSetRequest",
+    "response": "dokime.client.v1.storage.SourcesSetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.StorageResources.SourcesSetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.StorageResources.SourcesSetResponse",
     "client_streaming": false,
     "server_streaming": false,
-    "file": "dokime/v1/storage/sources.proto"
+    "file": "dokime/client/v1/storage/sources.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "StreamSchemas",
+    "method": "Get",
+    "package": "dokime.client.v1",
+    "path": [
+      "stream_schemas",
+      "get"
+    ],
+    "request": "dokime.client.v1.StreamSchemasGetRequest",
+    "response": "dokime.client.v1.StreamSchemasGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.StreamSchemasGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.StreamSchemasGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/stream_schemas.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "StreamSchemas",
+    "method": "List",
+    "package": "dokime.client.v1",
+    "path": [
+      "stream_schemas",
+      "list"
+    ],
+    "request": "dokime.client.v1.StreamSchemasListRequest",
+    "response": "dokime.client.v1.StreamSchemasListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.StreamSchemasListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.StreamSchemasListResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/stream_schemas.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Suites",
+    "method": "Get",
+    "package": "dokime.client.v1",
+    "path": [
+      "suites",
+      "get"
+    ],
+    "request": "dokime.client.v1.SuitesGetRequest",
+    "response": "dokime.client.v1.SuitesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SuitesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SuitesGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/suites.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Suites",
+    "method": "List",
+    "package": "dokime.client.v1",
+    "path": [
+      "suites",
+      "list"
+    ],
+    "request": "dokime.client.v1.SuitesListRequest",
+    "response": "dokime.client.v1.SuitesListResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.SuitesListRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.SuitesListResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/suites.proto"
   },
   {
     "owner": "harmos",

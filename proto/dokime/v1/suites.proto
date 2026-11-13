@@ -1,0 +1,30 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/documents.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/parameters.proto";
+
+// Each top-level section is serialized into harmos.v1.Section.payload, with its
+// fully qualified message name in Section.type. No versioned JSON sections.
+message Suites { repeated .dokime.v1.Suite suites = 1; }
+
+message Suite {
+  .dokime.v1.Metadata metadata = 1;
+  repeated .dokime.v1.TestCaseTemplate templates = 2;
+  repeated string tags = 3;
+  repeated .dokime.v1.Metadata parameter_groups = 4;
+}
+
+message TestCaseTemplate {
+  .dokime.v1.Metadata metadata = 1;
+  repeated .dokime.v1.Parameter parameters = 2;
+  repeated .dokime.v1.FileParameter files = 3;
+  repeated .dokime.v1.Document documents = 4;
+  repeated string tags = 5;
+  // Plugin-authored dotted Protected identities with independent policies; initialize and cleanup are optional.
+  string materialize = 6;
+  optional string initialize = 7;
+  optional string cleanup = 8;
+  repeated .dokime.v1.Metadata parameter_groups = 9;
+}

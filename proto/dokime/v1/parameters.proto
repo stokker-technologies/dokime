@@ -1,0 +1,86 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+
+message Parameter {
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.ValueType type = 2;
+  string unit = 3;
+  bool required = 4;
+  string group = 5;
+  .dokime.v1.ParameterExpression expression = 6;
+  repeated .dokime.v1.Value choices = 7;
+  optional double min = 8;
+  optional double max = 9;
+  .dokime.v1.ParameterExpansion expansion = 10;
+  .dokime.v1.ValueType element_type = 11;
+  optional uint32 min_items = 12;
+  optional uint32 max_items = 13;
+  bool runtime_writable = 14;
+}
+
+message ParameterExpansion {
+  oneof kind {
+    bool single = 1;
+    bool cartesian = 2;
+    string zip = 3;
+  }
+}
+
+// A tree, never expression text. Range stop is exclusive; linspace includes stop.
+message ParameterExpression {
+  oneof kind {
+    .dokime.v1.Value literal = 1;
+    .dokime.v1.ParameterExpressions array = 2;
+    .dokime.v1.IntegerRange range = 3;
+    .dokime.v1.NumberRange arange = 4;
+    .dokime.v1.LinearSpace linspace = 5;
+    string reference = 6;
+    .dokime.v1.DynamicDefault dynamic_default = 7;
+    .dokime.v1.ParameterUnary unary = 8;
+    .dokime.v1.ParameterBinary binary = 9;
+  }
+}
+
+message ParameterExpressions { repeated .dokime.v1.ParameterExpression values = 1; }
+
+message IntegerRange { sint64 start = 1; sint64 stop = 2; sint64 step = 3; }
+
+message NumberRange { double start = 1; double stop = 2; double step = 3; }
+
+message LinearSpace { double start = 1; double stop = 2; uint64 count = 3; }
+
+message DynamicDefault { .dokime.v1.DynamicDefaultKey key = 1; .dokime.v1.ParameterExpression fallback = 2; }
+
+enum DynamicDefaultKey {
+  DYNAMIC_DEFAULT_KEY_UNSPECIFIED = 0;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_NAME = 1;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = 2;
+}
+
+message ParameterUnary { .dokime.v1.ParameterUnaryOperator operator = 1; .dokime.v1.ParameterExpression value = 2; }
+
+enum ParameterUnaryOperator { PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0; PARAMETER_UNARY_OPERATOR_NEGATE = 1; }
+
+message ParameterBinary {
+  .dokime.v1.ParameterBinaryOperator operator = 1;
+  .dokime.v1.ParameterExpression left = 2;
+  .dokime.v1.ParameterExpression right = 3;
+}
+
+enum ParameterBinaryOperator {
+  PARAMETER_BINARY_OPERATOR_UNSPECIFIED = 0;
+  PARAMETER_BINARY_OPERATOR_ADD = 1;
+  PARAMETER_BINARY_OPERATOR_SUBTRACT = 2;
+  PARAMETER_BINARY_OPERATOR_MULTIPLY = 3;
+  PARAMETER_BINARY_OPERATOR_DIVIDE = 4;
+}
+
+message FileParameter {
+  .dokime.v1.Metadata metadata = 1;
+  optional string default_value = 2;
+  bool required = 3;
+  repeated string media_types = 4;
+}

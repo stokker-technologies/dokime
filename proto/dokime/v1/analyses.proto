@@ -1,0 +1,55 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/parameters.proto";
+import "dokime/v1/scalar.proto";
+
+message Analyses { repeated .dokime.v1.Analysis analyses = 1; }
+
+message Analysis {
+  .dokime.v1.Metadata metadata = 1;
+  uint32 version = 2;
+  repeated .dokime.v1.Parameter parameters = 3;
+  repeated .dokime.v1.AnalysisOutput outputs = 4;
+  uint32 max_samples = 5;
+  uint32 max_output_values = 6;
+}
+
+message AnalysisOutput {
+  .dokime.v1.Metadata metadata = 1;
+  string unit = 2;
+  string axis = 3;
+  string axis_unit = 4;
+}
+
+// Unary analysis operations use the analysis metadata identifier as their operation ID.
+// Input is one bounded raw scalar series; output must match every declared output.
+message AnalysisRequest {
+  .dokime.v1.AnalysisSamples samples = 1;
+  .dokime.v1.MapValue parameters = 2;
+}
+
+message AnalysisSamples {
+  repeated double axis = 1;
+  repeated double values = 2;
+  string axis_unit = 3;
+  string unit = 4;
+}
+
+message AnalysisResponse { repeated .dokime.v1.AnalysisValues outputs = 1; }
+
+message AnalysisSelection {
+  string id = 1;
+  uint32 version = 2;
+  .dokime.v1.MapValue parameters = 3;
+}
+
+message AnalysisValues {
+  string key = 1;
+  string unit = 2;
+  string axis_unit = 3;
+  repeated double axis = 4;
+  repeated double values = 5;
+  repeated uint32 display_indices = 6;
+}

@@ -1,0 +1,17 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/analyses.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message AnalysesListRequest { .harmos.v1.ReadCut at = 1; }
+
+message AnalysesListResponse { repeated .dokime.v1.Analysis definitions = 1; .harmos.v1.ReadCut resolved_at = 2; }
+
+service Analyses {
+  // Public. Identity: dokime.client.v1.Analyses/List
+  rpc List(.dokime.client.v1.AnalysesListRequest) returns (.dokime.client.v1.AnalysesListResponse);
+}

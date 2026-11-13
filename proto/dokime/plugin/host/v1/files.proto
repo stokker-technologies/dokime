@@ -1,0 +1,9 @@
+syntax = "proto3";
+package dokime.plugin.host.v1;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1";
+import "dokime/v1/files.proto";
+
+// Public child-call declarations, carried by Instance.Invoke.
+message FilesCaptureRequest { .dokime.v1.FileSource source = 1; string output = 2; }
+
+message FilesCaptureResponse { repeated .dokime.v1.CapturedArtifact artifacts = 1; repeated .dokime.v1.CaptureGap gaps = 2; }

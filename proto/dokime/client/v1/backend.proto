@@ -1,0 +1,100 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/appearance.proto";
+import "harmos/v1/types.proto";
+
+// dokime.appearance.get_appearance: GetAppearance -> AppearanceSnapshot.
+message AppearanceSnapshot {
+  string app_name = 1;
+  .dokime.client.v1.OrganizationIdentity organization = 2;
+  optional string title_template = 3;
+  repeated .dokime.client.v1.AppearanceLogo logos = 4;
+  repeated .dokime.client.v1.ThemeFamily themes = 5;
+  optional string active_theme = 6;
+  bool theme_family_locked = 7;
+  .dokime.client.v1.ThemeModePolicy mode_policy = 8;
+  bool mode_locked = 9;
+  optional string source_plugin_id = 10;
+}
+
+message OrganizationIdentity {
+  string name = 1;
+  optional string unit = 2;
+  optional string website = 3;
+}
+
+message AppearanceLogo {
+  .dokime.client.v1.LogoVariant variant = 1;
+  .dokime.v1.AppearanceAssetMetadata asset = 2;
+  optional string alt = 3;
+}
+
+message ThemeFamily {
+  string plugin_id = 1;
+  string theme_id = 2;
+  string label = 3;
+  optional string description = 4;
+  // Self-contained CSS, including font data, within the response budget.
+  optional string stylesheet = 5;
+  map<string, string> variables = 6;
+  .dokime.client.v1.ThemeCornerRadii corner_radii = 7;
+  .dokime.client.v1.ThemeVariant light = 8;
+  .dokime.client.v1.ThemeVariant dark = 9;
+}
+
+message ThemeCornerRadii {
+  optional string base = 1;
+  optional string sm = 2;
+  optional string md = 3;
+  optional string lg = 4;
+  optional string xl = 5;
+  optional string two_xl = 6;
+  optional string three_xl = 7;
+  optional string four_xl = 8;
+}
+
+message ThemeVariant {
+  map<string, string> variables = 1;
+  repeated string plot_palette = 2;
+}
+
+// Typed detail in a standard google.rpc.Status envelope.
+message AppearanceFailure { .dokime.client.v1.AppearanceFailureKind kind = 1; }
+
+enum LogoVariant {
+  LOGO_VARIANT_UNSPECIFIED = 0;
+  LOGO_VARIANT_TRANSPARENT_ON_LIGHT = 1;
+  LOGO_VARIANT_TRANSPARENT_ON_DARK = 2;
+  LOGO_VARIANT_CONTAINED_ON_LIGHT = 3;
+  LOGO_VARIANT_CONTAINED_ON_DARK = 4;
+}
+
+enum ThemeModePolicy {
+  THEME_MODE_POLICY_UNSPECIFIED = 0;
+  THEME_MODE_POLICY_USER_OR_SYSTEM = 1;
+  THEME_MODE_POLICY_FORCE_SYSTEM = 2;
+  THEME_MODE_POLICY_FORCE_LIGHT = 3;
+  THEME_MODE_POLICY_FORCE_DARK = 4;
+}
+
+enum AppearanceFailureKind {
+  APPEARANCE_FAILURE_KIND_UNSPECIFIED = 0;
+  APPEARANCE_FAILURE_KIND_ASSET_MISSING = 1;
+  APPEARANCE_FAILURE_KIND_ASSET_CHANGED = 2;
+  APPEARANCE_FAILURE_KIND_TOO_LARGE = 3;
+  APPEARANCE_FAILURE_KIND_INVALID_REFERENCE = 4;
+  APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE = 5;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message BackendAppearanceRequest { .harmos.v1.ReadCut at = 1; }
+
+message BackendAppearanceResponse { .dokime.client.v1.AppearanceSnapshot appearance = 1; .harmos.v1.ReadCut resolved_at = 2; }
+
+service Backend {
+  // Public. Identity: dokime.client.v1.Backend/Appearance
+  rpc Appearance(.dokime.client.v1.BackendAppearanceRequest) returns (.dokime.client.v1.BackendAppearanceResponse);
+}

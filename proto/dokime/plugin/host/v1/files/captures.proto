@@ -1,0 +1,27 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.files;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.FilesResources";
+import "dokime/v1/files.proto";
+import "dokime/v1/scalar.proto";
+
+message CaptureMode { oneof kind { .dokime.plugin.host.v1.files.StreamCapture stream = 1; .dokime.plugin.host.v1.files.MirrorCapture mirror = 2; } }
+
+message StreamCapture { repeated .dokime.plugin.host.v1.files.LineMatcher matchers = 1; repeated .dokime.plugin.host.v1.files.LineMarker markers = 2; }
+
+message MirrorCapture { optional uint32 interval_s = 1; }
+
+// The stream's row descriptor comes from the pinned library catalog descriptors.
+message LineMatcher { string pattern = 1; string stream = 2; repeated .dokime.plugin.host.v1.files.LineField fields = 3; }
+
+message LineField { string name = 1; .dokime.v1.ValueType type = 2; }
+
+message LineMarker { string pattern = 1; string record_type = 2; }
+
+// Public child-call declarations, carried by Instance.Invoke.
+message CapturesStartRequest { .dokime.v1.FileSource source = 1; string output = 2; .dokime.plugin.host.v1.files.CaptureMode mode = 3; }
+
+message CapturesStartResponse { uint64 capture_id = 1; }
+
+message CapturesStopRequest { uint64 capture_id = 1; }
+
+message CapturesStopResponse { repeated .dokime.v1.CapturedArtifact artifacts = 1; repeated .dokime.v1.CaptureGap gaps = 2; }

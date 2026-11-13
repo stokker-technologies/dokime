@@ -1,0 +1,127 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/cycles.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/execution.proto";
+import "dokime/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message CycleFilter {
+  string text = 1;
+  repeated .dokime.v1.CycleStatus statuses = 2;
+  .google.protobuf.Timestamp created_after = 3;
+  .google.protobuf.Timestamp created_before = 4;
+  optional .dokime.v1.ArchiveScope archive = 5;
+}
+
+message CycleOrder {
+  .dokime.client.v1.CycleOrderKey key = 1;
+  bool descending = 2;
+}
+
+enum CycleOrderKey {
+  CYCLE_ORDER_KEY_UNSPECIFIED = 0;
+  CYCLE_ORDER_KEY_UPDATED_AT = 1;
+  CYCLE_ORDER_KEY_CREATED_AT = 2;
+  CYCLE_ORDER_KEY_LABEL = 3;
+}
+
+message CycleSelection {
+  repeated string cycle_ids = 1;
+  repeated .dokime.v1.CyclePhase phases = 2;
+  .dokime.v1.Window created_at = 3;
+  optional .dokime.v1.ArchiveScope archive = 4;
+  repeated .dokime.v1.CycleStatus statuses = 5;
+}
+
+message RerunCaseNotice {
+  string case_id = 1;
+  string suite_id = 2;
+  string reason = 3;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message CycleWritable { string label = 1; bool paused = 2; bool archived = 3; bool continue_automatically = 4; }
+
+message CyclesGetRequest { string name = 1; .harmos.v1.Position at = 90; }
+
+message CyclesGetResponse {
+  .dokime.client.v1.CycleWritable value = 1;
+  bytes revision = 2;
+  .dokime.v1.CycleSummary cycle = 3;
+  .harmos.v1.Position resolved_at = 90;
+}
+
+message CyclesSetRequest { string name = 1; .dokime.client.v1.CycleWritable value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message CyclesSetResponse { .dokime.client.v1.CycleWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message CyclesListRequest {
+  .dokime.client.v1.CycleSelection selection = 1;
+  .dokime.client.v1.CycleFilter filter = 2;
+  .dokime.client.v1.CycleOrder order = 3;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message CyclesListResponse {
+  repeated .dokime.v1.CycleSummary cycles = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message CyclesWatchRequest {
+  .dokime.client.v1.CycleSelection selection = 1;
+  .dokime.client.v1.CycleFilter filter = 2;
+  .dokime.client.v1.CycleOrder order = 3;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message CyclesWatchResponse {
+  repeated .dokime.v1.CycleSummary cycles = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message CyclesCreateRequest {
+  repeated .dokime.v1.Origin origins = 1;
+  .dokime.v1.Metadata metadata = 2;
+  bool continue_automatically = 3;
+  string source_cycle = 4;
+  string request_id = 5;
+}
+
+message CyclesCreateResponse {
+  .dokime.v1.CycleSummary cycle = 1;
+  repeated .dokime.client.v1.RerunCaseNotice skipped = 2;
+  repeated .dokime.client.v1.RerunCaseNotice dropped_parameters = 4;
+  .harmos.v1.Receipt receipt = 3;
+}
+
+message CyclesSealRequest { string name = 1; string request_id = 2; }
+
+message CyclesSealResponse { bytes seal = 1; .harmos.v1.Receipt receipt = 2; }
+
+service Cycles {
+  // Public. Identity: dokime.client.v1.Cycles/Get
+  rpc Get(.dokime.client.v1.CyclesGetRequest) returns (.dokime.client.v1.CyclesGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.CyclesSetRequest) returns (.dokime.client.v1.CyclesSetResponse);
+  // Public. Identity: dokime.client.v1.Cycles/List
+  rpc List(.dokime.client.v1.CyclesListRequest) returns (.dokime.client.v1.CyclesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.CyclesWatchRequest) returns (stream .dokime.client.v1.CyclesWatchResponse);
+  // Public. Identity: dokime.client.v1.Cycles/Create
+  rpc Create(.dokime.client.v1.CyclesCreateRequest) returns (.dokime.client.v1.CyclesCreateResponse);
+  // Public. Freeze the durable cycle boundary; failed report rendering publishes nothing.
+  rpc Seal(.dokime.client.v1.CyclesSealRequest) returns (.dokime.client.v1.CyclesSealResponse);
+}

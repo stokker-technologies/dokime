@@ -1,0 +1,23 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/schemas.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message StreamSchemasGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.v1.ReadCut at = 90; }
+
+message StreamSchemasGetResponse { .dokime.v1.TelemetrySchema value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message StreamSchemasListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message StreamSchemasListResponse { repeated .dokime.v1.TelemetrySchema values = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service StreamSchemas {
+  // Public. Identity: dokime.client.v1.StreamSchemas/Get
+  rpc Get(.dokime.client.v1.StreamSchemasGetRequest) returns (.dokime.client.v1.StreamSchemasGetResponse);
+  // Public. Identity: dokime.client.v1.StreamSchemas/List
+  rpc List(.dokime.client.v1.StreamSchemasListRequest) returns (.dokime.client.v1.StreamSchemasListResponse);
+}

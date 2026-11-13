@@ -185,10 +185,12 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
     let pool = dokime_protocol::descriptor_pool();
     let mut methods = Vec::new();
     for service in pool.services().filter(|service| service.package_name().starts_with("dokime.")) {
-        assert!(service.package_name().starts_with("dokime.v1"));
+        assert!(service.package_name().starts_with("dokime.client.v1"));
+        assert_eq!(service.parent_file().services().count(), 1);
+        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", heck::AsSnakeCase(service.name())));
         for method in service.methods() {
             assert!(!method.name().starts_with("Run"));
-            if service.parent_file().name().contains("/client_pending_") {
+            if matches!(service.full_name(), "dokime.client.v1.Plugins" | "dokime.client.v1.Content") {
                 continue;
             }
             assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
@@ -218,9 +220,8 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
     }
     assert!(!methods.is_empty());
     // Plugin and Context Payloads Are Carried, Never Independent RPC Services.
-    for message in pool
-        .all_messages()
-        .filter(|message| message.package_name().starts_with("dokime.context.") || message.package_name().starts_with("dokime.plugin."))
+    for message in
+        pool.all_messages().filter(|message| message.package_name() == "dokime.v1" || message.package_name().starts_with("dokime.plugin."))
     {
         assert_eq!(message.parent_file().services().count(), 0);
     }
@@ -228,6 +229,7 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
 
 #[test]
 fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
+    use dokime_protocol::client::*;
     use dokime_protocol::v1::*;
     use prost::Message;
     use prost_reflect::{DynamicMessage, ReflectMessage};
@@ -253,7 +255,7 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
         request_id: "plan-request".into(),
         ..Default::default()
     };
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Cases").unwrap();
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.client.v1.Cases").unwrap();
     let method = service.methods().find(|method| method.name() == "Create").unwrap();
     assert_eq!(method.input(), request.descriptor());
     let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
@@ -294,7 +296,7 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
         }),
         ..Default::default()
     };
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Executions").unwrap();
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.client.v1.Executions").unwrap();
     let method = service.methods().find(|method| method.name() == "Get").unwrap();
     let reflected = DynamicMessage::decode(method.output(), response.encode_to_vec().as_slice()).unwrap();
     let decoded = reflected.transcode_to::<ExecutionsGetResponse>().unwrap();

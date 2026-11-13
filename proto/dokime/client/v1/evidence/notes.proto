@@ -1,0 +1,66 @@
+syntax = "proto3";
+package dokime.client.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Client.V1.EvidenceResources";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/notes.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message OperatorNote {
+  string note_id = 1;
+  .dokime.v1.EvidenceScope scope = 2;
+  optional string author = 3;
+  string message = 4;
+  .google.protobuf.Timestamp created_at = 5;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message NoteWritable { string message = 1; }
+
+message NotesGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message NotesGetResponse {
+  .dokime.client.v1.evidence.NoteWritable value = 1;
+  bytes revision = 2;
+  .dokime.client.v1.evidence.OperatorNote note = 3;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message NotesSetRequest { string name = 1; .dokime.client.v1.evidence.NoteWritable value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message NotesSetResponse { .dokime.client.v1.evidence.NoteWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message NotesListRequest { .dokime.v1.AnnotationSelection selection = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message NotesListResponse { repeated .dokime.client.v1.evidence.OperatorNote notes = 1; .harmos.v1.ReadCut resolved_at = 90; string next_page_token = 91; }
+
+message NotesWatchRequest { .dokime.v1.AnnotationSelection selection = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message NotesWatchResponse {
+  repeated .dokime.client.v1.evidence.OperatorNote notes = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message NotesCreateRequest { .dokime.v1.AnnotationOwner owner = 1; .dokime.client.v1.evidence.NoteWritable value = 2; string request_id = 3; }
+
+message NotesCreateResponse { .dokime.client.v1.evidence.OperatorNote note = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+service Notes {
+  // Public. Identity: dokime.client.v1.evidence.Notes/Get
+  rpc Get(.dokime.client.v1.evidence.NotesGetRequest) returns (.dokime.client.v1.evidence.NotesGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.evidence.NotesSetRequest) returns (.dokime.client.v1.evidence.NotesSetResponse);
+  // Public. Identity: dokime.client.v1.evidence.Notes/List
+  rpc List(.dokime.client.v1.evidence.NotesListRequest) returns (.dokime.client.v1.evidence.NotesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.evidence.NotesWatchRequest) returns (stream .dokime.client.v1.evidence.NotesWatchResponse);
+  // Public. Identity: dokime.client.v1.evidence.Notes/Create
+  rpc Create(.dokime.client.v1.evidence.NotesCreateRequest) returns (.dokime.client.v1.evidence.NotesCreateResponse);
+}

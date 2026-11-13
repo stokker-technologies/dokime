@@ -1,0 +1,82 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/prompts.proto";
+import "dokime/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message PromptInstance {
+  string prompt_id = 1;
+  .dokime.v1.Prompt definition = 2;
+  .dokime.client.v1.PromptKind kind = 3;
+  .dokime.v1.MapValue values = 4;
+  .dokime.v1.EvidenceScope scope = 5;
+  .google.protobuf.Timestamp created_at = 6;
+}
+
+enum PromptKind {
+  PROMPT_KIND_UNSPECIFIED = 0;
+  PROMPT_KIND_CONFIRMATION = 1;
+  PROMPT_KIND_FORM = 2;
+  PROMPT_KIND_CHOICE = 3;
+  PROMPT_KIND_STATUS = 4;
+  PROMPT_KIND_VERIFICATION = 5;
+}
+
+message PromptView {
+  .dokime.client.v1.PromptInstance prompt = 1;
+  .dokime.v1.PromptResponse response = 2;
+  .harmos.v1.ReadCut observed_cursor = 3;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message PromptsGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message PromptsGetResponse { .dokime.client.v1.PromptView prompt = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+// pending_only returns the complete bounded active set: page controls are refused
+// and next_page_token is empty. Retained prompt history uses bounded pages.
+message PromptsListRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message PromptsListResponse {
+  repeated .dokime.client.v1.PromptView prompts = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message PromptsWatchRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message PromptsWatchResponse {
+  repeated .dokime.client.v1.PromptView prompts = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Prompts {
+  // Public. Identity: dokime.client.v1.Prompts/Get
+  rpc Get(.dokime.client.v1.PromptsGetRequest) returns (.dokime.client.v1.PromptsGetResponse);
+  // Public. Identity: dokime.client.v1.Prompts/List
+  rpc List(.dokime.client.v1.PromptsListRequest) returns (.dokime.client.v1.PromptsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.PromptsWatchRequest) returns (stream .dokime.client.v1.PromptsWatchResponse);
+}

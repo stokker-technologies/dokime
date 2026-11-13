@@ -1,0 +1,15 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+
+message Metadata {
+  string identifier = 1;
+  string label = 2;
+  string description = 3;
+  repeated string tags = 4;
+  map<string, .dokime.v1.Value> attributes = 5;
+  .google.protobuf.Timestamp created_at = 6;
+  .google.protobuf.Timestamp updated_at = 7;
+}

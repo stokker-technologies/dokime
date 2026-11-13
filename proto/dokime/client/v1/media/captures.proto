@@ -1,0 +1,78 @@
+syntax = "proto3";
+package dokime.client.v1.media;
+option csharp_namespace = "Dokime.Protocol.Client.V1.MediaResources";
+import "dokime/v1/evidence.proto";
+import "harmos/v1/types.proto";
+
+message RecordingAudio {
+  bool microphone = 1;
+  bool system = 2;
+}
+
+message RecordingProgress {
+  uint64 elapsed_ms = 1;
+  uint64 size_bytes = 2;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+enum CaptureKind {
+  CAPTURE_KIND_UNSPECIFIED = 0;
+  CAPTURE_KIND_AUDIO = 1;
+  CAPTURE_KIND_CAMERA = 2;
+  CAPTURE_KIND_PHOTO = 3;
+  CAPTURE_KIND_SCREEN = 4;
+  CAPTURE_KIND_SCREENSHOT = 5;
+}
+
+message Capture {
+  string name = 1;
+  .dokime.client.v1.media.CaptureKind kind = 2;
+  .dokime.client.v1.media.RecordingProgress progress = 3;
+  .dokime.v1.ArtifactMetadata artifact = 4;
+  bool finished = 5;
+  .harmos.v1.Failure failure = 6;
+}
+
+message CapturesCreateRequest {
+  .dokime.v1.ArtifactScope scope = 1;
+  .dokime.client.v1.media.CaptureKind kind = 2;
+  optional uint32 input = 3;
+  optional uint32 camera = 4;
+  optional uint32 display = 5;
+  .dokime.client.v1.media.RecordingAudio audio = 6;
+  optional uint32 maximum_seconds = 7;
+  string request_id = 8;
+}
+
+message CapturesCreateResponse { .dokime.client.v1.media.Capture capture = 1; .harmos.v1.Receipt receipt = 2; }
+
+message CapturesGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message CapturesGetResponse { .dokime.client.v1.media.Capture capture = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CapturesWatchRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message CapturesWatchResponse {
+  .dokime.client.v1.media.Capture capture = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message CapturesStopRequest { string name = 1; string request_id = 2; }
+
+message CapturesStopResponse { .dokime.client.v1.media.Capture capture = 1; .harmos.v1.Receipt receipt = 2; }
+
+service Captures {
+  // Public. Admit the selected capture lifecycle; unsupported kinds fail explicitly.
+  rpc Create(.dokime.client.v1.media.CapturesCreateRequest) returns (.dokime.client.v1.media.CapturesCreateResponse);
+  // Public. Identity: dokime.client.v1.media.Captures/Get
+  rpc Get(.dokime.client.v1.media.CapturesGetRequest) returns (.dokime.client.v1.media.CapturesGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.media.CapturesWatchRequest) returns (stream .dokime.client.v1.media.CapturesWatchResponse);
+  // Public. Finish capture at a safe boundary and retain its result.
+  rpc Stop(.dokime.client.v1.media.CapturesStopRequest) returns (.dokime.client.v1.media.CapturesStopResponse);
+}

@@ -3,12 +3,11 @@ package dokime.plugin.v1;
 option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 import "dokime/v1/execution.proto";
 
-// Shared Payloads for Independently Bound Protected Catalog Operations.
+// Shared Payloads for Independently Bound Protected Registry Operations.
 // Each plugin-authored dotted lifecycle identity retains its own handler and
 // callee-owned policy. These message families are not wire operation identities.
 // Only the host invokes a binding through harmos.plugin.v1.Instance/Invoke;
 // no lifecycle dispatch service or client binding is declared here.
-
 message CriteriaEvaluateRequest {
   string execution = 1;
   // Metadata.identifier of the criterion.

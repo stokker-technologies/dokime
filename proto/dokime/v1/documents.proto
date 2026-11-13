@@ -1,50 +1,59 @@
 syntax = "proto3";
 package dokime.v1;
 option csharp_namespace = "Dokime.Protocol.V1";
-import "dokime/v1/resources.proto";
-import "harmos/v1/types.proto";
+import "dokime/v1/expressions.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/plots.proto";
+import "dokime/v1/scalar.proto";
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
+message Document { .dokime.v1.Metadata metadata = 1; repeated .dokime.v1.Section sections = 2; }
 
-message DocumentsGetRequest {
-  .dokime.v1.DocumentScope scope = 1;
-  string document_id = 2;
-  bool structure_only = 3;
-  repeated string card_ids = 4;
-  string page_token = 5;
-  uint64 max_bytes = 6;
-  .harmos.v1.ReadCut at = 90;
+message Section {
+  .dokime.v1.Metadata metadata = 1;
+  repeated .dokime.v1.Card cards = 2;
+  repeated .dokime.v1.Section sections = 3;
+  .dokime.v1.SectionRepeat repeat = 4;
 }
 
-message DocumentsGetResponse {
-  repeated .dokime.v1.DocumentFrame frames = 1;
-  string next_page_token = 2;
-  .harmos.v1.ReadCut resolved_at = 90;
+message SectionRepeat { .dokime.v1.DataExpression value = 1; string label_template = 2; .dokime.v1.DataExpression order_by = 3; }
+
+message Card {
+  .dokime.v1.Metadata metadata = 1;
+  oneof body {
+    string markdown = 2;
+    .dokime.v1.Plot plot = 3;
+    .dokime.v1.Table table = 4;
+    .dokime.v1.EvidenceCard evidence = 5;
+    .dokime.v1.Summary summary = 6;
+  }
+  .dokime.v1.CardLayout layout = 7;
+  repeated .dokime.v1.DocumentFilter filters = 8;
 }
 
-message DocumentsWatchRequest {
-  .dokime.v1.DocumentScope scope = 1;
-  string document_id = 2;
-  bool structure_only = 3;
-  repeated string card_ids = 4;
-  string page_token = 5;
-  uint64 max_bytes = 6;
-  .harmos.v1.ReadCut at = 90;
+message CardLayout { uint32 columns = 1; uint32 rows = 2; sint32 order = 3; }
+
+message Table { repeated .dokime.v1.TableRow rows = 1; }
+
+message TableRow { map<string, .dokime.v1.Value> cells = 1; }
+
+message Summary { repeated .dokime.v1.SummaryTile tiles = 1; }
+
+message SummaryTile { .dokime.v1.Metadata metadata = 1; .dokime.v1.DataExpression value = 2; string unit = 3; }
+
+enum EvidenceCard {
+  EVIDENCE_CARD_UNSPECIFIED = 0;
+  EVIDENCE_CARD_STEPS = 1;
+  EVIDENCE_CARD_CRITERIA = 2;
+  EVIDENCE_CARD_TRACEABILITY = 3;
+  EVIDENCE_CARD_NOTES = 4;
+  EVIDENCE_CARD_RECORDS = 5;
+  EVIDENCE_CARD_ARTIFACTS = 6;
+  EVIDENCE_CARD_MEDIA = 7;
+  EVIDENCE_CARD_HEALTH = 8;
+  EVIDENCE_CARD_STREAM_CONTEXT = 9;
 }
 
-message DocumentsWatchResponse {
-  repeated .dokime.v1.DocumentFrame frames = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  bool opening = 91;
-  .harmos.v1.Failure resync_required = 92;
-}
-
-service Documents {
-  // Public. Identity: dokime.v1.Documents/Get
-  rpc Get(DocumentsGetRequest) returns (DocumentsGetResponse);
-  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
-  // Missing retained cuts or delivery gaps require explicit resynchronization.
-  rpc Watch(DocumentsWatchRequest) returns (stream DocumentsWatchResponse);
+message DocumentScope {
+  string cycle_id = 1;
+  string execution_id = 2;
 }

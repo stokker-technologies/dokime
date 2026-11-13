@@ -5,9 +5,9 @@ use prost_reflect::ReflectMessage;
 pub struct Root {
     pub access: Access,
     pub aggregates: Aggregates,
+    pub analyses: Analyses,
     pub backend: Backend,
     pub cases: Cases,
-    pub catalog: Catalog,
     pub catalog_entries: CatalogEntries,
     pub content: Content,
     pub cycles: Cycles,
@@ -18,12 +18,16 @@ pub struct Root {
     pub media: Media,
     pub plots: Plots,
     pub plugins: Plugins,
+    pub prompt_definitions: PromptDefinitions,
     pub prompts: Prompts,
+    pub record_schemas: RecordSchemas,
     pub reports: Reports,
     pub secrets: Secrets,
     pub settings: Settings,
     pub status: Status,
     pub storage: Storage,
+    pub stream_schemas: StreamSchemas,
+    pub suites: Suites,
     pub time: Time,
 }
 impl Root {
@@ -31,9 +35,9 @@ impl Root {
         Self {
             access: Access::new(client.clone()),
             aggregates: Aggregates::new(client.clone()),
+            analyses: Analyses::new(client.clone()),
             backend: Backend::new(client.clone()),
             cases: Cases::new(client.clone()),
-            catalog: Catalog::new(client.clone()),
             catalog_entries: CatalogEntries::new(client.clone()),
             content: Content::new(client.clone()),
             cycles: Cycles::new(client.clone()),
@@ -44,12 +48,16 @@ impl Root {
             media: Media::new(client.clone()),
             plots: Plots::new(client.clone()),
             plugins: Plugins::new(client.clone()),
+            prompt_definitions: PromptDefinitions::new(client.clone()),
             prompts: Prompts::new(client.clone()),
+            record_schemas: RecordSchemas::new(client.clone()),
             reports: Reports::new(client.clone()),
             secrets: Secrets::new(client.clone()),
             settings: Settings::new(client.clone()),
             status: Status::new(client.clone()),
             storage: Storage::new(client.clone()),
+            stream_schemas: StreamSchemas::new(client.clone()),
+            suites: Suites::new(client.clone()),
             time: Time::new(client.clone()),
         }
     }
@@ -130,8 +138,22 @@ impl Aggregates {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::AggregatesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::AggregatesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Aggregates/Get"), request, dokime_protocol::v1::AggregatesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::AggregatesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::AggregatesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Aggregates/Get"), request, dokime_protocol::client::AggregatesGetResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct Analyses {
+    client: ClientTransport,
+}
+impl Analyses {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::AnalysesListRequest>) -> Result<tonic::Response<dokime_protocol::client::AnalysesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Analyses/List"), request, dokime_protocol::client::AnalysesListResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -146,8 +168,8 @@ impl Backend {
             client,
         }
     }
-    pub async fn appearance(&self, request: tonic::Request<dokime_protocol::v1::BackendAppearanceRequest>) -> Result<tonic::Response<dokime_protocol::v1::BackendAppearanceResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Backend/Appearance"), request, dokime_protocol::v1::BackendAppearanceResponse::default().descriptor()).await
+    pub async fn appearance(&self, request: tonic::Request<dokime_protocol::client::BackendAppearanceRequest>) -> Result<tonic::Response<dokime_protocol::client::BackendAppearanceResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Backend/Appearance"), request, dokime_protocol::client::BackendAppearanceResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -160,11 +182,11 @@ impl BackendOverview {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::backend::OverviewGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::backend::OverviewGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.backend.Overview/Get"), request, dokime_protocol::v1::backend::OverviewGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::backend::OverviewGetRequest>) -> Result<tonic::Response<dokime_protocol::client::backend::OverviewGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.backend.Overview/Get"), request, dokime_protocol::client::backend::OverviewGetResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::backend::OverviewWatchRequest>) -> Result<Watching<dokime_protocol::v1::backend::OverviewWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.backend.Overview/Watch"), request, dokime_protocol::v1::backend::OverviewWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::backend::OverviewWatchRequest>) -> Result<Watching<dokime_protocol::client::backend::OverviewWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.backend.Overview/Watch"), request, dokime_protocol::client::backend::OverviewWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -177,113 +199,23 @@ impl Cases {
             client,
         }
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::CasesCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::CasesCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/Create"), request, dokime_protocol::v1::CasesCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::CasesCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::CasesCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/Create"), request, dokime_protocol::client::CasesCreateResponse::default().descriptor()).await
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::CasesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::CasesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/Get"), request, dokime_protocol::v1::CasesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::CasesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::CasesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/Get"), request, dokime_protocol::client::CasesGetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::CasesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::CasesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/List"), request, dokime_protocol::v1::CasesListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::CasesListRequest>) -> Result<tonic::Response<dokime_protocol::client::CasesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/List"), request, dokime_protocol::client::CasesListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::CasesWatchRequest>) -> Result<Watching<dokime_protocol::v1::CasesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/Watch"), request, dokime_protocol::v1::CasesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::CasesWatchRequest>) -> Result<Watching<dokime_protocol::client::CasesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/Watch"), request, dokime_protocol::client::CasesWatchResponse::default().descriptor()).await
     }
-    pub async fn delete(&self, request: tonic::Request<dokime_protocol::v1::CasesDeleteRequest>) -> Result<tonic::Response<dokime_protocol::v1::CasesDeleteResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/Delete"), request, dokime_protocol::v1::CasesDeleteResponse::default().descriptor()).await
+    pub async fn delete(&self, request: tonic::Request<dokime_protocol::client::CasesDeleteRequest>) -> Result<tonic::Response<dokime_protocol::client::CasesDeleteResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/Delete"), request, dokime_protocol::client::CasesDeleteResponse::default().descriptor()).await
     }
-    pub async fn parameters(&self, request: tonic::Request<dokime_protocol::v1::CasesParametersRequest>) -> Result<tonic::Response<dokime_protocol::v1::CasesParametersResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cases/Parameters"), request, dokime_protocol::v1::CasesParametersResponse::default().descriptor()).await
-    }
-}
-#[derive(Clone)]
-pub struct Catalog {
-    client: ClientTransport,
-    pub prompt_definitions: CatalogPromptDefinitions,
-    pub record_schemas: CatalogRecordSchemas,
-    pub stream_schemas: CatalogStreamSchemas,
-    pub suites: CatalogSuites,
-}
-impl Catalog {
-    pub fn new(client: ClientTransport) -> Self {
-        Self {
-            prompt_definitions: CatalogPromptDefinitions::new(client.clone()),
-            record_schemas: CatalogRecordSchemas::new(client.clone()),
-            stream_schemas: CatalogStreamSchemas::new(client.clone()),
-            suites: CatalogSuites::new(client.clone()),
-            client,
-        }
-    }
-    pub async fn analyses(&self, request: tonic::Request<dokime_protocol::v1::CatalogAnalysesRequest>) -> Result<tonic::Response<dokime_protocol::v1::CatalogAnalysesResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Catalog/Analyses"), request, dokime_protocol::v1::CatalogAnalysesResponse::default().descriptor()).await
-    }
-}
-#[derive(Clone)]
-pub struct CatalogPromptDefinitions {
-    client: ClientTransport,
-}
-impl CatalogPromptDefinitions {
-    pub fn new(client: ClientTransport) -> Self {
-        Self {
-            client,
-        }
-    }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::catalog::PromptDefinitionsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::PromptDefinitionsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.PromptDefinitions/Get"), request, dokime_protocol::v1::catalog::PromptDefinitionsGetResponse::default().descriptor()).await
-    }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::catalog::PromptDefinitionsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::PromptDefinitionsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.PromptDefinitions/List"), request, dokime_protocol::v1::catalog::PromptDefinitionsListResponse::default().descriptor()).await
-    }
-}
-#[derive(Clone)]
-pub struct CatalogRecordSchemas {
-    client: ClientTransport,
-}
-impl CatalogRecordSchemas {
-    pub fn new(client: ClientTransport) -> Self {
-        Self {
-            client,
-        }
-    }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::catalog::RecordSchemasGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::RecordSchemasGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.RecordSchemas/Get"), request, dokime_protocol::v1::catalog::RecordSchemasGetResponse::default().descriptor()).await
-    }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::catalog::RecordSchemasListRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::RecordSchemasListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.RecordSchemas/List"), request, dokime_protocol::v1::catalog::RecordSchemasListResponse::default().descriptor()).await
-    }
-}
-#[derive(Clone)]
-pub struct CatalogStreamSchemas {
-    client: ClientTransport,
-}
-impl CatalogStreamSchemas {
-    pub fn new(client: ClientTransport) -> Self {
-        Self {
-            client,
-        }
-    }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::catalog::StreamSchemasGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::StreamSchemasGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.StreamSchemas/Get"), request, dokime_protocol::v1::catalog::StreamSchemasGetResponse::default().descriptor()).await
-    }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::catalog::StreamSchemasListRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::StreamSchemasListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.StreamSchemas/List"), request, dokime_protocol::v1::catalog::StreamSchemasListResponse::default().descriptor()).await
-    }
-}
-#[derive(Clone)]
-pub struct CatalogSuites {
-    client: ClientTransport,
-}
-impl CatalogSuites {
-    pub fn new(client: ClientTransport) -> Self {
-        Self {
-            client,
-        }
-    }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::catalog::SuitesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::SuitesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.Suites/Get"), request, dokime_protocol::v1::catalog::SuitesGetResponse::default().descriptor()).await
-    }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::catalog::SuitesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::catalog::SuitesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.catalog.Suites/List"), request, dokime_protocol::v1::catalog::SuitesListResponse::default().descriptor()).await
+    pub async fn parameters(&self, request: tonic::Request<dokime_protocol::client::CasesParametersRequest>) -> Result<tonic::Response<dokime_protocol::client::CasesParametersResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cases/Parameters"), request, dokime_protocol::client::CasesParametersResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -323,17 +255,17 @@ impl ContentArtifacts {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::content::ArtifactsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::content::ArtifactsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.Artifacts/Get"), request, dokime_protocol::v1::content::ArtifactsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::content::ArtifactsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::content::ArtifactsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.Artifacts/Get"), request, dokime_protocol::client::content::ArtifactsGetResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::content::ArtifactsCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::content::ArtifactsCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.Artifacts/Create"), request, dokime_protocol::v1::content::ArtifactsCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::content::ArtifactsCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::content::ArtifactsCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.Artifacts/Create"), request, dokime_protocol::client::content::ArtifactsCreateResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::content::ArtifactsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::content::ArtifactsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.Artifacts/List"), request, dokime_protocol::v1::content::ArtifactsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::content::ArtifactsListRequest>) -> Result<tonic::Response<dokime_protocol::client::content::ArtifactsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.Artifacts/List"), request, dokime_protocol::client::content::ArtifactsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::content::ArtifactsWatchRequest>) -> Result<Watching<dokime_protocol::v1::content::ArtifactsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.Artifacts/Watch"), request, dokime_protocol::v1::content::ArtifactsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::content::ArtifactsWatchRequest>) -> Result<Watching<dokime_protocol::client::content::ArtifactsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.Artifacts/Watch"), request, dokime_protocol::client::content::ArtifactsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -346,14 +278,14 @@ impl ContentExecutionFiles {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::content::ExecutionFilesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::content::ExecutionFilesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.ExecutionFiles/Get"), request, dokime_protocol::v1::content::ExecutionFilesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::content::ExecutionFilesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::content::ExecutionFilesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.ExecutionFiles/Get"), request, dokime_protocol::client::content::ExecutionFilesGetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::content::ExecutionFilesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::content::ExecutionFilesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.ExecutionFiles/List"), request, dokime_protocol::v1::content::ExecutionFilesListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::content::ExecutionFilesListRequest>) -> Result<tonic::Response<dokime_protocol::client::content::ExecutionFilesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.ExecutionFiles/List"), request, dokime_protocol::client::content::ExecutionFilesListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::content::ExecutionFilesWatchRequest>) -> Result<Watching<dokime_protocol::v1::content::ExecutionFilesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.content.ExecutionFiles/Watch"), request, dokime_protocol::v1::content::ExecutionFilesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::content::ExecutionFilesWatchRequest>) -> Result<Watching<dokime_protocol::client::content::ExecutionFilesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.content.ExecutionFiles/Watch"), request, dokime_protocol::client::content::ExecutionFilesWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -366,23 +298,23 @@ impl Cycles {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::CyclesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::CyclesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/Get"), request, dokime_protocol::v1::CyclesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::CyclesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::CyclesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/Get"), request, dokime_protocol::client::CyclesGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::CyclesSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::CyclesSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/Set"), request, dokime_protocol::v1::CyclesSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::CyclesSetRequest>) -> Result<tonic::Response<dokime_protocol::client::CyclesSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/Set"), request, dokime_protocol::client::CyclesSetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::CyclesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::CyclesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/List"), request, dokime_protocol::v1::CyclesListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::CyclesListRequest>) -> Result<tonic::Response<dokime_protocol::client::CyclesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/List"), request, dokime_protocol::client::CyclesListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::CyclesWatchRequest>) -> Result<Watching<dokime_protocol::v1::CyclesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/Watch"), request, dokime_protocol::v1::CyclesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::CyclesWatchRequest>) -> Result<Watching<dokime_protocol::client::CyclesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/Watch"), request, dokime_protocol::client::CyclesWatchResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::CyclesCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::CyclesCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/Create"), request, dokime_protocol::v1::CyclesCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::CyclesCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::CyclesCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/Create"), request, dokime_protocol::client::CyclesCreateResponse::default().descriptor()).await
     }
-    pub async fn seal(&self, request: tonic::Request<dokime_protocol::v1::CyclesSealRequest>) -> Result<tonic::Response<dokime_protocol::v1::CyclesSealResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Cycles/Seal"), request, dokime_protocol::v1::CyclesSealResponse::default().descriptor()).await
+    pub async fn seal(&self, request: tonic::Request<dokime_protocol::client::CyclesSealRequest>) -> Result<tonic::Response<dokime_protocol::client::CyclesSealResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Cycles/Seal"), request, dokime_protocol::client::CyclesSealResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -395,11 +327,11 @@ impl Documents {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::DocumentsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::DocumentsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Documents/Get"), request, dokime_protocol::v1::DocumentsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::DocumentsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::DocumentsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Documents/Get"), request, dokime_protocol::client::DocumentsGetResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::DocumentsWatchRequest>) -> Result<Watching<dokime_protocol::v1::DocumentsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Documents/Watch"), request, dokime_protocol::v1::DocumentsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::DocumentsWatchRequest>) -> Result<Watching<dokime_protocol::client::DocumentsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Documents/Watch"), request, dokime_protocol::client::DocumentsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -422,11 +354,11 @@ impl Evidence {
             client,
         }
     }
-    pub async fn statistics(&self, request: tonic::Request<dokime_protocol::v1::EvidenceStatisticsRequest>) -> Result<tonic::Response<dokime_protocol::v1::EvidenceStatisticsResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Evidence/Statistics"), request, dokime_protocol::v1::EvidenceStatisticsResponse::default().descriptor()).await
+    pub async fn statistics(&self, request: tonic::Request<dokime_protocol::client::EvidenceStatisticsRequest>) -> Result<tonic::Response<dokime_protocol::client::EvidenceStatisticsResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Evidence/Statistics"), request, dokime_protocol::client::EvidenceStatisticsResponse::default().descriptor()).await
     }
-    pub async fn archive(&self, request: tonic::Request<dokime_protocol::v1::EvidenceArchiveRequest>) -> Result<tonic::Response<dokime_protocol::v1::EvidenceArchiveResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Evidence/Archive"), request, dokime_protocol::v1::EvidenceArchiveResponse::default().descriptor()).await
+    pub async fn archive(&self, request: tonic::Request<dokime_protocol::client::EvidenceArchiveRequest>) -> Result<tonic::Response<dokime_protocol::client::EvidenceArchiveResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Evidence/Archive"), request, dokime_protocol::client::EvidenceArchiveResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -439,11 +371,11 @@ impl EvidenceHealthEvents {
             client,
         }
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::evidence::HealthEventsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::HealthEventsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.HealthEvents/List"), request, dokime_protocol::v1::evidence::HealthEventsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::evidence::HealthEventsListRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::HealthEventsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.HealthEvents/List"), request, dokime_protocol::client::evidence::HealthEventsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::HealthEventsWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::HealthEventsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.HealthEvents/Watch"), request, dokime_protocol::v1::evidence::HealthEventsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::evidence::HealthEventsWatchRequest>) -> Result<Watching<dokime_protocol::client::evidence::HealthEventsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.HealthEvents/Watch"), request, dokime_protocol::client::evidence::HealthEventsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -456,20 +388,20 @@ impl EvidenceNotes {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::evidence::NotesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::NotesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Notes/Get"), request, dokime_protocol::v1::evidence::NotesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::evidence::NotesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::NotesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Notes/Get"), request, dokime_protocol::client::evidence::NotesGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::evidence::NotesSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::NotesSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Notes/Set"), request, dokime_protocol::v1::evidence::NotesSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::evidence::NotesSetRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::NotesSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Notes/Set"), request, dokime_protocol::client::evidence::NotesSetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::evidence::NotesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::NotesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Notes/List"), request, dokime_protocol::v1::evidence::NotesListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::evidence::NotesListRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::NotesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Notes/List"), request, dokime_protocol::client::evidence::NotesListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::NotesWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::NotesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Notes/Watch"), request, dokime_protocol::v1::evidence::NotesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::evidence::NotesWatchRequest>) -> Result<Watching<dokime_protocol::client::evidence::NotesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Notes/Watch"), request, dokime_protocol::client::evidence::NotesWatchResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::evidence::NotesCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::NotesCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Notes/Create"), request, dokime_protocol::v1::evidence::NotesCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::evidence::NotesCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::NotesCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Notes/Create"), request, dokime_protocol::client::evidence::NotesCreateResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -482,11 +414,11 @@ impl EvidenceRecords {
             client,
         }
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::evidence::RecordsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::RecordsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Records/List"), request, dokime_protocol::v1::evidence::RecordsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::evidence::RecordsListRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::RecordsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Records/List"), request, dokime_protocol::client::evidence::RecordsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::RecordsWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::RecordsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Records/Watch"), request, dokime_protocol::v1::evidence::RecordsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::evidence::RecordsWatchRequest>) -> Result<Watching<dokime_protocol::client::evidence::RecordsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Records/Watch"), request, dokime_protocol::client::evidence::RecordsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -499,11 +431,11 @@ impl EvidenceSamples {
             client,
         }
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::evidence::SamplesListRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::SamplesListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Samples/List"), request, dokime_protocol::v1::evidence::SamplesListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::evidence::SamplesListRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::SamplesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Samples/List"), request, dokime_protocol::client::evidence::SamplesListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::SamplesWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::SamplesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Samples/Watch"), request, dokime_protocol::v1::evidence::SamplesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::evidence::SamplesWatchRequest>) -> Result<Watching<dokime_protocol::client::evidence::SamplesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Samples/Watch"), request, dokime_protocol::client::evidence::SamplesWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -516,11 +448,11 @@ impl EvidenceTraceability {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::evidence::TraceabilityGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::TraceabilityGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Traceability/Get"), request, dokime_protocol::v1::evidence::TraceabilityGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::evidence::TraceabilityGetRequest>) -> Result<tonic::Response<dokime_protocol::client::evidence::TraceabilityGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Traceability/Get"), request, dokime_protocol::client::evidence::TraceabilityGetResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::TraceabilityWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::TraceabilityWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Traceability/Watch"), request, dokime_protocol::v1::evidence::TraceabilityWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::evidence::TraceabilityWatchRequest>) -> Result<Watching<dokime_protocol::client::evidence::TraceabilityWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.evidence.Traceability/Watch"), request, dokime_protocol::client::evidence::TraceabilityWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -537,38 +469,38 @@ impl Executions {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Get"), request, dokime_protocol::v1::ExecutionsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::ExecutionsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Get"), request, dokime_protocol::client::ExecutionsGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Set"), request, dokime_protocol::v1::ExecutionsSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::ExecutionsSetRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Set"), request, dokime_protocol::client::ExecutionsSetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/List"), request, dokime_protocol::v1::ExecutionsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::ExecutionsListRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/List"), request, dokime_protocol::client::ExecutionsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsWatchRequest>) -> Result<Watching<dokime_protocol::v1::ExecutionsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Watch"), request, dokime_protocol::v1::ExecutionsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::ExecutionsWatchRequest>) -> Result<Watching<dokime_protocol::client::ExecutionsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Watch"), request, dokime_protocol::client::ExecutionsWatchResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Create"), request, dokime_protocol::v1::ExecutionsCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::ExecutionsCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Create"), request, dokime_protocol::client::ExecutionsCreateResponse::default().descriptor()).await
     }
-    pub async fn start(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsStartRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsStartResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Start"), request, dokime_protocol::v1::ExecutionsStartResponse::default().descriptor()).await
+    pub async fn start(&self, request: tonic::Request<dokime_protocol::client::ExecutionsStartRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsStartResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Start"), request, dokime_protocol::client::ExecutionsStartResponse::default().descriptor()).await
     }
-    pub async fn stop(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsStopRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsStopResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Stop"), request, dokime_protocol::v1::ExecutionsStopResponse::default().descriptor()).await
+    pub async fn stop(&self, request: tonic::Request<dokime_protocol::client::ExecutionsStopRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsStopResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Stop"), request, dokime_protocol::client::ExecutionsStopResponse::default().descriptor()).await
     }
-    pub async fn cancel(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsCancelRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsCancelResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Cancel"), request, dokime_protocol::v1::ExecutionsCancelResponse::default().descriptor()).await
+    pub async fn cancel(&self, request: tonic::Request<dokime_protocol::client::ExecutionsCancelRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsCancelResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Cancel"), request, dokime_protocol::client::ExecutionsCancelResponse::default().descriptor()).await
     }
-    pub async fn delete(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsDeleteRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsDeleteResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Delete"), request, dokime_protocol::v1::ExecutionsDeleteResponse::default().descriptor()).await
+    pub async fn delete(&self, request: tonic::Request<dokime_protocol::client::ExecutionsDeleteRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsDeleteResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Delete"), request, dokime_protocol::client::ExecutionsDeleteResponse::default().descriptor()).await
     }
-    pub async fn parameters(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsParametersRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsParametersResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Parameters"), request, dokime_protocol::v1::ExecutionsParametersResponse::default().descriptor()).await
+    pub async fn parameters(&self, request: tonic::Request<dokime_protocol::client::ExecutionsParametersRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsParametersResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Parameters"), request, dokime_protocol::client::ExecutionsParametersResponse::default().descriptor()).await
     }
-    pub async fn steps(&self, request: tonic::Request<dokime_protocol::v1::ExecutionsStepsRequest>) -> Result<tonic::Response<dokime_protocol::v1::ExecutionsStepsResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Executions/Steps"), request, dokime_protocol::v1::ExecutionsStepsResponse::default().descriptor()).await
+    pub async fn steps(&self, request: tonic::Request<dokime_protocol::client::ExecutionsStepsRequest>) -> Result<tonic::Response<dokime_protocol::client::ExecutionsStepsResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Executions/Steps"), request, dokime_protocol::client::ExecutionsStepsResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -581,11 +513,11 @@ impl ExecutionsCommands {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::executions::CommandsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::executions::CommandsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.executions.Commands/Get"), request, dokime_protocol::v1::executions::CommandsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::executions::CommandsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::executions::CommandsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Commands/Get"), request, dokime_protocol::client::executions::CommandsGetResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::executions::CommandsCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::executions::CommandsCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.executions.Commands/Create"), request, dokime_protocol::v1::executions::CommandsCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::executions::CommandsCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::executions::CommandsCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Commands/Create"), request, dokime_protocol::client::executions::CommandsCreateResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -598,11 +530,11 @@ impl ExecutionsProgress {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::executions::ProgressGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::executions::ProgressGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.executions.Progress/Get"), request, dokime_protocol::v1::executions::ProgressGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::executions::ProgressGetRequest>) -> Result<tonic::Response<dokime_protocol::client::executions::ProgressGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Progress/Get"), request, dokime_protocol::client::executions::ProgressGetResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::executions::ProgressWatchRequest>) -> Result<Watching<dokime_protocol::v1::executions::ProgressWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.executions.Progress/Watch"), request, dokime_protocol::v1::executions::ProgressWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::executions::ProgressWatchRequest>) -> Result<Watching<dokime_protocol::client::executions::ProgressWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Progress/Watch"), request, dokime_protocol::client::executions::ProgressWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -649,17 +581,17 @@ impl MediaCaptures {
             client,
         }
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::media::CapturesCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::media::CapturesCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.media.Captures/Create"), request, dokime_protocol::v1::media::CapturesCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::media::CapturesCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::media::CapturesCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.media.Captures/Create"), request, dokime_protocol::client::media::CapturesCreateResponse::default().descriptor()).await
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::media::CapturesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::media::CapturesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.media.Captures/Get"), request, dokime_protocol::v1::media::CapturesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::media::CapturesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::media::CapturesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.media.Captures/Get"), request, dokime_protocol::client::media::CapturesGetResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::media::CapturesWatchRequest>) -> Result<Watching<dokime_protocol::v1::media::CapturesWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.media.Captures/Watch"), request, dokime_protocol::v1::media::CapturesWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::media::CapturesWatchRequest>) -> Result<Watching<dokime_protocol::client::media::CapturesWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.media.Captures/Watch"), request, dokime_protocol::client::media::CapturesWatchResponse::default().descriptor()).await
     }
-    pub async fn stop(&self, request: tonic::Request<dokime_protocol::v1::media::CapturesStopRequest>) -> Result<tonic::Response<dokime_protocol::v1::media::CapturesStopResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.media.Captures/Stop"), request, dokime_protocol::v1::media::CapturesStopResponse::default().descriptor()).await
+    pub async fn stop(&self, request: tonic::Request<dokime_protocol::client::media::CapturesStopRequest>) -> Result<tonic::Response<dokime_protocol::client::media::CapturesStopResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.media.Captures/Stop"), request, dokime_protocol::client::media::CapturesStopResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -685,11 +617,11 @@ impl PlotsSettings {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::plots::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::plots::SettingsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plots.Settings/Get"), request, dokime_protocol::v1::plots::SettingsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::plots::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::plots::SettingsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plots.Settings/Get"), request, dokime_protocol::client::plots::SettingsGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::plots::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::plots::SettingsSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plots.Settings/Set"), request, dokime_protocol::v1::plots::SettingsSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::plots::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::client::plots::SettingsSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plots.Settings/Set"), request, dokime_protocol::client::plots::SettingsSetResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -702,11 +634,11 @@ impl PlotsSnapshots {
             client,
         }
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::plots::SnapshotsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::plots::SnapshotsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plots.Snapshots/List"), request, dokime_protocol::v1::plots::SnapshotsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::plots::SnapshotsListRequest>) -> Result<tonic::Response<dokime_protocol::client::plots::SnapshotsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plots.Snapshots/List"), request, dokime_protocol::client::plots::SnapshotsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::plots::SnapshotsWatchRequest>) -> Result<Watching<dokime_protocol::v1::plots::SnapshotsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plots.Snapshots/Watch"), request, dokime_protocol::v1::plots::SnapshotsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::plots::SnapshotsWatchRequest>) -> Result<Watching<dokime_protocol::client::plots::SnapshotsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plots.Snapshots/Watch"), request, dokime_protocol::client::plots::SnapshotsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -753,11 +685,28 @@ impl PluginsSettings {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::plugins::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::plugins::SettingsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plugins.Settings/Get"), request, dokime_protocol::v1::plugins::SettingsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::plugins::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::plugins::SettingsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plugins.Settings/Get"), request, dokime_protocol::client::plugins::SettingsGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::plugins::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::plugins::SettingsSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.plugins.Settings/Set"), request, dokime_protocol::v1::plugins::SettingsSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::plugins::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::client::plugins::SettingsSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.plugins.Settings/Set"), request, dokime_protocol::client::plugins::SettingsSetResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct PromptDefinitions {
+    client: ClientTransport,
+}
+impl PromptDefinitions {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.PromptDefinitions/Get"), request, dokime_protocol::client::PromptDefinitionsGetResponse::default().descriptor()).await
+    }
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsListRequest>) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.PromptDefinitions/List"), request, dokime_protocol::client::PromptDefinitionsListResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -772,14 +721,14 @@ impl Prompts {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::PromptsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::PromptsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Prompts/Get"), request, dokime_protocol::v1::PromptsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::PromptsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::PromptsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Prompts/Get"), request, dokime_protocol::client::PromptsGetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::PromptsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::PromptsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Prompts/List"), request, dokime_protocol::v1::PromptsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::PromptsListRequest>) -> Result<tonic::Response<dokime_protocol::client::PromptsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Prompts/List"), request, dokime_protocol::client::PromptsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::PromptsWatchRequest>) -> Result<Watching<dokime_protocol::v1::PromptsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Prompts/Watch"), request, dokime_protocol::v1::PromptsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::PromptsWatchRequest>) -> Result<Watching<dokime_protocol::client::PromptsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Prompts/Watch"), request, dokime_protocol::client::PromptsWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -792,8 +741,25 @@ impl PromptsAnswers {
             client,
         }
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::prompts::AnswersCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::prompts::AnswersCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.prompts.Answers/Create"), request, dokime_protocol::v1::prompts::AnswersCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::prompts::AnswersCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::prompts::AnswersCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.prompts.Answers/Create"), request, dokime_protocol::client::prompts::AnswersCreateResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct RecordSchemas {
+    client: ClientTransport,
+}
+impl RecordSchemas {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::RecordSchemasGetRequest>) -> Result<tonic::Response<dokime_protocol::client::RecordSchemasGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.RecordSchemas/Get"), request, dokime_protocol::client::RecordSchemasGetResponse::default().descriptor()).await
+    }
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::RecordSchemasListRequest>) -> Result<tonic::Response<dokime_protocol::client::RecordSchemasListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.RecordSchemas/List"), request, dokime_protocol::client::RecordSchemasListResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -806,14 +772,14 @@ impl Reports {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::ReportsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::ReportsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Reports/Get"), request, dokime_protocol::v1::ReportsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::ReportsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::ReportsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Reports/Get"), request, dokime_protocol::client::ReportsGetResponse::default().descriptor()).await
     }
-    pub async fn create(&self, request: tonic::Request<dokime_protocol::v1::ReportsCreateRequest>) -> Result<tonic::Response<dokime_protocol::v1::ReportsCreateResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Reports/Create"), request, dokime_protocol::v1::ReportsCreateResponse::default().descriptor()).await
+    pub async fn create(&self, request: tonic::Request<dokime_protocol::client::ReportsCreateRequest>) -> Result<tonic::Response<dokime_protocol::client::ReportsCreateResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Reports/Create"), request, dokime_protocol::client::ReportsCreateResponse::default().descriptor()).await
     }
-    pub async fn publish(&self, request: tonic::Request<dokime_protocol::v1::ReportsPublishRequest>) -> Result<tonic::Response<dokime_protocol::v1::ReportsPublishResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Reports/Publish"), request, dokime_protocol::v1::ReportsPublishResponse::default().descriptor()).await
+    pub async fn publish(&self, request: tonic::Request<dokime_protocol::client::ReportsPublishRequest>) -> Result<tonic::Response<dokime_protocol::client::ReportsPublishResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Reports/Publish"), request, dokime_protocol::client::ReportsPublishResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -826,26 +792,26 @@ impl Secrets {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::SecretsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Get"), request, dokime_protocol::v1::SecretsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::SecretsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Get"), request, dokime_protocol::client::SecretsGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::SecretsSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Set"), request, dokime_protocol::v1::SecretsSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::SecretsSetRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Set"), request, dokime_protocol::client::SecretsSetResponse::default().descriptor()).await
     }
-    pub async fn list(&self, request: tonic::Request<dokime_protocol::v1::SecretsListRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsListResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/List"), request, dokime_protocol::v1::SecretsListResponse::default().descriptor()).await
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::SecretsListRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/List"), request, dokime_protocol::client::SecretsListResponse::default().descriptor()).await
     }
-    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::SecretsWatchRequest>) -> Result<Watching<dokime_protocol::v1::SecretsWatchResponse>, tonic::Status> {
-        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Watch"), request, dokime_protocol::v1::SecretsWatchResponse::default().descriptor()).await
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::SecretsWatchRequest>) -> Result<Watching<dokime_protocol::client::SecretsWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Watch"), request, dokime_protocol::client::SecretsWatchResponse::default().descriptor()).await
     }
-    pub async fn delete(&self, request: tonic::Request<dokime_protocol::v1::SecretsDeleteRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsDeleteResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Delete"), request, dokime_protocol::v1::SecretsDeleteResponse::default().descriptor()).await
+    pub async fn delete(&self, request: tonic::Request<dokime_protocol::client::SecretsDeleteRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsDeleteResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Delete"), request, dokime_protocol::client::SecretsDeleteResponse::default().descriptor()).await
     }
-    pub async fn export(&self, request: tonic::Request<dokime_protocol::v1::SecretsExportRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsExportResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Export"), request, dokime_protocol::v1::SecretsExportResponse::default().descriptor()).await
+    pub async fn export(&self, request: tonic::Request<dokime_protocol::client::SecretsExportRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsExportResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Export"), request, dokime_protocol::client::SecretsExportResponse::default().descriptor()).await
     }
-    pub async fn import(&self, request: tonic::Request<dokime_protocol::v1::SecretsImportRequest>) -> Result<tonic::Response<dokime_protocol::v1::SecretsImportResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Secrets/Import"), request, dokime_protocol::v1::SecretsImportResponse::default().descriptor()).await
+    pub async fn import(&self, request: tonic::Request<dokime_protocol::client::SecretsImportRequest>) -> Result<tonic::Response<dokime_protocol::client::SecretsImportResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Secrets/Import"), request, dokime_protocol::client::SecretsImportResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -858,14 +824,14 @@ impl Settings {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::SettingsGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Settings/Get"), request, dokime_protocol::v1::SettingsGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::SettingsGetRequest>) -> Result<tonic::Response<dokime_protocol::client::SettingsGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Settings/Get"), request, dokime_protocol::client::SettingsGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::SettingsSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Settings/Set"), request, dokime_protocol::v1::SettingsSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::SettingsSetRequest>) -> Result<tonic::Response<dokime_protocol::client::SettingsSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Settings/Set"), request, dokime_protocol::client::SettingsSetResponse::default().descriptor()).await
     }
-    pub async fn schema(&self, request: tonic::Request<dokime_protocol::v1::SettingsSchemaRequest>) -> Result<tonic::Response<dokime_protocol::v1::SettingsSchemaResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Settings/Schema"), request, dokime_protocol::v1::SettingsSchemaResponse::default().descriptor()).await
+    pub async fn schema(&self, request: tonic::Request<dokime_protocol::client::SettingsSchemaRequest>) -> Result<tonic::Response<dokime_protocol::client::SettingsSchemaResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Settings/Schema"), request, dokime_protocol::client::SettingsSchemaResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]
@@ -1058,11 +1024,45 @@ impl StorageSources {
             client,
         }
     }
-    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::storage::SourcesGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::storage::SourcesGetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.storage.Sources/Get"), request, dokime_protocol::v1::storage::SourcesGetResponse::default().descriptor()).await
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::storage::SourcesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::storage::SourcesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.storage.Sources/Get"), request, dokime_protocol::client::storage::SourcesGetResponse::default().descriptor()).await
     }
-    pub async fn set(&self, request: tonic::Request<dokime_protocol::v1::storage::SourcesSetRequest>) -> Result<tonic::Response<dokime_protocol::v1::storage::SourcesSetResponse>, tonic::Status> {
-        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.storage.Sources/Set"), request, dokime_protocol::v1::storage::SourcesSetResponse::default().descriptor()).await
+    pub async fn set(&self, request: tonic::Request<dokime_protocol::client::storage::SourcesSetRequest>) -> Result<tonic::Response<dokime_protocol::client::storage::SourcesSetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.storage.Sources/Set"), request, dokime_protocol::client::storage::SourcesSetResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct StreamSchemas {
+    client: ClientTransport,
+}
+impl StreamSchemas {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::StreamSchemasGetRequest>) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.StreamSchemas/Get"), request, dokime_protocol::client::StreamSchemasGetResponse::default().descriptor()).await
+    }
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::StreamSchemasListRequest>) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.StreamSchemas/List"), request, dokime_protocol::client::StreamSchemasListResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct Suites {
+    client: ClientTransport,
+}
+impl Suites {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::SuitesGetRequest>) -> Result<tonic::Response<dokime_protocol::client::SuitesGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Suites/Get"), request, dokime_protocol::client::SuitesGetResponse::default().descriptor()).await
+    }
+    pub async fn list(&self, request: tonic::Request<dokime_protocol::client::SuitesListRequest>) -> Result<tonic::Response<dokime_protocol::client::SuitesListResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.Suites/List"), request, dokime_protocol::client::SuitesListResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]

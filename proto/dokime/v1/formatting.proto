@@ -1,0 +1,75 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+
+message AbsoluteTimeFormat {
+  string pattern = 1;
+}
+
+message ElapsedFormat {
+  .dokime.v1.ElapsedUnit unit = 1;
+}
+
+enum ElapsedUnit {
+  ELAPSED_UNIT_UNSPECIFIED = 0;
+  ELAPSED_UNIT_SECONDS = 1;
+  ELAPSED_UNIT_MILLISECONDS = 2;
+  ELAPSED_UNIT_MINUTES = 3;
+}
+
+message EngineeringFormat {
+  uint32 significant_digits = 1;
+}
+
+message FixedFormat {
+  uint32 decimals = 1;
+}
+
+message MeasurementUnit {
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.UnitFamily family = 2;
+  string symbol = 3;
+}
+
+message NormalFormat {
+  optional uint32 max_fraction_digits = 1;
+}
+
+message ScientificFormat {
+  uint32 significant_digits = 1;
+}
+
+message SiPrefixFormat {
+  uint32 significant_digits = 1;
+}
+
+enum UnitFamily {
+  UNIT_FAMILY_UNSPECIFIED = 0;
+  UNIT_FAMILY_COUNT = 1;
+  UNIT_FAMILY_DISTANCE = 2;
+  UNIT_FAMILY_DURATION = 3;
+  UNIT_FAMILY_FREQUENCY = 4;
+  UNIT_FAMILY_POWER = 5;
+  UNIT_FAMILY_TEMPERATURE = 6;
+  UNIT_FAMILY_VOLTAGE = 7;
+  UNIT_FAMILY_RATIO = 8;
+  UNIT_FAMILY_CUSTOM = 9;
+}
+
+message ValueFormat {
+  .dokime.v1.ValueFormatKind kind = 1;
+}
+
+message ValueFormatKind {
+  oneof kind {
+    .dokime.v1.NormalFormat normal = 1;
+    .dokime.v1.FixedFormat fixed = 2;
+    .dokime.v1.ScientificFormat scientific = 3;
+    .dokime.v1.EngineeringFormat engineering = 4;
+    .dokime.v1.SiPrefixFormat si_prefix = 5;
+    .dokime.v1.AbsoluteTimeFormat absolute_time = 6;
+    .dokime.v1.ElapsedFormat elapsed_since_run = 7;
+    .dokime.v1.ElapsedFormat elapsed_since_cycle = 8;
+  }
+}

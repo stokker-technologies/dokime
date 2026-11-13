@@ -1,0 +1,160 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/execution.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/v1/types.proto";
+
+message CaseActions {
+  bool delete = 1;
+  repeated string unavailable_reasons = 2;
+}
+
+message CaseDetail {
+  .dokime.client.v1.CaseSummary summary = 1;
+  .dokime.v1.Metadata suite = 2;
+  uint64 parameter_count = 3;
+  uint64 generation_index = 4;
+  .harmos.v1.ReadCut observed_cursor = 5;
+}
+
+message CaseParameter {
+  string name = 1;
+  .dokime.v1.Value value = 2;
+}
+
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_SKIPPED = 1;
+  CASE_STATUS_INVALIDATED = 2;
+  CASE_STATUS_PLANNED = 3;
+  CASE_STATUS_QUEUED = 4;
+  CASE_STATUS_RUNNING = 5;
+  CASE_STATUS_PASSED = 6;
+  CASE_STATUS_FAILED = 7;
+  CASE_STATUS_BLOCKED = 8;
+  CASE_STATUS_CANCELLED = 9;
+  CASE_STATUS_INTERRUPTED = 10;
+}
+
+message CaseSummary {
+  string case_id = 1;
+  string template_id = 2;
+  .dokime.v1.Metadata metadata = 3;
+  uint64 ordinal = 4;
+  .dokime.client.v1.CaseStatus status = 5;
+  optional string latest_execution_id = 6;
+  optional .dokime.v1.ExecutionState latest_execution_status = 7;
+  uint32 attempt_count = 8;
+  .dokime.client.v1.CaseActions actions = 9;
+  string suite_id = 10;
+  .dokime.v1.ExecutionOutcome latest_execution_outcome = 11;
+}
+
+// A materialized case with its frozen provider origin. Identity/digest/process time come from the captured
+// catalog; the TestCase contains resolved parameters, steps, criteria and stream identifiers. Materialize again
+// if the catalog digest changes before execution.
+message PlannedCase {
+  string case_id = 1;
+  string suite_id = 2;
+  string template_id = 3;
+  .dokime.v1.Metadata metadata = 4;
+  uint64 ordinal = 5;
+  uint64 selection_index = 6;
+  .dokime.v1.Origin origin = 7;
+}
+
+// Exact registered suite/template identifiers. Parameter dimensions expand deterministically in selection order.
+// A multiple-valued parameter receives its selected values as one list rather than an expansion dimension. File
+// values are opaque plugin strings; they grant no client filesystem authority.
+message RegisteredSelection {
+  string suite_id = 1;
+  string template_id = 2;
+  repeated .dokime.client.v1.RegisteredSelectionParametersEntry parameters = 3;
+  repeated .dokime.client.v1.RegisteredSelectionFilesEntry files = 4;
+}
+
+message RegisteredSelectionFilesEntry {
+  string key = 1;
+  .dokime.client.v1.SelectedFile value = 2;
+}
+
+message RegisteredSelectionParametersEntry {
+  string key = 1;
+  .dokime.client.v1.SelectionValues value = 2;
+}
+
+message SelectedFile {
+  .dokime.client.v1.SelectedFileKind kind = 1;
+}
+
+message SelectedFileKind {
+  oneof kind {
+    string value = 1;
+    .dokime.v1.Null clear = 2;
+  }
+}
+
+// Selections and case_ids are mutually exclusive. Preserve order and duplicate selections. At most 256
+// selections and 1000 expanded cases; max_cases zero uses that case cap. A cycle_id continues that cycle's label
+// numbering.
+message SelectionPlan {
+  repeated .dokime.client.v1.RegisteredSelection selections = 1;
+  uint32 max_cases = 2;
+  repeated string case_ids = 3;
+  string cycle_id = 4;
+}
+
+message SelectionValues {
+  repeated .dokime.v1.Value values = 1;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message CasesCreateRequest { .dokime.client.v1.SelectionPlan plan = 1; bool validate_only = 2; string request_id = 3; }
+
+message CasesCreateResponse { repeated .dokime.client.v1.PlannedCase cases = 1; .harmos.v1.Receipt receipt = 2; }
+
+message CasesGetRequest { string name = 1; string parent = 2; .harmos.v1.ReadCut at = 90; }
+
+message CasesGetResponse { .dokime.client.v1.CaseDetail value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CasesListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message CasesListResponse { repeated .dokime.client.v1.CaseSummary cases = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CasesWatchRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message CasesWatchResponse {
+  repeated .dokime.client.v1.CaseSummary cases = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message CasesDeleteRequest { string name = 1; string parent = 2; string request_id = 3; }
+
+message CasesDeleteResponse { .harmos.v1.Receipt receipt = 1; }
+
+message CasesParametersRequest { string name = 1; string parent = 2; .harmos.v1.ReadCut at = 90; }
+
+message CasesParametersResponse { repeated .dokime.client.v1.CaseParameter parameters = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Cases {
+  // Public. Materialize selections and preserve ordered expansion and rerun notices.
+  // validate_only previews without registration; otherwise admit the whole plan atomically.
+  rpc Create(.dokime.client.v1.CasesCreateRequest) returns (.dokime.client.v1.CasesCreateResponse);
+  // Public. Identity: dokime.client.v1.Cases/Get
+  rpc Get(.dokime.client.v1.CasesGetRequest) returns (.dokime.client.v1.CasesGetResponse);
+  // Public. Identity: dokime.client.v1.Cases/List
+  rpc List(.dokime.client.v1.CasesListRequest) returns (.dokime.client.v1.CasesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.CasesWatchRequest) returns (stream .dokime.client.v1.CasesWatchResponse);
+  // Public. Identity: dokime.client.v1.Cases/Delete
+  rpc Delete(.dokime.client.v1.CasesDeleteRequest) returns (.dokime.client.v1.CasesDeleteResponse);
+  // Public. Identity: dokime.client.v1.Cases/Parameters
+  rpc Parameters(.dokime.client.v1.CasesParametersRequest) returns (.dokime.client.v1.CasesParametersResponse);
+}

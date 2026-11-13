@@ -1,0 +1,433 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/documents.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/expressions.proto";
+import "dokime/v1/formatting.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/plots.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/v1/types.proto";
+
+// Structure bindings carry source_id and complete metadata identity before
+// StructureComplete. Evaluated replacements retain that identity after EvidenceCut.
+message DocumentBinding {
+  string source_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.client.v1.DocumentBindingResult result = 3;
+}
+
+message DocumentBindingResult {
+  oneof kind {
+    bool literal = 1;
+    .dokime.client.v1.DocumentSummary summary = 2;
+    .dokime.client.v1.DocumentPlotDefinition plot = 3;
+    bool pending = 4;
+    .dokime.client.v1.DocumentCardFailure failure = 5;
+  }
+}
+
+message DocumentCard {
+  .dokime.v1.Metadata metadata = 1;
+  repeated .dokime.v1.PlotFilter filters = 2;
+  .dokime.client.v1.DocumentCardBody body = 3;
+}
+
+message DocumentCardBody {
+  oneof kind {
+    string markdown = 1;
+    .dokime.client.v1.DocumentTable table = 2;
+    .dokime.client.v1.DocumentSummary summary = 3;
+    .dokime.client.v1.DocumentOwnerReference owner = 4;
+  }
+}
+
+message DocumentCardBudget {
+  string name = 1;
+  uint64 limit = 2;
+  uint64 reached = 3;
+  string card_id = 4;
+}
+
+message DocumentCardFailure {
+  string code = 1;
+  string message = 2;
+  .dokime.client.v1.DocumentCardBudget budget = 3;
+}
+
+enum DocumentCardKind {
+  DOCUMENT_CARD_KIND_UNSPECIFIED = 0;
+  DOCUMENT_CARD_KIND_TEXT = 1;
+  DOCUMENT_CARD_KIND_TELEMETRY_SUMMARY = 2;
+  DOCUMENT_CARD_KIND_PLOT = 3;
+  DOCUMENT_CARD_KIND_TABLE = 4;
+  DOCUMENT_CARD_KIND_STEPS = 5;
+  DOCUMENT_CARD_KIND_CRITERIA = 6;
+  DOCUMENT_CARD_KIND_TRACEABILITY = 7;
+  DOCUMENT_CARD_KIND_NOTES = 8;
+  DOCUMENT_CARD_KIND_RECORDS = 9;
+  DOCUMENT_CARD_KIND_ARTIFACTS = 10;
+  DOCUMENT_CARD_KIND_MEDIA = 11;
+  DOCUMENT_CARD_KIND_HEALTH = 12;
+  DOCUMENT_CARD_KIND_TELEMETRY_CONTEXT = 13;
+}
+
+// Both StructureComplete and final Completion count every frame through the
+// marker itself, and the distinct cards, layout nodes, bindings, repeats and
+// sections received so far. Counters must match the delivered frame sequence.
+message DocumentCompletion {
+  uint64 frame_count = 1;
+  uint64 card_count = 2;
+  uint64 layout_node_count = 3;
+  uint64 binding_count = 4;
+  uint64 repeat_count = 5;
+  uint64 section_count = 6;
+  bool partial = 7;
+}
+
+enum DocumentDensity {
+  DOCUMENT_DENSITY_UNSPECIFIED = 0;
+  DOCUMENT_DENSITY_COMPACT = 1;
+  DOCUMENT_DENSITY_NORMAL = 2;
+  DOCUMENT_DENSITY_SPACIOUS = 3;
+}
+
+message DocumentEvidenceCut {
+  .dokime.client.v1.DocumentTelemetryCut cut = 1;
+  bool telemetry = 2;
+  bool cacheable = 3;
+}
+
+// Documents.Get frame order (also retained across bounded page continuations):
+// header; source cards; summary group/tile definitions; bindings with source_id
+// and metadata.identifier; repeat/section identities and layout; StructureComplete.
+// The fixed EvidenceCut follows structure exactly once, before evaluated card
+// results. Card results update the matching binding, followed by CardComplete
+// naming that binding exactly once. Final Completion has matching counters.
+// Structure-only results still include the fixed cut; partial results identify
+// their projection. No result, CardComplete or final Completion precedes the cut.
+message DocumentFrame {
+  .dokime.client.v1.DocumentFrameFrame frame = 1;
+}
+
+message DocumentFrameFrame {
+  oneof kind {
+    .dokime.client.v1.DocumentHeader header = 1;
+    .dokime.client.v1.DocumentLayoutNode layout_node = 2;
+    .dokime.client.v1.DocumentCard card = 3;
+    .dokime.client.v1.DocumentTableRow table_row = 4;
+    .dokime.client.v1.DocumentSummaryGroup summary_group = 5;
+    .dokime.client.v1.DocumentSummaryTile summary_tile = 6;
+    .dokime.client.v1.DocumentWarning warning = 7;
+    .dokime.client.v1.DocumentCompletion completion = 8;
+    .dokime.client.v1.DocumentSummaryGroupDefinition group_definition = 9;
+    .dokime.client.v1.DocumentSummaryTileDefinition tile_definition = 10;
+    .dokime.client.v1.DocumentBinding binding = 11;
+    .dokime.client.v1.DocumentRepeatSelection repeat_selection = 12;
+    .dokime.client.v1.DocumentRepeatInstance repeat_instance = 13;
+    .dokime.client.v1.DocumentSectionIdentity section_identity = 14;
+    // Closes validated structure after source cards, definitions, bindings and layout.
+    .dokime.client.v1.DocumentCompletion structure_complete = 15;
+    // Binding identity whose evaluated result is now complete, after EvidenceCut.
+    string card_complete = 16;
+    bool expansion_complete = 17;
+    // One fixed cut after StructureComplete and before any evaluated card result.
+    .dokime.client.v1.DocumentEvidenceCut evidence_cut = 18;
+    string section_removal = 19;
+    string artifact_cut = 20;
+    .dokime.client.v1.DocumentPage page = 21;
+  }
+}
+
+message DocumentFrontiers {
+  string process_epoch = 1;
+  uint64 state_revision = 2;
+  .dokime.client.v1.DocumentTelemetryCut telemetry = 3;
+  optional string artifacts_sha256 = 4;
+  .dokime.client.v1.DocumentTelemetryCut evidence = 5;
+}
+
+message DocumentHeader {
+  string document_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.v1.EvidenceScope scope = 3;
+  .dokime.client.v1.DocumentFrontiers frontiers = 4;
+}
+
+message DocumentLayoutNode {
+  uint64 ordinal = 1;
+  optional uint64 parent_ordinal = 2;
+  .dokime.client.v1.DocumentLayoutNodeNode node = 3;
+}
+
+message DocumentLayoutNodeNode {
+  oneof kind {
+    .dokime.client.v1.DocumentSection section = 1;
+    .dokime.client.v1.DocumentPlacement placement = 2;
+  }
+}
+
+message DocumentOwnerReference {
+  .dokime.client.v1.DocumentCardKind kind = 1;
+  optional string plot_id = 2;
+  .dokime.client.v1.DocumentPlotDefinition plot = 3;
+}
+
+message DocumentPage {
+  string current = 1;
+  optional string next = 2;
+}
+
+message DocumentPlacement {
+  string card_id = 1;
+  .dokime.client.v1.DocumentSpan column_span = 2;
+  uint32 row_span = 3;
+  int32 order = 4;
+  .dokime.client.v1.DocumentDensity density = 5;
+  .dokime.client.v1.DocumentRail rail = 6;
+}
+
+message DocumentPlotDefinition {
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.PlotRequest request = 2;
+  .dokime.client.v1.PlotPresentation presentation = 3;
+  .dokime.v1.DataExpression z_expression = 4;
+}
+
+enum DocumentRail {
+  DOCUMENT_RAIL_UNSPECIFIED = 0;
+  DOCUMENT_RAIL_MAIN = 1;
+  DOCUMENT_RAIL_RIGHT = 2;
+  DOCUMENT_RAIL_LEFT = 3;
+}
+
+message DocumentRepeat {
+  .dokime.v1.DataExpression value = 1;
+  string label_template = 2;
+  optional string id_template = 3;
+  .dokime.v1.DataExpression order_by = 4;
+  repeated .dokime.v1.PlotFilter filters = 5;
+}
+
+message DocumentRepeatInstance {
+  string selection_id = 1;
+  uint64 ordinal = 2;
+  string suffix = 3;
+  string node_id = 4;
+  .dokime.v1.PlotFilter filter = 5;
+}
+
+message DocumentRepeatSelection {
+  string node_id = 1;
+  uint64 instance_count = 2;
+  bool pending = 3;
+}
+
+message DocumentSection {
+  string node_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.client.v1.DocumentRepeat repeat = 3;
+}
+
+message DocumentSectionIdentity {
+  string node_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  optional string unavailable = 3;
+}
+
+message DocumentSpan {
+  uint32 base = 1;
+  optional uint32 sm = 2;
+  optional uint32 md = 3;
+  optional uint32 lg = 4;
+  optional uint32 xl = 5;
+}
+
+message DocumentSummary {
+  uint64 group_count = 1;
+}
+
+message DocumentSummaryCondition {
+  .dokime.v1.FilterOperator operator = 1;
+  .dokime.v1.Value value = 2;
+  .dokime.client.v1.DocumentSummaryState state = 3;
+}
+
+enum DocumentSummaryFormat {
+  DOCUMENT_SUMMARY_FORMAT_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_FORMAT_AUTO = 1;
+  DOCUMENT_SUMMARY_FORMAT_NUMBER = 2;
+  DOCUMENT_SUMMARY_FORMAT_PERCENT = 3;
+  DOCUMENT_SUMMARY_FORMAT_DURATION = 4;
+  DOCUMENT_SUMMARY_FORMAT_DISTANCE = 5;
+  DOCUMENT_SUMMARY_FORMAT_STATUS = 6;
+  DOCUMENT_SUMMARY_FORMAT_TEXT = 7;
+}
+
+message DocumentSummaryGroup {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  .dokime.v1.Metadata metadata = 3;
+  uint64 tile_count = 4;
+}
+
+message DocumentSummaryGroupDefinition {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  .dokime.v1.Metadata metadata = 3;
+  uint64 tile_count = 4;
+}
+
+enum DocumentSummaryPresentation {
+  DOCUMENT_SUMMARY_PRESENTATION_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_PRESENTATION_VALUE = 1;
+  DOCUMENT_SUMMARY_PRESENTATION_PROGRESS = 2;
+  DOCUMENT_SUMMARY_PRESENTATION_BADGE = 3;
+}
+
+enum DocumentSummaryStat {
+  DOCUMENT_SUMMARY_STAT_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_STAT_LATEST = 1;
+}
+
+enum DocumentSummaryState {
+  DOCUMENT_SUMMARY_STATE_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_STATE_OK = 1;
+  DOCUMENT_SUMMARY_STATE_WARNING = 2;
+  DOCUMENT_SUMMARY_STATE_CRITICAL = 3;
+  DOCUMENT_SUMMARY_STATE_MUTED = 4;
+}
+
+message DocumentSummaryTile {
+  string card_id = 1;
+  uint64 group_ordinal = 2;
+  uint64 ordinal = 3;
+  .dokime.v1.Metadata metadata = 4;
+  .dokime.v1.Value value = 5;
+  .dokime.client.v1.DocumentSummaryStat stat = 6;
+  .dokime.client.v1.DocumentSummaryFormat format = 7;
+  .dokime.client.v1.DocumentSummaryPresentation presentation = 8;
+  optional string unit = 9;
+  optional .dokime.client.v1.DocumentSummaryState state = 10;
+  optional string unavailable = 11;
+}
+
+message DocumentSummaryTileDefinition {
+  string card_id = 1;
+  uint64 group_ordinal = 2;
+  uint64 ordinal = 3;
+  .dokime.v1.Metadata metadata = 4;
+  .dokime.v1.DataExpression value = 5;
+  repeated .dokime.v1.PlotFilter filters = 6;
+  .dokime.client.v1.DocumentSummaryStat stat = 7;
+  .dokime.client.v1.DocumentSummaryFormat format = 8;
+  .dokime.client.v1.DocumentSummaryPresentation presentation = 9;
+  optional string unit = 10;
+  repeated .dokime.client.v1.DocumentSummaryCondition conditions = 11;
+}
+
+message DocumentTable {
+  uint64 row_count = 1;
+}
+
+message DocumentTableRow {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  .dokime.v1.TableRow values = 3;
+}
+
+message DocumentTelemetryCut {
+  string store = 1;
+  string epoch = 2;
+  uint64 position = 3;
+}
+
+message DocumentWarning {
+  string code = 1;
+  string message = 2;
+}
+
+enum PlotAxisKind {
+  PLOT_AXIS_KIND_UNSPECIFIED = 0;
+  PLOT_AXIS_KIND_WALL_TIME = 1;
+  PLOT_AXIS_KIND_ELAPSED = 2;
+}
+
+message PlotPresentation {
+  .dokime.v1.LineStyle style = 1;
+  .dokime.v1.PlotFftOptions fft = 2;
+  .dokime.v1.PlotIntervalOptions interval = 3;
+  .dokime.v1.PlotHistogramOptions histogram = 4;
+  repeated .dokime.client.v1.PlotReferenceLine reference_lines = 5;
+  repeated .dokime.client.v1.PlotReferenceBand reference_bands = 6;
+  .dokime.v1.ValueFormat x_format = 7;
+  .dokime.v1.ValueFormat y_format = 8;
+  .dokime.client.v1.PlotAxisKind x_axis = 9;
+  optional string x_axis_unit = 10;
+  optional double scale = 11;
+}
+
+message PlotReferenceBand {
+  .dokime.client.v1.PlotReferenceValue min = 1;
+  .dokime.client.v1.PlotReferenceValue max = 2;
+  optional string label = 3;
+  string color = 4;
+  .dokime.client.v1.PlotReferenceValue center = 5;
+  .dokime.client.v1.PlotReferenceValue tolerance = 6;
+}
+
+message PlotReferenceLine {
+  .dokime.client.v1.PlotReferenceValue value = 1;
+  optional string label = 2;
+  string color = 3;
+}
+
+message PlotReferenceValue {
+  optional double constant = 1;
+  .dokime.v1.DataExpression expression = 2;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message DocumentsGetRequest {
+  .dokime.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  bool structure_only = 3;
+  repeated string card_ids = 4;
+  string page_token = 5;
+  uint64 max_bytes = 6;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message DocumentsGetResponse {
+  repeated .dokime.client.v1.DocumentFrame frames = 1;
+  string next_page_token = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message DocumentsWatchRequest {
+  .dokime.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  bool structure_only = 3;
+  repeated string card_ids = 4;
+  string page_token = 5;
+  uint64 max_bytes = 6;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message DocumentsWatchResponse {
+  repeated .dokime.client.v1.DocumentFrame frames = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Documents {
+  // Public. Identity: dokime.client.v1.Documents/Get
+  rpc Get(.dokime.client.v1.DocumentsGetRequest) returns (.dokime.client.v1.DocumentsGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.DocumentsWatchRequest) returns (stream .dokime.client.v1.DocumentsWatchResponse);
+}

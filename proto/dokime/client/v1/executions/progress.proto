@@ -1,0 +1,28 @@
+syntax = "proto3";
+package dokime.client.v1.executions;
+option csharp_namespace = "Dokime.Protocol.Client.V1.ExecutionsResources";
+import "dokime/v1/execution.proto";
+import "harmos/v1/types.proto";
+
+message ProgressGetRequest { string name = 1; .harmos.v1.Position at = 2; }
+
+message ProgressGetResponse {
+  .dokime.v1.ExecutionProgressValue value = 1;
+  bytes revision = 2;
+  .harmos.v1.Position resolved_at = 3;
+}
+
+message ProgressWatchRequest { string name = 1; .harmos.v1.Position at = 2; }
+
+message ProgressWatchResponse {
+  .dokime.v1.ExecutionProgressValue value = 1;
+  bytes revision = 2;
+  .harmos.v1.Position resolved_at = 3;
+  string phase = 4;
+  bool finished = 5;
+}
+
+service Progress {
+  rpc Get(.dokime.client.v1.executions.ProgressGetRequest) returns (.dokime.client.v1.executions.ProgressGetResponse);
+  rpc Watch(.dokime.client.v1.executions.ProgressWatchRequest) returns (stream .dokime.client.v1.executions.ProgressWatchResponse);
+}

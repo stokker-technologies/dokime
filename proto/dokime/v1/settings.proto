@@ -1,32 +1,42 @@
 syntax = "proto3";
 package dokime.v1;
 option csharp_namespace = "Dokime.Protocol.V1";
-import "dokime/v1/resources.proto";
-import "harmos/v1/types.proto";
+import "dokime/v1/metadata.proto";
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
+message SettingsDeclarations { repeated .dokime.v1.Setting settings = 1; }
 
-message SettingsGetRequest {  .harmos.v1.ReadCut at = 90; }
+message Setting {
+  .dokime.v1.Metadata metadata = 1;
+  oneof kind {
+    .dokime.v1.BooleanSetting boolean = 2;
+    .dokime.v1.TextSetting text = 3;
+    .dokime.v1.PathSetting path = 4;
+    .dokime.v1.NumberSetting number = 5;
+    .dokime.v1.ChoiceSetting choice = 6;
+    .dokime.v1.SecretSetting secret = 7;
+  }
+}
 
-message SettingsGetResponse { .dokime.v1.ApplicationSettings value = 1; bytes revision = 2;  .harmos.v1.ReadCut resolved_at = 90; }
+message BooleanSetting { bool default_value = 1; }
 
-message SettingsSetRequest {  .dokime.v1.ApplicationSettings value = 20; bytes expected_revision = 21; string request_id = 22; }
+message TextSetting { string default_value = 1; bool required = 2; }
 
-message SettingsSetResponse { .dokime.v1.ApplicationSettings value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+message PathSetting { string default_value = 1; bool required = 2; }
 
-message SettingsSchemaRequest { .harmos.v1.ReadCut at = 1; }
+message NumberSetting { double default_value = 1; optional double min = 2; optional double max = 3; optional double step = 4; }
 
-message SettingsSchemaResponse { .dokime.v1.SettingsFrame schema = 1; .harmos.v1.ReadCut resolved_at = 2; }
+message ChoiceSetting {
+  string default_value = 1;
+  repeated .dokime.v1.SettingChoice choices = 2;
+  optional string provider = 3;
+}
 
-service Settings {
-  // Public. Identity: dokime.v1.Settings/Get
-  rpc Get(SettingsGetRequest) returns (SettingsGetResponse);
-  // Public. Replace the whole writable value using the matching Get revision.
-  // Same request_id and normalized payload replay the original receipt; changed
-  // payload or a stale revision conflicts. Get again before retrying a conflict.
-  rpc Set(SettingsSetRequest) returns (SettingsSetResponse);
-  // Public. Identity: dokime.v1.Settings/Schema
-  rpc Schema(SettingsSchemaRequest) returns (SettingsSchemaResponse);
+message SettingChoice { string value = 1; string label = 2; }
+
+message SecretSetting { bool required = 1; }
+
+message RunStart {
+  // Serialized request for a declared operation, using its protobuf contract.
+  string operation = 1;
+  bytes request = 2;
 }

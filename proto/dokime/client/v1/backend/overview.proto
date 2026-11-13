@@ -1,0 +1,52 @@
+syntax = "proto3";
+package dokime.client.v1.backend;
+option csharp_namespace = "Dokime.Protocol.Client.V1.BackendResources";
+import "dokime/v1/cycles.proto";
+import "dokime/v1/metadata.proto";
+import "harmos/v1/types.proto";
+
+message EvidenceCounts {
+  uint64 records = 1;
+  uint64 telemetry = 2;
+  uint64 prompts = 3;
+  uint64 artifacts = 4;
+  uint64 health = 5;
+  uint64 traceability = 6;
+  uint64 notes = 7;
+}
+
+message RuntimeShellSnapshot {
+  string session_id = 1;
+  uint64 revision = 2;
+  bool shutting_down = 3;
+  .dokime.v1.Metadata hub_metadata = 4;
+  uint64 test_suite_count = 5;
+  repeated .dokime.v1.CycleSummary cycle_summaries = 6;
+  .dokime.client.v1.backend.EvidenceCounts evidence_counts = 7;
+  .harmos.v1.ReadCut observed_cursor = 8;
+  optional string next_after_cycle_id = 9;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message OverviewGetRequest {  .harmos.v1.ReadCut at = 90; }
+
+message OverviewGetResponse { .dokime.client.v1.backend.RuntimeShellSnapshot overview = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message OverviewWatchRequest {  .harmos.v1.ReadCut at = 90; }
+
+message OverviewWatchResponse {
+  .dokime.client.v1.backend.RuntimeShellSnapshot overview = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Overview {
+  // Public. Identity: dokime.client.v1.backend.Overview/Get
+  rpc Get(.dokime.client.v1.backend.OverviewGetRequest) returns (.dokime.client.v1.backend.OverviewGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.backend.OverviewWatchRequest) returns (stream .dokime.client.v1.backend.OverviewWatchResponse);
+}

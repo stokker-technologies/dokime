@@ -1,0 +1,69 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/scalar.proto";
+
+// Expression operands are messages, never source text. References are validated
+// against the catalog on connection, before any document is evaluated.
+message DataExpression {
+  string label = 1;
+  oneof kind {
+    .dokime.v1.FieldReference stream = 2;
+    .dokime.v1.FieldReference record = 3;
+    string parameter = 4;
+    string dimension = 5;
+    string artifact = 6;
+    .dokime.v1.AggregateExpression aggregate = 7;
+    .dokime.v1.TransformExpression transform = 8;
+    .dokime.v1.Value literal = 9;
+  }
+}
+
+message FieldReference { string identifier = 1; string field = 2; }
+
+message AggregateExpression {
+  .dokime.v1.DataExpression input = 1;
+  .dokime.v1.Aggregate kind = 2;
+  // Inclusive 0..100; used only for PERCENTILE.
+  double percentile = 3;
+}
+
+enum Aggregate {
+  AGGREGATE_UNSPECIFIED = 0;
+  AGGREGATE_COUNT = 1;
+  AGGREGATE_SUM = 2;
+  AGGREGATE_MIN = 3;
+  AGGREGATE_MAX = 4;
+  AGGREGATE_MEAN = 5;
+  AGGREGATE_STDDEV = 6;
+  AGGREGATE_MEDIAN = 7;
+  AGGREGATE_PERCENTILE = 8;
+  AGGREGATE_FIRST = 9;
+  AGGREGATE_LAST = 10;
+  AGGREGATE_RMS = 11;
+}
+
+message TransformExpression {
+  .dokime.v1.DataExpression input = 1;
+  oneof kind {
+    string detail = 2;
+    string time_between = 3;
+    bool per_case = 4;
+    double scale = 5;
+    double offset = 6;
+  }
+}
+
+message DocumentFilter { .dokime.v1.DataExpression expression = 1; .dokime.v1.FilterOperator operator = 2; .dokime.v1.Value value = 3; }
+
+enum FilterOperator {
+  FILTER_OPERATOR_UNSPECIFIED = 0;
+  FILTER_OPERATOR_EQ = 1;
+  FILTER_OPERATOR_NE = 2;
+  FILTER_OPERATOR_GT = 3;
+  FILTER_OPERATOR_GE = 4;
+  FILTER_OPERATOR_LT = 5;
+  FILTER_OPERATOR_LE = 6;
+  FILTER_OPERATOR_CONTAINS = 7;
+  FILTER_OPERATOR_EXISTS = 8;
+}

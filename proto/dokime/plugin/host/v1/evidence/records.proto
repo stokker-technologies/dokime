@@ -1,0 +1,48 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.EvidenceResources";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message Record {
+  string kind = 1;
+  bytes payload = 2;
+  .google.protobuf.Timestamp at = 3;
+  uint64 ordinal = 4;
+}
+
+// Public child-call declarations carried by Instance.Invoke; no client service.
+message RecordsAppendRequest {
+  string execution = 1;
+  // Identifier of the record contract.
+  string kind = 2;
+  // Serialized record message of that contract.
+  bytes payload = 3;
+  // When the plugin produced it; the host adds its arrival time.
+  .google.protobuf.Timestamp source_at = 4;
+  string request_id = 5;
+}
+
+message RecordsAppendResponse {
+  // Position of the record among the execution's records of this kind.
+  uint64 ordinal = 1;
+  .harmos.v1.Receipt receipt = 2;
+}
+
+message RecordsListRequest {
+  string execution = 1;
+  string kind = 2;
+  // Limit to the time range of one step; empty for the whole execution.
+  string step = 3;
+  .harmos.v1.PageRequest page = 4;
+  .harmos.v1.Position at = 5;
+}
+
+message RecordsListResponse {
+  uint64 count = 1;
+  .dokime.plugin.host.v1.evidence.Record last = 2;
+  // Stable ordering with exclusive continuation at the returned durable position.
+  repeated .dokime.plugin.host.v1.evidence.Record records = 3;
+  .harmos.v1.Position resolved_at = 4;
+  string next_page_token = 5;
+}

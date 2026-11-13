@@ -1,0 +1,68 @@
+syntax = "proto3";
+package dokime.client.v1.content;
+option csharp_namespace = "Dokime.Protocol.Client.V1.ContentResources";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+enum ExecutionFileKind {
+  EXECUTION_FILE_KIND_UNSPECIFIED = 0;
+  EXECUTION_FILE_KIND_TEXT = 1;
+  EXECUTION_FILE_KIND_BINARY = 2;
+  EXECUTION_FILE_KIND_MEDIA = 3;
+  EXECUTION_FILE_KIND_UNKNOWN = 4;
+}
+
+message ExecutionFileMetadata {
+  string relative_path = 1;
+  optional string content_type = 2;
+  .dokime.client.v1.content.ExecutionFileKind kind = 3;
+  .dokime.client.v1.content.ExecutionFileState state = 4;
+  uint64 size_bytes = 5;
+  .google.protobuf.Timestamp created_at = 6;
+}
+
+enum ExecutionFileState {
+  EXECUTION_FILE_STATE_UNSPECIFIED = 0;
+  EXECUTION_FILE_STATE_STREAMING = 1;
+  EXECUTION_FILE_STATE_FINALIZED = 2;
+  EXECUTION_FILE_STATE_INTERRUPTED = 3;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message ExecutionFilesGetRequest { string parent = 1; string name = 2; .harmos.v1.ReadCut at = 90; }
+
+message ExecutionFilesGetResponse {
+  .dokime.client.v1.content.ExecutionFileMetadata metadata = 1;
+  .harmos.storage.v1.FileReference file = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message ExecutionFilesListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message ExecutionFilesListResponse {
+  repeated .dokime.client.v1.content.ExecutionFileMetadata files = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message ExecutionFilesWatchRequest { string parent = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message ExecutionFilesWatchResponse {
+  repeated .dokime.client.v1.content.ExecutionFileMetadata files = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service ExecutionFiles {
+  // Public. Identity: dokime.client.v1.content.ExecutionFiles/Get
+  rpc Get(.dokime.client.v1.content.ExecutionFilesGetRequest) returns (.dokime.client.v1.content.ExecutionFilesGetResponse);
+  // Public. Identity: dokime.client.v1.content.ExecutionFiles/List
+  rpc List(.dokime.client.v1.content.ExecutionFilesListRequest) returns (.dokime.client.v1.content.ExecutionFilesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.content.ExecutionFilesWatchRequest) returns (stream .dokime.client.v1.content.ExecutionFilesWatchResponse);
+}

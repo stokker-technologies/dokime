@@ -2,91 +2,54 @@ syntax = "proto3";
 package dokime.v1;
 option csharp_namespace = "Dokime.Protocol.V1";
 import "dokime/v1/execution.proto";
-import "dokime/v1/resources.proto";
-import "dokime/v1/values.proto";
+import "dokime/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
 import "harmos/v1/types.proto";
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
-
-message CycleWritable { string label = 1; bool paused = 2; bool archived = 3; bool continue_automatically = 4; }
-
-message CyclesGetRequest { string name = 1; .harmos.v1.Position at = 90; }
-
-message CyclesGetResponse {
-  CycleWritable value = 1;
-  bytes revision = 2;
-  .dokime.v1.CycleSummary cycle = 3;
-  .harmos.v1.Position resolved_at = 90;
+enum ArchiveScope {
+  ARCHIVE_SCOPE_UNSPECIFIED = 0;
+  ARCHIVE_SCOPE_UNARCHIVED = 1;
+  ARCHIVE_SCOPE_ARCHIVED = 2;
+  ARCHIVE_SCOPE_ALL = 3;
 }
 
-message CyclesSetRequest { string name = 1; CycleWritable value = 20; bytes expected_revision = 21; string request_id = 22; }
-
-message CyclesSetResponse { CycleWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
-
-message CyclesListRequest {
-  .dokime.v1.CycleSelection selection = 1;
-  .dokime.v1.CycleFilter filter = 2;
-  .dokime.v1.CycleOrder order = 3;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
+enum CyclePhase {
+  CYCLE_PHASE_UNSPECIFIED = 0;
+  CYCLE_PHASE_ACTIVE = 1;
+  CYCLE_PHASE_SEALING = 2;
+  CYCLE_PHASE_SEALED = 3;
+  CYCLE_PHASE_SEAL_FAILED = 4;
 }
 
-message CyclesListResponse {
-  repeated .dokime.v1.CycleSummary cycles = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  string next_page_token = 91;
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_READY = 1;
+  CYCLE_STATUS_RUNNING = 2;
+  CYCLE_STATUS_PAUSED = 3;
+  CYCLE_STATUS_STOPPING = 4;
+  CYCLE_STATUS_COMPLETED = 5;
+  CYCLE_STATUS_FAILED = 6;
+  CYCLE_STATUS_BLOCKED = 7;
+  CYCLE_STATUS_STOPPED = 8;
 }
 
-message CyclesWatchRequest {
-  .dokime.v1.CycleSelection selection = 1;
-  .dokime.v1.CycleFilter filter = 2;
-  .dokime.v1.CycleOrder order = 3;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
-}
-
-message CyclesWatchResponse {
-  repeated .dokime.v1.CycleSummary cycles = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  bool opening = 91;
-  .harmos.v1.Failure resync_required = 92;
-}
-
-message CyclesCreateRequest {
-  repeated .dokime.v1.Origin origins = 1;
+message CycleSummary {
+  string cycle_id = 1;
   .dokime.v1.Metadata metadata = 2;
-  bool continue_automatically = 3;
-  string source_cycle = 4;
-  string request_id = 5;
-}
-
-message CyclesCreateResponse {
-  .dokime.v1.CycleSummary cycle = 1;
-  repeated .dokime.v1.RerunCaseNotice skipped = 2;
-  repeated .dokime.v1.RerunCaseNotice dropped_parameters = 4;
-  .harmos.v1.Receipt receipt = 3;
-}
-
-message CyclesSealRequest { string name = 1; string request_id = 2; }
-
-message CyclesSealResponse { bytes seal = 1; .harmos.v1.Receipt receipt = 2; }
-
-service Cycles {
-  // Public. Identity: dokime.v1.Cycles/Get
-  rpc Get(CyclesGetRequest) returns (CyclesGetResponse);
-  // Public. Replace the whole writable value using the matching Get revision.
-  // Same request_id and normalized payload replay the original receipt; changed
-  // payload or a stale revision conflicts. Get again before retrying a conflict.
-  rpc Set(CyclesSetRequest) returns (CyclesSetResponse);
-  // Public. Identity: dokime.v1.Cycles/List
-  rpc List(CyclesListRequest) returns (CyclesListResponse);
-  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
-  // Missing retained cuts or delivery gaps require explicit resynchronization.
-  rpc Watch(CyclesWatchRequest) returns (stream CyclesWatchResponse);
-  // Public. Identity: dokime.v1.Cycles/Create
-  rpc Create(CyclesCreateRequest) returns (CyclesCreateResponse);
-  // Public. Freeze the durable cycle boundary; failed report rendering publishes nothing.
-  rpc Seal(CyclesSealRequest) returns (CyclesSealResponse);
+  .dokime.v1.CyclePhase phase = 3;
+  .dokime.v1.CycleStatus status = 4;
+  uint64 case_count = 5;
+  uint64 execution_count = 6;
+  bool continue_automatically = 7;
+  .harmos.v1.ReadCut observed_cursor = 8;
+  .google.protobuf.Timestamp created_at = 9;
+  .google.protobuf.Timestamp started_at = 10;
+  .google.protobuf.Timestamp updated_at = 11;
+  .dokime.v1.ResultSummary result = 12;
+  bool archived = 13;
+  bool sealed = 14;
+  uint64 running_count = 15;
+  uint64 queued_count = 16;
+  optional string seal_failure = 17;
+  optional string rerun_of = 18;
 }

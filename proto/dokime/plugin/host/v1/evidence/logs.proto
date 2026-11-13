@@ -1,0 +1,17 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.EvidenceResources";
+import "dokime/v1/evidence.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+// Public child-call declarations carried by Instance.Invoke; no client service.
+message LogsAppendRequest {
+  string execution = 1;
+  .dokime.v1.Severity severity = 2;
+  string message = 3;
+  .google.protobuf.Timestamp at = 4;
+  string request_id = 20;
+}
+
+message LogsAppendResponse { .harmos.v1.Receipt receipt = 1; }

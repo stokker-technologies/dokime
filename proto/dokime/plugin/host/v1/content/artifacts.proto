@@ -1,0 +1,32 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.content;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.ContentResources";
+import "dokime/v1/metadata.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+// Public child calls on Instance.Invoke; no client service or byte-transfer API.
+message ArtifactsCreateRequest {
+  string execution = 1;
+  .harmos.storage.v1.FileReference file = 2;
+  .dokime.v1.Metadata metadata = 3;
+  string media_type = 4;
+  string request_id = 5;
+}
+
+message ArtifactsCreateResponse { string name = 1; .harmos.v1.Receipt receipt = 2; }
+
+// One acknowledged chunk per call. Sequence starts at zero; last commits the
+// artifact. This is not a stream. The host checks repeated name and media type.
+message PublishArtifact {
+  string transfer_id = 1;
+  string name = 2;
+  string mime = 3;
+  uint64 sequence = 4;
+  bytes data = 5;
+  bool last = 6;
+  bool aborted = 7;
+  bool replace = 8;
+}
+
+message ArtifactReceipt { string artifact = 1; uint64 size_bytes = 2; bool sealed = 3; }

@@ -1,17 +1,17 @@
 syntax = "proto3";
-
 package dokime.v1;
-import "dokime/v1/values.proto";
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
 // Frozen Execution Definitions and Evidence Payloads
-
 message TestCase {
   reserved 1, 2, 3;
   reserved "template", "plugin", "digest";
-  map<string, Value> parameters = 4;
-  repeated Step steps = 5;
-  repeated Criterion criteria = 6;
+  map<string, .dokime.v1.Value> parameters = 4;
+  repeated .dokime.v1.Step steps = 5;
+  repeated .dokime.v1.Criterion criteria = 6;
   // Identifiers of the streams the host opens for the execution.
   repeated string streams = 7;
 }
@@ -19,29 +19,29 @@ message TestCase {
 // An execution freezes its definition and provenance, never a live run object.
 message Origin {
   oneof kind {
-    PluginRun plugin_run = 1;
-    Import import = 2;
+    .dokime.v1.PluginRun plugin_run = 1;
+    .dokime.v1.Import import = 2;
   }
 }
 
 message PluginRun {
-  TestCase test_case = 1;
+  .dokime.v1.TestCase test_case = 1;
   string plugin = 2;
   string template = 3;
   bytes digest = 4;
   // The plugin process identity from harmos.v1.Description, not run start time.
-  google.protobuf.Timestamp started_at = 5;
+  .google.protobuf.Timestamp started_at = 5;
 }
 
 // Frozen import provenance. Admission, uploads and draft handles are separate.
 message Import {
-  Metadata metadata = 1;
-  repeated ImportSource sources = 2;
+  .dokime.v1.Metadata metadata = 1;
+  repeated .dokime.v1.ImportSource sources = 2;
   // Claimed identity; neither this nor sealing attests measurement authenticity.
   string importer = 3;
   string sdk_version = 4;
   string processing = 5;
-  google.protobuf.Timestamp imported_at = 6;
+  .google.protobuf.Timestamp imported_at = 6;
   // Store-scoped whole-import key, distinct from a mutation request identity.
   string key = 7;
   // Corrections create new evidence and may name their sealed predecessor.
@@ -57,7 +57,7 @@ message ImportSource {
 
 message Step {
   // Evidence keys on metadata.identifier.
-  Metadata metadata = 1;
+  .dokime.v1.Metadata metadata = 1;
   // Plugin-authored dotted Protected identity with its own callee-owned policy.
   string operation = 2;
   // The operator may run the step again in an interactive execution.
@@ -65,7 +65,7 @@ message Step {
 }
 
 message Criterion {
-  Metadata metadata = 1;
+  .dokime.v1.Metadata metadata = 1;
   // Plugin-authored dotted Protected identity with its own callee-owned policy.
   string operation = 2;
 }
@@ -82,54 +82,53 @@ enum Termination {
   TERMINATION_INTERRUPTED = 4;
 }
 
-message Record {
-  string kind = 1;
-  bytes payload = 2;
-  google.protobuf.Timestamp at = 3;
-  uint64 ordinal = 4;
-}
-
 // Fields are meaningful only when count is greater than zero.
-
 message ExecutionProgressValue {
   uint64 completed = 1;
   uint64 total = 2;
   string label = 3;
 }
 
-enum Severity {
-  SEVERITY_UNSPECIFIED = 0;
-  SEVERITY_DEBUG = 1;
-  SEVERITY_INFO = 2;
-  SEVERITY_WARNING = 3;
-  SEVERITY_ERROR = 4;
+enum ExecutionState {
+  EXECUTION_STATE_UNSPECIFIED = 0;
+  EXECUTION_STATE_OPEN = 1;
+  EXECUTION_STATE_CLOSED = 2;
+  EXECUTION_STATE_SEALED = 3;
 }
 
-message ReadSettings {}
-
-message SavedSettings {
-  // Saved values of the calling plugin's settings, by identifier.
-  map<string, Value> values = 1;
+// Exactly one attribution is required. Only evaluated outcomes participate in the cycle headline verdict.
+// Declared and unevaluated executions are counted separately; an empty evaluated set is never Passed.
+message ExecutionOutcome {
+  oneof attribution {
+    .dokime.v1.UnevaluatedOutcome not_evaluated = 1;
+    .dokime.v1.EvaluatedOutcome evaluated = 2;
+    .dokime.v1.DeclaredOutcome declared = 3;
+  }
 }
 
-message ReadSecret {
-  string identifier = 1;
+message UnevaluatedOutcome { .dokime.v1.Termination termination = 1; string reason = 2; }
+
+// Unspecified/Pending are invalid here. Without evaluated criteria, use not_evaluated;
+// an empty criterion set cannot produce an evaluated pass.
+message EvaluatedOutcome { .dokime.v1.ResultStatus status = 1; string reason = 2; }
+
+message DeclaredOutcome { .dokime.v1.ResultStatus status = 1; string reason = 2; string importer = 3; }
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_PENDING = 1;
+  RESULT_STATUS_PASSED = 2;
+  RESULT_STATUS_FAILED = 3;
+  RESULT_STATUS_BLOCKED = 4;
+  RESULT_STATUS_CANCELLED = 5;
 }
 
-message Secret {
-  bytes value = 1;
-}
-
-message Statistics {
-  uint64 count = 1;
-  double min = 2;
-  double max = 3;
-  double mean = 4;
-  double stddev = 5;
-  double median = 6;
-  double p05 = 7;
-  double p95 = 8;
-  double p99 = 9;
-  double first = 10;
-  double last = 11;
+message ResultSummary {
+  .dokime.v1.ResultStatus status = 1;
+  uint32 passed = 2;
+  uint32 failed = 3;
+  uint32 blocked = 4;
+  uint32 skipped = 5;
+  uint32 declared = 6;
+  uint32 not_evaluated = 7;
 }

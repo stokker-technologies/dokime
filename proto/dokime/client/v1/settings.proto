@@ -1,0 +1,217 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/plots.proto";
+import "harmos/v1/types.proto";
+
+message ApplicationAppearance {
+  .dokime.client.v1.ThemeMode theme_mode = 1;
+  optional string theme_family = 2;
+  .dokime.client.v1.Density density = 3;
+}
+
+message ApplicationSettings {
+  .dokime.client.v1.ApplicationAppearance appearance = 1;
+  .dokime.client.v1.ReportDefaults report = 2;
+  .dokime.client.v1.ClientPreferences client = 3;
+  .dokime.client.v1.TelemetryPreferences telemetry = 4;
+  .dokime.client.v1.RemoteListenerSettings listener = 5;
+  .dokime.client.v1.PluginPreferences plugins = 6;
+}
+
+message BootstrapPaths {
+  string application = 1;
+  string storage = 2;
+  string plugins = 3;
+  string logs = 4;
+}
+
+message CachedRefresh {
+  uint64 max_age_ms = 1;
+}
+
+message ClientPreferences {
+  uint64 connect_timeout_ms = 1;
+  uint64 request_timeout_ms = 2;
+}
+
+enum Density {
+  DENSITY_UNSPECIFIED = 0;
+  DENSITY_COMFORTABLE = 1;
+  DENSITY_COMPACT = 2;
+  DENSITY_TOUCH = 3;
+}
+
+message HostCardBlock {
+  .dokime.client.v1.HostCardBlockKind kind = 1;
+}
+
+message HostCardBlockKind {
+  oneof kind {
+    string text = 1;
+    .dokime.client.v1.HostCardStatus status = 2;
+    .dokime.client.v1.HostCardKeyValueList key_value_list = 3;
+    .dokime.client.v1.HostCardMetrics metrics = 4;
+  }
+}
+
+message HostCardBody {
+  repeated .dokime.client.v1.HostCardBlock blocks = 1;
+}
+
+message HostCardKeyValue {
+  string label = 1;
+  string value = 2;
+  optional string detail = 3;
+}
+
+message HostCardKeyValueList {
+  repeated .dokime.client.v1.HostCardKeyValue items = 1;
+}
+
+message HostCardMetric {
+  string label = 1;
+  string value = 2;
+  optional string unit = 3;
+  optional string trend = 4;
+}
+
+message HostCardMetrics {
+  repeated .dokime.client.v1.HostCardMetric items = 1;
+}
+
+message HostCardStatus {
+  string label = 1;
+  .dokime.client.v1.HostCardTone tone = 2;
+  optional string detail = 3;
+}
+
+enum HostCardTone {
+  HOST_CARD_TONE_UNSPECIFIED = 0;
+  HOST_CARD_TONE_NEUTRAL = 1;
+  HOST_CARD_TONE_INFO = 2;
+  HOST_CARD_TONE_SUCCESS = 3;
+  HOST_CARD_TONE_WARNING = 4;
+  HOST_CARD_TONE_DANGER = 5;
+}
+
+message ManualRefresh {
+
+}
+
+message OnDemandRefresh {
+
+}
+
+message PluginPreferences {
+  uint32 startup_timeout_s = 1;
+  uint32 stop_timeout_s = 2;
+}
+
+message RemoteListenerSettings {
+  bool enabled = 1;
+  string address = 2;
+  bool tls_enabled = 3;
+  bool authentication_enabled = 4;
+  repeated string certificate_names = 5;
+}
+
+message ReportDefaults {
+  uint32 source_bytes = 1;
+  uint32 value_depth = 2;
+  uint32 table_rows = 3;
+  uint32 plot_points = 4;
+  .dokime.v1.Downsample plot_downsample = 5;
+}
+
+message SettingsCard {
+  string plugin_id = 1;
+  string card_id = 2;
+  string section_id = 3;
+  string label = 4;
+  optional string description = 5;
+  .dokime.client.v1.HostCardBody body = 6;
+  .dokime.client.v1.SettingsCardRefreshPolicy refresh = 7;
+  .dokime.client.v1.SettingsCardState state = 8;
+  int32 order = 9;
+}
+
+message SettingsCardRefreshPolicy {
+  .dokime.client.v1.SettingsCardRefreshPolicyPolicy policy = 1;
+}
+
+message SettingsCardRefreshPolicyPolicy {
+  oneof kind {
+    .dokime.client.v1.ManualRefresh manual = 1;
+    .dokime.client.v1.CachedRefresh cached = 2;
+    .dokime.client.v1.OnDemandRefresh on_demand = 3;
+  }
+}
+
+enum SettingsCardState {
+  SETTINGS_CARD_STATE_UNSPECIFIED = 0;
+  SETTINGS_CARD_STATE_READY = 1;
+  SETTINGS_CARD_STATE_DISABLED = 2;
+  SETTINGS_CARD_STATE_DISCONNECTED = 3;
+  SETTINGS_CARD_STATE_STALE = 4;
+  SETTINGS_CARD_STATE_ERROR = 5;
+  SETTINGS_CARD_STATE_PERMISSION_DENIED = 6;
+}
+
+message SettingsFrame {
+  .dokime.client.v1.BootstrapPaths bootstrap_paths = 1;
+  repeated .dokime.client.v1.SettingsSection sections = 2;
+  repeated .dokime.client.v1.SettingsCard cards = 3;
+}
+
+message SettingsSection {
+  string section_id = 1;
+  string label = 2;
+  optional string description = 3;
+  .dokime.client.v1.SettingsSectionOwner owner = 4;
+  int32 order = 5;
+}
+
+message SettingsSectionOwner {
+  oneof kind {
+    bool app = 1;
+    string installed_plugin_id = 2;
+  }
+}
+
+message TelemetryPreferences {
+  uint64 interval_ms = 1;
+}
+
+enum ThemeMode {
+  THEME_MODE_UNSPECIFIED = 0;
+  THEME_MODE_SYSTEM = 1;
+  THEME_MODE_LIGHT = 2;
+  THEME_MODE_DARK = 3;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message SettingsGetRequest {  .harmos.v1.ReadCut at = 90; }
+
+message SettingsGetResponse { .dokime.client.v1.ApplicationSettings value = 1; bytes revision = 2;  .harmos.v1.ReadCut resolved_at = 90; }
+
+message SettingsSetRequest {  .dokime.client.v1.ApplicationSettings value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message SettingsSetResponse { .dokime.client.v1.ApplicationSettings value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message SettingsSchemaRequest { .harmos.v1.ReadCut at = 1; }
+
+message SettingsSchemaResponse { .dokime.client.v1.SettingsFrame schema = 1; .harmos.v1.ReadCut resolved_at = 2; }
+
+service Settings {
+  // Public. Identity: dokime.client.v1.Settings/Get
+  rpc Get(.dokime.client.v1.SettingsGetRequest) returns (.dokime.client.v1.SettingsGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.SettingsSetRequest) returns (.dokime.client.v1.SettingsSetResponse);
+  // Public. Identity: dokime.client.v1.Settings/Schema
+  rpc Schema(.dokime.client.v1.SettingsSchemaRequest) returns (.dokime.client.v1.SettingsSchemaResponse);
+}

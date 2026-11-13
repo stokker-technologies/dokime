@@ -1,0 +1,62 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+message Statistics {
+  uint64 count = 1;
+  double min = 2;
+  double max = 3;
+  double mean = 4;
+  double stddev = 5;
+  double median = 6;
+  double p05 = 7;
+  double p95 = 8;
+  double p99 = 9;
+  double first = 10;
+  double last = 11;
+}
+
+message EvidenceSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+message Output {
+  oneof kind {
+    .dokime.v1.Null log = 1;
+    string artifact = 2;
+  }
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message EvidenceStatisticsRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  string stream = 2;
+  repeated uint32 versions = 3;
+  .dokime.v1.Window between = 4;
+  repeated .dokime.client.v1.Output outputs = 5;
+  string field = 6;
+  string step = 7;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message EvidenceStatisticsResponse { .dokime.client.v1.Statistics statistics = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message EvidenceArchiveRequest { .dokime.client.v1.EvidenceSubject subject = 1; .harmos.v1.ReadCut at = 90; }
+
+message EvidenceArchiveResponse { .harmos.storage.v1.FileReference file = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Evidence {
+  // Public. Identity: dokime.client.v1.Evidence/Statistics
+  rpc Statistics(.dokime.client.v1.EvidenceStatisticsRequest) returns (.dokime.client.v1.EvidenceStatisticsResponse);
+  // Public. Resolve a fixed evidence archive; read bytes through library Storage.GetFileBytes.
+  rpc Archive(.dokime.client.v1.EvidenceArchiveRequest) returns (.dokime.client.v1.EvidenceArchiveResponse);
+}
