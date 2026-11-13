@@ -49,6 +49,7 @@ def main() -> None:
     if len(wheels) != 1:
         raise ValueError("build:python must export exactly one Python wheel")
     environment = dict(os.environ)
+    environment["HARMOS_AUDIENCE"] = "host"
     environment.pop("PYTHONPATH", None)
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     environment.pop("VIRTUAL_ENV", None)
@@ -59,7 +60,7 @@ def main() -> None:
         shutil.copytree(root / "sdk/python/examples/starter", starter)
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
-            ["uv", "pip", "install", "--python", str(python), str(wheels[0])],
+            ["uv", "pip", "install", "--no-cache", "--python", str(python), str(wheels[0])],
             [
                 str(python),
                 "-I",

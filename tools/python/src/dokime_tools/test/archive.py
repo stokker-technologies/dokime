@@ -13,6 +13,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -137,6 +138,8 @@ def install_wheels(directory: Path, profile: str) -> None:
     if any(root.is_dir() for root in roots) and not wheels:
         raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:
+        environment = dict(os.environ, HARMOS_AUDIENCE="host")
+        environment.pop("UV_PROJECT_ENVIRONMENT", None)
         subprocess.run(
             [
                 "uv",
@@ -145,6 +148,7 @@ def install_wheels(directory: Path, profile: str) -> None:
                 "--python",
                 sys.executable,
                 "--reinstall",
+                "--no-cache",
                 *map(str, wheels),
             ],
             stdin=sys.stdin,
@@ -152,6 +156,7 @@ def install_wheels(directory: Path, profile: str) -> None:
             stderr=sys.stderr,
             creationflags=spawn_flags(),
             cwd=directory,
+            env=environment,
             check=True,
         )
 

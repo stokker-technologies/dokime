@@ -11,12 +11,16 @@ Use Python 3.13 or newer. Build this candidate and install its portable wheel:
 
 ```sh
 mise run build -- --language python
-uv add /path/to/dokime-0.1.5-py3-none-any.whl
+HARMOS_AUDIENCE=host uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
 ```
 
 The wheel installs `grpcio`, `protobuf`, and the exact-revision `harmos-plugin`
 dependency. Building the SDK uses `grpcio-tools`; it requires no Rust or native
 Dokime compiler. Registry publication is a separate release action.
+Select the library's `host` audience because this package supplies both plugin and
+client APIs. Disable the install cache so a previously built plugin-only dependency
+cannot replace the host wheel. In PowerShell, set `$env:HARMOS_AUDIENCE = "host"`
+before running `uv add --no-cache`.
 
 ## Author a Remote Plugin
 
@@ -56,7 +60,7 @@ Its own test drives a complete execution through an in-process Harmos host:
 ```sh
 dokime new bench --lang python
 cd bench
-uv add /path/to/dokime-0.1.5-py3-none-any.whl
+HARMOS_AUDIENCE=host uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
 mise run test
 mise run serve
 ```
@@ -153,11 +157,11 @@ finally:
     await client.close()
 ```
 
-The wheel generates all 23 client services and their ordinary and cancellable
-`Run<Method>` routes from the authoritative protos. The in-process client story
-adds a remote plugin, lists its canonical entry, drains Backend log envelopes,
+The wheel generates Dokime client gRPC methods from the authoritative protos;
+the library root supplies Access, Status and Storage. The in-process client story
+adds a remote plugin, lists its canonical entry, drains Status.Logs envelopes,
 propagates refusals and removes the entry before explicitly closing the client.
-Pairing verifies the backend identity through the generated Backend service.
+Pairing verifies the host identity through Status.Get.
 The new execution host also runs the real-process Python client journey; see
 [Execution Host](../../docs/execution-host.md).
 

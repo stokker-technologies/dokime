@@ -150,7 +150,7 @@ The [starter](sdk/python/examples/starter/) owns the source embedded by
 operator confirmation, an observer, records, a criterion and a document.
 
 ```sh
-uv add /path/to/dokime-0.1.5-py3-none-any.whl
+HARMOS_AUDIENCE=host uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
 mise run test
 mise run serve
 ```

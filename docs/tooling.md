@@ -38,6 +38,8 @@ dependency cache. Neither belongs in project configuration. Python uses the
 separately built wheel, installed before archived system execution. Stories
 consume those fixtures and never compile plugins. Missing fixtures fail with
 the language and build prerequisite; no language is silently skipped.
+Python wheel installers select Harmos's `host` audience for the combined plugin
+and client SDK and bypass cached dependency wheels built for another audience.
 
 On Linux, the secret-storage and remote-pairing host stories start their own
 session bus and unlocked keyring under each story's temporary directory before
