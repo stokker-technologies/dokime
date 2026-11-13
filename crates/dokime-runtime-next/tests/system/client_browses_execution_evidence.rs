@@ -292,11 +292,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         // Refuse Ambiguous Wire Shapes Even When Names and Field Types Match
         let mut changed = catalog.clone();
         for file in &mut changed.types.as_mut().unwrap().file {
-            if file.package.as_deref() != Some("dokime.v1") {
+            if file.package.as_deref() != Some("dokime.context.v1.evidence") {
                 continue;
             }
             for message in &mut file.message_type {
-                if message.name.as_deref() != Some("WriteLog") {
+                if message.name.as_deref() != Some("LogsAppendRequest") {
                     continue;
                 }
                 for field in &mut message.field {
