@@ -476,8 +476,9 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Plugin development supervision and plugin-specific protocol export.
   - [ ] `execution export`: download a saved evidence archive and files.
   - [ ] `execution run`: drive interactive commands.
-  - [ ] `plan preview`: validate a complete selection without registration.
-  - [ ] `plan register`: register an idempotent complete selection.
+  - [x] `plan preview`: validate canonical protobuf JSON selection requests without registration.
+  - [x] `plan register`: register canonical protobuf JSON selections and recover identical replies by request key; changed requests conflict.
+  - [ ] Planning convenience flags: resolve suite/template shorthand and construct complete selections from CLI flags.
   - [x] `cycle report`: download and verify a cycle report without publication; refuse overwriting an existing file.
 - [x] Record promised old-loop journeys without new-host coverage as explicit remaining stories.
   - [ ] Prove earliest inverse retention, owner-qualified confirmations, reverse restore order and failed startup restoration through new-host Effects.

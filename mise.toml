@@ -218,7 +218,7 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 [tasks."check:rust"]
 hide = true
 description = "Check Rust"
-run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
+run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "{{vars.tools}} dokime_tools.ci.rust"]
 
 [tasks."check:rust:supply"]
 hide = true

@@ -370,6 +370,22 @@ sources/executable with Tests. Stories compare generated source bytes and never
 compile plugins. Tests Build includes this producer.
 Installed binary renaming and desktop integration remain on the combined restoration checklist. Installer packaging is not selected in this candidate.
 
+## Canonical Selection Requests
+
+`dokime-next plan preview --input-file preview.json --json` accepts a
+PlanningPreviewSelectionRequest in protobuf JSON. `plan register --input-file
+register.json --out cases.pb --json` accepts PlanningRegisterSelectionRequest,
+including the caller-retained idempotency_key. Replaying the same request returns
+the original registered reply; changing it under that key conflicts. `--out` saves
+the protobuf reply for `cycle create --cases cases.pb`.
+
+```json
+{"plan":{"selections":[{"suite_id":"<catalog suite ID>","template_id":"example.capture"}],"max_cases":1},"idempotency_key":"my-selection"}
+```
+
+Omit idempotency_key in a preview request. `cycle report <cycle-id> --out cycle.html`
+downloads a verified HTML preview and refuses to overwrite an existing output.
+
 ## Compare Every SDK
 
 The single thermal procedure is authored in each SDK: Rust `examples/thermal.rs`,

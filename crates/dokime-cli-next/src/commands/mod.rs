@@ -79,7 +79,7 @@ impl Command {
             Self::Plugin(command) => command.action(),
             Self::Proto(_) => "Export Protocol",
             Self::Catalog(command) => command.action(),
-            Self::Plan(_) => "Materialize Cases",
+            Self::Plan(command) => command.action(),
             Self::Cycle(command) => command.action(),
             Self::Execution(command) => command.action(),
             Self::Status(_) => "Read Host Status",
