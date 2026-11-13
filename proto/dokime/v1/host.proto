@@ -111,10 +111,7 @@ enum StreamMatchOperator {
   STREAM_MATCH_OPERATOR_WITHIN = 7;
 }
 
-// Upsert entries by metadata.identifier; other entries remain unchanged.
-message SetTraceability { string execution = 1; repeated TraceabilityEntry entries = 2; }
 message TraceabilityEntry { Metadata metadata = 1; Value value = 2; string source = 3; string unit = 4; }
-message SetTraceabilityResponse {}
 
 
 // One acknowledged chunk per call. Sequence starts at zero; last commits the

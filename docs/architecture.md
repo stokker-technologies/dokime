@@ -154,8 +154,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
    Explicit root disposal removes access and secret credentials through their
    product owners after the root lease is released, while ordinary shutdown keeps
-   them for restart. `credentials_leave_with_discarded_roots` proves named access
-   credentials are unreadable after normal and failed Windows story teardown.
+   them for restart. Owners journal credential slots before native writes, so
+   interrupted publication and failed retired-key removal retain cleanup ownership.
+   `credentials_leave_with_discarded_roots` proves named access and secret credentials
+   are unreadable after normal and failed Windows story teardown, including without
+   their publication pointers.
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects
@@ -170,6 +173,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    `client_observes_revisioned_progress` proves separate context Get/Set and client
    Get/Watch declarations, whole-value revision conflicts, original receipts and
    clearing fields. Progress has no client Set or automatic streaming twin.
+   `client_observes_revisioned_traceability` proves independently revisioned named
+   entries, whole-value replacement, stable scoped pages and durable watches.
    No proof yet for all final declarations/revision/replay behavior; A7.
    **Status:** locked direction (`operation-grammar`).
 
@@ -188,7 +193,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    [query delta](../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
    Progress retains issued durable positions across restart until execution
    deletion and refuses foreign/unissued positions; the revisioned-progress
-   story guards that resource. **Proof:** No proof yet for this complete API; A8 plus Nightly task
+   story guards that resource. Traceability retains scoped compound cuts and
+   binds bounded history pages to the same selection across restart; its plugin
+   journey verifies scope attribution and refusal of foreign histories.
+   **Proof:** No proof yet for this complete API; A8 plus Nightly task
    1.9. Measure small, multi-megabyte and mixed payloads; test splitting/positions
    deterministically, never elapsed time. **Status:** locked direction (`operation-grammar`).
 

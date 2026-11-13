@@ -590,8 +590,22 @@ Returned progress positions survive restart until execution deletion; foreign or
 unissued positions are refused. `client_observes_revisioned_progress` exercises
 the plugin and client journey through the descriptor-derived client hierarchy.
 
+Traceability uses context `dokime.context.v1.evidence.Traceability.Get/Set`.
+Each entry name owns its complete metadata, scalar value, source and unit, with an
+independent expected revision and semantic request ID. Set replaces the whole
+entry; an unchanged resend returns the original durable receipt. Clients use
+`client.evidence.traceability.get(request)` for ordered snapshots, bounded by
+both page rows and bytes, and `.watch(request)` for an opening followed by durable
+changes. Pages retain their scope and returned `ReadCut`; continuation tokens
+bind both. A read cut contains one position per selected execution; scopes whose
+compound cut cannot fit the configured reply byte bound are refused with narrowing guidance.
+Step, criterion, template, suite, case and origin filters retain frozen attribution.
+Issued positions remain readable across restart until execution deletion. An
+observer's cancellation leaves its execution running. The plugin journey is
+`client_observes_revisioned_traceability`.
+
 Lifecycle identities remain Protected bindings on Instance.Invoke. The rest of
-the client resource split, Traceability/Effects, HostValues and library
+the client resource split, Effects, HostValues and library
 plugin/transfer composition remain open. Existing context groups are replaced
 without wire aliases.
 

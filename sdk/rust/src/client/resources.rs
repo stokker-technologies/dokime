@@ -5,6 +5,7 @@ use prost_reflect::ReflectMessage;
 pub struct Root {
     pub access: Access,
     pub catalog_entries: CatalogEntries,
+    pub evidence: Evidence,
     pub executions: Executions,
     pub invocations: Invocations,
     pub plugins: Plugins,
@@ -17,6 +18,7 @@ impl Root {
         Self {
             access: Access::new(client.clone()),
             catalog_entries: CatalogEntries::new(client.clone()),
+            evidence: Evidence::new(client.clone()),
             executions: Executions::new(client.clone()),
             invocations: Invocations::new(client.clone()),
             plugins: Plugins::new(client.clone()),
@@ -104,6 +106,34 @@ impl CatalogEntries {
     }
     pub async fn list(&self, request: tonic::Request<harmos_protocol::v1::CatalogEntriesListRequest>) -> Result<tonic::Response<harmos_protocol::v1::CatalogEntriesListResponse>, tonic::Status> {
         self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/harmos.v1.CatalogEntries/List"), request, harmos_protocol::v1::CatalogEntriesListResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct Evidence {
+    pub traceability: EvidenceTraceability,
+}
+impl Evidence {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            traceability: EvidenceTraceability::new(client.clone()),
+        }
+    }
+}
+#[derive(Clone)]
+pub struct EvidenceTraceability {
+    client: ClientTransport,
+}
+impl EvidenceTraceability {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::v1::evidence::TraceabilityGetRequest>) -> Result<tonic::Response<dokime_protocol::v1::evidence::TraceabilityGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Traceability/Get"), request, dokime_protocol::v1::evidence::TraceabilityGetResponse::default().descriptor()).await
+    }
+    pub async fn watch(&self, request: tonic::Request<dokime_protocol::v1::evidence::TraceabilityWatchRequest>) -> Result<Watching<dokime_protocol::v1::evidence::TraceabilityWatchResponse>, tonic::Status> {
+        self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.evidence.Traceability/Watch"), request, dokime_protocol::v1::evidence::TraceabilityWatchResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]

@@ -27,6 +27,8 @@ pub mod settings;
 pub mod sleep;
 pub mod statistics;
 pub mod time;
+pub mod traceability_get;
+pub mod traceability_set;
 
 /* === Re-Exports === */
 
@@ -74,6 +76,8 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
                 log::declaration()?,
                 progress_get::declaration()?,
                 progress_set::declaration()?,
+                traceability_get::declaration()?,
+                traceability_set::declaration()?,
                 record::declaration()?,
                 records::declaration()?,
                 statistics::declaration()?,
@@ -113,6 +117,16 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         progress_set::ID => Ok(progress_set::handle(resources, dokime_protocol::context::executions::ProgressSetRequest::decode(payload)?)
             .await?
             .encode_to_vec()),
+        traceability_get::ID => {
+            Ok(traceability_get::handle(resources, dokime_protocol::context::evidence::TraceabilityGetRequest::decode(payload)?)
+                .await?
+                .encode_to_vec())
+        }
+        traceability_set::ID => {
+            Ok(traceability_set::handle(resources, dokime_protocol::context::evidence::TraceabilitySetRequest::decode(payload)?)
+                .await?
+                .encode_to_vec())
+        }
         record::ID => {
             Ok(record::handle(resources, dokime_protocol::context::evidence::RecordsAppendRequest::decode(payload)?).await?.encode_to_vec())
         }

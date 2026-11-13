@@ -21,6 +21,7 @@ mod composition;
 mod content;
 mod documents;
 mod evidence;
+mod evidence_traceability;
 mod execution;
 mod executions_progress;
 mod health;
@@ -236,6 +237,11 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 
 fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
+    manager.register_service(
+        v1::evidence::traceability_server::TraceabilityServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
     manager.register_service(
         v1::executions::progress_server::ProgressServer::new(services.clone())
             .max_decoding_message_size(message_bytes)

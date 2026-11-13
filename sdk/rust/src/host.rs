@@ -95,9 +95,13 @@ impl Request for dokime_protocol::context::PromptsCreateRequest {
     const ID: &'static str = "dokime.context.v1.Prompts/Create";
 }
 
-impl Request for crate::v1::SetTraceability {
-    type Response = crate::v1::SetTraceabilityResponse;
-    const ID: &'static str = "dokime.execution.traceability";
+impl Request for dokime_protocol::context::evidence::TraceabilityGetRequest {
+    type Response = dokime_protocol::context::evidence::TraceabilityGetResponse;
+    const ID: &'static str = "dokime.context.v1.evidence.Traceability/Get";
+}
+impl Request for dokime_protocol::context::evidence::TraceabilitySetRequest {
+    type Response = dokime_protocol::context::evidence::TraceabilitySetResponse;
+    const ID: &'static str = "dokime.context.v1.evidence.Traceability/Set";
 }
 
 impl Request for dokime_protocol::context::DocumentsAppendPartsRequest {

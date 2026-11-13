@@ -97,6 +97,7 @@ impl Store {
         transaction.execute("DELETE FROM read_positions WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_requests WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_values WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM attempts WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM evidence WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM samples WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM streams WHERE execution=?1", [execution])?;

@@ -84,6 +84,52 @@
     "face": "client",
     "version": "v1",
     "parents": [
+      "evidence"
+    ],
+    "service": "Traceability",
+    "method": "Get",
+    "package": "dokime.v1.evidence",
+    "path": [
+      "evidence",
+      "traceability",
+      "get"
+    ],
+    "request": "dokime.v1.evidence.TraceabilityGetRequest",
+    "response": "dokime.v1.evidence.TraceabilityGetResponse",
+    "request_csharp": "Dokime.Protocol.V1.Evidence.TraceabilityGetRequest",
+    "response_csharp": "Dokime.Protocol.V1.Evidence.TraceabilityGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/v1/evidence/traceability.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "evidence"
+    ],
+    "service": "Traceability",
+    "method": "Watch",
+    "package": "dokime.v1.evidence",
+    "path": [
+      "evidence",
+      "traceability",
+      "watch"
+    ],
+    "request": "dokime.v1.evidence.TraceabilityWatchRequest",
+    "response": "dokime.v1.evidence.TraceabilityWatchResponse",
+    "request_csharp": "Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest",
+    "response_csharp": "Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse",
+    "client_streaming": false,
+    "server_streaming": true,
+    "file": "dokime/v1/evidence/traceability.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
       "executions"
     ],
     "service": "Progress",

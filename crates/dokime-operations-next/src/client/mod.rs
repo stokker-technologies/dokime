@@ -36,6 +36,8 @@ pub mod documents_update_plot_settings;
 pub mod evidence_get_captured_record_schema;
 pub mod evidence_list_records;
 mod evidence_selection;
+pub mod evidence_traceability_get;
+pub mod evidence_traceability_watch;
 pub mod evidence_watch_records;
 pub mod execution_append_executions;
 pub mod execution_cancel_execution;
@@ -86,7 +88,6 @@ pub mod notes_edit_note;
 pub mod notes_list_notes;
 mod notes_selection;
 pub mod observation_get_runtime_shell;
-pub mod observation_get_traceability;
 pub mod observation_watch_runtime;
 mod paging;
 mod planning;
@@ -293,9 +294,7 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Notes/RunEditNote",
     "/dokime.v1.Notes/RunListNotes",
     "/dokime.v1.Observation/GetRuntimeShell",
-    "/dokime.v1.Observation/GetTraceability",
     "/dokime.v1.Observation/RunGetRuntimeShell",
-    "/dokime.v1.Observation/RunGetTraceability",
     "/dokime.v1.Observation/RunWatchRuntime",
     "/dokime.v1.Observation/WatchRuntime",
     "/dokime.v1.Planning/MaterializeTemplate",
@@ -381,6 +380,8 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Telemetry/RunListSamples",
     "/dokime.v1.Telemetry/RunWatchSamples",
     "/dokime.v1.Telemetry/WatchSamples",
+    "/dokime.v1.evidence.Traceability/Get",
+    "/dokime.v1.evidence.Traceability/Watch",
     "/dokime.v1.executions.Progress/Get",
     "/dokime.v1.executions.Progress/Watch",
 ];

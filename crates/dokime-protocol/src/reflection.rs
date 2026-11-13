@@ -284,36 +284,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.context.v1.evidence.RecordsListResponse").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::EvidenceStatisticsRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.EvidenceStatisticsRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::EvidenceStatisticsResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.EvidenceStatisticsResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressGetRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressGetRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressGetResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressGetResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressSetRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressSetRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressSetResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressSetResponse").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::v1::PromptCatalog {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.PromptCatalog").expect("generated protocol descriptor")
@@ -379,19 +349,9 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.StreamMatch").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::v1::SetTraceability {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.SetTraceability").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::v1::TraceabilityEntry {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.TraceabilityEntry").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::v1::SetTraceabilityResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.SetTraceabilityResponse").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::v1::PublishArtifact {
@@ -492,6 +452,56 @@ crate::descriptor_pool().get_message_by_name("dokime.v1.ConfirmEffectResponse").
 impl prost_reflect::ReflectMessage for crate::dokime::v1::EffectResult {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.EffectResult").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::evidence::TraceabilityGetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.evidence.TraceabilityGetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::evidence::TraceabilityGetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.evidence.TraceabilityGetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::evidence::TraceabilitySetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.evidence.TraceabilitySetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::evidence::TraceabilitySetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.evidence.TraceabilitySetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::EvidenceStatisticsRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.EvidenceStatisticsRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::EvidenceStatisticsResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.EvidenceStatisticsResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressGetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressGetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressGetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressGetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressSetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressSetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::context::v1::executions::ProgressSetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.context.v1.executions.ProgressSetResponse").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::context::v1::files::CapturesStartRequest {
@@ -2774,11 +2784,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.TelemetrySchemaIdentity").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::v1::TraceabilityPage {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.TraceabilityPage").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::v1::TraceabilitySnapshot {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.TraceabilitySnapshot").expect("generated protocol descriptor")
@@ -3919,21 +3924,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.ObservationGetRuntimeShellRunOutput").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::v1::ObservationGetTraceabilityRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.ObservationGetTraceabilityRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::v1::ObservationGetTraceabilityRunInput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.ObservationGetTraceabilityRunInput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::v1::ObservationGetTraceabilityRunOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.v1.ObservationGetTraceabilityRunOutput").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::v1::ObservationWatchRuntimeRequest {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.ObservationWatchRuntimeRequest").expect("generated protocol descriptor")
@@ -4772,6 +4762,26 @@ crate::descriptor_pool().get_message_by_name("dokime.v1.TelemetryWatchSamplesRun
 impl prost_reflect::ReflectMessage for crate::dokime::v1::TelemetryWatchSamplesRunOutput {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.TelemetryWatchSamplesRunOutput").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::v1::evidence::TraceabilityGetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.evidence.TraceabilityGetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::v1::evidence::TraceabilityGetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.evidence.TraceabilityGetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::v1::evidence::TraceabilityWatchRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.evidence.TraceabilityWatchRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::v1::evidence::TraceabilityWatchResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.evidence.TraceabilityWatchResponse").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::v1::executions::ProgressGetRequest {

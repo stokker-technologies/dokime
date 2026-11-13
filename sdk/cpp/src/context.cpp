@@ -10,6 +10,7 @@
 /* === Imports === */
 
 #include "dokime/context.hpp"
+#include "dokime/context/v1/evidence/traceability.pb.h"
 #include "dokime/context/v1/executions/progress.pb.h"
 #include <random>
 
@@ -45,8 +46,10 @@ const harmos::Operation<::dokime::context::v1::evidence::LogsAppendRequest, ::do
     log_call("dokime.context.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<v1::PublishArtifact, v1::ArtifactReceipt> artifact_call("dokime.execution.artifact",
                                                                                 harmos::wire::VISIBILITY_PUBLIC);
-const harmos::Operation<v1::SetTraceability, v1::SetTraceabilityResponse> traceability_call("dokime.execution.traceability",
-                                                                                            harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<::dokime::context::v1::evidence::TraceabilityGetRequest, ::dokime::context::v1::evidence::TraceabilityGetResponse>
+    traceability_get("dokime.context.v1.evidence.Traceability/Get", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<::dokime::context::v1::evidence::TraceabilitySetRequest, ::dokime::context::v1::evidence::TraceabilitySetResponse>
+    traceability_set("dokime.context.v1.evidence.Traceability/Set", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::DocumentsAppendPartsRequest, ::dokime::context::v1::DocumentsAppendPartsResponse>
     document_call("dokime.context.v1.Documents/AppendParts", harmos::wire::VISIBILITY_PUBLIC);
 } // namespace
@@ -127,9 +130,20 @@ void Context::log(v1::Severity severity, std::string message) {
   operation(log_call, std::move(request));
 }
 v1::ArtifactReceipt Context::artifact(v1::PublishArtifact request) { return operation(artifact_call, std::move(request)); }
-void Context::traceability(v1::SetTraceability request) {
-  request.set_execution(execution());
-  operation(traceability_call, std::move(request));
+void Context::traceability(v1::TraceabilityEntry value) {
+  ::dokime::context::v1::evidence::TraceabilityGetRequest get;
+  get.set_name(execution());
+  get.set_entry(value.metadata().identifier());
+  const auto current = operation(traceability_get, std::move(get));
+  ::dokime::context::v1::evidence::TraceabilitySetRequest request;
+  request.set_name(execution());
+  request.set_entry(value.metadata().identifier());
+  *request.mutable_value() = std::move(value);
+  request.set_expected_revision(current.revision());
+  std::random_device random;
+  request.set_request_id(std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random()) + ":" +
+                         std::to_string(random()));
+  operation(traceability_set, std::move(request));
 }
 void Context::document(::dokime::context::v1::DocumentsAppendPartsRequest request) {
   request.set_execution(execution());
@@ -146,7 +160,8 @@ void Context::declare_requirements(harmos::Plugin &plugin) {
       .requires_operation(progress_set)
       .requires_operation(log_call)
       .requires_operation(artifact_call)
-      .requires_operation(traceability_call)
+      .requires_operation(traceability_get)
+      .requires_operation(traceability_set)
       .requires_operation(document_call)
       .requires_operation(harmos::GET_TIME)
       .requires_operation(harmos::SLEEP);

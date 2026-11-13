@@ -94,8 +94,9 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
         assert_eq!(shell.test_suite_count, 1);
         assert_eq!(shell.cycle_summaries[0].cycle_id, cycle.identifier);
         assert_eq!(shell.evidence_counts.unwrap().prompts, 1);
-        let traceability = observation
-            .get_traceability(v1::ObservationGetTraceabilityRequest {
+        let traceability = v1::evidence::traceability_client::TraceabilityClient::connect(process.url.clone())
+            .await?
+            .get(v1::evidence::TraceabilityGetRequest {
                 scope: Some(v1::EvidenceScope {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
@@ -104,7 +105,7 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error
             })
             .await?
             .into_inner();
-        assert!(traceability.complete && traceability.snapshots.is_empty());
+        assert!(traceability.next_page_token.is_empty() && traceability.snapshots.is_empty());
 
         // Cancel a Watch and Verify That the Execution Still Waits for Its Answer
         let (sender, input) = tokio::sync::mpsc::channel(2);

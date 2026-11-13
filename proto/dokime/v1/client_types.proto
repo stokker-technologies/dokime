@@ -3097,16 +3097,9 @@ enum ThemeMode {
   THEME_MODE_DARK = 3;
 }
 
-message TraceabilityPage {
-  EvidenceScope scope = 1;
-  repeated TraceabilitySnapshot snapshots = 2;
-  Cursor cursor = 3;
-  string next_after_traceability_id = 4;
-  bool complete = 5;
-  string host_traceability_fingerprint = 6;
-}
-
 message TraceabilitySnapshot {
+  bytes revision = 6;
+  .harmos.v1.Position resolved_at = 7;
   string traceability_id = 1;
   EvidenceScope scope = 2;
   google.protobuf.Timestamp created_at = 3;

@@ -49,44 +49,59 @@ pub struct ResourceValue {
 impl Store {
     pub fn resource_value(&self, execution: &str, resource: &str, at: Option<&Position>) -> Result<ResourceValue> {
         let mut connection = self.lock()?;
+        if self.cancelled.is_some() {
+            return resolve_value(&connection, &self.identity, execution, resource, at);
+        }
         let transaction = connection.transaction()?;
-        let state: i32 = transaction
-            .query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))
-            .optional()?
-            .ok_or_else(|| Error::NotFound(format!("Get {resource}: Select an Existing Execution")))?;
-        let frontier = crate::store::next_position(&transaction, execution)?.saturating_sub(1);
-        let history = History {
-            store: self.identity.to_string(),
-            epoch: execution.into(),
-        };
-        let sequence = if let Some(at) = at {
-            if at.history.as_ref() != Some(&history) || at.sequence > frontier {
-                return Err(Error::Invalid(format!("Get {resource}: Use a Returned Position or the Execution Seal")));
-            }
-            let issued: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM read_positions WHERE execution=?1 AND position=?2)",
-                params![execution, at.sequence as i64],
-                |row| row.get(0),
-            )?;
-            if !issued && !(state == 2 && at.sequence == frontier) {
-                return Err(Error::Invalid(format!("Get {resource}: Use a Returned Position or the Execution Seal")));
-            }
-            at.sequence
-        } else {
-            frontier
-        };
-        let saved: Option<(i64, Vec<u8>)> = transaction.query_row(
-            "SELECT position,payload FROM resource_values WHERE execution=?1 AND resource=?2 AND position<=?3 ORDER BY position DESC LIMIT 1",
-            params![execution, resource, sequence as i64], |row| Ok((row.get(0)?, row.get(1)?)),
-        ).optional()?;
-        transaction.execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![execution, sequence as i64])?;
+        let value = resolve_value(&transaction, &self.identity, execution, resource, at)?;
+        transaction
+            .execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![execution, value.resolved_at.sequence as i64])?;
         transaction.commit()?;
-        let (revision, payload) = saved.unwrap_or_default();
-        Ok(ResourceValue {
-            payload,
-            revision: (revision as u64).to_be_bytes().to_vec(),
-            resolved_at: Position { history: Some(history), sequence },
-        })
+        Ok(value)
+    }
+
+    pub fn retain_read_positions(&self, positions: &[Position]) -> Result<()> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        for position in positions {
+            let history = position.history.as_ref().ok_or_else(|| Error::Invalid("Retain Read: Supply a History".into()))?;
+            if history.store != self.identity.as_ref()
+                || position.sequence > crate::store::next_position(&transaction, &history.epoch)?.saturating_sub(1)
+            {
+                return Err(Error::Invalid("Retain Read: Use a Position in This Storage History".into()));
+            }
+            transaction.execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![history.epoch, position.sequence as i64])?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn resource_events(&self, execution: &str, after: u64, through: u64, limit: std::num::NonZeroUsize) -> Result<Vec<Evidence>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT e.payload FROM resource_values v JOIN evidence e ON e.execution=v.execution AND e.position=v.position WHERE v.execution=?1 AND v.position>?2 AND v.position<=?3 ORDER BY v.position LIMIT ?4")?;
+        let bytes = statement
+            .query_map(params![execution, after as i64, through as i64, limit.get() as i64], |row| row.get::<_, Vec<u8>>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        bytes.iter().map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).collect()
+    }
+
+    pub fn attempt_start(&self, execution: &str, evidence: &Evidence) -> Result<Option<Evidence>> {
+        let connection = self.lock()?;
+        let bytes: Option<Vec<u8>> = connection.query_row("SELECT e.payload FROM attempts a JOIN evidence e ON e.execution=a.execution AND e.position=a.position WHERE a.execution=?1 AND a.step=?2 AND a.operation=?3 AND a.attempt=?4 AND a.position<=?5 ORDER BY a.position DESC LIMIT 1", params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64], |row| row.get(0)).optional()?;
+        bytes.map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).transpose()
+    }
+
+    pub fn execution_identifier_page(&self, cycle: Option<&str>, after: &str, maximum: std::num::NonZeroUsize) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let sql = if cycle.is_some() {
+            "SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3"
+        } else {
+            "SELECT id FROM executions WHERE ?1 IS NULL AND id>?2 ORDER BY id LIMIT ?3"
+        };
+        let mut statement = connection.prepare(sql)?;
+        Ok(statement
+            .query_map(params![cycle, after, maximum.get() as i64], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
     pub fn set_resource_value(
@@ -95,7 +110,25 @@ impl Store {
         if request_id.is_empty() || expected_revision.len() != 8 {
             return Err(Error::Invalid(format!("Set {resource}: Supply a Request ID and the Revision from Get")));
         }
-        let fingerprint = Sha256::digest([expected_revision, evidence.payload.as_slice()].concat()).to_vec();
+        let mut digest = Sha256::new();
+        digest.update(expected_revision);
+        if evidence.kind == "traceability" {
+            let mut value = dokime_protocol::v1::TraceabilityEntry::decode(evidence.payload.as_slice())?;
+            let attributes = value.metadata.as_mut().map(|metadata| std::mem::take(&mut metadata.attributes)).unwrap_or_default();
+            let payload = value.encode_to_vec();
+            digest.update((payload.len() as u64).to_be_bytes());
+            digest.update(payload);
+            for (key, value) in attributes.into_iter().collect::<std::collections::BTreeMap<_, _>>() {
+                digest.update((key.len() as u64).to_be_bytes());
+                digest.update(key.as_bytes());
+                let payload = value.encode_to_vec();
+                digest.update((payload.len() as u64).to_be_bytes());
+                digest.update(payload);
+            }
+        } else {
+            digest.update(&evidence.payload);
+        }
+        let fingerprint = digest.finalize().to_vec();
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
@@ -158,5 +191,45 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn resolve_value(
+    connection: &rusqlite::Connection, identity: &str, execution: &str, resource: &str, at: Option<&Position>,
+) -> Result<ResourceValue> {
+    let state: i32 = connection
+        .query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))
+        .optional()?
+        .ok_or_else(|| Error::NotFound(format!("Get {resource}: Select an Existing Execution")))?;
+    let frontier = crate::store::next_position(connection, execution)?.saturating_sub(1);
+    let history = History {
+        store: identity.to_owned(),
+        epoch: execution.into(),
+    };
+    let sequence = if let Some(at) = at {
+        if at.history.as_ref() != Some(&history) || at.sequence > frontier {
+            return Err(Error::Invalid(format!("Get {resource}: Use a Returned Position or the Execution Seal")));
+        }
+        let issued: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM read_positions WHERE execution=?1 AND position=?2)",
+            params![execution, at.sequence as i64],
+            |row| row.get(0),
+        )?;
+        if !issued && !(state == 2 && at.sequence == frontier) {
+            return Err(Error::Invalid(format!("Get {resource}: Use a Returned Position or the Execution Seal")));
+        }
+        at.sequence
+    } else {
+        frontier
+    };
+    let saved: Option<(i64, Vec<u8>)> = connection.query_row(
+            "SELECT position,payload FROM resource_values WHERE execution=?1 AND resource=?2 AND position<=?3 ORDER BY position DESC LIMIT 1",
+            params![execution, resource, sequence as i64], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional()?;
+    let (revision, payload) = saved.unwrap_or_default();
+    Ok(ResourceValue {
+        payload,
+        revision: (revision as u64).to_be_bytes().to_vec(),
+        resolved_at: Position { history: Some(history), sequence },
+    })
+}
 
 /* === Tests === */

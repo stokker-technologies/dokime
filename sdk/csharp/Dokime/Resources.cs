@@ -7,6 +7,7 @@ public sealed class Client
 {
   public AccessResource Access { get; }
   public CatalogEntriesResource CatalogEntries { get; }
+  public EvidenceResource Evidence { get; }
   public ExecutionsResource Executions { get; }
   public InvocationsResource Invocations { get; }
   public PluginsResource Plugins { get; }
@@ -17,6 +18,7 @@ public sealed class Client
   {
     Access = new AccessResource(invoker);
     CatalogEntries = new CatalogEntriesResource(invoker);
+    Evidence = new EvidenceResource(invoker);
     Executions = new ExecutionsResource(invoker);
     Invocations = new InvocationsResource(invoker);
     Plugins = new PluginsResource(invoker);
@@ -116,6 +118,36 @@ public sealed class CatalogEntriesResource
         Marshallers.Create<global::Harmos.V1.CatalogEntriesListRequest>(value => value.ToByteArray(), bytes => global::Harmos.V1.CatalogEntriesListRequest.Parser.ParseFrom(bytes)),
         Marshallers.Create<global::Harmos.V1.CatalogEntriesListResponse>(value => value.ToByteArray(), bytes => global::Harmos.V1.CatalogEntriesListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
+  }
+}
+public sealed class EvidenceResource
+{
+  public EvidenceTraceabilityResource Traceability { get; }
+  public EvidenceResource(CallInvoker invoker)
+  {
+    Traceability = new EvidenceTraceabilityResource(invoker);
+  }
+}
+public sealed class EvidenceTraceabilityResource
+{
+  private readonly CallInvoker invoker;
+  public EvidenceTraceabilityResource(CallInvoker invoker)
+  {
+    this.invoker = invoker;
+  }
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse> Get(global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest request, CallOptions options = default)
+  {
+    var method = new Method<global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest, global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse>(MethodType.Unary, "dokime.v1.evidence.Traceability", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse.Parser.ParseFrom(bytes)));
+    return invoker.AsyncUnaryCall(method, null, options, request);
+  }
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest request, CallOptions options = default)
+  {
+    var method = new Method<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest, global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Traceability", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse.Parser.ParseFrom(bytes)));
+    return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
 public sealed class ExecutionsResource

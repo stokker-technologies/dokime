@@ -5,6 +5,7 @@ public sealed partial class Client
 {
   public Sdk.AccessResource Access => new(Calls);
   public Sdk.CatalogEntriesResource CatalogEntries => new(Calls);
+  public Sdk.EvidenceResource Evidence => new(Calls);
   public Sdk.ExecutionsResource Executions => new(Calls);
   public Sdk.InvocationsResource Invocations => new(Calls);
   public Sdk.PluginsResource Plugins => new(Calls);

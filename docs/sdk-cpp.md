@@ -172,3 +172,9 @@ task with --fresh to refresh its configuration while retaining compiled outputs:
 
     mise -C sdk/cpp run configure -- --fresh --fetch-dependencies
 
+
+Traceability entries use distinct context `evidence.Traceability.Get/Set`
+contracts. Get selects the execution and entry name and returns its revision;
+Set replaces the whole entry with that revision and a caller-retained request ID.
+The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
+position-resolved history pages and a bounded durable change stream.

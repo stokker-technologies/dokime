@@ -54,8 +54,12 @@ fn main() -> Result<()> {
 
     let template = Template::new("content.capture", "Capture Content").step(Step::new("Capture", capture));
     let progress = Template::new("content.progress", "Observe Progress").step(Step::new("Progress", revisioned_progress));
+    let traceability =
+        Template::new("content.traceability", "Observe Traceability").step(Step::new("Traceability", revisioned_traceability));
     let plugin = Plugin::new("content_fixture", "1.0.0")
-        .suite(Suite::new("content", "Content").template(template).template(progress))
+        .suite(Suite::new("content", "Content").template(template).template(progress).template(traceability))
+        .requires_host::<dokime::protocol::context::v1::evidence::TraceabilityGetRequest>()
+        .requires_host::<dokime::protocol::context::v1::evidence::TraceabilitySetRequest>()
         .requires_host::<v1::PublishArtifact>()
         .requires_host::<dokime::protocol::context::v1::executions::ProgressGetRequest>()
         .requires_host::<dokime::protocol::context::v1::executions::ProgressSetRequest>()
@@ -132,6 +136,131 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     .await?;
     if ctx.host(first).await? != saved {
         return Err(Error::Invalid("Set Progress: Later Writes Changed an Earlier Receipt".into()));
+    }
+    Ok(())
+}
+async fn revisioned_traceability(ctx: &Context) -> Result<()> {
+    use dokime::protocol::context::v1::evidence::{TraceabilityGetRequest, TraceabilitySetRequest};
+
+    // Establish Two Independently Revisioned Whole Entries
+    let get = TraceabilityGetRequest {
+        name: ctx.execution_id().into(),
+        entry: "serial".into(),
+    };
+    let initial = ctx.host(get.clone()).await?;
+    let first = TraceabilitySetRequest {
+        name: ctx.execution_id().into(),
+        entry: "serial".into(),
+        value: Some(v1::TraceabilityEntry {
+            metadata: Some(v1::Metadata {
+                identifier: "serial".into(),
+                label: "Serial Number".into(),
+                attributes: std::collections::HashMap::from([
+                    (
+                        "verified".into(),
+                        v1::Value {
+                            kind: Some(v1::value::Kind::Boolean(true)),
+                        },
+                    ),
+                    (
+                        "channel".into(),
+                        v1::Value {
+                            kind: Some(v1::value::Kind::UnsignedInteger(2)),
+                        },
+                    ),
+                ]),
+                ..Default::default()
+            }),
+            value: Some(v1::Value {
+                kind: Some(v1::value::Kind::Text("first".into())),
+            }),
+            source: "reader".into(),
+            unit: "unit".into(),
+        }),
+        expected_revision: initial.revision,
+        request_id: "first".into(),
+    };
+    let saved = ctx.host(first.clone()).await?;
+    if ctx.host(first.clone()).await? != saved {
+        return Err(Error::Invalid("Set Traceability: Replay Lost Its Original Receipt".into()));
+    }
+    let mut changed = first.clone();
+    changed.value.as_mut().unwrap().source.clear();
+    if ctx.host(changed).await.is_ok() {
+        return Err(Error::Invalid("Set Traceability: Changed Request Payload Was Accepted".into()));
+    }
+    if ctx
+        .host(TraceabilitySetRequest {
+            request_id: "stale".into(),
+            ..first.clone()
+        })
+        .await
+        .is_ok()
+    {
+        return Err(Error::Invalid("Set Traceability: Stale Revision Was Accepted".into()));
+    }
+    let other = ctx.host(TraceabilityGetRequest { entry: "batch".into(), ..get.clone() }).await?;
+    ctx.host(TraceabilitySetRequest {
+        entry: "batch".into(),
+        value: Some(v1::TraceabilityEntry {
+            metadata: Some(v1::Metadata {
+                identifier: "batch".into(),
+                ..Default::default()
+            }),
+            value: Some(v1::Value {
+                kind: Some(v1::value::Kind::Text("batch-one".into())),
+            }),
+            ..Default::default()
+        }),
+        expected_revision: other.revision,
+        request_id: "batch".into(),
+        ..first.clone()
+    })
+    .await?;
+    if ctx.host(get.clone()).await?.revision != saved.revision {
+        return Err(Error::Invalid("Get Traceability: Another Entry Changed This Revision".into()));
+    }
+
+    // Let the Client Retain the First Values
+    ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest {
+        prompt: "continue".into(),
+        prompt_type: "content.continue".into(),
+        definition: Some(v1::Prompt {
+            metadata: Some(v1::Metadata {
+                identifier: "content.continue".into(),
+                label: "Continue".into(),
+                ..Default::default()
+            }),
+            actions: vec![v1::PromptAction {
+                identifier: "continue".into(),
+                label: "Continue".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .await?;
+
+    // Replace the Whole Serial Entry and Preserve Both Earlier Receipts
+    ctx.host(TraceabilitySetRequest {
+        value: Some(v1::TraceabilityEntry {
+            metadata: Some(v1::Metadata {
+                identifier: "serial".into(),
+                ..Default::default()
+            }),
+            value: Some(v1::Value {
+                kind: Some(v1::value::Kind::Text("second".into())),
+            }),
+            ..Default::default()
+        }),
+        expected_revision: saved.revision.clone(),
+        request_id: "second".into(),
+        ..first.clone()
+    })
+    .await?;
+    if ctx.host(first).await? != saved {
+        return Err(Error::Invalid("Set Traceability: Later Writes Changed an Earlier Receipt".into()));
     }
     Ok(())
 }

@@ -98,7 +98,7 @@ public:
   void progress(std::uint64_t completed, std::uint64_t total, std::string label = {});
   void log(v1::Severity severity, std::string message);
   v1::ArtifactReceipt artifact(v1::PublishArtifact request);
-  void traceability(v1::SetTraceability request);
+  void traceability(v1::TraceabilityEntry value);
   void document(::dokime::context::v1::DocumentsAppendPartsRequest request);
   static void declare_requirements(harmos::Plugin &plugin);
 

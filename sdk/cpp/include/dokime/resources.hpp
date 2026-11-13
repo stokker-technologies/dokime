@@ -87,6 +87,7 @@
 #undef WatchFileProduction
 #pragma push_macro("WatchRows")
 #undef WatchRows
+#include "dokime/v1/evidence/traceability.grpc.pb.h"
 #include "dokime/v1/executions/progress.grpc.pb.h"
 #include "harmos/v1/access/certificates.grpc.pb.h"
 #include "harmos/v1/access/listener.grpc.pb.h"
@@ -156,6 +157,22 @@ struct AccessPairingsResource {
     if (!status.ok())
       throw std::runtime_error(std::string("Delete: ") + status.error_message());
     return response;
+  }
+};
+struct EvidenceTraceabilityResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit EvidenceTraceabilityResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::evidence::TraceabilityGetResponse get(grpc::ClientContext &context,
+                                                      const ::dokime::v1::evidence::TraceabilityGetRequest &request) {
+    ::dokime::v1::evidence::TraceabilityGetResponse response;
+    const auto status = ::dokime::v1::evidence::Traceability::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::evidence::TraceabilityWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::evidence::TraceabilityWatchRequest &request) {
+    return ::dokime::v1::evidence::Traceability::NewStub(channel)->Watch(&context, request);
   }
 };
 struct ExecutionsProgressResource {
@@ -233,6 +250,10 @@ struct CatalogEntriesResource {
       throw std::runtime_error(std::string("List: ") + status.error_message());
     return response;
   }
+};
+struct EvidenceResource {
+  EvidenceTraceabilityResource traceability;
+  explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel) : traceability(channel) {}
 };
 struct ExecutionsResource {
   ExecutionsProgressResource progress;
@@ -598,6 +619,7 @@ struct TimeResource {
 struct Client {
   AccessResource access;
   CatalogEntriesResource catalog_entries;
+  EvidenceResource evidence;
   ExecutionsResource executions;
   InvocationsResource invocations;
   PluginsResource plugins;
@@ -605,8 +627,8 @@ struct Client {
   StorageResource storage;
   TimeResource time;
   explicit Client(std::shared_ptr<grpc::Channel> channel)
-      : access(channel), catalog_entries(channel), executions(channel), invocations(channel), plugins(channel), status(channel),
-        storage(channel), time(channel) {}
+      : access(channel), catalog_entries(channel), evidence(channel), executions(channel), invocations(channel), plugins(channel),
+        status(channel), storage(channel), time(channel) {}
 };
 } // namespace dokime::resources
 #pragma pop_macro("WatchRows")

@@ -59,35 +59,6 @@ impl v1::observation_server::Observation for Services {
         }, |response| v1::ObservationGetRuntimeShellRunOutput { value: Some(v1::observation_get_runtime_shell_run_output::Value::Response(response)) }, |context,request| async move { dokime_operations_next::client::observation_get_runtime_shell::handle(&context,request).await }).await?;
         Ok(tonic::Response::new(reply))
     }
-    async fn get_traceability(
-        &self, request: tonic::Request<v1::ObservationGetTraceabilityRequest>,
-    ) -> Result<tonic::Response<v1::TraceabilityPage>, tonic::Status> {
-        let reply = dokime_operations_next::client::observation_get_traceability::handle(&self.context, request.into_inner())
-            .await
-            .map_err(dokime_operations_next::client::status)?;
-        Ok(tonic::Response::new(reply))
-    }
-    type RunGetTraceabilityStream = dokime_operations_next::client::Output<v1::ObservationGetTraceabilityRunOutput>;
-    async fn run_get_traceability(
-        &self, request: tonic::Request<tonic::Streaming<v1::ObservationGetTraceabilityRunInput>>,
-    ) -> Result<tonic::Response<Self::RunGetTraceabilityStream>, tonic::Status> {
-        use dokime_operations_next::client::conversation::Input;
-        let reply = dokime_operations_next::client::conversation::unary(
-            self.context.clone(),
-            request.into_inner(),
-            |input: v1::ObservationGetTraceabilityRunInput| match input.value? {
-                v1::observation_get_traceability_run_input::Value::Request(request) => Some(Input::Request(request)),
-                v1::observation_get_traceability_run_input::Value::Cancel(_) => Some(Input::Cancel),
-                v1::observation_get_traceability_run_input::Value::Finish(_) => Some(Input::Finish),
-            },
-            |response| v1::ObservationGetTraceabilityRunOutput {
-                value: Some(v1::observation_get_traceability_run_output::Value::Response(response)),
-            },
-            |context, request| async move { dokime_operations_next::client::observation_get_traceability::handle(&context, request).await },
-        )
-        .await?;
-        Ok(tonic::Response::new(reply))
-    }
     type WatchRuntimeStream = dokime_operations_next::client::Output<v1::ObservationWatchRuntimeOutput>;
     async fn watch_runtime(
         &self, request: tonic::Request<v1::ObservationWatchRuntimeRequest>,

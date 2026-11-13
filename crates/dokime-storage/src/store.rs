@@ -48,7 +48,7 @@ pub struct Store {
     connection: Arc<Mutex<Connection>>,
     database: Arc<std::path::PathBuf>,
     pub(crate) identity: Arc<str>,
-    cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
+    pub(crate) cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: tokio::sync::watch::Sender<u64>,
@@ -102,6 +102,7 @@ impl Store {
                     "administration",
                     "artifact_calls",
                     "artifact_transfers",
+                    "attempts",
                     "bindings",
                     "cases",
                     "commands",
@@ -135,6 +136,7 @@ impl Store {
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE INDEX executions_cycle ON executions(cycle,id);
                 CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
+                CREATE TABLE attempts(execution TEXT NOT NULL REFERENCES executions(id), step TEXT NOT NULL, operation TEXT NOT NULL, attempt INTEGER NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,step,operation,attempt,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE INDEX samples_stream_position ON samples(execution,stream,position);
@@ -162,6 +164,7 @@ impl Store {
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
+                CREATE INDEX resource_values_position ON resource_values(execution,position);
                 CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
@@ -310,6 +313,12 @@ impl Store {
         evidence.position = next_position(&transaction, execution)?;
         transaction
             .execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
+        if evidence.kind == "attempt:start" {
+            transaction.execute(
+                "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
+                params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
+            )?;
+        }
         if let Some(kind) = evidence.kind.strip_prefix("record:") {
             let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
             let definition = Execution::decode(payload.as_slice())?;

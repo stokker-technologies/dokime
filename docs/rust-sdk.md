@@ -305,3 +305,9 @@ features and leaves those existing crates and plugins untouched.
 `dokime::Client` exposes the library client root, including `client.access.listener`,
 `client.access.pairings` and `client.access.certificates`, on its existing transport.
 Use the library request wrappers and explicit request metadata.
+
+Traceability entries use distinct context `evidence.Traceability.Get/Set`
+contracts. Get selects the execution and entry name and returns its revision;
+Set replaces the whole entry with that revision and a caller-retained request ID.
+The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
+position-resolved history pages and a bounded durable change stream.

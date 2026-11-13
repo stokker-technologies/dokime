@@ -16,6 +16,9 @@ include!("dokime.context.v1.files.rs");
 }
 pub mod v1 {
 include!("dokime.v1.rs");
+pub mod evidence {
+include!("dokime.v1.evidence.rs");
+}
 pub mod executions {
 include!("dokime.v1.executions.rs");
 }

@@ -167,3 +167,9 @@ operation, stream or section. The frozen catalog decodes the exact record bytes.
 `Dokime.Client` exposes the library `Access`, `Status` and `Storage` resources
 over its call invoker. For example, use `client.Access.Listener.Get` and
 `client.Access.Pairings.Create` with the matching Harmos requests and call options.
+
+Traceability entries use distinct context `evidence.Traceability.Get/Set`
+contracts. Get selects the execution and entry name and returns its revision;
+Set replaces the whole entry with that revision and a caller-retained request ID.
+The client root exposes `client.Evidence.Traceability.Get` and `.Watch`, with scoped,
+position-resolved history pages and a bounded durable change stream.

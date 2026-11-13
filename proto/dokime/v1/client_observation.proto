@@ -23,28 +23,6 @@ message ObservationGetRuntimeShellRunOutput {
   }
 }
 
-message ObservationGetTraceabilityRequest {
-  EvidenceScope scope = 1;
-  uint32 limit = 2;
-  string after_traceability_id = 3;
-  Cursor cursor = 4;
-  string host_traceability_fingerprint = 5;
-}
-
-message ObservationGetTraceabilityRunInput {
-  oneof value {
-    ObservationGetTraceabilityRequest request = 1;
-    ClientEmpty cancel = 3;
-    ClientEmpty finish = 4;
-  }
-}
-
-message ObservationGetTraceabilityRunOutput {
-  oneof value {
-    TraceabilityPage response = 2;
-  }
-}
-
 message ObservationWatchRuntimeRequest {
   Cursor cursor = 1;
 }
@@ -79,14 +57,6 @@ service Observation {
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunGetRuntimeShell (stream .dokime.v1.ObservationGetRuntimeShellRunInput)
       returns (stream .dokime.v1.ObservationGetRuntimeShellRunOutput);
-  // Public. dokime.observation.get_traceability. Follow the returned continuation with unchanged filters/order and
-  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-  // mutations or cancel an admitted execution. Returns the bounded, scope-aware current traceability projection.
-  // This is a read of the current runtime state and never creates a checkpoint.
-  rpc GetTraceability (.dokime.v1.ObservationGetTraceabilityRequest) returns (.dokime.v1.TraceabilityPage);
-  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
-  rpc RunGetTraceability (stream .dokime.v1.ObservationGetTraceabilityRunInput)
-      returns (stream .dokime.v1.ObservationGetTraceabilityRunOutput);
   // Public. dokime.observation.watch_runtime. Output items precede the final response; require successful final
   // status. Cancelling this call does not undo committed mutations or cancel an admitted execution. This is a
   // latest-state invalidation stream, not a durable event log. The initial frame always resynchronizes from

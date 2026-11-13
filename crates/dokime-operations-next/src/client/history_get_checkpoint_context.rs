@@ -64,12 +64,12 @@ pub async fn handle(context: &Context, request: v1::HistoryGetCheckpointContextR
                     }
                 }
                 "traceability" => {
-                    let value = v1::SetTraceability::decode(entry.payload.as_slice())?;
+                    let value = v1::TraceabilityEntry::decode(entry.payload.as_slice())?;
                     traceability.push(v1::TraceabilitySnapshot {
                         traceability_id: format!("{}/{}", cut.execution.identifier, entry.position),
                         scope: Some(super::projection::entry_scope(&snapshot, entry)?),
                         created_at: Some(super::projection::timestamp(entry.receipt_ns)),
-                        entries: value.entries,
+                        entries: vec![value],
                         ..Default::default()
                     });
                 }

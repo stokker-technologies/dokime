@@ -26,6 +26,7 @@ mod client_keeps_execution_notes;
 mod client_manages_plugin_entries;
 mod client_manages_secret_storage;
 mod client_observes_revisioned_progress;
+mod client_observes_revisioned_traceability;
 mod client_observes_runtime_state;
 mod client_pairs_and_rotates_remote_access;
 mod client_plans_parameter_selections;

@@ -70,7 +70,16 @@ HOST_OPERATIONS = tuple(
         ("dokime.settings.read", "ReadSettings", "SavedSettings"),
         ("dokime.secrets.read", "ReadSecret", "Secret"),
         ("dokime.context.v1.Prompts/Create", "dokime.context.v1.PromptsCreateRequest", "dokime.context.v1.PromptsCreateResponse"),
-        ("dokime.execution.traceability", "SetTraceability", "SetTraceabilityResponse"),
+        (
+            "dokime.context.v1.evidence.Traceability/Get",
+            "dokime.context.v1.evidence.TraceabilityGetRequest",
+            "dokime.context.v1.evidence.TraceabilityGetResponse",
+        ),
+        (
+            "dokime.context.v1.evidence.Traceability/Set",
+            "dokime.context.v1.evidence.TraceabilitySetRequest",
+            "dokime.context.v1.evidence.TraceabilitySetResponse",
+        ),
         (
             "dokime.context.v1.Documents/AppendParts",
             "dokime.context.v1.DocumentsAppendPartsRequest",
@@ -194,7 +203,17 @@ class Context:
             source=source,
             unit=unit,
         )
-        await self.operation(message("SetTraceability", execution=self.execution, entries=[entry]))
+        current = await self.operation(message("dokime.context.v1.evidence.TraceabilityGetRequest", name=self.execution, entry=identifier))
+        await self.operation(
+            message(
+                "dokime.context.v1.evidence.TraceabilitySetRequest",
+                name=self.execution,
+                entry=identifier,
+                value=entry,
+                expected_revision=current.revision,
+                request_id=str(uuid4()),
+            )
+        )
 
     async def document(self, document: str, part: Message, *, section: str = "") -> None:
         field = {"dokime.v1.Section": "subsection", "dokime.v1.Card": "card"}.get(part.DESCRIPTOR.full_name)

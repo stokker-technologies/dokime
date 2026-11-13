@@ -61,3 +61,47 @@ pub struct RecordsListResponse {
     #[prost(message, repeated, tag = "3")]
     pub records: ::prost::alloc::vec::Vec<super::super::super::v1::Record>,
 }
+/// Public invocation child calls; no independent client service.
+/// Each named entry is one independently revisioned whole writable value.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TraceabilityGetRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub entry: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TraceabilityGetResponse {
+    #[prost(message, optional, tag = "1")]
+    pub value: ::core::option::Option<super::super::super::v1::TraceabilityEntry>,
+    #[prost(bytes = "vec", tag = "2")]
+    pub revision: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "3")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::Position>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TraceabilitySetRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub value: ::core::option::Option<super::super::super::v1::TraceabilityEntry>,
+    #[prost(bytes = "vec", tag = "3")]
+    pub expected_revision: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub entry: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TraceabilitySetResponse {
+    #[prost(message, optional, tag = "1")]
+    pub value: ::core::option::Option<super::super::super::v1::TraceabilityEntry>,
+    #[prost(bytes = "vec", tag = "2")]
+    pub revision: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "3")]
+    pub receipt: ::core::option::Option<::harmos_protocol::v1::Receipt>,
+}

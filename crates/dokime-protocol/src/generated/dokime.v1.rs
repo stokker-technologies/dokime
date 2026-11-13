@@ -1304,15 +1304,6 @@ pub struct StreamMatch {
     #[prost(double, optional, tag = "5")]
     pub tolerance: ::core::option::Option<f64>,
 }
-/// Upsert entries by metadata.identifier; other entries remain unchanged.
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SetTraceability {
-    #[prost(string, tag = "1")]
-    pub execution: ::prost::alloc::string::String,
-    #[prost(message, repeated, tag = "2")]
-    pub entries: ::prost::alloc::vec::Vec<TraceabilityEntry>,
-}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TraceabilityEntry {
@@ -1325,9 +1316,6 @@ pub struct TraceabilityEntry {
     #[prost(string, tag = "4")]
     pub unit: ::prost::alloc::string::String,
 }
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct SetTraceabilityResponse {}
 /// One acknowledged chunk per call. Sequence starts at zero; last commits the
 /// artifact. This is not a stream. The host checks repeated name and media type.
 #[allow(clippy::all)]
@@ -9562,23 +9550,11 @@ pub struct TelemetrySchemaIdentity {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TraceabilityPage {
-    #[prost(message, optional, tag = "1")]
-    pub scope: ::core::option::Option<EvidenceScope>,
-    #[prost(message, repeated, tag = "2")]
-    pub snapshots: ::prost::alloc::vec::Vec<TraceabilitySnapshot>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
-    #[prost(string, tag = "4")]
-    pub next_after_traceability_id: ::prost::alloc::string::String,
-    #[prost(bool, tag = "5")]
-    pub complete: bool,
-    #[prost(string, tag = "6")]
-    pub host_traceability_fingerprint: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TraceabilitySnapshot {
+    #[prost(bytes = "vec", tag = "6")]
+    pub revision: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "7")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::Position>,
     #[prost(string, tag = "1")]
     pub traceability_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
@@ -29574,54 +29550,6 @@ pub mod observation_get_runtime_shell_run_output {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationGetTraceabilityRequest {
-    #[prost(message, optional, tag = "1")]
-    pub scope: ::core::option::Option<EvidenceScope>,
-    #[prost(uint32, tag = "2")]
-    pub limit: u32,
-    #[prost(string, tag = "3")]
-    pub after_traceability_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "4")]
-    pub cursor: ::core::option::Option<Cursor>,
-    #[prost(string, tag = "5")]
-    pub host_traceability_fingerprint: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationGetTraceabilityRunInput {
-    #[prost(oneof = "observation_get_traceability_run_input::Value", tags = "1, 3, 4")]
-    pub value: ::core::option::Option<observation_get_traceability_run_input::Value>,
-}
-/// Nested message and enum types in `ObservationGetTraceabilityRunInput`.
-pub mod observation_get_traceability_run_input {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Request(super::ObservationGetTraceabilityRequest),
-        #[prost(message, tag = "3")]
-        Cancel(super::ClientEmpty),
-        #[prost(message, tag = "4")]
-        Finish(super::ClientEmpty),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ObservationGetTraceabilityRunOutput {
-    #[prost(oneof = "observation_get_traceability_run_output::Value", tags = "2")]
-    pub value: ::core::option::Option<observation_get_traceability_run_output::Value>,
-}
-/// Nested message and enum types in `ObservationGetTraceabilityRunOutput`.
-pub mod observation_get_traceability_run_output {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "2")]
-        Response(super::TraceabilityPage),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ObservationWatchRuntimeRequest {
     #[prost(message, optional, tag = "1")]
     pub cursor: ::core::option::Option<Cursor>,
@@ -29826,63 +29754,6 @@ pub mod observation_client {
                 .insert(GrpcMethod::new("dokime.v1.Observation", "RunGetRuntimeShell"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.observation.get_traceability. Follow the returned continuation with unchanged filters/order and
-        /// its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Returns the bounded, scope-aware current traceability projection.
-        /// This is a read of the current runtime state and never creates a checkpoint.
-        pub async fn get_traceability(
-            &mut self,
-            request: impl tonic::IntoRequest<super::ObservationGetTraceabilityRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::TraceabilityPage>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/dokime.v1.Observation/GetTraceability",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("dokime.v1.Observation", "GetTraceability"));
-            self.inner.unary(req, path, codec).await
-        }
-        /// Public. Request first; ordered items, then finish or cancel; await settlement and final status.
-        pub async fn run_get_traceability(
-            &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::ObservationGetTraceabilityRunInput,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<super::ObservationGetTraceabilityRunOutput>,
-            >,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/dokime.v1.Observation/RunGetTraceability",
-            );
-            let mut req = request.into_streaming_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("dokime.v1.Observation", "RunGetTraceability"));
-            self.inner.streaming(req, path, codec).await
-        }
         /// Public. dokime.observation.watch_runtime. Output items precede the final response; require successful final
         /// status. Cancelling this call does not undo committed mutations or cancel an admitted execution. This is a
         /// latest-state invalidation stream, not a durable event log. The initial frame always resynchronizes from
@@ -29986,36 +29857,6 @@ pub mod observation_server {
             >,
         ) -> std::result::Result<
             tonic::Response<Self::RunGetRuntimeShellStream>,
-            tonic::Status,
-        >;
-        /// Public. dokime.observation.get_traceability. Follow the returned continuation with unchanged filters/order and
-        /// its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Returns the bounded, scope-aware current traceability projection.
-        /// This is a read of the current runtime state and never creates a checkpoint.
-        async fn get_traceability(
-            &self,
-            request: tonic::Request<super::ObservationGetTraceabilityRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::TraceabilityPage>,
-            tonic::Status,
-        >;
-        /// Server streaming response type for the RunGetTraceability method.
-        type RunGetTraceabilityStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ObservationGetTraceabilityRunOutput,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
-        /// Public. Request first; ordered items, then finish or cancel; await settlement and final status.
-        async fn run_get_traceability(
-            &self,
-            request: tonic::Request<
-                tonic::Streaming<super::ObservationGetTraceabilityRunInput>,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<Self::RunGetTraceabilityStream>,
             tonic::Status,
         >;
         /// Server streaming response type for the WatchRuntime method.
@@ -30219,104 +30060,6 @@ pub mod observation_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = RunGetRuntimeShellSvc(inner);
-                        let codec = tonic_prost::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/dokime.v1.Observation/GetTraceability" => {
-                    #[allow(non_camel_case_types)]
-                    struct GetTraceabilitySvc<T: Observation>(pub Arc<T>);
-                    impl<
-                        T: Observation,
-                    > tonic::server::UnaryService<
-                        super::ObservationGetTraceabilityRequest,
-                    > for GetTraceabilitySvc<T> {
-                        type Response = super::TraceabilityPage;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::ObservationGetTraceabilityRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Observation>::get_traceability(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = GetTraceabilitySvc(inner);
-                        let codec = tonic_prost::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/dokime.v1.Observation/RunGetTraceability" => {
-                    #[allow(non_camel_case_types)]
-                    struct RunGetTraceabilitySvc<T: Observation>(pub Arc<T>);
-                    impl<
-                        T: Observation,
-                    > tonic::server::StreamingService<
-                        super::ObservationGetTraceabilityRunInput,
-                    > for RunGetTraceabilitySvc<T> {
-                        type Response = super::ObservationGetTraceabilityRunOutput;
-                        type ResponseStream = T::RunGetTraceabilityStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                tonic::Streaming<super::ObservationGetTraceabilityRunInput>,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Observation>::run_get_traceability(&inner, request)
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = RunGetTraceabilitySvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
