@@ -459,9 +459,10 @@ copies only changed bytes so unchanged compiler inputs keep their timestamps.
 Compiler records publish only after successful compilation; failed desktop output
 remains in `desktop-compiler.pending.json`.
 
-For local builds, `mise.toml` defaults to `RUSTC_WRAPPER=sccache`,
-`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`, respecting
-explicit values for all three.
+The workstation owns the compiler cache: `RUSTC_WRAPPER`, `SCCACHE_DIR` and
+`SCCACHE_CACHE_SIZE` come from the machine's own configuration, never from this
+repository, so every project on a machine shares one cache with one size.
+Without them, builds compile uncached.
 sccache owns its persistent background server. Incremental compilation stays enabled;
 only CI sets `CARGO_INCREMENTAL=0`. Each checkout keeps its own `target/`.
 Contract generation keeps each invocation's compiler record in a private temporary
