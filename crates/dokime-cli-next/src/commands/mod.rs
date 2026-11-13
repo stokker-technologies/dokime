@@ -13,6 +13,7 @@
 
 mod catalog;
 mod cycle;
+mod doctor;
 mod execution;
 mod new;
 mod operation;
@@ -66,6 +67,9 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Execution(execution::Command),
 
+    #[command(subcommand)]
+    Doctor(doctor::Command),
+
     Status(status::Args),
     Version(version::Args),
 
@@ -88,6 +92,7 @@ impl Command {
             Self::Plan(command) => command.action(),
             Self::Cycle(command) => command.action(),
             Self::Execution(command) => command.action(),
+            Self::Doctor(_) => "Diagnose Storage",
             Self::Status(_) => "Read Host Status",
             Self::Version(_) => "Read Build Version",
             Self::Operation(command) => command.action(),
@@ -107,6 +112,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Plan(command) => plan::run(command, endpoint, settings).await,
         Command::Cycle(command) => cycle::run(command, endpoint, settings).await,
         Command::Execution(command) => execution::run(command, endpoint, settings).await,
+        Command::Doctor(command) => doctor::run(command, settings).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
         Command::Version(args) => version::run(args),
         Command::Operation(command) => operation::run(command, endpoint, settings).await,

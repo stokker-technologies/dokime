@@ -472,7 +472,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] `operation list`: discover admitted operations; `operator_discovers_operations` compares the whole host catalog.
   - [x] `operation show`: inspect identity, visibility, policy and shapes; `operator_inspects_contract`.
   - [x] `operation call`: invoke typed Public unary operations through the generic client; `operator_calls_operation`.
-  - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
+  - [x] `doctor storage`: probe scratch storage and validate a bounded frozen database copy; `operator_diagnoses_storage` proves original-byte preservation.
   - [ ] `gui`: launch the native desktop.
   - [x] `version`: report compiled JSON/source/channel metadata; `operator_identifies_build`.
   - [ ] Pairing-file connection and access pairing export.

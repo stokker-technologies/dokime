@@ -292,6 +292,14 @@ Local builds have a null channel; release and Nightly publishers identify theirs
 from the build environment. Source archives without Git or CI revision metadata
 report a null revision.
 
+`dokime-next doctor storage --json` probes write, sync, rename, readback and removal
+in a disposable scratch directory, then opens and closes a scratch host.
+`--storage PATH` (or configured `storage`) additionally diagnoses an existing root
+from a bounded copy of its SQLite files under the root lease. Stop the host first.
+The original root is never opened for recovery or changed; missing roots are not
+created. `retained_bytes` bounds the database copy. Incompatible roots produce a
+failed report and backup/fresh-root or explicit-reset guidance.
+
 ```sh
 dokime-next new first-plugin --lang rust
 dokime-next new remote-plugin --lang python
