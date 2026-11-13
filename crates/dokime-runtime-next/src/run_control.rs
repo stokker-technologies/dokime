@@ -199,25 +199,24 @@ impl ExecutionManager {
         self.signal_change();
         Ok(())
     }
-    pub fn submit_execution_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
-        if request.request_id != request.execution_id || request.command_id.trim().is_empty() {
+    pub fn submit_execution_command(&self, request: v1::executions::CommandsCreateRequest) -> Result<v1::ExecutionCommandReceipt> {
+        if request.request_id.trim().is_empty() || request.parent.trim().is_empty() || request.command_id.trim().is_empty() {
             return Err(Error::Invalid("Submit Execution Command: Use the Run Request ID and a Stable Command ID".into()));
         }
-        if let Some(previous) = self.inner.store.command(&request.request_id, &request.command_id)? {
-            if previous.execution_id != request.execution_id || previous.action != request.action || previous.step_id != request.step_id {
+        if let Some(previous) = self.inner.store.command(&request.parent, &request.command_id)? {
+            if previous.execution_id != request.parent || previous.action != request.action || previous.step_id != request.step_id {
                 return Err(Error::Invalid("Submit Execution Command: Use a New Command ID for a Changed Action".into()));
             }
             return Ok(previous);
         }
-        let snapshot = self.inner.store.cut(&request.execution_id)?;
+        let snapshot = self.inner.store.cut(&request.parent)?;
         let case = match snapshot.execution.origin.and_then(|origin| origin.kind) {
             Some(v1::origin::Kind::PluginRun(run)) => run.test_case.unwrap(),
             _ => return Err(Error::Invalid("Submit Execution Command: Select an Active Plugin Run".into())),
         };
         let active = lock(&self.inner.active)?;
-        let active = active
-            .get(&request.execution_id)
-            .ok_or_else(|| Error::Invalid("Submit Execution Command: Start an Interactive Run First".into()))?;
+        let active =
+            active.get(&request.parent).ok_or_else(|| Error::Invalid("Submit Execution Command: Start an Interactive Run First".into()))?;
         let mut state = lock(&active.control.state)?;
         if !state.interactive || state.stopping || state.busy || state.command.is_some() {
             return Err(Error::Invalid("Submit Execution Command: Wait for an Idle Interactive Run".into()));
@@ -261,7 +260,7 @@ impl ExecutionManager {
         let receipt = v1::ExecutionCommandReceipt {
             request_id: request.request_id,
             command_id: request.command_id,
-            execution_id: request.execution_id,
+            execution_id: request.parent,
             action: request.action,
             step_id: request.step_id,
             phase: if refusal.is_some() { v1::ExecutionCommandPhase::Refused } else { v1::ExecutionCommandPhase::Accepted } as i32,

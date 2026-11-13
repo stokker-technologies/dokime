@@ -57,45 +57,33 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
+        let mut answers = v1::prompts::answers_client::AnswersClient::new(channel.clone());
+        let mut definitions = v1::catalog::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone());
         client.plugins.add(plugin.endpoint()).await?;
-
-        // Inspect the Registered Prompt Catalog Through Both Call Forms
-        let definitions = prompts.list_definitions(v1::PromptsListDefinitionsRequest::default()).await?.into_inner();
-        assert_eq!(definitions.definitions.len(), 1);
-        let definition = prompts.get_definition(v1::PromptsGetDefinitionRequest { prompt_type: "thermal.door".into() }).await?.into_inner();
-        assert_eq!(definition.metadata.as_ref().unwrap().identifier, definitions.definitions[0].prompt_type);
-        let mut run = prompts
-            .run_get_definition(tokio_stream::iter([
-                v1::PromptsGetDefinitionRunInput {
-                    value: Some(v1::prompts_get_definition_run_input::Value::Request(v1::PromptsGetDefinitionRequest {
-                        prompt_type: "thermal.door".into(),
-                    })),
-                },
-                v1::PromptsGetDefinitionRunInput {
-                    value: Some(v1::prompts_get_definition_run_input::Value::Finish(v1::ClientEmpty {})),
-                },
-            ]))
+        let catalog = definitions.list(v1::catalog::PromptDefinitionsListRequest::default()).await?.into_inner();
+        assert_eq!(catalog.values.len(), 1);
+        let definition = definitions
+            .get(v1::catalog::PromptDefinitionsGetRequest {
+                name: "thermal.door".into(),
+                ..Default::default()
+            })
             .await?
-            .into_inner();
-        assert_eq!(run.message().await?.unwrap().value, Some(v1::prompts_get_definition_run_output::Value::Response(definition)));
-        assert!(run.message().await?.is_none());
-        let missing = prompts.get_definition(v1::PromptsGetDefinitionRequest { prompt_type: "missing".into() }).await.unwrap_err();
-        assert_eq!(missing.code(), tonic::Code::NotFound);
-
-        // Await a Prompt and Inspect the Same Pending Selection
-        let cases = client
-            .templates
-            .materialize(
-                "thermal",
-                "thermal.cycle",
-                std::collections::HashMap::from([(
-                    "limit".into(),
-                    vec![v1::Value {
-                        kind: Some(v1::value::Kind::Number(85.0)),
-                    }],
-                )]),
-            )
-            .await?;
+            .into_inner()
+            .value
+            .unwrap();
+        assert_eq!(definition.metadata.as_ref().unwrap().identifier, catalog.values[0].metadata.as_ref().unwrap().identifier);
+        assert_eq!(
+            definitions
+                .get(v1::catalog::PromptDefinitionsGetRequest {
+                    name: "missing".into(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::NotFound
+        );
+        let cases = client.templates.materialize("thermal", "thermal.cycle", std::collections::HashMap::new()).await?;
         let mut repeated_origin = cases[0].origin.clone().unwrap();
         if let Some(v1::origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
             run.test_case.as_mut().unwrap().steps[1].repeatable = true;
@@ -109,97 +97,127 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             }
         }
         let pending = prompts
-            .list_pending(v1::PromptsListPendingRequest {
+            .list(v1::PromptsListRequest {
                 execution_id: Some(execution.clone()),
+                pending_only: true,
                 ..Default::default()
             })
             .await?
             .into_inner();
         assert_eq!(pending.prompts.len(), 1);
-        let prompt_id = pending.prompts[0].prompt_id.clone();
-        let other = prompts
-            .list_pending(v1::PromptsListPendingRequest {
-                execution_id: Some("another".into()),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        assert!(other.prompts.is_empty());
-
-        // Reject an Unknown Action Without Settling the Question
-        let invalid = prompts
-            .respond(v1::PromptsRespondRequest {
-                prompt_id: prompt_id.clone(),
-                action: "unknown".into(),
-                accepted: true,
-                ..Default::default()
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(invalid.code(), tonic::Code::InvalidArgument);
-        assert!(prompts.get_prompt(v1::PromptsGetPromptRequest { prompt_id: prompt_id.clone() }).await?.into_inner().response.is_none());
-
-        // Answer Once and Resolve the Accepted Answer After Settlement
-        let receipt = prompts
-            .respond(v1::PromptsRespondRequest {
-                prompt_id: prompt_id.clone(),
-                action: "yes".into(),
-                accepted: true,
-                context: Some(v1::MutationContext {
-                    correlation_id: Some("operator-answer".into()),
-                }),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        assert_eq!(receipt.prompt_id, prompt_id);
-        while watch.next().await?.is_some() {}
-        let answered = prompts.get_prompt(v1::PromptsGetPromptRequest { prompt_id: prompt_id.clone() }).await?.into_inner();
-        assert_eq!(answered.response.as_ref().unwrap().action, "yes");
-        assert_eq!(answered.response.as_ref().unwrap().responder, "local");
+        let prompt_id = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         assert!(
             prompts
-                .respond(v1::PromptsRespondRequest {
-                    prompt_id: prompt_id.clone(),
-                    action: "no".into(),
+                .list(v1::PromptsListRequest {
+                    execution_id: Some("another".into()),
+                    pending_only: true,
+                    ..Default::default()
+                })
+                .await?
+                .into_inner()
+                .prompts
+                .is_empty()
+        );
+        assert!(
+            answers
+                .create(v1::prompts::AnswersCreateRequest {
+                    parent: prompt_id.clone(),
+                    action: "unknown".into(),
+                    accepted: true,
+                    request_id: "invalid".into(),
                     ..Default::default()
                 })
                 .await
                 .is_err()
         );
-        assert!(prompts.list_pending(v1::PromptsListPendingRequest::default()).await?.into_inner().prompts.is_empty());
-
-        // Repeat a Question in One Interactive Run Without Reusing Its Accepted Answer
-        let mut executions = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
-        let repeated = executions
-            .create_cycle(v1::ExecutionCreateCycleRequest {
-                origins: vec![repeated_origin],
+        assert!(
+            prompts
+                .get(v1::PromptsGetRequest {
+                    name: prompt_id.clone(),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner()
+                .prompt
+                .unwrap()
+                .response
+                .is_none()
+        );
+        let request = v1::prompts::AnswersCreateRequest {
+            parent: prompt_id.clone(),
+            action: "yes".into(),
+            accepted: true,
+            request_id: "operator-answer".into(),
+            ..Default::default()
+        };
+        let receipt = answers.create(request.clone()).await?.into_inner();
+        assert_eq!(answers.create(request).await?.into_inner(), receipt);
+        assert_eq!(receipt.answer.as_ref().unwrap().prompt_id, prompt_id);
+        while watch.next().await?.is_some() {}
+        let answered = prompts
+            .get(v1::PromptsGetRequest {
+                name: prompt_id.clone(),
                 ..Default::default()
             })
             .await?
             .into_inner()
-            .execution_ids[0]
+            .prompt
+            .unwrap();
+        assert!(answered.response.as_ref().unwrap().accepted);
+        assert!(
+            answers
+                .create(v1::prompts::AnswersCreateRequest {
+                    parent: prompt_id.clone(),
+                    action: "no".into(),
+                    request_id: "another-answer".into(),
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
+        assert!(prompts.list(v1::PromptsListRequest { pending_only: true, ..Default::default() }).await?.into_inner().prompts.is_empty());
+
+        // Repeated Questions Keep Distinct Identities and Durable Answers.
+        let mut cycles = v1::cycles_client::CyclesClient::new(channel.clone());
+        let admitted = cycles
+            .create(v1::CyclesCreateRequest {
+                origins: vec![repeated_origin],
+                request_id: "repeat-cycle".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let parent = admitted.cycle.unwrap().cycle_id;
+        let mut executions = v1::executions_client::ExecutionsClient::new(channel.clone());
+        let repeated = executions.list(v1::ExecutionsListRequest { parent, ..Default::default() }).await?.into_inner().executions[0]
+            .summary
+            .as_ref()
+            .unwrap()
+            .execution_id
             .clone();
         executions
-            .start_execution(v1::ExecutionStartExecutionRequest {
-                execution_id: repeated.clone(),
+            .start(v1::ExecutionsStartRequest {
+                name: repeated.clone(),
+                request_id: "interactive".into(),
                 mode: v1::ExecutionMode::Interactive as i32,
             })
             .await?;
-        let mut runtime = observation.watch_runtime(v1::ObservationWatchRuntimeRequest::default()).await?.into_inner();
-        runtime.message().await?.unwrap();
-        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+        let mut runtime = v1::backend::overview_client::OverviewClient::new(channel.clone())
+            .watch(v1::backend::OverviewWatchRequest::default())
             .await?
+            .into_inner();
+        runtime.message().await?.unwrap();
+        let mut commands = v1::executions::commands_client::CommandsClient::new(channel.clone());
+        let mut progress = v1::executions::progress_client::ProgressClient::new(channel)
             .watch(v1::executions::ProgressWatchRequest { name: repeated.clone(), at: None })
             .await?
             .into_inner();
         let mut questions = Vec::new();
         for command in ["first-question", "second-question"] {
-            executions
-                .submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest {
-                    execution_id: repeated.clone(),
-                    request_id: repeated.clone(),
+            commands
+                .create(v1::executions::CommandsCreateRequest {
+                    parent: repeated.clone(),
+                    request_id: command.into(),
                     command_id: command.into(),
                     action: v1::ExecutionCommandAction::RunStep as i32,
                     step_id: Some("hold".into()),
@@ -207,8 +225,8 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
                 .await?;
             let question = loop {
                 let pending = client.prompts.pending(repeated.clone()).await?;
-                if let Some(question) = pending.prompts.first() {
-                    break question.prompt_id.clone();
+                if let Some(view) = pending.prompts.first() {
+                    break view.prompt.as_ref().unwrap().prompt_id.clone();
                 }
                 runtime.message().await?.unwrap();
             };
@@ -216,39 +234,38 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             client.prompts.respond(question.clone(), "yes", true).await?;
             questions.push(question);
             loop {
-                let receipt = executions
-                    .get_execution_command(v1::ExecutionGetExecutionCommandRequest {
-                        request_id: repeated.clone(),
-                        command_id: command.into(),
+                let saved = commands
+                    .get(v1::executions::CommandsGetRequest {
+                        parent: repeated.clone(),
+                        name: command.into(),
+                        ..Default::default()
                     })
                     .await?
-                    .into_inner();
-                if receipt.phase == v1::ExecutionCommandPhase::Completed as i32 {
+                    .into_inner()
+                    .command
+                    .unwrap();
+                if saved.phase == v1::ExecutionCommandPhase::Completed as i32 {
                     break;
                 }
                 runtime.message().await?.unwrap();
             }
         }
         for question in questions {
-            assert_eq!(client.prompts.get(question).await?.response.unwrap().action, "yes");
+            assert!(client.prompts.get(question).await?.prompt.unwrap().response.unwrap().accepted);
         }
         executions
-            .stop_execution(v1::ExecutionStopExecutionRequest {
-                execution_id: repeated,
-                ..Default::default()
+            .stop(v1::ExecutionsStopRequest {
+                name: repeated,
+                request_id: "stop".into(),
             })
             .await?;
         while progress.message().await?.is_some() {}
         drop(runtime);
-
-        // Reopen the Host and Resolve the Frozen Question and Answer
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let reopened =
-            v1::prompts_client::PromptsClient::new(channel).get_prompt(v1::PromptsGetPromptRequest { prompt_id }).await?.into_inner();
-        assert_eq!(reopened.prompt, answered.prompt);
-        assert_eq!(reopened.response, answered.response);
+        let mut prompts = v1::prompts_client::PromptsClient::connect(process.url.clone()).await?;
+        let reopened = prompts.get(v1::PromptsGetRequest { name: prompt_id, ..Default::default() }).await?.into_inner().prompt.unwrap();
+        assert_eq!(reopened, answered);
         process.close().await?;
         plugin.close().await?;
         Ok::<_, Box<dyn std::error::Error>>(())

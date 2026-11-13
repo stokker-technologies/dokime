@@ -66,16 +66,20 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         // Secret Values Are Registered Before Host Events Can Retain Them
         let secret = "thermal";
         let mut secrets = v1::secrets_client::SecretsClient::new(channel.clone());
-        let generation = secrets.list(v1::SecretsListRequest {}).await?.into_inner().generation;
+        let generation = secrets.list(v1::SecretsListRequest { ..Default::default() }).await?.into_inner().generation;
         let saved = secrets
-            .put(v1::SecretsPutRequest {
-                metadata: Some(v1::Metadata {
-                    identifier: "diagnostics.access".into(),
-                    label: "Diagnostics Access".into(),
-                    ..Default::default()
+            .set(v1::SecretsSetRequest {
+                name: "diagnostics.access".into(),
+                value: Some(v1::SecretWritable {
+                    metadata: Some(v1::Metadata {
+                        identifier: "diagnostics.access".into(),
+                        label: "Diagnostics Access".into(),
+                        ..Default::default()
+                    }),
+                    value: Some(secret.into()),
                 }),
-                value: Some(secret.into()),
-                generation,
+                expected_revision: generation.to_be_bytes().to_vec(),
+                request_id: "diagnostic-secret".into(),
             })
             .await?
             .into_inner();
@@ -207,9 +211,10 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         }
         assert!(paths.contains(&std::path::PathBuf::from("dokime/protocol.json")));
         secrets
-            .remove(v1::SecretsRemoveRequest {
-                identifiers: vec!["diagnostics.access".into()],
-                generation: saved.generation,
+            .delete(v1::SecretsDeleteRequest {
+                names: vec!["diagnostics.access".into()],
+                expected_revision: saved.revision,
+                request_id: "cleanup".into(),
             })
             .await?;
         process.close().await?;

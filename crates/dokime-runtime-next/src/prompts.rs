@@ -118,14 +118,22 @@ impl PromptManager {
             .map_err(|_| Error::Invalid("Answer Prompt: The Execution Stopped; Inspect Its Evidence".into()))?;
         Ok(())
     }
-    pub fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
+    pub fn record_answer(
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::v1::Receipt> {
+        if let Some((_, receipt)) = self.store.requested_evidence(execution, "dokime.v1.prompts.Answers/Create", request_id, fingerprint)? {
+            return Ok(receipt);
+        }
         let mut pending = lock(&self.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Active Question".into()))?;
         if prompt.question.prompt != answer.prompt || prompt.answer.as_ref().is_none_or(oneshot::Sender::is_closed) {
             return Err(Error::Invalid("Answer Prompt: Inspect the Current Question Before Answering".into()));
         }
-        self.store.append(
+        let (_, receipt) = self.store.append_requested(
             execution,
+            "dokime.v1.prompts.Answers/Create",
+            request_id,
+            fingerprint,
             dokime_storage::Evidence {
                 kind: "client:answer".into(),
                 receipt_ns: self.clock.now_ns(),
@@ -133,13 +141,8 @@ impl PromptManager {
                 ..Default::default()
             },
         )?;
-        prompt
-            .answer
-            .take()
-            .unwrap()
-            .send(answer)
-            .map_err(|_| Error::Invalid("Answer Prompt: Inspect the Committed Answer; the Run Stopped".into()))?;
-        Ok(())
+        let _ = prompt.answer.take().unwrap().send(answer);
+        Ok(receipt)
     }
 }
 #[async_trait]

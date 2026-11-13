@@ -163,9 +163,10 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         // Read Mixed Attributions and Counts Through the Client Services Once the Root Is Released
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut query = v1::query_client::QueryClient::connect(process.url.clone()).await?;
-        let page = query
-            .list_executions(v1::QueryListExecutionsRequest {
+
+        let page = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            .await?
+            .list(v1::ExecutionsListRequest {
                 selection: Some(v1::ExecutionSelection {
                     cycle_ids: vec![cycle_identifier.clone()],
                     ..Default::default()
@@ -177,16 +178,24 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         let counts = page.outcome_counts.unwrap();
         assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
         assert_eq!(counts.result_status, Some(v1::ResultStatus::Passed as i32));
-        assert!(page.rows.iter().any(|row| matches!(
+        assert!(page.executions.iter().any(|row| matches!(
             row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
             Some(v1::execution_outcome::Attribution::Declared(_))
         )));
-        let mut reader = v1::execution_client::ExecutionClient::connect(process.url.clone()).await?;
-        for row in &page.rows {
-            let detail =
-                reader.get_execution(v1::ExecutionGetExecutionRequest { execution_id: row.execution_id.clone() }).await?.into_inner();
+
+        for row in &page.executions {
+            let detail = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+                .await?
+                .get(v1::ExecutionsGetRequest {
+                    name: row.summary.as_ref().unwrap().execution_id.clone(),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner()
+                .execution
+                .unwrap();
             assert_eq!(detail.cycle_counts.as_ref(), Some(&counts));
-            assert_eq!(detail.summary.as_ref(), Some(row));
+            assert_eq!(detail.summary.as_ref(), row.summary.as_ref());
             assert!(detail.controls.as_ref().unwrap().can_inspect);
         }
         process.close().await?;

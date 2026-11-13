@@ -52,23 +52,19 @@ async fn client_reads_appearance() -> Result<(), Box<dyn std::error::Error>> {
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut appearance = v1::appearance_client::AppearanceClient::connect(process.url.clone()).await?;
-        let snapshot = appearance.get_appearance(v1::GetAppearance {}).await?.into_inner();
+        let mut appearance = v1::backend_client::BackendClient::connect(process.url.clone()).await?;
+        let snapshot = v1::backend_client::BackendClient::connect(process.url.clone())
+            .await?
+            .appearance(v1::BackendAppearanceRequest { ..Default::default() })
+            .await?
+            .into_inner()
+            .appearance
+            .unwrap();
         assert!(!snapshot.app_name.trim().is_empty());
         assert!(v1::ThemeModePolicy::try_from(snapshot.mode_policy).is_ok());
-        let mut output = appearance
-            .run_get_appearance(tokio_stream::iter([
-                v1::AppearanceGetAppearanceRunInput {
-                    value: Some(v1::appearance_get_appearance_run_input::Value::Request(v1::GetAppearance {})),
-                },
-                v1::AppearanceGetAppearanceRunInput {
-                    value: Some(v1::appearance_get_appearance_run_input::Value::Finish(v1::AppearanceGetAppearanceCancellation {})),
-                },
-            ]))
-            .await?
-            .into_inner();
-        assert_eq!(output.message().await?.unwrap().value.unwrap(), v1::appearance_get_appearance_run_output::Value::Response(snapshot));
-        assert!(output.message().await?.is_none());
+        let reply = appearance.appearance(v1::BackendAppearanceRequest::default()).await?.into_inner();
+        let replay = appearance.appearance(v1::BackendAppearanceRequest { at: reply.resolved_at.clone() }).await?.into_inner();
+        assert_eq!(reply, replay);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })

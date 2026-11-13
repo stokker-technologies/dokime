@@ -103,7 +103,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut plots = v1::plots_client::PlotsClient::new(channel);
+        let mut plots = v1::plots::snapshots_client::SnapshotsClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("kinds".into()),
             ..Default::default()
@@ -180,8 +180,16 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 _ => (),
             }
-            let envelope =
-                plots.query_snapshots(v1::PlotsQuerySnapshotsRequest { requests: vec![selected] }).await?.into_inner().envelopes.remove(0);
+            let envelope = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+                .await?
+                .list(v1::plots::SnapshotsListRequest {
+                    requests: vec![selected],
+                    ..Default::default()
+                })
+                .await?
+                .into_inner()
+                .envelopes
+                .remove(0);
             assert_eq!(envelope.diagnostics.as_ref().unwrap().examined_rows, 32, "{kind:?}");
             let payload = envelope.payload.unwrap();
             if kind == v1::PlotKind::FrequencySeries {
@@ -205,8 +213,9 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Keep Grouped Series Paired with Their Labels and Raw Counts
-        let grouped = plots
-            .query_snapshots(v1::PlotsQuerySnapshotsRequest {
+        let grouped = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            .await?
+            .list(v1::plots::SnapshotsListRequest {
                 requests: vec![v1::PlotRequest {
                     plot_type: v1::PlotKind::Bar as i32,
                     x_key: Some("min".into()),
@@ -214,6 +223,7 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
                     arrangement: Some(v1::BarArrangement::Grouped as i32),
                     ..request.clone()
                 }],
+                ..Default::default()
             })
             .await?
             .into_inner();
@@ -222,53 +232,47 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(payload.series.iter().map(|series| series.raw_points).sum::<u64>(), 32);
         assert_eq!(payload.frame.as_ref().unwrap().series.len(), 3);
 
-        // Invoke Query and Watch Through Their Run Envelopes
-        plots.list_analyses(v1::PlotsListAnalysesRequest::default()).await?;
-        let mut run = plots
-            .run_query_snapshots(tokio_stream::iter([v1::PlotsQuerySnapshotsRunInput {
-                value: Some(v1::plots_query_snapshots_run_input::Value::Request(v1::PlotsQuerySnapshotsRequest {
-                    requests: vec![v1::PlotRequest {
-                        plot_type: v1::PlotKind::TimeSeries as i32,
-                        ..request.clone()
-                    }],
-                })),
-            }]))
+        // The Nested Watch Opens at the Same Fixed Selection.
+        let mut watch = plots
+            .watch(v1::plots::SnapshotsWatchRequest {
+                requests: vec![v1::PlotRequest {
+                    plot_type: v1::PlotKind::TimeSeries as i32,
+                    ..request.clone()
+                }],
+                ..Default::default()
+            })
             .await?
             .into_inner();
-        assert!(matches!(run.message().await?.unwrap().value, Some(v1::plots_query_snapshots_run_output::Value::Response(_))));
-        assert!(run.message().await?.is_none());
-        let mut run = plots
-            .run_watch(tokio_stream::iter([v1::PlotsWatchRunInput {
-                value: Some(v1::plots_watch_run_input::Value::Request(v1::PlotsWatchRequest {
-                    requests: vec![v1::PlotRequest {
-                        plot_type: v1::PlotKind::TimeSeries as i32,
-                        ..request.clone()
-                    }],
-                })),
-            }]))
-            .await?
-            .into_inner();
-        let mut terminal = false;
-        while let Some(frame) = run.message().await? {
-            terminal |= matches!(frame.value, Some(v1::plots_watch_run_output::Value::Response(_)));
-        }
-        assert!(terminal);
-
+        let opening = watch.message().await?.unwrap();
+        assert!(opening.opening);
+        assert!(!opening.updates.is_empty());
+        drop(watch);
         // Refuse Ambiguous Totals and Invalid Pie Options Before Returning a Plot
         let duplicate = v1::PlotRequest {
             plot_type: v1::PlotKind::Pie as i32,
             x_key: Some("min".into()),
             ..request.clone()
         };
-        assert!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest { requests: vec![duplicate] }).await.is_err());
         assert!(
-            plots
-                .query_snapshots(v1::PlotsQuerySnapshotsRequest {
+            v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+                .await?
+                .list(v1::plots::SnapshotsListRequest {
+                    requests: vec![duplicate],
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
+        assert!(
+            v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+                .await?
+                .list(v1::plots::SnapshotsListRequest {
                     requests: vec![v1::PlotRequest {
                         plot_type: v1::PlotKind::Pie as i32,
                         hole: Some(1.0),
                         ..request
-                    }]
+                    }],
+                    ..Default::default()
                 })
                 .await
                 .is_err()

@@ -338,9 +338,9 @@ async fn drive(
         }
         if let Some(operation) = &template.initialize {
             dispatch
-                .invoke::<_, v1::InitializeResponse>(
+                .invoke::<_, dokime_protocol::plugin::ExecutionsInitializeResponse>(
                     operation,
-                    v1::InitializeRequest {
+                    dokime_protocol::plugin::ExecutionsInitializeRequest {
                         execution: execution.clone(),
                         test_case: Some(case.clone()),
                         origin: Some(origin.clone()),
@@ -370,9 +370,9 @@ async fn drive(
             }
             host.signal_change();
             let result = dispatch
-                .invoke::<_, v1::StepResponse>(
+                .invoke::<_, dokime_protocol::plugin::StepsExecuteResponse>(
                     &step.operation,
-                    v1::StepRequest {
+                    dokime_protocol::plugin::StepsExecuteRequest {
                         execution: execution.clone(),
                         step: identifier,
                         test_case: Some(case.clone()),
@@ -409,10 +409,10 @@ async fn drive(
                 .ok_or_else(|| Error::Invalid("Materialize Criteria with Identifiers".into()))?
                 .identifier
                 .clone();
-            let response: v1::CriterionResponse = dispatch
+            let response: dokime_protocol::plugin::CriteriaEvaluateResponse = dispatch
                 .invoke(
                     &criterion.operation,
-                    v1::CriterionRequest {
+                    dokime_protocol::plugin::CriteriaEvaluateRequest {
                         execution: execution.clone(),
                         criterion: identifier.clone(),
                         test_case: Some(case.clone()),
@@ -442,9 +442,9 @@ async fn drive(
     dispatch.resources.as_mut().unwrap().step.clear();
     if initialized && let Some(operation) = &template.cleanup {
         let cleanup = dispatch
-            .invoke::<_, v1::CleanupResponse>(
+            .invoke::<_, dokime_protocol::plugin::ExecutionsCleanupResponse>(
                 operation,
-                v1::CleanupRequest {
+                dokime_protocol::plugin::ExecutionsCleanupRequest {
                     execution: execution.clone(),
                     termination: termination as i32,
                     test_case: Some(case.clone()),

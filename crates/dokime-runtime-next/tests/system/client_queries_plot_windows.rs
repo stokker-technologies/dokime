@@ -92,7 +92,7 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
         store.close("plot-execution", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
         store.seal("plot-execution")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut plots = v1::plots_client::PlotsClient::connect(process.url.clone()).await?;
+
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("plot-execution".into()),
             ..Default::default()
@@ -115,7 +115,14 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
                 ..request.clone()
             })
             .collect::<Vec<_>>();
-        let reply = plots.query_snapshots(v1::PlotsQuerySnapshotsRequest { requests: requests.clone() }).await?.into_inner();
+        let reply = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            .await?
+            .list(v1::plots::SnapshotsListRequest {
+                requests: requests.clone(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
         assert_eq!(reply.envelopes.len(), 40);
         let mut examined_rows = 0;
         for envelope in &reply.envelopes {
@@ -133,12 +140,14 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
         assert!(examined_rows < retained as u64);
 
         // Zoom In and Observe the Actual Finer Resolution
-        let zoom = plots
-            .query_snapshots(v1::PlotsQuerySnapshotsRequest {
+        let zoom = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            .await?
+            .list(v1::plots::SnapshotsListRequest {
                 requests: vec![v1::PlotRequest {
                     viewport: Some(v1::PlotWindow { from: 1_000_000.0, to: 1_000_009.0 }),
                     ..request.clone()
                 }],
+                ..Default::default()
             })
             .await?
             .into_inner();
@@ -149,19 +158,17 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
         );
 
         // Deliver the Visible Plot First and Complete the Sealed Watch
-        let mut watch = plots.watch(v1::PlotsWatchRequest { requests }).await?.into_inner();
+        let mut watch = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            .await?
+            .watch(v1::plots::SnapshotsWatchRequest { requests, ..Default::default() })
+            .await?
+            .into_inner();
         let mut delivered = Vec::new();
-        let mut terminal = false;
         while let Some(frame) = watch.message().await? {
-            match frame.value.unwrap() {
-                v1::plots_watch_output::Value::Item(frame) => {
-                    assert_eq!(frame.updates.len(), 1);
-                    delivered.push(frame.updates[0].envelope.as_ref().unwrap().plot_id.clone());
-                }
-                v1::plots_watch_output::Value::Response(_) => terminal = true,
-            }
+            assert!(frame.opening);
+            assert!(frame.resync_required.is_none());
+            delivered.extend(frame.updates.into_iter().map(|update| update.envelope.unwrap().plot_id));
         }
-        assert!(terminal);
         assert_eq!(delivered, (0..40).map(|index| format!("visible-{index}")).collect::<Vec<_>>());
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())

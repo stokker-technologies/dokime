@@ -56,36 +56,12 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
-        let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel);
         let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
-        let planned = planning
-            .materialize_template(v1::PlanningMaterializeTemplateRequest {
-                selection: Some(v1::RegisteredSelection {
-                    suite_id: "execution".into(),
-                    template_id: "execution.capture".into(),
-                    parameters: super::support::parameters(19.0, 0, true)
-                        .into_iter()
-                        .map(|(key, value)| v1::RegisteredSelectionParametersEntry {
-                            key,
-                            value: Some(v1::SelectionValues { values: vec![value] }),
-                        })
-                        .collect(),
-                    ..Default::default()
-                }),
-            })
-            .await?
-            .into_inner();
-        let cycle = execution
-            .create_cycle(v1::ExecutionCreateCycleRequest {
-                origins: planned.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
-                continue_automatically: true,
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        let identifier = cycle.execution_ids[0].clone();
+        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
+        let parameters = super::support::parameters(19.0, 0, true).into_iter().map(|(key, value)| (key, vec![value])).collect();
+        let planned = client.templates.materialize("execution", "execution.capture", parameters).await?;
+        let cycle = client.cycles.start(planned).await?;
+        let identifier = cycle.executions[0].clone();
         let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
             .await?
             .watch(v1::executions::ProgressWatchRequest { name: identifier.clone(), at: None })
@@ -99,16 +75,26 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
             }
         }
         assert!(prompted);
-        let before = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
+        let before = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            .await?
+            .get(v1::ExecutionsGetRequest {
+                name: identifier.clone(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner()
+            .execution
+            .unwrap();
         assert!(before.controls.unwrap().can_cancel);
-        let request = v1::TelemetryListSamplesRequest {
+        let request = v1::evidence::SamplesListRequest {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some(identifier.clone()),
                 ..Default::default()
             }),
             ..Default::default()
         };
-        let samples = telemetry.list_samples(request.clone()).await?.into_inner();
+        let samples =
+            v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?.list(request.clone()).await?.into_inner();
         assert!(!samples.samples.is_empty());
         drop(progress);
 
@@ -116,25 +102,42 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
         process.kill().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut execution = v1::execution_client::ExecutionClient::new(channel.clone());
-        let mut query = v1::query_client::QueryClient::new(channel.clone());
-        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel.clone());
+
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
-        let recovered = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
+        let recovered = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            .await?
+            .get(v1::ExecutionsGetRequest {
+                name: identifier.clone(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner()
+            .execution
+            .unwrap();
         assert_eq!(recovered.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
         assert!(matches!(recovered.outcome.as_ref().unwrap().attribution.as_ref(),
             Some(v1::execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == v1::Termination::Interrupted as i32));
         let controls = recovered.controls.as_ref().unwrap();
         assert!(controls.can_rerun && controls.can_inspect && controls.can_export);
         assert!(!controls.can_start && !controls.can_cancel);
-        assert_eq!(telemetry.list_samples(request).await?.into_inner(), samples);
-        let page = query.list_executions(v1::QueryListExecutionsRequest::default()).await?.into_inner();
-        assert_eq!(page.rows, vec![recovered.summary.clone().unwrap()]);
+        assert_eq!(
+            v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?.list(request).await?.into_inner().samples,
+            samples.samples
+        );
+        let page = v1::executions_client::ExecutionsClient::connect(process.url.clone())
+            .await?
+            .list(v1::ExecutionsListRequest::default())
+            .await?
+            .into_inner();
+        assert_eq!(
+            page.executions.iter().filter_map(|row| row.summary.clone()).collect::<Vec<_>>(),
+            vec![recovered.summary.clone().unwrap()]
+        );
         let counts = page.outcome_counts.unwrap();
         assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (0, 1, 0));
         assert_eq!(counts.result_status, None);
         assert_eq!(recovered.cycle_counts.as_ref(), Some(&counts));
-        let saved = plugins.list(v1::ListPlugins {}).await?.into_inner();
+        let saved = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?.list(v1::ListPlugins {}).await?.into_inner();
         assert_eq!(saved.plugins.len(), 1);
         assert_eq!(saved.plugins[0].entry, entry.entry);
         assert_eq!(saved.plugins[0].state, v1::PluginState::Unavailable as i32);
@@ -154,8 +157,21 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::
 
         // Reattach the Plugin Without Replaying or Changing Recovered Evidence
         plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
-        assert_eq!(plugins.list(v1::ListPlugins {}).await?.into_inner().plugins[0].state, v1::PluginState::Ready as i32);
-        assert_eq!(execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier }).await?.into_inner(), recovered);
+        assert_eq!(
+            v1::plugins_client::PluginsClient::connect(process.url.clone()).await?.list(v1::ListPlugins {}).await?.into_inner().plugins[0]
+                .state,
+            v1::PluginState::Ready as i32
+        );
+        assert_eq!(
+            v1::executions_client::ExecutionsClient::connect(process.url.clone())
+                .await?
+                .get(v1::ExecutionsGetRequest { name: identifier, ..Default::default() })
+                .await?
+                .into_inner()
+                .execution
+                .unwrap(),
+            recovered
+        );
         process.close().await?;
         plugin.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())

@@ -58,11 +58,30 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         let mut plugin = dokime_runtime_next::PluginProcess::start(&support::content_fixture()?, true, &settings.placement).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let host = dokime::client::HostClient::new(channel.clone(), support::client_settings())?;
-        let client = dokime::Client::from_channel(channel, support::client_settings())?;
+        let client = dokime::Client::from_channel(channel.clone(), support::client_settings())?;
         host.plugins.add(plugin.endpoint()).await?;
         let cases = host.templates.materialize("content", "content.traceability", std::collections::HashMap::new()).await?;
-        let cycle = host.cycles.start(cases).await?;
-        let name = cycle.executions[0].clone();
+        let cycle = dokime::v1::cycles_client::CyclesClient::new(channel.clone())
+            .create(dokime::v1::CyclesCreateRequest {
+                origins: cases.into_iter().map(|case| case.origin.unwrap()).collect(),
+                request_id: uuid::Uuid::now_v7().to_string(),
+                continue_automatically: true,
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let admitted = dokime::v1::executions_client::ExecutionsClient::new(channel.clone())
+            .list(dokime::v1::ExecutionsListRequest {
+                parent: cycle.cycle.unwrap().cycle_id,
+                at: Some(harmos_protocol::v1::ReadCut {
+                    positions: vec![cycle.receipt.unwrap().durable_at.unwrap()],
+                    revisions: Vec::new(),
+                }),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let name = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
         let mut progress = client
             .executions
             .progress
@@ -122,7 +141,7 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
             }))
             .await?;
         assert_eq!(watch.next().await?.unwrap().snapshots.len(), 2);
-        let prompt = host.prompts.pending(name.clone()).await?.prompts[0].prompt_id.clone();
+        let prompt = host.prompts.pending(name.clone()).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         host.prompts.respond(prompt, "continue", true).await?;
         loop {
             let frame = watch.next().await?.ok_or("Watch Traceability: Missing Replacement")?;

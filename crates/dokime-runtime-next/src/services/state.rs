@@ -45,7 +45,7 @@ pub(super) struct State {
     pub status: std::sync::Arc<harmos_runtime::services::status::Status>,
     pub root: std::path::PathBuf,
     pub render_settings: crate::RenderSettings,
-    pub identity: v1::BackendIdentity,
+    pub identity: dokime_operations_next::client::HostIdentity,
     pub temporary_report_limit: usize,
 }
 
@@ -88,7 +88,7 @@ impl ClientHost for State {
         self.host.signal_change();
         Ok(())
     }
-    fn submit_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
+    fn submit_command(&self, request: v1::executions::CommandsCreateRequest) -> Result<v1::ExecutionCommandReceipt> {
         self.host.submit_execution_command(request).map_err(|error| Error::Precondition(error.to_string()))
     }
     fn now_ns(&self) -> i64 {
@@ -106,7 +106,7 @@ impl ClientHost for State {
             logs: self.root.join("logs").to_string_lossy().into_owned(),
         }
     }
-    fn identity(&self) -> v1::BackendIdentity {
+    fn identity(&self) -> dokime_operations_next::client::HostIdentity {
         self.identity.clone()
     }
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
@@ -115,22 +115,19 @@ impl ClientHost for State {
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)> {
         self.host.current_document(scope, identifier).map_err(convert)
     }
-    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)> {
-        self.host.render_report(subject, at, &self.identity, self.render_settings)
+    fn render_report(
+        &self, subject: &v1::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+    ) -> Result<(std::fs::File, v1::ReportMetadata)> {
+        self.host.render_report(subject, document_id, at, &self.identity, self.render_settings)
     }
-    fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()> {
+    fn retain_report(&self, file: std::fs::File, reference: harmos_protocol::storage::FileReference) -> Result<()> {
         self.host.reports.retain(file, reference, self.temporary_report_limit).map_err(convert)
     }
-    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>> {
+    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, harmos_protocol::storage::FileReference)>> {
         self.host.reports.temporary(identifier).map_err(convert)
     }
-    fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report> {
-        let snapshot = self.host.snapshot(execution).map_err(convert)?;
-        if snapshot.seal().is_empty() {
-            return Err(Error::Invalid("Publish Report: Seal the Execution Before Selecting Its Fixed Snapshot".into()));
-        }
-        let output = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
-        self.host.reports.publish(&output).map_err(convert)
+    fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {
+        self.host.reports.publish_prepared(prepared).map_err(convert)
     }
     async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse> {
         self.host.analyze(plugin, operation, request).await.map_err(convert)
@@ -205,8 +202,10 @@ impl ClientHost for State {
     fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.host.answer(execution, answer).map_err(convert)
     }
-    fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
-        self.host.record_answer(execution, answer).map_err(convert)
+    fn record_answer(
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::v1::Receipt> {
+        self.host.record_answer(execution, request_id, fingerprint, answer).map_err(convert)
     }
 }
 

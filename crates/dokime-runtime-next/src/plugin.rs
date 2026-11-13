@@ -274,15 +274,16 @@ pub(crate) async fn materialize(
         settings: settings.placement.clone(),
         clock: settings.clock.clone(),
     };
-    let test_case: v1::TestCase = dispatch
+    let response: dokime_protocol::plugin::TestCasesMaterializeResponse = dispatch
         .invoke(
             &definition.materialize,
-            v1::MaterializeRequest {
+            dokime_protocol::plugin::TestCasesMaterializeRequest {
                 template: template.into(),
                 parameters: parameters.clone(),
             },
         )
         .await?;
+    let test_case = response.test_case.ok_or_else(|| Error::Invalid("Materialize Test Case: Return Its Frozen Case".into()))?;
     if test_case.parameters != parameters {
         return Err(Error::Invalid("Materialize Without Changing the Resolved Parameter Set".into()));
     }
@@ -291,7 +292,7 @@ pub(crate) async fn materialize(
         test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
     {
         if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == h::Visibility::Protected as i32) {
-            return Err(Error::Invalid(format!("Declare the Materialized Operation {operation} as Private")));
+            return Err(Error::Invalid(format!("Materialize Test Case: Declare the Bound Operation {operation} as Protected")));
         }
     }
     let run = v1::PluginRun {

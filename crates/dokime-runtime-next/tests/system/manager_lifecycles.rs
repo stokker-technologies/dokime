@@ -139,8 +139,9 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
             action: "continue".into(),
             ..Default::default()
         };
-        host.record_answer(&execution, answer.clone())?;
-        assert!(host.record_answer(&execution, answer).is_err());
+        let receipt = host.record_answer(&execution, "answer", &[1], answer.clone())?;
+        assert_eq!(host.record_answer(&execution, "answer", &[1], answer.clone())?, receipt);
+        assert!(host.record_answer(&execution, "answer", &[2], answer).is_err());
         cycle.wait().await?;
         assert!(host.pending_prompts()?.is_empty());
         assert!(host.execution(&execution)?.evidence.iter().any(|row| row.kind == "client:answer"));

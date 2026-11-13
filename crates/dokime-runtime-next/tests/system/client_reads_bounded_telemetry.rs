@@ -86,127 +86,118 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Erro
         store.seal("telemetry")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel);
+        let mut telemetry = v1::evidence::samples_client::SamplesClient::new(channel);
         let scope = Some(v1::EvidenceScope {
             execution_id: Some("telemetry".into()),
             ..Default::default()
         });
-
-        // Read Bounded Forward Pages Without Losing or Repeating a Row
-        let mut request = v1::TelemetryListSamplesRequest {
+        let mut request = v1::evidence::SamplesListRequest {
             scope: scope.clone(),
             streams: vec!["sensor".into()],
-            limit: 137,
+            page: Some(harmos_protocol::v1::PageRequest { page_size: 137, ..Default::default() }),
             ..Default::default()
         };
         let mut read = Vec::new();
+        let mut first = None;
         loop {
-            let page = telemetry.list_samples(request.clone()).await?.into_inner();
+            let page = telemetry.list(request.clone()).await?.into_inner();
             assert!(page.samples.len() <= 137);
+            if first.is_none() {
+                first = Some(page.clone());
+            }
             read.extend(page.samples);
-            if page.complete {
+            if page.next_page_token.is_empty() {
                 break;
             }
-            request.after_stream_cursors = page
-                .through_stream_cursors
-                .into_iter()
-                .map(|cursor| v1::ListTelemetrySamplesRequestAfterStreamCursorsEntry { key: cursor.key, value: cursor.value })
-                .collect();
+            request.at = page.resolved_at;
+            request.page.as_mut().unwrap().page_token = page.next_page_token;
         }
-        assert_eq!(read.len(), samples.len());
+        let raw = read
+            .iter()
+            .map(|row| match row.kind.as_ref().unwrap() {
+                v1::sample_row::Kind::Raw(sample) => sample,
+                _ => panic!("Expected Raw Sample"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(raw.len(), samples.len());
         assert_eq!(
-            read.iter().map(|sample| sample.payload.clone()).collect::<Vec<_>>(),
+            raw.iter().map(|sample| sample.payload.clone()).collect::<Vec<_>>(),
             samples.iter().map(|sample| sample.row.clone()).collect::<Vec<_>>()
         );
-
-        // Read an Inclusive Source-Time Window and a Latest Tail
         let page = telemetry
-            .list_samples(v1::TelemetryListSamplesRequest {
+            .list(v1::evidence::SamplesListRequest {
                 scope: scope.clone(),
-                start: Some(prost_types::Timestamp { seconds: 90, nanos: 0 }),
-                end: Some(prost_types::Timestamp { seconds: 92, nanos: 0 }),
+                between: Some(v1::Window {
+                    start: Some(prost_types::Timestamp { seconds: 90, nanos: 0 }),
+                    end: Some(prost_types::Timestamp { seconds: 92, nanos: 0 }),
+                }),
                 ..Default::default()
             })
             .await?
             .into_inner();
-        assert_eq!(page.samples.iter().map(|sample| sample.sequence).collect::<Vec<_>>(), vec![91, 92, 93]);
+        assert_eq!(
+            page.samples
+                .iter()
+                .map(|row| match row.kind.as_ref().unwrap() {
+                    v1::sample_row::Kind::Raw(sample) => sample.sequence,
+                    _ => panic!("Expected Raw Sample"),
+                })
+                .collect::<Vec<_>>(),
+            vec![91, 92, 93]
+        );
         let tail = telemetry
-            .list_samples(v1::TelemetryListSamplesRequest {
+            .list(v1::evidence::SamplesListRequest {
                 scope: scope.clone(),
                 latest: true,
-                limit: 3,
+                page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),
                 ..Default::default()
             })
             .await?
             .into_inner();
-        assert_eq!(tail.samples.iter().map(|sample| sample.sequence).collect::<Vec<_>>(), vec![2398, 2399, 2400]);
-        assert!(
-            telemetry
-                .list_samples(v1::TelemetryListSamplesRequest {
-                    scope: scope.clone(),
-                    latest: true,
-                    after_stream_cursors: request.after_stream_cursors,
-                    ..Default::default()
+        assert_eq!(
+            tail.samples
+                .iter()
+                .map(|row| match row.kind.as_ref().unwrap() {
+                    v1::sample_row::Kind::Raw(sample) => sample.sequence,
+                    _ => panic!("Expected Raw Sample"),
                 })
-                .await
-                .is_err()
+                .collect::<Vec<_>>(),
+            vec![2398, 2399, 2400]
         );
-
-        // Replay Every Page and Observe the Terminal Response
+        let mut changed = request.clone();
+        changed.scope.as_mut().unwrap().execution_id = Some("foreign".into());
+        assert!(telemetry.list(changed).await.is_err());
         let mut watch = telemetry
-            .watch_samples(v1::TelemetryWatchSamplesRequest {
-                selection: Some(v1::ListSamples {
-                    scope: scope.clone(),
-                    limit: 127,
-                    ..Default::default()
-                }),
-                follow: true,
+            .watch(v1::evidence::SamplesWatchRequest {
+                scope: scope.clone(),
+                page: Some(harmos_protocol::v1::PageRequest { page_size: 127, ..Default::default() }),
+                ..Default::default()
             })
             .await?
             .into_inner();
         let mut count = 0;
-        let mut terminal = false;
         while let Some(frame) = watch.message().await? {
-            match frame.value.unwrap() {
-                v1::telemetry_watch_samples_output::Value::Item(page) => {
-                    assert!(page.samples.len() <= 127);
-                    count += page.samples.len();
-                }
-                v1::telemetry_watch_samples_output::Value::Response(_) => terminal = true,
-            }
+            assert!(frame.opening);
+            assert!(frame.resync_required.is_none());
+            assert!(frame.samples.len() <= 127);
+            count += frame.samples.len();
         }
         assert_eq!(count, 2400);
-        assert!(terminal);
-
-        // Invoke Both Operations Through Their Run Envelopes
-        let mut run = telemetry
-            .run_list_samples(tokio_stream::iter([v1::TelemetryListSamplesRunInput {
-                value: Some(v1::telemetry_list_samples_run_input::Value::Request(v1::TelemetryListSamplesRequest {
-                    scope: scope.clone(),
-                    limit: 7,
-                    ..Default::default()
-                })),
-            }]))
+        process.close().await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let mut telemetry = v1::evidence::samples_client::SamplesClient::connect(process.url.clone()).await?;
+        let first = first.unwrap();
+        let replay = telemetry
+            .list(v1::evidence::SamplesListRequest {
+                scope,
+                streams: vec!["sensor".into()],
+                at: first.resolved_at.clone(),
+                page: Some(harmos_protocol::v1::PageRequest { page_size: 137, ..Default::default() }),
+                ..Default::default()
+            })
             .await?
             .into_inner();
-        assert!(matches!(run.message().await?.unwrap().value, Some(v1::telemetry_list_samples_run_output::Value::Response(_))));
-        assert!(run.message().await?.is_none());
-        let mut run = telemetry
-            .run_watch_samples(tokio_stream::iter([v1::TelemetryWatchSamplesRunInput {
-                value: Some(v1::telemetry_watch_samples_run_input::Value::Request(v1::TelemetryWatchSamplesRequest {
-                    selection: Some(v1::ListSamples { scope, limit: 97, ..Default::default() }),
-                    follow: true,
-                })),
-            }]))
-            .await?
-            .into_inner();
-        let mut terminal = false;
-        while let Some(frame) = run.message().await? {
-            terminal |= matches!(frame.value, Some(v1::telemetry_watch_samples_run_output::Value::Response(_)));
-        }
-        assert!(terminal);
-        client.close();
+        assert_eq!(replay, first);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })

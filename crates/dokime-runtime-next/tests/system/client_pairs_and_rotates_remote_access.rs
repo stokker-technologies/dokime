@@ -49,8 +49,9 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
 
         // Export a Pairing File and Connect Through Its Pinned Certificate
         let root = super::support::tempdir()?;
-        let storage = root.path().join("storage");
-        let credentials = super::support::CredentialStore::start(root.path()).await?;
+        let storage = root.path().to_owned();
+        let credential_root = super::support::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
@@ -95,13 +96,10 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
 
         // The Same Authorization Protects Settings and Plugin Pages
         let mut settings = v1::settings_client::SettingsClient::new(channel.clone());
-        assert_eq!(
-            settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await.unwrap_err().code(),
-            tonic::Code::Unauthenticated,
-        );
-        let mut request = tonic::Request::new(v1::SettingsReadApplicationSettingsRequest {});
+        assert_eq!(settings.get(v1::SettingsGetRequest { ..Default::default() }).await.unwrap_err().code(), tonic::Code::Unauthenticated,);
+        let mut request = tonic::Request::new(v1::SettingsGetRequest { ..Default::default() });
         request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
-        assert!(settings.read_application_settings(request).await?.into_inner().settings.is_some());
+        assert!(settings.get(request).await?.into_inner().value.is_some());
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
         assert_eq!(plugins.list(v1::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut request = tonic::Request::new(v1::ListPlugins {});
@@ -112,116 +110,156 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
 
         // Execution Services Use the Same Authenticated Route Composer
         let key = format!("Bearer {}", first.credential);
-        let mut executions = v1::execution_client::ExecutionClient::new(channel.clone());
+        let executions = v1::executions_client::ExecutionsClient::new(channel.clone());
         assert_eq!(
-            executions.create_cycle(v1::ExecutionCreateCycleRequest::default()).await.unwrap_err().code(),
+            v1::cycles_client::CyclesClient::new(channel.clone()).create(v1::CyclesCreateRequest::default()).await.unwrap_err().code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::ExecutionCreateCycleRequest::default());
+        let mut request = tonic::Request::new(v1::CyclesCreateRequest {
+            request_id: "authorized-cycle".into(),
+            ..Default::default()
+        });
         request.metadata_mut().insert("authorization", key.parse()?);
-        let cycle = executions.create_cycle(request).await?.into_inner();
-        assert!(!cycle.cycle_id.is_empty());
+        let cycle = v1::cycles_client::CyclesClient::new(channel.clone()).create(request).await?.into_inner();
+        assert!(!cycle.cycle.unwrap().cycle_id.is_empty());
 
-        let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
-        assert_eq!(
-            planning.preview_selection(v1::PlanningPreviewSelectionRequest::default()).await.unwrap_err().code(),
-            tonic::Code::Unauthenticated
-        );
-        let mut request = tonic::Request::new(v1::PlanningPreviewSelectionRequest { plan: Some(v1::SelectionPlan::default()) });
+        let mut planning = v1::cases_client::CasesClient::new(channel.clone());
+        assert_eq!(planning.create(v1::CasesCreateRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::CasesCreateRequest {
+            plan: Some(v1::SelectionPlan::default()),
+            ..Default::default()
+        });
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert_eq!(planning.preview_selection(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        assert_eq!(planning.create(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
 
-        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
+        let observation = v1::backend::overview_client::OverviewClient::new(channel.clone());
         assert_eq!(
-            observation.get_runtime_shell(v1::ObservationGetRuntimeShellRequest::default()).await.unwrap_err().code(),
+            v1::backend::overview_client::OverviewClient::new(channel.clone())
+                .get(v1::backend::OverviewGetRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::ObservationGetRuntimeShellRequest::default());
+        let mut request = tonic::Request::new(v1::backend::OverviewGetRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        observation.get_runtime_shell(request).await?;
+        v1::backend::overview_client::OverviewClient::new(channel.clone()).get(request).await?;
 
-        let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
+        let prompts = v1::prompts_client::PromptsClient::new(channel.clone());
         assert_eq!(
-            prompts.list_definitions(v1::PromptsListDefinitionsRequest::default()).await.unwrap_err().code(),
+            v1::catalog::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
+                .list(v1::catalog::PromptDefinitionsListRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::PromptsListDefinitionsRequest::default());
+        let mut request = tonic::Request::new(v1::catalog::PromptDefinitionsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert!(prompts.list_definitions(request).await?.into_inner().definitions.is_empty());
+        assert!(
+            v1::catalog::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone())
+                .list(request)
+                .await?
+                .into_inner()
+                .values
+                .is_empty()
+        );
 
-        let mut history = v1::history_client::HistoryClient::new(channel.clone());
-        assert_eq!(
-            history.browse_cycles(v1::HistoryBrowseCyclesRequest::default()).await.unwrap_err().code(),
-            tonic::Code::Unauthenticated
-        );
-        let mut request = tonic::Request::new(v1::HistoryBrowseCyclesRequest::default());
+        let mut history = v1::cycles_client::CyclesClient::new(channel.clone());
+        assert_eq!(history.list(v1::CyclesListRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::CyclesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        history.browse_cycles(request).await?;
+        history.list(request).await?;
         drop((executions, planning, observation, prompts, history));
 
         // Every Data Service Uses the Same Authenticated Route Composer
-        let mut evidence = v1::evidence_client::EvidenceClient::new(channel.clone());
+        let evidence = v1::evidence_client::EvidenceClient::new(channel.clone());
         assert_eq!(
-            evidence.list_records(v1::EvidenceListRecordsRequest::default()).await.unwrap_err().code(),
+            v1::evidence::records_client::RecordsClient::new(channel.clone())
+                .list(v1::evidence::RecordsListRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::EvidenceListRecordsRequest::default());
+        let mut request = tonic::Request::new(v1::evidence::RecordsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        evidence.list_records(request).await?;
+        v1::evidence::records_client::RecordsClient::new(channel.clone()).list(request).await?;
         drop(evidence);
 
-        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel.clone());
+        let telemetry = v1::evidence::samples_client::SamplesClient::new(channel.clone());
         assert_eq!(
-            telemetry.list_samples(v1::TelemetryListSamplesRequest::default()).await.unwrap_err().code(),
+            v1::evidence::samples_client::SamplesClient::new(channel.clone())
+                .list(v1::evidence::SamplesListRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::TelemetryListSamplesRequest::default());
+        let mut request = tonic::Request::new(v1::evidence::SamplesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert_eq!(telemetry.list_samples(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        assert_eq!(
+            v1::evidence::samples_client::SamplesClient::new(channel.clone()).list(request).await.unwrap_err().code(),
+            tonic::Code::InvalidArgument
+        );
         drop(telemetry);
 
-        let mut plots = v1::plots_client::PlotsClient::new(channel.clone());
-        assert_eq!(plots.list_analyses(v1::PlotsListAnalysesRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::PlotsListAnalysesRequest::default());
-        request.metadata_mut().insert("authorization", key.parse()?);
-        plots.list_analyses(request).await?;
-        drop(plots);
-
-        let mut documents = v1::documents_client::DocumentsClient::new(channel.clone());
+        let plots = v1::plots::snapshots_client::SnapshotsClient::new(channel.clone());
         assert_eq!(
-            documents.update_plot_settings(v1::DocumentsUpdatePlotSettingsRequest::default()).await.unwrap_err().code(),
+            v1::catalog_client::CatalogClient::new(channel.clone())
+                .analyses(v1::CatalogAnalysesRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::DocumentsUpdatePlotSettingsRequest::default());
+        let mut request = tonic::Request::new(v1::CatalogAnalysesRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert_eq!(documents.update_plot_settings(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        v1::catalog_client::CatalogClient::new(channel.clone()).analyses(request).await?;
+        drop(plots);
+
+        let mut documents = v1::plots::settings_client::SettingsClient::new(channel.clone());
+        assert_eq!(documents.set(v1::plots::SettingsSetRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::plots::SettingsSetRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(documents.set(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
         drop(documents);
 
         let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
-        assert_eq!(
-            reports.materialize_report(v1::ReportsMaterializeReportRequest::default()).await.unwrap_err().code(),
-            tonic::Code::Unauthenticated
-        );
-        let mut request = tonic::Request::new(v1::ReportsMaterializeReportRequest::default());
+        assert_eq!(reports.create(v1::ReportsCreateRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::ReportsCreateRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert_eq!(reports.materialize_report(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        assert_eq!(reports.create(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
         drop(reports);
 
-        let mut content = v1::content_client::ContentClient::new(channel.clone());
+        let content = v1::content_client::ContentClient::new(channel.clone());
         assert_eq!(
-            content.list_artifacts(v1::ContentListArtifactsRequest::default()).await.unwrap_err().code(),
+            v1::content::artifacts_client::ArtifactsClient::new(channel.clone())
+                .list(v1::content::ArtifactsListRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
             tonic::Code::Unauthenticated
         );
-        let mut request = tonic::Request::new(v1::ContentListArtifactsRequest::default());
+        let mut request = tonic::Request::new(v1::content::ArtifactsListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert!(content.list_artifacts(request).await?.into_inner().artifacts.is_empty());
+        assert!(
+            v1::content::artifacts_client::ArtifactsClient::new(channel.clone()).list(request).await?.into_inner().artifacts.is_empty()
+        );
         drop(content);
 
-        let mut notes = v1::notes_client::NotesClient::new(channel.clone());
-        assert_eq!(notes.list_notes(v1::NotesListNotesRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
-        let mut request = tonic::Request::new(v1::NotesListNotesRequest::default());
+        let notes = v1::evidence::notes_client::NotesClient::new(channel.clone());
+        assert_eq!(
+            v1::evidence::notes_client::NotesClient::new(channel.clone())
+                .list(v1::evidence::NotesListRequest::default())
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::evidence::NotesListRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        notes.list_notes(request).await?;
+        v1::evidence::notes_client::NotesClient::new(channel.clone()).list(request).await?;
         drop(notes);
 
         // Independent Pairings Remain Valid Until Explicit Revocation

@@ -289,83 +289,154 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let mut documents = v1::documents_client::DocumentsClient::new(channel.clone());
-        let mut plots = v1::plots_client::PlotsClient::new(channel.clone());
-        let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
-        let mut content = v1::content_client::ContentClient::new(channel.clone());
+
+        let mut preferences = v1::plots::settings_client::SettingsClient::new(channel.clone());
+        let mut reports = v1::reports_client::ReportsClient::new(channel);
         let scope = v1::DocumentScope {
             cycle_id: "documents".into(),
             execution_id: "documents-a".into(),
         };
-
-        // Persist Plot Preferences and Capture Structure Before Data
-        documents
-            .update_plot_settings(v1::DocumentsUpdatePlotSettingsRequest {
+        let current = preferences
+            .get(v1::plots::SettingsGetRequest {
                 scope: Some(scope.clone()),
                 document_id: "measurements".into(),
                 plot_id: "trend".into(),
-                display_points: Some(32),
-                downsample: v1::Downsample::MinMax as i32,
-            })
-            .await?;
-        let mut capture = documents
-            .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
-                scope: Some(scope.clone()),
-                document_id: "measurements".into(),
                 ..Default::default()
             })
             .await?
             .into_inner();
+        preferences
+            .set(v1::plots::SettingsSetRequest {
+                scope: Some(scope.clone()),
+                document_id: "measurements".into(),
+                plot_id: "trend".into(),
+                value: Some(v1::plots::PlotSettingsValue {
+                    display_points: Some(32),
+                    downsample: v1::Downsample::MinMax as i32,
+                }),
+                expected_revision: current.revision,
+                request_id: "plot-settings".into(),
+            })
+            .await?;
+
+        // Read Bounded Pages at One Cut and Validate the Complete Frame Protocol.
+        let mut request = v1::DocumentsGetRequest {
+            scope: Some(scope.clone()),
+            document_id: "measurements".into(),
+            ..Default::default()
+        };
+        let first = documents.get(request.clone()).await?.into_inner();
+        let mut page = first.clone();
+        let mut frames = Vec::new();
+        let mut pages = 0;
+        loop {
+            pages += 1;
+            frames.extend(page.frames);
+            if page.next_page_token.is_empty() {
+                break;
+            }
+            request.page_token = page.next_page_token;
+            request.at = page.resolved_at;
+            page = documents.get(request.clone()).await?.into_inner();
+        }
+        assert!(pages > 1);
+        let mut structures = false;
+        let mut evidence_cut = false;
+        let mut completed = false;
         let mut binding = None;
+        let mut cards = std::collections::BTreeSet::new();
+        let mut bindings = std::collections::BTreeSet::new();
+        let mut finished = std::collections::BTreeSet::new();
+        let mut sections = std::collections::BTreeSet::new();
+        let mut repeats = std::collections::BTreeSet::new();
+        let mut layout_count = 0;
+        let mut table_rows = 0;
         let mut summaries = std::collections::BTreeMap::new();
         let mut grouped_counts = Vec::new();
-        let mut next_page = None;
-        let mut sections = std::collections::BTreeSet::new();
-        let mut table_rows = 0;
-        let mut completed = false;
-        let mut terminal = false;
-        let mut frame_count = 0;
-        while let Some(frame) = capture.message().await? {
-            match frame.value.unwrap() {
-                v1::documents_capture_current_document_output::Value::Item(frame) => {
-                    frame_count += 1;
-                    match frame.frame.unwrap().kind.unwrap() {
-                        v1::document_frame_frame::Kind::Binding(value) => {
-                            if let Some(v1::document_binding_result::Kind::Plot(plot)) = value.result.and_then(|result| result.kind)
-                                && value.source_id == "trend-card"
-                            {
-                                binding = plot.request;
-                            }
-                        }
-                        v1::document_frame_frame::Kind::SummaryTile(tile) => {
-                            assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
-                            if tile.card_id.starts_with("group-count.") {
-                                grouped_counts.push(tile.value.unwrap());
-                            } else {
-                                summaries.insert(tile.metadata.unwrap().identifier, tile.value.unwrap());
-                            }
-                        }
-                        v1::document_frame_frame::Kind::TableRow(_) => table_rows += 1,
-                        v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
-                        v1::document_frame_frame::Kind::LayoutNode(node) => {
-                            if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
-                                assert!(sections.insert(section.node_id));
-                            }
-                        }
-                        v1::document_frame_frame::Kind::Completion(completion) => {
-                            assert_eq!(completion.frame_count, frame_count);
-                            assert_eq!(completion.repeat_count, 1);
-                            completed = true;
-                        }
-                        _ => (),
+        for (index, frame) in frames.iter().enumerate() {
+            match frame.frame.as_ref().unwrap().kind.as_ref().unwrap() {
+                v1::document_frame_frame::Kind::Card(card) => {
+                    assert!(!structures);
+                    assert!(cards.insert(card.metadata.as_ref().unwrap().identifier.clone()));
+                }
+                v1::document_frame_frame::Kind::GroupDefinition(_) | v1::document_frame_frame::Kind::TileDefinition(_) => {
+                    assert!(!structures)
+                }
+                v1::document_frame_frame::Kind::Binding(value) => {
+                    assert_eq!(value.metadata.as_ref().unwrap().identifier, value.source_id);
+                    if !structures {
+                        bindings.insert(value.source_id.clone());
+                    } else {
+                        assert!(evidence_cut);
+                        assert!(bindings.contains(&value.source_id));
+                    }
+                    if let Some(v1::document_binding_result::Kind::Plot(plot)) =
+                        value.result.as_ref().and_then(|result| result.kind.as_ref())
+                        && value.source_id == "trend-card"
+                    {
+                        binding = plot.request.clone();
                     }
                 }
-                v1::documents_capture_current_document_output::Value::Response(_) => {
-                    assert!(completed);
-                    terminal = true;
+                v1::document_frame_frame::Kind::LayoutNode(node) => {
+                    assert!(!structures);
+                    layout_count += 1;
+                    if let Some(v1::document_layout_node_node::Kind::Section(section)) =
+                        node.node.as_ref().and_then(|node| node.kind.as_ref())
+                    {
+                        assert!(sections.insert(section.node_id.clone()));
+                    }
                 }
+                v1::document_frame_frame::Kind::RepeatSelection(value) => {
+                    assert!(!structures);
+                    repeats.insert(value.node_id.clone());
+                }
+                v1::document_frame_frame::Kind::StructureComplete(counts) => {
+                    assert!(!structures);
+                    structures = true;
+                    assert_eq!(counts.frame_count, index as u64 + 1);
+                    assert_eq!(counts.card_count, cards.len() as u64);
+                    assert_eq!(counts.binding_count, bindings.len() as u64);
+                    assert_eq!(counts.layout_node_count, layout_count);
+                    assert_eq!(counts.section_count, sections.len() as u64);
+                    assert_eq!(counts.repeat_count, repeats.len() as u64);
+                }
+                v1::document_frame_frame::Kind::EvidenceCut(_) => {
+                    assert!(structures);
+                    assert!(!evidence_cut);
+                    evidence_cut = true;
+                }
+                v1::document_frame_frame::Kind::SummaryTile(tile) => {
+                    assert!(evidence_cut);
+                    assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
+                    if tile.card_id.starts_with("group-count.") {
+                        grouped_counts.push(tile.value.clone().unwrap());
+                    } else {
+                        summaries.insert(tile.metadata.as_ref().unwrap().identifier.clone(), tile.value.clone().unwrap());
+                    }
+                }
+                v1::document_frame_frame::Kind::TableRow(_) => {
+                    assert!(evidence_cut);
+                    table_rows += 1;
+                }
+                v1::document_frame_frame::Kind::CardComplete(id) => {
+                    assert!(evidence_cut);
+                    assert!(bindings.contains(id));
+                    assert!(finished.insert(id.clone()));
+                }
+                v1::document_frame_frame::Kind::Completion(counts) => {
+                    assert!(evidence_cut);
+                    assert_eq!(counts.frame_count, index as u64 + 1);
+                    assert_eq!(counts.binding_count, bindings.len() as u64);
+                    assert_eq!(counts.card_count, cards.len() as u64);
+                    completed = true;
+                }
+                _ => (),
             }
         }
-        assert!(terminal);
+        assert!(completed);
+        assert_eq!(cards, bindings);
+        assert_eq!(finished, bindings);
+        assert_eq!(sections.len(), 1033);
         assert_eq!(table_rows, 7);
         assert_eq!(summaries["percentile"].kind, Some(v1::value::Kind::Number(2500.5)));
         assert_eq!(summaries["record-mean"].kind, Some(v1::value::Kind::Number(3.0)));
@@ -380,163 +451,103 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     _ => panic!("Expected Count"),
                 })
                 .sum::<i64>(),
-            10_003
+            10003
         );
-        let mut pages = 1;
-        while let Some(page) = next_page.take() {
-            let mut capture = documents
-                .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
-                    scope: Some(scope.clone()),
-                    document_id: "measurements".into(),
-                    page: Some(page),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner();
-            while let Some(frame) = capture.message().await? {
-                if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value {
-                    match frame.frame.unwrap().kind.unwrap() {
-                        v1::document_frame_frame::Kind::Page(page) => next_page = page.next,
-                        v1::document_frame_frame::Kind::LayoutNode(node) => {
-                            if let Some(v1::document_layout_node_node::Kind::Section(section)) = node.node.and_then(|node| node.kind) {
-                                assert!(sections.insert(section.node_id));
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-            }
-            pages += 1;
-        }
-        assert!(pages > 1);
-        assert_eq!(sections.len(), 1 + 31 + 1_001);
-        let mut cycle_document = documents
-            .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
-                scope: Some(v1::DocumentScope {
-                    cycle_id: "documents".into(),
-                    execution_id: String::new(),
-                }),
-                document_id: "default".into(),
+        let plot = binding.unwrap();
+        assert_eq!(plot.max_points, Some(32));
+        assert!(plot.at.is_some());
+        let reply = v1::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+            .await?
+            .list(v1::plots::SnapshotsListRequest {
+                requests: vec![plot],
                 ..Default::default()
             })
             .await?
             .into_inner();
-        let mut cycle_cards = 0;
-        while let Some(frame) = cycle_document.message().await? {
-            if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value {
-                match frame.frame.unwrap().kind.unwrap() {
-                    v1::document_frame_frame::Kind::Header(header) => assert!(header.scope.unwrap().execution_id.is_none()),
-                    v1::document_frame_frame::Kind::Card(_) => cycle_cards += 1,
-                    _ => (),
-                }
-            }
-        }
-        assert_eq!(cycle_cards, 3);
-        let binding = binding.unwrap();
-        assert_eq!(binding.max_points, Some(32));
-        assert!(binding.at.is_some());
-        let reply = plots.query_snapshots(v1::PlotsQuerySnapshotsRequest { requests: vec![binding] }).await?.into_inner();
-        assert_eq!(reply.envelopes[0].diagnostics.as_ref().unwrap().examined_rows, 10_003);
+        assert_eq!(reply.envelopes[0].diagnostics.as_ref().unwrap().examined_rows, 10003);
         assert!(reply.envelopes[0].diagnostics.as_ref().unwrap().point_count <= 32);
         assert!(store.reports("documents-a")?.is_empty());
 
-        // Materialize Temporary Output and Download It Without Publishing
-        let rendered = reports
-            .materialize_report(v1::ReportsMaterializeReportRequest {
-                subject: Some(v1::ReportSubject {
-                    kind: Some(v1::report_subject::Kind::Execution("documents-a".into())),
-                }),
-                at: None,
-            })
-            .await?
-            .into_inner()
-            .report
-            .unwrap();
-        let mut download = content
-            .download_artifact(v1::ContentDownloadArtifactRequest {
-                artifact_id: rendered.metadata.unwrap().id,
+        // Replaying a Cut Preserves Structure and Its Page Boundary.
+        let replay = documents
+            .get(v1::DocumentsGetRequest {
+                scope: Some(scope.clone()),
+                document_id: "measurements".into(),
+                at: first.resolved_at.clone(),
+                ..Default::default()
             })
             .await?
             .into_inner();
-        let mut html = Vec::new();
-        while let Some(frame) = download.message().await? {
-            if let Some(v1::content_download_artifact_output::Value::Item(frame)) = frame.value
-                && let Some(v1::artifact_frame_payload::Kind::Chunk(chunk)) = frame.payload.and_then(|payload| payload.kind)
-            {
-                html.extend(chunk.data);
-            }
-        }
-        use sha2::Digest;
-        assert_eq!(sha2::Sha256::digest(&html).as_slice(), rendered.sha256);
-        assert!(std::str::from_utf8(&html)?.contains("<svg"));
-        assert!(std::str::from_utf8(&html)?.contains("data-contour-band="));
-        assert!(std::str::from_utf8(&html)?.contains("data-contour-mask"));
-        assert!(store.reports("documents-a")?.is_empty());
-
-        // Refuse Unsupported Evidence Filters Without Publishing Misleading Output
-        let mut invalid = document.clone();
-        invalid.sections[0].cards.push(v1::Card {
-            body: Some(v1::card::Body::Evidence(v1::EvidenceCard::Records as i32)),
-            filters: vec![v1::DocumentFilter {
-                expression: Some(v1::DataExpression {
-                    kind: Some(v1::data_expression::Kind::Literal(v1::Value {
-                        kind: Some(v1::value::Kind::Boolean(true)),
-                    })),
-                    ..Default::default()
-                }),
-                operator: v1::FilterOperator::Eq as i32,
-                value: Some(v1::Value {
-                    kind: Some(v1::value::Kind::Boolean(true)),
-                }),
-            }],
+        assert_eq!(replay, first);
+        let mut structure = v1::DocumentsGetRequest {
+            scope: Some(scope),
+            document_id: "measurements".into(),
+            structure_only: true,
             ..Default::default()
-        });
-        assert_eq!(
-            reports
-                .publish_execution_report(v1::ReportsPublishExecutionReportRequest {
-                    execution_id: "documents-a".into(),
-                    document: Some(invalid)
-                })
-                .await
-                .unwrap_err()
-                .code(),
-            tonic::Code::InvalidArgument
-        );
-        assert!(store.reports("documents-a")?.is_empty());
+        };
+        let mut cut_seen = false;
+        loop {
+            let page = documents.get(structure.clone()).await?.into_inner();
+            for frame in page.frames {
+                match frame.frame.unwrap().kind.unwrap() {
+                    v1::document_frame_frame::Kind::EvidenceCut(_) => cut_seen = true,
+                    v1::document_frame_frame::Kind::CardComplete(_)
+                    | v1::document_frame_frame::Kind::SummaryTile(_)
+                    | v1::document_frame_frame::Kind::TableRow(_) => panic!("Structure-Only Capture Evaluated a Card"),
+                    _ => (),
+                }
+            }
+            if page.next_page_token.is_empty() {
+                break;
+            }
+            structure.at = page.resolved_at;
+            structure.page_token = page.next_page_token;
+        }
+        assert!(cut_seen);
 
-        // Publish Explicitly and Download an Independent Cycle Report
-        reports
-            .publish_execution_report(v1::ReportsPublishExecutionReportRequest {
-                execution_id: "documents-a".into(),
-                document: Some(document),
-            })
-            .await?;
-        assert_eq!(store.reports("documents-a")?.len(), 1);
-        let mut cycle = reports
-            .download_cycle_report(v1::ReportsDownloadCycleReportRequest {
-                cycle_id: "documents".into(),
-                identifier: "cycle".into(),
+        // Preparing Never Publishes; Publication Requires the Exact Prepared Revision.
+        let subject = v1::ReportSubject {
+            kind: Some(v1::report_subject::Kind::Execution("documents-a".into())),
+        };
+        let prepared = reports
+            .create(v1::ReportsCreateRequest {
+                subject: Some(subject.clone()),
+                document_id: "measurements".into(),
+                request_id: "preview".into(),
+                ..Default::default()
             })
             .await?
             .into_inner();
-        let mut completion = false;
-        let mut terminal = false;
-        while let Some(frame) = cycle.message().await? {
-            match frame.value.unwrap() {
-                v1::reports_download_cycle_report_output::Value::Item(frame) => {
-                    if matches!(frame.payload.and_then(|payload| payload.kind), Some(v1::report_html_frame_payload::Kind::Complete(_))) {
-                        completion = true;
-                    }
-                }
-                v1::reports_download_cycle_report_output::Value::Response(_) => {
-                    assert!(completion);
-                    terminal = true;
-                }
-            }
-        }
-        assert!(terminal);
+        let reference = prepared.file.unwrap();
+        let name = reference.metadata.as_ref().unwrap().id.clone();
+        let frozen: dokime_storage::Report = store.administration(&name)?.unwrap();
+        use sha2::Digest;
+        assert_eq!(sha2::Sha256::digest(&frozen.html).as_slice(), reference.sha256);
+        assert!(std::str::from_utf8(&frozen.html)?.contains("<svg"));
+        assert!(store.reports("documents-a")?.is_empty());
+        let mut publish = v1::ReportsPublishRequest {
+            name,
+            subject: Some(subject),
+            expected_revision: vec![0],
+            request_id: "publish".into(),
+        };
+        assert!(reports.publish(publish.clone()).await.is_err());
+        assert!(store.reports("documents-a")?.is_empty());
+        publish.expected_revision = reference.sha256;
+        reports.publish(publish).await?;
+        assert_eq!(store.reports("documents-a")?.len(), 1);
+        let cycle = reports
+            .create(v1::ReportsCreateRequest {
+                subject: Some(v1::ReportSubject {
+                    kind: Some(v1::report_subject::Kind::Cycle("documents".into())),
+                }),
+                request_id: "cycle-preview".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert!(cycle.file.unwrap().length > 0);
         assert!(store.reports("documents-b")?.is_empty());
-        // An Open Member Prevents Reusing a Cycle Capture as Sealed Evidence
         store.create(&Execution {
             identifier: "documents-open".into(),
             cycle: "documents".into(),
@@ -546,24 +557,27 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
             }),
             ..Default::default()
         })?;
-        let mut open_cycle = documents
-            .capture_current_document(v1::DocumentsCaptureCurrentDocumentRequest {
-                scope: Some(v1::DocumentScope {
-                    cycle_id: "documents".into(),
-                    execution_id: String::new(),
-                }),
-                document_id: "default".into(),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
+        let mut cycle_request = v1::DocumentsGetRequest {
+            scope: Some(v1::DocumentScope {
+                cycle_id: "documents".into(),
+                execution_id: String::new(),
+            }),
+            document_id: "default".into(),
+            ..Default::default()
+        };
         let mut cacheable = None;
-        while let Some(frame) = open_cycle.message().await? {
-            if let Some(v1::documents_capture_current_document_output::Value::Item(frame)) = frame.value
-                && let Some(v1::document_frame_frame::Kind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind)
-            {
-                cacheable = Some(cut.cacheable);
+        loop {
+            let page = documents.get(cycle_request.clone()).await?.into_inner();
+            for frame in page.frames {
+                if let Some(v1::document_frame_frame::Kind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind) {
+                    cacheable = Some(cut.cacheable);
+                }
             }
+            if page.next_page_token.is_empty() {
+                break;
+            }
+            cycle_request.at = page.resolved_at;
+            cycle_request.page_token = page.next_page_token;
         }
         assert_eq!(cacheable, Some(false));
         process.close().await?;

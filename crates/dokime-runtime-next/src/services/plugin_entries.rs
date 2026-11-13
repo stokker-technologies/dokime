@@ -50,10 +50,9 @@ impl State {
     pub(super) async fn connect_entry(&self, mut entry: v1::Plugin) -> Result<v1::Plugin> {
         let managed = matches!(entry.placement, Some(v1::plugin::Placement::Managed(_)));
         let mut placement = self.host.settings.placement.clone();
-        let preferences: Option<v1::SettingsSnapshot> = self.host.store.administration("preferences")?;
-        let preferences =
-            preferences.unwrap_or_else(dokime_operations_next::client::settings_read_application_settings::initial_preferences);
-        if let Some(plugins) = preferences.settings.and_then(|settings| settings.plugins) {
+        let preferences: Option<v1::ApplicationSettings> = self.host.store.administration("preferences")?;
+        let preferences = preferences.unwrap_or_else(|| dokime_operations_next::client::settings_get::initial_preferences().value.unwrap());
+        if let Some(plugins) = preferences.plugins {
             placement.connect_timeout = std::time::Duration::from_secs(plugins.startup_timeout_s.into());
             placement.stop_grace = std::time::Duration::from_secs(plugins.stop_timeout_s.into());
         }

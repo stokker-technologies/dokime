@@ -12,36 +12,48 @@
 /* === Modules === */
 
 mod access_credentials;
-mod appearance;
+mod aggregates;
+mod backend;
+mod backend_overview;
 mod bundle_permissions;
 mod bundles;
+mod cases;
 mod catalog;
+mod catalog_prompt_definitions;
+mod catalog_record_schemas;
+mod catalog_stream_schemas;
+mod catalog_suites;
 mod clock;
 mod composition;
 mod content;
+mod content_artifacts;
+mod content_execution_files;
+mod cycles;
 mod documents;
 mod evidence;
+mod evidence_health_events;
+mod evidence_notes;
+mod evidence_records;
+mod evidence_samples;
 mod evidence_traceability;
-mod execution;
+mod executions;
+mod executions_commands;
 mod executions_progress;
-mod health;
-mod history;
 mod managed_plugins;
-mod media;
-mod notes;
-mod observation;
-mod planning;
-mod plots;
+mod media_captures;
+mod plots_settings;
+mod plots_snapshots;
 mod plugin_entries;
 mod plugins;
+mod plugins_settings;
 mod prompts;
-mod query;
+mod prompts_answers;
 mod reports;
 mod secrets;
 mod settings;
 mod state;
 mod status;
-mod telemetry;
+mod storage_sources;
 
 /* === Re-Exports === */
 
@@ -154,14 +166,9 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let clock = host_settings.clock.clone();
     let host = Host::open(root, host_settings)?;
     let backend_id = host.store.identity().to_owned();
-    let identity = v1::BackendIdentity {
+    let identity = dokime_operations_next::client::HostIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
-        api: Some(v1::ApiIdentity {
-            package: "dokime.v1".into(),
-            version: "v1".into(),
-            descriptor_sha256: Vec::new(),
-        }),
         product_version: env!("CARGO_PKG_VERSION").into(),
         target: bundles::native_target().into(),
         started_at: Some(prost_types::Timestamp {
@@ -169,7 +176,6 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
             nanos: host.now_ns().rem_euclid(1_000_000_000) as i32,
         }),
         display_name: "Dokime Execution Host".into(),
-        ..Default::default()
     };
     let runtime = composition::launch(clock).await?;
     let status = runtime.services().configure_status(status::settings(&settings, backend_id.clone()))?;
@@ -238,17 +244,17 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
     manager.register_service(
-        v1::evidence::traceability_server::TraceabilityServer::new(services.clone())
+        v1::aggregates_server::AggregatesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::executions::progress_server::ProgressServer::new(services.clone())
+        v1::backend_server::BackendServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::appearance_server::AppearanceServer::new(services.clone())
+        v1::cases_server::CasesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
@@ -263,22 +269,17 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
+        v1::plugins_server::PluginsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::cycles_server::CyclesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
         v1::documents_server::DocumentsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::media_server::MediaServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::notes_server::NotesServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::plots_server::PlotsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
@@ -288,42 +289,12 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::execution_server::ExecutionServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::health_server::HealthServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::history_server::HistoryServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::observation_server::ObservationServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::planning_server::PlanningServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::plugins_server::PluginsServer::new(services.clone())
+        v1::executions_server::ExecutionsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
         v1::prompts_server::PromptsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::query_server::QueryServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
@@ -343,7 +314,102 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::telemetry_server::TelemetryServer::new(services.clone())
+        v1::backend::overview_server::OverviewServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::catalog::prompt_definitions_server::PromptDefinitionsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::catalog::record_schemas_server::RecordSchemasServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::catalog::stream_schemas_server::StreamSchemasServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::catalog::suites_server::SuitesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::content::artifacts_server::ArtifactsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::content::execution_files_server::ExecutionFilesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::evidence::health_events_server::HealthEventsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::evidence::notes_server::NotesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::evidence::records_server::RecordsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::evidence::samples_server::SamplesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::evidence::traceability_server::TraceabilityServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::executions::commands_server::CommandsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::executions::progress_server::ProgressServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::media::captures_server::CapturesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::plots::settings_server::SettingsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::plots::snapshots_server::SnapshotsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::plugins::settings_server::SettingsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::prompts::answers_server::AnswersServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        v1::storage::sources_server::SourcesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

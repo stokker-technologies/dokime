@@ -72,60 +72,72 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut settings = v1::settings_client::SettingsClient::connect(process.url.clone()).await?;
-        let frame = settings.get_settings(v1::SettingsGetSettingsRequest {}).await?.into_inner();
+        let frame = settings.schema(v1::SettingsSchemaRequest::default()).await?.into_inner().schema.unwrap();
         assert_eq!(std::path::Path::new(&frame.bootstrap_paths.unwrap().storage), root.path());
-        let before = settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await?.into_inner();
-        let mut changed = before.settings.clone().unwrap();
-        changed.report.as_mut().unwrap().plot_points = 321;
-        let update = v1::UpdateSettings {
-            expected_revision: before.revision,
-            settings: Some(changed.clone()),
+        let before = settings.get(v1::SettingsGetRequest::default()).await?.into_inner();
+        let mut value = before.value.clone().unwrap();
+        value.report.as_mut().unwrap().plot_points = 321;
+        let update = v1::SettingsSetRequest {
+            value: Some(value.clone()),
+            expected_revision: before.revision.clone(),
+            request_id: "preferences".into(),
         };
-        let saved = settings
-            .update_application_settings(v1::SettingsUpdateApplicationSettingsRequest { update: Some(update.clone()) })
-            .await?
-            .into_inner();
-        assert_eq!(saved.settings, Some(changed));
-        assert!(saved.revision > before.revision);
-        assert_eq!(
-            settings
-                .update_application_settings(v1::SettingsUpdateApplicationSettingsRequest { update: Some(update) })
-                .await
-                .unwrap_err()
-                .code(),
-            tonic::Code::Aborted
-        );
-
-        // Validate Before Committing and Preserve the Previous Revision
-        let mut invalid = saved.settings.clone().unwrap();
+        let saved = settings.set(update.clone()).await?.into_inner();
+        assert_eq!(saved.value, Some(value));
+        assert_ne!(saved.revision, before.revision);
+        assert_eq!(settings.set(update.clone()).await?.into_inner(), saved);
+        let mut stale = update.clone();
+        stale.request_id = "stale".into();
+        assert_eq!(settings.set(stale).await.unwrap_err().code(), tonic::Code::Aborted);
+        let mut invalid = saved.value.clone().unwrap();
         invalid.client.as_mut().unwrap().connect_timeout_ms = 0;
         assert!(
             settings
-                .update_application_settings(v1::SettingsUpdateApplicationSettingsRequest {
-                    update: Some(v1::UpdateSettings {
-                        expected_revision: saved.revision,
-                        settings: Some(invalid)
-                    })
+                .set(v1::SettingsSetRequest {
+                    value: Some(invalid),
+                    expected_revision: saved.revision.clone(),
+                    request_id: "invalid".into(),
                 })
                 .await
                 .is_err()
         );
-        assert_eq!(settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await?.into_inner(), saved);
-        let sources = settings.list_storage_sources(v1::SettingsListStorageSourcesRequest {}).await?.into_inner();
-        assert_eq!(
-            settings
-                .reorder_storage_sources(v1::SettingsReorderStorageSourcesRequest {
-                    identifiers: sources.sources.iter().map(|source| source.identifier.clone()).collect()
+        let current = settings.get(v1::SettingsGetRequest::default()).await?.into_inner();
+        assert_eq!(current.value, saved.value);
+        assert_eq!(current.revision, saved.revision);
+        let pinned = settings.get(v1::SettingsGetRequest { at: before.resolved_at }).await?.into_inner();
+        assert_eq!(pinned.value, before.value);
+
+        // Whole Source and Plugin Values Use Their Own Revisions.
+        let mut sources = v1::storage::sources_client::SourcesClient::connect(process.url.clone()).await?;
+        let current = sources.get(v1::storage::SourcesGetRequest::default()).await?.into_inner();
+        let saved_sources = sources
+            .set(v1::storage::SourcesSetRequest {
+                value: current.value.clone(),
+                expected_revision: current.revision,
+                request_id: "sources".into(),
+            })
+            .await?
+            .into_inner();
+        assert_eq!(saved_sources.value, current.value);
+        let mut plugins = v1::plugins::settings_client::SettingsClient::connect(process.url.clone()).await?;
+        assert!(
+            plugins
+                .get(v1::plugins::SettingsGetRequest {
+                    name: "missing".into(),
+                    ..Default::default()
                 })
-                .await?
-                .into_inner(),
-            sources
+                .await
+                .is_err()
         );
-        assert!(settings.get_plugin_settings(v1::SettingsGetPluginSettingsRequest { plugin_id: "missing".into() }).await.is_err());
-        let plugin_before =
-            settings.get_plugin_settings(v1::SettingsGetPluginSettingsRequest { plugin_id: "settings.fixture".into() }).await?.into_inner();
-        assert_eq!(plugin_before.values.unwrap().values["enabled"].kind, Some(v1::value::Kind::Boolean(true)));
-        let values = v1::MapValue {
+        let before = plugins
+            .get(v1::plugins::SettingsGetRequest {
+                name: "settings.fixture".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert_eq!(before.value.as_ref().unwrap().values["enabled"].kind, Some(v1::value::Kind::Boolean(true)));
+        let value = v1::MapValue {
             values: std::collections::HashMap::from([(
                 "enabled".into(),
                 v1::Value {
@@ -133,41 +145,54 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
                 },
             )]),
         };
-        let plugin_saved = settings
-            .update_plugin_settings(v1::SettingsUpdatePluginSettingsRequest {
-                plugin_id: "settings.fixture".into(),
-                values: Some(values.clone()),
+        let saved_plugin = plugins
+            .set(v1::plugins::SettingsSetRequest {
+                name: "settings.fixture".into(),
+                value: Some(value.clone()),
+                expected_revision: before.revision,
+                request_id: "plugin-value".into(),
             })
             .await?
             .into_inner();
-        assert_eq!(plugin_saved.values, Some(values));
+        assert_eq!(saved_plugin.value, Some(value));
+        let invalid = v1::MapValue {
+            values: std::collections::HashMap::from([(
+                "enabled".into(),
+                v1::Value {
+                    kind: Some(v1::value::Kind::Text("invalid".into())),
+                },
+            )]),
+        };
         assert!(
-            settings
-                .update_plugin_settings(v1::SettingsUpdatePluginSettingsRequest {
-                    plugin_id: "settings.fixture".into(),
-                    values: Some(v1::MapValue {
-                        values: std::collections::HashMap::from([(
-                            "enabled".into(),
-                            v1::Value {
-                                kind: Some(v1::value::Kind::Text("invalid".into()))
-                            }
-                        )])
-                    })
+            plugins
+                .set(v1::plugins::SettingsSetRequest {
+                    name: "settings.fixture".into(),
+                    value: Some(invalid),
+                    expected_revision: saved_plugin.revision.clone(),
+                    request_id: "invalid-plugin".into(),
                 })
                 .await
                 .is_err()
         );
         process.close().await?;
 
-        // Reopen Settings Without Losing the Saved Revision
+        // Reopening Preserves the Exact Writable Values and Revisions.
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut settings = v1::settings_client::SettingsClient::connect(process.url.clone()).await?;
-        assert_eq!(settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await?.into_inner(), saved);
-        assert_eq!(
-            settings.get_plugin_settings(v1::SettingsGetPluginSettingsRequest { plugin_id: "settings.fixture".into() }).await?.into_inner(),
-            plugin_saved
-        );
+        let reopened = settings.get(v1::SettingsGetRequest::default()).await?.into_inner();
+        assert_eq!(reopened.value, saved.value);
+        assert_eq!(reopened.revision, saved.revision);
+        let mut plugins = v1::plugins::settings_client::SettingsClient::connect(process.url.clone()).await?;
+        let reopened = plugins
+            .get(v1::plugins::SettingsGetRequest {
+                name: "settings.fixture".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert_eq!(reopened.value, saved_plugin.value);
+        assert_eq!(reopened.revision, saved_plugin.revision);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })
