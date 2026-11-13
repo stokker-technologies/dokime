@@ -1237,12 +1237,11 @@ capability and failing consumer proof are recorded under Library Requests. Exist
 product transfers and their journeys stay intact until that dependency is available;
 no duplicate persistence owner or forwarding service is introduced.
 
-HostValues is deferred without changing its locked ownership: the library's Get
-requires its private Caller resource, populated from admitted plugin declarations.
-`register_values` alone cannot attach that caller to the current product dispatcher.
-Wiring it requires the library-backed admission/context replacement excluded from
-this task and blocked by the existing wire-identity request. Existing settings and
-secret delivery remains until that composition is admitted.
+HostValues requires the library's Caller resource, populated from admitted plugin
+declarations; `register_values` alone cannot attach it to the current product
+dispatcher. Wiring it requires the library-backed admission/context replacement,
+now authorized and unblocked by the resolved wire-identity request. Existing
+settings/secret delivery remains until that implementation slice replaces it.
 
 The C++ library root cannot accept per-call bearer metadata or a caller context;
 its authenticated client journey remains on the existing fixture until the library
@@ -1251,18 +1250,15 @@ use the composed root. Shared old-loop protobuf declarations and generic managed
 client fixture DTOs retire with the excluded protocol/managed-method cutover; they
 are not exposed as new-host compatibility services.
 
-### Library Admission Request
+### Resolved Library Admission Request
 
-The converged revision's non-reserved `OperationContract::from_protobuf` path
-calls native `OperationDefinition::validate`, whose dotted-identity validator
-refuses both generated numeric template-local bindings and the locked
-`package.Service/Method` wire identities. The Rust SDK's reference-host authoring
-story fails at attachment before materialization with the existing step binding.
-The smallest upstream change is a wire-identity validation path that retains
-schema, fingerprint, visibility and provider admission independently from native
-portable IDs. Product aliases or renaming numeric bindings to evade it would
-hide the defect. The sibling is read-only; library-backed admission remains open
-under Library Requests in tasks.md.
+The pinned library now validates dotted wire identities with numeric segments and
+`package.Service/Method` identities whose package determines the face, independently
+from native portable identities. All five Rust SDK journeys pass, including the
+reference-host authoring story that previously failed at attachment. Descriptor,
+fingerprint, visibility and provider checks remain required. Library-backed
+admission/context composition can proceed; the product has not yet migrated its
+own dispatcher and plugin-entry lifecycle.
 
 ### SDK Ownership and Remaining Coverage Facts
 

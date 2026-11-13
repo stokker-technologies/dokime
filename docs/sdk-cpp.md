@@ -1,7 +1,7 @@
 # C++ SDK
 
 `sdk/cpp` is a C++20 source SDK. `Dokime::Cpp` provides plugin composition on
-Harmos revision `b5f595087967a085662689654bfadeff3d77ffa1`, generated Dokime
+Harmos revision `26010c03516060deb5f70d17af3fbf0e49d9fbe2`, generated Dokime
 messages and service stubs, a channel-owning client, and the plot/document builders.
 Only `.proto` files are authoritative; CMake runs the build's own `protoc` and
 `grpc_cpp_plugin`, so generated sources never need to be committed.
