@@ -1,6 +1,6 @@
 syntax = "proto3";
 package dokime.v1.executions;
-option csharp_namespace = "Dokime.Protocol.V1.Executions";
+option csharp_namespace = "Dokime.Protocol.V1.ExecutionsResources";
 import "dokime/v1/resources.proto";
 import "harmos/v1/types.proto";
 

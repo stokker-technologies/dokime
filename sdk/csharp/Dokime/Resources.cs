@@ -170,18 +170,18 @@ public sealed class BackendOverviewResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Backend.OverviewGetResponse> Get(global::Dokime.Protocol.V1.Backend.OverviewGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.BackendResources.OverviewGetResponse> Get(global::Dokime.Protocol.V1.BackendResources.OverviewGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Backend.OverviewGetRequest, global::Dokime.Protocol.V1.Backend.OverviewGetResponse>(MethodType.Unary, "dokime.v1.backend.Overview", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Backend.OverviewGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Backend.OverviewGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Backend.OverviewGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Backend.OverviewGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.BackendResources.OverviewGetRequest, global::Dokime.Protocol.V1.BackendResources.OverviewGetResponse>(MethodType.Unary, "dokime.v1.backend.Overview", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.BackendResources.OverviewGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.BackendResources.OverviewGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.BackendResources.OverviewGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.BackendResources.OverviewGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Backend.OverviewWatchResponse> Watch(global::Dokime.Protocol.V1.Backend.OverviewWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.BackendResources.OverviewWatchResponse> Watch(global::Dokime.Protocol.V1.BackendResources.OverviewWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Backend.OverviewWatchRequest, global::Dokime.Protocol.V1.Backend.OverviewWatchResponse>(MethodType.ServerStreaming, "dokime.v1.backend.Overview", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Backend.OverviewWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Backend.OverviewWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Backend.OverviewWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Backend.OverviewWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.BackendResources.OverviewWatchRequest, global::Dokime.Protocol.V1.BackendResources.OverviewWatchResponse>(MethodType.ServerStreaming, "dokime.v1.backend.Overview", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.BackendResources.OverviewWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.BackendResources.OverviewWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.BackendResources.OverviewWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.BackendResources.OverviewWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -265,18 +265,18 @@ public sealed class CatalogPromptDefinitionsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetResponse> Get(global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetResponse> Get(global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetRequest, global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetResponse>(MethodType.Unary, "dokime.v1.catalog.PromptDefinitions", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.PromptDefinitionsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetRequest, global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetResponse>(MethodType.Unary, "dokime.v1.catalog.PromptDefinitions", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListResponse> List(global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListResponse> List(global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListRequest, global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListResponse>(MethodType.Unary, "dokime.v1.catalog.PromptDefinitions", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.PromptDefinitionsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListRequest, global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListResponse>(MethodType.Unary, "dokime.v1.catalog.PromptDefinitions", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.PromptDefinitionsListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -287,18 +287,18 @@ public sealed class CatalogRecordSchemasResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.RecordSchemasGetResponse> Get(global::Dokime.Protocol.V1.Catalog.RecordSchemasGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetResponse> Get(global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.RecordSchemasGetRequest, global::Dokime.Protocol.V1.Catalog.RecordSchemasGetResponse>(MethodType.Unary, "dokime.v1.catalog.RecordSchemas", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.RecordSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.RecordSchemasGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.RecordSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.RecordSchemasGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetRequest, global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetResponse>(MethodType.Unary, "dokime.v1.catalog.RecordSchemas", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.RecordSchemasGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.RecordSchemasListResponse> List(global::Dokime.Protocol.V1.Catalog.RecordSchemasListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListResponse> List(global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.RecordSchemasListRequest, global::Dokime.Protocol.V1.Catalog.RecordSchemasListResponse>(MethodType.Unary, "dokime.v1.catalog.RecordSchemas", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.RecordSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.RecordSchemasListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.RecordSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.RecordSchemasListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListRequest, global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListResponse>(MethodType.Unary, "dokime.v1.catalog.RecordSchemas", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.RecordSchemasListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -309,18 +309,18 @@ public sealed class CatalogStreamSchemasResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.StreamSchemasGetResponse> Get(global::Dokime.Protocol.V1.Catalog.StreamSchemasGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetResponse> Get(global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.StreamSchemasGetRequest, global::Dokime.Protocol.V1.Catalog.StreamSchemasGetResponse>(MethodType.Unary, "dokime.v1.catalog.StreamSchemas", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.StreamSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.StreamSchemasGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.StreamSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.StreamSchemasGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetRequest, global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetResponse>(MethodType.Unary, "dokime.v1.catalog.StreamSchemas", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.StreamSchemasGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.StreamSchemasListResponse> List(global::Dokime.Protocol.V1.Catalog.StreamSchemasListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListResponse> List(global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.StreamSchemasListRequest, global::Dokime.Protocol.V1.Catalog.StreamSchemasListResponse>(MethodType.Unary, "dokime.v1.catalog.StreamSchemas", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.StreamSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.StreamSchemasListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.StreamSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.StreamSchemasListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListRequest, global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListResponse>(MethodType.Unary, "dokime.v1.catalog.StreamSchemas", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.StreamSchemasListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -331,18 +331,18 @@ public sealed class CatalogSuitesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.SuitesGetResponse> Get(global::Dokime.Protocol.V1.Catalog.SuitesGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.SuitesGetResponse> Get(global::Dokime.Protocol.V1.CatalogResources.SuitesGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.SuitesGetRequest, global::Dokime.Protocol.V1.Catalog.SuitesGetResponse>(MethodType.Unary, "dokime.v1.catalog.Suites", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.SuitesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.SuitesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.SuitesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.SuitesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.SuitesGetRequest, global::Dokime.Protocol.V1.CatalogResources.SuitesGetResponse>(MethodType.Unary, "dokime.v1.catalog.Suites", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.SuitesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.SuitesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.SuitesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.SuitesGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Catalog.SuitesListResponse> List(global::Dokime.Protocol.V1.Catalog.SuitesListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.CatalogResources.SuitesListResponse> List(global::Dokime.Protocol.V1.CatalogResources.SuitesListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Catalog.SuitesListRequest, global::Dokime.Protocol.V1.Catalog.SuitesListResponse>(MethodType.Unary, "dokime.v1.catalog.Suites", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.SuitesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.SuitesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Catalog.SuitesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Catalog.SuitesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.CatalogResources.SuitesListRequest, global::Dokime.Protocol.V1.CatalogResources.SuitesListResponse>(MethodType.Unary, "dokime.v1.catalog.Suites", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.SuitesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.SuitesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.CatalogResources.SuitesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.CatalogResources.SuitesListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -378,32 +378,32 @@ public sealed class ContentArtifactsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Content.ArtifactsGetResponse> Get(global::Dokime.Protocol.V1.Content.ArtifactsGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ContentResources.ArtifactsGetResponse> Get(global::Dokime.Protocol.V1.ContentResources.ArtifactsGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ArtifactsGetRequest, global::Dokime.Protocol.V1.Content.ArtifactsGetResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ArtifactsGetRequest, global::Dokime.Protocol.V1.ContentResources.ArtifactsGetResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Content.ArtifactsCreateResponse> Create(global::Dokime.Protocol.V1.Content.ArtifactsCreateRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateResponse> Create(global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ArtifactsCreateRequest, global::Dokime.Protocol.V1.Content.ArtifactsCreateResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "Create",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateRequest, global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "Create",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsCreateResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Content.ArtifactsListResponse> List(global::Dokime.Protocol.V1.Content.ArtifactsListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ContentResources.ArtifactsListResponse> List(global::Dokime.Protocol.V1.ContentResources.ArtifactsListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ArtifactsListRequest, global::Dokime.Protocol.V1.Content.ArtifactsListResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ArtifactsListRequest, global::Dokime.Protocol.V1.ContentResources.ArtifactsListResponse>(MethodType.Unary, "dokime.v1.content.Artifacts", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Content.ArtifactsWatchResponse> Watch(global::Dokime.Protocol.V1.Content.ArtifactsWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchResponse> Watch(global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ArtifactsWatchRequest, global::Dokime.Protocol.V1.Content.ArtifactsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.content.Artifacts", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ArtifactsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ArtifactsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchRequest, global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.content.Artifacts", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ArtifactsWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -414,25 +414,25 @@ public sealed class ContentExecutionFilesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Content.ExecutionFilesGetResponse> Get(global::Dokime.Protocol.V1.Content.ExecutionFilesGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetResponse> Get(global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ExecutionFilesGetRequest, global::Dokime.Protocol.V1.Content.ExecutionFilesGetResponse>(MethodType.Unary, "dokime.v1.content.ExecutionFiles", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetRequest, global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetResponse>(MethodType.Unary, "dokime.v1.content.ExecutionFiles", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Content.ExecutionFilesListResponse> List(global::Dokime.Protocol.V1.Content.ExecutionFilesListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListResponse> List(global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ExecutionFilesListRequest, global::Dokime.Protocol.V1.Content.ExecutionFilesListResponse>(MethodType.Unary, "dokime.v1.content.ExecutionFiles", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListRequest, global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListResponse>(MethodType.Unary, "dokime.v1.content.ExecutionFiles", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Content.ExecutionFilesWatchResponse> Watch(global::Dokime.Protocol.V1.Content.ExecutionFilesWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchResponse> Watch(global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Content.ExecutionFilesWatchRequest, global::Dokime.Protocol.V1.Content.ExecutionFilesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.content.ExecutionFiles", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Content.ExecutionFilesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Content.ExecutionFilesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchRequest, global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.content.ExecutionFiles", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ContentResources.ExecutionFilesWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -547,18 +547,18 @@ public sealed class EvidenceHealthEventsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.HealthEventsListResponse> List(global::Dokime.Protocol.V1.Evidence.HealthEventsListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListResponse> List(global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.HealthEventsListRequest, global::Dokime.Protocol.V1.Evidence.HealthEventsListResponse>(MethodType.Unary, "dokime.v1.evidence.HealthEvents", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.HealthEventsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.HealthEventsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.HealthEventsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.HealthEventsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListRequest, global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListResponse>(MethodType.Unary, "dokime.v1.evidence.HealthEvents", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.HealthEventsListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.HealthEventsWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.HealthEventsWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchResponse> Watch(global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.HealthEventsWatchRequest, global::Dokime.Protocol.V1.Evidence.HealthEventsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.HealthEvents", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.HealthEventsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.HealthEventsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.HealthEventsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.HealthEventsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchRequest, global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.HealthEvents", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.HealthEventsWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -569,39 +569,39 @@ public sealed class EvidenceNotesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.NotesGetResponse> Get(global::Dokime.Protocol.V1.Evidence.NotesGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.NotesGetResponse> Get(global::Dokime.Protocol.V1.EvidenceResources.NotesGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.NotesGetRequest, global::Dokime.Protocol.V1.Evidence.NotesGetResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.NotesGetRequest, global::Dokime.Protocol.V1.EvidenceResources.NotesGetResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.NotesSetResponse> Set(global::Dokime.Protocol.V1.Evidence.NotesSetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.NotesSetResponse> Set(global::Dokime.Protocol.V1.EvidenceResources.NotesSetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.NotesSetRequest, global::Dokime.Protocol.V1.Evidence.NotesSetResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Set",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.NotesSetRequest, global::Dokime.Protocol.V1.EvidenceResources.NotesSetResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Set",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesSetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.NotesListResponse> List(global::Dokime.Protocol.V1.Evidence.NotesListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.NotesListResponse> List(global::Dokime.Protocol.V1.EvidenceResources.NotesListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.NotesListRequest, global::Dokime.Protocol.V1.Evidence.NotesListResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.NotesListRequest, global::Dokime.Protocol.V1.EvidenceResources.NotesListResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.NotesWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.NotesWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.EvidenceResources.NotesWatchResponse> Watch(global::Dokime.Protocol.V1.EvidenceResources.NotesWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.NotesWatchRequest, global::Dokime.Protocol.V1.Evidence.NotesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Notes", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.NotesWatchRequest, global::Dokime.Protocol.V1.EvidenceResources.NotesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Notes", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.NotesCreateResponse> Create(global::Dokime.Protocol.V1.Evidence.NotesCreateRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.NotesCreateResponse> Create(global::Dokime.Protocol.V1.EvidenceResources.NotesCreateRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.NotesCreateRequest, global::Dokime.Protocol.V1.Evidence.NotesCreateResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Create",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.NotesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.NotesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.NotesCreateRequest, global::Dokime.Protocol.V1.EvidenceResources.NotesCreateResponse>(MethodType.Unary, "dokime.v1.evidence.Notes", "Create",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.NotesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.NotesCreateResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -612,18 +612,18 @@ public sealed class EvidenceRecordsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.RecordsListResponse> List(global::Dokime.Protocol.V1.Evidence.RecordsListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.RecordsListResponse> List(global::Dokime.Protocol.V1.EvidenceResources.RecordsListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.RecordsListRequest, global::Dokime.Protocol.V1.Evidence.RecordsListResponse>(MethodType.Unary, "dokime.v1.evidence.Records", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.RecordsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.RecordsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.RecordsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.RecordsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.RecordsListRequest, global::Dokime.Protocol.V1.EvidenceResources.RecordsListResponse>(MethodType.Unary, "dokime.v1.evidence.Records", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.RecordsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.RecordsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.RecordsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.RecordsListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.RecordsWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.RecordsWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchResponse> Watch(global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.RecordsWatchRequest, global::Dokime.Protocol.V1.Evidence.RecordsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Records", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.RecordsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.RecordsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.RecordsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.RecordsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchRequest, global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Records", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.RecordsWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -634,18 +634,18 @@ public sealed class EvidenceSamplesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.SamplesListResponse> List(global::Dokime.Protocol.V1.Evidence.SamplesListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.SamplesListResponse> List(global::Dokime.Protocol.V1.EvidenceResources.SamplesListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.SamplesListRequest, global::Dokime.Protocol.V1.Evidence.SamplesListResponse>(MethodType.Unary, "dokime.v1.evidence.Samples", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.SamplesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.SamplesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.SamplesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.SamplesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.SamplesListRequest, global::Dokime.Protocol.V1.EvidenceResources.SamplesListResponse>(MethodType.Unary, "dokime.v1.evidence.Samples", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.SamplesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.SamplesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.SamplesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.SamplesListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.SamplesWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.SamplesWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchResponse> Watch(global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.SamplesWatchRequest, global::Dokime.Protocol.V1.Evidence.SamplesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Samples", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.SamplesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.SamplesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.SamplesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.SamplesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchRequest, global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Samples", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.SamplesWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -656,18 +656,18 @@ public sealed class EvidenceTraceabilityResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse> Get(global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetResponse> Get(global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest, global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse>(MethodType.Unary, "dokime.v1.evidence.Traceability", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetRequest, global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetResponse>(MethodType.Unary, "dokime.v1.evidence.Traceability", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.TraceabilityGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse> Watch(global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchResponse> Watch(global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest, global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Traceability", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Evidence.TraceabilityWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchRequest, global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchResponse>(MethodType.ServerStreaming, "dokime.v1.evidence.Traceability", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.EvidenceResources.TraceabilityWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -767,18 +767,18 @@ public sealed class ExecutionsCommandsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Executions.CommandsGetResponse> Get(global::Dokime.Protocol.V1.Executions.CommandsGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetResponse> Get(global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Executions.CommandsGetRequest, global::Dokime.Protocol.V1.Executions.CommandsGetResponse>(MethodType.Unary, "dokime.v1.executions.Commands", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.CommandsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.CommandsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.CommandsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.CommandsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetRequest, global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetResponse>(MethodType.Unary, "dokime.v1.executions.Commands", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.CommandsGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Executions.CommandsCreateResponse> Create(global::Dokime.Protocol.V1.Executions.CommandsCreateRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateResponse> Create(global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Executions.CommandsCreateRequest, global::Dokime.Protocol.V1.Executions.CommandsCreateResponse>(MethodType.Unary, "dokime.v1.executions.Commands", "Create",
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.CommandsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.CommandsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.CommandsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.CommandsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateRequest, global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateResponse>(MethodType.Unary, "dokime.v1.executions.Commands", "Create",
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.CommandsCreateResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -789,18 +789,18 @@ public sealed class ExecutionsProgressResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Executions.ProgressGetResponse> Get(global::Dokime.Protocol.V1.Executions.ProgressGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetResponse> Get(global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Executions.ProgressGetRequest, global::Dokime.Protocol.V1.Executions.ProgressGetResponse>(MethodType.Unary, "dokime.v1.executions.Progress", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.ProgressGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.ProgressGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.ProgressGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.ProgressGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest, global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetResponse>(MethodType.Unary, "dokime.v1.executions.Progress", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.ProgressGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Executions.ProgressWatchResponse> Watch(global::Dokime.Protocol.V1.Executions.ProgressWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchResponse> Watch(global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Executions.ProgressWatchRequest, global::Dokime.Protocol.V1.Executions.ProgressWatchResponse>(MethodType.ServerStreaming, "dokime.v1.executions.Progress", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.ProgressWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.ProgressWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Executions.ProgressWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Executions.ProgressWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchRequest, global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchResponse>(MethodType.ServerStreaming, "dokime.v1.executions.Progress", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.ExecutionsResources.ProgressWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -855,32 +855,32 @@ public sealed class MediaCapturesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Media.CapturesCreateResponse> Create(global::Dokime.Protocol.V1.Media.CapturesCreateRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.MediaResources.CapturesCreateResponse> Create(global::Dokime.Protocol.V1.MediaResources.CapturesCreateRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Media.CapturesCreateRequest, global::Dokime.Protocol.V1.Media.CapturesCreateResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Create",
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.MediaResources.CapturesCreateRequest, global::Dokime.Protocol.V1.MediaResources.CapturesCreateResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Create",
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesCreateResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Media.CapturesGetResponse> Get(global::Dokime.Protocol.V1.Media.CapturesGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.MediaResources.CapturesGetResponse> Get(global::Dokime.Protocol.V1.MediaResources.CapturesGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Media.CapturesGetRequest, global::Dokime.Protocol.V1.Media.CapturesGetResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.MediaResources.CapturesGetRequest, global::Dokime.Protocol.V1.MediaResources.CapturesGetResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Media.CapturesWatchResponse> Watch(global::Dokime.Protocol.V1.Media.CapturesWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.MediaResources.CapturesWatchResponse> Watch(global::Dokime.Protocol.V1.MediaResources.CapturesWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Media.CapturesWatchRequest, global::Dokime.Protocol.V1.Media.CapturesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.media.Captures", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.MediaResources.CapturesWatchRequest, global::Dokime.Protocol.V1.MediaResources.CapturesWatchResponse>(MethodType.ServerStreaming, "dokime.v1.media.Captures", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Media.CapturesStopResponse> Stop(global::Dokime.Protocol.V1.Media.CapturesStopRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.MediaResources.CapturesStopResponse> Stop(global::Dokime.Protocol.V1.MediaResources.CapturesStopRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Media.CapturesStopRequest, global::Dokime.Protocol.V1.Media.CapturesStopResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Stop",
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesStopRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesStopRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Media.CapturesStopResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Media.CapturesStopResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.MediaResources.CapturesStopRequest, global::Dokime.Protocol.V1.MediaResources.CapturesStopResponse>(MethodType.Unary, "dokime.v1.media.Captures", "Stop",
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesStopRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesStopRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.MediaResources.CapturesStopResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.MediaResources.CapturesStopResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -901,18 +901,18 @@ public sealed class PlotsSettingsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Plots.SettingsGetResponse> Get(global::Dokime.Protocol.V1.Plots.SettingsGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PlotsResources.SettingsGetResponse> Get(global::Dokime.Protocol.V1.PlotsResources.SettingsGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plots.SettingsGetRequest, global::Dokime.Protocol.V1.Plots.SettingsGetResponse>(MethodType.Unary, "dokime.v1.plots.Settings", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SettingsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SettingsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PlotsResources.SettingsGetRequest, global::Dokime.Protocol.V1.PlotsResources.SettingsGetResponse>(MethodType.Unary, "dokime.v1.plots.Settings", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SettingsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SettingsGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Plots.SettingsSetResponse> Set(global::Dokime.Protocol.V1.Plots.SettingsSetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PlotsResources.SettingsSetResponse> Set(global::Dokime.Protocol.V1.PlotsResources.SettingsSetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plots.SettingsSetRequest, global::Dokime.Protocol.V1.Plots.SettingsSetResponse>(MethodType.Unary, "dokime.v1.plots.Settings", "Set",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SettingsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SettingsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PlotsResources.SettingsSetRequest, global::Dokime.Protocol.V1.PlotsResources.SettingsSetResponse>(MethodType.Unary, "dokime.v1.plots.Settings", "Set",
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SettingsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SettingsSetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -923,18 +923,18 @@ public sealed class PlotsSnapshotsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Plots.SnapshotsListResponse> List(global::Dokime.Protocol.V1.Plots.SnapshotsListRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PlotsResources.SnapshotsListResponse> List(global::Dokime.Protocol.V1.PlotsResources.SnapshotsListRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plots.SnapshotsListRequest, global::Dokime.Protocol.V1.Plots.SnapshotsListResponse>(MethodType.Unary, "dokime.v1.plots.Snapshots", "List",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SnapshotsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SnapshotsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SnapshotsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SnapshotsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PlotsResources.SnapshotsListRequest, global::Dokime.Protocol.V1.PlotsResources.SnapshotsListResponse>(MethodType.Unary, "dokime.v1.plots.Snapshots", "List",
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SnapshotsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SnapshotsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SnapshotsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SnapshotsListResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.Plots.SnapshotsWatchResponse> Watch(global::Dokime.Protocol.V1.Plots.SnapshotsWatchRequest request, CallOptions options = default)
+  public AsyncServerStreamingCall<global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchResponse> Watch(global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plots.SnapshotsWatchRequest, global::Dokime.Protocol.V1.Plots.SnapshotsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.plots.Snapshots", "Watch",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SnapshotsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SnapshotsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plots.SnapshotsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plots.SnapshotsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchRequest, global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchResponse>(MethodType.ServerStreaming, "dokime.v1.plots.Snapshots", "Watch",
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PlotsResources.SnapshotsWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
   }
 }
@@ -1004,18 +1004,18 @@ public sealed class PluginsSettingsResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Plugins.SettingsGetResponse> Get(global::Dokime.Protocol.V1.Plugins.SettingsGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PluginsResources.SettingsGetResponse> Get(global::Dokime.Protocol.V1.PluginsResources.SettingsGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plugins.SettingsGetRequest, global::Dokime.Protocol.V1.Plugins.SettingsGetResponse>(MethodType.Unary, "dokime.v1.plugins.Settings", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plugins.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plugins.SettingsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plugins.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plugins.SettingsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PluginsResources.SettingsGetRequest, global::Dokime.Protocol.V1.PluginsResources.SettingsGetResponse>(MethodType.Unary, "dokime.v1.plugins.Settings", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.PluginsResources.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PluginsResources.SettingsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PluginsResources.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PluginsResources.SettingsGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Plugins.SettingsSetResponse> Set(global::Dokime.Protocol.V1.Plugins.SettingsSetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PluginsResources.SettingsSetResponse> Set(global::Dokime.Protocol.V1.PluginsResources.SettingsSetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Plugins.SettingsSetRequest, global::Dokime.Protocol.V1.Plugins.SettingsSetResponse>(MethodType.Unary, "dokime.v1.plugins.Settings", "Set",
-        Marshallers.Create<global::Dokime.Protocol.V1.Plugins.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plugins.SettingsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Plugins.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Plugins.SettingsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PluginsResources.SettingsSetRequest, global::Dokime.Protocol.V1.PluginsResources.SettingsSetResponse>(MethodType.Unary, "dokime.v1.plugins.Settings", "Set",
+        Marshallers.Create<global::Dokime.Protocol.V1.PluginsResources.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PluginsResources.SettingsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PluginsResources.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PluginsResources.SettingsSetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -1057,11 +1057,11 @@ public sealed class PromptsAnswersResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Prompts.AnswersCreateResponse> Create(global::Dokime.Protocol.V1.Prompts.AnswersCreateRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.PromptsResources.AnswersCreateResponse> Create(global::Dokime.Protocol.V1.PromptsResources.AnswersCreateRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Prompts.AnswersCreateRequest, global::Dokime.Protocol.V1.Prompts.AnswersCreateResponse>(MethodType.Unary, "dokime.v1.prompts.Answers", "Create",
-        Marshallers.Create<global::Dokime.Protocol.V1.Prompts.AnswersCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Prompts.AnswersCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Prompts.AnswersCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Prompts.AnswersCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.PromptsResources.AnswersCreateRequest, global::Dokime.Protocol.V1.PromptsResources.AnswersCreateResponse>(MethodType.Unary, "dokime.v1.prompts.Answers", "Create",
+        Marshallers.Create<global::Dokime.Protocol.V1.PromptsResources.AnswersCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PromptsResources.AnswersCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.PromptsResources.AnswersCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.PromptsResources.AnswersCreateResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
@@ -1508,18 +1508,18 @@ public sealed class StorageSourcesResource
   {
     this.invoker = invoker;
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Storage.SourcesGetResponse> Get(global::Dokime.Protocol.V1.Storage.SourcesGetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.StorageResources.SourcesGetResponse> Get(global::Dokime.Protocol.V1.StorageResources.SourcesGetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Storage.SourcesGetRequest, global::Dokime.Protocol.V1.Storage.SourcesGetResponse>(MethodType.Unary, "dokime.v1.storage.Sources", "Get",
-        Marshallers.Create<global::Dokime.Protocol.V1.Storage.SourcesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Storage.SourcesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Storage.SourcesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Storage.SourcesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.StorageResources.SourcesGetRequest, global::Dokime.Protocol.V1.StorageResources.SourcesGetResponse>(MethodType.Unary, "dokime.v1.storage.Sources", "Get",
+        Marshallers.Create<global::Dokime.Protocol.V1.StorageResources.SourcesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.StorageResources.SourcesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.StorageResources.SourcesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.StorageResources.SourcesGetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
-  public AsyncUnaryCall<global::Dokime.Protocol.V1.Storage.SourcesSetResponse> Set(global::Dokime.Protocol.V1.Storage.SourcesSetRequest request, CallOptions options = default)
+  public AsyncUnaryCall<global::Dokime.Protocol.V1.StorageResources.SourcesSetResponse> Set(global::Dokime.Protocol.V1.StorageResources.SourcesSetRequest request, CallOptions options = default)
   {
-    var method = new Method<global::Dokime.Protocol.V1.Storage.SourcesSetRequest, global::Dokime.Protocol.V1.Storage.SourcesSetResponse>(MethodType.Unary, "dokime.v1.storage.Sources", "Set",
-        Marshallers.Create<global::Dokime.Protocol.V1.Storage.SourcesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Storage.SourcesSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Dokime.Protocol.V1.Storage.SourcesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.Storage.SourcesSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Protocol.V1.StorageResources.SourcesSetRequest, global::Dokime.Protocol.V1.StorageResources.SourcesSetResponse>(MethodType.Unary, "dokime.v1.storage.Sources", "Set",
+        Marshallers.Create<global::Dokime.Protocol.V1.StorageResources.SourcesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.StorageResources.SourcesSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.V1.StorageResources.SourcesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.V1.StorageResources.SourcesSetResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }

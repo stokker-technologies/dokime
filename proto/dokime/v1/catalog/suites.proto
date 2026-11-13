@@ -1,6 +1,6 @@
 syntax = "proto3";
 package dokime.v1.catalog;
-option csharp_namespace = "Dokime.Protocol.V1.Catalog";
+option csharp_namespace = "Dokime.Protocol.V1.CatalogResources";
 import "dokime/v1/catalog_types.proto";
 import "harmos/v1/types.proto";
 
