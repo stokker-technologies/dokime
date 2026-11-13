@@ -11,9 +11,9 @@
 
 /* === Imports === */
 
+#include "dokime/client/v1/content.grpc.pb.h"
+#include "dokime/client/v1/plugins.grpc.pb.h"
 #include "dokime/resources.hpp"
-#include "dokime/v1/client_pending_content.grpc.pb.h"
-#include "dokime/v1/client_pending_plugins.grpc.pb.h"
 #include "harmos/client.hpp"
 #include <grpcpp/grpcpp.h>
 #include <stdexcept>

@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
     value.steps.push_back(
         {dokime::metadata("ramp", "Ramp to Target"), [](dokime::Context &ctx) { ctx.progress(1, 2, "Ramp to Target"); }, 2});
     value.steps.push_back({dokime::metadata("hold", "Hold"), [](dokime::Context &ctx) {
-                             ::dokime::context::v1::PromptsCreateRequest question;
+                             ::dokime::plugin::host::v1::PromptsCreateRequest question;
                              question.set_prompt("door");
                              question.set_prompt_type("thermal.door");
                              auto answer = ctx.prompt(std::move(question));
@@ -68,26 +68,27 @@ int main(int argc, char **argv) {
     no->set_label("No");
     dokime::Plugin plugin("thermal", "1.0.0");
     plugin
-        .requires_operation(harmos::Operation<::dokime::context::v1::PromptsCreateRequest, ::dokime::context::v1::PromptsCreateResponse>(
-            "dokime.context.v1.Prompts/Create", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(harmos::Operation<::dokime::context::v1::evidence::RecordsAppendRequest,
-                                              ::dokime::context::v1::evidence::RecordsAppendResponse>(
-            "dokime.context.v1.evidence.Records/Append", harmos::wire::VISIBILITY_PUBLIC))
         .requires_operation(
-            harmos::Operation<::dokime::context::v1::evidence::RecordsListRequest, ::dokime::context::v1::evidence::RecordsListResponse>(
-                "dokime.context.v1.evidence.Records/List", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(
-            harmos::Operation<::dokime::context::v1::EvidenceStatisticsRequest, ::dokime::context::v1::EvidenceStatisticsResponse>(
-                "dokime.context.v1.Evidence/Statistics", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(
-            harmos::Operation<dokime::context::v1::executions::ProgressGetRequest, dokime::context::v1::executions::ProgressGetResponse>(
-                "dokime.context.v1.executions.Progress/Get", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(
-            harmos::Operation<dokime::context::v1::executions::ProgressSetRequest, dokime::context::v1::executions::ProgressSetResponse>(
-                "dokime.context.v1.executions.Progress/Set", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(
-            harmos::Operation<::dokime::context::v1::evidence::LogsAppendRequest, ::dokime::context::v1::evidence::LogsAppendResponse>(
-                "dokime.context.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC))
+            harmos::Operation<::dokime::plugin::host::v1::PromptsCreateRequest, ::dokime::plugin::host::v1::PromptsCreateResponse>(
+                "dokime.plugin.host.v1.Prompts/Create", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<::dokime::plugin::host::v1::evidence::RecordsAppendRequest,
+                                              ::dokime::plugin::host::v1::evidence::RecordsAppendResponse>(
+            "dokime.plugin.host.v1.evidence.Records/Append", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<::dokime::plugin::host::v1::evidence::RecordsListRequest,
+                                              ::dokime::plugin::host::v1::evidence::RecordsListResponse>(
+            "dokime.plugin.host.v1.evidence.Records/List", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<::dokime::plugin::host::v1::EvidenceStatisticsRequest,
+                                              ::dokime::plugin::host::v1::EvidenceStatisticsResponse>(
+            "dokime.plugin.host.v1.Evidence/Statistics", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<dokime::plugin::host::v1::executions::ProgressGetRequest,
+                                              dokime::plugin::host::v1::executions::ProgressGetResponse>(
+            "dokime.plugin.host.v1.executions.Progress/Get", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<dokime::plugin::host::v1::executions::ProgressSetRequest,
+                                              dokime::plugin::host::v1::executions::ProgressSetResponse>(
+            "dokime.plugin.host.v1.executions.Progress/Set", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(harmos::Operation<::dokime::plugin::host::v1::evidence::LogsAppendRequest,
+                                              ::dokime::plugin::host::v1::evidence::LogsAppendResponse>(
+            "dokime.plugin.host.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC))
         .requires_operation(harmos::SLEEP)
         .stream(temperature)
         .observer(std::move(observer))

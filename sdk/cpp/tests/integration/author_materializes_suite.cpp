@@ -38,6 +38,9 @@ int main() {
   value.criteria.push_back({dokime::metadata("valid", "Valid"), [](dokime::Context &) { return true; }});
   dokime::Plugin plugin("sample", "1.0.0");
   plugin.suite({dokime::metadata("sample", "Sample"), {value}});
+  dokime::Prompt prompt;
+  *prompt.mutable_metadata() = dokime::metadata("sample.confirm", "Confirm");
+  plugin.prompt(prompt);
 
   // Inspect the Frozen Catalog and Its Protected Lifecycle Contracts.
   auto catalog = plugin.catalog();
@@ -47,6 +50,14 @@ int main() {
       check(suites.ParseFromString(section.payload()), "Suite Did Not Decode");
   check(suites.suites_size() == 1 && suites.suites(0).templates(0).materialize() == "sample.measure.materialize",
         "Suite Was Not Registered");
+  // Decode Published Prompt Definitions with Their Shared Declaration Type.
+  dokime::v1::PromptDefinitions prompts;
+  for (const auto &section : catalog.sections())
+    if (section.type() == dokime::v1::PromptDefinitions::descriptor()->full_name())
+      check(prompts.ParseFromString(section.payload()), "Prompt Definitions Did Not Decode");
+  check(prompts.prompts_size() == 1 && prompts.prompts(0).metadata().identifier() == prompt.metadata().identifier(),
+        "Prompt Definition Was Not Published");
+
   bool retry = false;
   std::map<std::string, std::pair<const google::protobuf::Descriptor *, const google::protobuf::Descriptor *>> expected{
       {value.definition.metadata().identifier() + ".materialize",

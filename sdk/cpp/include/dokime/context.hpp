@@ -11,18 +11,25 @@
 
 /* === Imports === */
 
-#include "dokime/context/v1/backend.pb.h"
-#include "dokime/context/v1/content/artifacts.pb.h"
-#include "dokime/context/v1/documents.pb.h"
-#include "dokime/context/v1/evidence.pb.h"
-#include "dokime/context/v1/evidence/logs.pb.h"
-#include "dokime/context/v1/evidence/records.pb.h"
-#include "dokime/context/v1/executions/progress.pb.h"
-#include "dokime/context/v1/files.pb.h"
-#include "dokime/context/v1/files/captures.pb.h"
-#include "dokime/context/v1/prompts.pb.h"
-#include "dokime/v1/catalog.pb.h"
-#include "dokime/v1/host.pb.h"
+#include "dokime/plugin/host/v1/backend.pb.h"
+#include "dokime/plugin/host/v1/content/artifacts.pb.h"
+#include "dokime/plugin/host/v1/documents.pb.h"
+#include "dokime/plugin/host/v1/evidence.pb.h"
+#include "dokime/plugin/host/v1/evidence/logs.pb.h"
+#include "dokime/plugin/host/v1/evidence/records.pb.h"
+#include "dokime/plugin/host/v1/executions/progress.pb.h"
+#include "dokime/plugin/host/v1/files.pb.h"
+#include "dokime/plugin/host/v1/files/captures.pb.h"
+#include "dokime/plugin/host/v1/prompts.pb.h"
+#include "dokime/plugin/host/v1/secrets.pb.h"
+#include "dokime/plugin/host/v1/settings.pb.h"
+#include "dokime/v1/evidence.pb.h"
+#include "dokime/v1/execution.pb.h"
+#include "dokime/v1/prompts.pb.h"
+#include "dokime/v1/record_contracts.pb.h"
+#include "dokime/v1/scalar.pb.h"
+#include "dokime/v1/suites.pb.h"
+#include "dokime/v1/traceability.pb.h"
 #include "harmos/harmos.hpp"
 #include <mutex>
 #include <optional>
@@ -91,18 +98,19 @@ public:
   }
   void sleep(google::protobuf::Duration duration) { transport_.sleep(duration); }
   google::protobuf::Timestamp now() { return transport_.now(); }
-  ::dokime::context::v1::PromptsCreateResponse prompt(::dokime::context::v1::PromptsCreateRequest request);
-  v1::SavedSettings settings();
-  v1::Secret secret(std::string identifier);
-  ::dokime::context::v1::evidence::RecordsAppendResponse record(std::string kind, const google::protobuf::Message &value);
-  ::dokime::context::v1::evidence::RecordsListResponse records(std::string kind, std::string step = {}, harmos::wire::PageRequest page = {},
-                                                               std::optional<harmos::wire::Position> at = {});
-  ::dokime::context::v1::EvidenceStatisticsResponse statistics(std::string stream, std::string field = {}, std::string step = {});
+  ::dokime::plugin::host::v1::PromptsCreateResponse prompt(::dokime::plugin::host::v1::PromptsCreateRequest request);
+  ::dokime::plugin::host::v1::SavedSettings settings();
+  ::dokime::plugin::host::v1::Secret secret(std::string identifier);
+  ::dokime::plugin::host::v1::evidence::RecordsAppendResponse record(std::string kind, const google::protobuf::Message &value);
+  ::dokime::plugin::host::v1::evidence::RecordsListResponse
+  records(std::string kind, std::string step = {}, harmos::wire::PageRequest page = {}, std::optional<harmos::wire::Position> at = {});
+  ::dokime::plugin::host::v1::EvidenceStatisticsResponse statistics(std::string stream, std::string field = {}, std::string step = {});
   void progress(std::uint64_t completed, std::uint64_t total, std::string label = {});
   void log(v1::Severity severity, std::string message);
-  ::dokime::context::v1::content::ArtifactsCreateResponse artifact(::dokime::context::v1::content::ArtifactsCreateRequest request);
+  ::dokime::plugin::host::v1::content::ArtifactsCreateResponse
+  artifact(::dokime::plugin::host::v1::content::ArtifactsCreateRequest request);
   void traceability(v1::TraceabilityEntry value);
-  void document(::dokime::context::v1::DocumentsAppendPartsRequest request);
+  void document(::dokime::plugin::host::v1::DocumentsAppendPartsRequest request);
   static void declare_requirements(harmos::Plugin &plugin);
 
 private:

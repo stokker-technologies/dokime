@@ -73,40 +73,40 @@ int main() {
   auto failure = status_stub->Get(&checking_refusal, {}, &refused_response);
   check(refused && failure.error_code() == grpc::StatusCode::UNAUTHENTICATED, "Authentication Failure Was Hidden");
 
-  // Read a Product Resource Through Its Nested Client Root.
+  // Read a Product Registry Through Its Top-Level Client Root.
   grpc::ClientContext reading_suite;
-  dokime::v1::catalog::SuitesGetRequest suite_request;
+  dokime::client::v1::SuitesGetRequest suite_request;
   suite_request.set_name("sample");
-  auto suite = client.catalog.suites.get(reading_suite, suite_request);
-  check(suite.value().metadata().identifier() == suite_request.name(), "Nested Suite Read Was Lost");
+  auto suite = client.suites.get(reading_suite, suite_request);
+  check(suite.value().metadata().identifier() == suite_request.name(), "Suite Registry Read Was Lost");
 
   // Retain a Product Resource Failure Through the Root.
   grpc::ClientContext missing_suite;
   refused = false;
   try {
-    client.catalog.suites.get(missing_suite, {});
+    client.suites.get(missing_suite, {});
   } catch (const std::runtime_error &) {
     refused = true;
   }
   check(refused, "Missing Suite Became an Empty Success");
 
   // Add a Remote Entry and Read Its Canonical Placement Through Generated Stubs.
-  auto plugin_stub = client.stub<dokime::v1::Plugins>();
-  dokime::v1::AddRemotePlugin request;
+  auto plugin_stub = client.stub<dokime::client::v1::Plugins>();
+  dokime::client::v1::AddRemotePlugin request;
   request.set_url("http://127.0.0.1:7001");
   grpc::ClientContext adding;
-  auto added = client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::Add, request, adding);
+  auto added = client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::Add, request, adding);
   grpc::ClientContext listing;
-  auto listed = client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::List, dokime::v1::ListPlugins{}, listing);
+  auto listed = client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::List, dokime::client::v1::ListPlugins{}, listing);
   check(listed.plugins_size() == 1 && listed.plugins(0).entry() == added.entry(), "Plugin Entry Was Lost");
   check(listed.plugins(0).remote().url() == request.url(), "Remote Placement Was Lost");
-  check(listed.plugins(0).state() == dokime::v1::PLUGIN_STATE_CONNECTING, "Plugin State Was Lost");
+  check(listed.plugins(0).state() == dokime::client::v1::PLUGIN_STATE_CONNECTING, "Plugin State Was Lost");
 
   // Retain the Generated Method's Server Refusal.
   grpc::ClientContext invalid;
   refused = false;
   try {
-    client.unary(*plugin_stub, &dokime::v1::Plugins::Stub::Add, dokime::v1::AddRemotePlugin{}, invalid);
+    client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::Add, dokime::client::v1::AddRemotePlugin{}, invalid);
   } catch (const dokime::RpcError &error) {
     refused = error.status().error_code() == grpc::StatusCode::INVALID_ARGUMENT;
   }
