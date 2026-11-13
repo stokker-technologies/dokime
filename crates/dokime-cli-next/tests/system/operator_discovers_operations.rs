@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Discover Admitted Operations Through a Running Host
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -61,10 +59,13 @@ async fn operator_discovers_operations() -> Result<(), Box<dyn std::error::Error
             input_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let client = dokime::Client::from_channel(channel, settings)?;
-        let reply = client.catalog(dokime::client::CatalogEntriesListRequest {
-            kind: dokime::client::CatalogKind::Operations as i32,
-            ..Default::default()
-        }).await?.into_inner();
+        let reply = client
+            .catalog(dokime::client::CatalogEntriesListRequest {
+                kind: dokime::client::CatalogKind::Operations as i32,
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
         let actual = listed["operations"].as_array().ok_or("List Operations: Missing Operations")?;
         assert_eq!(actual.len(), reply.operations.len());
         assert!(!actual.is_empty());
@@ -76,6 +77,6 @@ async fn operator_discovers_operations() -> Result<(), Box<dyn std::error::Error
         drop(client);
         host.close().await?;
         Ok(())
-    }).await?
+    })
+    .await?
 }
-

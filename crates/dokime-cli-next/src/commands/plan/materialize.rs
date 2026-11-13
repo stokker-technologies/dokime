@@ -76,10 +76,16 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     let request = v1::PlanningMaterializeTemplateRequest {
         selection: Some(v1::RegisteredSelection {
-            suite_id: args.suite, template_id: args.template,
-            parameters: parameters.into_iter().map(|(key, values)| v1::RegisteredSelectionParametersEntry {
-                key, value: Some(v1::SelectionValues { values }),
-            }).collect(), ..Default::default()
+            suite_id: args.suite,
+            template_id: args.template,
+            parameters: parameters
+                .into_iter()
+                .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
+                    key,
+                    value: Some(v1::SelectionValues { values }),
+                })
+                .collect(),
+            ..Default::default()
         }),
     };
     let cases = client.materialize_template(request).await?.into_inner().cases;

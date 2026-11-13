@@ -164,8 +164,9 @@ impl Settings {
         if let Some(pairing) = &self.pairing {
             return pairing.channel(self, streaming).await;
         }
-        let endpoint =
-            endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into()))?;
+        let endpoint = endpoint.ok_or_else(|| {
+            crate::error::Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into())
+        })?;
         let timeout = if streaming { self.watch_timeout_s } else { self.mutation_timeout_s.max(self.read_timeout_s) };
         let channel = tonic::transport::Endpoint::from_shared(endpoint)?
             .connect_timeout(Duration::from_secs(self.connect_timeout_s))

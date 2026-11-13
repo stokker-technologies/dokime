@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Identify the Command Build Alongside the Running Host
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -54,7 +52,10 @@ async fn operator_identifies_build() -> Result<(), Box<dyn std::error::Error>> {
         let commit = revision.strip_suffix("-dirty").unwrap_or(revision);
         let object = format!("{commit}^{{commit}}");
         let status = tokio::process::Command::from(dokime_runtime_next::process::command("git"))
-            .current_dir(super::root()).args(["cat-file", "-e", &object]).status().await?;
+            .current_dir(super::root())
+            .args(["cat-file", "-e", &object])
+            .status()
+            .await?;
         assert!(status.success());
         assert_eq!(version["target_os"], std::env::consts::OS);
         assert_eq!(version["target_arch"], std::env::consts::ARCH);
@@ -65,6 +66,6 @@ async fn operator_identifies_build() -> Result<(), Box<dyn std::error::Error>> {
         assert!(status["status"]["identity"].is_object());
         host.close().await?;
         Ok(())
-    }).await?
+    })
+    .await?
 }
-

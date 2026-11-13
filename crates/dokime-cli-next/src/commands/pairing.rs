@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Connect Through and Export Portable Pairing Files
 
 /* === Modules === */
@@ -17,14 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::{Read, Write}, path::{Path, PathBuf}, time::Duration};
+use std::{
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
 use dokime::client::v1::{self, access};
+use serde::{Deserialize, Serialize};
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -88,22 +90,31 @@ impl File {
         }
         let file: Self = serde_json::from_slice(&bytes)
             .map_err(|_| crate::error::Error::Invalid("Invalid Pairing File; Export a New Version 1 Pairing".into()))?;
-        if file.version != 1 || file.endpoints.is_empty() || file.endpoints.len() > 32
-            || file.backend_identifier.is_empty() || file.backend_identifier.len() > 128
+        if file.version != 1
+            || file.endpoints.is_empty()
+            || file.endpoints.len() > 32
+            || file.backend_identifier.is_empty()
+            || file.backend_identifier.len() > 128
             || file.backend_identifier.chars().any(char::is_whitespace)
-            || file.label.trim().is_empty() || file.label.len() > 256 || file.label.chars().any(char::is_control)
-            || file.access_key.is_empty() || file.access_key.chars().any(char::is_whitespace) {
+            || file.label.trim().is_empty()
+            || file.label.len() > 256
+            || file.label.chars().any(char::is_control)
+            || file.access_key.is_empty()
+            || file.access_key.chars().any(char::is_whitespace)
+        {
             return Err(crate::error::Error::Invalid("Invalid Pairing Identity, Label, Endpoints or Key; Export a New Pairing".into()));
         }
         file.authorization()?;
         for (index, endpoint) in file.endpoints.iter().enumerate() {
             let value = tonic::transport::Endpoint::from_shared(endpoint.clone())?;
             let uri = value.uri();
-            if uri.scheme_str() != Some("https") || uri.host().is_none_or(|host| host.contains('*'))
+            if uri.scheme_str() != Some("https")
+                || uri.host().is_none_or(|host| host.contains('*'))
                 || uri.authority().is_none_or(|authority| authority.as_str().contains('@'))
                 || uri.port_u16().is_none_or(|port| port == 0)
                 || uri.path_and_query().is_some_and(|path| path.as_str() != "/")
-                || file.endpoints[..index].contains(endpoint) {
+                || file.endpoints[..index].contains(endpoint)
+            {
                 return Err(crate::error::Error::Invalid("Pairing Endpoints Must Be Distinct HTTPS Origins With Explicit Ports".into()));
             }
         }
@@ -111,7 +122,8 @@ impl File {
     }
     pub fn authorization(&self) -> crate::Result<tonic::metadata::MetadataValue<tonic::metadata::Ascii>> {
         let mut value: tonic::metadata::MetadataValue<tonic::metadata::Ascii> = format!("Bearer {}", self.access_key)
-            .parse().map_err(|_| crate::error::Error::Invalid("Invalid Pairing Key; Export a New Pairing".into()))?;
+            .parse()
+            .map_err(|_| crate::error::Error::Invalid("Invalid Pairing Key; Export a New Pairing".into()))?;
         value.set_sensitive(true);
         Ok(value)
     }
@@ -125,7 +137,9 @@ impl File {
                 let channel = tonic::transport::Endpoint::from_shared(endpoint.clone())?
                     .tls_config(tls)?
                     .connect_timeout(Duration::from_secs(settings.connect_timeout_s))
-                    .timeout(Duration::from_secs(timeout)).connect().await?;
+                    .timeout(Duration::from_secs(timeout))
+                    .connect()
+                    .await?;
                 let client = dokime::Client::from_channel(channel.clone(), settings.client())?;
                 let mut request = tonic::Request::new(v1::StatusGetRequest {});
                 request.metadata_mut().insert("authorization", self.authorization()?);
@@ -135,7 +149,8 @@ impl File {
                     return Err("Pairing Backend Identity Differs; Export a Pairing From the Intended Host".into());
                 }
                 Ok(channel)
-            }.await;
+            }
+            .await;
             match result {
                 Ok(channel) => return Ok(channel),
                 Err(error) => failures.push(format!("{endpoint}: {error}")),
@@ -165,12 +180,23 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
     let mut value = current.value.ok_or("Host Did Not Report Listener Settings")?;
     if !value.enabled {
         value.enabled = true;
-        client.access.listener.set(settings.request(access::ListenerSetRequest {
-            value: Some(value), expected_revision: current.revision,
-        })).await?;
+        client
+            .access
+            .listener
+            .set(settings.request(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: current.revision,
+            }))
+            .await?;
     }
-    let identity = client.status.get(settings.request(v1::StatusGetRequest {})).await?.into_inner()
-        .status.and_then(|status| status.identity).ok_or("Host Did Not Report Its Identity")?;
+    let identity = client
+        .status
+        .get(settings.request(v1::StatusGetRequest {}))
+        .await?
+        .into_inner()
+        .status
+        .and_then(|status| status.identity)
+        .ok_or("Host Did Not Report Its Identity")?;
     let created = client.access.pairings.create(settings.request(access::PairingsCreateRequest { label: args.label })).await?.into_inner();
     let pairing = created.pairing.as_ref().ok_or("Host Did Not Report the Created Pairing")?;
     let file = File {

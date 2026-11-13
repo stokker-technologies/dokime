@@ -15,10 +15,10 @@
 mod credentials;
 mod first_hour;
 mod operator_calls_operation;
-mod operator_discovers_operations;
 mod operator_diagnoses_storage;
-mod operator_inspects_contract;
+mod operator_discovers_operations;
 mod operator_identifies_build;
+mod operator_inspects_contract;
 mod operator_pairs_with_host;
 mod remote_first_hour;
 mod scaffold;
@@ -72,7 +72,12 @@ impl HostProcess {
             .spawn()?;
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let endpoint = lines.next_line().await?.ok_or("Start Host: Missing Listener Announcement")?;
-        Ok(Self { child, endpoint, _credentials: credentials, _root: root })
+        Ok(Self {
+            child,
+            endpoint,
+            _credentials: credentials,
+            _root: root,
+        })
     }
     async fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.stop().await

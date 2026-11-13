@@ -60,14 +60,28 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let identifier = match args.prompt {
         Some(identifier) => identifier,
         None => {
-            let pending = client.list_pending(dokime::v1::PromptsListPendingRequest { execution_id: Some(args.execution), ..Default::default() }).await?.into_inner();
+            let pending = client
+                .list_pending(dokime::v1::PromptsListPendingRequest {
+                    execution_id: Some(args.execution),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
             if pending.prompts.len() != 1 {
                 return Err("Answer Prompt: Supply --prompt When There Is Not Exactly One Pending Prompt".into());
             }
             pending.prompts[0].prompt_id.clone()
         }
     };
-    let value = client.respond(dokime::v1::PromptsRespondRequest { prompt_id: identifier, action: args.action, accepted: args.accepted, ..Default::default() }).await?.into_inner();
+    let value = client
+        .respond(dokime::v1::PromptsRespondRequest {
+            prompt_id: identifier,
+            action: args.action,
+            accepted: args.accepted,
+            ..Default::default()
+        })
+        .await?
+        .into_inner();
     crate::output::print(&value, args.json)
 }
 

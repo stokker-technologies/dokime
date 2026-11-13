@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Diagnose Storage Without Changing Existing Roots
 
 /* === Modules === */
@@ -17,12 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::{Read, Write}, path::PathBuf};
+use std::{
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -93,7 +94,9 @@ pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -
                 let mut total = 0u64;
                 for name in ["execution.sqlite3", "execution.sqlite3-wal", "execution.sqlite3-shm"] {
                     let path = root.join(name);
-                    if !path.exists() { continue; }
+                    if !path.exists() {
+                        continue;
+                    }
                     let input = std::fs::File::open(path)?;
                     total = total.saturating_add(input.metadata()?.len());
                     if total > settings.retained_bytes.get() as u64 {
@@ -113,7 +116,8 @@ pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -
         drop(lease);
         report["checks"].as_array_mut().unwrap().push("open_close_scratch_host".into());
         Ok(())
-    }.await;
+    }
+    .await;
     if let Err(error) = &result {
         report["compatible"] = false.into();
         report["error"] = error.to_string().into();

@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Probe Scratch Storage and Preserve Existing Roots
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -51,7 +49,6 @@ fn files(root: &std::path::Path) -> std::io::Result<std::collections::BTreeMap<s
     }
     Ok(files)
 }
-
 
 /* === Tests === */
 
@@ -92,6 +89,6 @@ async fn operator_diagnoses_storage() -> Result<(), Box<dyn std::error::Error>> 
         let report: serde_json::Value = serde_json::from_str(&super::run(&["doctor", "storage", "--json"]).await?)?;
         assert_eq!(report["compatible"], true);
         Ok(())
-    }).await?
+    })
+    .await?
 }
-

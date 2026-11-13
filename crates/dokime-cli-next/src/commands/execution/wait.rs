@@ -47,8 +47,8 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, true).await?;
-    let mut client =
-        dokime::v1::observation_client::ObservationClient::with_interceptor(channel, settings.interceptor()).max_decoding_message_size(settings.message_bytes.get());
+    let mut client = dokime::v1::observation_client::ObservationClient::with_interceptor(channel, settings.interceptor())
+        .max_decoding_message_size(settings.message_bytes.get());
     let request = dokime::v1::ObservationWatchExecutionProgressRequest { test_execution_id: args.execution };
     let mut stream = client.watch_execution_progress(request).await?.into_inner();
     let mut terminal = false;

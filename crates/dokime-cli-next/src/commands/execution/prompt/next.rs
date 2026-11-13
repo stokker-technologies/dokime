@@ -48,7 +48,13 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, true).await?;
     let mut client = dokime::v1::prompts_client::PromptsClient::with_interceptor(channel.clone(), settings.interceptor());
-    let pending = client.list_pending(dokime::v1::PromptsListPendingRequest { execution_id: Some(args.execution.clone()), ..Default::default() }).await?.into_inner();
+    let pending = client
+        .list_pending(dokime::v1::PromptsListPendingRequest {
+            execution_id: Some(args.execution.clone()),
+            ..Default::default()
+        })
+        .await?
+        .into_inner();
     if let Some(prompt) = pending.prompts.first() {
         return crate::output::print(prompt, args.json);
     }
@@ -61,7 +67,13 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         if let Some(dokime::v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value
             && frame.progress.is_some_and(|progress| progress.phase == "prompt")
         {
-            let pending = client.list_pending(dokime::v1::PromptsListPendingRequest { execution_id: Some(args.execution), ..Default::default() }).await?.into_inner();
+            let pending = client
+                .list_pending(dokime::v1::PromptsListPendingRequest {
+                    execution_id: Some(args.execution),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
             let prompt = pending.prompts.first().ok_or("Await Prompt: Prompt Event Has No Pending Prompt")?;
             return crate::output::print(prompt, args.json);
         }

@@ -51,7 +51,8 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, true).await?;
     let mut client = dokime::v1::reports_client::ReportsClient::with_interceptor(channel, settings.interceptor());
-    let mut stream = client.download_execution_report(v1::ReportsDownloadExecutionReportRequest { execution_id: args.execution }).await?.into_inner();
+    let mut stream =
+        client.download_execution_report(v1::ReportsDownloadExecutionReportRequest { execution_id: args.execution }).await?.into_inner();
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
     let mut offset = 0;
