@@ -36,6 +36,7 @@ updater = ["dep:tauri-plugin-updater"]
 # Keep a Windows console attached for `tauri dev`; installer builds of any
 # profile leave it off so the desktop never opens a terminal window.
 console = []
+custom-protocol = ["tauri/custom-protocol"]
 # Private Native Delivery Port For The Tests Archive Only.
 testing = []
 
@@ -58,7 +59,6 @@ tracing-appender = { version = "0.2.5" }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos-packaging = { version = "=0.1.14" }
 rand = { version = "0.10.3" }
 sha2 = { workspace = true }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
@@ -87,6 +87,7 @@ percent-encoding = { version = "2.3.2" }
 # Concurrency
 
 # Async
+futures-util = { version = "0.3.34" }
 tokio = { workspace = true, features = ["process"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -95,6 +96,7 @@ tokio-util = { workspace = true, features = ["rt"] }
 reqwest = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
+tonic-prost = { workspace = true }
 url = { version = "2.5.8" }
 
 # Storage
@@ -155,10 +157,9 @@ dokime-storage = { workspace = true }
 # Logging
 
 # Utilities
-harmos-sdk = { version = "=0.1.14", features = ["grpc"] }
-harmos-packaging = { version = "=0.1.14", features = ["generate-proto"] }
 
 # Serialization
+prost-types = { workspace = true }
 
 # Configuration
 
@@ -176,7 +177,6 @@ tokio-stream = { workspace = true, features = ["net"] }
 
 # Networking
 rcgen = { version = "0.14.10", features = ["x509-parser"] }
-tonic-prost = { workspace = true }
 
 # Storage
 
@@ -226,6 +226,16 @@ windows = { version = "0.62.2", features = [
 # Testing
 
 # === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+required-features = ["testing"]
+
+[[test]]
+name = "acceptance"
+path = "tests/acceptance/main.rs"
+required-features = ["testing"]
 
 # === Bench Targets === #
 

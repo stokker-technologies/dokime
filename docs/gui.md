@@ -45,10 +45,19 @@ full WebView journey proof remains open. Native method availability comes from t
 SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
 catalog currently omits those bindings, so storage source changes remain disabled
 with a visible reason and a Host Request.
-The desktop system drivers still start the old CLI and fixtures and require
-replacement before either desktop lane can certify this cutover. Their WebView
-RPC helper now uses the canonical host schemas and descriptor fence, including
-numeric enums and fully qualified library service paths.
+Desktop system startup uses `dokime-next server --endpoint ... --storage ...`
+  and admits the prepared Rust SDK fixture with `plugin add`. The WebView RPC
+helper uses canonical host schemas and the descriptor fence, including numeric
+enums and fully qualified library service paths. System drivers now use the SDK
+thermal fixture, registered cases, execution state/outcome, Access resources and
+verified native delivery. Their complete WebView proof remains open.
+
+Native stories retain their disposable roots outside the test runtime. After
+owned tasks stop, including on assertion failure, the host fixture removes each
+root's credentials through `--remove-credentials` before temporary files are
+deleted. WebView and benchmark cleanup uses the same host operation. A cleanup
+failure preserves the root and fails the story. Tests Build enables `testing`;
+focused native desktop commands must also pass `--features testing`.
 
 ### Unavailable Host Controls
 
@@ -71,7 +80,7 @@ numeric enums and fully qualified library service paths.
 | Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. Unserved boot/restart/applied-field facts stay absent. File installation streams SDK frames. Seven native-install frontend stories pass. Full WebView plugin proof remains open. |
 | Remote Access | Pairing export, pinned connection and certificate rotation use the SDK. `native-remote.ts` projects Access listener state and owns its opaque revision. Remote preferences commit through `Access.Listener.Set`; application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. Full remote/ownership WebView proof remains open. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
-| Dependency Removal | Native paths/distribution identity and build identity are desktop-owned, and tracing uses its independent crate directly. Desktop update policy and process launching also have current owners. The manifest declares support dependencies directly. Filesystem publication uses Harmos runtime; the desktop owns installed appearance and logging. Native test support now starts the current host, uses generated protobufs and packages the prepared SDK fixture. Facade-specific negotiation and transcoding contracts are retired; identity pinning, generation cancellation and verified delivery remain. Benchmarks and WebView drivers still require replacement. |
+| Dependency Removal | Native paths/distribution identity, build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native test support uses the current host, generated protobufs and prepared SDK bundles. The benchmark fixture publishes through an SDK stream and uses the current host's client operations. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. WebView journey expectations still require migration. |
 
 ### Native Commands and Events
 

@@ -109,7 +109,7 @@ impl Streams {
         });
     }
 
-    fn open(&self, context: Context, channel: Channel<Response>, opening: Opening) -> Result<Response, RpcError> {
+    fn open(&self, context: Context, channel: Channel<Response>, mut opening: Opening) -> Result<Response, RpcError> {
         context.check()?;
         let client = context.client();
         let max_request_bytes = DESKTOP_FRAME_BYTES as usize;
@@ -117,7 +117,7 @@ impl Streams {
             return Err(RpcError::LimitExceeded);
         }
         let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
-        sender.try_send(opening.payload).map_err(|_| RpcError::Busy)?;
+        sender.try_send(std::mem::take(&mut opening.payload)).map_err(|_| RpcError::Busy)?;
         let entry = Arc::new(Entry {
             owner: context.owner.clone(),
             generation: context.generation,
@@ -146,9 +146,8 @@ impl Streams {
                     &context,
                     &client,
                     &channel,
-                    &opening.path,
+                    &opening,
                     receiver,
-                    opening.deadline,
                 )) => result,
             };
             // Cancelling deregisters under this lock, so the outcome is settled
@@ -325,12 +324,20 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 /* === Private Functions === */
 
 async fn forward(
-    entry: &Entry, context: &Context, client: &crate::connection::host::Session, channel: &Channel<Response>, path: &str,
-    mut receiver: mpsc::Receiver<Vec<u8>>, deadline: Option<Duration>,
+    entry: &Entry, context: &Context, client: &crate::connection::host::Session, channel: &Channel<Response>, opening: &Opening,
+    mut receiver: mpsc::Receiver<Vec<u8>>,
 ) -> Result<(), RpcError> {
+    if opening.keep_input {
+        let response = client.input_raw(&opening.path, receiver).await?;
+        context.check()?;
+        entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
+        entry.delivery.lock().expect("RPC stream credit poisoned").sent += 1;
+        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &response))).map_err(|_| RpcError::Cancelled)?;
+        return Ok(());
+    }
     let payload = receiver.recv().await.ok_or(RpcError::InvalidRequest)?;
-    let client = deadline.map(|deadline| client.with_watch_timeout(deadline)).unwrap_or_else(|| client.clone());
-    let mut incoming = client.watch_raw(path, &payload).await?;
+    let client = opening.deadline.map(|deadline| client.with_watch_timeout(deadline)).unwrap_or_else(|| client.clone());
+    let mut incoming = client.watch_raw(&opening.path, &payload).await?;
     loop {
         entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
         let Some(message) = incoming.next().await.transpose()? else {

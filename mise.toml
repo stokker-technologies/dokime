@@ -236,7 +236,7 @@ run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 hide = true
 description = "Build Shipping Binaries, Bundles And Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "build:rust --profile {{usage.profile}}" }, { task = "build:typescript --profile {{usage.profile}}" }]
+run = [{ task = "build:typescript --profile {{usage.profile}}" }, { task = "build:rust --profile {{usage.profile}}" }]
 
 [tasks."build:python"]
 hide = true
@@ -258,7 +258,14 @@ run = [
   "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
   { task = "build:host-fixtures --profile {{usage.profile}}" },
   { task = "build:cli-fixtures --profile {{usage.profile}}" },
+  { task = "build:desktop-fixtures --profile {{usage.profile}}" },
 ]
+
+[tasks."build:desktop-fixtures"]
+hide = true
+description = "Build and Export Desktop SDK Fixtures"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.desktop_fixtures --profile {{usage.profile}}"
 
 [tasks."build:cli-fixtures"]
 hide = true
@@ -405,6 +412,24 @@ flag "--prepared"
 depends = [
   "test:typescript:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:typescript:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
+]
+
+[tasks."prepare:desktop"]
+hide = true
+description = "Prepare the Native WebView Driver"
+run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop --gui-runtime"
+
+[tasks."test:typescript:system"]
+hide = true
+description = "Test Desktop Execution and Connection Journeys"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--prepared"
+flag "--select <select>"
+'''
+run = [
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  '''{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}''',
 ]
 
 [tasks."test:typescript:unit"]

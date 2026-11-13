@@ -49,20 +49,22 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 
 /* === Tests === */
 
-#[tokio::test]
-async fn reset_refuses_unowned() {
-    let root = tempfile::tempdir().unwrap();
-    let store = root.path().join("store");
-    let storage = StorageRoot::new(store.clone(), root.path().join("application"));
-    fs::create_dir_all(&store).unwrap();
-    fs::write(store.join("local.sqlite"), b"kept").unwrap();
+#[test]
+fn reset_refuses_unowned() {
+    dokime_gui::test_support::run(async {
+        let root = dokime_gui::test_support::tempdir().unwrap();
+        let store = root.path().join("store");
+        let storage = StorageRoot::new(store.clone(), root.path().join("application"));
+        fs::create_dir_all(&store).unwrap();
+        fs::write(store.join("local.sqlite"), b"kept").unwrap();
 
-    // Neither an attachment nor an owned session that never started owns it.
-    let attached = DesktopSession::attached(ConnectionSession::default());
-    assert_eq!(reason(attached.reset_local_storage(&store, storage.clone()).await), Some(StorageResetReason::Failed));
-    let idle = DesktopSession::with_local_configuration(ConnectionSession::default(), Err("never started".into()));
-    assert_eq!(reason(idle.reset_local_storage(&store, storage).await), Some(StorageResetReason::Failed));
-    assert!(store.join("local.sqlite").exists());
+        // Neither an attachment nor an owned session that never started owns it.
+        let attached = DesktopSession::attached(ConnectionSession::default());
+        assert_eq!(reason(attached.reset_local_storage(&store, storage.clone()).await), Some(StorageResetReason::Failed));
+        let idle = DesktopSession::with_local_configuration(ConnectionSession::default(), Err("never started".into()));
+        assert_eq!(reason(idle.reset_local_storage(&store, storage).await), Some(StorageResetReason::Failed));
+        assert!(store.join("local.sqlite").exists());
+    })
 }
 
 #[test]

@@ -112,7 +112,8 @@ function preferenceType(name) {
   const enumeration = enumTypes.get(name);
   if (enumeration) {
     const prefix = enumeration.value[0].name.replace(/UNSPECIFIED$/, "");
-    const variants = enumeration.value.map((item) => JSON.stringify(item.name.slice(prefix.length).toLowerCase()));
+    const values = enumeration.value.filter((item) => !["ThemeMode", "Density"].includes(typeName) || item.number !== 0);
+    const variants = values.map((item) => JSON.stringify(item.name.slice(prefix.length).toLowerCase()));
     models.set(typeName, `export type ${typeName} = ${variants.join(" | ")};`);
     return typeName;
   }

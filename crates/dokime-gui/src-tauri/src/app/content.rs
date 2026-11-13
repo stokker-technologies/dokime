@@ -276,6 +276,10 @@ pub(crate) async fn fetch_verified(
         return Err(invalid("Transfer returned an unknown frame"));
     }
     if !response {
+        lease.guard(async {}).await.map_err(|error| DeliveryError {
+            stage: DeliveryStage::Stream,
+            failure: DeliveryFailure::Rpc(error.into()),
+        })?;
         return Err(invalid("Transfer ended without a final response"));
     }
     file.flush().await.map_err(write_error)?;

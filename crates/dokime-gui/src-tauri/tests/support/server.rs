@@ -32,7 +32,7 @@ use dokime_sdk::v1;
 pub struct Fixture {
     pub session: ConnectionSession,
     pub owner: DesktopSession,
-    _root: tempfile::TempDir,
+    _root: dokime_gui::test_support::Root,
 }
 
 pub struct Published {
@@ -49,7 +49,7 @@ pub struct Published {
 impl Fixture {
     pub async fn new() -> Self {
         // Seed an Imported Evidence Container Through the Current Storage Owner
-        let root = tempfile::tempdir().unwrap();
+        let root = dokime_gui::test_support::tempdir().unwrap();
         let storage = dokime_storage::Store::open(root.path()).unwrap();
         storage
             .create(&dokime_storage::Execution {
@@ -80,11 +80,9 @@ impl Fixture {
 
     pub async fn thermal(&self) -> dokime_runtime_next::PluginProcess {
         // Use the Shared SDK Fixture Produced Before This Story
-        let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN").map(std::path::PathBuf::from).unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../target/debug")
-                .join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX))
-        });
+        let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
         let placement = dokime_runtime_next::PlacementSettings {
             connect_timeout: std::time::Duration::from_secs(30),
             reconnect_delay: std::time::Duration::from_millis(25),

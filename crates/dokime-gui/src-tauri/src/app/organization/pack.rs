@@ -194,6 +194,10 @@ fn collect_files(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec
     Ok(())
 }
 
+fn bundled() -> &'static [(&'static str, &'static [u8])] {
+    include!(concat!(env!("OUT_DIR"), "/organization.rs"))
+}
+
 /* === Tests === */
 
 #[cfg(test)]
@@ -208,8 +212,4 @@ mod tests {
         assert!(error.contains("label"), "{error}");
         assert!(error.contains("line 2, column"), "{error}");
     }
-}
-
-fn bundled() -> &'static [(&'static str, &'static [u8])] {
-    include!(concat!(env!("OUT_DIR"), "/organization.rs"))
 }

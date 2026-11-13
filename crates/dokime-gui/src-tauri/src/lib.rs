@@ -20,6 +20,9 @@ pub mod native_session;
 pub mod parameters;
 pub mod paths;
 pub mod rpc;
+#[cfg(any(test, feature = "testing"))]
+#[doc(hidden)]
+pub mod test_support;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub mod testing;

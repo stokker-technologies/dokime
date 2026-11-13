@@ -37,7 +37,7 @@ import {
   stopBackend,
   terminate,
   until,
-} from "./native-desktop.mjs";
+} from "./native-fixture.mjs";
 import { call, invoke } from "./native-rpc.mjs";
 
 /* === Re-Exports === */

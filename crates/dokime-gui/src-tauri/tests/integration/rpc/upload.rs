@@ -78,61 +78,69 @@ fn write_payload(id: u64, sequence: u64, data: &[u8]) -> Vec<u8> {
 
 /* === Tests === */
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn upload_sink_completes() {
-    // Upload Into an Open Imported Evidence Container
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let id = open(&harness, generation, 6);
-    invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap();
-    invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"bar"))).unwrap();
+#[test]
+fn upload_sink_completes() {
+    dokime_gui::test_support::run(async {
+        // Upload Into an Open Imported Evidence Container
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let id = open(&harness, generation, 6);
+        invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap();
+        invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"bar"))).unwrap();
 
-    // Finish Requires the Host's Verified Completion and Returns Canonical Metadata
-    let finished = invoke(&harness.window, "artifact_upload_finish", fenced(generation, &id.to_le_bytes())).unwrap();
-    let tauri::ipc::InvokeResponseBody::Raw(metadata) = finished else {
-        panic!("Upload Finishes with Canonical Metadata");
-    };
-    let metadata = v1::ArtifactMetadata::decode(&metadata[8..]).unwrap();
-    assert_eq!(metadata.size_bytes, 6);
-    assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
-    assert_eq!(metadata.state, v1::ArtifactState::Complete as i32);
-    harness.app.state::<Bridge>().cancel_owner("main");
-    fixture.close().await;
+        // Finish Requires the Host's Verified Completion and Returns Canonical Metadata
+        let finished = invoke(&harness.window, "artifact_upload_finish", fenced(generation, &id.to_le_bytes())).unwrap();
+        let tauri::ipc::InvokeResponseBody::Raw(metadata) = finished else {
+            panic!("Upload Finishes with Canonical Metadata");
+        };
+        let metadata = v1::ArtifactMetadata::decode(&metadata[8..]).unwrap();
+        assert_eq!(metadata.size_bytes, 6);
+        assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+        assert_eq!(metadata.state, v1::ArtifactState::Complete as i32);
+        harness.app.state::<Bridge>().cancel_owner("main");
+        fixture.close().await;
+    })
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn upload_refuses_gap() {
-    // A Skipped Native Sequence Cannot Publish an Artifact
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let id = open(&harness, generation, 3);
-    let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"foo"))).unwrap_err();
-    assert_eq!(error["kind"], "invalid_ack");
-    harness.app.state::<Bridge>().cancel_owner("main");
-    fixture.close().await;
+#[test]
+fn upload_refuses_gap() {
+    dokime_gui::test_support::run(async {
+        // A Skipped Native Sequence Cannot Publish an Artifact
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let id = open(&harness, generation, 3);
+        let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"foo"))).unwrap_err();
+        assert_eq!(error["kind"], "invalid_ack");
+        harness.app.state::<Bridge>().cancel_owner("main");
+        fixture.close().await;
+    })
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn upload_owner_cancels() {
-    // Releasing the WebView Invalidates Every Owned Upload
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let id = open(&harness, generation, 3);
-    harness.app.state::<Bridge>().cancel_owner("main");
-    let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap_err();
-    assert_eq!(error["kind"], "unknown_stream");
-    fixture.close().await;
+#[test]
+fn upload_owner_cancels() {
+    dokime_gui::test_support::run(async {
+        // Releasing the WebView Invalidates Every Owned Upload
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let id = open(&harness, generation, 3);
+        harness.app.state::<Bridge>().cancel_owner("main");
+        let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap_err();
+        assert_eq!(error["kind"], "unknown_stream");
+        fixture.close().await;
+    })
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn upload_sink_opens() {
-    // Native Open Returns Before Input Has Finished
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    assert!(open(&harness, fixture.generation(), 1) > 0);
-    harness.app.state::<Bridge>().cancel_owner("main");
-    fixture.close().await;
+#[test]
+fn upload_sink_opens() {
+    dokime_gui::test_support::run(async {
+        // Native Open Returns Before Input Has Finished
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        assert!(open(&harness, fixture.generation(), 1) > 0);
+        harness.app.state::<Bridge>().cancel_owner("main");
+        fixture.close().await;
+    })
 }

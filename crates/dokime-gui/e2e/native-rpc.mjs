@@ -16,12 +16,12 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 
 // Third Party Imports
-import ts from "typescript";
+import { transformWithOxc } from "vite";
 import { fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
 
 // Local Imports
@@ -34,6 +34,19 @@ const generated = new URL("../../../target/generated/host/", import.meta.url);
 const inventory = await readFile(new URL("client.ts", generated), "utf8");
 const identity = await readFile(new URL("identity.ts", generated), "utf8");
 const digest = Buffer.from(identity.match(/descriptorSha256 = "([a-f0-9]+)"/)[1], "hex");
+const compiled = new Map();
+const pending = [generated];
+while (pending.length) {
+  const directory = pending.pop();
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const source = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+    if (entry.isDirectory()) pending.push(source);
+    else if (entry.name.endsWith(".ts")) {
+      const result = await transformWithOxc(await readFile(source, "utf8"), fileURLToPath(source), { target: "es2022", lang: "ts" });
+      compiled.set(source.href, result.code);
+    }
+  }
+}
 
 // Generated Buf Modules Use JavaScript Specifiers For Their TypeScript Siblings.
 registerHooks({
@@ -47,9 +60,8 @@ registerHooks({
   },
   load(url, context, next) {
     if (url.startsWith(generated.href) && url.endsWith(".ts")) {
-      const source = ts.transpileModule(readFileSync(new URL(url), "utf8"), {
-        compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-      }).outputText;
+      const source = compiled.get(url);
+      assert.ok(source, `Prepared Host Module Exists: ${url}`);
       return { format: "module", source, shortCircuit: true };
     }
     return next(url, context);

@@ -56,8 +56,14 @@ own an isolated session bus/keyring for credential storage; install `dbus` and
 The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.
-Hosted desktop lanes, Product exports, benchmarks, installers and signing remain
-in the restoration checklist until their fixtures and drivers use the current host.
+Product builds prepare generated clients, icons and the production frontend before
+compiling and exporting the native shell with `custom-protocol`. Tests Build also
+prepares the SDK desktop bundle. Run focused native desktop stories with
+`--features testing`; their disposable-root owner removes credentials after the
+runtime stops, including on failure. WebView lanes are available through
+`mise run test -- --language typescript --layer system --select native-desktop`
+and the same command with `--select two-gui-remote`. Their retained journey
+expectations, hosted selection, installers and signing remain restoration work.
 The retained frontend suite exclusions have not yet been removed.
 
 `mise run generate` builds the desktop's `export_preferences` example and reads
@@ -79,8 +85,8 @@ add `--check` to prove its drift. Never edit generated files.
 
 `mise run build` produces the current host/CLI workspace. Tests Build produces
 one archive plus host/CLI fixtures and the vendored protobuf compiler input.
-The native desktop package compiles with workspace selections, but its exported
-Product bytes and hosted consumers remain restoration work. Shipping sidecar
+The native desktop package compiles with workspace selections; Product now exports
+its shell and frontend inputs. Hosted consumers remain restoration work. Shipping sidecar
 plugins and removed macro/compiler fixtures are not selected. The current Cargo
 workspace also contains protocol, storage, operations-next, runtime-next, CLI-next,
 SDK and bundle inspection packages.

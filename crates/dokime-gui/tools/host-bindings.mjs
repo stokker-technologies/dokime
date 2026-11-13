@@ -46,15 +46,20 @@ function generate() {
       : name.replace(/^\.harmos\.v1\./, "library::").replaceAll(".", "::");
   const unary = [];
   const watches = [];
+  const inputs = [];
   for (const file of descriptors.file) {
     if (!["dokime.v1", "harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)) continue;
     for (const service of file.service) {
       if (["Backend", "Runtime", "Remote"].includes(service.name)) continue;
       for (const method of service.method) {
-        if (method.clientStreaming) continue;
         const path = `/${file.package}.${service.name}/${method.name}`;
         const request = type(method.inputType);
         const response = type(method.outputType);
+        if (method.clientStreaming) {
+          if (!method.serverStreaming)
+            inputs.push(`        "${path}" => Box::pin(session.input::<${request}, ${response}>("${path}", receiver)).await,`);
+          continue;
+        }
         const operation = method.serverStreaming ? "watch" : "call";
         const row = `        "${path}" => Box::pin(session.${operation}::<${request}, ${response}>("${path}", payload)).await,`;
         (method.serverStreaming ? watches : unary).push(row);
@@ -79,6 +84,13 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
     match path {
 ${watches.sort().join("\n")}
         _ => Err(tonic::Status::unimplemented(format!("Watch {path}: This Host Contract Has No Watch Operation")).into()),
+    }
+}
+
+pub(super) async fn input(session: &Session, path: &str, receiver: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
+    match path {
+${inputs.sort().join("\n")}
+        _ => Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into()),
     }
 }
 `;

@@ -247,7 +247,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [workspace](../Cargo.toml), [SDK manifest](../sdk/rust/Cargo.toml),
     [runtime manifest](../crates/dokime-runtime-next/Cargo.toml).
     **Proof:** No proof yet for the complete migrated tree; A12. New crate manifests
-    follow the direction; the native desktop remains outside workspace membership.
+    follow the direction; the native desktop is restored to workspace membership
+    and uses the embedded execution host through its native SDK connection owner.
     **Status:** locked direction (`grpc-plugins`, `operation-grammar`).
 
 15. **Generic Library and Consistent SDK Concepts.** Library protocol, SDKs and

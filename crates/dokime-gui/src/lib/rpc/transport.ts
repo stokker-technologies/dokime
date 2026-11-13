@@ -10,7 +10,6 @@ import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/prot
 import { settleUnlessStopping } from "../desktop/stopping";
 import * as transport from "./ipc";
 import type { NotificationFailure } from "../notification-details";
-import { operationIds } from "./generated/operations";
 
 /* === Types === */
 export interface SessionIdentity {
@@ -108,7 +107,7 @@ function operationFailure(error: unknown, path: string, request: object): unknow
     notificationFailure: {
       ...failure,
       operation: path,
-      operationId: identifiers.operationId ?? failure?.operationId ?? operationIds[path],
+      operationId: identifiers.operationId ?? failure?.operationId,
       requestId: identifiers.requestId ?? failure?.requestId,
       invocationId: identifiers.invocationId ?? failure?.invocationId,
     },

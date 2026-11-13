@@ -41,8 +41,18 @@ use dokime_sdk::{client::v1::access, v1};
 
 /* === Private Functions === */
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), String> {
+    // The Generated Host Router's Debug Future Exceeds the Windows Main Stack.
+    std::thread::Builder::new()
+        .name("Export Preferences".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| tokio::runtime::Runtime::new().map_err(|error| error.to_string())?.block_on(export()).map_err(|error| error.to_string()))
+        .map_err(|error| error.to_string())?
+        .join()
+        .map_err(|_| "Export Preferences: Worker Panicked".to_owned())?
+}
+
+async fn export() -> Result<(), Box<dyn std::error::Error>> {
     // Reuse the Generator-Owned Host Root Without Resetting Its Storage.
     let directory = PathBuf::from(std::env::args_os().nth(1).ok_or("Export Preferences: Supply an Output Directory")?);
     let (mut owner, _) =

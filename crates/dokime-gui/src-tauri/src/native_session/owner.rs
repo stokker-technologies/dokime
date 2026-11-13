@@ -107,6 +107,8 @@ impl DesktopSession {
     pub fn with_local_configuration(connection: ConnectionSession, backend: Result<Backend, String>) -> Self {
         let mut owner = Self::attached(connection);
         Arc::get_mut(&mut owner.0).expect("new owner").local = Some(backend);
+        #[cfg(any(test, feature = "testing"))]
+        crate::test_support::register(owner.clone());
         owner
     }
     pub fn status(&self) -> DesktopSessionSnapshot {

@@ -216,7 +216,10 @@ impl ConnectionSession {
         let preferences = *self.preferences.lock().expect("client preferences poisoned");
         settings.connect_timeout = std::time::Duration::from_millis(preferences.connect_timeout_ms);
         settings.services.read_timeout = std::time::Duration::from_millis(preferences.request_timeout_ms);
-        let client = host::Session::connect_target(&target.target, &settings).await.map_err(ConnectionError::from)?;
+        let client = host::Session::connect_target(&target.target, &settings).await.map_err(|error| {
+            tracing::warn!(%error, "Connect to Host Failed");
+            ConnectionError::from(error)
+        })?;
         let backend = transport::backend(&client);
         if expected_id.is_some_and(|expected| expected != backend.backend_id) {
             client.cancel();

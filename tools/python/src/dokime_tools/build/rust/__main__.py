@@ -27,7 +27,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 # === Constants === #
 
 ROOT = configuration.ROOT
-EXECUTABLES = ("dokime-next", "dokime-host-next")
+EXECUTABLES = ("dokime-next", "dokime-host-next", "dokime-gui")
 
 # === Types === #
 
@@ -41,7 +41,7 @@ def build(profile: str) -> list[str]:
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
-    arguments = ["--locked", "--workspace", "--profile", profile]
+    arguments = ["--locked", "--workspace", "--profile", profile, "--features", "dokime-gui/custom-protocol"]
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     pending = messages.with_name("compiler.pending.json")
     with pending.open("w", encoding="utf-8") as written:

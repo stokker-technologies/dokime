@@ -193,3 +193,11 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
         _ => Err(tonic::Status::unimplemented(format!("Watch {path}: This Host Contract Has No Watch Operation")).into()),
     }
 }
+
+pub(super) async fn input(session: &Session, path: &str, receiver: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
+    match path {
+        "/dokime.v1.Content/UploadArtifact" => Box::pin(session.input::<v1::ContentUploadArtifactInput, v1::ArtifactMetadata>("/dokime.v1.Content/UploadArtifact", receiver)).await,
+        "/dokime.v1.Plugins/Install" => Box::pin(session.input::<v1::PluginsInstallInput, v1::PluginInstallation>("/dokime.v1.Plugins/Install", receiver)).await,
+        _ => Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into()),
+    }
+}
