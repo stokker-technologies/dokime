@@ -113,7 +113,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
     });
     let channel = settings.channel(endpoint, false).await?;
-    let response = v1::plugins_client::PluginsClient::new(channel)
+    let response = v1::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor())
         .max_encoding_message_size(settings.message_bytes.get())
         .max_decoding_message_size(settings.message_bytes.get())
         .install(tokio_stream::wrappers::ReceiverStream::new(receiver))

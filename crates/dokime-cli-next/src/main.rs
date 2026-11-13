@@ -51,13 +51,16 @@ type Result<T> = std::result::Result<T, error::Error>;
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let cli = cli::Cli::parse();
-    let settings = match settings::Settings::load(cli.config.as_deref()) {
+    let mut settings = match settings::Settings::load(cli.config.as_deref()) {
         Ok(settings) => settings,
         Err(error) => {
             eprintln!("Read Configuration: {error}");
             return std::process::ExitCode::from(2);
         }
     };
+    settings.remote = cli.remote.or_else(|| {
+        if cli.endpoint.is_none() { std::env::var_os("DOKIME_REMOTE").filter(|value| !value.is_empty()).map(Into::into) } else { None }
+    });
     let action = cli.command.action();
     match commands::run(cli.command, cli.endpoint.or(settings.endpoint.clone()), settings).await {
         Ok(()) => std::process::ExitCode::SUCCESS,

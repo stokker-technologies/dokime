@@ -60,8 +60,8 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel, settings.client())?;
-    let mut parameters = HashMap::new();
+    let mut client = v1::planning_client::PlanningClient::with_interceptor(channel, settings.interceptor());
+    let mut parameters: HashMap<String, Vec<v1::Value>> = HashMap::new();
     if let Some(path) = args.parameters {
         let input: HashMap<String, Vec<serde_json::Value>> = serde_json::from_slice(&std::fs::read(path)?)?;
         let descriptor = dokime_protocol::descriptor_pool().get_message_by_name("dokime.v1.Value").unwrap();
@@ -74,7 +74,21 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             parameters.insert(name, converted);
         }
     }
-    let cases = client.templates.materialize(args.suite, args.template, parameters).await?;
+    let request = v1::PlanningMaterializeTemplateRequest {
+        selection: Some(v1::RegisteredSelection {
+            suite_id: args.suite,
+            template_id: args.template,
+            parameters: parameters
+                .into_iter()
+                .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
+                    key,
+                    value: Some(v1::SelectionValues { values }),
+                })
+                .collect(),
+            ..Default::default()
+        }),
+    };
+    let cases = client.materialize_template(request).await?.into_inner().cases;
     let value = v1::PreviewSelectionReply { cases, ..Default::default() };
     let bytes = value.encode_to_vec();
     if bytes.len() > settings.retained_bytes.get() {

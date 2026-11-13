@@ -14,6 +14,12 @@
 #[path = "../../../dokime-runtime-next/tests/support/credentials.rs"]
 mod credentials;
 mod first_hour;
+mod operator_calls_operation;
+mod operator_diagnoses_storage;
+mod operator_discovers_operations;
+mod operator_identifies_build;
+mod operator_inspects_contract;
+mod operator_pairs_with_host;
 mod remote_first_hour;
 mod scaffold;
 
@@ -38,11 +44,50 @@ const HANG_GUARD: std::time::Duration = std::time::Duration::from_secs(600);
 
 /* === Structs === */
 
+struct HostProcess {
+    child: tokio::process::Child,
+    endpoint: String,
+    _credentials: credentials::CredentialStore,
+    _root: credentials::Root,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl HostProcess {
+    async fn start() -> Result<Self, Box<dyn std::error::Error>> {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let root = credentials::tempdir()?;
+        let credentials = credentials::CredentialStore::start(root.path()).await?;
+        let mut child = command()
+            .envs(credentials.environment.iter().cloned())
+            .args(["--endpoint", "127.0.0.1:0", "server", "--controlled-clock", "--storage"])
+            .arg(root.path().join("storage"))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()?;
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let endpoint = lines.next_line().await?.ok_or("Start Host: Missing Listener Announcement")?;
+        Ok(Self {
+            child,
+            endpoint,
+            _credentials: credentials,
+            _root: root,
+        })
+    }
+    async fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.stop().await
+    }
+    async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        drop(self.child.stdin.take());
+        assert!(self.child.wait().await?.success());
+        Ok(())
+    }
+}
 
 /* === Public Functions === */
 

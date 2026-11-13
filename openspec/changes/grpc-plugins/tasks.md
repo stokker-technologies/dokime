@@ -469,15 +469,15 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] Restore native Rust acceptance and both TypeScript system story selections on PR and Nightly for Windows and Linux. Restore the SDK-authored desktop benchmark producer, archive and Nightly leaves. Hosted execution remains pending integration delivery.
   - [x] Restore desktop distribution, Windows NSIS and Linux DEB/RPM packaging from verified Product bytes; declare native release assets and signed updater metadata. Restore protected stable Windows signing before updater signatures and publication, consuming the validated review Product without rebuilding. Windows unsigned NSIS packaging passes; Linux and credentialed publication remain hosted proof.
 - [ ] Complete command-line parity after host support is available.
-  - [ ] `operation list`: discover admitted operations.
-  - [ ] `operation show`: inspect an operation contract.
-  - [ ] `operation call`: invoke typed operations through the generic client.
-  - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
-  - [ ] `gui`: launch the native desktop.
-  - [ ] `version`: report detailed JSON/source/channel metadata.
-  - [ ] Pairing-file connection and access pairing export.
-  - [ ] Installer packaging.
-  - [ ] Plugin development supervision and plugin-specific protocol export.
+  - [x] `operation list`: discover admitted operations; `operator_discovers_operations` compares the whole host catalog.
+  - [x] `operation show`: inspect identity, visibility, policy and shapes; `operator_inspects_contract`.
+  - [x] `operation call`: invoke typed Public unary operations through the generic client; `operator_calls_operation`.
+  - [x] `doctor storage`: probe scratch storage and validate a bounded frozen database copy; `operator_diagnoses_storage` proves original-byte preservation.
+  - [ ] `gui`: waits for the desktop to return to the workspace.
+  - [x] `version`: report compiled JSON/source/channel metadata; `operator_identifies_build`.
+  - [x] Pairing-file connection and access pairing export; `operator_pairs_with_host` proves pinned TLS, backend identity, product reads and revocation.
+  - [ ] Installer packaging: waits for desktop packaging restoration.
+  - [ ] Plugin development supervision and plugin-specific protocol export: normal startup, admission and entry cleanup pass in `operator_pairs_with_host`; unexpected-exit notification and source export wait for Host Requests.
   - [ ] `execution export`: download a saved evidence archive and files.
   - [ ] `execution run`: drive interactive commands.
   - [x] `plan preview`: validate canonical protobuf JSON selection requests without registration.
@@ -493,6 +493,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Restore desktop/installer organization, licensing, signature and update journeys with native packaging.
   - [ ] Retain client-disconnection and partial-capture interruption tasks from removal section 5.3.
 - [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.
+
+### Host Requests
+
+- `Plugins.Watch` for the product-owned plugin inventory: the existing library request `{name, at}` and response `{resolved_at, snapshot | change | resync_required}`, ending on host shutdown. `plugin dev` needs unexpected-exit notification; the current local `PluginProcess` exposes start/describe/close but no wait handle, and the library plugin inventory is not composed with product entries.
+- `Plugins.Protocol.Get`: request `{name}`; response `{files: [{path, source}]}` for the plugin's authoritative `.proto` source closure. `proto export --plugin ID --out PATH` needs source files; current descriptions expose descriptor sets, not `.proto` sources. Product-wide embedded export already works.
+- `Invocations.Invoke`: request `{operation, fingerprint, payload}`; response `{payload}`. The SDK declares this generic service, but this head returns `UNIMPLEMENTED`; Public unary operations with admitted gRPC mappings already work through `operation call`, while Public contracts without a mapping await this host route.
 
 ## Remaining Source Policy Proof
 

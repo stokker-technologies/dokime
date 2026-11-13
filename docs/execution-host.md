@@ -279,6 +279,49 @@ policies retain their own deadlines.
 Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
 half. Build with `mise run build -- --package dokime-cli-next`.
 
+`dokime-next --endpoint URL operation list --json` returns the complete bounded
+admitted operation catalog, including owner, generation and contract. It has no
+paging flags. `operation show ID --json` inspects the same contract, including
+visibility, policy, protobuf descriptors and readable request/response field shapes.
+`operation call ID --json '{}'` validates a unary Public request using its admitted
+descriptors and calls its admitted gRPC mapping through the SDK generic transport,
+then prints the typed JSON response. Use `--input-file request.json` for file input. Stream contracts require the typed streaming client;
+refusals name the requested operation. Policies run on the host; the CLI adds no
+mutation retries.
+
+`dokime-next version --json` reports the compiled package version, source revision
+(with `-dirty` for tracked local edits), publication channel, OS and architecture.
+Local builds have a null channel; release and Nightly publishers identify theirs
+from the build environment. Source archives without Git or CI revision metadata
+report a null revision.
+
+`dokime-next doctor storage --json` probes write, sync, rename, readback and removal
+in a disposable scratch directory, then opens and closes a scratch host.
+`--storage PATH` (or configured `storage`) additionally diagnoses an existing root
+from a bounded copy of its SQLite files under the root lease. Stop the host first.
+The original root is never opened for recovery or changed; missing roots are not
+created. `retained_bytes` bounds the database copy. Incompatible roots produce a
+failed report and backup/fresh-root or explicit-reset guidance.
+
+Export access with `dokime-next --endpoint URL access pairing export --label Operator
+--out operator.dokime-remote --json`. It enables the host's saved TLS listener if
+needed, creates an independent Access pairing, and atomically writes a new secret
+file. Existing destinations are refused before creating a pairing. Publication
+failure revokes the pairing it just created; stdout contains only its ID and path.
+
+All remote commands accept `--remote operator.dokime-remote`, or read
+`DOKIME_REMOTE` when no explicit endpoint is supplied. The six-field JSON v1 format
+is `version`, `endpoints`, `backend_identifier`, `label`, `ca_certificate_pem` and
+`access_key`, bounded to 1 MiB. This candidate reads `.dokime-remote` files directly. Keep the file private. Endpoints are attempted in order; pinned TLS and
+backend identity must both pass before any command runs. No local credential or
+profile is created. Use the host's Access pairing deletion operation to revoke it.
+
+`plugin dev` serves an owned built process, registers it through an endpoint or
+pairing when supplied, and removes that entry before closing on stdin EOF or Ctrl+C.
+Detecting an unexpected exit and plugin-specific `.proto` source export await the
+host/API requests listed in the parity checklist; embedded product export remains
+`proto export --out proto`.
+
 ```sh
 dokime-next new first-plugin --lang rust
 dokime-next new remote-plugin --lang python

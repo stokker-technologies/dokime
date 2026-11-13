@@ -54,7 +54,10 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     let request = dokime::v1::ExecutionAppendExecutionsRequest::decode(std::fs::read(args.request)?.as_slice())?;
     let channel = settings.channel(endpoint, false).await?;
-    let value = dokime::v1::execution_client::ExecutionClient::new(channel).append_executions(request).await?.into_inner();
+    let value = dokime::v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor())
+        .append_executions(request)
+        .await?
+        .into_inner();
     crate::output::print(&value, args.json)
 }
 

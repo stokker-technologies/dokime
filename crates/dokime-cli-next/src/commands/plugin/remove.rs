@@ -47,7 +47,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::plugins_client::PluginsClient::new(channel);
+    let mut client = dokime::v1::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
     let value = client.remove(dokime::v1::RemovePlugin { entry: args.entry }).await?.into_inner();
     crate::output::print(&value, args.json)
 }

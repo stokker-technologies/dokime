@@ -45,8 +45,8 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel, settings.client())?;
-    let value = client.status.get(tonic::Request::new(dokime::client::v1::StatusGetRequest {})).await?.into_inner();
+    let client = dokime::Client::from_channel(channel, settings.client())?;
+    let value = client.status.get(settings.request(dokime::client::v1::StatusGetRequest {})).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

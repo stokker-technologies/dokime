@@ -55,13 +55,15 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     let cases = v1::PreviewSelectionReply::decode(std::fs::read(args.cases)?.as_slice())?;
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel, settings.client())?;
-    let cycle = client.cycles.start(cases.cases).await?;
-    let value = v1::CreateCycleReply {
-        cycle_id: cycle.identifier,
-        execution_ids: cycle.executions,
+    let mut client = v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor());
+    let origins =
+        cases.cases.into_iter().map(|case| case.origin.ok_or("Start Cycle: Case Has No Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
+    let request = v1::ExecutionCreateCycleRequest {
+        origins,
+        continue_automatically: true,
         ..Default::default()
     };
+    let value = client.create_cycle(request).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 
