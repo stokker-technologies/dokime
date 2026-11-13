@@ -459,9 +459,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 - [x] Retain current bundle production/inspection without facade dependencies.
 - [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
 - [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+- [ ] Re-author storage/plot benchmarks on the remaining host/storage and restore their Nightly producer and suite selections.
 - [ ] Restore the desktop to the workspace when its switch merges.
   - [ ] Restore crates/dokime-gui/src-tauri workspace and default membership.
-  - [ ] Restore native desktop Product build, embedded resources and generated-settings checks, including tests/unit/settings/preferences.test.ts and its native default exporter.
+  - [ ] Restore native desktop Product build, icons, embedded resources and generated-settings checks, including tests/unit/settings/preferences.test.ts and its native default exporter.
+  - [ ] Restore frontend production build, route generation and full generated-client type checking with its native preference declarations.
+  - [ ] Restore retained frontend suites that import the removed native message exporter after migrating their generated clients: `console/nominal`, `cycle/nominal`, `cycle/projection`, `cycle/document-stream`, `history/totals`, `library/nominal`, `shell/navigation`, `plots/columnar-frame`, `plots/live-frames`, `plots/plot-pipeline` (all under `tests/unit/*.test.ts`), and the notification story `Native Rejections and Captured Diagnostics Reach Notification History`. Their source remains intact; independent frontend stories stay selected.
   - [ ] Restore native Rust desktop and TypeScript system stories on PR and Nightly, and desktop benchmarks.
   - [ ] Restore desktop distribution/installer packaging, signing and release assets.
 - [ ] Complete command-line parity after host support is available.

@@ -38,7 +38,7 @@ MODULES = ROOT / "target/generated/typescript"
 # === Public Functions === #
 
 
-def prepare(*, check: bool = True) -> None:
+def prepare() -> None:
     """Generate Frontend Message Modules From The Checked-In Protocol Descriptor."""
     subprocess.run(
         ["node", str(ROOT / "tools/typescript/generate.mjs")],
@@ -67,13 +67,10 @@ def restore(profile: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
-    parser.add_argument("--generate", action="store_true", help="Build the contract generator and regenerate modules")
-    parser.add_argument("--check", action="store_true", help="Check tracked generated clients while regenerating modules")
+    parser.add_argument("--generate", action="store_true", help="Generate Frontend Protobuf Modules")
     options = parser.parse_args()
-    if options.check and not options.generate:
-        parser.error("--check requires --generate")
     if options.generate:
-        prepare(check=options.check)
+        prepare()
     else:
         restore(options.profile)
     return 0

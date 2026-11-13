@@ -80,7 +80,16 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
                 "./node_modules/vitest/vitest.mjs",
                 "run",
                 f"tests/{category}",
-                *(["--exclude", "tests/unit/settings/preferences.test.ts"] if category == "unit" else []),
+                *(
+                    [
+                        "--exclude",
+                        "tests/unit/{settings/preferences,console/nominal,cycle/{nominal,projection,document-stream},history/totals,library/nominal,shell/navigation,plots/{columnar-frame,live-frames,plot-pipeline}}.test.ts",
+                        "--testNamePattern",
+                        "^(?!.*Native Rejections and Captured Diagnostics Reach Notification History)",
+                    ]
+                    if category == "unit"
+                    else []
+                ),
                 "--reporter=default",
                 "--reporter=junit",
                 "--outputFile.junit={junit}",

@@ -57,13 +57,16 @@ The native desktop is outside Cargo membership until its host switch merges.
 The restoration checklist in `openspec/changes/grpc-plugins/tasks.md` owns native
 Product builds, generated preference/settings checks, system stories, benchmarks,
 installer packaging and signing. The frontend retains formatting/lint and protobuf
-message generation. Unit/integration stories independent of native preferences
-remain selected. The preferences unit journey returns with its native declaration
-and default exporter; its source is retained in the desktop tree.
+message generation. Unit/integration stories independent of the removed native message exporter
+remain selected. The desktop restoration task lists the deferred suites and the
+notification story that import that exporter, along with the preferences journey
+and its native default exporter. Their source remains in the desktop tree.
 
 `mise run generate` generates frontend protobuf modules from the authoritative
 checked-in descriptor, without compiling a host. `mise run generate -- --protocol`
-regenerates checked-in Rust protocol output; never edit generated files.
+regenerates checked-in Rust protocol output; add `--check` to prove its drift.
+`generate --check` requires `--protocol` while native client generation is detached.
+Never edit generated files.
 
 ## Build and Delivery Artifacts
 

@@ -2,9 +2,9 @@
 // Generate Frontend Protobuf Modules From the Authoritative Descriptor Set.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -13,6 +13,25 @@ const require = createRequire(resolve(gui, "package.json"));
 const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
 const { CodeGeneratorRequestSchema, CodeGeneratorResponseSchema, FileDescriptorSetSchema } = require("@bufbuild/protobuf/wkt");
 const set = fromBinary(FileDescriptorSetSchema, readFileSync(resolve(root, "crates/dokime-protocol/src/descriptors.bin")));
+const output = resolve(root, "target/generated/typescript");
+if (!output.startsWith(root + sep)) throw new Error("Generate Messages: Output Escapes the Repository");
+rmSync(output, { recursive: true, force: true });
+mkdirSync(output, { recursive: true });
+
+// The Standard gRPC Error Envelope Is a Frontend Input Alongside Product Messages.
+const statusDescriptor = resolve(output, "status.bin");
+const status = spawnSync("protoc", [
+  `--proto_path=${resolve(gui, "tools/proto")}`,
+  `--descriptor_set_out=${statusDescriptor}`,
+  "--include_imports",
+  "google/rpc/status.proto",
+], { encoding: "utf8" });
+if (status.status !== 0) throw new Error(status.stderr || "Generate Messages: Status Descriptor Export Failed");
+for (const file of fromBinary(FileDescriptorSetSchema, readFileSync(statusDescriptor)).file) {
+  if (!set.file.some((existing) => existing.name === file.name)) set.file.push(file);
+}
+rmSync(statusDescriptor);
+
 const request = create(CodeGeneratorRequestSchema, {
   protoFile: set.file,
   fileToGenerate: set.file.map((file) => file.name),
@@ -25,7 +44,6 @@ const generated = spawnSync(process.execPath, [resolve(gui, "node_modules/@bufbu
 if (generated.status !== 0) throw new Error(generated.stderr.toString());
 const response = fromBinary(CodeGeneratorResponseSchema, generated.stdout);
 if (response.error) throw new Error(response.error);
-const output = resolve(root, "target/generated/typescript");
 for (const file of response.file) {
   const path = resolve(output, file.name);
   if (!path.startsWith(output + "/") && !path.startsWith(output + "\\")) throw new Error("Generate Messages: Invalid Protobuf Path");
