@@ -16,21 +16,22 @@ import hashlib
 import io
 import json
 import os
-import re
 import runpy
-import sys
 import tempfile
 import tomllib
 import unittest
 import urllib.error
 import urllib.parse
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
+
+from environment import isolate_environment
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.ci import artifacts
-from dokime_tools.release import nightly, notices, pins, policy, registry, run
+from dokime_tools import policy
+from dokime_tools.ci import tasks, transport, workflow
+from dokime_tools.release import nightly, notices, pins, registry, run
 
 # Type Checking Imports
 
@@ -48,62 +49,36 @@ LATER = "c" * 40
 # === Classes === #
 
 
-class ImpactTests(unittest.TestCase):
-    def setUp(self):
-        self.impact = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        authored = next(line.removeprefix("        plan: ") for line in workflow.splitlines() if line.startswith("        plan: "))
-        self.plan = json.loads(json.loads(authored))
-
-    def test_dev_and_review(self):
-        full = self.impact["select"](self.plan, {"Cargo.toml"})
-        development = self.impact["scope"](self.plan, full, "build")
-        self.assertTrue({"build", "build:rust:tests", "check:rust"} <= development)
-        self.assertFalse(any(job.startswith(("package:", "test:", "release:", "bench:", "prepare:")) for job in development))
-        self.assertTrue(any(job.startswith("test:") for job in self.impact["scope"](self.plan, full)))
-        for job in development:
-            self.assertTrue(set(self.plan["dependencies"][job]) <= development)
-        print("Dev Impact:", ", ".join(sorted(development)))
-        print("PR Impact:", ", ".join(sorted(full)))
-
-    def test_guidance_scope(self):
-        selected = self.impact["select"](self.plan, {"CONTRIBUTING.md"})
-        self.assertEqual(self.impact["scope"](self.plan, selected, "build"), set())
-
-    def test_conservative_scope(self):
-        plan = {"dependencies": {"build": ["producer"], "package:rust": ["build"], "producer": []}, "rules": []}
-        self.assertEqual(self.impact["close"](plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
-        self.assertEqual(self.impact["scope"](plan, {"build", "package:rust"}, "build"), {"build", "producer"})
-        with self.assertRaises(ValueError):
-            self.impact["scope"](plan, set(), "typo")
-
-
 class ReleaseTagTests(unittest.TestCase):
     def test_workflow_artifact_arguments(self):
-        for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
-            source = workflow.read_text(encoding="utf-8")
-            commands = []
-            for match in re.finditer(r"""(?m)^ +command: ('(?:[^']|'')*'|"(?:[^"\\]|\\.)*")\s*$""", source):
-                scalar = match[1]
-                value = scalar[1:-1].replace("''", "'") if scalar.startswith("'") else json.loads(scalar)
-                value = re.sub(r"\$\{\{\s*env.PROFILE\s*\}\}", "release", value)
-                command = json.loads(value)
-                if "dokime_tools.ci.artifacts" in command:
-                    commands.append(command)
-            self.assertEqual(len(commands), source.count("dokime_tools.ci.artifacts"), workflow.name)
-            for command in commands:
-                arguments = command[command.index("dokime_tools.ci.artifacts") :]
-                with (
-                    self.subTest(workflow=workflow.name, arguments=arguments),
-                    patch.object(sys, "argv", arguments),
-                    patch.object(artifacts, "pack"),
-                    patch.object(artifacts, "extract"),
-                    patch.object(artifacts, "target", return_value="linux-x86_64"),
-                ):
-                    artifacts.main()
+        archives = [Path("target/ci/package-release-python-any.tar.zst")]
+        for entry, arguments in ((tasks.main, ["publish"]), (workflow.main, ["release-verify"])):
+            with (
+                self.subTest(arguments=arguments),
+                patch.dict(os.environ, {"CI_TRANSPORT": "true"}, clear=True),
+                patch.object(transport.Path, "glob", return_value=archives),
+                patch.object(transport.artifacts, "extract", autospec=True) as extract,
+                patch.object(tasks.subprocess, "run", return_value=Mock(returncode=0)),
+                patch.object(workflow, "publication_guard"),
+                patch.object(run, "main", return_value=0),
+            ):
+                self.assertEqual(entry(arguments), 0)
+                self.assertEqual(extract.call_args_list, [call(ROOT, archive) for archive in archives])
+
+    def test_publication_includes_python_registry_once(self):
+        for arguments, stages in (([], ["assets", "python", "finalize"]), (["--stage", "python"], ["python"])):
+            with (
+                self.subTest(arguments=arguments),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(workflow, "publication_guard"),
+                patch.object(tasks.subprocess, "run", return_value=Mock(returncode=0)) as execute,
+            ):
+                self.assertEqual(tasks.main(["publish", *arguments]), 0)
+                commands = [call.args[0] for call in execute.call_args_list]
+                self.assertEqual(commands, [["mise", "run", f"release:publish:{stage}", "--"] for stage in stages])
 
     def setUp(self):
-        self.action = runpy.run_path(str(ROOT / ".github/actions/review-release/run.py"))
+        self.action = runpy.run_path(str(ROOT / "tools/python/src/dokime_tools/ci/review.py"))
         self.project = (ROOT / "tools/project.toml").read_text(encoding="utf-8")
         self.tag = "v" + tomllib.loads(self.project)["version"]["value"]
         self.review = {
@@ -219,7 +194,7 @@ class ReleaseTagTests(unittest.TestCase):
 
 class ReleaseChecksTests(unittest.TestCase):
     def setUp(self):
-        self.guard = runpy.run_path(str(ROOT / ".github/actions/review-release/checks.py"))
+        self.guard = runpy.run_path(str(ROOT / "tools/python/src/dokime_tools/ci/green.py"))
         self.sha = "a" * 40
         self.ci_run = {
             "id": 7,
@@ -317,14 +292,71 @@ class PinTests(unittest.TestCase):
         with (
             patch.object(pins, "check", return_value=False) as check,
             patch.dict(os.environ, {"GITHUB_WORKFLOW_REF": "owner/repo/.github/workflows/nightly.yml@refs/heads/dev"}, clear=True),
-            patch.object(registry.storage, "preflight") as preflight,
         ):
             registry.rehearse_crates(ROOT)
             self.assertTrue(check.call_args.kwargs["warn"])
-            preflight.assert_not_called()
 
 
 class ChannelTests(unittest.TestCase):
+    def test_nightly_installation_uses_mise_mutable_version(self):
+        definition = {
+            "installers": ["mise", "cargo-binstall"],
+            "output": "dokime.zip",
+            "binary": "dokime.exe",
+            "verify": ["--version"],
+        }
+
+        def install(command, **kwargs):
+            destination = Path(command[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "dokime.exe").write_bytes(b"executable")
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(run.packages, "definitions", return_value=[definition]),
+            patch.object(run.packages, "binary_bytes", return_value=b"executable"),
+            patch.object(
+                run.packages.subprocess, "run", side_effect=lambda command, **kwargs: install(command) if command[0] == "mise" else None
+            ) as execute,
+        ):
+            settings = {"provider": "github", "repository": "example/dokime", "tag": "nightly"}
+            run.packages.installed(Path(temporary), settings, Path(temporary), "windows-x86_64")
+            commands = [call.args[0] for call in execute.call_args_list]
+            self.assertEqual(len(commands), 2)
+            self.assertEqual(commands[0][0:2], ["mise", "install-into"])
+            self.assertTrue(commands[0][2].endswith("@nightly"))
+            self.assertEqual(commands[1][1:], ["--version"])
+
+    def test_shared_verifier_preserves_channel_and_signing_policy(self):
+        for channel in ("stable", "nightly"):
+            tag = "v0.1.5" if channel == "stable" else "nightly"
+            remote = {"id": 1, "draft": False, "prerelease": channel == "nightly", "target_commitish": NEW}
+            with (
+                self.subTest(channel=channel),
+                tempfile.TemporaryDirectory() as temporary,
+                patch.object(run, "release_tag", return_value="v0.1.5"),
+                patch.object(run, "_revision", return_value=NEW),
+                patch.object(registry, "remote_tag", return_value=NEW),
+                patch.object(registry, "document", return_value=remote),
+                patch.object(registry, "pages", return_value=[{"name": "SHA256SUMS", "id": 2}]),
+                patch.object(registry, "verify_download", return_value=b"checksums") as download,
+                patch.object(registry, "verify_signatures") as signatures,
+                patch.object(run.layout, "uploads", return_value=[{"name": "SHA256SUMS"}]),
+                patch.object(run, "_checksums"),
+                patch.object(run, "native_target", return_value="windows-x86_64"),
+                patch.object(run.packages, "installed") as installed,
+            ):
+                root = Path(temporary)
+                run.verify(root, {"provider": "github"}, channel=channel)
+                self.assertEqual(download.call_args.kwargs["channel"], channel == "nightly")
+                self.assertEqual(signatures.call_count, int(channel == "stable"))
+                self.assertEqual(installed.call_args.args[1]["tag"], tag)
+                state = json.loads((root / "target/state/release-publication.json").read_text())
+                self.assertEqual(state, {"sha": NEW, "tag": tag, "verified": True})
+                remote["prerelease"] = not remote["prerelease"]
+                with self.assertRaises(policy.ToolError):
+                    run.verify(root, {"provider": "github"}, channel=channel)
+
     def test_nightly_source(self):
         base = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "42", "GITHUB_SHA": "a" * 40, "GITHUB_SERVER_URL": "https://github.com"}
         expected = ("a" * 40, "42", "https://github.com/owner/repo/actions/runs/42")
@@ -356,7 +388,7 @@ class ChannelTests(unittest.TestCase):
                 self.assertEqual(set(github.releases), {3, published["id"]})
 
     def test_failure_before_swap_keeps_previous(self):
-        for fault in ("create", "upload:linux.zip", "upload:SHA256SUMS", "size", "pending", "digest"):
+        for fault in ("create", "upload:linux.zip", "upload:SHA256SUMS", "size", "pending", "digest", "download"):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
                 directory, files = _staged_files(Path(temporary))
                 github = FakeGitHub(previous=True, faults={fault})
@@ -621,6 +653,10 @@ class FakeGitHub:
         return assets
 
     def request(self, settings, endpoint, method="GET", data=None, **kwargs):
+        if endpoint.startswith("releases/assets/") and method == "GET":
+            identity = int(endpoint.rsplit("/", 1)[1])
+            asset = next(asset for assets in self.assets.values() for asset in assets if asset["id"] == identity)
+            return b"corrupt" if "download" in self.faults else asset["data"]
         if endpoint == f"git/refs/tags/{nightly.TAG}" and method == "DELETE":
             self.tag = None
             return
@@ -645,6 +681,7 @@ class FakeGitHub:
                 "size": len(data),
                 "state": "uploaded",
                 "digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+                "data": data,
             }
         )
         self.next_id += 1
@@ -654,6 +691,11 @@ class FakeGitHub:
 
 
 # === Public Functions === #
+
+
+def setUpModule():
+    isolate_environment()
+
 
 # === Private Functions === #
 

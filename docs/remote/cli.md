@@ -107,7 +107,6 @@ Install Dokime on `PATH`, restart the host after admitting the matching OBC
 plugin, and import the host-created pairing once:
 
 ```sh
-dokime backend add --remote ../lab.dokime-remote --identifier lab
 ```
 
 Edit the globals at the top of each script before running it. Names, grouping,
@@ -115,17 +114,15 @@ order and meanings match the [Python examples](python.md):
 
 | Group | Parameters |
 | --- | --- |
-| Connection Parameters | `BACKEND_IDENTIFIER` |
+| Connection Parameters | `PAIRING_FILE` |
 | Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_S` for tests; `ANSWER`, `WAIT_S` for prompts |
 | Observation Filters | `RECORD_TYPES`, `STREAMS` for tests |
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
 
-Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
-Its label, ordered endpoints, expected identity and persistent CA come from the remote file; the
-native client resolves its access key from the OS keyring.
-Profile import and removal run OS credential work on a native worker with the
-ordinary request budget. A deadline error reports that already-started OS work
-may still complete.
+Set `PAIRING_FILE` to the `.pair` file, normally `../lab.pair`.
+It supplies the label, ordered endpoints, expected backend identity, self-signed
+server certificate and access key. The CLI reads it directly without importing a
+profile or accessing an OS credential store.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and
@@ -233,8 +230,8 @@ the final cycle bundle includes all members and its sealed phase.
 Download a report for a running or sealed execution, or a cycle:
 
 ```sh
-dokime execution report <execution-id> --backend lab --output execution.html
-dokime cycle report <cycle-id> --backend lab --output cycle.html
+dokime execution report <execution-id> --remote lab.pair --output execution.html
+dokime cycle report <cycle-id> --remote lab.pair --output cycle.html
 ```
 
 Cycle reports default to `cycle.summary`; use `--identifier` to select another
@@ -245,8 +242,8 @@ or rerun an execution.
 The discoverable operation form uses the same verified download path:
 
 ```sh
-dokime operation call dokime.reports.download_execution_report --backend lab --json '{"execution_id":"<execution-id>"}' --output execution.html
-dokime operation call dokime.reports.download_cycle_report --backend lab --json '{"cycle_id":"<cycle-id>","identifier":"cycle.summary"}' --output cycle.html
+dokime operation call dokime.reports.download_execution_report --remote lab.pair --json '{"execution_id":"<execution-id>"}' --output execution.html
+dokime operation call dokime.reports.download_cycle_report --remote lab.pair --json '{"cycle_id":"<cycle-id>","identifier":"cycle.summary"}' --output cycle.html
 ```
 
 For header/chunk/complete download streams, `--output` writes raw chunk bytes

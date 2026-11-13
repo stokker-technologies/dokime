@@ -22,9 +22,10 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
+from ..prepare import generated
 from ..process import spawn_flags
 from ..test import archive
-from . import paths, storage
+from . import paths
 
 # Type Checking Imports
 
@@ -43,13 +44,15 @@ from . import paths, storage
 def build(
     directory: Path,
     extra: Sequence[str] = (),
-    selection: Sequence[str] = ("--workspace", "--exclude", "dokime-python", "--bins", "--benches"),
+    selection: Sequence[str] = ("--workspace", "--bins", "--benches"),
+    *,
+    require_benchmark: bool = True,
 ) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
     messages.unlink(missing_ok=True)
-    storage.preflight(directory)
+
     command = [
         "cargo",
         "build",
@@ -93,7 +96,7 @@ def build(
                 files.append(event["executable"])
             events.append(json.dumps(event))
 
-        if not benchmarks:
+        if require_benchmark and not benchmarks:
             raise ValueError("no benchmark target was built")
         for kind in ("bin", "bench"):
             paths.replace(directory, staging / kind, output / kind, origin=staging)
@@ -105,10 +108,34 @@ def build(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build Benchmarks And Matching Hosts In The Bench Profile")
+    parser.add_argument("--binary")
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     options = parser.parse_args()
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
-    print(build(Path.cwd(), extra))
+    selection = (
+        (
+            "--package",
+            "dokime-gui",
+            "--package",
+            "dokime-runtime-next",
+            "--bin",
+            "dokime-gui",
+            "--bin",
+            "dokime-host-next",
+            "--bench",
+            options.binary,
+        )
+        if options.binary
+        else ("--workspace", "--bins", "--benches")
+    )
+    directory = Path.cwd()
+    messages = build(directory, ["--features", "dokime-gui/custom-protocol", *extra], selection)
+    generated.stage("bench")
+    output = paths.output(directory, "build", "bench")
+    stamp = json.loads((output / "fixtures/stamp.json").read_text(encoding="utf-8"))
+    modules = [path.relative_to(directory).as_posix() for path in (output / "generated").rglob("*") if path.is_file()]
+    archive.stamp(directory, "bench", [*stamp["files"], *modules], stamp["metadata"])
+    print(messages)
 
 
 # === Private Functions === #

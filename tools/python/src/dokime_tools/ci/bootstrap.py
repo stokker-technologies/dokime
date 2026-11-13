@@ -21,9 +21,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 # Third Party Imports
@@ -60,7 +61,13 @@ GUI_PACKAGES = (
     "linux-libc-dev",
     "libclang-dev",
 )
+CREDENTIAL_STORE_PACKAGES = (
+    "dbus",
+    "gnome-keyring",
+)
 GUI_RUNTIME_PACKAGES = (
+    "dbus",
+    "gnome-keyring",
     "libwebkit2gtk-4.1-0",
     "libgtk-3-0t64",
     "libayatana-appindicator3-1",
@@ -91,6 +98,9 @@ DESKTOP_PACKAGES = (
 )
 # Google's Stable Chrome For Testing Release, Used Only When The Hosted Browser Is Absent.
 CHROME_VERSION = "156.0.8078.47"
+APT_ACQUIRE_RETRIES = 3
+APT_RETRY_DELAYS_S = (5, 15, 30)
+APT_FETCH_ATTEMPTS = len(APT_RETRY_DELAYS_S) + 1
 
 # === Types === #
 
@@ -101,8 +111,8 @@ CHROME_VERSION = "156.0.8078.47"
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
-    if arguments.gui_packages or arguments.gui_runtime:
-        install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop)
+    if arguments.gui_packages or arguments.gui_runtime or arguments.credential_store:
+        install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop, credential_store=arguments.credential_store)
     if arguments.desktop:
         if sys.platform == "win32":
             prepare_windows_desktop(Path.cwd())
@@ -143,11 +153,16 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="install only Ubuntu GUI runtime libraries for prebuilt artifacts.",
     )
+    gui.add_argument(
+        "--credential-store",
+        action="store_true",
+        help="install only the session bus and keyring an isolated credential store needs.",
+    )
     parser.add_argument("--desktop", action="store_true")
     return parser.parse_args(argv)
 
 
-def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> None:
+def install_gui_packages(*, runtime: bool = False, desktop: bool = False, credential_store: bool = False) -> None:
     """Install the declared GUI runtime or development packages when missing.
 
     A CI host that is missing them and cannot install them is broken, and the
@@ -158,7 +173,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
     if sys.platform != "linux" or shutil.which("dpkg") is None:
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
-    selected = GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
+    selected = CREDENTIAL_STORE_PACKAGES if credential_store else GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
     packages = (*selected, *(DESKTOP_PACKAGES if desktop else ()))
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")
@@ -169,8 +184,49 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
-    _run([*prefix, "apt-get", "update"])
-    _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages])
+    fetch_packages(packages, prefix, runner=subprocess.run, sleep=time.sleep)
+
+
+def fetch_packages(
+    packages: Sequence[str],
+    prefix: Sequence[str] = (),
+    *,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Retry The Package Fetch With Bounded Backoff And Preserve Mirror Diagnostics."""
+    apt = [*prefix, "apt-get", "-o", f"Acquire::Retries={APT_ACQUIRE_RETRIES}"]
+    commands = [
+        [*apt, "-o", "APT::Update::Error-Mode=any", "update"],
+        [*apt, "install", "-y", "--no-install-recommends", *packages],
+    ]
+    failures = []
+    for attempt in range(APT_FETCH_ATTEMPTS):
+        for command in commands:
+            _step(" ".join(command))
+            result = runner(
+                command,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=subprocess.DEVNULL,
+            )
+            print(result.stdout, end="", flush=True)
+            if result.returncode:
+                failures.append(result.stdout.strip())
+                break
+        else:
+            return
+        if attempt == APT_FETCH_ATTEMPTS - 1:
+            diagnostics = "\n".join(failures)
+            raise RuntimeError(f"apt-get package fetch failed after {APT_FETCH_ATTEMPTS} attempts; mirror diagnostics:\n{diagnostics}")
+        delay_s = APT_RETRY_DELAYS_S[attempt]
+        _step(f"package fetch failed (exit {result.returncode}); retrying update and install in {delay_s}s")
+        sleep(delay_s)
 
 
 def prepare_linux_browser(root: Path) -> Path:

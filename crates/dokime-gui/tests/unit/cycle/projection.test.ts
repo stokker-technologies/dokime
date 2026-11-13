@@ -15,6 +15,9 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
+import { create } from "@bufbuild/protobuf";
+import { ExecutionState, ExecutionSummarySchema, CycleSummarySchema, ExecutionOutcomeSchema } from "@host/dokime/v1/client_types_pb.js";
+import { Termination } from "@host/dokime/v1/execution_pb.js";
 
 // Local Imports
 import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
@@ -97,17 +100,15 @@ test("Document Refresh Is Demand Driven and Bounded", () => {
   }
 });
 
-test("Unstarted Attempt Status", () => {
-  const skipped = { HarmosVariant: { case: "Skipped" as const, value: {} } };
-  assert.equal(projectExecutionStatus(skipped, null, false), "planned");
-  assert.equal(projectExecutionStatus(skipped, null, true), "skipped");
-  for (const outcome of ["Completed", "Failed", "Stopped", "Interrupted"]) {
-    const cycle = { cycleId: "cycle", status: { HarmosVariant: { case: outcome, value: {} } } };
-    const attempt = { executionId: "unstarted", caseId: "case", ordinal: 1n, status: skipped, sealed: false, archived: false };
-    const projected = mapNativeExecutionSummary(attempt, [], cycle as never);
-    assert.equal(projected.status, "planned");
-    assert.equal(projected.sealed, false);
-  }
+test("Durable Execution State Is Independent of Its Cycle", () => {
+  const outcome = create(ExecutionOutcomeSchema, { attribution: { case: "notEvaluated", value: { termination: Termination.COMPLETED } } });
+  assert.equal(projectExecutionStatus(ExecutionState.OPEN), "planned");
+  assert.equal(projectExecutionStatus(ExecutionState.SEALED, outcome), "skipped");
+  const attempt = create(ExecutionSummarySchema, { executionId: "unstarted", caseId: "case", ordinal: 1n, state: ExecutionState.OPEN });
+  const cycle = create(CycleSummarySchema, { cycleId: "cycle", sealed: true });
+  const projected = mapNativeExecutionSummary(attempt, [], cycle);
+  assert.equal(projected.status, "planned");
+  assert.equal(projected.sealed, false);
 });
 
 test("Live File Refresh", () => {

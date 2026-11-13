@@ -13,7 +13,9 @@
 
 import { defaultBrand } from "@/lib/brand";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
+import { CycleStatus, ResultStatus, type EvidenceScope as HostEvidenceScope } from "@host/dokime/v1/client_types_pb.js";
+import { nativeValueToJson, nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame> ? Frame : never
 >;
@@ -21,30 +23,20 @@ export type RuntimeStateFrame = Wire<
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
-import {
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  nativeEvidenceScope,
-  nativeValueToJson,
-  nowIso,
-  recordScopeFromNative,
-  safeNumber,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, nowIso, safeNumber, timestampIso } from "./native-values";
 
 const GUI_SMALL_PAGE_ITEMS = 100;
 
 /* === Types === */
 
 type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
-type ExecutionProgressFrame = Wire<
-  Awaited<ReturnType<typeof rpc.observationWatchExecutionProgress>> extends NativeStream<infer Frame> ? Frame : never
->;
-type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
-type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
-type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
-type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
+interface ExecutionProgressFrame {
+  progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
+  finished: boolean;
+}
+type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["snapshots"][number]>;
+type TraceabilityCut = Wire<NonNullable<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["resolvedAt"]>>;
+type EvidenceScope = Wire<HostEvidenceScope>;
 
 /* === Runtime shell === */
 
@@ -122,97 +114,132 @@ export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycl
   };
 }
 
-type NativeTraceabilityPage = Awaited<ReturnType<typeof rpc.observationGetTraceability>>;
+type TraceabilityResponse = Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>;
 
-/** Read the current traceability projection through exact, generation-bound pages. */
+/** Read ordered traceability snapshots at one generation-bound, scoped read cut. */
 export async function fetchNativeTraceability(session: SessionIdentity, scope?: RecordScope | null): Promise<TraceabilitySnapshot> {
-  const operation = "Observation.GetTraceability";
+  const operation = "Evidence.Traceability.Get";
   const requestedScope = nativeEvidenceScope(scope);
   const items: NativeTraceabilitySnapshot[] = [];
-  let afterTraceabilityId = "";
-  let cursor: Cursor | undefined;
-  let hostTraceabilityFingerprint: string | undefined;
+  const tokens = new Set<string>();
+  let pageToken = "";
+  let at: TraceabilityCut | undefined;
 
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     assertTraceabilitySession(session, operation);
-    const response = await rpc.observationGetTraceability(session, {
+    const response = await rpc.evidenceTraceabilityGet(session, {
       ...(requestedScope ? { scope: requestedScope } : {}),
-      limit: NATIVE_PAGE_SIZE,
-      afterTraceabilityId,
-      ...(cursor ? { cursor } : {}),
-      ...(hostTraceabilityFingerprint ? { hostTraceabilityFingerprint } : {}),
+      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+      ...(at ? { at } : {}),
     });
     assertTraceabilitySession(session, operation);
 
-    validateTraceabilityPage(response, requestedScope, cursor, hostTraceabilityFingerprint, operation);
-    cursor ??= response.cursor;
-    hostTraceabilityFingerprint ??= response.hostTraceabilityFingerprint;
+    validateTraceabilityResponse(response, at, requestedScope, items.at(-1), operation);
+    at ??= response.resolvedAt;
     items.push(...response.snapshots);
 
-    const nextAfterTraceabilityId = response.nextAfterTraceabilityId;
-    if (response.complete) {
-      if (nextAfterTraceabilityId) {
-        throw new NativeApiLimitError(operation, "complete page included a continuation marker");
-      }
-      return mapNativeTraceability(items, response.scope, requestedScope, operation);
-    }
-    if (!nextAfterTraceabilityId) {
-      throw new NativeApiLimitError(operation, "incomplete page omitted its continuation marker");
-    }
+    const nextPageToken = response.nextPageToken;
+    if (!nextPageToken) return mapNativeTraceability(items, requestedScope, operation);
     if (!response.snapshots.length) {
       throw new NativeApiLimitError(operation, "incomplete page contained no snapshots");
     }
-    if (nextAfterTraceabilityId === afterTraceabilityId) {
+    if (tokens.has(nextPageToken)) {
       throw new NativeApiLimitError(operation, "traceability pagination did not advance");
     }
-    afterTraceabilityId = nextAfterTraceabilityId;
+    tokens.add(nextPageToken);
+    pageToken = nextPageToken;
   }
 
   throw new NativeApiLimitError(operation, `more than ${NATIVE_MAX_PAGES} traceability pages`);
 }
 
-function validateTraceabilityPage(
-  response: NativeTraceabilityPage,
+function validateTraceabilityResponse(
+  response: TraceabilityResponse,
+  expectedCut: TraceabilityCut | undefined,
   requestedScope: EvidenceScope | undefined,
-  expectedCursor: Cursor | undefined,
-  expectedHostTraceabilityFingerprint: string | undefined,
+  previous: NativeTraceabilitySnapshot | undefined,
   operation: string,
 ): void {
-  if (
-    !response ||
-    !Array.isArray(response.snapshots) ||
-    typeof response.complete !== "boolean" ||
-    typeof response.nextAfterTraceabilityId !== "string"
-  ) {
+  if (!response || !Array.isArray(response.snapshots) || typeof response.nextPageToken !== "string") {
     throw new NativeApiLimitError(operation, "response omitted its page fields");
   }
-  if (
-    !response.cursor ||
-    typeof response.cursor.epoch !== "string" ||
-    typeof response.cursor.stream !== "string" ||
-    !response.cursor.epoch.trim() ||
-    !response.cursor.stream.trim() ||
-    typeof response.cursor.position !== "bigint"
-  ) {
-    throw new NativeApiLimitError(operation, "response omitted a usable cursor");
+  const cut = response.resolvedAt;
+  if (!cut || !Array.isArray(cut.positions) || !Array.isArray(cut.revisions) || cut.revisions.length) {
+    throw new NativeApiLimitError(operation, "response omitted a usable read cut");
   }
-  if (expectedCursor && !sameNativeCursor(expectedCursor, response.cursor)) {
-    throw new NativeApiLimitError(operation, "response cursor changed during pagination");
+  const histories = new Set<string>();
+  for (const position of cut.positions) {
+    const history = position.history;
+    if (!history?.store?.trim() || !history.epoch?.trim() || typeof position.sequence !== "bigint" || position.sequence < 0n) {
+      throw new NativeApiLimitError(operation, "read cut omitted a usable history position");
+    }
+    if (histories.has(history.epoch)) {
+      throw new NativeApiLimitError(operation, "read cut repeated an execution history");
+    }
+    histories.add(history.epoch);
   }
-  if (typeof response.hostTraceabilityFingerprint !== "string" || !response.hostTraceabilityFingerprint.trim()) {
-    throw new NativeApiLimitError(operation, "response omitted its host traceability fingerprint");
+  if (requestedScope?.executionId && (cut.positions.length !== 1 || !histories.has(requestedScope.executionId))) {
+    throw new NativeApiLimitError(operation, "read cut did not retain the requested execution");
   }
-  if (expectedHostTraceabilityFingerprint && expectedHostTraceabilityFingerprint !== response.hostTraceabilityFingerprint) {
-    throw new NativeApiLimitError(operation, "response host traceability fingerprint changed during pagination");
+  if (expectedCut && !sameTraceabilityCut(expectedCut, cut)) {
+    throw new NativeApiLimitError(operation, "response read cut changed during pagination");
   }
-  if (!sameNativeScope(requestedScope, response.scope)) {
-    throw new NativeApiLimitError(operation, "response scope did not match the requested scope");
+  for (const snapshot of response.snapshots) {
+    const position = snapshot.resolvedAt;
+    const bound = cut.positions.find((item) => item.history?.epoch === position?.history?.epoch);
+    if (
+      !position ||
+      !bound ||
+      position.history?.store !== bound.history?.store ||
+      typeof position.sequence !== "bigint" ||
+      position.sequence < 1n ||
+      position.sequence > bound.sequence ||
+      !snapshot.revision?.length
+    ) {
+      throw new NativeApiLimitError(operation, "snapshot omitted its revision or fell outside the read cut");
+    }
+    if (!snapshot.scope || !matchesTraceabilityScope(requestedScope, snapshot.scope)) {
+      throw new NativeApiLimitError(operation, "snapshot scope did not match the requested scope");
+    }
+    if (snapshot.scope.executionId !== position.history?.epoch) {
+      throw new NativeApiLimitError(operation, "snapshot scope did not match its history");
+    }
+    if (previous?.resolvedAt) {
+      const earlier = previous.resolvedAt;
+      const epoch = position.history!.epoch;
+      const earlierEpoch = earlier.history!.epoch;
+      if (epoch < earlierEpoch || (epoch === earlierEpoch && position.sequence <= earlier.sequence)) {
+        throw new NativeApiLimitError(operation, "snapshots were not in strict history order");
+      }
+    }
+    previous = snapshot;
   }
+}
+
+function sameTraceabilityCut(left: TraceabilityCut, right: TraceabilityCut): boolean {
+  return (
+    left.positions.length === right.positions.length &&
+    left.positions.every((position, index) => {
+      const other = right.positions[index];
+      return (
+        position.history?.store === other.history?.store &&
+        position.history?.epoch === other.history?.epoch &&
+        position.sequence === other.sequence
+      );
+    })
+  );
+}
+
+function matchesTraceabilityScope(wanted: EvidenceScope | undefined, actual: EvidenceScope): boolean {
+  if (!wanted) return true;
+  // The Host Validates the Runtime Epoch; Snapshot Scopes Carry Durable Attribution.
+  const { origin, sessionId: _sessionId, ...fields } = wanted;
+  const matchesFields = Object.entries(fields).every(([key, value]) => value == null || actual[key as keyof EvidenceScope] === value);
+  return matchesFields && (!origin || JSON.stringify(origin.kind?.kind) === JSON.stringify(actual.origin?.kind?.kind));
 }
 
 function mapNativeTraceability(
   snapshots: NativeTraceabilitySnapshot[],
-  responseScope: EvidenceScope | undefined,
   requestedScope: EvidenceScope | undefined,
   operation: string,
 ): TraceabilitySnapshot {
@@ -237,7 +264,12 @@ function mapNativeTraceability(
       if (!entry.value) {
         throw new NativeApiLimitError(operation, "traceability entry omitted its value");
       }
-      const value = nativeValueToJson(entry.value);
+      let value: unknown;
+      try {
+        value = nativeValueToJson(entry.value);
+      } catch (error) {
+        throw new NativeApiLimitError(operation, `traceability entry contained an invalid value: ${String(error)}`);
+      }
       if (value === undefined) {
         throw new NativeApiLimitError(operation, "traceability entry contained an unknown value");
       }
@@ -267,28 +299,10 @@ function mapNativeTraceability(
     };
   });
   const result = traceabilitySnapshotFromItems(items, (value) => recordScopeFromNative(value ?? undefined));
-  if (responseScope || requestedScope) {
-    result.scope = recordScopeFromNative(responseScope ?? requestedScope);
+  if (requestedScope) {
+    result.scope = recordScopeFromNative(requestedScope);
   }
   return result;
-}
-
-function sameNativeCursor(left: Cursor | undefined, right: Cursor | undefined): boolean {
-  return Boolean(left && right && left.epoch === right.epoch && left.stream === right.stream && left.position === right.position);
-}
-
-function sameNativeScope(left: EvidenceScope | undefined, right: EvidenceScope | undefined): boolean {
-  if (!left || !right) return left === right;
-  return (
-    (left.sessionId ?? null) === (right.sessionId ?? null) &&
-    (left.cycleId ?? null) === (right.cycleId ?? null) &&
-    (left.caseId ?? null) === (right.caseId ?? null) &&
-    (left.executionId ?? null) === (right.executionId ?? null) &&
-    (left.stepId ?? null) === (right.stepId ?? null) &&
-    (left.criterionId ?? null) === (right.criterionId ?? null) &&
-    (left.templateId ?? null) === (right.templateId ?? null) &&
-    (left.suiteId ?? null) === (right.suiteId ?? null)
-  );
 }
 
 function assertTraceabilitySession(session: SessionIdentity, operation: string): void {
@@ -346,7 +360,7 @@ export async function openNativeExecutionProgressStream(
   session: NativeObservationSession,
   testExecutionId: string,
 ): Promise<NativeStream<ExecutionProgressFrame>> {
-  const reader = await rpc.observationWatchExecutionProgress(session, { testExecutionId });
+  const reader = await rpc.executionsProgressWatch(session, { name: testExecutionId });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
   const cancelReader = (): Promise<void> => {
@@ -366,7 +380,20 @@ export async function openNativeExecutionProgressStream(
   const forward = (async function* () {
     let exhausted = false;
     try {
-      for await (const frame of reader) yield frame;
+      for await (const frame of reader)
+        yield {
+          progress:
+            frame.value && !frame.finished
+              ? {
+                  testExecutionId,
+                  label: frame.value.label,
+                  phase: frame.phase,
+                  completed: frame.value.completed,
+                  total: frame.value.total,
+                }
+              : null,
+          finished: frame.finished,
+        };
       exhausted = true;
     } finally {
       if (!exhausted) await cancelReader().catch(() => undefined);
@@ -388,18 +415,18 @@ export async function openNativeExecutionProgressStream(
 /* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
-  switch (status?.HarmosVariant.case) {
-    case "Running":
+  switch (status) {
+    case CycleStatus.RUNNING:
       return "running";
-    case "Paused":
+    case CycleStatus.PAUSED:
       return "paused";
-    case "Stopping":
+    case CycleStatus.STOPPING:
       return "stopping";
-    case "Completed":
+    case CycleStatus.COMPLETED:
       return "completed";
-    case "Failed":
+    case CycleStatus.FAILED:
       return "failed";
-    case "Stopped":
+    case CycleStatus.STOPPED:
       return "stopped";
     default:
       return "idle";
@@ -407,7 +434,7 @@ function mapRunStatus(status?: CycleStatus): RunStatus {
 }
 
 function isTerminalCycle(status: CycleStatus): boolean {
-  return ["Completed", "Failed", "Blocked", "Stopped"].includes(status?.HarmosVariant.case ?? "");
+  return [CycleStatus.COMPLETED, CycleStatus.FAILED, CycleStatus.BLOCKED, CycleStatus.STOPPED].includes(status);
 }
 
 function mapResult(
@@ -416,14 +443,14 @@ function mapResult(
 ): ExecutionResultSummary {
   return {
     outcome:
-      result.status?.HarmosVariant.case === "Passed"
+      result.status === ResultStatus.PASSED
         ? "completed"
-        : result.status?.HarmosVariant.case === "Failed"
+        : result.status === ResultStatus.FAILED
           ? "failed"
-          : result.status?.HarmosVariant.case === "Blocked"
+          : result.status === ResultStatus.BLOCKED
             ? "unknown"
             : "unknown",
-    headline: result.status?.HarmosVariant.case === "Passed" ? "passed" : "failed",
+    headline: result.status === ResultStatus.PASSED ? "passed" : "failed",
     warnings: [],
     evidence: [
       {

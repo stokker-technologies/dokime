@@ -1,0 +1,5 @@
+syntax = "proto3";
+package thermal.v1;
+option csharp_namespace = "ThermalStory";
+message Temperature { double celsius = 1; }
+message Door { bool closed = 1; }

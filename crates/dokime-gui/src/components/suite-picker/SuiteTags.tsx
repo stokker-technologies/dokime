@@ -16,6 +16,7 @@
 
 /* === Local Imports === */
 
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatTagLabel } from "./model";
@@ -44,13 +45,15 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
       {hidden.length ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              variant="plain"
+              size="inline"
               aria-label={`${hidden.length} More Tags: ${hidden.map(formatTagLabel).join(", ")}`}
-              className="shrink-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="shrink-0 rounded-lg"
               type="button"
             >
               <TagChip label={`+${hidden.length}`} />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent>{hidden.map(formatTagLabel).join(", ")}</TooltipContent>
         </Tooltip>

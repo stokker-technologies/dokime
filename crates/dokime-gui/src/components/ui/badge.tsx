@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 /* === Constants === */
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-[var(--pill-height)] w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-[var(--pill-pad-x)] py-0 text-[length:var(--pill-text)] leading-[var(--pill-leading)] font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  "group/badge inline-flex h-[var(--pill-height)] w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-none border border-transparent px-[var(--pill-pad-x)] py-0 text-[length:var(--pill-text)] leading-[var(--pill-leading)] font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
@@ -32,7 +32,7 @@ const badgeVariants = cva(
         warning: "bg-warning/10 text-warning ring-1 ring-warning/25 dark:bg-warning/15",
         outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-link underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {

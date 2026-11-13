@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[tools]
+rust = "1.99.0"
+sccache = "0.19.0"
+
+[tasks.build]
+description = "Build the Plugin"
+usage = 'arg "[args]" var=#true'
+run = 'cargo build {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+[tasks.serve]
+description = "Serve the Plugin Remotely"
+run = 'cargo run -- --remote'

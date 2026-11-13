@@ -19,7 +19,7 @@
 use serde::Serialize;
 
 // Local Imports
-use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
+use crate::connection::{ConnectRequest, ConnectionTarget};
 
 /* === Constants === */
 
@@ -51,6 +51,7 @@ pub struct DesktopLaunch {
 pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<ConnectRequest>, String> {
     let mut arguments = arguments.into_iter();
     let mut endpoint = None;
+    let mut remote = None;
     let mut backend_id = None;
     let mut shutdown_stdin = false;
     while let Some(argument) = arguments.next() {
@@ -64,6 +65,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
         let (name, value) = argument.split_once('=').map_or((argument.as_str(), None), |(name, value)| (name, Some(value)));
         let slot = match name {
             "--endpoint" => &mut endpoint,
+            "--remote" => &mut remote,
             "--expected-backend-id" => &mut backend_id,
             _ => return Err("Unknown desktop argument".into()),
         };
@@ -78,25 +80,23 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
                 .ok_or_else(|| format!("Missing value for {name}"))?,
         );
     }
+    if remote.is_some() && endpoint.is_some() {
+        return Err("--remote and --endpoint are mutually exclusive".into());
+    }
+    if let Some(pairing_file) = remote.or_else(|| std::env::var("DOKIME_REMOTE").ok().filter(|value| !value.is_empty()))
+        && endpoint.is_none()
+    {
+        return Ok(Some(ConnectRequest {
+            target: ConnectionTarget::Remote { pairing_file },
+            expected_backend_id: None,
+        }));
+    }
     match endpoint {
         Some(endpoint) => {
-            let remote = !endpoint.starts_with("http://");
-            let target = if remote {
-                ConnectionTarget::Remote {
-                    endpoint,
-                    ca_certificate_pem: None,
-                    endpoints: Vec::new(),
-                }
-            } else {
-                ConnectionTarget::Local { endpoint }
-            };
+            let target = ConnectionTarget::Local { endpoint };
             crate::connection::ConnectionSession::validate_target(target.clone())
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
-            Ok(Some(ConnectRequest {
-                target,
-                secrets: if remote { ConnectionSecrets::Saved } else { ConnectionSecrets::None },
-                expected_backend_id: backend_id,
-            }))
+            Ok(Some(ConnectRequest { target, expected_backend_id: backend_id }))
         }
         None if shutdown_stdin => Err("--shutdown-stdin requires --endpoint".into()),
         None if backend_id.is_some() => Err("--expected-backend-id requires --endpoint".into()),

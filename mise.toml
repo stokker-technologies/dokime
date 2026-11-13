@@ -9,7 +9,6 @@
 # === Settings === #
 
 [settings]
-jobs = 1
 lockfile = true
 
 # === Tools === #
@@ -24,7 +23,7 @@ rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile =
 
 # Package Managers
 pnpm = "12.11.2"
-uv = "0.13.0"
+uv = "0.13.7"
 
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
@@ -56,26 +55,18 @@ minisign = "0.12"
 # === Environment === #
 
 [env]
-RUSTC_WRAPPER = "{{ get_env(name='RUSTC_WRAPPER', default='') if get_env(name='CI', default='') else get_env(name='RUSTC_WRAPPER', default='sccache') }}"
-SCCACHE_DIR = "{{ get_env(name='SCCACHE_DIR', default='') if get_env(name='CI', default='') else (get_env(name='LOCALAPPDATA', default=env.HOME ~ '/AppData/Local') if os() == 'windows' else get_env(name='XDG_CACHE_HOME', default=env.HOME ~ '/.cache')) ~ '/sccache' }}"
-SCCACHE_CACHE_SIZE = "{{ get_env(name='SCCACHE_CACHE_SIZE', default='') if get_env(name='CI', default='') else '20G' }}"
-CARGO_INCREMENTAL = "{{ get_env(name='CARGO_INCREMENTAL', default='') if get_env(name='CI', default='') else '0' }}"
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
 
 [vars]
-rust_desktop_features = "tauri/custom-protocol"
-rust_plugin_features = "plugin-host/runtime"
-rust_release_features = "dokime-server/media-native"
-rust_extended_features = "dokime/fault-injection,dokime-server/fault-injection"
-python = "uv run --locked --project tools/python"
-tools = "uv run --locked --project tools/python python -m"
-lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
+python = "uv run --no-sync --project tools/python"
+tools = "uv run --no-sync --project tools/python python -m"
+lane = "uv run --no-sync --project tools/python python -m dokime_tools.test.run test"
 
-# === Prepare === #
+# === Entry Points === #
 
-[tasks.prepare]
+[tasks."prepare"]
 description = "Prepare Tools and Inputs"
 usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"'
 run = [
@@ -84,270 +75,224 @@ run = [
   "pnpm --dir crates/dokime-gui install --frozen-lockfile",
 ]
 
-[tasks."prepare:generated"]
-description = "Build the Contract Generator and Generate TypeScript Modules"
-depends = ["prepare"]
-usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."prepare:bindings"]
-description = "Regenerate TypeScript Contracts"
-depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate"
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."prepare:desktop"]
-description = "Prepare Native Desktop Automation"
-depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
-
-[tasks."prepare:organization"]
-description = "Generate Default Organization and Desktop Icons"
-depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.organization --icons"
-
-[tasks."prepare:report"]
-description = "Refresh Embedded Runtime Resources"
-depends = ["prepare:generated"]
-run = "{{vars.tools}} dokime_tools.prepare.resources"
-
-# === Format === #
+[tasks."generate"]
+description = "Generate Clients from Contracts"
+usage = 'flag "--check" help="Check Rust Bindings; Requires --protocol"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"'
+run = """
+{% if usage.protocol %}
+{{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}
+{% elif usage.check %}
+python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift Returns With the Desktop')"
+{% else %}
+{{vars.tools}} dokime_tools.prepare.generated --generate
+{% endif %}
+"""
 
 [tasks.format]
 description = "Format Every Language"
-usage = 'flag "--check"'
-depends = [
-  "format:toml {% if usage.check %}--check{% endif %}",
-  "format:rust {% if usage.check %}--check{% endif %}",
-  "format:python {% if usage.check %}--check{% endif %}",
-  "format:typescript {% if usage.check %}--check{% endif %}",
-]
+run = "{{vars.tools}} dokime_tools.ci.tasks format"
+
+[tasks.lint]
+description = "Lint Every Language"
+run = "{{vars.tools}} dokime_tools.ci.tasks lint"
+
+[tasks.check]
+description = "Check Languages and Repository"
+run = "{{vars.tools}} dokime_tools.ci.tasks check"
+
+[tasks.build]
+description = "Build Products or Focused Packages"
+run = "{{vars.tools}} dokime_tools.ci.tasks build"
+
+[tasks.test]
+description = "Test Layers or Focused Targets"
+run = "{{vars.tools}} dokime_tools.ci.tasks test"
+
+[tasks.package]
+description = "Package Built Artifacts"
+run = "{{vars.tools}} dokime_tools.ci.tasks package"
+
+[tasks."release:prepare"]
+description = "Prepare the Release Branch"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
+
+[tasks."release:publish"]
+description = "Publish a Tagged Release"
+run = "{{vars.tools}} dokime_tools.ci.tasks publish"
+
+[tasks."release:rehearse"]
+description = "Rehearse Staged Release Packages Without Credentials"
+run = "{{vars.tools}} dokime_tools.ci.workflow rehearse"
+
+[tasks."release:tag"]
+description = "Tag a Merged Release Review and Fast-Forward Main"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
+
+[tasks."release:verify"]
+description = "Verify Published Release Assets and Installers"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
+
+# === Internal Steps === #
 
 [tasks."format:python"]
+hide = true
 description = "Format Python"
 usage = 'flag "--check"'
 run = [
   "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} sdk/python",
   "{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/stubs.py{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format --no-force-exclude tools/python/src/dokime_tools/test tools/python/src/dokime_tools/release{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
+hide = true
 description = "Format Rust"
-usage = 'flag "--check"'
-run = "cargo fmt --all{% if usage.check %} --check{% endif %}"
+usage = '''
+flag "--check"
+flag "--package <package>" help="Limit Formatting to One Package"
+'''
+run = "cargo fmt {% if usage.package %}--package {{usage.package}}{% else %}--all{% endif %}{% if usage.check %} --check{% endif %}"
 
 [tasks."format:toml"]
+hide = true
 description = "Format TOML"
 usage = 'flag "--check"'
-run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --option column_width=140{% if usage.check %} --check{% endif %}"
-run_windows = '''pwsh -NoProfile -Command "taplo fmt --option column_width=140{% if usage.check %} --check{% endif %} -- @(git ls-files -- '*.toml')"'''
+run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --config tools/config/taplo.toml --option column_width=140{% if usage.check %} --check{% endif %}"
+run_windows = '''pwsh -NoProfile -Command "taplo fmt --config tools/config/taplo.toml --option column_width=140{% if usage.check %} --check{% endif %} -- @(git ls-files -- '*.toml')"'''
 
 [tasks."format:typescript"]
+hide = true
 description = "Format TypeScript"
-depends = ["prepare"]
 usage = 'flag "--check"'
 run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
 
-# === Lint === #
-
-[tasks.lint]
-description = "Lint Every Language"
-depends = ["lint:python", "lint:rust", "lint:typescript"]
-
 [tasks."lint:python"]
+hide = true
 description = "Lint Python"
-depends = ["prepare"]
 run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
-  "{{vars.python}} ruff check tools/python/src/dokime_tools/test/python.py",
   "{{vars.python}} ty check --project tools/python",
-  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
-  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py',
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py',
-  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/stubs.py',
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
+  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/arrow_archive.py",
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py',
 ]
 
 [tasks."lint:rust"]
+hide = true
 description = "Lint Rust"
-usage = 'flag "--extended"'
-run = [
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.lint -- --locked --workspace --all-targets --all-features --profile test{% endif %}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --profile test -p dokime-domain --target wasm32-unknown-unknown{% endif %}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --lib --bins --no-default-features --profile test{% endif %}",
-]
+usage = 'flag "--package <package>" help="Limit Clippy to One Package"'
+run = "{{vars.tools}} dokime_tools.build.lint -- --locked {% if usage.package %}--package {{usage.package}}{% else %}--workspace{% endif %} --all-targets --profile dev"
 env = { CARGO_BUILD_WARNINGS = "deny" }
 
 [tasks."lint:typescript"]
+hide = true
 description = "Lint TypeScript"
-depends = ["prepare"]
 run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
-# === Check === #
-
-[tasks.check]
-description = "Check Every Language and Conventions"
-run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
+[tasks.screenshots]
+description = "Capture Product Screenshots"
+run = "{{vars.tools}} dokime_tools.ci.tasks screenshots"
 
 [tasks."check:python"]
+hide = true
 description = "Check Python"
 run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "test:python:integration --project tools/python" }]
 
 [tasks."check:python:bindings"]
-description = "Check Built Python Bindings And Stubs"
-depends = ["prepare"]
+hide = true
+description = "Check Built Python Messages and Generated Service Stubs"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.python}} ty check --project sdk/python --exit-zero-on-warning",
-  "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}} --stubs",
+  "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}} --stubs --generated-only",
 ]
 
 [tasks."check:repository"]
+hide = true
 description = "Check Repository Configuration"
 run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", "shellcheck --version", "actionlint"]
 
 [tasks."check:rust"]
+hide = true
 description = "Check Rust"
-run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
+run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "{{vars.tools}} dokime_tools.ci.rust"]
 
 [tasks."check:rust:supply"]
+hide = true
 description = "Check Dependency Advisories, Licenses and Sources"
 run = "{{vars.tools}} dokime_tools.release.sbom --check-supply"
 
 [tasks."check:typescript"]
+hide = true
 description = "Check TypeScript Formatting and Lint Without Type Checking"
 run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
-[tasks."check:typescript:generated"]
-description = "Type Check the GUI Against Freshly Generated Modules, Never Staged Build Output"
-depends = ["prepare:generated"]
-usage = 'flag "--profile <profile>" default="dev" help="Profile Label for Callers That Pass One; Generation Always Uses the Dev Compiler Profile"'
-run = [
-  "{{vars.tools}} dokime_tools.prepare.resources --check",
-  "pnpm --dir crates/dokime-gui run typecheck",
-  "pnpm --dir crates/dokime-gui exec biome lint --config-path=biome.json --vcs-use-ignore-file=false ../../target/generated/typescript",
-  "node crates/dokime-gui/tools/smoke.mjs",
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-# === Build === #
-
-[tasks.build]
+[tasks."build:product"]
+hide = true
 description = "Build Shipping Binaries, Bundles And Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "build:rust --profile {{usage.profile}}" },
-  { task = "build:typescript --profile {{usage.profile}}" },
-  { task = "build:rust:desktop --profile {{usage.profile}}" },
-]
-env = { CARGO_INCREMENTAL = "0" }
+run = [{ task = "build:typescript --profile {{usage.profile}}" }, { task = "build:rust --profile {{usage.profile}}" }]
 
 [tasks."build:python"]
-description = "Build The Native Python Wheel"
-depends = ["prepare"]
+hide = true
+description = "Build the Pure Python SDK Wheel"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.python --profile {{usage.profile}}"
-
-[tasks."build:python:fixtures"]
-description = "Build Native Python Client Fixtures"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.python_fixtures --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
+hide = true
 description = "Build Shipping Native Executables and Plugin Bundle"
-depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
-
-[tasks."build:rust:bench"]
-description = "Build Benchmarks and Their Matching Native Fixtures"
-depends = ["prepare"]
-usage = 'flag "--binary <binary>" help="Build One Benchmark Executable and Its Native Fixtures"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench {% if usage.binary %}--binary {{usage.binary}}{% endif %}"
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."build:rust:compatibility"]
-description = "Verify Local Extended Feature and Browser Configurations"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
-
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."build:rust:contracts"]
-description = "Verify Rust Compile Contracts in Their Build Tree"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.contracts --profile {{usage.profile}}"
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."build:rust:desktop"]
-description = "Build the Desktop with Its Compiled Frontend"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
-
-[tasks."build:rust:focused"]
-description = "Compile an Explicit Local Rust Selection"
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused"
+run = "{{vars.tools}} dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
 
 [tasks."build:rust:tests"]
-description = "Build Independent Test Archive and Compile Contracts"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
+hide = true
+description = "Build Independent Test Archive"
+usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}}",
-  { task = "build:rust:contracts --profile {{usage.profile}}" },
+  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
+  { task = "build:host-fixtures --profile {{usage.profile}}" },
+  { task = "build:cli-fixtures --profile {{usage.profile}}" },
+  { task = "build:desktop-fixtures --profile {{usage.profile}}" },
 ]
-env.CARGO_INCREMENTAL = "0"
+
+[tasks."build:desktop-fixtures"]
+hide = true
+description = "Build and Export Desktop SDK Fixtures"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.desktop_fixtures --profile {{usage.profile}}"
+
+[tasks."build:cli-fixtures"]
+hide = true
+description = "Build and Export the Command-Line Starter Fixture"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.cli_fixtures --profile {{usage.profile}}"
+
+[tasks."build:host-fixtures"]
+hide = true
+description = "Build and Export Execution Host SDK Fixtures"
+usage = 'flag "--profile <profile>" default="dev"; flag "--language <language>"; flag "--export"'
+run = "{{vars.tools}} dokime_tools.build.host_fixtures --profile {{usage.profile}}{% if usage.language %} --language {{usage.language}}{% endif %}{% if usage.export %} --export{% endif %}"
 
 [tasks."build:typescript"]
+hide = true
 description = "Build the Generated GUI Client and Frontend"
-depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
-# === Dev === #
-
-[tasks.dev]
-description = "Start the Native Desktop Shell with an Owned Local Backend and the OBC Plugin"
-depends = ["prepare:report"]
-env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
+[tasks."build:rust:bench"]
+hide = true
+description = "Build Native Desktop Benchmarks and Matching Hosts"
+usage = 'flag "--binary <binary>"'
 run = [
-  'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
-  "cargo build --locked -p dokime-cli -p cargo-dokime -p plugin-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
-  "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-host --output target/debug/plugins/plugin-host.dokime",
-  "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-obc --output target/debug/plugins/plugin-obc.dokime",
-  "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
+  { task = "build:typescript --profile dev" },
+  "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}",
 ]
-
-# === Test === #
-
-[tasks.test]
-lock = true
-description = "Test Every Layer Concurrently from Built Artifacts"
-usage = 'flag "--profile <profile>" default="dev"'
-depends = ["prepare:desktop"]
-run = [
-  "{{vars.tools}} dokime_tools.test.schedule --prepare --profile {{usage.profile}}",
-  { tasks = [
-    "test:python --profile {{usage.profile}} --prepared",
-    "test:rust --profile {{usage.profile}} --prepared",
-    "test:typescript --profile {{usage.profile}} --prepared",
-  ] },
-  "{{vars.tools}} dokime_tools.test.schedule --finish --profile {{usage.profile}}",
-]
-env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python"]
+hide = true
 description = "Test Python Layers"
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -355,28 +300,13 @@ flag "--prepared"
 '''
 depends = [
   "test:python:integration --profile {{usage.profile}} --project tools/python{% if usage.prepared %} --prepared{% endif %}",
-  "test:python:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
-  "test:python:acceptance --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:python:unit"]
-description = "Test Unit Python"
-depends = ["prepare"]
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--select <select>"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:integration"]
+hide = true
 description = "Test Integration Python"
-depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
@@ -386,25 +316,10 @@ flag "--select <select>"
 run = [
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:python:acceptance"]
-description = "Test Acceptance Python"
-depends = ["prepare"]
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--artifacts <artifacts>" help="Use An Explicit Native Client Fixture Root"
-flag "--select <select>" help="Run Matching Installed-Wheel Stories"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category acceptance -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}{% endif %}''',
-]
-env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:system"]
+hide = true
 description = "Test System Python"
-depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
@@ -414,11 +329,10 @@ flag "--select <select>" help="Run Matching System Stories"
 run = [
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category system -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
-env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]
-description = "Measure Python Coverage of the SDK Python Modules; Native PyO3 Code Is Excluded"
-depends = ["prepare"]
+hide = true
+description = "Measure Python SDK Coverage"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --install-wheels",
@@ -426,14 +340,16 @@ run = [
 ]
 
 [tasks."test:python:wheel"]
-description = "Import The Installed Native Wheel"
+hide = true
+description = "Install the Pure Wheel and Run the Starter"
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--stubs" help="Check All Shipped Stubs Against The Installed Extension"
+flag "--stubs" help="Check Generated Messages and Service Stubs Against Protos"
 '''
 run = "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}}{% if usage.stubs %} --stubs{% endif %}"
 
 [tasks."test:rust"]
+hide = true
 description = "Test Rust Layers"
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -445,9 +361,9 @@ depends = [
   "test:rust:acceptance --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:rust:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
 ]
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:unit"]
+hide = true
 description = "Test Unit Rust"
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -457,39 +373,22 @@ flag "--select <select>" help="Narrow the Nextest Filterset"
 run = [
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category unit --language rust {% if usage.select %}-- -E "{{usage.select}}"{% endif %}{% endif %}''',
 ]
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]
+hide = true
 description = "Test Integration Rust"
-depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
 flag "--select <select>" help="Narrow the Nextest Filterset"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E "not binary_id(dokime-macros::compile)" {% if usage.select %}-E "{{usage.select}}"{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category integration --language rust {% if usage.select %}-- {% endif %}{% if usage.select %}-E "{{usage.select}}"{% endif %}{% endif %}''',
 ]
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."test:rust:acceptance"]
-description = "Test Acceptance Rust"
-depends = ["prepare"]
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--select <select>" help="Narrow the Nextest Filterset"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}''',
-  '''{% if not usage.prepared %}{{vars.tools}} dokime_tools.test.archive --install-wheels --profile {{usage.profile}}{% endif %}''',
-  '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust {% if usage.select %}-- -E "{{usage.select}}"{% endif %}{% endif %}''',
-]
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:system"]
+hide = true
 description = "Test System Rust"
-depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
@@ -499,37 +398,43 @@ run = [
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language rust{% else %}{{vars.tools}} dokime_tools.test.archive --install-wheels --profile {{usage.profile}}{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category system --language rust {% if usage.select %}-- -E "{{usage.select}}"{% endif %}{% endif %}''',
 ]
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:coverage"]
+hide = true
 description = "Measure Rust Coverage over Instrumented Lanes"
-depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
   "{{vars.tools}} dokime_tools.test.archive --install-wheels --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
+  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}",
 ]
 
-[tasks."test:rust:extended"]
-description = "Run Optional Local Compatibility and Fault-Injection Stories"
-usage = 'flag "--profile <profile>" default="dev"'
+[tasks."test:rust:acceptance"]
+hide = true
+description = "Test Native Desktop Acceptance"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--prepared"
+flag "--select <select>"
+'''
+run = '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}'''
+
+[tasks."bench:rust:system"]
+hide = true
+description = "Measure Prepared Native Desktop Benchmarks"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--binary <binary>"
+flag "--select <select>"
+flag "--refresh-baseline"
+'''
 run = [
-  { task = "build --profile {{usage.profile}}" },
-  { task = "build:rust:compatibility --profile {{usage.profile}}" },
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
-  { task = "test:rust --profile {{usage.profile}}" },
+  "{{vars.tools}} dokime_tools.prepare.generated --profile bench",
+  "{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select %} -- {{usage.select}}{% endif %}",
 ]
-
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."test:rust:starter"]
-description = "Prove the Standalone Starter in Nightly Validation"
-usage = 'flag "--profile <profile>" default="release"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.rust.starter --profile {{usage.profile}}"
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:typescript"]
+hide = true
 description = "Test TypeScript Layers"
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -540,133 +445,143 @@ depends = [
   "test:typescript:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:typescript:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
 ]
-env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:typescript:unit"]
-description = "Test Unit TypeScript Against Freshly Generated Modules Without Rewriting Sources"
-depends = ["{% if usage.prepared %}prepare{% else %}prepare:generated{% endif %}"]
+[tasks."prepare:desktop"]
+hide = true
+description = "Prepare the Native WebView Driver"
+run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop --gui-runtime"
+
+[tasks."test:typescript:system"]
+hide = true
+description = "Test Desktop Execution and Connection Journeys"
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
 flag "--select <select>"
 '''
 run = [
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% else %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}{% endif %}''',
+]
+
+[tasks."test:typescript:unit"]
+hide = true
+description = "Test Unit TypeScript Against Freshly Generated Modules Without Rewriting Sources"
+
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--prepared"
+flag "--select <select>"
+'''
+run = [
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 
 [tasks."test:typescript:integration"]
+hide = true
 description = "Test Integration TypeScript Against Freshly Generated Modules Without Rewriting Sources"
-depends = ["{% if usage.prepared %}prepare{% else %}prepare:generated{% endif %}"]
+
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
-  '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
+  '''{% if usage.prepared and not usage.select %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
+  '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:typescript:system"]
-description = "Test System TypeScript"
-depends = ["prepare:desktop", "{% if usage.prepared %}prepare{% else %}prepare:generated{% endif %}"]
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--select <story>" help="Run One Native Desktop Story"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% endif %}''',
-  '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit} {% if usage.select %}--select {{usage.select}}{% endif %}{% endif %}''',
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-# === Bench === #
-
-[tasks.bench]
-description = "Measure Every Bench Layer"
-depends = ["bench:rust:unit", "bench:rust:integration", "bench:rust:system"]
-
-[tasks."bench:python:system"]
-description = "Measure Python Batch Publication"
-depends = ["prepare"]
-run = [
-  "{{vars.tools}} dokime_tools.test.archive --profile dev --install-wheels",
-  "{{vars.tools}} dokime_tools.test.run bench --language python --category system --project sdk/python -- -s",
-]
-
-[tasks."bench:rust:unit"]
-description = "Bench Unit Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust"
-
-[tasks."bench:rust:integration"]
-description = "Bench Integration Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category integration --language rust"
-
-[tasks."bench:rust:system"]
-description = "Bench System Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust"
-
-# === Docs === #
-
-# === Package === #
-
-[tasks.package]
-description = "Package Every Language"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [{ tasks = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}}"] }]
 
 [tasks."package:python"]
-description = "Package the Built Client Distributions"
+hide = true
+description = "Package the Pure Python SDK Distributions"
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--target <target>" default="native"
+flag "--target <target>" default="any"
 '''
-run = [
-  "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}",
-  "{{vars.tools}} dokime_tools.release.notices --profile {{usage.profile}} --target {{usage.target}} --python",
-]
+run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target any"
+
+[tasks."build:distribution"]
+hide = true
+description = "Refresh the Verified Portable Distribution After Signing"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}"
 
 [tasks."package:rust"]
+hide = true
 description = "Package the Desktop Installer, Tools and Plugin Archives"
-depends = ["prepare"]
 tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
 '''
 run = [
-  "{{vars.tools}} dokime_tools.release.notices --profile {{usage.profile}} --target {{usage.target}}",
+  "{{vars.tools}} dokime_tools.release.notices",
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
-  "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}} --target {{usage.target}}",
+  "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.installer --profile {{usage.profile}}",
 ]
 
-# === CI === #
+[tasks."ci:nightly-freshness"]
+hide = true
+description = "Nightly Freshness"
+run = "{{vars.tools}} dokime_tools.ci.workflow nightly-freshness"
 
-# === Release === #
+[tasks."ci:nightly-report"]
+hide = true
+description = "Nightly Report"
+run = "{{vars.tools}} dokime_tools.ci.workflow nightly-report"
 
-[tasks."release:notices"]
-description = "Generate Third-Party Notices"
-run = "{{vars.tools}} dokime_tools.release.notices"
+[tasks."ci:release-mode"]
+hide = true
+description = "Select Release Preparation or Tagging"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-mode"
 
-[tasks."release:prepare"]
-description = "Prepare the Release Branch"
-run = "{{vars.tools}} dokime_tools.release.run prepare"
+[tasks."ci:review"]
+hide = true
+description = "Review"
+run = "{{vars.tools}} dokime_tools.ci.workflow review"
 
-[tasks."release:publish"]
-description = "Publish a Tagged Release"
-# Python Registry Publication Waits For The Package Name Decision; The Wheel Is Still Built And Dry-Run Checked.
-run = [{ task = "release:publish:assets" }, { task = "release:publish:finalize" }]
+[tasks."ci:required"]
+hide = true
+description = "Required"
+run = "{{vars.tools}} dokime_tools.ci.workflow required"
+
+[tasks."ci:mirror"]
+hide = true
+description = "Mirror"
+run = "{{vars.tools}} dokime_tools.ci.workflow mirror"
+
+[tasks."ci:bindings"]
+hide = true
+description = "Bindings"
+run = "{{vars.tools}} dokime_tools.ci.workflow bindings"
+
+[tasks."ci:test"]
+hide = true
+lock = true
+description = "Test Every Layer Concurrently from Built Artifacts"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "{{vars.tools}} dokime_tools.test.schedule --prepare --profile {{usage.profile}}",
+  { tasks = [
+    "test:python --profile {{usage.profile}} --prepared",
+    "test:rust --profile {{usage.profile}} --prepared",
+    "test:typescript --profile {{usage.profile}} --prepared",
+  ] },
+  "{{vars.tools}} dokime_tools.test.schedule --finish --profile {{usage.profile}}",
+]
 
 [tasks."release:publish:assets"]
+hide = true
 description = "Draft the Release with Its Assets and SHA256SUMS"
 run = "{{vars.tools}} dokime_tools.release.run publish"
 
 [tasks."release:publish:dry"]
+hide = true
 description = "Dry-Run Every Publication"
-depends = ["prepare:report"]
 run = [
   "{{vars.tools}} dokime_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
@@ -674,42 +589,11 @@ run = [
 ]
 
 [tasks."release:publish:finalize"]
+hide = true
 description = "Verify and Publish the Drafted Release"
 run = "{{vars.tools}} dokime_tools.release.run finalize"
 
 [tasks."release:publish:python"]
-description = "Publish The Native Python SDK"
+hide = true
+description = "Publish the Pure Python SDK"
 run = "{{vars.tools}} dokime_tools.release.run python"
-
-[tasks."release:publish:rust"]
-description = "Publish Rust Crates"
-run = "{{vars.tools}} dokime_tools.release.run crates"
-
-[tasks."release:rehearse"]
-description = "Rehearse Staged Release Packages Without Credentials"
-run = "{{vars.tools}} dokime_tools.release.run rehearse"
-
-[tasks."release:sbom"]
-description = "Generate CycloneDX Inventories for a Rust Target and Release Artifacts"
-usage = 'arg "target" help="Rust Target Triple"; flag "--artifacts <path>"; flag "--output <path>" default="target/sbom"'
-run = "{{vars.tools}} dokime_tools.release.sbom --target {{usage.target}} --output {{usage.output}}{% if usage.artifacts %} --artifacts {{usage.artifacts}}{% endif %}"
-
-[tasks."release:tag"]
-description = "Tag a Merged Release Review and Fast-Forward Main"
-run = "{{vars.tools}} dokime_tools.release.run tag"
-
-[tasks."release:verify"]
-description = "Verify Published Release Assets and Installers"
-run = "{{vars.tools}} dokime_tools.release.run verify"
-
-# === Clean === #
-
-# === Housekeeping === #
-
-[tasks.housekeeping]
-description = "Clean Owned Build Outputs and State"
-run = "stkr project housekeeping"
-
-[tasks."housekeeping:stats"]
-description = "Count Source Lines"
-run = "scc"

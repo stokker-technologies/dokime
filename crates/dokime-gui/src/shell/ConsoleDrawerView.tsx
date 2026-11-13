@@ -216,7 +216,7 @@ export function FrozenConsole({ records }: { records: HubRecord[] }) {
   return (
     <section aria-label="Console" className="grid gap-2">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <h3 className="font-heading text-sm leading-6 font-semibold tracking-wide uppercase">Console</h3>
+        <h3 className="font-sans text-sm leading-6 font-semibold tracking-wide uppercase">Console</h3>
         <Select onValueChange={(next) => setLevel(next as ConsoleLevel)} value={level}>
           <SelectTrigger className="w-32" size="sm">
             <SelectValue />
@@ -337,7 +337,9 @@ function ConsoleRow({ record }: { record: HubRecord }) {
   const label = typeof record.details.trace_level === "string" ? record.details.trace_level : LEVEL_LABEL[level];
 
   return (
-    <button
+    <Button
+      variant="plain"
+      size="inline"
       className={cn(
         "grid w-full grid-cols-[--spacing(20)_--spacing(15)_--spacing(36)_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
         expanded ? "py-1" : "overflow-hidden",
@@ -350,7 +352,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
       <span className={cn("truncate uppercase", recordLevelTextClass(level))}>{label}</span>
       <span className="truncate text-muted-foreground">{record.source}</span>
       <span className={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>{record.message ?? ""}</span>
-    </button>
+    </Button>
   );
 }
 

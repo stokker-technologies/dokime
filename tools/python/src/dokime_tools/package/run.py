@@ -25,10 +25,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from .. import temporary
-from ..build import paths
+from .. import policy, temporary
+from ..build import paths, wheel
 from ..process import spawn_flags
-from ..release import policy
 from . import changelog
 
 # Type Checking Imports
@@ -237,6 +236,8 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
         provider = settings["provider"]
         repository = settings.get("repository") if provider == "github" else settings["project_id"]
         for installer in item["installers"]:
+            if settings["tag"] == "nightly" and installer != "mise":
+                continue
             with temporary.directory() as install:
                 if installer == "mise":
                     tool = f"{provider}:{repository}[asset_pattern={item['output']},bin={item['binary']}]@{version}"
@@ -305,12 +306,17 @@ def main() -> None:
     if options.target == "native":
         options.target = None
     directory = Path.cwd()
+    if options.language == "python":
+        options.target = "any"
     destination = paths.output(directory, "package", options.profile, options.target)
     target = options.target or paths.target()
     language = "rust" if options.language == "native" else options.language
     products = definitions(directory, options.profile, target)
-    if language == "python" and target == "any":
-        raise policy.ToolError("Python packaging requires a native target")
+    if language == "python":
+        source = paths.output(directory, "build", options.profile, "any") / "python"
+        wheel.verify(directory, source, policy.config(directory)["version"]["value"])
+        paths.replace(directory, source, destination / "python")
+        return
     if target == "any" and not any(item["language"] == language for item in products):
         with temporary.directory() as staging:
             paths.replace(directory, staging, destination / language, origin=staging)
@@ -362,7 +368,7 @@ def main() -> None:
             )
         return
     else:
-        kind = {"python": "python", "typescript": "web", "native": "bin"}[options.language]
+        kind = {"typescript": "web", "native": "bin"}[options.language]
         source = paths.output(directory, "build", options.profile, options.target) / kind
     paths.replace(directory, source, destination / options.language)
 

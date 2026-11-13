@@ -1,0 +1,69 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+
+message ObservationGetRuntimeShellRequest {
+  uint32 limit = 1;
+  string after_cycle_id = 2;
+  Cursor cursor = 3;
+}
+
+message ObservationGetRuntimeShellRunInput {
+  oneof value {
+    ObservationGetRuntimeShellRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ObservationGetRuntimeShellRunOutput {
+  oneof value {
+    RuntimeShellSnapshot response = 2;
+  }
+}
+
+message ObservationWatchRuntimeRequest {
+  Cursor cursor = 1;
+}
+
+message ObservationWatchRuntimeOutput {
+  oneof value {
+    RuntimeStateFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ObservationWatchRuntimeRunInput {
+  oneof value {
+    ObservationWatchRuntimeRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ObservationWatchRuntimeRunOutput {
+  oneof value {
+    RuntimeStateFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+service Observation {
+  // Public. dokime.observation.get_runtime_shell. Follow the returned continuation with unchanged filters/order
+  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution. Returns a bounded cycle page at one exact runtime revision.
+  rpc GetRuntimeShell (.dokime.v1.ObservationGetRuntimeShellRequest) returns (.dokime.v1.RuntimeShellSnapshot);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetRuntimeShell (stream .dokime.v1.ObservationGetRuntimeShellRunInput)
+      returns (stream .dokime.v1.ObservationGetRuntimeShellRunOutput);
+  // Public. dokime.observation.watch_runtime. Output items precede the final response; require successful final
+  // status. Cancelling this call does not undo committed mutations or cancel an admitted execution. This is a
+  // latest-state invalidation stream, not a durable event log. The initial frame always resynchronizes from
+  // current state. Subsequent frames may coalesce commits. Query cycle/catalog details after a frame as needed. A
+  // different epoch or a future position is rejected; reconnect without a cursor to explicitly resynchronize.
+  // Disconnect never cancels admitted execution.
+  rpc WatchRuntime (.dokime.v1.ObservationWatchRuntimeRequest) returns (stream .dokime.v1.ObservationWatchRuntimeOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunWatchRuntime (stream .dokime.v1.ObservationWatchRuntimeRunInput) returns (stream .dokime.v1.ObservationWatchRuntimeRunOutput);
+}

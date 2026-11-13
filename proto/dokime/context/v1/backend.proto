@@ -1,0 +1,9 @@
+syntax = "proto3";
+package dokime.context.v1;
+option csharp_namespace = "Dokime.Protocol.Context.V1";
+
+// Public child-call declarations, carried by Instance.Invoke.
+
+message BackendEnvironmentRequest {}
+
+message BackendEnvironmentResponse { uint32 backend_pid = 1; bool in_step = 2; }

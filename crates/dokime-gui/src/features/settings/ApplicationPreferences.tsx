@@ -11,6 +11,7 @@
 
 /* === Imports === */
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
@@ -97,14 +98,6 @@ const FIELDS: PreferenceField[] = [
     advanced: true,
   },
   {
-    group: "client",
-    key: "endpoint_stagger_ms",
-    label: "Endpoint Stagger",
-    help: "Delay between remote endpoint connection attempts.",
-    unit: "ms",
-    advanced: true,
-  },
-  {
     group: "telemetry",
     key: "interval_ms",
     label: "Telemetry Interval",
@@ -154,8 +147,6 @@ const FIELDS: PreferenceField[] = [
     advanced: true,
   },
 ];
-const SELECT_CLASS =
-  "h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
 
 /* === Components === */
 
@@ -237,7 +228,7 @@ function PreferencesForm({
   const saveRef = useRef(save.mutateAsync);
   saveRef.current = save.mutateAsync;
   useEffect(() => {
-    if (edited.size === 0 && !writing.current) {
+    if (edited.size === 0 && !writing.current && snapshot.revision >= baseline.current.revision) {
       baseline.current = snapshot;
       setDraft(structuredClone(snapshot.settings));
     }
@@ -342,27 +333,36 @@ function PreferencesForm({
             {label}
           </span>
         }
-        description={field.help}
+        description={
+          field.group === "listener" && (field.key === "tls_enabled" || field.key === "authentication_enabled")
+            ? "This Host Requires TLS and Pairing Authentication."
+            : field.help
+        }
         htmlFor={`${scope}-${name}`}
         error={error}
         status={<span data-state={error ? "error" : edited.has(name) ? state : "saved"} className="inline-block min-h-5" />}
       >
         {field.kind === "boolean" ? (
-          <Switch id={`${scope}-${name}`} aria-label={label} checked={Boolean(value)} onCheckedChange={change} />
-        ) : field.options ? (
-          <select
+          <Switch
+            disabled={field.group === "listener" && (field.key === "tls_enabled" || field.key === "authentication_enabled")}
             id={`${scope}-${name}`}
-            className={SELECT_CLASS}
             aria-label={label}
-            value={String(value)}
-            onChange={(event) => change(event.target.value)}
-          >
-            {field.options.map((option) => (
-              <option key={option} value={option}>
-                {option === "lttb" ? "LTTB" : option.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())}
-              </option>
-            ))}
-          </select>
+            checked={Boolean(value)}
+            onCheckedChange={change}
+          />
+        ) : field.options ? (
+          <Select value={String(value)} onValueChange={change}>
+            <SelectTrigger className="w-full" id={`${scope}-${name}`} aria-label={label}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {field.options.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option === "lttb" ? "LTTB" : option.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <div className="flex w-full items-center gap-2">
             <Input

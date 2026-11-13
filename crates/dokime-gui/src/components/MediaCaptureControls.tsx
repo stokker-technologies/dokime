@@ -14,21 +14,9 @@
 
 /* === Imports === */
 
-// Standard Library Imports
-
-// Third Party Imports
-import { toast } from "@/lib/notifications";
-import { failureOf } from "@/lib/notification-details";
-import { useQueryClient } from "@tanstack/react-query";
-import { Camera, Mic, Monitor, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-
-// Local Imports
+import { Camera, Mic, Monitor } from "lucide-react";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
-import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
-import { captureNativePhoto, captureNativeScreenshot, type NativeAudioRecording, startNativeAudioRecording } from "@/lib/api/native-media";
-import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RecordScope } from "@/lib/types";
 
 /* === Re-Exports === */
@@ -37,118 +25,30 @@ import type { RecordScope } from "@/lib/types";
 
 /* === Types === */
 
-type MediaCaptureControlsProps = {
-  /** A cycle and execution scope; captures are execution artifacts. */
-  scope: RecordScope;
-};
-
-type Activity = "idle" | "screenshot" | "photo" | "recording" | "stopping";
+type MediaCaptureControlsProps = { scope: RecordScope };
 
 /* === Components === */
 
-export function MediaCaptureControls({ scope }: MediaCaptureControlsProps) {
+export function MediaCaptureControls(_props: MediaCaptureControlsProps) {
   const session = useNativeSessionOptional();
-  /* Host capture needs a connected backend; a browser build has none. */
-  return session ? <CaptureControls identity={session.identity} scope={scope} /> : null;
-}
-
-function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { identity: SessionIdentity }) {
-  const queryClient = useQueryClient();
-  const recording = useRef<NativeAudioRecording | null>(null);
-  const stopRequested = useRef(false);
-  const [activity, setActivity] = useState<Activity>("idle");
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [status, setStatus] = useState<string | null>(null);
-  const busy = activity !== "idle";
-
-  /* Leaving the card stops the recording; the backend seals what it heard. */
-  useEffect(
-    () => () => {
-      stopRequested.current = true;
-      void recording.current?.stop().catch(() => undefined);
-    },
-    [],
-  );
-
-  async function refresh() {
-    await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);
-  }
-
-  async function capture(kind: "screenshot" | "photo") {
-    setActivity(kind);
-    setStatus(null);
-    try {
-      const name = kind === "screenshot" ? await captureNativeScreenshot(identity, scope) : await captureNativePhoto(identity, scope);
-      setStatus(`Saved ${name}`);
-      await refresh();
-    } catch (error) {
-      toast.error(failureOf(error, "Media Capture Failed"));
-      setStatus(null);
-    } finally {
-      setActivity("idle");
-    }
-  }
-
-  async function startRecording() {
-    setActivity("recording");
-    setStatus(null);
-    setElapsedMs(0);
-    stopRequested.current = false;
-    try {
-      const started = await startNativeAudioRecording(identity, scope, setElapsedMs);
-      recording.current = started;
-      /* A stop pressed while the device was still opening applies now. */
-      if (stopRequested.current) void started.stop().catch(() => undefined);
-      const name = await started.done;
-      setStatus(name ? `Saved ${name}` : "Recording saved");
-    } catch (error) {
-      toast.error(failureOf(error, "Media Capture Failed"));
-      setStatus(null);
-    } finally {
-      recording.current = null;
-      setActivity("idle");
-      await refresh();
-    }
-  }
-
-  async function stopRecording() {
-    setActivity("stopping");
-    stopRequested.current = true;
-    await recording.current?.stop().catch((error: unknown) => toast.error(failureOf(error, "Audio Could Not Be Saved")));
-  }
-
+  if (!session) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 border-b pb-3">
-      <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void capture("screenshot")}>
+      <Button disabled size="sm" type="button" variant="outline">
         <Monitor data-icon="inline-start" />
-        {activity === "screenshot" ? "Capturing" : "Screenshot"}
+        Screenshot
       </Button>
-      <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void capture("photo")}>
+      <Button disabled size="sm" type="button" variant="outline">
         <Camera data-icon="inline-start" />
-        {activity === "photo" ? "Capturing" : "Photo"}
+        Photo
       </Button>
-      {activity === "recording" || activity === "stopping" ? (
-        <Button
-          aria-label={`Stop Audio Recording (${formatElapsed(elapsedMs)})`}
-          disabled={activity === "stopping"}
-          size="sm"
-          type="button"
-          variant="danger"
-          onClick={() => void stopRecording()}
-        >
-          <Square data-icon="inline-start" />
-          {activity === "stopping" ? "Saving" : "Stop"}
-          <span className="font-mono text-xs tabular-nums" aria-live="polite">
-            {formatElapsed(elapsedMs)}
-          </span>
-        </Button>
-      ) : (
-        <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void startRecording()}>
-          <Mic data-icon="inline-start" />
-          Record Audio
-        </Button>
-      )}
-      {status ? <span className="text-xs text-muted-foreground">{status}</span> : null}
+      <Button disabled size="sm" type="button" variant="outline">
+        <Mic data-icon="inline-start" />
+        Record Audio
+      </Button>
+      <span className="text-xs text-muted-foreground" role="status">
+        Host media capture is unavailable until the host supplies its capture operations.
+      </span>
     </div>
   );
 }
@@ -158,10 +58,3 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}

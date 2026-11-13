@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import { useHubStore } from "@/stores/hub-store";
 
 /* === Types === */
@@ -36,7 +36,7 @@ export type BackendStatus = {
 export function useBackendStatus(): BackendStatus {
   const session = useNativeSession();
   const identity = useQuery({
-    queryFn: () => rpc.backendGetIdentity(session.identity, {}),
+    queryFn: () => rpc.statusGet(session.identity, {}),
     queryKey: ["shell", "backend-identity", session.identity.generation],
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -46,6 +46,6 @@ export function useBackendStatus(): BackendStatus {
   return {
     connection: connection === "connecting" ? "unknown" : connection,
     detail: error,
-    label: identity.data?.displayName || identity.data?.backendId || null,
+    label: identity.data?.status?.identity?.applicationName || identity.data?.status?.identity?.hostId || null,
   };
 }

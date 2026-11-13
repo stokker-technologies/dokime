@@ -13,6 +13,7 @@
 
 /* === Local Imports === */
 
+import { Button } from "@/components/ui/button";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import type { AutosaveState } from "@/features/settings/settings-autosave";
 
@@ -43,9 +44,9 @@ export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps
               : "Settings saved."}
       </NotificationMessage>
       {state.kind === "error" && (
-        <button className="underline underline-offset-2" onClick={onRetry} type="button">
+        <Button variant="link" size="inline" className="underline" onClick={onRetry} type="button">
           Retry
-        </button>
+        </Button>
       )}
     </span>
   );

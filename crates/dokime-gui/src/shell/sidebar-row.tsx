@@ -21,6 +21,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import type { LucideIcon } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
 
@@ -99,16 +100,18 @@ export function SidebarRow({
       >
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              variant="plain"
+              size="inline"
               aria-current={active ? "page" : undefined}
               aria-label={title}
-              className="grid min-h-[var(--control-height)] w-full place-items-center content-center gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid min-h-[var(--control-height)] w-full place-items-center content-center gap-1 rounded-lg"
               onClick={onSelect}
               type="button"
             >
               {Icon ? <Icon aria-hidden className="size-5" /> : null}
               {railLabel ? <span className="text-xs">{label}</span> : null}
-            </button>
+            </Button>
           </TooltipTrigger>
           {!railLabel ? <TooltipContent side="right">{title}</TooltipContent> : null}
         </Tooltip>
@@ -130,14 +133,16 @@ export function SidebarRow({
         {Icon ? <Icon className="size-5" /> : null}
       </span>
       {onSelect ? (
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           aria-current={active ? "page" : undefined}
-          className="grid min-h-[var(--control-height)] min-w-0 items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid min-h-[var(--control-height)] min-w-0 items-center text-left"
           onClick={onSelect}
           type="button"
         >
           {labelNode}
-        </button>
+        </Button>
       ) : (
         <span className="grid min-w-0 items-center" title={title}>
           {labelNode}

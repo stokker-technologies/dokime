@@ -11,6 +11,7 @@
 
 import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
+import { numericValue } from "@/lib/utils";
 import type {
   DocumentReferenceBand,
   DocumentReferenceLine,
@@ -71,6 +72,11 @@ export function documentPlotSpec({
     computed: payload?.computed ?? null,
     markers: payload?.markers ?? [],
     plotType: plot.plot_type,
+    arrangement: plot.arrangement,
+    pareto: plot.pareto,
+    hole: plot.hole,
+    xyInterval: plot.xy_interval,
+    render: plot.render ?? "cells",
     style: plot.style ?? "line",
     xScale: plot.x_scale ?? "linear",
     yScale: plot.y_scale ?? "linear",
@@ -97,10 +103,13 @@ export function documentPlotSpec({
     referenceBands: resolveReferenceBands(plot.reference_bands ?? [], plot, telemetry, parameters),
     stateLabel: state.label,
     stateDetail: state.detail,
-    contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
+
+    contextSummary:
+      plot.plot_type === "contour" || plot.plot_type === "grid_chart"
+        ? undefined
+        : plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
     context: {
       ...(payload?.context ?? {}),
-      ...(plotContext({ stream: plot.stream, plotType: plot.plot_type, telemetry }) ?? {}),
     },
     windowS: payload?.window_s ?? null,
     xFormat,
@@ -236,64 +245,20 @@ function referenceValue(
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (!value) return null;
   const source = value.source;
+  let result: number | null = null;
   if (source.type === "telemetry") {
     const stream = source.stream ?? plot.stream;
-    return numberValue(latestSample(telemetry, stream)?.[source.field]);
+    result = numberValue(latestSample(telemetry, stream)?.[source.field]);
   }
-  if (source.type === "parameter") return numberValue(parameters?.[source.name]);
-  return null;
-}
-
-function plotContext({
-  stream,
-  plotType,
-  telemetry,
-}: {
-  stream: string;
-  plotType: DocumentViewPlot["plot_type"];
-  telemetry?: Record<string, TelemetryStream> | null;
-}): Record<string, unknown> | undefined {
-  if (plotType !== "wifi_channel_occupancy") return undefined;
-  const latest = latestSample(telemetry, stream);
-  if (!latest) return undefined;
-  return {
-    active_wifi_channel: latest.active_wifi_channel,
-    active_wifi_band: latest.active_wifi_band,
-    active_wifi_ssid: latest.active_wifi_ssid,
-  };
-}
-
-function plotContextSummary({
-  stream,
-  telemetry,
-  context,
-}: {
-  stream: string;
-  telemetry?: Record<string, TelemetryStream> | null;
-  context?: Record<string, unknown> | null;
-}): string | undefined {
-  const latest = latestSample(telemetry, stream) ?? context;
-  if (!latest) {
-    return undefined;
+  if (source.type === "parameter") result = numberValue(parameters?.[source.name]);
+  for (const transform of value.transforms ?? []) {
+    if (result === null) return null;
+    if (transform.type === "scale") result *= transform.factor;
+    else if (transform.type === "offset") result += transform.value;
+    else return null;
+    if (!Number.isFinite(result)) return null;
   }
-  if (stream === "host.wifi.link") {
-    return compactContext([
-      textContext("SSID", latest.wifi_ssid),
-      textContext("Radio", latest.wifi_radio ?? latest.wifi_state),
-      textContext("Channel", latest.wifi_channel),
-    ]);
-  }
-  if (stream === "host.wifi.latency") {
-    return compactContext([textContext("Host", latest.wifi_latency_host), textContext("Probe", latest.probe_status)]);
-  }
-  if (stream === "host.bluetooth") {
-    return compactContext([
-      textContext("Adapter", latest.bluetooth_adapter),
-      textContext("Radio", latest.bluetooth_radio_state),
-      textContext("Probe", latest.probe_status),
-    ]);
-  }
-  return undefined;
+  return result;
 }
 
 function placeholderSeries(keys: string[], plot: DocumentViewPlot): PlotPayload["series"] {
@@ -341,13 +306,14 @@ function plotState({
   cartesian: PlotPayload["cartesian"];
   telemetry?: Record<string, TelemetryStream> | null;
 }): { label?: string; detail?: string } {
-  const valueField = plotType === "xy_value_heatmap" || plotType === "heatmap" ? "z" : "y";
+  const valueField = plotType === "contour" ? "z" : "y";
   const hasFinitePoint = cartesian
     ? cartesian.point_count > 0
     : series.some((item) => item.points.some((point) => Number.isFinite(point[valueField])));
   if (hasFinitePoint) {
     return {};
   }
+  if (plotType === "grid_chart" || plotType === "contour") return {};
 
   const latest = latestSample(telemetry, stream);
   if (stream === "host.wifi.scan") {
@@ -404,7 +370,8 @@ function latestSample(telemetry: Record<string, TelemetryStream> | null | undefi
 }
 
 function numberValue(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  const number = numericValue(value);
+  return number !== null && Number.isFinite(number) ? number : null;
 }
 
 function firstText(...values: unknown[]): string | undefined {
@@ -413,6 +380,39 @@ function firstText(...values: unknown[]): string | undefined {
       return value.trim();
     }
   }
+}
+
+function plotContextSummary({
+  stream,
+  telemetry,
+  context,
+}: {
+  stream: string;
+  telemetry?: Record<string, TelemetryStream> | null;
+  context?: Record<string, unknown> | null;
+}): string | undefined {
+  const latest = latestSample(telemetry, stream) ?? context;
+  if (!latest) {
+    return undefined;
+  }
+  if (stream === "host.wifi.link") {
+    return compactContext([
+      textContext("SSID", latest.wifi_ssid),
+      textContext("Radio", latest.wifi_radio ?? latest.wifi_state),
+      textContext("Channel", latest.wifi_channel),
+    ]);
+  }
+  if (stream === "host.wifi.latency") {
+    return compactContext([textContext("Host", latest.wifi_latency_host), textContext("Probe", latest.probe_status)]);
+  }
+  if (stream === "host.bluetooth") {
+    return compactContext([
+      textContext("Adapter", latest.bluetooth_adapter),
+      textContext("Radio", latest.bluetooth_radio_state),
+      textContext("Probe", latest.probe_status),
+    ]);
+  }
+  return undefined;
 }
 
 function compactContext(parts: Array<string | undefined>): string | undefined {

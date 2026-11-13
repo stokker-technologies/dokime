@@ -28,7 +28,7 @@ const PLOT_PALETTE_REFERENCES = PLOT_PALETTE_VARIABLES.map((name) => `var(${name
 const REFERENCE_PALETTE_SIZE = 4;
 const REFERENCE_PALETTE_VARIABLES = Array.from({ length: REFERENCE_PALETTE_SIZE }, (_, index) => `--plot-reference-${index + 1}`);
 // The document definition's default reference color (`default_reference_color` in
-// dokime-domain); a reference carrying it has no author color.
+// the plot protocol); a reference carrying it has no author color.
 const DEFAULT_REFERENCE_COLOR = "#60706a";
 
 /* === Public Functions === */

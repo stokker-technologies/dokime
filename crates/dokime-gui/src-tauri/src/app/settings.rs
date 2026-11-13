@@ -21,7 +21,7 @@ use serde::Serialize;
 use tauri::{Manager, State};
 
 // Local Imports
-use dokime::paths::ApplicationPaths;
+use crate::paths::ApplicationPaths;
 
 /* === Constants === */
 

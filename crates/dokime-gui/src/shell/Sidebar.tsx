@@ -85,7 +85,9 @@ export function Sidebar(props: SidebarProps) {
     return (
       <nav aria-label="Navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background">
         {DESTINATIONS.map(({ icon: Icon, ...destination }) => (
-          <button
+          <Button
+            variant="plain"
+            size="inline"
             key={destination.to}
             type="button"
             aria-current={isCurrent(pathname, destination.prefix) ? "page" : undefined}
@@ -95,7 +97,7 @@ export function Sidebar(props: SidebarProps) {
             <Icon className="size-5" />
             {destination.label}
             {destination.to === "/notifications" && <UnreadNotifications />}
-          </button>
+          </Button>
         ))}
       </nav>
     );

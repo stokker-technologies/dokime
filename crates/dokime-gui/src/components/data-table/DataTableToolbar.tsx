@@ -86,14 +86,16 @@ export function DataTableToolbar({ actions, description, filters, onClear, onCle
               <span className="max-w-64 truncate" title={filter.text}>
                 {filter.text}
               </span>
-              <button
+              <Button
+                variant="plain"
+                size="inline"
                 aria-label={`Clear ${filter.text}`}
-                className="rounded-lg opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-lg opacity-70 hover:opacity-100"
                 onClick={() => onClear(filter.id)}
                 type="button"
               >
                 <X className="size-3" />
-              </button>
+              </Button>
             </Badge>
           ))}
           <Button className="h-6" onClick={onClearAll} size="xs" type="button" variant="ghost">

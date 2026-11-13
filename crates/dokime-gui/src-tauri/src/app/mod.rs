@@ -74,9 +74,10 @@ pub fn run() {
         // GTK thread has started yet.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
-    dotenv::dotenv().ok();
-    if let Err(error) = start_tauri_app() {
-        eprintln!("failed to run {} desktop shell: {error}", crate::PRODUCT);
+    let organization = organization::resolve();
+    let label = organization.label().to_owned();
+    if let Err(error) = start_tauri_app(organization) {
+        eprintln!("failed to run {label} desktop shell: {error}");
         std::process::exit(1);
     }
 }
@@ -89,12 +90,12 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
 
 /* === Private Functions === */
 
-fn start_tauri_app() -> tauri::Result<()> {
-    // Resolve Identity Before Logging, Organization Or Windows.
+fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Result<()> {
+    // Resolve Distribution Paths Before Logging Or Windows.
     let mut context = tauri::generate_context!();
-    let paths = dokime::paths::ApplicationPaths::resolve(&context.config().identifier)?;
+    let paths = crate::paths::ApplicationPaths::resolve(&context.config().identifier)?;
     context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(paths.root.clone()));
-    let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize);
+    let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize, &paths.distribution.slug(), organization.label());
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
@@ -103,7 +104,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let controls = bindings::invoke_handler();
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
-        .manage(_log_guards.journal.clone())
+        .manage(organization)
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())
@@ -112,9 +113,7 @@ fn start_tauri_app() -> tauri::Result<()> {
         .manage(paths)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
-                if window.label() == "main"
-                    && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "dokime-remote"))
-                {
+                if window.label() == "main" && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "pair")) {
                     let app = window.app_handle().clone();
                     let paths = paths.clone();
                     tauri::async_runtime::spawn(async move {
@@ -124,7 +123,6 @@ fn start_tauri_app() -> tauri::Result<()> {
                                 crate::connection::registry::import_path(
                                     &app,
                                     &app.state::<crate::connection::registry::Registry>(),
-                                    &app.state::<crate::connection::ConnectionSession>(),
                                     paths[0].clone(),
                                     None,
                                 )
@@ -132,7 +130,7 @@ fn start_tauri_app() -> tauri::Result<()> {
                                 .map(|_| ())
                             } else {
                                 Err(crate::connection::ConnectionError::InvalidTarget {
-                                    message: "Drop exactly one .dokime-remote file".into(),
+                                    message: "Drop exactly one .pair file".into(),
                                 })
                             };
                             if let Err(error) = result {
@@ -213,7 +211,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
-        tauri::RunEvent::Exit => dokime::diagnostics::test_trace::flush(),
+        tauri::RunEvent::Exit => {}
         tauri::RunEvent::WindowEvent {
             event: tauri::WindowEvent::CloseRequested { api, .. },
             ..
@@ -235,7 +233,7 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         let navigation_config = app.config().clone();
         let brand = app.state::<organization::OrganizationState>().initialization_script();
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
-            .data_directory(app.state::<dokime::paths::ApplicationPaths>().webview())
+            .data_directory(app.state::<crate::paths::ApplicationPaths>().webview())
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
         let organization = app.state::<organization::OrganizationState>();

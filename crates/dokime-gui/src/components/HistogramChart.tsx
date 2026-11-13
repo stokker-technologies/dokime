@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
@@ -86,9 +87,11 @@ export function HistogramChart({
             </>
           ) : null}
           {bins.map((bin, index) => (
-            <button
+            <Button
+              variant="plain"
+              size="inline"
               aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(bin.max, unit, format)}: ${bin.count}`}
-              className="grid h-full min-w-0 items-end text-left"
+              className="grid h-full min-w-0 grid-cols-1 items-end justify-stretch text-left"
               key={bin.slot}
               type="button"
               onBlur={() => setActiveBinIndex(null)}
@@ -97,12 +100,12 @@ export function HistogramChart({
               onMouseLeave={() => setActiveBinIndex(null)}
             >
               <span
-                className="block w-full rounded-t bg-primary transition-colors hover:bg-primary/85"
+                className="block w-full rounded-t bg-primary hover:bg-primary/85"
                 style={{
                   height: bin.count > 0 ? `${(bin.count / maxCount) * 96}px` : 0,
                 }}
               />
-            </button>
+            </Button>
           ))}
         </div>
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}>

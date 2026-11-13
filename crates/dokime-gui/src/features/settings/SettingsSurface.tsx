@@ -31,15 +31,12 @@ import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSect
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
-import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
 import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
-import { PluginSettingsCards } from "./PluginSettingsCards";
-import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 
 /* === Types === */
 
@@ -56,7 +53,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
   const section = selected ?? DEFAULT_SETTINGS_SECTION;
   const advanced = useUiStore((state) => state.showAdvancedSettings);
   const settings = useSettingsSections();
-  const frame = settings.frame;
 
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
@@ -91,7 +87,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
           <SettingsGrid>
             <SectionContent
               advanced={advanced}
-              frame={frame}
               loadError={settings.error}
               loadFailure={settings.failure}
               loading={settings.loading}
@@ -107,7 +102,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
 
 function SectionContent({
   advanced,
-  frame,
   loadError,
   loadFailure,
   loading,
@@ -115,22 +109,12 @@ function SectionContent({
   section,
 }: {
   advanced: boolean;
-  frame: RuntimeSettingsFrame | null;
   loadError: string | null;
   loadFailure?: unknown;
   loading: boolean;
   retry: () => void;
   section: SettingsSectionId;
 }) {
-  if (section === "organization")
-    return (
-      <>
-        <SettingsCard title="Organization">
-          <OrganizationPackRow />
-        </SettingsCard>
-        <PluginSettingsCards cards={frame?.cards.filter((card) => card.section_id === "identity") ?? []} />
-      </>
-    );
   if (section === "backends") return <BackendsTable />;
   if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
   if (section === "remote") return <RemoteSection advanced={advanced} />;

@@ -18,18 +18,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "remote",
     label: "Remote Access",
-    description: "Listener, remote access files and paired clients",
+    description: "Listener and pairing files",
     icon: Network,
     group: "primary",
   },
   {
     id: "appearance",
     label: "Appearance",
-    description: "Theme, density, and brand identity",
+    description: "Theme and density",
     icon: Palette,
     group: "primary",
   },
-  { id: "organization", label: "Organization", description: "Organization identity and pack", icon: Palette, group: "primary" },
   {
     id: "plugins",
     label: "Plugins",

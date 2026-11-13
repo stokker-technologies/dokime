@@ -62,12 +62,14 @@ runs:
       run: |
         if ($env:RUNNER_OS -ne 'Windows') { throw 'This action requires Windows.' }
         if ($env:DOKIME_PROFILE -notin @('dev', 'release')) { throw 'Profile must be dev or release.' }
-        $provider = & ./crates/dokime-packaging/src/installer/authenticode.ps1 -Operation Select
+        mise exec -- uv run --no-sync --project tools/python python -c "from dokime_tools.ci.transport import receive; receive()"
+        if ($LASTEXITCODE -ne 0) { throw 'Product archive extraction failed.' }
+        $provider = & ./tools/powershell/authenticode.ps1 -Operation Select
         if ($LASTEXITCODE -ne 0) { throw 'Invalid signing configuration.' }
         "provider=$provider" >> $env:GITHUB_OUTPUT
         $bin = (Resolve-Path "target/build/$env:DOKIME_PROFILE/windows-x86_64/bin").Path
-        if (-not (Test-Path -LiteralPath "$bin/dokime.exe") -or -not (Test-Path -LiteralPath "$bin/cargo-dokime.exe")) {
-          throw 'The matching Dokime and cargo-dokime product binaries are required.'
+        if (-not (Test-Path -LiteralPath "$bin/dokime-gui.exe") -or -not (Test-Path -LiteralPath "$bin/dokime-next.exe")) {
+          throw 'The matching Desktop and CLI product binaries are required.'
         }
         "bin=$bin" >> $env:GITHUB_OUTPUT
         if ($provider -eq 'none') { Write-Host '::notice::Authenticode skipped: no signing secrets configured; packaging continues.' }
@@ -109,13 +111,14 @@ runs:
         if ($env:DOKIME_AUTHENTICODE_PROVIDER -ne 'none') {
           $operation = if ($env:DOKIME_AUTHENTICODE_PROVIDER -eq 'pfx') { 'Sign' } else { 'Verify' }
           foreach ($file in Get-ChildItem -LiteralPath $env:DOKIME_BIN -Filter '*.exe' -File) {
-            & ./crates/dokime-packaging/src/installer/authenticode.ps1 -Operation $operation -Path $file.FullName
+            & ./tools/powershell/authenticode.ps1 -Operation $operation -Path $file.FullName
             if ($LASTEXITCODE -ne 0) { throw 'Executable signing or verification failed.' }
           }
           # Re-Export Signed Product Bytes Before Packaging Validates Their Inventory
-          mise exec -- uv run --locked --project tools/python python -c "import os; from pathlib import Path; from dokime_tools.package.distribution import export; export(Path.cwd(), os.environ['DOKIME_PROFILE'])"
+          mise run build:distribution --profile $env:DOKIME_PROFILE
           if ($LASTEXITCODE -ne 0) { throw 'Signed distribution export failed.' }
         }
-        mise run package:rust --profile $env:DOKIME_PROFILE
+        $env:CI_INPUT_ARCHIVES = '[]'
+        mise run package -- --language rust --profile $env:DOKIME_PROFILE
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

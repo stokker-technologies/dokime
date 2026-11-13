@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(crate) mod plugins;
+pub mod policy;
 mod sources;
 
 /* === Re-Exports === */
@@ -33,8 +34,8 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 // Local Imports
+use self::policy::{Mode, UpdatePolicy};
 use super::organization::OrganizationState;
-use dokime::config::organization::policy::{Mode, UpdatePolicy};
 
 /* === Constants === */
 
@@ -62,7 +63,6 @@ struct Inner {
     generation: u64,
     error: Option<String>,
     last: Option<UpdateCheck>,
-    plugin: Vec<plugins::Candidate>,
 
     #[cfg(feature = "updater")]
     candidate: Option<Candidate>,
@@ -139,11 +139,10 @@ impl UpdateState {
         if bytes.len() as u64 > DESKTOP_UPDATE_SETTINGS_BYTES {
             return Err("Update selection exceeds its configured byte budget".into());
         }
-        dokime::harmos::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
+        harmos_runtime::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
-        inner.plugin.clear();
         inner.error = None;
         #[cfg(feature = "updater")]
         {
@@ -165,7 +164,7 @@ impl UpdateState {
                 candidate: None,
             });
         }
-        let manifest = sources::resolve(&policy, "latest.json").await?;
+        let manifest = sources::resolve(&policy, "release.json").await?;
         let updater = app
             .updater_builder()
             .endpoints(vec![manifest])
@@ -181,7 +180,7 @@ impl UpdateState {
         inner.candidate = None;
         let result = match found {
             Some(mut update) => {
-                dokime::config::organization::policy::https_url(update.download_url.as_str())?;
+                policy::https_url(update.download_url.as_str())?;
                 update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
                 let result = UpdateCheck {
@@ -232,11 +231,11 @@ impl UpdateState {
 /* === Public Functions === */
 
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let root = app.state::<dokime::paths::ApplicationPaths>().root.clone().join("release-sources");
+    let root = app.state::<crate::paths::ApplicationPaths>().root.clone().join("release-sources");
     let path = root.join("selection.json");
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;
-    match dokime::harmos::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
+    match harmos_runtime::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
         Ok(bytes) => {
             let selection = serde_json::from_slice::<Selection>(&bytes);
             let selected = selection.map_err(|_| "Saved update selection is invalid".to_owned()).and_then(|selection| {
@@ -267,7 +266,6 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             generation: 0,
             error,
             last: None,
-            plugin: Vec::new(),
             #[cfg(feature = "updater")]
             candidate: None,
         }),
@@ -336,7 +334,6 @@ impl UpdateProbe {
                 generation: 0,
                 error: None,
                 last: None,
-                plugin: Vec::new(),
                 #[cfg(feature = "updater")]
                 candidate: None,
             }),

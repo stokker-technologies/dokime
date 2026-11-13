@@ -1,0 +1,60 @@
+## ADDED Requirements
+
+### Requirement: Operator Surfaces Follow the Pack
+
+Every surface an operator of an installation sees SHALL show the resolved organization label and artwork instead of the built-in product name.
+
+#### Scenario: First Paint
+
+- **WHEN** the desktop or a report opens in an installation with a pack
+- **THEN** its title and icon show the pack's label and logo from the first frame
+
+#### Scenario: Interface Text and Messages
+
+- **WHEN** the interface shows the version row, plugin compatibility text, a file picker filter or an operator-facing error
+- **THEN** the text names the pack's label
+
+#### Scenario: Suggested File Names
+
+- **WHEN** the operator exports diagnostics, a support bundle or secrets
+- **THEN** the suggested file name derives from the distribution identifier
+
+#### Scenario: Toolchain Unchanged
+
+- **WHEN** an author runs the command-line tool, generates a project or reads a protocol or file format identifier
+- **THEN** those keep the Dokime name whatever pack is applied
+
+### Requirement: One Pack Path
+
+An organization pack SHALL be applied only by packaging it into the installer, where it replaces the bundled default.
+
+#### Scenario: Packaged With a Pack
+
+- **WHEN** an installer is packaged with a pack and installed
+- **THEN** the installation shows that pack
+
+#### Scenario: No Import
+
+- **WHEN** an operator opens Settings in any installation
+- **THEN** there is no way to import, change or remove a pack, and a pack placed in the application folder is ignored
+
+#### Scenario: Packaged Without a Pack
+
+- **WHEN** an installer is packaged without a pack
+- **THEN** the installation shows the built-in appearance
+
+## MODIFIED Requirements
+
+### Requirement: Organization Packs and Trusted Release Sources
+
+Organization Packs SHALL provide appearance and organizational update defaults without changing compiled app identity or signing trust. Packs SHALL be selected only during installer packaging. One resolved policy SHALL support disabled, manual and automatic checks through direct manifest, GitHub Releases and GitLab Releases sources; installation remains explicit.
+
+#### Scenario: Invalid Pack or Source Switch
+
+- **WHEN** installer packaging receives an invalid organization pack or an operator switches a named update source
+- **THEN** invalid packs fail packaging without modifying input artifacts or installed application data, invalid source configuration preserves the last valid configuration with a visible error, source switching preserves signing keys, and disabled policy performs no update network activity.
+
+#### Scenario: Authenticated App and Plugin Releases
+
+- **WHEN** an organization declares named connections and app/plugin release sources
+- **THEN** public sources work without login, configured credentials remain host/account/client-scoped and do not cross origins, compatible signed app assets are verified, and plugin discovery/staging retains explicit consent, install and restart ownership.

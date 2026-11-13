@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <PackageId>Dokime</PackageId>
+    <Version>0.1.0-dev</Version>
+    <PackageReadmeFile>sdk-csharp.md</PackageReadmeFile>
+    <Description>Dokime plugin authoring and gRPC client SDK</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/stokker-technologies/dokime</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Dokime/**/*.cs" />
+    <Compile Include="obj/harmos/sdk/csharp/Harmos/**/*.cs" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <None Include="../../docs/sdk-csharp.md" Pack="true" PackagePath="/" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.36.2" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
+    <Protobuf Include="../../proto/dokime/**/*.proto" ProtoRoot="../../proto" GrpcServices="Both" />
+    <Protobuf Include="../../proto/harmos/**/*.proto" Exclude="../../proto/harmos/v1/guest.proto" ProtoRoot="../../proto" GrpcServices="Both" />
+  </ItemGroup>
+</Project>

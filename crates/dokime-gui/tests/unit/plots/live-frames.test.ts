@@ -21,7 +21,7 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { Row3Schema as WatchFrameSchema } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
+import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind } from "@host/dokime/v1/client_types_pb.js";
 import { mapNativePlotStreamFrame } from "@/lib/api/native-plots";
 import type { PlotPayloadStreamMessage } from "@/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState } from "@/plots/live-frames";
@@ -99,7 +99,7 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
   const revision = create(WatchFrameSchema, {
     updates: [
       {
-        kind: { HarmosVariant: { case: "Snapshot", value: {} } },
+        kind: PlotStreamKind.SNAPSHOT,
         envelope: {
           plotId: "healthy",
           revision: 12n,
@@ -110,7 +110,7 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
         },
       },
       {
-        kind: { HarmosVariant: { case: "Error", value: {} } },
+        kind: PlotStreamKind.ERROR,
         envelope: {
           plotId: "refused",
           epoch: "epoch",
@@ -130,7 +130,7 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
   );
   const pending = mapNativePlotStreamFrame(
     create(WatchFrameSchema, {
-      updates: [{ kind: { HarmosVariant: { case: "Unspecified", value: {} } }, envelope: { plotId: "healthy" } }],
+      updates: [{ kind: PlotStreamKind.UNSPECIFIED, envelope: { plotId: "healthy" } }],
     }),
   );
   assert.deepEqual(pending, { updates: [{ kind: "pending", plot_id: "healthy" }] });

@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*};
 
 // Local Imports
 
@@ -34,8 +34,6 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 /* === Structs === */
 
 pub(crate) struct LoggingGuards {
-    pub journal: std::sync::Arc<dokime_server::trace::Journal>,
-    _trace: Option<dokime::diagnostics::test_trace::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -52,43 +50,32 @@ pub(crate) fn active_log() -> Option<PathBuf> {
     ACTIVE_LOG.get().cloned()
 }
 
-pub(crate) fn init(directory: &Path, retained_files: usize) -> LoggingGuards {
-    let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());
+pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &str) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
-    let mut layers: Vec<BoxedLayer> = vec![stderr_layer, dokime_server::trace::layer(journal.clone())];
+    let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
     let mut log_path = None;
-    match file_fmt_layer(directory, retained_files) {
+    match file_fmt_layer(directory, retained_files, slug) {
         Ok((layer, guard, path)) => {
             layers.push(layer);
             file_guard = Some(guard);
             log_path = Some(path);
         }
         Err(reason) => {
-            eprintln!("dokime desktop shell: continuing without a log file ({reason})");
+            eprintln!("{label} desktop shell: continuing without a log file ({reason})");
         }
     }
 
-    let installed = dokime::diagnostics::test_trace::configure(layers);
-    let trace = if std::env::var_os("DOKIME_TEST_TRACE_DIR").is_some() {
-        Some(installed.expect("install desktop subscriber"))
-    } else {
-        installed.ok()
-    };
+    let _ = tracing_subscriber::registry().with(layers).try_init();
 
     if let Some(path) = log_path {
         let _ = ACTIVE_LOG.set(path.clone());
-        tracing::info!(path = %path.display(), "dokime desktop shell log file");
+        tracing::info!(path = %path.display(), "{label} desktop shell log file");
     }
 
-    LoggingGuards {
-        journal,
-        _trace: trace,
-        _stderr: stderr_guard,
-        _file: file_guard,
-    }
+    LoggingGuards { _stderr: stderr_guard, _file: file_guard }
 }
 
 /* === Private Functions === */
@@ -97,18 +84,20 @@ fn env_filter() -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
 }
 
-fn file_fmt_layer(dir: &Path, retained_files: usize) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {
+fn file_fmt_layer(
+    dir: &Path, retained_files: usize, slug: &str,
+) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {
     std::fs::create_dir_all(dir).map_err(|error| format!("failed to create log directory {}: {error}", dir.display()))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
-        .filename_prefix("dokime-gui")
+        .filename_prefix(format!("{slug}-gui"))
         .filename_suffix("log")
         .max_log_files(retained_files)
         .build(dir)
         .map_err(|error| format!("failed to open a log file under {}: {error}", dir.display()))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);
     let layer = fmt::layer().with_ansi(false).with_writer(writer).with_filter(env_filter()).boxed();
-    Ok((layer, guard, dir.join(format!("dokime-gui.{}.log", today()))))
+    Ok((layer, guard, dir.join(format!("{slug}-gui.{}.log", today()))))
 }
 
 fn today() -> String {

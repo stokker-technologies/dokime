@@ -46,6 +46,11 @@ export type PlotCardSpec = {
   /** When the execution asked and the operator answered; time series only. */
   promptMarkers?: PromptMarker[];
   plotType: DocumentPlotType;
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xyInterval?: "sigma" | null;
+  render?: "cells" | "bands";
   style: DocumentPlotStyle;
   xScale: DocumentAxisScale;
   yScale: DocumentAxisScale;

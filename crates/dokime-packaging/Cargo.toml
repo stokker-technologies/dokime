@@ -6,7 +6,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Dokime sidecar and native installer packaging"
+description = "Verified executable plugin bundle inspection"
+publish = false
 version = { workspace = true }
 
 # === Package Targets === #
@@ -17,63 +18,6 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
-
-# Git
-
-# Error Handling
-thiserror = { workspace = true }
-
-# Logging
-tracing = { workspace = true }
-
-# Utilities
-harmos-packaging = { workspace = true }
-process-wrap = { workspace = true, features = ["tokio1"] }
-semver = { workspace = true, features = ["serde"] }
-time = { workspace = true }
-
-# Serialization
-base64 = { workspace = true }
-image = { workspace = true, features = ["bmp", "ico", "png"] }
-serde = { workspace = true }
-serde_json = { workspace = true }
-toml = { workspace = true }
-
-# Configuration
-clap = { workspace = true }
-
-# Filesystem
-tar = { workspace = true }
-tempfile = { workspace = true }
-zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
-
-# Parsing
-cargo_metadata = { workspace = true }
-
-# Concurrency
-
-# Async
-tokio = { workspace = true, features = ["process"] }
-
-# Networking
-reqwest = { workspace = true }
-rustls = { workspace = true, features = ["ring", "std"] }
-
-# Storage
-
-# UI
-tauri-bundler = { workspace = true }
-
-# Testing
-
-# === Build Dependencies === #
-
-# === Dev Dependencies === #
-
-[dev-dependencies]
-# Local
-dokime-tracing = { path = "../dokime-tracing" }
 
 # Git
 
@@ -85,18 +29,18 @@ dokime-tracing = { path = "../dokime-tracing" }
 sha2 = { workspace = true }
 
 # Serialization
-handlebars = { workspace = true }
+serde_json = { workspace = true }
 
 # Configuration
 
 # Filesystem
+tar = { workspace = true }
 
 # Parsing
 
 # Concurrency
 
 # Async
-tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
 
@@ -105,73 +49,12 @@ tokio = { workspace = true, features = ["test-util"] }
 # UI
 
 # Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
 
 # === Target Dependencies === #
-
-[target.'cfg(unix)'.dependencies]
-# Local
-
-# Git
-
-# Error Handling
-
-# Logging
-
-# Utilities
-libc = { workspace = true }
-
-# Serialization
-
-# Configuration
-
-# Filesystem
-
-# Parsing
-
-# Concurrency
-
-# Async
-
-# Networking
-
-# Storage
-
-# UI
-
-# Testing
-
-[target.'cfg(windows)'.dependencies]
-# Local
-
-# Git
-
-# Error Handling
-
-# Logging
-
-# Utilities
-windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
-
-# Serialization
-
-# Configuration
-
-# Filesystem
-
-# Parsing
-
-# Concurrency
-
-# Async
-
-# Networking
-
-# Storage
-
-# UI
-tauri-utils = { workspace = true }
-
-# Testing
 
 # === Test Targets === #
 

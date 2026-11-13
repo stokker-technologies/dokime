@@ -12,6 +12,8 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
+import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/documents_pb.js";
+import { LineStyle } from "@host/dokime/v1/client_types_pb.js";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -46,13 +48,18 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
+import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec, TelemetryStream } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { BarPlot } from "@/plots/catalog/BarPlot";
+import { PiePlot } from "@/plots/catalog/PiePlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
+import { instantTime, orderedInstants, PlotPlayback, usePlotPlayback } from "@/plots/playback";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -138,16 +145,16 @@ function hostFrame(
     generated_at: "2026-10-16T00:00:00Z",
     max_points: fields.maxPoints ?? 100,
     window_s: fields.windowS ?? null,
-    series: ys.map((y, index) => ({
+    series: ys.map((_, index) => ({
       key: fields.keys?.[index] ?? `trace-${index}`,
       label: `Trace ${index}`,
-      points: x.map((value, at) => ({ x: value, y: y[at] })),
+      points: [],
       raw_points: x.length,
       downsampled: false,
     })),
     cartesian: {
       mode: "aligned",
-      series: ys.map((y) => ({ x: [...x], y: [...y] })),
+      series: ys.map((y) => ({ x, y: [...y] })),
       point_count: ys.reduce((count, y) => count + y.filter((value) => value !== null).length, 0),
       signature: "host",
     },
@@ -277,7 +284,7 @@ async function mountPlotView(ids = ["pulse", "current"]) {
       root.unmount();
     });
     host.remove();
-    useSummaryWindowStore.setState({ windows: {} });
+    useSummaryWindowStore.setState({ windows: {}, widths: {} });
     animationFrame.mockRestore();
     cancelAnimationFrame.mockRestore();
     vi.useRealTimers();
@@ -427,11 +434,32 @@ test("Manual All Refresh", async () => {
   assert.equal(firstTime, completedAt);
   const label = view.host.querySelector('[role="status"]')?.textContent;
   assert.match(label ?? "", /^Updated \d{2}:\d{2}:\d{2}$/);
-  await view.runtimeUpdate([]);
-  await view.runtimeUpdate();
+  // Zoom Requests A New Viewport And Retains The Drawn Frame Until It Arrives.
+  const retained = view.states().pulse.payload;
   await act(async () => {
     useSummaryWindowStore.setState({ windows: { pulse: { from: 0, to: 1 } } });
   });
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.deepEqual(refreshFixture.read.mock.calls[2][1][0].viewport, { from: 0, to: 1 });
+  assert.equal(view.states().pulse.payload, retained);
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots));
+  });
+  await view.advance();
+  // A Measured Width Change Requests Another Frame At The Held Viewport.
+  await act(async () => {
+    useSummaryWindowStore.getState().setPanelWidth("pulse", 900);
+  });
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
+  assert.equal(refreshFixture.read.mock.calls[4][1][0].panelWidth, 900);
+  assert.deepEqual(refreshFixture.read.mock.calls[4][1][0].viewport, { from: 0, to: 1 });
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots));
+  });
+  await view.advance();
+  const resizedTime = view.window().refresh.updatedAt;
+  await view.runtimeUpdate([]);
+  await view.runtimeUpdate();
   Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
   await act(async () => {
     document.dispatchEvent(new Event("visibilitychange"));
@@ -441,13 +469,13 @@ test("Manual All Refresh", async () => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
   await view.advance(60_000);
-  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
   assert.equal(refreshFixture.watch.mock.calls.length, 1);
-  assert.equal(view.window().refresh.updatedAt, firstTime);
+  assert.equal(view.window().refresh.updatedAt, resizedTime);
   await view.click();
-  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.equal(refreshFixture.read.mock.calls.length, 8);
   assert.equal(view.button().disabled, true);
-  assert.ok(refreshFixture.read.mock.calls.slice(2).every((call) => call[1][0].maxPoints === 200));
+  assert.ok(refreshFixture.read.mock.calls.slice(6).every((call) => call[1][0].maxPoints === 200));
   await act(async () => {
     complete(snapshotEnvelopes(view.plots));
   });
@@ -503,6 +531,23 @@ test("Timed Refresh", async () => {
   });
   assert.equal(view.button().disabled, false);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  // Repeated Ticks Retain The Failure Without Adding Notifications.
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
+  });
+  await view.advance();
+  assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  assert.equal(view.states().pulse.status, "error");
+  // A Successful Revision Allows A Later Failure To Be Reported Again.
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "snapshot" });
+  });
+  await view.advance();
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
+  });
+  await view.advance();
+  assert.equal(refreshFixture.notify.mock.calls.length, 2);
 });
 
 test("Refresh Failure", async () => {
@@ -906,7 +951,7 @@ test("Boolean State Plots", () => {
   assert.equal(formatBooleanState(0.5), "--");
   for (const zoom of [false, true]) {
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, createElement(TimeSeriesPlot, { plot })));
-    assert.match(html, /plot-follow/);
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.doesNotMatch(html, /<table\b/);
   }
   columns[0].value_type = "number";
@@ -1281,18 +1326,22 @@ test("XY Styles Reach the Native Request", () => {
     assert.equal(request.plotType, "xy");
     assert.equal(request.style, style);
     const native = toNativePlotRequest(request);
-    assert.equal(native.plotType?.HarmosVariant.case, "Xy");
-    assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
+    assert.equal(native.plotType, PlotKind.XY);
+    assert.equal(
+      native.style,
+      { line: LineStyle.LINE, points: LineStyle.POINTS, line_points: LineStyle.LINE_POINTS, step: LineStyle.STEP }[style],
+    );
     const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]) });
     assert.equal(spec.style, style);
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
-    assert.match(html, /plot-follow/);
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
   }
 });
 
 test("Plot Statistics", () => {
   const payload = hostFrame([0, 1, 2], [[2, 5, 11]], { keys: ["distance"] });
   payload.summaries = [{ ...SUMMARIES[0], series_id: "distance" }];
+  payload.series[0].points = [0, 1, 2].map((x) => ({ x, y: [2, 5, 11][x], instant: `2026-01-01T00:00:0${x}Z` }));
   const descriptor = {
     plot_id: "distance",
     title: "Distance",
@@ -1316,11 +1365,11 @@ test("Plot Statistics", () => {
     assert.match(time, /<thead\b/);
     for (const Component of [XyPlot, TrajectoryPlot]) {
       const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
-      assert.match(xy, /plot-follow/);
+      assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
       assert.doesNotMatch(xy, /<table\b/);
     }
     const xy = render(createElement(XyIntervalPlot, { plot: interval }));
-    assert.match(xy, /plot-follow/);
+    assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.doesNotMatch(xy, /<table\b/);
   }
 });
@@ -1602,6 +1651,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
     );
   };
   let renders = 0;
+  const submit = vi.fn(async () => undefined);
   function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
     renders += 1;
     return createElement(PlotSettingsButton, props);
@@ -1636,7 +1686,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
             documentPlots: [descriptor],
             liveStates: { pulse: state },
             title: "Signals",
-            onPlotSettingsChange: async () => undefined,
+            onPlotSettingsChange: submit,
           }),
         ),
       ),
@@ -1650,13 +1700,22 @@ test("Plot Edits Survive Presentation Changes", async () => {
   await act(async () => trigger.click());
   const input = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
   assert.ok(input);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "2500");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
   const payload = hostFrame([0, 1], [[2, 3]]);
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  input.focus();
+  for (const value of ["", "2", "25", "250", "2500"]) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await render(ready);
+    assert.equal(document.querySelector("[role=dialog] input[type=number]"), input);
+    assert.equal(document.activeElement, input);
+    assert.equal(input.value, value);
+    assert.equal(submit.mock.calls.length, 0, "typing does not submit plot settings");
+  }
+  await render();
   await show(false);
   const pausedRenders = renders;
   for (const state of [ready, failed, ready]) {
@@ -1731,46 +1790,6 @@ test("Pan Listener Ownership", () => {
   assert.equal(onPan.mock.calls.length, 2);
 });
 
-test("Declared Occupancy Context", () => {
-  const plot: DocumentViewPlot = {
-    plot_id: "occupancy",
-    title: "Occupancy",
-    stream: "fixture.scan",
-    plot_type: "wifi_channel_occupancy",
-    style: "points",
-    x_scale: "linear",
-    y_scale: "linear",
-    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
-    x: "timestamp",
-    y: ["network_count"],
-  };
-  const telemetry = {
-    "fixture.scan": {
-      stream: "fixture.scan",
-      summary: {},
-      samples: [{ active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" }],
-      max_samples: 1,
-      total_samples: 1,
-      dropped_samples: 0,
-      updated_at: "2026-10-29T00:00:00Z",
-    },
-    "host.wifi.link": {
-      stream: "host.wifi.link",
-      summary: {},
-      samples: [{ wifi_channel: 6, wifi_ssid: "link" }],
-      max_samples: 1,
-      total_samples: 1,
-      dropped_samples: 0,
-      updated_at: "2026-10-29T00:00:00Z",
-    },
-  };
-  const spec = documentPlotSpec({ plot, telemetry, payload: null });
-  assert.deepEqual(spec.context, { active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" });
-  delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
-  const absent = documentPlotSpec({ plot, telemetry, payload: null });
-  assert.deepEqual(absent.context, {});
-});
-
 test("Bounded Report Envelopes", () => {
   for (const values of [
     [[3]],
@@ -1792,11 +1811,11 @@ test("Bounded Report Envelopes", () => {
         contextSummary: "fixture-network / radio-2 / 6",
       }),
     );
-    assert.ok(html.includes("plot-follow"));
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.ok(html.includes("[dBm]"));
     assert.ok(html.includes("fixture-network / radio-2 / 6"));
     const missingFrame = renderToStaticMarkup(createElement(CartesianPlot, { title: "Signal", series }));
-    assert.ok(!missingFrame.includes("plot-follow"));
+    assert.doesNotMatch(missingFrame, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.deepEqual(windowIndices(x, values, null, 640, true), null);
   }
 });
@@ -1837,7 +1856,7 @@ test("Report Metadata Subtitles", () => {
       contextSummary: spec.contextSummary,
     }),
   );
-  assert.ok(html.includes("plot-follow"));
+  assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
   assert.ok(html.includes("fixture-network"));
 });
 
@@ -1897,8 +1916,76 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
       ],
     );
     assert.deepEqual(frozen, live);
+    const nativeParameters = Object.fromEntries(
+      Object.entries(parameters).map(([name, value]) => [name, { __dokime_native_number__: true, decimal: String(value) }]),
+    );
+    const native = documentPlotSpec({ plot: descriptor, payload: null, parameters: nativeParameters });
+    assert.deepEqual(native.referenceLines, live.referenceLines);
+    assert.deepEqual(native.referenceBands, live.referenceBands);
   }
   assert.deepEqual(descriptor, original);
+});
+
+test("Reference Expressions Apply Numeric Maps in Order", () => {
+  const plot = {
+    plot_id: "mapped-reference",
+    title: "Mapped Reference",
+    stream: "readings",
+    plot_type: "xy",
+    y: ["value"],
+    reference_lines: [
+      {
+        value: {
+          source: { type: "parameter", name: "target" },
+          transforms: [
+            { type: "scale", factor: 2 },
+            { type: "offset", value: -1 },
+          ],
+        },
+      },
+    ],
+    reference_bands: [
+      {
+        center: {
+          source: { type: "parameter", name: "target" },
+          transforms: [
+            { type: "offset", value: -1 },
+            { type: "scale", factor: 2 },
+          ],
+        },
+        tolerance: 1,
+      },
+    ],
+  } as DocumentViewPlot;
+  const live = documentPlotSpec({ plot, payload: null, parameters: { target: 5 } });
+  assert.equal(live.referenceLines[0].value, 9);
+  assert.deepEqual([live.referenceBands[0].min, live.referenceBands[0].max], [7, 9]);
+  assert.deepEqual(documentPlotSpec({ plot: JSON.parse(JSON.stringify(plot)), payload: null, parameters: { target: 5 } }), live);
+});
+
+test("Generic Grid and Contour State Does Not Depend on Host Scan Fields", () => {
+  for (const plot_type of ["grid_chart", "contour"] as const) {
+    const plot = { plot_id: "generic", title: "Generic", stream: "host.wifi.scan", plot_type, y: ["value"] } as DocumentViewPlot;
+    const plain = documentPlotSpec({ plot, payload: null });
+    const withHostFields = documentPlotSpec({
+      plot,
+      payload: null,
+      telemetry: {
+        "host.wifi.scan": {
+          stream: "host.wifi.scan",
+          spec: null,
+          summary: {},
+          samples: [{ scan_status: "error", scan_error: "unavailable" }],
+          max_samples: 1,
+          total_samples: 1,
+          dropped_samples: 0,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      } satisfies Record<string, TelemetryStream>,
+    });
+    assert.equal(withHostFields.stateLabel, plain.stateLabel);
+    assert.equal(withHostFields.stateDetail, plain.stateDetail);
+  }
 });
 
 test("Display Scale Converts Returned Points Statistics and References Without Mutating Evidence", () => {
@@ -1946,14 +2033,26 @@ test("Display Scale Converts Returned Points Statistics and References Without M
       parameters: { target_m: 0.005, tolerance_m: 0.001 },
     });
   const plot = present(payload);
+  assert.deepEqual(plot.series[0].points, []);
+  // Non-Cartesian Plots Still Scale Their Single Point Projection.
+  const column = payload.cartesian?.series[0];
+  assert.ok(column);
+  const points = {
+    ...payload,
+    cartesian: null,
+    series: [{ ...payload.series[0], points: column.x.map((x, row) => ({ x, y: column.y[row] })) }],
+  };
+  const originalPoints = structuredClone(points);
+  const bar = documentPlotSpec({ plot: { ...descriptor, plot_type: "bar" }, payload: points });
   assert.deepEqual(
-    plot.series[0].points.map(({ x, y }) => [x, y]),
+    bar.series[0].points.map(({ x, y }) => [x, y]),
     [
       [1, -2],
       [2, null],
       [3, 4],
     ],
   );
+  assert.deepEqual(points, originalPoints);
   assert.deepEqual(plot.cartesian?.series[0], { x: [1, 2, 3], y: [-2, null, 4] });
   assert.deepEqual(plot.cartesian?.y_domain, { min: -2, max: 4 });
   assert.deepEqual(plot.summaries, [
@@ -1998,4 +2097,298 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
     plot.series.map((series) => series.label),
     ["Number of Rows", "Wait Until Chamber Is Ready", "Log In", "Turn Off the Heater"],
   );
+});
+
+test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
+  const declaration = {
+    plot_id: "surface",
+    title: "Sensor Values",
+    stream: "readings",
+    plot_type: "contour",
+    y: ["value"],
+  } as DocumentViewPlot;
+  const payload: PlotPayload = {
+    stream: "readings",
+    x_key: "x",
+    series: [],
+    max_points: 4,
+    generated_at: "2026-01-01T00:00:00Z",
+    analysis: {
+      kind: "contour",
+      grid: { columns: 2, rows: 2, x_edges: [0, 2, 3], y_edges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
+    },
+  };
+  const plot = documentPlotSpec({ plot: declaration, payload });
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot }));
+  assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
+  assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
+  assert.equal(host.querySelector('rect[data-bin="1"]'), null);
+  const first = host.querySelector('rect[data-bin="0"]') as SVGRectElement;
+  const last = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
+  assert.ok(Math.abs(Number(first.getAttribute("width")) / Number(last.getAttribute("width")) - 2) < 1e-12);
+  assert.ok(Math.abs(Number(last.getAttribute("height")) / Number(first.getAttribute("height")) - 3) < 1e-12);
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot: { ...plot, render: "bands" } }));
+  assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
+  assert.equal(host.querySelectorAll("clipPath rect").length, 2);
+  assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
+  const mask = host.querySelector('clipPath rect[data-valid-bin="3"]') as SVGRectElement;
+  const cell = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
+  for (const attribute of ["x", "y", "width", "height"]) assert.equal(mask.getAttribute(attribute), cell.getAttribute(attribute));
+  const points = [...host.querySelectorAll("[data-contour-mask] path")].flatMap((path) =>
+    [...(path.getAttribute("d") ?? "").matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((match) => [Number(match[1]), Number(match[2])]),
+  );
+  const centerX = Number(cell.getAttribute("x")) + Number(cell.getAttribute("width")) / 2;
+  const centerY = Number(cell.getAttribute("y")) + Number(cell.getAttribute("height")) / 2;
+  assert.ok(points.some(([x]) => Math.abs(x - centerX) < 1e-3));
+  assert.ok(points.some(([, y]) => Math.abs(y - centerY) < 1e-3));
+
+  const grid: PlotPayload = {
+    ...payload,
+    analysis: {
+      kind: "grid_chart",
+      data: {
+        rows: [{ key: "sensor", label: "Sensor", order: 0, group: "North" }],
+        columns: [
+          { key: "left", label: "Left", order: 0 },
+          { key: "right", label: "Right", order: 1 },
+        ],
+        frames: [
+          { instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{ row: 0, column: 0, label: "Selected" }] },
+        ],
+        summary_label: "Readings",
+      },
+    },
+  };
+  const cellPlot = documentPlotSpec({ plot: { ...declaration, plot_type: "grid_chart" }, payload: grid });
+  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, { plot: cellPlot }));
+  const populated = host.querySelector('[data-cell="sensor/left"]');
+  const absent = host.querySelector('[data-cell="sensor/right"]');
+  assert.equal(populated?.textContent, "0");
+  assert.equal(populated?.getAttribute("data-valid"), "true");
+  assert.equal(populated?.getAttribute("data-highlight"), "true");
+  assert.equal(absent?.textContent, "");
+  assert.equal(absent?.getAttribute("data-valid"), "false");
+  assert.equal(absent?.getAttribute("style"), null);
+  const field = (name: string) => ({ source: { type: "telemetry", stream: "readings", field: name }, transforms: [] });
+  const request = toNativePlotRequest({
+    stream: "readings",
+    yKeys: ["value"],
+    plotType: "grid_chart",
+    reduction: "max",
+    grid: {
+      row: field("row"),
+      column: field("column"),
+      frame: field("timestamp"),
+      rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
+      columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
+      highlights: [],
+      summary_label: "Readings",
+    },
+  });
+  assert.equal(request.reduction, Reduction.MAX);
+  assert.equal(request.grid?.frame?.kind.case, "stream");
+  assert.equal(request.grid?.rows[0].key, "sensor");
+});
+
+test("Numeric Expression Maps Preserve Their Wire Order", () => {
+  const request = toNativePlotRequest({
+    stream: "scan",
+    yKeys: [],
+    plotType: "contour",
+    zExpression: {
+      source: { type: "telemetry", stream: "scan", field: "temperature" },
+      transforms: [
+        { type: "scale", factor: 2 },
+        { type: "offset", value: -1 },
+      ],
+    },
+  });
+  const outer = request.zExpression?.kind;
+  assert.ok(outer?.case === "transform");
+  assert.equal(outer.value.kind.case, "offset");
+  assert.equal(outer.value.kind.value, -1);
+  const inner = outer.value.input?.kind;
+  assert.ok(inner?.case === "transform");
+  assert.equal(inner.value.kind.case, "scale");
+  assert.equal(inner.value.kind.value, 2);
+  assert.equal(inner.value.input?.kind.case, "stream");
+});
+
+test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
+  const declaration = { plot_id: "totals", title: "Totals", stream: "values", plot_type: "bar", y: ["value"] } as DocumentViewPlot;
+  const payload: PlotPayload = {
+    stream: "values",
+    x_key: "category",
+    max_points: 10,
+    generated_at: "2026-01-01T00:00:00Z",
+    series: [
+      {
+        key: "total",
+        label: "Total",
+        raw_points: 3,
+        downsampled: false,
+        points: [
+          { x: "a", y: 2 },
+          { x: "b", y: 3 },
+          { x: "c", y: 3 },
+        ],
+      },
+    ],
+  };
+  const plot = documentPlotSpec({ plot: declaration, payload });
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...plot, pareto: true } }));
+  assert.deepEqual(
+    [...host.querySelectorAll("rect[data-category]")].map((node) => node.getAttribute("data-category")),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    [...host.querySelectorAll("circle[data-percent]")].map((node) => Number(node.getAttribute("data-percent"))),
+    [37.5, 75, 100],
+  );
+  const zero = {
+    ...plot,
+    series: plot.series.map((series) => ({ ...series, points: series.points.map((point) => ({ ...point, y: 0 })) })),
+  };
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...zero, pareto: true } }));
+  assert.equal(host.querySelectorAll("rect[data-category]").length, 3);
+  assert.equal(host.querySelector("[data-cumulative]"), null);
+  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...zero, plotType: "pie" } }));
+  assert.equal(host.querySelectorAll("path").length, 0);
+  assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
+  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...plot, plotType: "pie", hole: 0.5 } }));
+  assert.equal(host.querySelectorAll("path[data-category]").length, 3);
+  const grouped = {
+    ...plot,
+    series: [
+      plot.series[0],
+      {
+        ...plot.series[0],
+        key: "second",
+        label: "Second",
+        points: [
+          { x: "a", y: 4 },
+          { x: "b", y: 1 },
+        ],
+      },
+    ],
+  };
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "grouped" } }));
+  let bars = [...host.querySelectorAll('rect[data-category="a"]')];
+  assert.equal(bars.length, 2);
+  assert.notEqual(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "stacked" } }));
+  bars = [...host.querySelectorAll('rect[data-category="a"]')];
+  assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
+  assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
+  const request = toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "xy", xyInterval: "sigma" });
+  assert.equal(request.plotType, PlotKind.XY);
+  assert.equal(request.xyInterval, XyInterval.SIGMA);
+  assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
+});
+
+test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const fetch = vi.fn(() => {
+    throw new Error("Playback attempted a request");
+  });
+  vi.stubGlobal("fetch", fetch);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let incoming = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000002Z", "2026-01-01T00:00:04Z"];
+  let trajectory!: ReturnType<typeof usePlotPlayback<string[]>>;
+  let grid!: ReturnType<typeof usePlotPlayback<string[]>>;
+  const windows = useSummaryWindowStore.getState().windows;
+  function View() {
+    const available = orderedInstants(incoming);
+    trajectory = usePlotPlayback(incoming, available);
+    grid = usePlotPlayback(incoming, available);
+    return createElement(
+      "div",
+      null,
+      createElement(PlotPlayback, { title: "Trajectory", playback: trajectory }),
+      createElement(PlotPlayback, { title: "Grid", playback: grid }),
+    );
+  }
+  const render = () =>
+    act(async () => {
+      root.render(createElement(View));
+    });
+  try {
+    await render();
+    const first = incoming[0];
+    const last = incoming.at(-1);
+    assert.notEqual(instantTime(incoming[0]), instantTime(incoming[1]));
+    assert.equal(trajectory.instant, last);
+    const slider = host.querySelector('[role="slider"]');
+    assert.ok(slider);
+    await act(async () => {
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", code: "ArrowLeft", bubbles: true }));
+    });
+    assert.equal(trajectory.instant, incoming[1]);
+    assert.equal(grid.instant, last);
+    const held = trajectory.data;
+    incoming = [...incoming, "2026-01-01T00:00:08Z"];
+    await render();
+    assert.equal(trajectory.instant, incoming[1]);
+    assert.equal(trajectory.data, held);
+    assert.equal(grid.instant, incoming.at(-1));
+    await act(async () => {
+      trajectory.replay();
+    });
+    assert.equal(trajectory.instant, first);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    assert.equal(trajectory.instant, held[1]);
+    await act(async () => {
+      trajectory.pause();
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    assert.equal(trajectory.instant, held[1]);
+    await act(async () => {
+      trajectory.play();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    assert.equal(trajectory.instant, last);
+    assert.equal(trajectory.playing, false);
+    assert.equal(trajectory.following, false);
+    await act(async () => {
+      trajectory.seek(held.length - 1, true);
+    });
+    assert.equal(trajectory.instant, incoming.at(-1));
+    assert.equal(trajectory.following, true);
+    await act(async () => {
+      trajectory.play();
+    });
+    assert.equal(trajectory.following, false);
+    incoming = [...incoming, "2026-01-01T00:00:12Z"];
+    await render();
+    assert.equal(trajectory.instant, "2026-01-01T00:00:08Z");
+    await act(async () => {
+      trajectory.latest();
+    });
+    assert.equal(trajectory.instant, incoming.at(-1));
+    incoming = [first];
+    await render();
+    assert.equal((host.querySelector("button") as HTMLButtonElement).disabled, true);
+    incoming = [];
+    await render();
+    assert.equal(trajectory.instant, null);
+    assert.equal(host.querySelector('[data-slot="slider"]')?.getAttribute("aria-disabled"), "true");
+    assert.equal(useSummaryWindowStore.getState().windows, windows);
+    assert.equal(fetch.mock.calls.length, 0);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

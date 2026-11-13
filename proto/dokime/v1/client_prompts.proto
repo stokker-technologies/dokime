@@ -1,0 +1,128 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+import "dokime/v1/host.proto";
+
+message PromptsGetDefinitionRequest {
+  string prompt_type = 1;
+}
+
+message PromptsGetDefinitionRunInput {
+  oneof value {
+    PromptsGetDefinitionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PromptsGetDefinitionRunOutput {
+  oneof value {
+    Prompt response = 2;
+  }
+}
+
+message PromptsGetPromptRequest {
+  string prompt_id = 1;
+}
+
+message PromptsGetPromptRunInput {
+  oneof value {
+    PromptsGetPromptRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PromptsGetPromptRunOutput {
+  oneof value {
+    PromptView response = 2;
+  }
+}
+
+message PromptsListDefinitionsRequest {
+
+}
+
+message PromptsListDefinitionsRunInput {
+  oneof value {
+    PromptsListDefinitionsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PromptsListDefinitionsRunOutput {
+  oneof value {
+    ListPromptDefinitionsReply response = 2;
+  }
+}
+
+message PromptsListPendingRequest {
+  optional string cycle_id = 4;
+  optional string execution_id = 5;
+}
+
+message PromptsListPendingRunInput {
+  oneof value {
+    PromptsListPendingRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PromptsListPendingRunOutput {
+  oneof value {
+    ListPendingPromptsReply response = 2;
+  }
+}
+
+message PromptsRespondRequest {
+  string prompt_id = 1;
+  string action = 2;
+  MapValue values = 3;
+  bool accepted = 4;
+  MutationContext context = 5;
+}
+
+message PromptsRespondRunInput {
+  oneof value {
+    PromptsRespondRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PromptsRespondRunOutput {
+  oneof value {
+    PromptResponseReceipt response = 2;
+  }
+}
+
+service Prompts {
+  // Public. dokime.prompts.get_definition. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetDefinition (.dokime.v1.PromptsGetDefinitionRequest) returns (.dokime.v1.Prompt);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetDefinition (stream .dokime.v1.PromptsGetDefinitionRunInput) returns (stream .dokime.v1.PromptsGetDefinitionRunOutput);
+  // Public. dokime.prompts.get_prompt. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetPrompt (.dokime.v1.PromptsGetPromptRequest) returns (.dokime.v1.PromptView);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetPrompt (stream .dokime.v1.PromptsGetPromptRunInput) returns (stream .dokime.v1.PromptsGetPromptRunOutput);
+  // Public. dokime.prompts.list_definitions. Returns the complete bounded set in stable order.
+  rpc ListDefinitions (.dokime.v1.PromptsListDefinitionsRequest) returns (.dokime.v1.ListPromptDefinitionsReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListDefinitions (stream .dokime.v1.PromptsListDefinitionsRunInput) returns (stream .dokime.v1.PromptsListDefinitionsRunOutput);
+  // Public. dokime.prompts.list_pending. Returns the complete bounded set in stable order.
+  rpc ListPending (.dokime.v1.PromptsListPendingRequest) returns (.dokime.v1.ListPendingPromptsReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListPending (stream .dokime.v1.PromptsListPendingRunInput) returns (stream .dokime.v1.PromptsListPendingRunOutput);
+  // Public. dokime.prompts.respond. Cancelling this call does not undo committed mutations or cancel an admitted
+  // execution. Responder identity comes from the authenticated principal, never a request label. This mutation
+  // follows MutationContext's no-automatic-retry contract. After an ambiguous failure, GetPrompt resolves whether
+  // an answer was recorded.
+  rpc Respond (.dokime.v1.PromptsRespondRequest) returns (.dokime.v1.PromptResponseReceipt);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRespond (stream .dokime.v1.PromptsRespondRunInput) returns (stream .dokime.v1.PromptsRespondRunOutput);
+}

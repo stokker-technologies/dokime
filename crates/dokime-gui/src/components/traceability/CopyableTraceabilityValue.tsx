@@ -11,6 +11,7 @@
 
 /* === Local Imports === */
 
+import { Button } from "@/components/ui/button";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -36,16 +37,18 @@ export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabil
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           aria-label={`Copy ${value} to Clipboard`}
-          className="block min-w-0 max-w-full truncate text-right text-xs font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="block min-w-0 max-w-full truncate text-right text-xs font-medium underline-offset-2 hover:underline"
           onClick={() => {
             void copyTraceabilityText(value);
           }}
           type="button"
         >
           {value}
-        </button>
+        </Button>
       </TooltipTrigger>
       {/* A short value is fully visible; the tooltip then only says what the
           click does. A long one may be truncated, so it is repeated in full. */}

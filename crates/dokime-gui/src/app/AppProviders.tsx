@@ -16,7 +16,8 @@ import { type ReactNode, useEffect, useState } from "react";
 /* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
-import { AppearanceProvider, type ThemeModePolicy, useAppearance } from "@/lib/appearance";
+import { type ThemeModePolicy, useAppearance } from "@/lib/appearance";
+import { AppearanceProvider } from "@/lib/NativeAppearanceProvider";
 import { useApplicationTheme } from "@/lib/application-theme";
 import { DesktopThemeProvider } from "@/lib/DesktopThemeProvider";
 import { isTauriDesktop } from "@/lib/desktop-open";

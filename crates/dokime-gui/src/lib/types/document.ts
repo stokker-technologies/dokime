@@ -85,10 +85,17 @@ export type DocumentViewMetricGroup = {
 };
 
 export type DocumentViewPlot = {
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xy_interval?: "sigma" | null;
   plot_id: string;
   title: string;
   stream: string;
   plot_type: DocumentPlotType;
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./plot").GridDefinition | null;
   style: DocumentPlotStyle;
   x_scale: DocumentAxisScale;
   y_scale: DocumentAxisScale;

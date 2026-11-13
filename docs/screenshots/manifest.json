@@ -1,0 +1,170 @@
+[
+  {
+    "image": "cycle-light.png",
+    "scene": "cycle",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:09:49.264Z"
+  },
+  {
+    "image": "cycle-dark.png",
+    "scene": "cycle",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:09:54.602Z"
+  },
+  {
+    "image": "plots-light.png",
+    "scene": "plots",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:36.364Z"
+  },
+  {
+    "image": "plots-dark.png",
+    "scene": "plots",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:41.366Z"
+  },
+  {
+    "image": "report-light.png",
+    "scene": "report",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:48.606Z"
+  },
+  {
+    "image": "report-dark.png",
+    "scene": "report",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:51.613Z"
+  },
+  {
+    "image": "history-light.png",
+    "scene": "history",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:55.117Z"
+  },
+  {
+    "image": "history-dark.png",
+    "scene": "history",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:57.926Z"
+  },
+  {
+    "image": "library-light.png",
+    "scene": "library",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:00.144Z"
+  },
+  {
+    "image": "library-dark.png",
+    "scene": "library",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:02.985Z"
+  },
+  {
+    "image": "cycles-light.png",
+    "scene": "cycles",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:12.302Z"
+  },
+  {
+    "image": "cycles-dark.png",
+    "scene": "cycles",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:14.102Z"
+  },
+  {
+    "image": "touch-light.png",
+    "scene": "touch",
+    "theme": "light",
+    "viewport": {
+      "width": 1920,
+      "height": 1200
+    },
+    "density": "touch",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:18.610Z"
+  },
+  {
+    "image": "touch-dark.png",
+    "scene": "touch",
+    "theme": "dark",
+    "viewport": {
+      "width": 1920,
+      "height": 1200
+    },
+    "density": "touch",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:22.754Z"
+  }
+]

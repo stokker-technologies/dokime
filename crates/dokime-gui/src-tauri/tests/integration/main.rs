@@ -27,7 +27,6 @@ mod support;
 /* === Re-Exports === */
 
 pub use dokime_gui::PRODUCT;
-use support::wire;
 
 /* === Imports === */
 

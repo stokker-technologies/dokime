@@ -274,13 +274,15 @@ export function CycleSidebarCasesView({
             aria-label={`${plan.test_cycle.title}, ${cycleState(plan.test_cycle.phase, plan.test_cycle.status, false).label}`}
             aria-level={1}
             aria-selected={cycleSelected}
-            className="grid min-w-0 gap-px outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
+            className="grid min-w-0 gap-px [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
             data-level="overview"
             role="treeitem"
             tabIndex={cycleSelected ? 0 : -1}
           >
             <div className={cn(ROW_GRID, rowTone(cycleSelected))}>
-              <button
+              <Button
+                variant="plain"
+                size="inline"
                 aria-label={expanded ? "Collapse Executions" : "Expand Executions"}
                 className="grid size-5 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
                 onClick={() => setExpanded((open) => !open)}
@@ -288,11 +290,13 @@ export function CycleSidebarCasesView({
                 type="button"
               >
                 {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-              </button>
+              </Button>
               <StatusGlyph
                 glyph={cycleGlyph(plan.test_cycle.phase, plan.test_cycle.status, inputNeeded !== undefined && inputNeeded.size > 0)}
               />
-              <button
+              <Button
+                variant="plain"
+                size="inline"
                 className="min-w-0 truncate text-left text-sm font-medium"
                 data-tree-select
                 onClick={() => select({ view: "cycle" })}
@@ -301,7 +305,7 @@ export function CycleSidebarCasesView({
                 type="button"
               >
                 {plan.test_cycle.title}
-              </button>
+              </Button>
               <span aria-hidden />
               <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} Cases Finished`}>
                 {finished}/{total}
@@ -459,7 +463,7 @@ function ExecutionTreeRow({
       aria-label={`${label}, ${glyph.label}`}
       aria-level={2}
       aria-selected={selected}
-      className="group/row grid min-w-0 outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
+      className="group/row grid min-w-0 [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
       data-execution-id={row.execution?.test_execution_id}
       data-execution-status={row.execution?.status}
       data-following={following || undefined}
@@ -475,7 +479,9 @@ function ExecutionTreeRow({
       >
         <span aria-hidden />
         <StatusGlyph glyph={glyph} />
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           className="min-w-0 truncate text-left text-sm"
           data-tree-select
           onClick={onSelect}
@@ -485,7 +491,7 @@ function ExecutionTreeRow({
         >
           {row.case.label}
           {row.rerunOf === null ? null : <span className="text-xs text-muted-foreground"> Re-Run of #{row.rerunOf}</span>}
-        </button>
+        </Button>
         {/* Run Again is the one row command an operator reaches for after a
             case ends, so it is a visible target, not a menu item. */}
         {live && rowOffersRunAgain(row) ? (
@@ -575,7 +581,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
 function TreeNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
     <li className="grid gap-2 py-3 pr-2 pl-[calc(--spacing(10)+var(--tree-indent))]" role="none">
-      <p className="font-heading text-xs font-semibold">{title}</p>
+      <p className="font-sans text-xs font-semibold">{title}</p>
       <p className="text-xs leading-snug text-muted-foreground">{message}</p>
       {action ? (
         <div className="grid justify-start pt-1">

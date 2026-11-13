@@ -1,0 +1,154 @@
+name: Validation / Test
+'on':
+  workflow_call:
+    inputs:
+      channel:
+        description: ci, stable or nightly
+        type: string
+        required: true
+      profile:
+        description: Build Profile
+        type: string
+        default: dev
+      platform:
+        description: Platform
+        type: string
+        required: true
+      runner:
+        description: Runner
+        type: string
+        required: true
+      work:
+        description: Work
+        type: string
+        required: true
+      command:
+        description: Command
+        type: string
+        required: true
+      bootstrap:
+        description: Bootstrap
+        type: string
+        required: true
+      archives:
+        description: Archives
+        type: string
+        required: true
+      minutes:
+        description: Job Timeout In Minutes
+        type: number
+        required: true
+      suite:
+        description: Unique Suite Identifier
+        type: string
+        required: true
+permissions:
+  contents: read
+env:
+  PROFILE: ${{ inputs.profile }}
+  MISE_LOCKED: '1'
+  MISE_EXPERIMENTAL: '1'
+  CARGO_INCREMENTAL: '0'
+  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: core.longpaths
+  GIT_CONFIG_VALUE_0: 'true'
+jobs:
+  test:
+    name: Test / ${{ inputs.work }} (${{ inputs.platform }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.minutes }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - id: setup
+      uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        bootstrap: ${{ inputs.bootstrap }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+        path: target/ci
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-product-python-{profile}-any.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-cli-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/ci
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-cli-{profile}-{platform}.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-tests-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/ci
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-tests-{profile}-{platform}.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-clients-${{ env.PROFILE }}-unix
+        path: target/ci
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-clients-{profile}-unix.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-clients-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/ci
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-clients-{profile}-{platform}.tar.zst')
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      if: contains(inputs.archives, 'build-host-')
+      with:
+        pattern: build-host-*-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/ci
+        merge-multiple: true
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      if: contains(inputs.archives, 'build-bench-')
+      with:
+        name: build-bench-${{ inputs.platform }}
+        path: target/ci
+    - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: results-test-${{ inputs.suite }}-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: 'target/tests/
+
+          target/traces/
+
+          target/test-reports/
+
+          target/benchmarks/
+
+          target/coverage/'
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
+      with:
+        path: ${{ steps.setup.outputs.cargo_downloads-path }}
+        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
+      with:
+        path: ${{ steps.setup.outputs.mise-path }}
+        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
+        steps.setup.outputs.pnpm-path != ''
+      with:
+        path: ${{ steps.setup.outputs.pnpm-path }}
+        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
+      with:
+        path: ${{ steps.setup.outputs.uv-path }}
+        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
+    env:
+      CI_TRANSPORT: 'true'
+      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
+      CI_PROFILE: ${{ inputs.profile }}
+      CI_PLATFORM: ${{ inputs.platform }}
+      CI_INPUT_ARCHIVES: ${{ inputs.archives }}

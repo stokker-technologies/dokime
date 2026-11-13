@@ -149,15 +149,17 @@ export function NotificationHistoryEntry({ record, now }: { record: Notification
       </span>
       <div className="grid min-w-0 flex-1 gap-2">
         <div className="flex items-baseline justify-between gap-4">
-          <button
+          <Button
+            variant="plain"
+            size="inline"
             type="button"
             aria-haspopup="dialog"
             title={new Date(record.at).toLocaleString()}
-            className="min-w-0 rounded text-left text-sm font-semibold text-foreground outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring [overflow-wrap:anywhere]"
+            className="min-w-0 rounded text-left text-sm font-semibold text-foreground after:absolute after:inset-0 after:content-[''] [overflow-wrap:anywhere]"
             onClick={() => openNotificationDetails(record)}
           >
             {record.title}
-          </button>
+          </Button>
           <time
             className="shrink-0 whitespace-nowrap text-xs text-muted-foreground"
             dateTime={new Date(record.at).toISOString()}

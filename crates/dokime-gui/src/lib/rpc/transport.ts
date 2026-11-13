@@ -10,7 +10,6 @@ import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/prot
 import { settleUnlessStopping } from "../desktop/stopping";
 import * as transport from "./ipc";
 import type { NotificationFailure } from "../notification-details";
-import { operationIds } from "./generated/operations";
 
 /* === Types === */
 export interface SessionIdentity {
@@ -70,7 +69,7 @@ export function openClientStream<I extends DescMessage, O extends DescMessage>(
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope: DescMessage,
-  timeoutMs: number,
+  timeoutMs?: number,
 ): Promise<NativeClientStream<I, O>> {
   return transport.openClientStream(path, input, output, session, request, envelope, timeoutMs).then(
     (stream) => ({
@@ -108,7 +107,7 @@ function operationFailure(error: unknown, path: string, request: object): unknow
     notificationFailure: {
       ...failure,
       operation: path,
-      operationId: identifiers.operationId ?? failure?.operationId ?? operationIds[path],
+      operationId: identifiers.operationId ?? failure?.operationId,
       requestId: identifiers.requestId ?? failure?.requestId,
       invocationId: identifiers.invocationId ?? failure?.invocationId,
     },

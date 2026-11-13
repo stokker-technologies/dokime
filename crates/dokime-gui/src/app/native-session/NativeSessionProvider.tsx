@@ -90,6 +90,11 @@ function Connected({ session, children }: { session: ConnectedSession; children:
     <Connection.Provider value={session}>
       <QueryClientProvider client={session.queryClient}>
         <Appearance.Provider value={{ resource: appearance, refresh: refreshAppearance }}>
+          {appearance?.unavailableReason ? (
+            <div className="text-muted-foreground border-b p-3 text-sm" role="status">
+              {appearance.unavailableReason}
+            </div>
+          ) : null}
           {error ? (
             <main className="mx-auto max-w-xl space-y-4 p-8">
               <h1 className="font-heading text-2xl">Appearance Unavailable</h1>

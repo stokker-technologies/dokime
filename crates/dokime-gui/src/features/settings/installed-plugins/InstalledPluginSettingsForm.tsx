@@ -7,6 +7,7 @@
  * ***
  */
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -95,10 +96,23 @@ function SettingField({
 }) {
   const id = useId();
   const [fieldValue, setFieldValue] = useState(value);
-  useEffect(() => setFieldValue(value), [value]);
+  const [numberText, setNumberText] = useState(String(value ?? (field.kind === "number" ? (field.default ?? "") : "")));
+  const edited = useRef(false);
+  const version = useRef(0);
+  useEffect(() => {
+    if (edited.current) return;
+    setFieldValue(value);
+    if (field.kind === "number") setNumberText(String(value ?? field.default ?? ""));
+  }, [value, field]);
   const [invalid, setInvalid] = useState(false);
-  const autosave = useAutosave<SettingValues[string] | undefined>(onSave);
+  const autosave = useAutosave<SettingValues[string] | undefined>(async (next) => {
+    const saving = version.current;
+    await onSave(next);
+    if (saving === version.current) edited.current = false;
+  });
   const onChange = (next: SettingValues[string] | undefined) => {
+    edited.current = true;
+    version.current++;
     setFieldValue(next);
     autosave.change(next);
   };
@@ -137,10 +151,14 @@ function SettingField({
           min={field.min ?? undefined}
           max={field.max ?? undefined}
           step={field.step ?? "any"}
-          value={typeof fieldValue === "number" ? fieldValue : (field.default ?? "")}
+          value={numberText}
           onChange={(event) => {
+            edited.current = true;
+            version.current++;
+            setNumberText(event.target.value);
             if (!event.currentTarget.validity.valid || !Number.isFinite(event.target.valueAsNumber)) {
               setInvalid(true);
+              autosave.cancel();
               return;
             }
             setInvalid(false);
@@ -151,18 +169,23 @@ function SettingField({
       break;
     case "multiple_choice":
       control = (
-        <select
-          className="h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
-          id={id}
-          value={typeof fieldValue === "string" ? fieldValue : field.default}
-          onChange={(event) => onChange(event.target.value)}
+        <Select
+          value={String(
+            field.choices.findIndex((choice) => choice.value === (typeof fieldValue === "string" ? fieldValue : field.default)),
+          )}
+          onValueChange={(value) => onChange(field.choices[Number(value)].value)}
         >
-          {field.choices.map((choice) => (
-            <option key={choice.value} value={choice.value}>
-              {choice.title}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-full" id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {field.choices.map((choice, index) => (
+              <SelectItem key={choice.value} value={String(index)}>
+                {choice.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
       break;
   }

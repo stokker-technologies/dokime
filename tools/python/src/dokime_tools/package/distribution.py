@@ -7,7 +7,7 @@
 # ***
 
 
-"""Export Verified Native Installer Inputs"""
+"""Export Verified Command-Line Distribution Inputs"""
 
 # === Imports === #
 
@@ -15,6 +15,7 @@
 import hashlib
 import json
 import stat
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -38,51 +39,38 @@ from dokime_tools.package.staging import clear_output, stage_file
 
 
 def export(root: Path, profile: str) -> Path:
-    """Record Shipping Bytes, Their Organization Defaults And Compiled Identity."""
+    """Record Shipping Command-Line Bytes And Legal Notices."""
     build = paths.output(root, "build", profile)
     native = (build / "product/target.txt").read_text(encoding="utf-8").strip()
     if native not in {"x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"}:
-        raise ValueError(f"unsupported installer target: {native}")
+        raise ValueError(f"unsupported distribution target: {native}")
     suffix = ".exe" if "windows" in native else ""
-    tauri = root / "crates/dokime-gui/src-tauri"
-    config = json.loads((tauri / "tauri.conf.json").read_text(encoding="utf-8"))
+    config = tomllib.loads((root / "tools/project.toml").read_text(encoding="utf-8"))
     source = {
         "LICENSE": root / "LICENSE",
-        **{f"bin/{name}{suffix}": build / "bin" / f"{name}{suffix}" for name in ("dokime", "dokime-gui")},
+        "NOTICE": root / "target/notices/NOTICE",
+        "THIRD-PARTY-NOTICES": root / "target/notices/THIRD-PARTY-NOTICES",
+        f"bin/dokime-next{suffix}": build / "bin" / f"dokime-next{suffix}",
+        f"bin/dokime-gui{suffix}": build / "bin" / f"dokime-gui{suffix}",
     }
     organization = root / "organization"
-    if organization.is_symlink() or organization.is_junction() or not organization.is_dir():
-        raise ValueError("installer organization input must be a regular directory")
-    source["organization/organization.toml"] = organization / "organization.toml"
-    pending = [organization]
-    while pending:
-        directory = pending.pop()
-        for path in sorted(directory.iterdir()):
-            if path.is_symlink() or path.is_junction():
-                raise ValueError(f"installer organization input must not contain links: {path}")
-            if path.is_dir():
-                pending.append(path)
-            elif path.is_file():
-                source[path.relative_to(root).as_posix()] = path
-            else:
-                raise ValueError(f"installer organization input must be a regular file or directory: {path}")
+    for path in organization.rglob("*"):
+        if path.is_symlink() or path.is_junction():
+            raise ValueError(f"distribution appearance input must not contain links: {path}")
+        if path.is_file():
+            source[path.relative_to(root).as_posix()] = path
 
     # Validate Inputs Before Replacing the Owned Export
     invalid = [path for path in source.values() if path.is_symlink() or not path.is_file()]
     if invalid:
-        raise ValueError(f"installer input must be a regular file: {invalid[0]}")
-    identity = {
-        "identifier": config["identifier"],
-        "slug": "dokime",
-        "updater_public_key": config["plugins"]["updater"]["pubkey"],
-    }
-    destination = build / "product/installer-distribution"
+        raise ValueError(f"distribution input must be a regular file: {invalid[0]}")
+    destination = build / "product/distribution"
     clear_output(destination)
     hashes = {}
     for name, path in sorted(source.items()):
         stage_file(path, destination / name)
         hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
-    manifest = {"schema": 1, "version": config["version"], "target": native, "identity": identity, "files": hashes}
+    manifest = {"schema": 1, "version": config["version"]["value"], "target": native, "files": hashes}
     (destination / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return destination
 
@@ -128,3 +116,12 @@ def _write_entries(bundle: zipfile.ZipFile, entries: list[tuple[zipfile.ZipInfo,
 
 
 # === Entry Point === #
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", default="dev", choices=("dev", "release"))
+    options = parser.parse_args()
+    directory = Path.cwd()
+    archive(export(directory, options.profile), paths.output(directory, "package", options.profile) / "rust")

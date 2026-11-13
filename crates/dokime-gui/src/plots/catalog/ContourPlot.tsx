@@ -1,0 +1,249 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === External Imports === */
+
+import { contours } from "d3-contour";
+import { geoPath, geoTransform } from "d3-geo";
+import { scaleLinear, scaleLog, scaleSequential } from "d3-scale";
+import { interpolateYlOrRd } from "d3-scale-chromatic";
+import { useEffect, useId, useRef } from "react";
+
+/* === Local Imports === */
+
+import { formatNumber, formatUnitLabel } from "@/lib/format";
+import type { ContourGrid } from "@/lib/types";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText } from "@/plots/plot-placeholder";
+import type { PlotCardSpec } from "@/plots/types";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
+
+/* === Types === */
+
+/* === Constants === */
+
+const WIDTH = 720;
+const HEIGHT = 420;
+const MARGIN = { left: 58, right: 24, top: 20, bottom: 52 };
+
+/* === Components === */
+
+export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
+  const clip = useId();
+  const element = useRef<SVGSVGElement>(null);
+  const setPanelSize = useSummaryWindowStore((store) => store.setPanelSize);
+  const hasGrid = plot.analysis?.kind === "contour" && plot.analysis.grid.valid.some(Boolean);
+  useEffect(() => {
+    if (!hasGrid || !element.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
+      let width = Math.max(1, Math.round((entry.contentRect.width * (WIDTH - MARGIN.left - MARGIN.right)) / WIDTH));
+      let height = Math.max(1, Math.round((entry.contentRect.height * (HEIGHT - MARGIN.top - MARGIN.bottom)) / HEIGHT));
+      const factor = Math.min(1, Math.sqrt(262_144 / (width * height)), 512 / height);
+      width = Math.max(1, Math.floor(width * factor));
+      height = Math.max(1, Math.floor(height * factor));
+      setPanelSize(plot.key, { width, height });
+    });
+    observer.observe(element.current);
+    return () => {
+      observer.disconnect();
+      setPanelSize(plot.key, null);
+    };
+  }, [plot.key, setPanelSize, hasGrid]);
+  const grid = plot.analysis?.kind === "contour" ? plot.analysis.grid : null;
+  if (!grid || !validContourGrid(grid) || !grid.valid.some(Boolean)) {
+    return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  }
+  const width = WIDTH - MARGIN.left - MARGIN.right;
+  const height = HEIGHT - MARGIN.top - MARGIN.bottom;
+  const values = grid.values.filter((_, index) => grid.valid[index]);
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  }
+  const domain: [number, number] = min === max ? [min - 1, max + 1] : [min, max];
+  const color = scaleSequential(interpolateYlOrRd).domain(domain);
+  const x = (plot.xScale === "log" ? scaleLog : scaleLinear)(
+    [grid.x_edges[0], grid.x_edges[grid.columns]],
+    [MARGIN.left, MARGIN.left + width],
+  );
+  const y = (plot.yScale === "log" ? scaleLog : scaleLinear)([grid.y_edges[0], grid.y_edges[grid.rows]], [MARGIN.top + height, MARGIN.top]);
+  const path = geoPath(
+    geoTransform({
+      point(column, row) {
+        this.stream.point(gridCoordinate(column, grid.x_edges, x), gridCoordinate(row, grid.y_edges, y));
+      },
+    }),
+  );
+  const shapes =
+    plot.render === "bands"
+      ? contours().size([grid.columns, grid.rows]).smooth(false).thresholds(8)(
+          grid.values.map((value, index) => (grid.valid[index] ? value : Number.NaN)),
+        )
+      : [];
+  const cells = grid.values.flatMap((value, index) => {
+    if (!grid.valid[index]) return [];
+    const column = index % grid.columns;
+    const row = Math.floor(index / grid.columns);
+    return [
+      {
+        value,
+        index,
+        column,
+        row,
+        left: x(grid.x_edges[column]),
+        right: x(grid.x_edges[column + 1]),
+        top: y(grid.y_edges[row + 1]),
+        bottom: y(grid.y_edges[row]),
+      },
+    ];
+  });
+
+  return (
+    <article className="plot-card grid min-w-0 gap-3 overflow-hidden rounded-lg bg-muted/20 p-3" data-testid="contour-plot">
+      <h4 className="truncate text-sm font-semibold" title={formatUnitLabel(plot.title, plot.unit)}>
+        {formatUnitLabel(plot.title, plot.unit)}
+      </h4>
+      <svg
+        ref={element}
+        role="img"
+        aria-label={formatUnitLabel(plot.title, plot.unit)}
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        className="aspect-[12/7] w-full min-w-0 rounded-lg bg-background"
+      >
+        <defs>
+          <clipPath id={clip} clipPathUnits="userSpaceOnUse">
+            {cells.map((cell) => (
+              <rect
+                key={cell.index}
+                data-valid-bin={cell.index}
+                x={cell.left}
+                y={cell.top}
+                width={cell.right - cell.left}
+                height={cell.bottom - cell.top}
+              />
+            ))}
+          </clipPath>
+        </defs>
+        <g>
+          {cells.map((cell) => (
+            <rect
+              key={cell.index}
+              data-bin={cell.index}
+              x={cell.left}
+              y={cell.top}
+              width={cell.right - cell.left}
+              height={cell.bottom - cell.top}
+              fill={color(cell.value)}
+            >
+              <title>{`${formatNumber(grid.x_edges[cell.column], plot.xFormat ?? null)}–${formatNumber(grid.x_edges[cell.column + 1], plot.xFormat ?? null)}, ${formatNumber(grid.y_edges[cell.row], plot.yFormat ?? null)}–${formatNumber(grid.y_edges[cell.row + 1], plot.yFormat ?? null)}: ${formatUnitLabel(formatNumber(cell.value, null), plot.unit)}`}</title>
+            </rect>
+          ))}
+          {plot.render === "bands" ? (
+            <g clipPath={`url(#${clip})`} data-contour-mask>
+              {shapes.map((shape) => (
+                <path
+                  key={shape.value}
+                  d={path(shape) ?? undefined}
+                  fill={color(shape.value)}
+                  stroke="var(--foreground)"
+                  strokeOpacity={0.35}
+                  strokeWidth={0.6}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
+          ) : null}
+          <g clipPath={`url(#${clip})`}>
+            {plot.referenceBands.map((band) => {
+              if (typeof band.min !== "number" || typeof band.max !== "number") return null;
+              const bottom = y(band.min);
+              const top = y(band.max);
+              if (!Number.isFinite(bottom) || !Number.isFinite(top)) return null;
+              return (
+                <rect
+                  key={JSON.stringify([band.label, band.min, band.max, band.color])}
+                  x={MARGIN.left}
+                  width={width}
+                  y={Math.min(bottom, top)}
+                  height={Math.abs(top - bottom)}
+                  fill={band.color}
+                  fillOpacity={0.12}
+                />
+              );
+            })}
+            {plot.referenceLines.map((line) => {
+              if (typeof line.value !== "number") return null;
+              const row = y(line.value);
+              return Number.isFinite(row) ? (
+                <line
+                  key={JSON.stringify([line.label, line.value, line.color])}
+                  x1={MARGIN.left}
+                  x2={MARGIN.left + width}
+                  y1={row}
+                  y2={row}
+                  stroke={line.color}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ) : null;
+            })}
+          </g>
+        </g>
+        {x.ticks(5).map((value) => (
+          <text key={value} x={x(value)} y={MARGIN.top + height + 22} textAnchor="middle" fill="currentColor" className="text-xs">
+            {formatNumber(value, plot.xFormat ?? null)}
+          </text>
+        ))}
+        {y.ticks(5).map((value) => (
+          <text
+            key={value}
+            x={MARGIN.left - 8}
+            y={y(value)}
+            dominantBaseline="middle"
+            textAnchor="end"
+            fill="currentColor"
+            className="text-xs"
+          >
+            {formatNumber(value, plot.yFormat ?? null)}
+          </text>
+        ))}
+      </svg>
+    </article>
+  );
+}
+
+/* === Public Functions === */
+
+export function validContourGrid(grid: ContourGrid): boolean {
+  const count = grid.columns * grid.rows;
+  return (
+    Number.isSafeInteger(count) &&
+    grid.columns > 0 &&
+    grid.rows > 0 &&
+    grid.values.length === count &&
+    grid.valid.length === count &&
+    grid.x_edges.length === grid.columns + 1 &&
+    grid.y_edges.length === grid.rows + 1 &&
+    grid.x_edges.every(Number.isFinite) &&
+    grid.y_edges.every(Number.isFinite) &&
+    grid.values.every((value, index) => !grid.valid[index] || Number.isFinite(value))
+  );
+}
+
+/* === Private Functions === */
+
+function gridCoordinate(position: number, edges: number[], scale: (value: number) => number): number {
+  const bounded = Math.max(0, Math.min(position, edges.length - 1));
+  const cell = Math.min(Math.floor(bounded), edges.length - 2);
+  const from = scale(edges[cell]);
+  const to = scale(edges[cell + 1]);
+  return from + (to - from) * (bounded - cell);
+}

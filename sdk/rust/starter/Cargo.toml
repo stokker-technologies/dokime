@@ -1,0 +1,87 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Workspace === #
+
+[workspace]
+
+# === Workspace Package === #
+
+# === Workspace Dependencies === #
+
+# === Package === #
+
+[package]
+name = "dokime-starter"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-starter"
+path = "src/main.rs"
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+dokime = "0.1.5"
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

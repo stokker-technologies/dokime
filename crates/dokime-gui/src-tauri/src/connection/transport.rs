@@ -29,9 +29,9 @@ use super::{BackendLimits, BackendSnapshot, ConnectionError, ConnectionTarget};
 /* === Structs === */
 
 pub(super) struct Target {
+    pub target: ConnectionTarget,
     pub endpoint: String,
     pub remote: bool,
-    pub inner: dokime::client::Target,
 }
 
 /* === Enums === */
@@ -42,43 +42,45 @@ pub(super) struct Target {
 
 impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
-        let inner = match target {
-            ConnectionTarget::Local { endpoint } => dokime::client::Target::local(endpoint),
-            ConnectionTarget::Remote { endpoint, ca_certificate_pem, endpoints } => {
-                dokime::client::Target::remote(endpoint, ca_certificate_pem).and_then(|target| target.with_endpoints(&endpoints))
+        let (endpoint, remote) = match &target {
+            ConnectionTarget::Local { endpoint } => {
+                super::host::validate_local(endpoint).map_err(ConnectionError::from)?;
+                (endpoint.clone(), false)
             }
-        }
-        .map_err(ConnectionError::from)?;
-        Ok(Self {
-            endpoint: inner.endpoint().to_owned(),
-            remote: inner.is_remote(),
-            inner,
-        })
+            ConnectionTarget::Remote { pairing_file } => {
+                let pairing = super::host::Pairing::read(std::path::Path::new(pairing_file)).map_err(ConnectionError::from)?;
+                (pairing.endpoints[0].clone(), true)
+            }
+        };
+        Ok(Self { target, endpoint, remote })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn backend(value: &dokime::client::Backend) -> BackendSnapshot {
+pub(crate) fn backend(session: &super::host::Session) -> BackendSnapshot {
+    let ready = session.identity();
+    let status = ready.status.as_ref().expect("ready host status");
+    let identity = status.identity.as_ref().expect("ready host identity");
     BackendSnapshot {
-        backend_id: value.backend_id.clone(),
-        epoch: value.epoch.clone(),
-        display_name: value.display_name.clone(),
-        product_version: value.product_version.clone(),
-        source_revision: value.source_revision.clone(),
-        channel: value.channel.clone(),
-        target: value.target.clone(),
-        api_version: value.api_version.clone(),
-        descriptor_sha256: value.descriptor_sha256.clone(),
-        methods: value.methods.clone(),
+        backend_id: identity.host_id.clone(),
+        epoch: session.product_epoch().to_owned(),
+        display_name: identity.application_name.clone(),
+        product_version: identity.application_version.clone(),
+        source_revision: None,
+        channel: None,
+        target: String::new(),
+        api_version: "v1".into(),
+        descriptor_sha256: String::new(),
+        methods: session.methods().to_vec(),
         limits: BackendLimits {
-            max_request_bytes: value.limits.max_request_bytes.to_string(),
-            max_response_bytes: value.limits.max_response_bytes.to_string(),
-            max_content_bytes: value.limits.max_content_bytes.map(|value| value.to_string()),
-            max_evidence_bytes: value.limits.max_evidence_bytes.map(|value| value.to_string()),
-            max_chunk_bytes: value.limits.max_chunk_bytes,
-            max_page_items: value.limits.max_page_items,
-            max_stream_buffer_items: value.limits.max_stream_buffer_items,
+            max_request_bytes: crate::rpc::protocol::FRAME_BYTES.to_string(),
+            max_response_bytes: crate::rpc::protocol::FRAME_BYTES.to_string(),
+            max_content_bytes: None,
+            max_evidence_bytes: None,
+            max_chunk_bytes: Some(64 * 1024),
+            max_page_items: Some(1000),
+            max_stream_buffer_items: Some(8),
         },
     }
 }

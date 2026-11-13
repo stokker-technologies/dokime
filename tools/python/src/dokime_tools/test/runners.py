@@ -18,7 +18,7 @@ import subprocess
 # Third Party Imports
 # Local Imports
 from ..process import spawn_flags
-from ..release import policy
+from .. import policy
 from ..release.run import release_tag
 
 # Type Checking Imports

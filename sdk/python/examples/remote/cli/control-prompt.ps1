@@ -6,7 +6,7 @@ $PSNativeCommandArgumentPassing = 'Standard'
 $PSNativeCommandUseErrorActionPreference = $true
 
 # Connection Parameters
-$BACKEND_IDENTIFIER = 'lab'
+$PAIRING_FILE = '../lab.pair'
 
 # Case and Execution Parameters
 $TEMPLATE = 'obc.checks.pulse'
@@ -19,7 +19,7 @@ $OUTPUT_DIRECTORY = 'prompt-evidence'
 $OVERWRITE = $false
 
 # Connect with the Explicit Parameters
-$Connection = @('--backend', $BACKEND_IDENTIFIER)
+$Connection = @('--remote', $PAIRING_FILE)
 
 # Uncaptured Commands Retain Native Ctrl+C Recovery; UUIDs Travel in a File.
 $CycleId = ''

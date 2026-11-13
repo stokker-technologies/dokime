@@ -22,7 +22,7 @@ import { useStore } from "zustand";
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
+import { openTraceStream, NativeTraceHistoryExpired, type TraceLevel } from "@/lib/api/native-logs";
 import { normalizeRpcError } from "@/lib/rpc/errors";
 import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
@@ -63,7 +63,6 @@ export function useConsoleRecords({
     let afterSequence = held.afterSequence;
     let epoch = held.epoch;
     let reconnectDelay = GUI_RECONNECT_MS;
-    let priorDropped = held.dropped;
     let streamDropped = 0n;
 
     const connect = async () => {
@@ -82,7 +81,6 @@ export function useConsoleRecords({
           return;
         }
         stream = opened;
-        priorDropped += streamDropped;
         streamDropped = 0n;
         for await (const page of opened) {
           if (!active || !session.identity.isCurrent()) break;
@@ -90,7 +88,7 @@ export function useConsoleRecords({
           epoch = page.epoch;
           streamDropped = page.dropped;
           reconnectDelay = GUI_RECONNECT_MS;
-          store().receive(key, page, priorDropped + streamDropped);
+          store().receive(key, page, streamDropped);
         }
         if (active) store().setError(key, "Trace stream ended; reconnecting.");
       } catch (failure) {
@@ -99,10 +97,9 @@ export function useConsoleRecords({
         const record = failureOf(normalizeRpcError(failure), "Trace Stream Failed");
         toast.error(record, { context: "background" });
         const cause = record.message;
-        if (code === 11) {
+        if (code === 11 || failure instanceof NativeTraceHistoryExpired) {
           afterSequence = 0n;
           epoch = undefined;
-          priorDropped = 0n;
           streamDropped = 0n;
           store().rewind(key);
           store().setError(key, `Trace history expired; replaying retained events. ${cause}`, record);

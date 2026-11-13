@@ -21,14 +21,12 @@ export function connectionError(error: unknown): string {
     case "generation_exhausted":
       return "Restart the desktop to establish a new connection.";
     case "local_backend_unavailable":
-      return "This desktop session attaches to a backend another process started. Enter its endpoint below.";
+      return "This desktop session attaches to a backend another process started. Import its pairing file below.";
     case "authentication_required":
     case "unauthenticated":
-      return "The backend requires a valid access token.";
-    case "secrets_unavailable":
-      return "No saved access token is available. Enter a token to connect.";
+      return "The backend requires a valid pairing file.";
     case "permission_denied":
-      return "This account does not have permission to use the backend.";
+      return "The backend refused this operation.";
     case "identity_changed":
       return "The backend identity does not match the expected identity.";
     case "incompatible_api":

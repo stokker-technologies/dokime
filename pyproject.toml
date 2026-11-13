@@ -15,12 +15,8 @@ dependencies = []
 [dependency-groups]
 test = [
   "protobuf>=7.36.2,<8",
-  "python-dotenv==1.2.4",
-  "mypy==2.4.1",
   "types-protobuf",
-  "grpcio>=1.84.0,<2",
-  "pandas>=3,<4",
-  "pyarrow>=22,<30",
+  "grpcio>=1.85.1,<2",
   "polars==2.1.0",
   "pytest==9.1.1",
   "pytest-benchmark==5.3.0",
@@ -28,7 +24,7 @@ test = [
   "pytest-timeout==2.4.0",
   "pytest-xdist==3.8.0",
 ]
-dev = ["dokime-tools", "ruff==0.17.0", "ty==0.0.86", "maturin==1.14.0"]
+dev = ["dokime-tools", "ruff==0.17.0", "ty==0.0.86"]
 
 [tool.uv]
 package = false
@@ -36,7 +32,7 @@ system-certs = true
 
 [tool.uv.workspace]
 members = ["tools/python"]
-# The Native Extension Is Built By build:python, Never By Environment Preparation.
+# The SDK Wheel Is Built and Installed Explicitly by the SDK Tasks.
 exclude = ["sdk/python"]
 
 [[tool.uv.index]]

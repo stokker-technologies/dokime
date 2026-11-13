@@ -21,7 +21,9 @@ import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { commands } from "@/lib/desktop/commands";
 // Local Imports
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
+import { SecretImportAction } from "@host/dokime/v1/client_types_pb.js";
+import type { Metadata } from "@host/dokime/v1/values_pb.js";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Re-Exports === */
@@ -36,7 +38,7 @@ const MAX_ARCHIVE_BYTES = 4 * Math.ceil(SECRETS_DOCUMENT_BYTES / 3);
 
 type Snapshot = Wire<Awaited<ReturnType<typeof rpc.secretsList>>>;
 type Entry = Snapshot["entries"][number];
-export type SecretMetadata = NonNullable<Entry["metadata"]>;
+export type SecretMetadata = Pick<Wire<Metadata>, "identifier" | "label"> & Partial<Omit<Wire<Metadata>, "identifier" | "label">>;
 export type SecretEntry = Omit<Entry, "metadata"> & { metadata: SecretMetadata };
 export type SecretCatalog = Omit<Snapshot, "entries"> & { entries: SecretEntry[] };
 type WirePreview = Wire<Awaited<ReturnType<typeof rpc.secretsPreview>>>;
@@ -63,7 +65,7 @@ export async function removeSecret(session: SessionIdentity, identifier: string,
 export async function exportSecrets(session: SessionIdentity, identifiers: string[], generation: bigint) {
   const archive = await rpc.secretsExport(session, { identifiers, generation });
   if (archive.data.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
-  return saveNativeDocument(session, { kind: "secret_archive", filename: "dokime-secrets.b64", bytes: archive.data });
+  return saveNativeDocument(session, { kind: "secret_archive", filename: "secrets.b64", bytes: archive.data });
 }
 
 export async function pickSecretArchive(session: SessionIdentity): Promise<Uint8Array | null> {
@@ -88,11 +90,7 @@ export async function previewSecrets(session: SessionIdentity, data: Uint8Array)
 export async function importSecrets(session: SessionIdentity, data: Uint8Array, preview: SecretPreview, replace: ReadonlySet<string>) {
   const choices = preview.entries.map((entry) => ({
     identifier: entry.metadata.identifier,
-    action: {
-      HarmosVariant: replace.has(entry.metadata.identifier)
-        ? { case: "Replace" as const, value: {} }
-        : { case: "Skip" as const, value: {} },
-    },
+    action: replace.has(entry.metadata.identifier) ? SecretImportAction.REPLACE : SecretImportAction.SKIP,
   }));
   return catalog(await rpc.secretsImport(session, { data, choices, generation: preview.generation }));
 }

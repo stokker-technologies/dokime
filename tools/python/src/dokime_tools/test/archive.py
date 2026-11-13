@@ -13,6 +13,8 @@
 import argparse
 import hashlib
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -84,12 +86,12 @@ def binaries(directory: Path, profile: str, extracted: Path | None = None) -> di
         return binaries(directory, profile, listing)
 
 
-def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None) -> None:
+def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None, arguments: Sequence[str] = ()) -> None:
     """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
     path = require(directory, profile)
     destination.mkdir(parents=True, exist_ok=True)
     if category in LAYERS:
-        _extract_layer(path, destination, category)
+        _extract_layer(path, destination, category, arguments)
     else:
         command = [
             "cargo",
@@ -127,16 +129,17 @@ def require(directory: Path, profile: str) -> Path:
     return path
 
 
-def install_wheels(directory: Path, profile: str, native: str | None = None) -> None:
-    targets = [native or paths.target()]
-    roots = [paths.output(directory, "build", profile, target) / "python" for target in targets]
+def install_wheels(directory: Path, profile: str) -> None:
+    roots = [paths.output(directory, "build", profile, "any") / "python"]
     wheels = sorted(path for root in roots for path in root.glob("*.whl"))
     names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
     if len(names) != len(set(names)):
-        raise policy.TestError("ambiguous built wheels in the native output")
+        raise policy.TestError("ambiguous built wheels in the shared output")
     if any(root.is_dir() for root in roots) and not wheels:
         raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:
+        environment = dict(os.environ)
+        environment.pop("UV_PROJECT_ENVIRONMENT", None)
         subprocess.run(
             [
                 "uv",
@@ -144,8 +147,8 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
                 "install",
                 "--python",
                 sys.executable,
-                "--no-deps",
                 "--reinstall",
+                "--no-cache",
                 *map(str, wheels),
             ],
             stdin=sys.stdin,
@@ -153,6 +156,7 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
             stderr=sys.stderr,
             creationflags=spawn_flags(),
             cwd=directory,
+            env=environment,
             check=True,
         )
 
@@ -207,11 +211,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Existing Test Inputs")
     parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
     parser.add_argument("--install-wheels", action="store_true")
-    parser.add_argument("--target")
     options = parser.parse_args(arguments)
     try:
         if options.install_wheels:
-            install_wheels(policy.root(), options.profile, options.target)
+            install_wheels(policy.root(), options.profile)
             return 0
         print(require(policy.root(), options.profile))
         return 0
@@ -223,7 +226,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 # === Private Functions === #
 
 
-def _extract_layer(path: Path, destination: Path, category: str) -> None:
+def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequence[str] = ()) -> None:
     """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
     with tarfile.open(path, "r|zst") as source:
@@ -235,12 +238,36 @@ def _extract_layer(path: Path, destination: Path, category: str) -> None:
             document = json.load(metadata)
         target = Path(document["rust-build-meta"]["target-directory"])
         binaries = document["rust-binaries"]
+        # An Exact Positive Conjunct Safely Narrows Extraction; Nextest Still Evaluates Every Filter.
+        selection = None
+        values = iter(arguments)
+        for argument in values:
+            flag, _, inline = argument.partition("=")
+            if flag not in ("-E", "--filterset", "--filter-expr"):
+                continue
+            expression = inline or next(values, "")
+            matched = re.fullmatch(r"(binary_id|package)\(=([A-Za-z0-9_:\-]+)\)", expression)
+            if matched:
+                selection = matched.groups()
+                break
+        included = {
+            identity: entry
+            for identity, entry in binaries.items()
+            if _in_layer(category, entry)
+            and (
+                selection is None
+                or selection[0] == "binary_id"
+                and identity == selection[1]
+                or selection[0] == "package"
+                and identity.split("::", 1)[0] == selection[1]
+            )
+        }
         omitted = {
             (Path("target") / Path(entry["binary-path"]).relative_to(target)).as_posix()
-            for entry in binaries.values()
-            if not _in_layer(category, entry)
+            for identity, entry in binaries.items()
+            if identity not in included
         }
-        document["rust-binaries"] = {identity: entry for identity, entry in binaries.items() if _in_layer(category, entry)}
+        document["rust-binaries"] = included
         if not document["rust-binaries"]:
             raise policy.TestError(f"nextest archive has no {category} binaries")
 

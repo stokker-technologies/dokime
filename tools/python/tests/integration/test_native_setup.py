@@ -13,7 +13,6 @@
 
 # Standard Library Imports
 import contextlib
-import copy
 import ctypes
 import email.message
 import hashlib
@@ -26,13 +25,13 @@ import sys
 import tempfile
 import unittest
 import urllib.error
-from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.ci import bootstrap
 
 # Type Checking Imports
 
@@ -41,7 +40,7 @@ from unittest.mock import patch
 
 # === Constants === #
 
-SETUP = runpy.run_path(str(Path(__file__).resolve().parents[4] / ".github/actions/setup/run.py"))
+SETUP = runpy.run_path(str(Path(__file__).resolve().parents[4] / "tools/python/src/dokime_tools/ci/native.py"))
 # Setup Functions Resolve Names In The Script Namespace, Which `run_path` Returns Only A Copy Of.
 SETUP_GLOBALS = SETUP["verify_temporary_exclusions"].__globals__
 SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAccessProtectionEnabled": True}
@@ -51,51 +50,59 @@ SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAcc
 # === Classes === #
 
 
+class PackageFetchTests(unittest.TestCase):
+    def test_fetch_recovers_from_install_and_update_mirror_failures(self):
+        failure = "Temporary failure resolving 'azure.archive.ubuntu.com'\nUnable to fetch some archives\n"
+        runner = Mock(
+            side_effect=[
+                subprocess.CompletedProcess([], status, stdout=output)
+                for status, output in ((0, ""), (100, failure), (100, failure), (0, ""), (0, ""))
+            ]
+        )
+        sleep = Mock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            bootstrap.fetch_packages(["fixture-package"], ["sudo", "-n"], runner=runner, sleep=sleep)
+        commands = [call.args[0] for call in runner.call_args_list]
+        self.assertEqual(
+            ["install" if "install" in command else "update" for command in commands], ["update", "install", "update", "update", "install"]
+        )
+        self.assertTrue(all(command[:3] == ["sudo", "-n", "apt-get"] for command in commands))
+        self.assertTrue(all(f"Acquire::Retries={bootstrap.APT_ACQUIRE_RETRIES}" in command for command in commands))
+        self.assertTrue(all("APT::Update::Error-Mode=any" in command for command in commands if "update" in command))
+        self.assertIn("fixture-package", commands[-1])
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], list(bootstrap.APT_RETRY_DELAYS_S[:2]))
+
+    def test_fetch_stops_at_retry_bound_and_preserves_mirror_error(self):
+        failure = "Temporary failure resolving 'azure.archive.ubuntu.com'\nUnable to fetch some archives\n"
+        for operation in ("update", "install"):
+            with self.subTest(operation=operation):
+                outcomes = [subprocess.CompletedProcess([], 0, stdout="")] if operation == "install" else []
+                outcomes += [subprocess.CompletedProcess([], 100, stdout=failure)]
+                attempts = len(bootstrap.APT_RETRY_DELAYS_S) + 1
+                runner = Mock(side_effect=outcomes * attempts)
+                sleep = Mock()
+                with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError) as raised:
+                    bootstrap.fetch_packages(["fixture-package"], runner=runner, sleep=sleep)
+                self.assertIn(f"after {attempts} attempts", str(raised.exception))
+                self.assertIn(failure.strip(), str(raised.exception))
+                self.assertEqual(runner.call_count, len(outcomes) * attempts)
+                self.assertEqual([call.args[0] for call in sleep.call_args_list], list(bootstrap.APT_RETRY_DELAYS_S))
+
+    def test_successful_fetch_does_not_retry(self):
+        runner = Mock(return_value=subprocess.CompletedProcess([], 0, stdout=""))
+        sleep = Mock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            bootstrap.fetch_packages(["fixture-package"], runner=runner, sleep=sleep)
+        self.assertEqual(runner.call_count, 2)
+        sleep.assert_not_called()
+
+
 class NativeSetupTests(unittest.TestCase):
-    def test_cache_order(self):
-        combinations = product(("Linux-X64", "Windows-X64"), ("dev", "release"), ("product", "tests", "bench"))
-        for platform, profile, kind in combinations:
-            product_prefix = f"ci-v5-sccache-{platform}-{profile}-toolchain-"
-            plan = {
-                "sccache": {"key": product_prefix + "dependencies", "restore-keys": product_prefix, "path": ".cache/sccache/"},
-                "mise": {"key": "tools", "path": "<MISE_DATA_DIR>"},
-            }
-            original = copy.deepcopy(plan)
-            resolved = SETUP["cache_plan"](plan, {"COMPILER_CACHE_KIND": kind})
-            self.assertEqual(plan, original)
-            self.assertEqual(resolved["mise"], plan["mise"])
-            compiler = resolved["sccache"]
-            self.assertEqual(compiler["path"], plan["sccache"]["path"])
-            if kind == "product":
-                self.assertEqual(resolved, plan)
-                self.assertEqual(SETUP["cache_plan"](plan, {}), original)
-                continue
-            build_profile = "bench" if kind == "bench" else profile
-            prefix = f"ci-v5-sccache-{platform}-{build_profile}-{kind}-toolchain-"
-            self.assertEqual(compiler["key"], prefix + "dependencies")
-            self.assertEqual(compiler["restore-keys"].splitlines(), [prefix, product_prefix + "dependencies", product_prefix])
-
-    def test_cache_locks(self):
-        keys = set()
-        combinations = product(("tests", "bench"), ("oldtools", "newtools"), ("oldcrates", "newcrates"))
-        for kind, toolchain, dependencies in combinations:
-            prefix = f"ci-v5-sccache-Linux-X64-release-{toolchain}-"
-            plan = {"sccache": {"key": prefix + dependencies, "restore-keys": prefix, "path": "compiler"}}
-            compiler = SETUP["cache_plan"](plan, {"COMPILER_CACHE_KIND": kind})["sccache"]
-            self.assertNotIn(compiler["key"], keys)
-            keys.add(compiler["key"])
-            restores = compiler["restore-keys"].splitlines()
-            self.assertTrue(all(f"-{toolchain}-" in restore for restore in restores))
-            self.assertEqual(restores[0], compiler["key"].removesuffix(dependencies))
-        self.assertEqual(SETUP["cache_plan"]({}, {"COMPILER_CACHE_KIND": "tests"}), {})
-        with self.assertRaises(ValueError):
-            SETUP["cache_plan"]({"sccache": {}}, {"COMPILER_CACHE_KIND": "unknown"})
-
     def test_cache_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "outputs"
-            plan = {"sccache": {"key": "ci-v5-sccache-Linux-X64-dev-tools-crates", "restore-keys": "product-", "path": "compiler"}}
-            environment = {"CACHE_PLAN": json.dumps(plan), "COMPILER_CACHE_KIND": "tests", "GITHUB_OUTPUT": str(output)}
+            plan = {"sccache": {"key": "compiler-key", "restore-keys": "compiler-", "path": "compiler"}}
+            environment = {"CACHE_PLAN": json.dumps(plan), "GITHUB_OUTPUT": str(output)}
             with (
                 patch.dict(os.environ, environment, clear=True),
                 patch.dict(SETUP_GLOBALS, {"rustup": lambda: None}),
@@ -108,9 +115,8 @@ class NativeSetupTests(unittest.TestCase):
             exported = output.read_text(encoding="utf-8")
         expected = (
             "sccache-path<<CACHE_VALUE\ncompiler\nCACHE_VALUE\n"
-            "sccache-key<<CACHE_VALUE\nci-v5-sccache-Linux-X64-dev-tests-tools-crates\nCACHE_VALUE\n"
-            "sccache-restore-keys<<CACHE_VALUE\nci-v5-sccache-Linux-X64-dev-tests-tools-\n"
-            "ci-v5-sccache-Linux-X64-dev-tools-crates\nproduct-\nCACHE_VALUE\n"
+            "sccache-key<<CACHE_VALUE\ncompiler-key\nCACHE_VALUE\n"
+            "sccache-restore-keys<<CACHE_VALUE\ncompiler-\nCACHE_VALUE\n"
         )
         self.assertEqual(exported, expected)
 
@@ -129,14 +135,25 @@ class NativeSetupTests(unittest.TestCase):
                 return len(buffer.value)
 
             api = SimpleNamespace(kernel32=SimpleNamespace(GetTempPath2W=lookup))
-            with patch.object(ctypes, "windll", api, create=True), patch.object(tempfile, "gettempdir", return_value=str(python)):
+            with (
+                patch.object(sys, "platform", "win32"),
+                patch.object(ctypes, "windll", api, create=True),
+                patch.object(tempfile, "gettempdir", return_value=str(python)),
+            ):
                 paths = SETUP["native_temporary_paths"]()
             self.assertEqual(paths, [alias, native, python])
 
     def test_native_setup_refuses_unavailable_native_temp_path(self):
         api = SimpleNamespace(kernel32=SimpleNamespace(GetTempPath2W=lambda *_: 0))
-        with patch.object(ctypes, "windll", api, create=True), self.assertRaises(OSError):
+        with patch.object(sys, "platform", "win32"), patch.object(ctypes, "windll", api, create=True), self.assertRaises(OSError):
             SETUP["native_temporary_paths"]()
+
+    def test_windows_apis_refuse_other_platforms(self):
+        with patch.object(sys, "platform", "linux"):
+            with self.assertRaises(OSError):
+                SETUP["windows"](Path.cwd())
+            with self.assertRaises(OSError):
+                SETUP["native_temporary_paths"]()
 
     def test_native_setup_checks_concrete_files_and_folders(self):
         with tempfile.TemporaryDirectory() as directory:

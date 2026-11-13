@@ -20,26 +20,19 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
-import {
-  DESKTOP_SESSION_STATUS_EVENT,
-  type DesktopLaunch,
-  type DesktopSessionSnapshot,
-  type StorageBackupDestination,
-} from "@/lib/desktop/session";
+import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
 import { connectionError, startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
 
 /* === Constants === */
 
-/** The startup phases `dokime server --dev-control` reports, in the order it reports
- * them. The wire carries only the phase it is in, so the order lives here. */
-const STARTUP_PHASES = ["storage", "plugins", "requests"] as const;
+/** The native connection reports one host-starting phase until SDK readiness. */
+const STARTUP_PHASES = ["starting"] as const;
 
 /** The shell's reset phases; backend startup phases belong to Starting. */
 const RESET_PHASES = ["stopping", "archiving", "deleting", "reinstalling", "starting"] as const;
@@ -52,9 +45,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const [settings, setSettings] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   const [archivedBytes, setArchivedBytes] = useState<number | null>(null);
-  const [backup, setBackup] = useState<StorageBackupDestination | null>(null);
-  const [backupError, setBackupError] = useState<unknown>(null);
-  const [preparingBackup, setPreparingBackup] = useState(false);
   const statusRevision = useRef(-1);
   const localAttempt = useRef(false);
   const [failedEndpoint, setFailedEndpoint] = useState<string | null>(null);
@@ -66,17 +56,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const recoverable = storageRecoveryAvailable(error, localAttempt.current, launch?.localBackendAvailable ?? false);
   const archive = storageRecoveryArchive(error);
 
-  async function prepareBackup() {
-    setPreparingBackup(true);
-    setBackupError(null);
-    try {
-      setBackup(await commands.desktopStorageBackupDestination());
-    } catch (failure) {
-      setBackupError(failure);
-    } finally {
-      setPreparingBackup(false);
-    }
-  }
   useEffect(() => {
     if (!error) return;
     let active = true;
@@ -181,7 +160,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
               </div>
               <BackendsTable
                 failure={error && !diagnostics ? <p>{connectionError(error)}</p> : undefined}
-                endpoint={failedEndpoint ?? launch?.target?.endpoint}
+                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : launch?.target?.pairingFile)}
                 onConnect={() => {
                   localAttempt.current = false;
                 }}
@@ -200,7 +179,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                       request: {
                         target: launch.target,
                         expectedBackendId: launch.expectedBackendId,
-                        secrets: { kind: launch.target.kind === "remote" ? "saved" : "none" },
                       },
                     });
                   else if (launch?.localBackendAvailable) void owner.select({ kind: "owned_local" });
@@ -223,59 +201,20 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         {!busy && archive && <PathPill value={archive} />}
         {!busy && recoverable && (
           <div className="grid gap-3">
-            <Button variant="destructive" disabled={preparingBackup} onClick={() => void prepareBackup()} data-action="backup-reset">
+            <Button
+              variant="destructive"
+              disabled
+              title="The Host Must Preserve Plugins, Settings, Identity and Secrets Before Recovery Is Available"
+              data-action="backup-reset"
+            >
               Back Up and Reset
             </Button>
-            {backupError ? <p role="alert">{connectionError(backupError)}</p> : null}
+            <p className="text-muted-foreground text-sm">
+              Recovery is unavailable until the host can preserve plugins, settings, identity and secrets. Preserve this folder and select a
+              fresh storage root.
+            </p>
           </div>
         )}
-        <Dialog
-          open={backup !== null && !busy && recoverable}
-          onOpenChange={(open) => {
-            if (!open) setBackup(null);
-          }}
-        >
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Back Up And Reset</DialogTitle>
-              <DialogDescription>
-                Back up the data folder to this archive, then remove the folder's contents and restart the local backend. Installed bundles
-                will be restored with readable enabled states and valid settings. If saved plugin preferences cannot be recovered, bundles
-                are enabled with default settings. Credentials remain in secret storage. If the backup fails, nothing is removed.
-              </DialogDescription>
-            </DialogHeader>
-            {backup && (
-              <div className="grid gap-3 text-left text-sm">
-                <div className="grid gap-1">
-                  <span>Data Folder</span>
-                  <PathPill value={backup.directory} />
-                </div>
-                <div className="grid gap-1">
-                  <span>Backup Archive</span>
-                  <PathPill value={backup.archive} />
-                </div>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setBackup(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                data-action="confirm-backup-reset"
-                onClick={() => {
-                  if (!backup) return;
-                  const confirmed = backup;
-                  setBackup(null);
-                  localAttempt.current = true;
-                  void owner.backupAndResetLocalStorage(confirmed.directory, confirmed.archive);
-                }}
-              >
-                Back Up and Reset
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
         <footer>
           <Button variant="link" disabled={busy} onClick={() => setSettings(true)}>
             Settings
@@ -349,9 +288,7 @@ function Step({ active, detail = null, done, label }: { active: boolean; detail?
 
 /* === Private Functions === */
 
-/** Human label for a `dokime server --dev-control` startup phase name. The wire value
- * is free-form — an unrecognized name (a newer CLI, an older GUI) still shows
- * something instead of nothing. */
+/** Human labels for native lifecycle events. */
 function phaseLabel(phase: string): string {
   switch (phase) {
     case "storage":

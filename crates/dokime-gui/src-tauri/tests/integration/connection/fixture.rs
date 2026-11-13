@@ -19,89 +19,49 @@ pub mod delivery;
 
 // Standard Library Imports
 use std::{
-    collections::BTreeMap,
     convert::Infallible,
-    future::Future,
-    net::{Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
+    net::Ipv4Addr,
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
-use sha2::{Digest, Sha256};
-use tokio::sync::{Notify, Semaphore};
-use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{
-    Request, Response, Status,
-    transport::{Identity, Server, ServerTlsConfig},
-};
+use tonic::{Request, Response, Status, codegen::BoxFuture};
+
 // Local Imports
-use dokime::client::contracts::{backend, plugins, runtime};
-use dokime::client::secrets::{Error as SecretError, SecretStore};
-use dokime::domain::model;
-use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
-use zeroize::Zeroizing;
+use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
+use dokime_sdk::{client::v1 as library, v1};
 
 /* === Constants === */
-
-static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::new(|| {
-    let generated = rcgen::generate_simple_self_signed(vec!["localhost".into(), "127.0.0.1".into()])
-        .expect("a self-signed test certificate is generated");
-    (generated.cert.pem(), generated.signing_key.serialize_pem())
-});
-
-static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
-    let contracts = dokime::harmos::operations::Contracts::of::<dokime::client::contracts::Operations>().unwrap();
-    let artifacts = harmos_packaging::proto::Artifacts::new(&contracts).unwrap();
-    Sha256::digest(artifacts.descriptors()).to_vec()
-});
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
+pub type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
+pub type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
+
 /* === Structs === */
 
-#[derive(Default)]
-pub struct MemorySecrets(pub Arc<Mutex<BTreeMap<String, String>>>);
-
 pub struct Gate {
-    pub entered: Notify,
-    pub release: Semaphore,
+    pub entered: tokio::sync::Notify,
+    pub release: tokio::sync::Semaphore,
 }
 
 #[derive(Clone)]
 pub struct Service {
     pub id: String,
-    pub identity_epoch: Arc<Mutex<String>>,
-    pub health_epoch: String,
-    pub availability_epoch: String,
-    pub api_package: String,
-    pub api_version: String,
-    pub readiness: model::backend::wire::Readiness,
-    pub max_request_bytes: u64,
-    pub max_response_bytes: u64,
-    pub descriptor: Vec<u8>,
-    pub methods: Vec<String>,
-    pub token: Option<String>,
-    pub requests: Arc<Mutex<Vec<Option<String>>>>,
-    pub gate: Option<Arc<Gate>>,
-    pub stream_closed: Arc<Notify>,
-    pub upload_gate: Option<Arc<Gate>>,
-    pub upload_drain: bool,
-
-    #[cfg(feature = "testing")]
     pub download: Arc<Mutex<delivery::DownloadConfig>>,
-}
-
-pub struct UploadInput {
-    pub first: bool,
-    pub dropped: Arc<Notify>,
 }
 
 pub struct Listener {
     pub endpoint: String,
-    pub task: tokio::task::JoinHandle<()>,
+    task: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
 }
+
+#[derive(Clone)]
+struct Rpc<const KIND: u8>(Service);
+
+struct Reply<T>(T);
 
 /* === Enums === */
 
@@ -109,303 +69,33 @@ pub struct Listener {
 
 /* === Implementations === */
 
-impl SecretStore for MemorySecrets {
-    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
-        Ok(self.0.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
-    }
-
-    fn write(&self, endpoint: &str, token: &str) -> Result<(), SecretError> {
-        self.0.lock().unwrap().insert(endpoint.into(), token.into());
-        Ok(())
-    }
-
-    fn remove(&self, endpoint: &str) -> Result<(), SecretError> {
-        self.0.lock().unwrap().remove(endpoint);
-        Ok(())
-    }
-}
-
 impl Gate {
     pub fn new() -> Self {
         Self {
-            entered: Notify::new(),
-            release: Semaphore::new(0),
+            entered: tokio::sync::Notify::new(),
+            release: tokio::sync::Semaphore::new(0),
         }
     }
 }
 
 impl Service {
     pub fn new(id: &str) -> Self {
-        Self {
-            id: id.into(),
-            identity_epoch: Arc::new(Mutex::new("epoch".into())),
-            health_epoch: "epoch".into(),
-            availability_epoch: "epoch".into(),
-            api_package: "dokime.v1".into(),
-            api_version: model::backend::wire::API_VERSION.into(),
-            readiness: model::backend::wire::Readiness::Ready,
-            max_request_bytes: u64::MAX,
-            max_response_bytes: u64::MAX,
-            descriptor: DESCRIPTOR.clone(),
-            methods: vec![
-                "/dokime.v1.Backend/GetIdentity".into(),
-                "/dokime.v1.Backend/GetHealth".into(),
-                "/dokime.v1.Backend/GetAvailability".into(),
-                "/dokime.v1.Runtime/GetIdentity".into(),
-                "/dokime.v1.Runtime/GetHealth".into(),
-                #[cfg(feature = "testing")]
-                "/dokime.v1.Content/DownloadArtifact".into(),
-            ],
-            token: None,
-            requests: Arc::default(),
-            gate: None,
-            upload_gate: None,
-            upload_drain: false,
-            #[cfg(feature = "testing")]
-            download: Arc::default(),
-            stream_closed: Arc::new(Notify::new()),
-        }
-    }
-    fn authorize<T>(&self, request: &Request<T>) -> Result<(), Status> {
-        let token = request.metadata().get("authorization").map(|value| value.to_str().unwrap().to_owned());
-        self.requests.lock().unwrap().push(token.clone());
-        if self.token.as_ref().is_some_and(|expected| token.as_deref() != Some(format!("Bearer {expected}").as_str())) {
-            return Err(Status::unauthenticated("secrets rejected"));
-        }
-        Ok(())
+        Self { id: id.into(), download: Arc::default() }
     }
 }
 
-#[derive(Clone)]
-struct BackendService(Service);
-
-#[derive(Clone)]
-struct PluginsService(Service);
-
-#[derive(Clone)]
-struct RuntimeService(Service);
-
-struct Unary<O> {
-    service: Service,
-    operation: std::marker::PhantomData<O>,
+impl<const KIND: u8> tonic::server::NamedService for Rpc<KIND> {
+    const NAME: &'static str = match KIND {
+        0 => "harmos.v1.Status",
+        1 => "dokime.v1.Execution",
+        _ => "harmos.v1.CatalogEntries",
+    };
 }
 
-struct Logs(Service);
-struct Upload(Service);
-
-type FixtureFuture<T> = std::pin::Pin<Box<dyn Future<Output = Result<T, Status>> + Send>>;
-type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
-type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
-type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
-type LogEnvelope = dokime::harmos::grpc::OutputEnvelope<model::backend::wire::LogFrame, ()>;
-type UploadEnvelope = dokime::harmos::grpc::InputEnvelope<plugins::Install, model::plugins::wire::InstallPluginFrame>;
-
-#[tonic::async_trait]
-trait FixtureUnary: dokime::harmos::operations::OperationDeclaration + Send + 'static {
-    async fn reply(service: Service) -> Result<Self::Response, Status>;
-}
-
-#[tonic::async_trait]
-impl FixtureUnary for backend::GetIdentity {
-    async fn reply(service: Service) -> Result<model::backend::wire::BackendIdentity, Status> {
-        if let Some(gate) = &service.gate {
-            gate.entered.notify_one();
-            gate.release.acquire().await.unwrap().forget();
-        }
-        Ok(model::backend::wire::BackendIdentity {
-            backend_id: service.id,
-            epoch: service.identity_epoch.lock().unwrap().clone(),
-            display_name: "Fixture".into(),
-            product_version: "0.1.0".into(),
-            target: "x86_64-unknown-linux-gnu".into(),
-            started_at: None,
-            source_revision: None,
-            channel: None,
-            sdk_revision: None,
-            api: Some(model::backend::wire::ApiIdentity {
-                package: service.api_package,
-                version: service.api_version,
-                descriptor_sha256: service.descriptor,
-            }),
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl FixtureUnary for backend::GetHealth {
-    async fn reply(service: Service) -> Result<model::backend::wire::BackendHealth, Status> {
-        Ok(model::backend::wire::BackendHealth {
-            backend_id: service.id,
-            epoch: service.health_epoch,
-            readiness: service.readiness,
-            observed_at: None,
-            message: String::new(),
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl FixtureUnary for backend::GetAvailability {
-    async fn reply(service: Service) -> Result<model::backend::wire::BackendAvailability, Status> {
-        Ok(model::backend::wire::BackendAvailability {
-            backend_id: service.id,
-            epoch: service.availability_epoch,
-            methods: service.methods,
-            limits: Some(model::backend::wire::BackendLimits {
-                max_request_bytes: service.max_request_bytes,
-                max_response_bytes: service.max_response_bytes,
-                max_content_bytes: Some(u64::MAX),
-                max_evidence_bytes: Some(u64::MAX),
-                max_chunk_bytes: Some(u32::MAX),
-                max_page_items: None,
-                max_stream_buffer_items: None,
-            }),
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl FixtureUnary for runtime::GetIdentity {
-    async fn reply(service: Service) -> Result<model::runtime::wire::Identity, Status> {
-        Ok(model::runtime::wire::Identity {
-            backend_id: service.id,
-            epoch: service.identity_epoch.lock().unwrap().clone(),
-            display_name: "Fixture".into(),
-            product_version: "0.1.0".into(),
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl FixtureUnary for runtime::GetHealth {
-    async fn reply(service: Service) -> Result<model::runtime::wire::Health, Status> {
-        let readiness = match service.readiness {
-            model::backend::wire::Readiness::Unspecified | model::backend::wire::Readiness::Starting => {
-                model::runtime::wire::Readiness::Starting
-            }
-            model::backend::wire::Readiness::Ready => model::runtime::wire::Readiness::Ready,
-            model::backend::wire::Readiness::Degraded => model::runtime::wire::Readiness::Degraded,
-            model::backend::wire::Readiness::Stopping => model::runtime::wire::Readiness::Stopping,
-        };
-        Ok(model::runtime::wire::Health {
-            backend_id: service.id,
-            epoch: service.health_epoch,
-            readiness,
-            observed_at_seconds: 0,
-            observed_at_nanoseconds: 0,
-            message: String::new(),
-        })
-    }
-}
-
-impl<O> tonic::server::UnaryService<dokime::harmos::operations::StreamItem<O>> for Unary<O>
-where
-    O: FixtureUnary,
-    O: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
-    O::Response: dokime::harmos::domain::Portable,
-{
-    type Response = dokime::harmos::operations::Response<O::Response>;
-    type Future = FixtureFuture<Response<Self::Response>>;
-
-    fn call(&mut self, request: Request<dokime::harmos::operations::StreamItem<O>>) -> Self::Future {
-        let service = self.service.clone();
-        Box::pin(async move {
-            service.authorize(&request)?;
-            let response = O::reply(service).await?;
-            Ok(Response::new(dokime::harmos::operations::Response::new(response)))
-        })
-    }
-}
-
-impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamItem<backend::WatchLogs>> for Logs {
-    type Response = dokime::harmos::operations::Response<LogEnvelope>;
-    type ResponseStream = tokio_stream::wrappers::ReceiverStream<Result<Self::Response, Status>>;
-    type Future = FixtureFuture<Response<Self::ResponseStream>>;
-
-    fn call(&mut self, request: Request<dokime::harmos::operations::StreamItem<backend::WatchLogs>>) -> Self::Future {
-        let service = self.0.clone();
-        Box::pin(async move {
-            service.authorize(&request)?;
-            let (sender, receiver) = tokio::sync::mpsc::channel(1);
-            sender
-                .send(Ok(dokime::harmos::operations::Response::new(LogEnvelope::Item(model::backend::wire::LogFrame {
-                    time: None,
-                    level: model::backend::wire::LogLevel::Unspecified,
-                    target: String::new(),
-                    message: String::new(),
-                    fields: vec![],
-                    dropped: 0,
-                }))))
-                .await
-                .unwrap();
-            let closed = service.stream_closed;
-            tokio::spawn(async move {
-                sender.closed().await;
-                closed.notify_one();
-            });
-            Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(receiver)))
-        })
-    }
-}
-
-impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamItem<UploadEnvelope>> for Upload {
-    type Response = dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>;
-    type Future = FixtureFuture<Response<Self::Response>>;
-
-    fn call(&mut self, request: Request<tonic::Streaming<dokime::harmos::operations::StreamItem<UploadEnvelope>>>) -> Self::Future {
-        let service = self.0.clone();
-        Box::pin(async move {
-            service.authorize(&request)?;
-            let mut input = request.into_inner();
-            let opening = input.message().await?.expect("upload starts with its canonical request");
-            assert!(matches!(
-                opening.into_request().map_err(|error| Status::data_loss(error.to_string()))?.0,
-                UploadEnvelope::Request(plugins::Install {})
-            ));
-            let first = input.message().await?.expect("upload produces its first item");
-            assert!(matches!(first.into_request().map_err(|error| Status::data_loss(error.to_string()))?.0, UploadEnvelope::Item(_)));
-            if let Some(gate) = &service.upload_gate {
-                gate.entered.notify_one();
-                let _permit = gate.release.acquire().await.unwrap();
-            }
-            let mut count = 1;
-            if service.upload_drain {
-                while let Some(frame) = input.message().await? {
-                    assert!(matches!(
-                        frame.into_request().map_err(|error| Status::data_loss(error.to_string()))?.0,
-                        UploadEnvelope::Item(_)
-                    ));
-                    count += 1;
-                }
-            }
-            drop(input);
-            Ok(Response::new(dokime::harmos::operations::Response::new(model::plugins::wire::PluginInstallation {
-                install_id: count.to_string(),
-                sha256: String::new(),
-                installed_at: None,
-                state: model::plugins::wire::PluginInstallationState::Unspecified,
-                last_boot: None,
-                metadata: None,
-                error: None,
-                active: false,
-                restart: model::settings::wire::PluginRestart::Idle,
-                boot_failed: false,
-            })))
-        })
-    }
-}
-
-impl tonic::server::NamedService for BackendService {
-    const NAME: &'static str = "dokime.v1.Backend";
-}
-impl tonic::server::NamedService for PluginsService {
-    const NAME: &'static str = "dokime.v1.Plugins";
-}
-
-impl tonic::codegen::Service<HttpRequest> for BackendService {
+impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
     type Response = HttpResponse;
     type Error = Infallible;
-    type Future = HttpFuture;
+    type Future = BoxFuture<HttpResponse, Infallible>;
 
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
         std::task::Poll::Ready(Ok(()))
@@ -415,185 +105,87 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                "/dokime.v1.Backend/GetIdentity" => serve_unary::<backend::GetIdentity>(service, request).await,
-                "/dokime.v1.Backend/GetHealth" => serve_unary::<backend::GetHealth>(service, request).await,
-                "/dokime.v1.Backend/GetAvailability" => serve_unary::<backend::GetAvailability>(service, request).await,
-                "/dokime.v1.Backend/WatchLogs" => {
-                    wire_codec::<backend::WatchLogs, dokime::harmos::operations::Response<LogEnvelope>>()
-                        .server()
-                        .server_streaming(Logs(service), request)
+                "/harmos.v1.Status/Get" => {
+                    let mut reply = library::StatusGetResponse::default();
+                    let status = reply.status.get_or_insert_default();
+                    status.available = true;
+                    status.identity.get_or_insert_default().host_id = service.id;
+                    let history = reply.resolved_at.get_or_insert_default().history.get_or_insert_default();
+                    history.store = "desktop-fixture".into();
+                    history.epoch = "status-history".into();
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::StatusGetRequest>::default())
+                        .unary(Reply(reply), request)
                         .await
                 }
-                _ => Status::unimplemented("unused test route").into_http(),
-            };
-            Ok(response)
-        })
-    }
-}
-
-impl tonic::codegen::Service<HttpRequest> for PluginsService {
-    type Response = HttpResponse;
-    type Error = Infallible;
-    type Future = HttpFuture;
-
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, request: HttpRequest) -> Self::Future {
-        let service = self.0.clone();
-        Box::pin(async move {
-            let response = match request.uri().path() {
-                "/dokime.v1.Plugins/Install" => {
-                    wire_codec::<UploadEnvelope, dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>>()
-                        .server()
-                        .client_streaming(Upload(service), request)
+                "/dokime.v1.Execution/ListCycles" => {
+                    let reply = v1::ListCyclesReply {
+                        cursor: Some(v1::Cursor {
+                            epoch: "product-history".into(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    };
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, v1::ExecutionListCyclesRequest>::default())
+                        .unary(Reply(reply), request)
                         .await
                 }
-                _ => Status::unimplemented("unused test route").into_http(),
+                "/harmos.v1.CatalogEntries/List" => {
+                    let reply = library::CatalogEntriesListResponse {
+                        operations: vec![library::DiscoveredOperation {
+                            grpc_available: true,
+                            contract: Some(library::DiscoveredContract {
+                                grpc: Some(library::Grpc {
+                                    package: "dokime.v1".into(),
+                                    service: "Content".into(),
+                                    method: "DownloadArtifact".into(),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    };
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::CatalogEntriesListRequest>::default())
+                        .unary(Reply(reply), request)
+                        .await
+                }
+                _ => Status::unimplemented("Fixture Route Is Not Served").into_http(),
             };
             Ok(response)
         })
     }
 }
 
-impl tonic::server::NamedService for RuntimeService {
-    const NAME: &'static str = "dokime.v1.Runtime";
-}
+impl<Q: Send + 'static, R: Clone + Send + 'static> tonic::server::UnaryService<Q> for Reply<R> {
+    type Response = R;
+    type Future = BoxFuture<Response<R>, Status>;
 
-impl tonic::codegen::Service<HttpRequest> for RuntimeService {
-    type Response = HttpResponse;
-    type Error = Infallible;
-    type Future = HttpFuture;
-
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, request: HttpRequest) -> Self::Future {
-        let service = self.0.clone();
-        Box::pin(async move {
-            let response = match request.uri().path() {
-                "/dokime.v1.Runtime/GetIdentity" => serve_unary::<runtime::GetIdentity>(service, request).await,
-                "/dokime.v1.Runtime/GetHealth" => serve_unary::<runtime::GetHealth>(service, request).await,
-                _ => Status::unimplemented("unused test route").into_http(),
-            };
-            Ok(response)
-        })
-    }
-}
-
-fn wire_codec<D, E>() -> dokime::harmos::grpc::Codec<dokime::harmos::grpc::Transcoded, D, E>
-where
-    dokime::harmos::grpc::Transcoded: dokime::harmos::grpc::Wire<D>,
-    D: dokime::harmos::MemorySize + Send + 'static,
-    E: dokime::harmos::grpc::Encode<dokime::harmos::grpc::Transcoded>,
-{
-    let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
-    dokime::harmos::grpc::Codec::new(
-        dokime::harmos::grpc::DecodeSettings {
-            message_bytes: bytes,
-            retained_bytes: bytes,
-        },
-        dokime::harmos::grpc::EncodeSettings {
-            message_bytes: bytes,
-            buffer_bytes: NonZeroUsize::new(8192).unwrap(),
-        },
-    )
-    .unwrap()
-}
-
-async fn serve_unary<O>(service: Service, request: HttpRequest) -> HttpResponse
-where
-    O: FixtureUnary,
-    O: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
-    O::Response: dokime::harmos::domain::Portable,
-{
-    wire_codec::<O, dokime::harmos::operations::Response<O::Response>>()
-        .server()
-        .unary(
-            Unary::<O> {
-                service,
-                operation: std::marker::PhantomData,
-            },
-            request,
-        )
-        .await
-}
-
-pub async fn server_health(endpoint: &str) -> model::backend::wire::BackendHealth {
-    let channel = tonic::transport::Endpoint::from_shared(endpoint.to_owned()).unwrap().connect().await.unwrap();
-    let mut client = tonic::client::Grpc::new(channel);
-    client.ready().await.unwrap();
-    let reply = client
-        .unary(
-            Request::new(dokime::harmos::operations::Response::new(backend::GetHealth {})),
-            tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Backend/GetHealth"),
-            wire_codec::<model::backend::wire::BackendHealth, dokime::harmos::operations::Response<backend::GetHealth>>(),
-        )
-        .await
-        .unwrap()
-        .into_inner();
-    reply.into_request().expect("canonical health reply transfers an owned payload").0
-}
-
-impl tokio_stream::Stream for UploadInput {
-    type Item = model::plugins::wire::InstallPluginFrame;
-
-    fn poll_next(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
-        if self.first {
-            self.first = false;
-            return std::task::Poll::Ready(Some(model::plugins::wire::InstallPluginFrame::default()));
-        }
-
-        std::task::Poll::Pending
-    }
-}
-
-impl Drop for UploadInput {
-    fn drop(&mut self) {
-        self.dropped.notify_one();
+    fn call(&mut self, _: Request<Q>) -> Self::Future {
+        let reply = self.0.clone();
+        Box::pin(async move { Ok(Response::new(reply)) })
     }
 }
 
 impl Listener {
     pub async fn start(service: Service, tls: bool, ip: Ipv4Addr) -> Self {
-        Self::start_with_identity(service, tls.then(|| IDENTITY.clone()), ip).await
-    }
-    pub async fn start_with_identity(service: Service, tls: Option<(String, String)>, ip: Ipv4Addr) -> Self {
-        let listener = tokio::net::TcpListener::bind(SocketAddr::from((ip, 0))).await.unwrap();
-        let endpoint = format!("{}://{}/", if tls.is_some() { "https" } else { "http" }, listener.local_addr().unwrap());
-        let mut server = Server::builder();
-        if let Some((certificate, key)) = tls {
-            let _ = rustls::crypto::ring::default_provider().install_default();
-            server = server.tls_config(ServerTlsConfig::new().identity(Identity::from_pem(certificate, key))).unwrap();
-        }
-        let task = tokio::spawn(async move {
-            let server = server
-                .add_service(RuntimeService(service.clone()))
-                .add_service(PluginsService(service.clone()))
-                .add_service(BackendService(service.clone()));
-            #[cfg(feature = "testing")]
-            let server = server.add_service(delivery::Content(service));
-            server.serve_with_incoming(TcpListenerStream::new(listener)).await.unwrap();
-        });
+        assert!(!tls, "Pinned TLS Uses the Real Host Connection Stories");
+        let listener = tokio::net::TcpListener::bind((ip, 0)).await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(Rpc::<0>(service.clone()))
+                .add_service(Rpc::<1>(service.clone()))
+                .add_service(Rpc::<2>(service.clone()))
+                .add_service(delivery::Content(service))
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+        );
         Self { endpoint, task }
     }
+
     pub fn local(&self) -> ConnectRequest {
         ConnectRequest {
             target: ConnectionTarget::Local { endpoint: self.endpoint.clone() },
-            secrets: ConnectionSecrets::None,
-            expected_backend_id: None,
-        }
-    }
-    pub fn remote(&self, trust: bool, token: Option<&str>) -> ConnectRequest {
-        ConnectRequest {
-            target: ConnectionTarget::Remote {
-                endpoints: Vec::new(),
-                endpoint: self.endpoint.clone(),
-                ca_certificate_pem: trust.then(|| IDENTITY.0.clone()),
-            },
-            secrets: token.map_or(ConnectionSecrets::None, |token| ConnectionSecrets::Bearer { token: token.into(), remember: false }),
             expected_backend_id: None,
         }
     }

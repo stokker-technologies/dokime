@@ -1,6 +1,6 @@
 # Design
 
-Locked 2026-10-29; implementation scheduled.
+Source is integrated. Native Unix branded-distribution proof remains open.
 
 ## Identity Source
 

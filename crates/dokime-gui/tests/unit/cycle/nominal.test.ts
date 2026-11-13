@@ -300,6 +300,11 @@ test("Execution Controls", () => {
     ...patch,
   });
   const running = {
+    canStart: true,
+    canRerun: true,
+    canCancel: true,
+    canInspect: true,
+    canExport: true,
     canPause: false,
     canResume: false,
     canStop: true,
@@ -324,11 +329,11 @@ test("Execution Controls", () => {
 
   // An Unstarted Attempt Offers Start and Cancel, Never Stop
   for (const status of ["planned", "created"] as const) {
-    const state = executionControlState(input({ status }));
+    const state = executionControlState(input({ status, controls: running }));
     assert.deepEqual(state.actions, ["Start", "Cancel"]);
     assert.doesNotMatch(state.line, /No step in progress/);
   }
-  assert.equal(executionControlState(input({ status: "planned" })).line, "Not started · waits for Start");
+  assert.equal(executionControlState(input({ status: "planned", controls: running })).line, "Not started · waits for Start");
 
   // Stop Shows Only While an Attempt Runs, After Pause When It Pauses
   assert.deepEqual(executionControlState(input({ controls: running })).actions, ["Stop"]);
@@ -355,7 +360,7 @@ test("Execution Controls", () => {
   assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
   assert.equal(executionControlState(input({ controls: running, progress: { completed: 5, label: "S", total: 5 } })).phase, "running");
   assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
-  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "finalizing");
+  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "ended");
   const waiting = executionControlState(
     input({ controls: running, progress: { completed: 5, label: "S", total: 5 }, promptWaiting: true }),
   );
@@ -366,7 +371,7 @@ test("Execution Controls", () => {
   assert.equal(executionControlState(input({ controls: running, stopping: true })).line, "Stopping · saving evidence");
 
   // An Ended Attempt Offers Re-Run
-  assert.deepEqual(executionControlState(input({ status: "passed" })).actions, ["Re-Run"]);
+  assert.deepEqual(executionControlState(input({ status: "passed", controls: running })).actions, ["Re-Run"]);
   assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
 
   // Missing Plugins Preserve The Terminal State And Offer No New Attempt
@@ -378,7 +383,7 @@ test("Execution Controls", () => {
   }
 
   // A Pending Catalog Does Not Assert Absence; Running Controls Remain Available
-  assert.deepEqual(executionControlState(input({ pluginAvailable: undefined, status: "passed" })).actions, ["Re-Run"]);
+  assert.deepEqual(executionControlState(input({ pluginAvailable: undefined, status: "passed", controls: running })).actions, ["Re-Run"]);
   assert.deepEqual(executionControlState(input({ controls: running, pluginAvailable: false })).actions, ["Stop"]);
 
   // The Cycle Names The Executions Waiting On Input

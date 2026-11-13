@@ -20,7 +20,7 @@
 // Local Imports
 import type { StorageSource } from "@/features/settings/settings-contracts";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 
 type StorageSources = Wire<Awaited<ReturnType<typeof rpc.settingsListStorageSources>>>;
 

@@ -28,9 +28,9 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from ..build import paths, storage
+from ..build import paths
 from ..process import spawn_flags
-from . import archive, nextest, policy, pytest, report, traces, vitest
+from . import archive, desktop_bench, nextest, policy, pytest, report, traces, vitest
 
 # Type Checking Imports
 
@@ -77,7 +77,7 @@ def test(
             archive.require(directory, profile)
             extracted = archive_directory or scratch / "extract"
             if archive_directory is None:
-                archive.extract(directory, profile, extracted, category=category)
+                archive.extract(directory, profile, extracted, category=category, arguments=extra)
             binaries = archive.binaries(directory, profile, extracted)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)
@@ -154,7 +154,6 @@ def coverage(
 
         # Instrumented Run
         if language == "rust":
-            storage.preflight(directory)
             binaries = archive.binaries(directory, profile)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)
@@ -217,6 +216,11 @@ def bench(
     """Measure one benchmark layer and compare it with the `dev` baseline."""
     rules = policy.load(directory)
     measure = category in ("integration", "system")
+    if language == "rust" and category == "system" and binary in (None, "system-desktop"):
+        previous = directory / report.BENCHMARKS / "benchmarks-rust-desktop.json"
+        if previous.is_symlink() or not previous.resolve().is_relative_to(directory.resolve()):
+            raise policy.TestError("desktop benchmark report escapes the repository")
+        previous.unlink(missing_ok=True)
     _preflight(directory, category, language, "bench")
     identity = {
         "platform": [
@@ -247,12 +251,22 @@ def bench(
     if "--test" in extra:
         print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
+    from .. import policy as project_policy
+    from ..release import reports
+
+    revision = os.environ.get("GITHUB_SHA") or project_policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
+    summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent)
+    output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
+    project_policy.write_json(output, summary)
+
     for name, median, baseline in rows:
         if baseline is None:
             if refresh and status == 0:
                 print(f"::notice::benchmark baseline seeded: {name}")
             else:
-                print(f"benchmark baseline missing: {name}; run mise run bench:{language}:{category} --refresh-baseline")
+                print(
+                    f"benchmark baseline missing: {name}; run mise run bench -- --language {language} --layer {category} --refresh-baseline"
+                )
                 status = status or 1
             continue
         change = (median - baseline) / baseline * 100
@@ -383,12 +397,14 @@ def _lane(
 ) -> dict:
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
-    if language in SCRIPTS:
-        status = _execute(command, cwd, environment, timeout_s=rules.deadline(category))
-    else:
-        status = _execute(command, cwd, environment)
-    seconds = time.time() - started
     destination = report.location(directory, profile, key)
+    native = category == "system"
+    with desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as child_environment:
+        if language in SCRIPTS:
+            status = _execute(command, cwd, child_environment, timeout_s=rules.deadline(category))
+        else:
+            status = _execute(command, cwd, child_environment)
+    seconds = time.time() - started
     if (
         not junit.resolve().is_relative_to(scratch.resolve())
         or any(path.is_symlink() for path in (junit, *junit.parents) if path.is_relative_to(scratch))
@@ -541,14 +557,28 @@ def _bench_rust(
         since = time.time()
         environment = dict(os.environ, CRITERION_HOME=str(home.resolve()))
         environment.pop("TEST_REPORT_DIR", None)
-        code, peak = _measured(
-            [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
-            directory / manifest.parent,
-            environment,
-        )
+        environment.pop("DOKIME_TEST_TRACE_DIR", None)
+        if name == "system-desktop":
+            (home / "desktop").mkdir(exist_ok=True)
+            for diagnostic in ("observations.json", "completion.json", "host-shutdown.json"):
+                (home / "desktop" / diagnostic).unlink(missing_ok=True)
+            shutil.copyfile(paths.output(directory, "build", "bench") / "fixtures/stamp.json", home / "desktop/fixture-stamp.json")
+        with (
+            desktop_bench.scratch(environment, home / ("desktop" if name == "system-desktop" else "scratch")) as child_environment,
+            desktop_bench.native(directory, child_environment) if name == "system-desktop" else nullcontext(),
+        ):
+            code, peak = _measured(
+                [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
+                directory / manifest.parent,
+                child_environment,
+            )
         status = status or code
         if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
             raise policy.TestError("native benchmark files must not be linked")
+        if name == "system-desktop":
+            desktop_bench.collect(
+                directory, home / "desktop", identity, policy.load(directory).bench_regression_percent, refresh=refresh, success=code == 0
+            )
         for path in sorted(home.rglob("new/estimates.json")) if home.is_dir() else []:
             if path.stat().st_mtime < since:
                 continue
@@ -609,6 +639,7 @@ def _bench_python(
     cwd = directory / project
     environment = pytest.environment(directory)
     environment.pop("TEST_REPORT_DIR", None)
+    environment.pop("DOKIME_TEST_TRACE_DIR", None)
     status, peak = _measured(pytest.bench(cwd, category, output, extra), cwd, environment)
     if not output.is_file():
         raise policy.TestError("pytest-benchmark wrote no results")

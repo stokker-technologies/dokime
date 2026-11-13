@@ -364,9 +364,9 @@ export function ListChipsCell({
           className={cn("inline-flex h-6 items-center gap-1 rounded-lg border bg-muted/40 pl-2", "[[data-density=touch]_&]:h-7")}
           key={`${definition.name}-${chip.candidate}-${chip.index}`}
         >
-          <input
+          <Input
             aria-label={`${label} Value ${position + 1}`}
-            className="min-w-6 bg-transparent py-1 font-mono text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-auto w-auto min-w-6 rounded-none border-0 bg-transparent p-0 font-mono text-xs tabular-nums"
             onBlur={(event) => commit(chip, event.target.value)}
             onChange={(event) => replace(chip, [event.target.value])}
             onKeyDown={(event) => {
@@ -437,7 +437,7 @@ export function ExpressionReferencePopover() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(--spacing(152),calc(100vw_-_--spacing(8)))]" data-testid="expression-reference">
         <div className="grid gap-2">
-          <p className="font-heading text-sm font-semibold">Expression Reference</p>
+          <p className="font-sans text-sm font-semibold">Expression Reference</p>
           {/* Three content-sized columns: a result list reads as one line, never
               one number per row. */}
           <dl className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-4 gap-y-1 text-xs">

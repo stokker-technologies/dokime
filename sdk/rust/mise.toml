@@ -1,0 +1,41 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
+[env]
+CARGO_BUILD_WARNINGS = "deny"
+CARGO_TARGET_DIR = "{{config_root}}/../../target"
+
+[tasks."sdk:build"]
+description = "Build the Rust SDK and Sample Plugin"
+run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --bins"
+
+[tasks."sdk:test"]
+description = "Run Focused Rust SDK Journeys"
+run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml --test integration"
+
+[tasks."sdk:tree"]
+description = "Prove Protocol-Only SDK Product Dependencies"
+run = "python tools/dependency_tree.py"
+
+
+[tasks."sdk:prepare"]
+description = "Refresh the External SDK Consumer Lock"
+run = "cargo generate-lockfile --manifest-path tests/consumer/Cargo.toml"
+
+[tasks."sdk:format"]
+description = "Format Rust SDK Sources and Manifests"
+run = [
+  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs tests/integration/main.rs tests/consumer/src/main.rs tests/fixtures/resources.rs starter/src/main.rs",
+  "taplo fmt --config ../../tools/config/taplo.toml --option column_width=140 Cargo.toml derive/Cargo.toml tests/consumer/Cargo.toml mise.toml starter/Cargo.toml starter/mise.toml",
+  "uv run --no-sync --project ../../tools/python ruff format tools",
+]
+
+[tasks."sdk:lint"]
+description = "Lint the Focused Rust SDK and Stories"
+run = "cargo clippy --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"

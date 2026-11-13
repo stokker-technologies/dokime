@@ -149,7 +149,7 @@ export type TelemetryVerificationCondition = {
 };
 
 export type PromptVerification = {
-  condition: RecordVerificationCondition | TelemetryVerificationCondition;
+  condition: RecordVerificationCondition | TelemetryVerificationCondition | { kind: "host"; label: string };
 };
 
 export type PromptRequest = {

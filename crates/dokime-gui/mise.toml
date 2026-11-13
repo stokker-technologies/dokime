@@ -1,0 +1,39 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Settings === #
+
+# === Tools === #
+
+# === Environment === #
+
+# === Variables === #
+
+# === Generate === #
+
+[tasks."generate:host"]
+hide = true
+description = "Generate Desktop Execution Host Dispatch"
+run = "node tools/host-bindings.mjs"
+
+[tasks."generate:host-frontend"]
+hide = true
+description = "Generate Canonical Desktop Host Messages"
+run = "node tools/host-bindings.mjs --frontend"
+
+[tasks."generate:report"]
+hide = true
+description = "Generate the Embedded Report"
+run = "pnpm run build:report"
+
+# === Build === #
+
+[tasks."build:frontend"]
+hide = true
+description = "Build the Desktop Frontend from Prepared Messages"
+run = ["pnpm run typecheck", "pnpm run build:live"]

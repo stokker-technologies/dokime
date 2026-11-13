@@ -13,19 +13,21 @@
 
 /* === Local Imports === */
 
+import * as v1 from "@host/dokime/v1/client_types_pb.js";
+import { jsonToNativeValue, nativeValuesToJson } from "@/lib/host/values";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   HostCardBlock,
-  RuntimePluginSettings as LegacyPluginRuntimeSettings,
+  RuntimePluginSettings as PluginSettingsView,
   RuntimeSettingsCard,
   RuntimeSettingsFrame,
   RuntimeSettingsSection,
   SettingsEntry,
 } from "@/lib/types/view-contracts";
 
-import { jsonToNativeValue, nativeValueObjectToJson, safeNumber } from "./native-values";
+import { safeNumber } from "./native-values";
 
 /* === Types === */
 
@@ -33,12 +35,11 @@ type SettingsFrame = Wire<Awaited<ReturnType<typeof rpc.settingsGetSettings>>>;
 type SettingsSection = SettingsFrame["sections"][number];
 type SettingsCard = SettingsFrame["cards"][number];
 type SettingsCardState = SettingsCard["state"];
-type HostCardTone = NonNullable<
-  Extract<NonNullable<NonNullable<SettingsCard["body"]>["blocks"][number]["kind"]>["HarmosVariant"], { case: "Status" }>["value"]["field0"]
->["tone"];
+type HostCardTone = v1.HostCardTone;
+
 type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>>;
-type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["contributions"][number];
-type SettingValues = LegacyPluginRuntimeSettings["values"];
+type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["settings"][number];
+type SettingValues = PluginSettingsView["values"];
 
 /* === Settings frame === */
 
@@ -56,16 +57,16 @@ export async function fetchNativeSettingsFrame(session: SessionIdentity): Promis
 
 export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
-export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSettings): LegacyPluginRuntimeSettings {
+export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSettings): PluginSettingsView {
   return {
     settings: {
-      contributions: settings.settings?.contributions.map(mapSettingContribution) ?? [],
+      contributions: settings.settings?.settings.map(mapSettingContribution) ?? [],
     },
-    values: nativeValueObjectToJson(settings.values) as SettingValues,
-    discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
+    values: nativeValuesToJson(settings.values?.values) as SettingValues,
+    discovered: nativeValuesToJson(settings.discovered?.values) as SettingValues,
     secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
-    restart: mapPluginRestart(settings.restart),
-    unapplied: settings.unapplied,
+    restart: undefined,
+    unapplied: undefined,
   };
 }
 
@@ -77,7 +78,7 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
   return mapNativePluginRuntimeSettings(
     await rpc.settingsUpdatePluginSettings(session, {
       pluginId,
-      values: jsonToNativeValue(values),
+      values: { values: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, jsonToNativeValue(value)])) },
     }),
   );
 }
@@ -86,10 +87,10 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
 
 function mapSettingsSection(section: SettingsSection): RuntimeSettingsSection {
   const owner =
-    section.owner?.HarmosVariant.case === "App"
+    section.owner?.kind.case === "app"
       ? { kind: "app" as const }
-      : section.owner?.HarmosVariant.case === "InstalledPluginId"
-        ? { kind: "installed_plugin" as const, plugin_id: section.owner.HarmosVariant.value.field0 }
+      : section.owner?.kind.case === "installedPluginId"
+        ? { kind: "installed_plugin" as const, plugin_id: section.owner.kind.value }
         : null;
   if (!owner) throw new Error(`Native settings section ${section.sectionId} has no owner.`);
   return {
@@ -116,14 +117,14 @@ function mapSettingsCard(card: SettingsCard): RuntimeSettingsCard {
 }
 
 function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][number]): HostCardBlock {
-  const variant = block.kind?.HarmosVariant;
+  const variant = block.kind?.kind;
   switch (variant?.case) {
-    case "Text": {
-      const entry = variant.value.field0;
+    case "text": {
+      const entry = variant.value;
       return { type: "text", text: entry };
     }
-    case "Status": {
-      const entry = variant.value.field0;
+    case "status": {
+      const entry = variant.value;
       if (!entry) throw new Error("Native settings omitted its status payload.");
       return {
         type: "status",
@@ -132,8 +133,8 @@ function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][num
         detail: entry.detail ?? null,
       };
     }
-    case "KeyValueList": {
-      const entry = variant.value.field0;
+    case "keyValueList": {
+      const entry = variant.value;
       if (!entry) throw new Error("Native settings omitted its keyValueList payload.");
       return {
         type: "key_value_list",
@@ -144,8 +145,8 @@ function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][num
         })),
       };
     }
-    case "Metrics": {
-      const entry = variant.value.field0;
+    case "metrics": {
+      const entry = variant.value;
       if (!entry) throw new Error("Native settings omitted its metrics payload.");
       return {
         type: "metrics",
@@ -163,100 +164,55 @@ function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][num
 }
 
 function mapSettingContribution(contribution: SettingContribution): SettingsEntry {
-  const variant = contribution.kind?.HarmosVariant;
-  switch (variant?.case) {
-    case "Boolean": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its boolean payload.");
+  const metadata = contribution.metadata;
+  if (!metadata?.identifier) throw new Error("Read Plugin Settings: Missing Setting Identity");
+  const common = { id: metadata.identifier, title: metadata.label, description: metadata.description ?? null };
+  const variant = contribution.kind;
+  switch (variant.case) {
+    case "boolean":
+      return { ...common, kind: "boolean", default: variant.value.defaultValue };
+    case "text":
+      return { ...common, kind: "text_area", default: variant.value.defaultValue, required: variant.value.required };
+    case "path":
+      return { ...common, kind: "path", default: variant.value.defaultValue, required: variant.value.required };
+    case "number":
       return {
-        kind: "boolean",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        default: entry.default,
-      };
-    }
-    case "TextArea": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its text area payload.");
-      return {
-        kind: "text_area",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        default: entry.default,
-        required: entry.required,
-      };
-    }
-    case "Path": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its path payload.");
-      return {
-        kind: "path",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        default: entry.default,
-        required: entry.required,
-      };
-    }
-    case "Number": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its number payload.");
-      return {
+        ...common,
         kind: "number",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        default: entry.default,
-        min: entry.min ?? null,
-        max: entry.max ?? null,
-        step: entry.step ?? null,
+        default: variant.value.defaultValue,
+        min: variant.value.min ?? null,
+        max: variant.value.max ?? null,
+        step: variant.value.step ?? null,
       };
-    }
-    case "MultipleChoice": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its choice payload.");
+    case "choice":
       return {
+        ...common,
         kind: "multiple_choice",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        default: entry.default,
-        choices: entry.choices.map((choice) => ({ value: choice.value, title: choice.title })),
-        provider: entry.provider ?? null,
+        default: variant.value.defaultValue,
+        choices: variant.value.choices.map((choice) => ({ value: choice.value, title: choice.label })),
+        provider: variant.value.provider ?? null,
       };
-    }
-    case "Secret": {
-      const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its secret declaration payload.");
-      return {
-        kind: "secret",
-        id: entry.id,
-        title: entry.title,
-        description: entry.description ?? null,
-        required: entry.required,
-      };
-    }
+    case "secret":
+      return { ...common, kind: "secret", required: variant.value.required };
     default:
-      throw new Error("Native settings returned a contribution without a kind.");
+      throw new Error("Read Plugin Settings: Missing Setting Kind");
   }
 }
 
 function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): RuntimeSettingsCard["refresh"] {
-  const variant = policy.policy?.HarmosVariant;
+  const variant = policy.policy?.kind;
   switch (variant?.case) {
-    case "Manual":
+    case "manual":
       return { kind: "manual" };
-    case "Cached": {
-      const cached = variant.value.field0;
+    case "cached": {
+      const cached = variant.value;
       if (!cached) throw new Error("Native settings omitted its cached refresh policy.");
       return {
         kind: "cached",
         max_age_ms: safeNumber(cached.maxAgeMs, "Settings cache age"),
       };
     }
-    case "OnDemand":
+    case "onDemand":
       return { kind: "on_demand" };
     default:
       throw new Error("Native settings returned a refresh policy without a kind.");
@@ -264,48 +220,35 @@ function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): Runtime
 }
 
 function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "warning" | "danger" {
-  switch (tone?.HarmosVariant.case) {
-    case "Neutral":
+  switch (tone) {
+    case v1.HostCardTone.NEUTRAL:
       return "neutral";
-    case "Info":
+    case v1.HostCardTone.INFO:
       return "info";
-    case "Success":
+    case v1.HostCardTone.SUCCESS:
       return "success";
-    case "Warning":
+    case v1.HostCardTone.WARNING:
       return "warning";
-    case "Danger":
+    case v1.HostCardTone.DANGER:
       return "danger";
     default:
       return "neutral";
   }
 }
 
-function mapPluginRestart(restart: PluginRuntimeSettings["restart"]): LegacyPluginRuntimeSettings["restart"] {
-  switch (restart?.HarmosVariant.case) {
-    case "Idle":
-      return "idle";
-    case "Restarting":
-      return "restarting";
-    case "Pending":
-      return "pending";
-    default:
-      throw new Error("Native plugin settings returned an unknown restart state.");
-  }
-}
-
 function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["state"] {
-  switch (state?.HarmosVariant.case) {
-    case "Ready":
+  switch (state) {
+    case v1.SettingsCardState.READY:
       return "ready";
-    case "Disabled":
+    case v1.SettingsCardState.DISABLED:
       return "disabled";
-    case "Disconnected":
+    case v1.SettingsCardState.DISCONNECTED:
       return "disconnected";
-    case "Stale":
+    case v1.SettingsCardState.STALE:
       return "stale";
-    case "Error":
+    case v1.SettingsCardState.ERROR:
       return "error";
-    case "PermissionDenied":
+    case v1.SettingsCardState.PERMISSION_DENIED:
       return "permission_denied";
     default:
       throw new Error("Native settings returned an unknown card state.");

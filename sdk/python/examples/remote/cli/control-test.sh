@@ -3,7 +3,7 @@
 set -eu
 
 # Connection Parameters
-BACKEND_IDENTIFIER="lab"
+PAIRING_FILE="../lab.pair"
 
 # Case and Execution Parameters
 TEMPLATE="obc.checks.pulse"
@@ -20,8 +20,8 @@ STREAMS="obc.pulse"
 OUTPUT_DIRECTORY="test-evidence"
 OVERWRITE=false
 
-# Select the Imported Profile Once; Each Call Below Shows Its Remote Command.
-set -- --backend "$BACKEND_IDENTIFIER"
+# Select The Pairing File; Each Call Below Shows Its Remote Command.
+set -- --remote "$PAIRING_FILE"
 
 cycle=""
 execution=""

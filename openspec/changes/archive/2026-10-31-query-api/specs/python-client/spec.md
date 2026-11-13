@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Lazy Finite Query Readers
-The client SHALL expose the synchronous lazy query factories in `design.md` as single-consumer async readers. Factories SHALL perform no network I/O; consumption SHALL fetch on demand. Omitted filters SHALL be unconstrained within scope. Existing lookups, records/samples, owned contexts, checkpoint and lifecycle semantics SHALL remain unchanged.
+The client SHALL expose the synchronous lazy query factories in `design.md` as single-consumer async readers. Factories SHALL perform no network I/O; consumption SHALL fetch on demand. Omitted filters SHALL be unconstrained within scope. Existing lookups, records/samples, explicit owned-resource lifecycles, checkpoint and lifecycle semantics SHALL remain unchanged.
 
 #### Scenario: Factory Arguments
 - **WHEN** callers build execution/cycle discovery or evidence readers
@@ -28,7 +28,7 @@ Equality maps SHALL be conjunctions; exported `Predicate(field, operator, value)
 - **AND** a mean string or unsupported percentile rank is rejected with readable guidance to the existing Aggregate vocabulary
 
 ### Requirement: Typed Rows And Page Control
-Readers SHALL expose async items, pages(), snapshot after the first response, and aclose()/async-context cleanup. Concurrent/mixed consumption SHALL fail. Record/Sample decoding SHALL preserve captured types; bucket/history rows SHALL use distinct models. Closing/cancelling SHALL stop further page requests without execution lifecycle calls.
+Readers SHALL expose async items, pages(), snapshot after the first response, and explicit aclose() cleanup. Concurrent/mixed consumption SHALL fail. Record/Sample decoding SHALL preserve captured types; bucket/history rows SHALL use distinct models. Closing/cancelling SHALL stop further page requests without execution lifecycle calls.
 
 #### Scenario: Page And Row Metadata
 - **WHEN** a reader receives a page

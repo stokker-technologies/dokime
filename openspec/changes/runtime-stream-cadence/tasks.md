@@ -9,7 +9,6 @@
 - [x] 1.5 Update product guide and applicable authoring/architecture guidance; review README impact.
 - [x] 1.6 Review paired integration and remove obsolete cadence paths; all writers hand off.
 - [x] 1.7 Migrate domains/telemetry/leases.rs to authoritative observer inventory; preserve published-stream behavior, update lease/capture tests and finalization benchmark fixture cadence.
-
 - [x] 1.8 Correct observer defaults: required validated interval_ms, optional activation override, migrate all consumers, add fallback/override validation coverage and update maintained docs/specification; host defaults remain settings-owned.
 
 ## Validation and Delivery
@@ -18,6 +17,12 @@
 - [x] 2.2 After source closure, run requested workspace check and format.
 - [x] 2.3 Commit owned Dokime changes without local override or path-resolved lockfile; do not push.
 
+## 3. Released Dependency Proof
+
+- [x] 3.1 Pin published Harmos 0.1.14 in workspace declarations and lockfile with no local override.
+- [ ] 3.2 Validate cadence consumers against the unpatched published dependency graph through focused native tasks; migrate the host-tick cadence in the gRPC adoption without restoring stream-owned intervals.
+
 ## Workflow Follow-Up
 
-- [ ] 3.1 After upstream publication, pin verified Harmos, remove local override, resolve the published lockfile and validate the unpatched graph. **Remaining:** Cargo.toml and Cargo.lock use an immutable Harmos git revision, with no local Cargo override present. The requested subsequent published release pin and unpatched released-graph validation are still pending.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.

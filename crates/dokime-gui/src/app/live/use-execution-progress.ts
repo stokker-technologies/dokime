@@ -23,12 +23,10 @@ const GUI_RECONNECT_MS = 1_000;
 
 export interface LiveExecutionProgress {
   testExecutionId: string;
-  stepId: string;
+  label: string;
   phase: string;
   completed: number;
   total: number;
-  elapsedMs: number;
-  remainingMs: number | null;
 }
 
 /* === Public Functions === */
@@ -54,16 +52,14 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
           if (!active || !session.identity.isCurrent()) break;
           const value = frame.progress;
           setProgress(
-            frame.cleared || !value
+            !value
               ? null
               : {
                   testExecutionId: value.testExecutionId,
-                  stepId: value.stepId,
+                  label: value.label,
                   phase: value.phase,
                   completed: safeNumber(value.completed, "execution progress completed"),
                   total: safeNumber(value.total, "execution progress total"),
-                  elapsedMs: safeNumber(value.elapsedMs, "execution progress elapsed"),
-                  remainingMs: value.remainingMs === undefined ? null : safeNumber(value.remainingMs, "execution progress ETA"),
                 },
           );
         }

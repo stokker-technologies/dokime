@@ -1,0 +1,307 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+
+message HistoryBrowseCyclesRequest {
+  uint32 limit = 1;
+  StorageCursor at = 2;
+  uint64 after_sequence = 3;
+  CycleFilter filter = 4;
+}
+
+message HistoryBrowseCyclesRunInput {
+  oneof value {
+    HistoryBrowseCyclesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryBrowseCyclesRunOutput {
+  oneof value {
+    CycleBrowsePage response = 2;
+  }
+}
+
+message HistoryBrowseExecutionsRequest {
+  uint32 limit = 1;
+  string after_execution_id = 2;
+  ExecutionFilter filter = 3;
+  ExecutionOrder order = 4;
+  // Bind continuations to the captured selection, order and revision.
+  Cursor cursor = 5;
+}
+
+message HistoryBrowseExecutionsRunInput {
+  oneof value {
+    HistoryBrowseExecutionsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryBrowseExecutionsRunOutput {
+  oneof value {
+    ExecutionBrowsePage response = 2;
+  }
+}
+
+message HistoryDeleteExecutionRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  string request_identifier = 2;
+}
+
+message HistoryDeleteExecutionRunInput {
+  oneof value {
+    HistoryDeleteExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryDeleteExecutionRunOutput {
+  oneof value {
+    DeleteExecutionResponse response = 2;
+  }
+}
+
+message HistoryDownloadCheckpointArtifactRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  string artifact_id = 2;
+}
+
+message HistoryDownloadCheckpointArtifactOutput {
+  oneof value {
+    ArtifactFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message HistoryDownloadCheckpointArtifactRunInput {
+  oneof value {
+    HistoryDownloadCheckpointArtifactRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryDownloadCheckpointArtifactRunOutput {
+  oneof value {
+    ArtifactFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message HistoryGetCheckpointContextRequest {
+  ExecutionCheckpoint checkpoint = 1;
+}
+
+message HistoryGetCheckpointContextRunInput {
+  oneof value {
+    HistoryGetCheckpointContextRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryGetCheckpointContextRunOutput {
+  oneof value {
+    CheckpointContext response = 2;
+  }
+}
+
+message HistoryGetCheckpointDocumentRequest {
+  ExecutionCheckpoint checkpoint = 1;
+}
+
+message HistoryGetCheckpointDocumentRunInput {
+  oneof value {
+    HistoryGetCheckpointDocumentRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryGetCheckpointDocumentRunOutput {
+  oneof value {
+    CheckpointDocument response = 2;
+  }
+}
+
+message HistoryGetCheckpointEvidenceRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  repeated EvidenceSection sections = 2;
+}
+
+message HistoryGetCheckpointEvidenceRunInput {
+  oneof value {
+    HistoryGetCheckpointEvidenceRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryGetCheckpointEvidenceRunOutput {
+  oneof value {
+    CheckpointEvidence response = 2;
+  }
+}
+
+message HistoryGetExecutionCheckpointRequest {
+  string execution_identifier = 1;
+}
+
+message HistoryGetExecutionCheckpointRunInput {
+  oneof value {
+    HistoryGetExecutionCheckpointRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryGetExecutionCheckpointRunOutput {
+  oneof value {
+    ExecutionCheckpoint response = 2;
+  }
+}
+
+message HistoryListCheckpointRecordsRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  uint32 limit = 2;
+  string after = 3;
+}
+
+message HistoryListCheckpointRecordsRunInput {
+  oneof value {
+    HistoryListCheckpointRecordsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryListCheckpointRecordsRunOutput {
+  oneof value {
+    CheckpointRecordPage response = 2;
+  }
+}
+
+message HistoryListCheckpointTelemetryRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  string table = 2;
+  uint32 limit = 3;
+  string after = 4;
+}
+
+message HistoryListCheckpointTelemetryRunInput {
+  oneof value {
+    HistoryListCheckpointTelemetryRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryListCheckpointTelemetryRunOutput {
+  oneof value {
+    CheckpointTelemetryPage response = 2;
+  }
+}
+
+message HistoryReadCheckpointOutputRequest {
+  ExecutionCheckpoint checkpoint = 1;
+  string relative_path = 2;
+  uint64 offset = 3;
+  uint32 max_bytes = 4;
+}
+
+message HistoryReadCheckpointOutputRunInput {
+  oneof value {
+    HistoryReadCheckpointOutputRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message HistoryReadCheckpointOutputRunOutput {
+  oneof value {
+    CheckpointFileWindow response = 2;
+  }
+}
+
+service History {
+  // Public. dokime.history.browse_cycles. Follow the returned continuation with unchanged filters/order and its
+  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  // Saved-history sequence order at the captured storage cursor; retain that frontier for every continuation.
+  rpc BrowseCycles (.dokime.v1.HistoryBrowseCyclesRequest) returns (.dokime.v1.CycleBrowsePage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunBrowseCycles (stream .dokime.v1.HistoryBrowseCyclesRunInput) returns (stream .dokime.v1.HistoryBrowseCyclesRunOutput);
+  // Public. dokime.history.browse_executions. Follow the returned continuation with unchanged filters/order and
+  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution. `filter` and `order` must be repeated unchanged on every
+  // continuation, and `after_execution_id` must still be a member of the filtered result. A changed selection, a
+  // changed order, or a continuation ID the filter excludes is rejected rather than silently restarted.
+  rpc BrowseExecutions (.dokime.v1.HistoryBrowseExecutionsRequest) returns (.dokime.v1.ExecutionBrowsePage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunBrowseExecutions (stream .dokime.v1.HistoryBrowseExecutionsRunInput) returns (stream .dokime.v1.HistoryBrowseExecutionsRunOutput);
+  // Public. dokime.history.delete_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Permanently delete one sealed historical execution. The caller supplies a stable request
+  // identifier so a retry can identify the accepted deletion.
+  rpc DeleteExecution (.dokime.v1.HistoryDeleteExecutionRequest) returns (.dokime.v1.DeleteExecutionResponse);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDeleteExecution (stream .dokime.v1.HistoryDeleteExecutionRunInput) returns (stream .dokime.v1.HistoryDeleteExecutionRunOutput);
+  // Public. dokime.history.download_checkpoint_artifact. Output items precede the final response; require
+  // successful final status. Cancelling this call does not undo committed mutations or cancel an admitted
+  // execution.
+  rpc DownloadCheckpointArtifact (.dokime.v1.HistoryDownloadCheckpointArtifactRequest)
+      returns (stream .dokime.v1.HistoryDownloadCheckpointArtifactOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadCheckpointArtifact (stream .dokime.v1.HistoryDownloadCheckpointArtifactRunInput)
+      returns (stream .dokime.v1.HistoryDownloadCheckpointArtifactRunOutput);
+  // Public. dokime.history.get_checkpoint_context. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc GetCheckpointContext (.dokime.v1.HistoryGetCheckpointContextRequest) returns (.dokime.v1.CheckpointContext);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetCheckpointContext (stream .dokime.v1.HistoryGetCheckpointContextRunInput)
+      returns (stream .dokime.v1.HistoryGetCheckpointContextRunOutput);
+  // Public. dokime.history.get_checkpoint_document. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc GetCheckpointDocument (.dokime.v1.HistoryGetCheckpointDocumentRequest) returns (.dokime.v1.CheckpointDocument);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetCheckpointDocument (stream .dokime.v1.HistoryGetCheckpointDocumentRunInput)
+      returns (stream .dokime.v1.HistoryGetCheckpointDocumentRunOutput);
+  // Public. dokime.history.get_checkpoint_evidence. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc GetCheckpointEvidence (.dokime.v1.HistoryGetCheckpointEvidenceRequest) returns (.dokime.v1.CheckpointEvidence);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetCheckpointEvidence (stream .dokime.v1.HistoryGetCheckpointEvidenceRunInput)
+      returns (stream .dokime.v1.HistoryGetCheckpointEvidenceRunOutput);
+  // Public. dokime.history.get_execution_checkpoint. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution. Bounded inspection of one existing saved seal; never flushes or publishes.
+  // NOT_FOUND means no saved seal is available, including an unsealed row.
+  // Reads the exact inspected sealed revision; never creates or publishes a newer checkpoint.
+  rpc GetExecutionCheckpoint (.dokime.v1.HistoryGetExecutionCheckpointRequest) returns (.dokime.v1.ExecutionCheckpoint);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetExecutionCheckpoint (stream .dokime.v1.HistoryGetExecutionCheckpointRunInput)
+      returns (stream .dokime.v1.HistoryGetExecutionCheckpointRunOutput);
+  // Public. dokime.history.list_checkpoint_records. Follow the returned continuation with unchanged filters/order
+  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  rpc ListCheckpointRecords (.dokime.v1.HistoryListCheckpointRecordsRequest) returns (.dokime.v1.CheckpointRecordPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCheckpointRecords (stream .dokime.v1.HistoryListCheckpointRecordsRunInput)
+      returns (stream .dokime.v1.HistoryListCheckpointRecordsRunOutput);
+  // Public. dokime.history.list_checkpoint_telemetry. Follow the returned continuation with unchanged
+  // filters/order and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo
+  // committed mutations or cancel an admitted execution.
+  rpc ListCheckpointTelemetry (.dokime.v1.HistoryListCheckpointTelemetryRequest) returns (.dokime.v1.CheckpointTelemetryPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCheckpointTelemetry (stream .dokime.v1.HistoryListCheckpointTelemetryRunInput)
+      returns (stream .dokime.v1.HistoryListCheckpointTelemetryRunOutput);
+  // Public. dokime.history.read_checkpoint_output. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc ReadCheckpointOutput (.dokime.v1.HistoryReadCheckpointOutputRequest) returns (.dokime.v1.CheckpointFileWindow);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReadCheckpointOutput (stream .dokime.v1.HistoryReadCheckpointOutputRunInput)
+      returns (stream .dokime.v1.HistoryReadCheckpointOutputRunOutput);
+}

@@ -32,10 +32,7 @@ use std::{
 };
 
 // Third Party Imports
-use dokime::harmos::domain::Portable;
-use dokime::harmos::grpc::{Transcoded, Wire};
-use harmos_sdk::grpc::DecodeInput;
-use sha2::{Digest, Sha256};
+use prost::Message;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
@@ -49,7 +46,12 @@ use calls::Streams;
 const DESKTOP_CALLS: u64 = 8;
 const DESKTOP_STREAMS: u64 = 24;
 
-pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
+pub const FILE_DESCRIPTOR_SET: &[u8] = dokime_protocol::FILE_DESCRIPTOR_SET;
+
+/// Fence Both the Product and Its Pinned Library Contracts.
+pub fn descriptor_digest() -> [u8; 32] {
+    crate::connection::host::DESCRIPTOR_SHA256
+}
 pub const COMMANDS: &[&str] = &[
     "rpc",
     "rpc_stream_open",
@@ -107,20 +109,18 @@ impl From<tonic::Status> for RpcError {
     }
 }
 
-impl From<dokime::client::Error> for RpcError {
-    fn from(error: dokime::client::Error) -> Self {
+impl From<crate::connection::host::Error> for RpcError {
+    fn from(error: crate::connection::host::Error) -> Self {
         match error {
-            dokime::client::Error::Rpc(status) => rpc_error(status),
+            crate::connection::host::Error::Rpc(status) => rpc_error(status),
             error => ConnectionError::from(error).into(),
         }
     }
 }
 
 impl Context {
-    fn client(&self) -> dokime::client::Client {
-        self.lease
-            .client()
-            .with_frame_limit(std::num::NonZeroUsize::new(DESKTOP_FRAME_BYTES as usize).expect("positive desktop frame bound"))
+    fn client(&self) -> crate::connection::host::Session {
+        self.lease.client()
     }
 
     async fn execute<T, E: Into<RpcError>>(&self, future: impl Future<Output = Result<T, E>>) -> Result<T, RpcError> {
@@ -156,10 +156,10 @@ impl Context {
         Ok(())
     }
 
-    fn reply<M: Portable>(&self, message: M) -> Result<tauri::ipc::Response, RpcError> {
+    fn reply<M: Message>(&self, message: M) -> Result<tauri::ipc::Response, RpcError> {
         self.check()?;
         let mut payload = Vec::new();
-        <Transcoded as Wire<M>>::encode(&message, &mut payload).map_err(|error| RpcError::Grpc {
+        message.encode(&mut payload).map_err(|error| RpcError::Grpc {
             code: tonic::Code::Internal as i32,
             message: format!("message encoding failed: {error}"),
             details: Vec::new(),
@@ -217,7 +217,7 @@ impl Bridge {
         Arc::clone(budget).try_acquire_owned().map_err(|_| RpcError::Busy)
     }
 
-    fn prepare<M: Portable>(
+    fn prepare<M: Message + Default>(
         &self, session: &ConnectionSession, owner: &str, body: &tauri::ipc::InvokeBody,
     ) -> Result<(Context, M), RpcError> {
         let (generation, payload) = request(body, DESKTOP_FRAME_BYTES as usize)?;
@@ -265,7 +265,7 @@ fn request(body: &tauri::ipc::InvokeBody, maximum: usize) -> Result<(u64, &[u8])
     if bytes.len() > maximum.saturating_add(REQUEST_HEADER) {
         return Err(RpcError::LimitExceeded);
     }
-    let compiled = Sha256::digest(FILE_DESCRIPTOR_SET);
+    let compiled = descriptor_digest();
     if bytes[8..REQUEST_HEADER] != compiled[..] {
         return Err(RpcError::IncompatibleDescriptor);
     }
@@ -276,11 +276,11 @@ fn read_u64(bytes: &[u8]) -> Result<u64, RpcError> {
     Ok(u64::from_le_bytes(bytes.get(..8).ok_or(RpcError::InvalidRequest)?.try_into().map_err(|_| RpcError::InvalidRequest)?))
 }
 
-fn decode<M: Portable>(bytes: &[u8], maximum: usize) -> Result<M, RpcError> {
+fn decode<M: Message + Default>(bytes: &[u8], maximum: usize) -> Result<M, RpcError> {
     if bytes.len() > maximum {
         return Err(RpcError::LimitExceeded);
     }
-    harmos_sdk::grpc::decode::<M>(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)
+    M::decode(bytes).map_err(|_| RpcError::InvalidRequest)
 }
 
 /* === Tests === */

@@ -1,7 +1,7 @@
 # stream-schema-revisions Specification
 
 ## Purpose
-TBD - created by archiving change stream-schema-revisions. Update Purpose after archive.
+Retain immutable row definitions so live reloads and restarts preserve correct decoding, queries and reports across schema revisions.
 
 ## Requirements
 

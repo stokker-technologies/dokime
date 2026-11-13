@@ -33,7 +33,7 @@ export function SettingsCard({ actions, children, className, description, footer
   return (
     /* A column, so a card stretched to its grid row grows its body and keeps
        the footer on the row's bottom edge. */
-    <section className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", className)}>
+    <section className={cn("flex min-w-0 flex-col overflow-hidden border-t bg-transparent", className)}>
       {title || description ? (
         <header className="flex items-center justify-between gap-4 border-b px-4 py-3">
           <div>
@@ -45,7 +45,7 @@ export function SettingsCard({ actions, children, className, description, footer
       ) : null}
       {/* A table in the body is the card's own list: the card draws its edge. */}
       <div className="flex-1 divide-y [&>[data-slot=data-table]]:rounded-none [&>[data-slot=data-table]]:border-0">{children}</div>
-      {footer ? <footer className="border-t bg-muted/20 px-4 py-3">{footer}</footer> : null}
+      {footer ? <footer className="border-t px-4 py-3">{footer}</footer> : null}
     </section>
   );
 }

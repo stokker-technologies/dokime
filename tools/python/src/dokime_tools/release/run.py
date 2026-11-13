@@ -22,21 +22,23 @@ import subprocess
 import sys
 import tomllib
 import urllib.parse
+import zipfile
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from ..build import paths
+from ..build import paths, wheel
 from ..process import spawn_flags
 
 # isort: split
-from .. import temporary
+from .. import policy, temporary
 from ..package import run as packages
 from ..package.changelog import notes
+from ..screenshots import run as screenshots
 from ..test import archive
-from . import layout, notices, pins, policy, registry, sbom, screenshots, version
+from . import layout, notices, pins, registry, reports, sbom, version
 
 # Type Checking Imports
 
@@ -46,8 +48,8 @@ from . import layout, notices, pins, policy, registry, sbom, screenshots, versio
 
 STABLE = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 SUMS = "SHA256SUMS"
-# Downloads.json Repeats SHA256SUMS Digests, So It Is Uploaded Beside, Never Inside, SHA256SUMS.
-DOWNLOADS = "downloads.json"
+# The Index Describes Payloads; SHA256SUMS Covers The Index Without A Digest Cycle.
+INDEX = "release.json"
 STATE = "published.json"
 # Staged downloads live under <target>/; SHA256SUMS and the publication state span targets and live under any/.
 ASSETS = "target/release-assets"
@@ -130,16 +132,12 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         name = layout.asset_name(directory, settings, definition, selected, tag, source)
         if name is None:
             continue
-        reserved = {SUMS, STATE, DOWNLOADS, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
+        reserved = {SUMS, STATE, INDEX, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
         if Path(name).name != name or name in reserved or "\\" in name or any(ord(character) < 32 for character in name):
             raise policy.ToolError(f"invalid release asset name: {name}")
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append({"name": name, "path": relative, "target": selected})
-    wheels = sorted((paths.output(directory, "package", profile, selected) / "python").glob("*.whl"))
-    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
-        raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
-    result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
 
 
@@ -176,7 +174,14 @@ def stage(
     shared.mkdir(parents=True)
     for name, content in packaged_notices.items():
         (shared / name).write_bytes(content)
+    python = paths.output(directory, "package", profile, SHARED) / "python"
+    selected_python = wheel.distributions(directory, python, tag[1:])
     files = []
+    for source in selected_python:
+        destination = shared / source.name
+        shutil.copyfile(source, destination)
+        files.append(_describe(root, destination))
+    updater = {"version": tag[1:], "platforms": {}}
     plugins = layout.plugins(directory, settings, tag, targets, profile)
     for selected in targets:
         # Only the native target's executables can run here; other targets arrive verified by their Package jobs.
@@ -185,12 +190,18 @@ def stage(
         (root / selected).mkdir(parents=True)
         declared = assets(directory, settings, selected, tag, profile, signed=signed)
         for asset in declared:
+            if asset["name"] == "latest.json":
+                metadata = json.loads(policy.inside(directory, asset["path"]).read_text(encoding="utf-8"))
+                if metadata["version"] != tag[1:]:
+                    raise policy.ToolError("updater metadata version differs from release")
+                updater["platforms"].update(metadata["platforms"])
+                continue
             # Downloads publish side by side, so a name must be unique across every target.
             if any(item["name"].casefold() == asset["name"].casefold() for item in files):
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
-            if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
+            if destination.name.startswith(("dokime-cli-next-",)) and destination.name.endswith((".zip", ".tar.gz")):
                 notices.archive(shared, destination)
             files.append(_describe(root, destination))
     for destination in layout.plugin_archives(directory, root, plugins):
@@ -203,31 +214,52 @@ def stage(
     if source_revision is not None:
         content += f"\nSource Commit: {source_revision}\n"
     changelog.write_text(content, encoding="utf-8", newline="\n")
-    files.append(_describe(root, changelog))
-    if plugins:
-        feed = root / SHARED / "plugins.json"
-        policy.write_json(feed, layout.plugin_feed(settings, tag, plugins))
-        files.append(_describe(root, feed))
-    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-        destination = root / SHARED / name
-        files.append(_describe(root, destination))
+    protocol = root / SHARED / f"dokime-proto-{tag[1:]}.zip"
+    native = _native()
+    if native not in targets:
+        raise policy.ToolError("protocol export requires a packaged native CLI target")
+    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime-next")
+    with temporary.directory() as temporary_root:
+        executable = temporary_root / cli["binary"]
+        executable.write_bytes(packages.binary_bytes(root / native / cli["output"], cli["binary"]))
+        executable.chmod(0o755)
+        # Linux's `dokime` executable must not occupy the exported `dokime/` package directory.
+        exported = temporary_root / "proto"
+        policy.execute(directory, [str(executable), "proto", "export", "--out", str(exported)])
+        sources = sorted(exported.rglob("*.proto"))
+        if not sources or not all((exported / package).is_dir() for package in ("dokime/v1", "harmos/v1")):
+            raise policy.ToolError("protocol export is missing Dokime or Harmos definitions")
+        with zipfile.ZipFile(protocol, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for source in sources:
+                archive.write(source, source.relative_to(exported).as_posix())
+    files.append(_describe(root, protocol))
+
+    compliance = root / SHARED / f"dokime-compliance-{tag[1:]}.zip"
     shell_inventory = sbom.shell(directory, root / SHARED)
-    files.append(_describe(root, shell_inventory))
-    for selected in targets:
-        rust = sbom.workspace(directory, layout.triple(directory, settings, selected), root / selected)
-        originals = [item for item in files if Path(item["path"]).parts[0] == selected]
-        for source in rust:
-            files.append(_describe(root, source))
-        for item in originals:
-            source = root / item["path"]
-            if not source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm")):
-                continue
-            desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
-            inventories = [*rust, shell_inventory] if desktop else rust
-            destination = sbom.artifact(directory, source, root / selected, inventories)
+    with zipfile.ZipFile(compliance, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+            archive.write(shared / name, name)
+        archive.write(shell_inventory, "crates/any/" + shell_inventory.name)
+        for selected in targets:
+            rust = sbom.workspace(directory, layout.triple(directory, settings, selected), root / selected)
+            for source in rust:
+                archive.write(source, f"crates/{selected}/{source.name}")
+            for item in files:
+                source = root / item["path"]
+                if item["path"].split("/")[0] not in (selected, SHARED):
+                    continue
+                if selected != targets[0] and item["path"].split("/")[0] == SHARED:
+                    continue
+                desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
+                inventories = [*rust, shell_inventory] if desktop else rust
+                if source.parent == shared and source.name.endswith((".whl", ".tar.gz")):
+                    inventories = []
+                destination = sbom.artifact(directory, source, source.parent, inventories)
+                archive.write(destination, "artifacts/" + destination.name)
+    files.append(_describe(root, compliance))
+    if channel == "nightly":
+        for destination in reports.stage(directory, shared, tag[1:]):
             files.append(_describe(root, destination))
-    (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
-    files.append(_describe(root, root / SHARED / SUMS))
     executables = {
         item["name"]: "cli" if item["command"] == settings["product"] else item["command"]
         for item in policy.config(directory).get("package", {}).get("executables", [])
@@ -240,10 +272,20 @@ def stage(
         tag=tag if channel == "stable" else channel,
         published=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         files=files,
-        sums=(root / SHARED / SUMS).read_text(encoding="utf-8"),
+        sums="".join(f"{item['sha256']}  {item['name']}\n" for item in files),
     )
-    policy.write_json(root / SHARED / DOWNLOADS, manifest)
-    files.append(_describe(root, root / SHARED / DOWNLOADS))
+    # Tauri Reads The Root Updater Fields; The Other Consumers Read Named Sections.
+    document = {
+        **updater,
+        "notes": content,
+        "pub_date": manifest["pub_date"],
+        "downloads": manifest,
+        "plugins": layout.plugin_feed(settings, tag, plugins),
+    }
+    policy.write_json(root / SHARED / INDEX, document)
+    files.append(_describe(root, root / SHARED / INDEX))
+    (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
+    files.append(_describe(root, root / SHARED / SUMS))
     layout.upload_manifest(directory, root, files)
     return files
 
@@ -253,7 +295,7 @@ def planned_version(directory: Path, current: str) -> str:
     if not policy.execute(directory, ["git", "tag", "--list", "v" + current], capture=True).strip():
         return current
     # Breaking changes bump the minor and everything else the patch while the version is 0.x, as the cliff.toml [bump] declares.
-    command = ["git-cliff", "--bumped-version"]
+    command = ["git-cliff", "--config", "tools/config/cliff.toml", "--bumped-version"]
     planned = policy.execute(directory, command, capture=True).strip().removeprefix("v")
     if planned == current:
         since = policy.execute(directory, ["git", "log", "--format=%h %s", f"v{current}..HEAD"], capture=True).strip()
@@ -378,7 +420,7 @@ def dry(
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
         packages.verify(directory, profile, native, root / native)
     print(
-        f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
+        f"staged {len(files) - 2} download(s), {SUMS} and {INDEX} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
     )
 
 
@@ -465,19 +507,24 @@ def finalize(directory: Path, settings: dict) -> None:
         raise policy.ToolError("release links differ from upload.json")
 
 
-def verify(directory: Path, settings: dict) -> None:
+def verify(directory: Path, settings: dict, *, channel: str = "stable") -> None:
     """After Publication: Download Every Published Asset, Match SHA256SUMS And Signatures, Install On This Platform."""
-    tag = release_tag(directory)
+    tag = release_tag(directory) if channel == "stable" else channel
     sha = _revision(directory)
     if registry.remote_tag(settings, tag) != sha:
         raise policy.ToolError(f"{tag} does not identify the checked-out revision")
     inventory = {item["name"]: item for item in layout.uploads(directory)}
     quoted = _quote(tag)
     if settings["provider"] == "github":
-        remote = registry.document(settings, "releases/tags/" + quoted)
-        if not isinstance(remote, dict) or remote.get("draft") or remote.get("prerelease"):
+        remote = registry.document(settings, "releases/tags/" + quoted, channel=channel != "stable")
+        if not isinstance(remote, dict) or remote.get("draft") is not False or remote.get("prerelease") is not (channel != "stable"):
             raise policy.ToolError("release is not published")
-        downloads = {item["name"]: f"releases/assets/{item['id']}" for item in registry.pages(settings, f"releases/{remote['id']}/assets")}
+        if remote.get("target_commitish") != sha:
+            raise policy.ToolError("published release identifies another revision")
+        downloads = {
+            item["name"]: f"releases/assets/{item['id']}"
+            for item in registry.pages(settings, f"releases/{remote['id']}/assets", channel=channel != "stable")
+        }
     else:
         remote = registry.document(settings, "releases/" + quoted)
         if not isinstance(remote, dict):
@@ -488,10 +535,11 @@ def verify(directory: Path, settings: dict) -> None:
         raise policy.ToolError("published downloads differ from upload.json")
     with temporary.directory() as root:
         for name, item in inventory.items():
-            data = registry.verify_download(settings, downloads[name], item)
+            data = registry.verify_download(settings, downloads[name], item, channel=channel != "stable")
             policy.inside(root, name).write_bytes(data)
         _checksums(root / SUMS, inventory)
-        registry.verify_signatures(directory, settings, root, list(inventory))
+        if channel == "stable":
+            registry.verify_signatures(directory, settings, root, list(inventory))
         native = native_target(settings)
         packages.installed(directory, {**settings, "tag": tag}, root, native)
     policy.write_json(directory / "target/state/release-publication.json", {"sha": sha, "tag": tag, "verified": True})
@@ -543,8 +591,7 @@ def tag(directory: Path, settings: dict) -> None:
         registry.create_tag(settings, name, sha)
     if registry.remote_tag(settings, name) != sha:
         raise policy.ToolError(f"{name} was not created at {sha}")
-    if _task_defined(directory, "release:publish:rust"):
-        policy.execute(directory, ["mise", "run", "release:publish:rust"])
+    crates(directory, settings)
     # main is the last released commit: a fast-forward to the tag, never a merge or a force.
     _run(directory, ["git", "push", remote, f"{sha}:refs/heads/main"], token)
     print(f"{name}: tagged at {sha}; main fast-forwarded")
@@ -571,7 +618,7 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
         _refuse_overrides(directory)
         revision = _revision(directory) if stage_only else None
         dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets)
-        if not stage_only and _task_defined(directory, "release:publish:rust"):
+        if not stage_only and _task_defined(directory, "release:tag"):
             registry.rehearse_crates(directory, skip_published=False)
         if not stage_only and _task_defined(directory, "release:publish:python"):
             registry.python(directory, settings, dry_run=True)
@@ -649,7 +696,7 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
 
 
 def _checksums(path: Path, inventory: dict) -> None:
-    expected = {name: item["sha256"] for name, item in inventory.items() if name not in {SUMS, DOWNLOADS}}
+    expected = {name: item["sha256"] for name, item in inventory.items() if name != SUMS}
     actual = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         digest, separator, name = line.partition("  ")

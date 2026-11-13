@@ -22,6 +22,7 @@ import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/comp
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
@@ -100,7 +101,6 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
     [brand.label, plugins, suiteSearch, suites],
   );
-  const rows = useMemo(() => suiteRows.flatMap(({ suite, members }) => members.map((template) => ({ suite, template }))), [suiteRows]);
   const column = dataTableColumns<OpenTemplate>();
   const columns = column.columns([
     column.accessor((row) => row.template.name, {
@@ -141,15 +141,37 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
       {suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
-      <DataTable
-        aria-label="Library"
-        columns={columns}
-        data={rows}
-        getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-        emptyText={suitesQuery.isPending ? "Loading Suites…" : suitesQuery.isError ? "Suites Unavailable" : "No Templates Match"}
-        search={{ label: "Filter Templates", value: suiteSearch, onChange: setSuiteSearch }}
-        onRowClick={setOpenTemplate}
+      <Input
+        aria-label="Filter Templates"
+        placeholder="Filter Templates"
+        value={suiteSearch}
+        onChange={(event) => setSuiteSearch(event.target.value)}
       />
+      <section className="grid gap-3" aria-label="Library">
+        {suiteRows.map(({ suite, members }) => (
+          <details key={suite.suite_id} className="rounded-lg border bg-card p-4" open={Boolean(suiteSearch) || undefined}>
+            <summary className="cursor-pointer text-sm font-semibold">
+              {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
+            </summary>
+            <div className="mt-3 grid gap-3">
+              {suite.description ? <p className="text-sm text-muted-foreground">{suite.description}</p> : null}
+              <DataTable
+                aria-label={suite.name}
+                columns={columns}
+                data={members.map((template) => ({ suite, template }))}
+                emptyText="No Templates Match"
+                getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
+                onRowClick={setOpenTemplate}
+              />
+            </div>
+          </details>
+        ))}
+        {!suiteRows.length ? (
+          <p className="text-sm text-muted-foreground">
+            {suitesQuery.isPending ? "Loading Suites…" : suitesQuery.isError ? "Suites Unavailable" : "No Templates Match"}
+          </p>
+        ) : null}
+      </section>
 
       {openTemplate ? (
         <TemplateDialog

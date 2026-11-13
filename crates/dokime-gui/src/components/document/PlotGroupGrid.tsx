@@ -18,14 +18,15 @@ import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, u
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
+import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
-import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
+import { BoxPlot } from "@/plots/catalog/BoxPlot";
 import { FrequencySeriesPlot } from "@/plots/catalog/FrequencySeriesPlot";
-import { HeatmapPlot } from "@/plots/catalog/HeatmapPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
 import { HistogramSeriesPlot } from "@/plots/catalog/HistogramPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
-import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
@@ -37,6 +38,8 @@ import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-se
 import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
+
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Types === */
 
@@ -213,6 +216,25 @@ const LivePlotCard = memo(function LivePlotCard({
   telemetry?: Record<string, TelemetryStream> | null;
   viewportMode: PlotViewportMode;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { zoom } = usePlotInteraction();
+  const setPanelWidth = useSummaryWindowStore((store) => store.setPanelWidth);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || zoom) return;
+    const measure = () => {
+      const width = Math.round(panel.getBoundingClientRect().width);
+      if (width < 1) return;
+      setPanelWidth(descriptor.plot_id, width);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => {
+      observer.disconnect();
+      setPanelWidth(descriptor.plot_id, null);
+    };
+  }, [descriptor.plot_id, setPanelWidth, zoom]);
   const plot = useMemo(() => {
     const spec = livePlotSpec({
       descriptor,
@@ -227,7 +249,7 @@ const LivePlotCard = memo(function LivePlotCard({
   }, [descriptor, parameters, plotPalette, prompts, state, telemetry, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
   return (
-    <div className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
+    <div ref={panelRef} className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
       {onPlotSettingsChange && PlotSettingsButton ? (
         <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}>
           {(actions) => plotElement(plot, resetKey, viewportMode, actions)}
@@ -241,10 +263,10 @@ const LivePlotCard = memo(function LivePlotCard({
 
 function plotCardClassName(plot: PlotCardSpec): string {
   const baseClassName = "min-w-0 max-w-full overflow-hidden";
-  if (plot.plotType === "wifi_channel_occupancy") {
+  if (plot.plotType === "grid_chart") {
     return `${baseClassName} min-h-0`;
   }
-  if (plot.plotType === "bar") {
+  if (plot.plotType === "bar" || plot.plotType === "pie") {
     return `${baseClassName} min-h-0`;
   }
   return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-72` : `${baseClassName} min-h-44`;
@@ -274,23 +296,24 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.analysis?.kind === "error") {
     return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }
-  if (plot.plotType === "wifi_channel_occupancy") {
-    return <WifiChannelOccupancyPlot plot={plot} />;
+  if (plot.plotType === "grid_chart") {
+    return <GridChartPlot key={plot.key} plot={plot} />;
   }
-  if (plot.plotType === "xy_value_heatmap" || plot.plotType === "heatmap") {
-    return <HeatmapPlot plot={plot} />;
+  if (plot.plotType === "contour") {
+    return <ContourPlot plot={plot} />;
   }
+  if (plot.plotType === "pie") return <PiePlot plot={plot} />;
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
   }
-  if (plot.plotType === "xy") {
+  if (plot.plotType === "xy" && !plot.xyInterval) {
     return <XyPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
-  if (plot.plotType === "xy_interval") {
+  if (plot.plotType === "xy" && plot.xyInterval === "sigma") {
     return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "trajectory") {
-    return <TrajectoryPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return <TrajectoryPlot key={plot.key} actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "frequency_series") {
     return <FrequencySeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -298,8 +321,8 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "histogram") {
     return <HistogramSeriesPlot plot={plot} />;
   }
-  if (plot.plotType === "box_summary") {
-    return <BoxSummarySeriesPlot plot={plot} />;
+  if (plot.plotType === "box_plot") {
+    return <BoxPlot plot={plot} />;
   }
   if (plot.plotType === "time_series")
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -384,9 +407,10 @@ function isChartLikePlot(plot: PlotCardSpec): boolean {
   return (
     plot.plotType === "time_series" ||
     plot.plotType === "xy" ||
-    plot.plotType === "xy_interval" ||
     plot.plotType === "trajectory" ||
     plot.plotType === "frequency_series" ||
-    plot.plotType === "box_summary"
+    plot.plotType === "box_plot" ||
+    plot.plotType === "contour" ||
+    plot.plotType === "grid_chart"
   );
 }

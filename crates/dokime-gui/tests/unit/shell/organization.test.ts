@@ -20,7 +20,9 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 
 // Local Imports
-import type { Brand } from "@/lib/brand";
+import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
+import { loadAppearance } from "@/lib/rpc/appearance";
+import { LogoVariant } from "@host/dokime/v1/appearance_pb.js";
 import type { RuntimeThemeFamily } from "@/lib/appearance";
 import { applyBrandFavicon } from "@/lib/favicon";
 import { materializeThemeFamilyVariables } from "@/lib/theme-family";
@@ -32,6 +34,8 @@ import { applyReportAppearance } from "@/report/report-appearance";
 
 const LIGHT = "data:image/svg+xml;base64,PHN2Zy8+";
 const DARK = "data:image/png;base64,iVBORw==";
+const hostAppearance = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/host/client", () => ({ appearanceGetAppearance: hostAppearance }));
 
 /* === Types === */
 
@@ -60,7 +64,7 @@ test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus D
     assert.equal(variables.destructive, destructive);
     assert.equal(variables.primary, palette.primary);
 
-    const surfaces = mode === "dark" ? ["#1b1915", "#24211b"] : ["#ffffff", "#f2ebdd", "#fbf8f0"];
+    const surfaces = mode === "dark" ? ["#111111", "#1a1a1a"] : ["#efecdf", "#d9d4be"];
     for (const surface of surfaces) {
       assert.ok(focusContrast(focus, surface, 1) >= 3);
       assert.ok(focusContrast(focus, surface, 0.5) >= 3);
@@ -114,13 +118,13 @@ test("Brand Favicon Falls Back to Transparent or the Other Surface", () => {
   assert.equal(head.icon.href, LIGHT);
 });
 
-test("Missing Brand Logos Preserve the Default Favicon", () => {
+test("Missing Brand Logos Remove Previous Artwork", () => {
   const head = documentHead();
   applyBrandFavicon({ label: "Organization", logos: {} });
   applyReportAppearance(null);
-  assert.equal(head.querySelectorAll.mock.calls.length, 0);
+  assert.equal(head.querySelectorAll.mock.calls.length, 1);
   assert.equal(head.append.mock.calls.length, 0);
-  for (const icon of head.existing) assert.equal(icon.remove.mock.calls.length, 0);
+  for (const icon of head.existing) assert.equal(icon.remove.mock.calls.length, 1);
 });
 
 test("Report Favicon Uses Only Captured Image Data", () => {
@@ -133,7 +137,7 @@ test("Report Favicon Uses Only Captured Image Data", () => {
   head.append.mockClear();
   head.querySelectorAll.mockClear();
   applyReportAppearance({ ...appearance, logos: [{ variant: "contained_on_light", url: "https://example.com/logo.svg" }] });
-  assert.equal(head.querySelectorAll.mock.calls.length, 0);
+  assert.equal(head.querySelectorAll.mock.calls.length, 1);
   assert.equal(head.append.mock.calls.length, 0);
 });
 
@@ -164,3 +168,36 @@ function documentHead(dark = false) {
 }
 
 /* === Entry Point === */
+
+test("Host Appearance Preserves Declarations Without Inventing Asset Delivery", async () => {
+  const session = { generation: "1", isCurrent: () => true };
+  const logos = [
+    LogoVariant.TRANSPARENT_ON_LIGHT,
+    LogoVariant.TRANSPARENT_ON_DARK,
+    LogoVariant.CONTAINED_ON_LIGHT,
+    LogoVariant.CONTAINED_ON_DARK,
+  ].map((variant) => ({ variant }));
+  hostAppearance.mockResolvedValue({ logos });
+  const resource = await loadAppearance(session);
+  assert.equal(resource.appearance.logos.length, 4);
+  assert.deepEqual(resource.logos, []);
+  assert.equal(typeof resource.unavailableReason, "string");
+  resource.dispose();
+  resource.dispose();
+
+  // Installed Logo Selection Remains Independent of Connected-Host Delivery.
+  const installed = [
+    { plugin_id: "fixture", asset_id: "light", variant: "transparent_on_light" as const, url: LIGHT },
+    { plugin_id: "fixture", asset_id: "dark", variant: "transparent_on_dark" as const, url: DARK },
+  ];
+  const brand = brandFromLogos("Fixture", installed);
+  assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
+  assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);
+  hostAppearance.mockResolvedValue({ logos: [logos[0], logos[0]] });
+  await assert.rejects(loadAppearance(session));
+  hostAppearance.mockResolvedValue({ logos: [] });
+  const empty = await loadAppearance(session);
+  assert.equal(empty.unavailableReason, undefined);
+  empty.dispose();
+  await assert.rejects(loadAppearance({ ...session, isCurrent: () => false }), (error: { kind: string }) => error.kind === "session");
+});

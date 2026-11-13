@@ -4,31 +4,27 @@ inputs:
   platform:
     description: Platform
     required: true
-    default: ""
+    default: ''
   caches:
     description: Caches
     required: false
-    default: "{}"
+    default: '{}'
   bootstrap:
     description: Bootstrap
     required: false
-    default: "[]"
+    default: '[]'
   tools:
     description: Tools
     required: false
-    default: ""
+    default: ''
   cache-backend:
     description: Cache-backend
     required: false
-    default: ""
+    default: ''
   cache-mode:
     description: Cache-mode
     required: false
-    default: ""
-  free-disk:
-    description: Remove unused preinstalled toolchains on GitHub-hosted Linux runners before heavy builds
-    required: false
-    default: "false"
+    default: ''
 outputs:
   bench_baselines-path:
     description: Resolved bench_baselines path
@@ -105,18 +101,18 @@ outputs:
 runs:
   using: composite
   steps:
+  - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+    with:
+      python-version: '3.13'
   - shell: python
-    run: |-
-      import os, runpy
-      runpy.run_path(os.path.join(os.environ['GITHUB_ACTION_PATH'], 'run.py'), run_name='__main__')
+    run: import runpy; runpy.run_path('tools/python/src/dokime_tools/ci/native.py', run_name='__main__')
     id: native
     env:
       SETUP_PLATFORM: ${{ inputs.platform }}
       CACHE_PLAN: ${{ inputs.caches }}
       SETUP_BOOTSTRAP: ${{ inputs.bootstrap }}
-      COMPILER_CACHE_BACKEND: ${{ inputs.cache-backend }}
-      COMPILER_CACHE_MODE: ${{ inputs.cache-mode }}
-      FREE_RUNNER_DISK: ${{ inputs.free-disk }}
+      COMPILER_CACHE_BACKEND: ${{ inputs.cache-backend || env.COMPILER_CACHE_BACKEND }}
+      COMPILER_CACHE_MODE: ${{ inputs.cache-mode || env.COMPILER_CACHE_MODE }}
   - id: bench_baselines
     name: Cache / bench-baselines
     if: steps.native.outputs.bench_baselines-path != ''
@@ -167,9 +163,11 @@ runs:
       restore-keys: ${{ steps.native.outputs.uv-restore-keys }}
   - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
     env:
-      RUSTC_WRAPPER: ""
+      RUSTC_WRAPPER: ''
     with:
       install: true
       install_args: ${{ inputs.tools }}
       cache: false
       mise_dir: ${{ env.MISE_DATA_DIR }}
+  - shell: bash
+    run: mise run prepare --

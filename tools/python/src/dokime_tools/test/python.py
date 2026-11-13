@@ -37,10 +37,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     options, arguments = parser.parse_known_args()
-    directory = paths.output(policy.root(), "build", options.profile) / "python"
+    directory = paths.output(policy.root(), "build", options.profile, "any") / "python"
     wheels = list(directory.glob("*.whl"))
     if len(wheels) != 1:
-        raise SystemExit(f"expected one staged native wheel in {directory}; run `mise run build:python`")
+        raise SystemExit(f"expected one staged Python wheel in {directory}; run `mise run build -- --language python`")
     # Each Invocation Owns Its Fixtures; Pytest Must Not Clean Another Run's Links.
     with TemporaryDirectory(prefix="dokime-pytest-") as scratch:
         if "--" not in arguments:

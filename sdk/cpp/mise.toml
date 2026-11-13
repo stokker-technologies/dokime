@@ -1,0 +1,80 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Settings === #
+
+# === Tools === #
+
+[tools]
+cmake = "4.1.2"
+
+# === Environment === #
+
+# === Variables === #
+
+# === Generate === #
+
+# === Entry Points === #
+
+[tasks.prepare]
+description = "Prepare the Shared Python Tooling Environment"
+run = 'uv sync --locked --all-groups --project ../../tools/python'
+
+[tasks.configure]
+hide = true
+description = "Configure the C++ SDK and Build-Time Protocol Generation"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py configure {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.format]
+description = "Format the C++ SDK and Its Python Task Tools"
+usage = 'flag "--check"'
+run = [
+  'python tools/sdk.py format {% if usage.check %}--check{% endif %}',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 {% if not usage.check %}--fix{% endif %} tools tests/support',
+  'uv run --no-sync --project ../../tools/python ruff format {% if usage.check %}--check{% endif %} tools tests/support',
+]
+
+[tasks.build]
+description = "Build the C++ SDK and Focused Stories"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py build {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.test]
+description = "Run the Focused C++ SDK Stories"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py test {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.check]
+description = "Check the C++ CMake Graph"
+usage = 'arg "[args]" var=#true'
+run = [
+  'python tools/sdk.py check {% for arg in usage.args %}"{{arg}}" {% endfor %}',
+  'python tools/sdk.py format --check',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 tools tests/support',
+  'uv run --no-sync --project ../../tools/python ruff format --check tools tests/support',
+  'uv run --no-sync --project ../../tools/python ty check tools tests/support',
+]
+
+[tasks.conformance]
+hide = true
+description = "Prove the SDK Against the Harmos Reference Host"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py conformance {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.starter]
+hide = true
+description = "Configure and Build the C++ Starter Against This SDK"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py starter {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.archive]
+hide = true
+description = "Package the Versioned C++ Source Archive and Checksum"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py archive {% for arg in usage.args %}"{{arg}}" {% endfor %}'

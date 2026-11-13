@@ -22,7 +22,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from . import policy
+from .. import policy
 
 # Type Checking Imports
 
@@ -127,7 +127,8 @@ def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profi
             if source.suffix != f".{extension}" or not source.is_file() or source.is_symlink():
                 raise policy.ToolError(f"missing regular shipped plugin bundle: {relative}")
             suffix = ".zip" if target == "any" or target.startswith("windows-") else ".tar.gz"
-            name = f"{settings['product']}-{kind}s-{tag[1:]}" + ("" if target == "any" else f"-{abi}") + suffix
+            family = "plugins" if kind == "sidecar" else "guests"
+            name = f"{settings['product']}-{family}-{tag[1:]}" + ("" if target == "any" else f"-{abi}") + suffix
             result.append(
                 {
                     "package": package,
@@ -208,6 +209,9 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
+    for family in ("compliance", "proto", "reports"):
+        if name.startswith(f"{product}-{family}-") and format_ == "zip":
+            return {"kind": family, "os": "any", "arch": "any", "format": "zip"}
     if name.endswith(".cdx.json"):
         os_name, arch = _platform(name.removesuffix(".cdx.json"))
         return {"kind": "sbom", "os": os_name, "arch": arch, "format": "json"}
@@ -218,8 +222,8 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     if name == "CHANGELOG.md":
         return {"kind": "changelog", "os": "any", "arch": "any", "format": "md"}
     os_name, arch = _platform(name)
-    if format_ == "whl":
-        return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": "whl"}
+    if format_ == "whl" or name.startswith("dokime_sdk-") and re.fullmatch(r"dokime_sdk-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz", name):
+        return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": format_}
     if format_ == "deb" and name.startswith(f"{product}_"):
         return {"kind": "installer", "os": "linux", "arch": "x86_64" if name.endswith("_amd64.deb") else arch, "format": "deb"}
     if format_ == "rpm" and name.startswith(f"{product}-"):
@@ -228,7 +232,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
         return {"kind": "installer", "os": os_name, "arch": arch, "format": "exe"}
     if name.startswith(f"{product}-distribution-") and format_ == "zip":
         return {"kind": "payload", "os": os_name, "arch": arch, "format": "zip"}
-    if re.match(rf"{re.escape(product)}-(?:sidecars|guests)-", name) and format_ in {"zip", "tar.gz"}:
+    if re.match(rf"{re.escape(product)}-(?:plugins|guests)-", name) and format_ in {"zip", "tar.gz"}:
         return {"kind": "plugin", "os": os_name, "arch": arch, "format": format_}
     for executable, kind in sorted(executables.items(), key=lambda item: -len(item[0])):
         if name.startswith(f"{executable}-") and format_ in {"zip", "tar.gz"}:
@@ -307,28 +311,11 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
 
 
 def _platform(name: str) -> tuple[str, str]:
-    """OS And Architecture From A Rust Target Triple Or Wheel Platform Tag In The Name; Neither Means Any."""
+    """OS And Architecture From A Rust Target Triple; Shared SDK Assets Mean Any."""
     lowered = name.lower()
     triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
     if triple:
         return {"darwin": "macos"}.get(triple[2], triple[2]), triple[1]
-    if lowered.endswith(".whl"):
-        platform_tag = lowered.removesuffix(".whl").rsplit("-", 1)[-1]
-        if platform_tag == "any":
-            return "any", "any"
-        os_name = (
-            "windows"
-            if platform_tag.startswith("win")
-            else "linux"
-            if "linux" in platform_tag
-            else "macos"
-            if platform_tag.startswith("macosx")
-            else "any"
-        )
-        arch = (
-            "x86_64" if platform_tag.endswith(("x86_64", "amd64")) else "aarch64" if platform_tag.endswith(("aarch64", "arm64")) else "any"
-        )
-        return os_name, arch
     if lowered.endswith(".rpm"):
         return "linux", lowered.removesuffix(".rpm").rsplit(".", 1)[-1]
     return "any", "any"

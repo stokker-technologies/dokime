@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><title>Desktop Plot Benchmark</title></head>
+<body><div id="root"></div><script>
+addEventListener("error", event => { window.desktopFailure = event.message; });
+addEventListener("unhandledrejection", event => { window.desktopFailure = String(event.reason); });
+</script><script type="module" src="/benches/system/surface.tsx"></script></body></html>

@@ -18,6 +18,7 @@
 // Third Party Imports
 
 // Local Imports
+import { Button } from "@/components/ui/button";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
@@ -26,6 +27,7 @@ import { useNativeSession } from "@/app/native-session/context";
 import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
 import { workflowQueryKeys } from "@/features/cycle/server-state";
 import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
+import { isNativeCycleLive } from "@/lib/api/native-planning";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
 /* === Re-Exports === */
@@ -43,9 +45,7 @@ export function RunIndicator() {
   const session = useNativeSession();
   const cycles = useCyclesQuery();
   const navigate = useNavigate();
-  const activeCycles = (cycles.data ?? []).filter((cycle) =>
-    ["Running", "Paused", "Stopping", "Blocked"].includes(cycle.status?.HarmosVariant.case ?? ""),
-  );
+  const activeCycles = (cycles.data ?? []).filter((cycle) => isNativeCycleLive(cycle.status));
   const details = useQueries({
     queries: activeCycles.map((cycle) => ({
       queryKey: [...workflowQueryKeys.cycleDetail(cycle.cycleId), session.identity.generation],
@@ -98,9 +98,11 @@ export function RunIndicator() {
   }
   const destination = runDestination(focus);
   return (
-    <button
+    <Button
+      variant="plain"
+      size="inline"
       type="button"
-      className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground"
       onClick={() => {
         if (destination) void navigate(destination);
       }}
@@ -111,7 +113,7 @@ export function RunIndicator() {
         {first.percent === null ? runElapsed(elapsedMinutes(first.execution.started_at, now)) : `${first.percent}%`}
       </span>
       {focus.length > 1 ? <span className="shrink-0">+{focus.length - 1}</span> : null}
-    </button>
+    </Button>
   );
 }
 

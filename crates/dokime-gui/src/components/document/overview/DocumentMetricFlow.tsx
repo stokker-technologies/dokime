@@ -9,6 +9,7 @@
 
 /* === Imports === */
 
+import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { type PointerEvent, useEffect, useMemo, useState } from "react";
 import { DocumentMetricGroup } from "./DocumentMetricGroup";
@@ -70,15 +71,17 @@ export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMet
     <div className="grid gap-3" data-testid="metric-flow">
       {hasCustomOrder ? (
         <div className="flex justify-end">
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             aria-label="Reset Metric Group Order"
-            className="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="text-muted-foreground"
             title="Reset Metric Group Order"
             type="button"
             onClick={resetOrder}
           >
             <RotateCcw size={14} />
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="flex flex-wrap items-start gap-3">

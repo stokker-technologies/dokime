@@ -1,0 +1,3 @@
+[tool.ruff]
+# Match the Shared Source Line Width.
+line-length = 140

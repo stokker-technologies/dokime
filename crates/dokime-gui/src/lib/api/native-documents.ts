@@ -15,7 +15,8 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as documentWire from "@generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
+import * as v1 from "@host/dokime/v1/client_types_pb.js";
+import * as definitions from "@host/dokime/v1/documents_pb.js";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -29,11 +30,11 @@ import {
 } from "@/lib/document-presentation";
 import { failureOf } from "@/lib/notification-details";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentDataExpression, DocumentDownsampleTechnique, DocumentViewCard, DocumentViewPayload, Metadata } from "@/lib/types";
-import { aggregateName } from "./native-aggregate";
-import { enumTail, mapNativeValueFormat, nativeValueObjectToJson, nativeValueToJson, safeNumber } from "./native-values";
+import { safeNumber } from "./native-values";
+import { mapNativeValueFormat, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
 
 const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
@@ -42,33 +43,31 @@ const GUI_PLOT_TRANSFORMS = 32;
 
 /* === Canonical Types === */
 
-type DocumentFrame = documentWire.Row3;
-const DocumentFrameSchema = documentWire.Row3Schema;
+type DocumentFrame = v1.DocumentFrame;
+const DocumentFrameSchema = v1.DocumentFrameSchema;
 type VariantValue<T, K extends string> =
-  Extract<NonNullable<NonNullable<T> extends { HarmosVariant: infer V } ? V : never>, { case: K }> extends { value: { field0?: infer F } }
-    ? NonNullable<F>
-    : never;
+  Extract<NonNullable<T> extends { kind: infer V } ? V : never, { case: K }> extends { value: infer F } ? NonNullable<F> : never;
 type FrameValue<K extends string> = VariantValue<Wire<DocumentFrame>["frame"], K>;
-type DocumentCard = FrameValue<"Card">;
-type DocumentHeader = FrameValue<"Header">;
-type DocumentBinding = FrameValue<"Binding">;
-type DocumentLayoutNode = FrameValue<"LayoutNode">;
-type DocumentPlacement = VariantValue<DocumentLayoutNode["node"], "Placement">;
+type DocumentCard = FrameValue<"card">;
+type DocumentHeader = FrameValue<"header">;
+type DocumentBinding = FrameValue<"binding">;
+type DocumentLayoutNode = FrameValue<"layoutNode">;
+type DocumentPlacement = VariantValue<DocumentLayoutNode["node"], "placement">;
 type DocumentDensity = NonNullable<DocumentPlacement["density"]>;
 type DocumentRail = NonNullable<DocumentPlacement["rail"]>;
-type DocumentSummaryGroupDefinition = FrameValue<"GroupDefinition">;
-type DocumentSummaryTileDefinition = FrameValue<"TileDefinition">;
-type DocumentRepeatSelection = FrameValue<"RepeatSelection">;
-type DocumentRepeatInstance = FrameValue<"RepeatInstance">;
-type DocumentSectionIdentity = FrameValue<"SectionIdentity">;
-type DocumentScope = NonNullable<Wire<documentWire.Row1>["scope"]>;
-type DocumentSummaryGroup = FrameValue<"SummaryGroup">;
-type DocumentSummaryTile = FrameValue<"SummaryTile">;
+type DocumentSummaryGroupDefinition = FrameValue<"groupDefinition">;
+type DocumentSummaryTileDefinition = FrameValue<"tileDefinition">;
+type DocumentRepeatSelection = FrameValue<"repeatSelection">;
+type DocumentRepeatInstance = FrameValue<"repeatInstance">;
+type DocumentSectionIdentity = FrameValue<"sectionIdentity">;
+type DocumentScope = Wire<v1.DocumentScope>;
+type DocumentSummaryGroup = FrameValue<"summaryGroup">;
+type DocumentSummaryTile = FrameValue<"summaryTile">;
 type DocumentSummaryPresentation = NonNullable<DocumentSummaryTile["presentation"]>;
 type DocumentSummaryState = NonNullable<DocumentSummaryTile["state"]>;
-type DocumentTableRow = FrameValue<"TableRow">;
-type DocumentWarning = FrameValue<"Warning">;
-type NativePlotDefinition = VariantValue<DocumentBinding["result"], "Plot">;
+type DocumentTableRow = FrameValue<"tableRow">;
+type DocumentWarning = FrameValue<"warning">;
+type NativePlotDefinition = VariantValue<DocumentBinding["result"], "plot">;
 type NativePlotPresentation = NonNullable<NativePlotDefinition["presentation"]>;
 type NativePlotAxisKind = NonNullable<NativePlotPresentation["xAxis"]>;
 type PlotStyle = NonNullable<NativePlotPresentation["style"]>;
@@ -80,7 +79,7 @@ type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
 type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
 type PlotType = NonNullable<PlotRequest["plotType"]>;
 type FilterOperator = NonNullable<DocumentCard["filters"][number]["operator"]>;
-type DocumentCardKind = NonNullable<VariantValue<DocumentCard["body"], "Owner">["kind"]>;
+type DocumentCardKind = NonNullable<VariantValue<DocumentCard["body"], "owner">["kind"]>;
 type NativeDownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 
 /** Indexes reference canonical protobuf messages; no alternate document DTO contract. */
@@ -145,13 +144,13 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
   if (!update.cycleId || !update.executionId || !update.documentId || !update.plotId) {
     throw new Error("An execution document and a plot are required.");
   }
-  const variants = { auto: "Auto", raw: "Raw", min_max: "MinMax", lttb: "Lttb" } as const;
+  const variants = { auto: v1.Downsample.AUTO, raw: v1.Downsample.RAW, min_max: v1.Downsample.MIN_MAX, lttb: v1.Downsample.LTTB } as const;
   await rpc.documentsUpdatePlotSettings(session, {
     scope: { cycleId: update.cycleId, executionId: update.executionId },
     documentId: update.documentId,
     plotId: update.plotId,
     displayPoints: update.displayPoints ?? undefined,
-    downsample: { HarmosVariant: { case: variants[update.downsample], value: {} } },
+    downsample: variants[update.downsample],
   });
   if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
 }
@@ -165,6 +164,7 @@ export async function fetchNativeDocument(
   publish?: (document: CompletedDocument) => void,
 ): Promise<CompletedDocument> {
   const scope = createDocumentScope(request);
+  const documentId = request.executionId && request.documentId === "default" ? "" : request.documentId;
   let reader: Awaited<ReturnType<typeof rpc.documentsCaptureCurrentDocument>> | undefined;
   let dispose: (() => void) | undefined;
   const abort = () => {
@@ -174,7 +174,7 @@ export async function fetchNativeDocument(
   try {
     reader = await rpc.documentsCaptureCurrentDocument(session, {
       scope,
-      documentId: request.documentId,
+      documentId,
       structureOnly: request.structureOnly ?? false,
       cardIds: request.cardIds ?? [],
       page: request.page,
@@ -188,7 +188,7 @@ export async function fetchNativeDocument(
     });
     return await assembleDocument(
       reader,
-      { scope, documentId: request.documentId, epoch: request.epoch, structureOnly: request.structureOnly, cardIds: request.cardIds },
+      { scope, documentId, epoch: request.epoch, structureOnly: request.structureOnly, cardIds: request.cardIds },
       () => !signal?.aborted && session.isCurrent(),
       publish,
       async (header) => {
@@ -196,8 +196,7 @@ export async function fetchNativeDocument(
           previous &&
           previous.complete !== false &&
           ![...previous.bindings].some(
-            ([id, binding]) =>
-              (!request.cardIds?.length || request.cardIds.includes(id)) && binding.result?.HarmosVariant.case === "Failure",
+            ([id, binding]) => (!request.cardIds?.length || request.cardIds.includes(id)) && binding.result?.kind.case === "failure",
           ) &&
           sameFrontiers(header.frontiers, previous.header.frontiers)
         ) {
@@ -270,18 +269,17 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
   const id = binding.metadata?.identifier;
   if (!id) invalid("binding metadata is missing");
   const metadata = metadataFromNative(binding.metadata, id);
-  const result = binding.result?.HarmosVariant;
-  const body = card.body?.HarmosVariant;
+  const result = binding.result?.kind;
+  const body = card.body?.kind;
   if (!result?.case || !body?.case) invalid("card body or binding result is missing");
-  if (result.case === "Pending" || result.case === "Failure") {
-    const kind =
-      body.case === "Table" ? "table" : body.case === "Owner" ? (mapCardKind(body.value.field0?.kind) ?? "overview") : "overview";
-    if (result.case === "Pending") return documentCard(metadata, kind, { loading: true });
-    const failure = result.value.field0;
+  if (result.case === "pending" || result.case === "failure") {
+    const kind = body.case === "table" ? "table" : body.case === "owner" ? (mapCardKind(body.value?.kind) ?? "overview") : "overview";
+    if (result.case === "pending") return documentCard(metadata, kind, { loading: true });
+    const failure = result.value;
     if (!failure?.code || !failure.message.trim()) invalid("card failure is missing");
     return documentCard(metadata, kind, { failure: failureOf(failure, metadata.label) });
   }
-  if (result.case === "Summary" && body.case === "Summary") {
+  if (result.case === "summary" && body.case === "summary") {
     return documentCard(metadata, "overview", {
       groups: (document.groups.get(id) ?? []).map((group) => ({
         group_id: group.metadata?.identifier ?? `${id}-${group.ordinal}`,
@@ -292,35 +290,35 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
             value: nativeValueToJson(tile.value),
             unavailable: tile.unavailable,
             unit: tile.unit,
-            format: enumTail(undefined, tile.format, "auto"),
+            format: summaryFormat(tile.format),
             presentation: mapSummaryPresentation(tile.presentation),
             state: tile.state === undefined ? null : mapSummaryState(tile.state),
-            stat: tile.stat?.HarmosVariant.case === "Latest" ? "latest" : undefined,
+            stat: tile.stat === v1.DocumentSummaryStat.LATEST ? "latest" : undefined,
           }),
         ),
       })),
     });
   }
-  if (result.case === "Plot" && body.case === "Owner" && body.value.field0?.kind?.HarmosVariant.case === "Plot") {
-    if (!result.value.field0) invalid("plot binding is missing");
-    const plot = mapNativePlot(result.value.field0, id);
+  if (result.case === "plot" && body.case === "owner" && body.value?.kind === v1.DocumentCardKind.PLOT) {
+    if (!result.value) invalid("plot binding is missing");
+    const plot = mapNativePlot(result.value, id);
     return documentCard(metadata, "plots", { plots: [plot] });
   }
-  if (result.case !== "Literal" || !result.value.field0 || body.case === "Summary") invalid("binding result differs from its declaration");
+  if (result.case !== "literal" || !result.value || body.case === "summary") invalid("binding result differs from its declaration");
   switch (body.case) {
-    case "Markdown":
+    case "markdown":
       return documentCard(metadata, "overview", {
-        groups: [documentText(metadata, body.value.field0)],
+        groups: [documentText(metadata, body.value)],
       });
-    case "Table":
+    case "table":
       return documentCard(metadata, "table", {
         rows: documentTableRows(
           id,
-          (document.rows.get(binding.sourceId) ?? []).map((row) => nativeValueObjectToJson(row.values)),
+          (document.rows.get(binding.sourceId) ?? []).map((row) => nativeValuesToJson(row.values?.cells)),
         ),
       });
-    case "Owner": {
-      const kind = mapCardKind(body.value.field0?.kind);
+    case "owner": {
+      const kind = mapCardKind(body.value?.kind);
       if (!kind || kind === "plots") invalid("literal owner kind is invalid");
       return documentCard(metadata, kind);
     }
@@ -340,24 +338,24 @@ function mapNativeLayout(nodes: readonly DocumentLayoutNode[]): DeclaredNode[] {
   }
   const mapNodes = (key: string): DeclaredNode[] =>
     (children.get(key) ?? []).map((node) => {
-      const kind = node.node?.HarmosVariant;
-      if (!kind?.case || !kind.value.field0) invalid("layout node kind is missing");
+      const kind = node.node?.kind;
+      if (!kind?.case || !kind.value) invalid("layout node kind is missing");
       switch (kind.case) {
-        case "Section":
-          if (!kind.value.field0) invalid("layout node payload is missing");
+        case "section":
+          if (!kind.value) invalid("layout node payload is missing");
           return {
             type: "section",
-            metadata: metadataFromNative(kind.value.field0.metadata, kind.value.field0.nodeId),
-            node_id: kind.value.field0.nodeId,
-            repeat: Boolean(kind.value.field0.repeat),
+            metadata: metadataFromNative(kind.value.metadata, kind.value.nodeId),
+            node_id: kind.value.nodeId,
+            repeat: Boolean(kind.value.repeat),
             children: mapNodes(node.ordinal.toString()),
           };
-        case "Placement":
-          if (!kind.value.field0) invalid("layout node payload is missing");
+        case "placement":
+          if (!kind.value) invalid("layout node payload is missing");
           return {
             type: "card",
-            card_id: kind.value.field0.cardId,
-            layout: mapNativePlacementLayout(kind.value.field0),
+            card_id: kind.value.cardId,
+            layout: mapNativePlacementLayout(kind.value),
           };
         default:
           return invalid("layout node kind is missing");
@@ -401,64 +399,72 @@ function mapNativePlacementLayout(placement?: {
 }
 
 function mapDensity(value?: DocumentDensity): "compact" | "normal" | "spacious" {
-  return enumTail(undefined, value, "normal");
+  return value === v1.DocumentDensity.COMPACT ? "compact" : value === v1.DocumentDensity.SPACIOUS ? "spacious" : "normal";
 }
-
 function mapRail(value?: DocumentRail): "main" | "right" | "left" {
-  return enumTail(undefined, value, "main");
+  return value === v1.DocumentRail.LEFT ? "left" : value === v1.DocumentRail.RIGHT ? "right" : "main";
 }
-
 function mapCardKind(value: DocumentCardKind | undefined): DocumentViewCard["kind"] | null {
-  switch (value?.HarmosVariant.case) {
-    case "Plot":
+  switch (value) {
+    case v1.DocumentCardKind.PLOT:
       return "plots";
-    case "Steps":
+    case v1.DocumentCardKind.STEPS:
       return "steps";
-    case "Criteria":
+    case v1.DocumentCardKind.CRITERIA:
       return "criteria";
-    case "Traceability":
+    case v1.DocumentCardKind.TRACEABILITY:
       return "traceability";
-    case "Notes":
+    case v1.DocumentCardKind.NOTES:
       return "notes";
-    case "Records":
+    case v1.DocumentCardKind.RECORDS:
       return "records";
-    case "Artifacts":
+    case v1.DocumentCardKind.ARTIFACTS:
       return "artifacts";
-    case "Media":
+    case v1.DocumentCardKind.MEDIA:
       return "media";
-    case "Health":
+    case v1.DocumentCardKind.HEALTH:
       return "health";
-    case "TelemetryContext":
+    case v1.DocumentCardKind.TELEMETRY_CONTEXT:
       return "telemetry_context";
     default:
       return null;
   }
 }
-
-function mapSummaryPresentation(value: DocumentSummaryPresentation | undefined): "value" | "progress" | "badge" {
-  switch (value?.HarmosVariant.case) {
-    case "Progress":
-      return "progress";
-    case "Badge":
-      return "badge";
+function summaryFormat(value: v1.DocumentSummaryFormat): "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text" {
+  switch (value) {
+    case v1.DocumentSummaryFormat.NUMBER:
+      return "number";
+    case v1.DocumentSummaryFormat.PERCENT:
+      return "percent";
+    case v1.DocumentSummaryFormat.DURATION:
+      return "duration";
+    case v1.DocumentSummaryFormat.DISTANCE:
+      return "distance";
+    case v1.DocumentSummaryFormat.STATUS:
+      return "status";
+    case v1.DocumentSummaryFormat.TEXT:
+      return "text";
     default:
-      return "value";
+      return "auto";
   }
 }
-
+function mapSummaryPresentation(value: DocumentSummaryPresentation | undefined): "value" | "progress" | "badge" {
+  return value === v1.DocumentSummaryPresentation.PROGRESS
+    ? "progress"
+    : value === v1.DocumentSummaryPresentation.BADGE
+      ? "badge"
+      : "value";
+}
 function mapSummaryState(value: DocumentSummaryState | undefined): "ok" | "warning" | "critical" | "muted" | null {
-  switch (value?.HarmosVariant.case) {
-    case "Ok":
-      return "ok";
-    case "Warning":
-      return "warning";
-    case "Critical":
-      return "critical";
-    case "Muted":
-      return "muted";
-    default:
-      return null;
-  }
+  return value === v1.DocumentSummaryState.OK
+    ? "ok"
+    : value === v1.DocumentSummaryState.WARNING
+      ? "warning"
+      : value === v1.DocumentSummaryState.CRITICAL
+        ? "critical"
+        : value === v1.DocumentSummaryState.MUTED
+          ? "muted"
+          : null;
 }
 
 function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): DocumentViewCard["plots"][number] {
@@ -489,7 +495,7 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       ? {
           id: request.analysis.id,
           version: request.analysis.version,
-          parameters: nativeValueObjectToJson(request.analysis.parameters),
+          parameters: nativeValuesToJson(request.analysis.parameters?.values),
         }
       : null,
     fft: {
@@ -506,6 +512,33 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       sigma: interval?.sigma,
       clip_to_observed: interval?.clipToObserved,
     },
+    arrangement: request.arrangement ? (request.arrangement === definitions.BarArrangement.GROUPED ? "grouped" : "stacked") : null,
+    pareto: request.pareto,
+    hole: request.hole ?? null,
+    xy_interval: request.xyInterval ? "sigma" : null,
+    reduction: request.reduction
+      ? ({
+          [definitions.Reduction.MEAN]: "mean" as const,
+          [definitions.Reduction.MIN]: "min" as const,
+          [definitions.Reduction.MAX]: "max" as const,
+        }[request.reduction] ?? null)
+      : null,
+    render: request.render === definitions.ContourRender.BANDS ? "bands" : "cells",
+    grid: request.grid
+      ? {
+          row: mapNativeExpression(request.grid.row),
+          column: mapNativeExpression(request.grid.column),
+          frame: mapNativeExpression(request.grid.frame),
+          rows: request.grid.rows.map((entry) => ({ ...entry })),
+          columns: request.grid.columns.map((entry) => ({ ...entry })),
+          highlights: request.grid.highlights.map((highlight) => ({
+            row: mapNativeExpression(highlight.row) ?? invalid("grid highlight row is missing"),
+            column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"),
+            label: highlight.label,
+          })),
+          summary_label: request.grid.summaryLabel,
+        }
+      : null,
     histogram: {
       bins: histogram?.bins === undefined ? undefined : Number(histogram.bins),
       ...(histogram?.unit === undefined ? {} : { unit: histogram.unit }),
@@ -552,103 +585,81 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
  * (`Lttb`) maps without an edit here; `Unspecified` stays the default.
  */
 function mapDownsampleTechnique(value: NativeDownsampleTechnique | undefined): DocumentDownsampleTechnique | null {
-  const techniques: Record<string, DocumentDownsampleTechnique> = {
-    Auto: "auto",
-    Raw: "raw",
-    MinMax: "min_max",
-    Lttb: "lttb",
-  };
-  return techniques[value?.HarmosVariant.case ?? ""] ?? null;
+  return value === v1.Downsample.AUTO
+    ? "auto"
+    : value === v1.Downsample.RAW
+      ? "raw"
+      : value === v1.Downsample.MIN_MAX
+        ? "min_max"
+        : value === v1.Downsample.LTTB
+          ? "lttb"
+          : null;
 }
-
-/**
- * What the plot says its x axis measures, or nothing when it says nothing.
- *
- * `PLOT_AXIS_KIND_UNSPECIFIED` is a payload written before the declaration
- * existed, so it stays `null` and the renderer's column-name fallback still
- * decides. The contract declares `x_axis_unit` present for an elapsed axis;
- * seconds is the row unit the runtime's own elapsed columns carry, so a writer
- * that declared the axis and omitted the unit still gets a labelled duration
- * rather than an epoch date.
- */
 function mapNativePlotAxis(kind: NativePlotAxisKind | undefined, unit: string | undefined): DocumentViewCard["plots"][number]["x_axis"] {
-  switch (kind?.HarmosVariant.case) {
-    case "WallTime":
-      return { kind: "wall_time" };
-    case "Elapsed":
-      return { kind: "elapsed", unit: unit?.trim() || "s" };
-    default:
-      return null;
-  }
+  return kind === v1.PlotAxisKind.WALL_TIME
+    ? { kind: "wall_time" }
+    : kind === v1.PlotAxisKind.ELAPSED
+      ? { kind: "elapsed", unit: unit?.trim() || "s" }
+      : null;
 }
-
-function mapNativePlotType(value: PlotType | undefined): DocumentViewCard["plots"][number]["plot_type"] {
-  switch (value?.HarmosVariant.case) {
-    case "Bar":
-      return "bar";
-    case "GroupedBar":
-    case "StackedBar":
-    case "Pie":
-    case "Donut":
-    case "Pareto":
-    case "AggregateTable":
-      throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
-    case "Xy":
-      return "xy";
-    case "XyInterval":
-      return "xy_interval";
-    case "Trajectory":
-      return "trajectory";
-    case "Heatmap":
-      return "heatmap";
-    case "XyValueHeatmap":
-      return "xy_value_heatmap";
-    case "WifiChannelOccupancy":
-      return "wifi_channel_occupancy";
-    case "FrequencySeries":
-      return "frequency_series";
-    case "Histogram":
-      return "histogram";
-    case "BoxSummary":
-      return "box_summary";
-    case "TimeSeries":
+function mapNativePlotType(value?: PlotType): DocumentViewCard["plots"][number]["plot_type"] {
+  switch (value) {
+    case definitions.PlotKind.TIME_SERIES:
       return "time_series";
+    case definitions.PlotKind.FREQUENCY_SERIES:
+      return "frequency_series";
+    case definitions.PlotKind.XY:
+      return "xy";
+    case definitions.PlotKind.TRAJECTORY:
+      return "trajectory";
+    case definitions.PlotKind.CONTOUR:
+      return "contour";
+    case definitions.PlotKind.GRID_CHART:
+      return "grid_chart";
+    case definitions.PlotKind.BAR:
+      return "bar";
+    case definitions.PlotKind.PIE:
+      return "pie";
+    case definitions.PlotKind.HISTOGRAM:
+      return "histogram";
+    case definitions.PlotKind.BOX_PLOT:
+      return "box_plot";
     default:
       throw new Error(`Unsupported document plot type: ${value}`);
   }
 }
-
 function mapPlotStyle(value?: PlotStyle): "line" | "points" | "line_points" | "step" {
-  return enumTail(undefined, value, "line");
+  return value === v1.LineStyle.POINTS
+    ? "points"
+    : value === v1.LineStyle.LINE_POINTS
+      ? "line_points"
+      : value === v1.LineStyle.STEP
+        ? "step"
+        : "line";
 }
-
 function mapAxisScale(value?: AxisScale): "linear" | "log" {
-  return enumTail(undefined, value, "linear");
+  return value === definitions.AxisScale.LOG ? "log" : "linear";
 }
-
 function mapFftWindow(value?: FftWindow): "hann" | "rectangular" {
-  return enumTail(undefined, value, "hann");
+  return value === v1.FftWindow.RECTANGULAR ? "rectangular" : "hann";
 }
-
 function mapFftDetrend(value?: FftDetrend): "none" | "mean" {
-  return enumTail(undefined, value, "mean");
+  return value === v1.FftDetrend.NONE ? "none" : "mean";
 }
-
-/* The level units keep their proto casing, so every member is an override. */
 function mapFrequencyLevelUnit(value?: FrequencyLevelUnit): "linear" | "dB" | "dBu" | "dBm" {
-  return enumTail(undefined, value, "linear", {
-    Db: "dB",
-    Dbu: "dBu",
-    Dbm: "dBm",
-  });
+  return value === v1.FrequencyLevelUnit.DB
+    ? "dB"
+    : value === v1.FrequencyLevelUnit.DBU
+      ? "dBu"
+      : value === v1.FrequencyLevelUnit.DBM
+        ? "dBm"
+        : "linear";
 }
-
 function mapNativeFilter(filter: PlotRequest["filters"][number]): {
   expression: DocumentDataExpression;
   operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";
   value?: unknown;
 } {
-  if (!filter.expression) throw new Error("Native plot filter has no expression.");
   const expression = mapNativeExpression(filter.expression);
   if (!expression) invalid("plot filter expression is missing");
   return {
@@ -657,22 +668,21 @@ function mapNativeFilter(filter: PlotRequest["filters"][number]): {
     ...(filter.value === undefined ? {} : { value: nativeValueToJson(filter.value) }),
   };
 }
-
 function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists" {
-  switch (value?.HarmosVariant.case) {
-    case "Ne":
+  switch (value) {
+    case definitions.FilterOperator.NE:
       return "ne";
-    case "Gt":
+    case definitions.FilterOperator.GT:
       return "gt";
-    case "Gte":
+    case definitions.FilterOperator.GE:
       return "gte";
-    case "Lt":
+    case definitions.FilterOperator.LT:
       return "lt";
-    case "Lte":
+    case definitions.FilterOperator.LE:
       return "lte";
-    case "Contains":
+    case definitions.FilterOperator.CONTAINS:
       return "contains";
-    case "Exists":
+    case definitions.FilterOperator.EXISTS:
       return "exists";
     default:
       return "eq";
@@ -686,67 +696,76 @@ function mapNativeReferenceValue(value: { constant?: number; expression?: Parame
   return expression;
 }
 
-function mapNativeExpression(value?: DataExpression): import("../document-contracts").DataExpression | null {
+function mapNativeExpression(value?: DataExpression, depth = 0): import("../document-contracts").DataExpression | null {
   if (!value) return null;
-  const sourceKind = value.source?.HarmosVariant;
-  if (!sourceKind?.case || !sourceKind.value.field0 || value.transforms.length > GUI_PLOT_TRANSFORMS)
-    invalid("expression source or transform bound is invalid");
-  const source = (() => {
-    switch (sourceKind.case) {
-      case "Telemetry":
-        if (!sourceKind.value.field0) invalid("expression source is missing");
-        return {
-          type: "telemetry" as const,
-          stream: sourceKind.value.field0.stream,
-          field: sourceKind.value.field0.field,
-        };
-      case "Parameter":
-        if (!sourceKind.value.field0) invalid("expression source is missing");
-        return { type: "parameter" as const, name: sourceKind.value.field0.name };
-      case "Dimension":
-        if (!sourceKind.value.field0) invalid("expression source is missing");
-        return { type: "dimension" as const, name: sourceKind.value.field0.name };
-      case "Record":
-        if (!sourceKind.value.field0) invalid("expression source is missing");
-        return { type: "record" as const, record_type: sourceKind.value.field0.recordType };
-      case "Artifact":
-        if (!sourceKind.value.field0) invalid("expression source is missing");
-        return { type: "artifact" as const, artifact: sourceKind.value.field0.artifact };
-      default:
-        return invalid("expression kind is missing");
+  if (depth > GUI_PLOT_TRANSFORMS) invalid("expression transform bound is invalid");
+  const kind = value.kind;
+  switch (kind.case) {
+    case "literal":
+      return { source: { type: "literal", value: nativeValueToJson(kind.value) }, label: value.label };
+    case "stream":
+      return { source: { type: "telemetry", stream: kind.value.identifier, field: kind.value.field }, label: value.label };
+    case "record":
+      return {
+        source: { type: "record", record_type: kind.value.identifier },
+        transforms: kind.value.field ? [{ type: "detail", name: kind.value.field }] : [],
+        label: value.label,
+      };
+    case "parameter":
+      return { source: { type: "parameter", name: kind.value }, label: value.label };
+    case "dimension":
+      return { source: { type: "dimension", name: kind.value }, label: value.label };
+    case "artifact":
+      return { source: { type: "artifact", artifact: kind.value }, label: value.label };
+    case "aggregate": {
+      const input = mapNativeExpression(kind.value.input, depth + 1);
+      if (!input) invalid("aggregate input is missing");
+      const names: Partial<Record<definitions.Aggregate, import("../document-contracts").Aggregate>> = {
+        [definitions.Aggregate.FIRST]: "first",
+        [definitions.Aggregate.LAST]: "last",
+        [definitions.Aggregate.COUNT]: "count",
+        [definitions.Aggregate.SUM]: "sum",
+        [definitions.Aggregate.MIN]: "min",
+        [definitions.Aggregate.MAX]: "max",
+        [definitions.Aggregate.MEAN]: "mean",
+        [definitions.Aggregate.STDDEV]: "std",
+        [definitions.Aggregate.MEDIAN]: "median",
+        [definitions.Aggregate.RMS]: "rms",
+      };
+      const aggregate =
+        kind.value.kind === definitions.Aggregate.PERCENTILE ? (`p${kind.value.percentile}` as const) : names[kind.value.kind];
+      if (!aggregate) invalid("aggregate kind is missing");
+      return { ...input, label: value.label || input.label, transforms: [...(input.transforms ?? []), { type: "aggregate", aggregate }] };
     }
-  })();
-
-  const transforms = value.transforms.map((transform) => {
-    const kind = transform.kind?.HarmosVariant;
-    if (!kind?.case || !kind.value.field0) invalid("expression transform is missing");
-    switch (kind.case) {
-      case "Aggregate":
-        return {
-          type: "aggregate" as const,
-          aggregate: aggregateName(kind.value.field0.aggregate),
-        };
-      case "TimeBetween":
-        if (!kind.value.field0) invalid("expression transform is missing");
-        return {
-          type: "time_between" as const,
-          previous_record_type: kind.value.field0.previousRecordType,
-        };
-      case "Detail":
-        if (!kind.value.field0) invalid("expression transform is missing");
-        return { type: "detail" as const, name: kind.value.field0.name };
-      case "PerCase":
-        if (!kind.value.field0) invalid("expression transform is missing");
-        return { type: "per_case" as const };
-      default:
-        return invalid("expression kind is missing");
+    case "transform": {
+      const input = mapNativeExpression(kind.value.input, depth + 1);
+      if (!input) invalid("transform input is missing");
+      const transform = kind.value.kind;
+      let mapped: import("../document-contracts").DataTransform;
+      switch (transform.case) {
+        case "scale":
+          mapped = { type: "scale", factor: transform.value };
+          break;
+        case "offset":
+          mapped = { type: "offset", value: transform.value };
+          break;
+        case "detail":
+          mapped = { type: "detail", name: transform.value };
+          break;
+        case "timeBetween":
+          mapped = { type: "time_between", previous_record_type: transform.value };
+          break;
+        case "perCase":
+          mapped = { type: "per_case" };
+          break;
+        default:
+          return invalid("expression transform is missing");
+      }
+      return { ...input, label: value.label || input.label, transforms: [...(input.transforms ?? []), mapped] };
     }
-  });
-  return {
-    source,
-    ...(value.label === undefined ? {} : { label: value.label }),
-    ...(transforms.length ? { transforms } : {}),
-  };
+    default:
+      return invalid("expression source is missing");
+  }
 }
 
 function createDocumentScope(request: NativeDocumentRequest) {
@@ -816,30 +835,26 @@ export async function assembleDocument(
   };
   const validateStructure = () => {
     for (const [id, card] of cards) {
-      if (card.body?.HarmosVariant.case === "Table" && card.body.HarmosVariant.value.field0?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
+      if (card.body?.kind.case === "table" && card.body.kind.value?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
         invalid("table row count is incomplete");
-      if (card.body?.HarmosVariant.case === "Summary") {
+      if (card.body?.kind.case === "summary") {
         const entries = definitions.get(id) ?? [];
-        if (card.body.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length))
-          invalid("summary definition group count is incomplete");
+        if (card.body.kind.value?.groupCount !== BigInt(entries.length)) invalid("summary definition group count is incomplete");
         for (const group of entries)
           if (group.tileCount !== BigInt(definitionTiles.get(id)?.get(group.ordinal)?.length ?? 0))
             invalid("summary definition tile count is incomplete");
       }
     }
     for (const node of layout)
-      if (
-        node.node?.HarmosVariant.case === "Placement" &&
-        (!node.node.HarmosVariant.value.field0 || !cards.has(node.node.HarmosVariant.value.field0.cardId))
-      )
+      if (node.node?.kind.case === "placement" && (!node.node.kind.value || !cards.has(node.node.kind.value.cardId)))
         invalid("layout references a missing source card");
   };
   const validateBinding = (id: string) => {
     const binding = bindings.get(id);
-    if (!binding || binding.result?.HarmosVariant.case === "Pending") invalid("card is incomplete");
-    if (binding.result?.HarmosVariant.case !== "Summary") return;
+    if (!binding || binding.result?.kind.case === "pending") invalid("card is incomplete");
+    if (binding.result?.kind.case !== "summary") return;
     const entries = groups.get(id) ?? [];
-    if (binding.result.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");
+    if (binding.result.kind.value?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");
     for (const group of entries)
       if (group.tileCount !== BigInt(tiles.get(id)?.get(group.ordinal)?.length ?? 0)) invalid("summary tile count is incomplete");
   };
@@ -847,14 +862,14 @@ export async function assembleDocument(
     if (!active()) invalid("selection changed or transfer cancelled");
     if (complete) invalid("a frame followed completion");
     count++;
-    const frame = item.frame?.HarmosVariant;
+    const frame = item.frame?.kind;
     if (!frame?.case) invalid("frame payload is missing");
-    const payload = frame.value.field0;
+    const payload = frame.value;
     const cardId =
       payload && typeof payload === "object" && "cardId" in payload
         ? String(payload.cardId)
-        : frame.case === "Binding"
-          ? frame.value.field0?.metadata?.identifier
+        : frame.case === "binding"
+          ? frame.value?.metadata?.identifier
           : undefined;
     const key = structured && cardId ? `card:${cardId}` : "structure";
     const reached = (bytes.get(key) ?? 0) + toBinary(DocumentFrameSchema, item).byteLength;
@@ -863,14 +878,15 @@ export async function assembleDocument(
         `budget materialized_bytes exceeded (limit ${DOCUMENTS_MATERIALIZED_BYTES}, reached ${reached}, card ${cardId ?? "structure"})`,
       );
     bytes.set(key, reached);
-    if (!header && frame.case !== "Header") invalid("header must be first");
+    if (!header && frame.case !== "header") invalid("header must be first");
     switch (frame.case) {
-      case "Header": {
+      case "header": {
         if (header) invalid("duplicate header");
-        const value = frame.value.field0;
+        const value = frame.value;
         if (!value) invalid("frame payload is missing");
         if (
-          value.documentId !== expected.documentId ||
+          !value.documentId ||
+          (expected.documentId !== "" && value.documentId !== expected.documentId) ||
           value.scope?.cycleId !== expected.scope.cycleId ||
           // A cycle's own document carries no execution in its scope.
           (value.scope?.executionId ?? "") !== expected.scope.executionId ||
@@ -881,78 +897,77 @@ export async function assembleDocument(
         header = value;
         break;
       }
-      case "LayoutNode": {
-        const node = frame.value.field0;
+      case "layoutNode": {
+        const node = frame.value;
         if (!node) invalid("frame payload is missing");
-        if (node.ordinal !== BigInt(layout.length) || !node.node?.HarmosVariant.case || layout.length >= DOCUMENTS_EXPANDED_NODES)
+        if (node.ordinal !== BigInt(layout.length) || !node.node?.kind.case || layout.length >= DOCUMENTS_EXPANDED_NODES)
           invalid("layout ordinals are not contiguous or exceed the budget");
         if (node.parentOrdinal === undefined) path = [];
         else {
           const parent = byOrdinal.get(node.parentOrdinal);
           const ancestor = path.indexOf(node.parentOrdinal);
-          if (!parent || parent.node?.HarmosVariant.case === "Placement" || ancestor < 0)
+          if (!parent || parent.node?.kind.case === "placement" || ancestor < 0)
             invalid("layout parent is missing or outside the pre-order path");
           path = path.slice(0, ancestor + 1);
         }
         path.push(node.ordinal);
         if (path.length > DOCUMENTS_ENCODED_DEPTH) invalid("layout depth budget exceeded");
         if (
-          node.node?.HarmosVariant.case === "Section" &&
-          (!node.node.HarmosVariant.value.field0?.nodeId ||
-            !node.node.HarmosVariant.value.field0?.metadata ||
-            (node.node.HarmosVariant.value.field0?.repeat && !node.node.HarmosVariant.value.field0?.repeat.value))
+          node.node?.kind.case === "section" &&
+          (!node.node.kind.value?.nodeId ||
+            !node.node.kind.value?.metadata ||
+            (node.node.kind.value?.repeat && !node.node.kind.value?.repeat.value))
         )
           invalid("section declaration is incomplete");
         byOrdinal.set(node.ordinal, node);
         layout.push(node);
         break;
       }
-      case "Card": {
-        const card = frame.value.field0;
+      case "card": {
+        const card = frame.value;
         if (!card) invalid("frame payload is missing");
         const id = card.metadata?.identifier;
-        if (!id || cards.has(id) || !card.body?.HarmosVariant.case) invalid("missing or duplicate card identity");
+        if (!id || cards.has(id) || !card.body?.kind.case) invalid("missing or duplicate card identity");
         cards.set(id, card);
-        if (card.body?.HarmosVariant.case === "Table") rows.set(id, []);
-        if (card.body?.HarmosVariant.case === "Summary") {
+        if (card.body?.kind.case === "table") rows.set(id, []);
+        if (card.body?.kind.case === "summary") {
           definitions.set(id, []);
           definitionTiles.set(id, new Map());
         }
         break;
       }
-      case "Binding": {
-        const binding = frame.value.field0;
+      case "binding": {
+        const binding = frame.value;
         if (!binding) invalid("frame payload is missing");
         const id = binding.metadata?.identifier;
         const source = cards.get(binding.sourceId);
         if (
           !id ||
-          (bindings.has(id) && (!structured || bindings.get(id)?.result?.HarmosVariant.case !== "Pending")) ||
+          (bindings.has(id) && (!structured || bindings.get(id)?.result?.kind.case !== "pending")) ||
           !source ||
-          !binding.result?.HarmosVariant.case
+          !binding.result?.kind.case
         )
           invalid("binding source or identity is invalid");
         const expectedResult =
-          source.body?.HarmosVariant.case === "Summary"
-            ? "Summary"
-            : source.body?.HarmosVariant.case === "Owner" && source.body.HarmosVariant.value.field0?.kind?.HarmosVariant.case === "Plot"
-              ? "Plot"
-              : "Literal";
+          source.body?.kind.case === "summary"
+            ? "summary"
+            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === v1.DocumentCardKind.PLOT
+              ? "plot"
+              : "literal";
         if (
-          (!["Pending", "Failure"].includes(binding.result?.HarmosVariant.case ?? "") &&
-            binding.result?.HarmosVariant.case !== expectedResult) ||
-          (binding.result?.HarmosVariant.case === "Literal" && !binding.result.HarmosVariant.value.field0)
+          (!["pending", "failure"].includes(binding.result?.kind.case ?? "") && binding.result?.kind.case !== expectedResult) ||
+          (binding.result?.kind.case === "literal" && !binding.result.kind.value)
         )
           invalid("binding result differs from its declaration");
         bindings.set(id, binding);
-        if (binding.result?.HarmosVariant.case === "Summary") {
+        if (binding.result?.kind.case === "summary") {
           groups.set(id, []);
           tiles.set(id, new Map());
         }
         break;
       }
-      case "TableRow": {
-        const row = frame.value.field0;
+      case "tableRow": {
+        const row = frame.value;
         if (!row) invalid("frame payload is missing");
         const target = rows.get(row.cardId);
         if (!target || row.ordinal !== BigInt(target.length) || !row.values)
@@ -960,8 +975,8 @@ export async function assembleDocument(
         target.push(row);
         break;
       }
-      case "GroupDefinition": {
-        const group = frame.value.field0;
+      case "groupDefinition": {
+        const group = frame.value;
         if (!group) invalid("frame payload is missing");
         const target = definitions.get(group.cardId);
         if (!target || group.ordinal !== BigInt(target.length) || !group.metadata) invalid("summary definition group is invalid");
@@ -969,8 +984,8 @@ export async function assembleDocument(
         definitionTiles.get(group.cardId)?.set(group.ordinal, []);
         break;
       }
-      case "TileDefinition": {
-        const tile = frame.value.field0;
+      case "tileDefinition": {
+        const tile = frame.value;
         if (!tile) invalid("frame payload is missing");
         const target = definitionTiles.get(tile.cardId)?.get(tile.groupOrdinal);
         if (!target || tile.ordinal !== BigInt(target.length) || !tile.metadata || !tile.value)
@@ -978,8 +993,8 @@ export async function assembleDocument(
         target.push(tile);
         break;
       }
-      case "SummaryGroup": {
-        const group = frame.value.field0;
+      case "summaryGroup": {
+        const group = frame.value;
         if (!group) invalid("frame payload is missing");
         const target = groups.get(group.cardId);
         if (!target || group.ordinal !== BigInt(target.length) || !group.metadata)
@@ -988,8 +1003,8 @@ export async function assembleDocument(
         tiles.get(group.cardId)?.set(group.ordinal, []);
         break;
       }
-      case "SummaryTile": {
-        const tile = frame.value.field0;
+      case "summaryTile": {
+        const tile = frame.value;
         if (!tile) invalid("frame payload is missing");
         const target = tiles.get(tile.cardId)?.get(tile.groupOrdinal);
         if (!target || tile.ordinal !== BigInt(target.length) || !tile.metadata)
@@ -998,8 +1013,8 @@ export async function assembleDocument(
         target.push(tile);
         break;
       }
-      case "RepeatSelection": {
-        const repeat = frame.value.field0;
+      case "repeatSelection": {
+        const repeat = frame.value;
         if (!repeat) invalid("frame payload is missing");
         if (!repeat.nodeId || (repeats.has(repeat.nodeId) && !repeats.get(repeat.nodeId)?.pending))
           invalid("repeat selection identity is invalid");
@@ -1007,8 +1022,8 @@ export async function assembleDocument(
         instances.set(repeat.nodeId, []);
         break;
       }
-      case "RepeatInstance": {
-        const instance = frame.value.field0;
+      case "repeatInstance": {
+        const instance = frame.value;
         if (!instance) invalid("frame payload is missing");
         const target = instances.get(instance.selectionId);
         if (
@@ -1023,25 +1038,25 @@ export async function assembleDocument(
         target.push(instance);
         break;
       }
-      case "SectionRemoval": {
-        if (!structured || !frame.value.field0 || !sections.delete(frame.value.field0)) invalid("section removal is invalid");
+      case "sectionRemoval": {
+        if (!structured || !frame.value || !sections.delete(frame.value)) invalid("section removal is invalid");
         break;
       }
-      case "SectionIdentity": {
-        const section = frame.value.field0;
+      case "sectionIdentity": {
+        const section = frame.value;
         if (!section) invalid("frame payload is missing");
         if (!section.nodeId || !section.metadata || sections.has(section.nodeId)) invalid("section identity is invalid");
         unavailableReason(section.unavailable);
         sections.set(section.nodeId, section);
         break;
       }
-      case "Warning":
-        if (!frame.value.field0) invalid("warning payload is missing");
-        warnings.push(frame.value.field0);
+      case "warning":
+        if (!frame.value) invalid("warning payload is missing");
+        warnings.push(frame.value);
         break;
-      case "StructureComplete": {
+      case "structureComplete": {
         if (structured) invalid("duplicate structure completion");
-        const value = frame.value.field0;
+        const value = frame.value;
         if (
           !value ||
           value.cardCount !== BigInt(cards.size) ||
@@ -1054,16 +1069,16 @@ export async function assembleDocument(
           invalid("structure counts differ");
         validateStructure();
         for (const [id, binding] of bindings) {
-          if (binding.result?.HarmosVariant.case !== "Pending") validateBinding(id);
+          if (binding.result?.kind.case !== "pending") validateBinding(id);
           committed.set(id, binding);
         }
         structured = true;
         notify();
         break;
       }
-      case "EvidenceCut": {
+      case "evidenceCut": {
         if (!structured || evidence || !header?.frontiers) invalid("evidence cut is misplaced");
-        const value = frame.value.field0;
+        const value = frame.value;
         if (!value?.cut?.store || !value.cut.epoch) invalid("evidence cut is incomplete");
         header = { ...header, frontiers: { ...header.frontiers, evidence: value.cut, telemetry: value.telemetry ? value.cut : undefined } };
         evidence = true;
@@ -1071,41 +1086,41 @@ export async function assembleDocument(
         if (held) return held;
         break;
       }
-      case "ArtifactCut": {
-        if (!structured || !evidence || !header?.frontiers || !frame.value.field0 || header.frontiers.artifactsSha256)
+      case "artifactCut": {
+        if (!structured || !evidence || !header?.frontiers || !frame.value || header.frontiers.artifactsSha256)
           invalid("artifact frontier is misplaced");
-        header = { ...header, frontiers: { ...header.frontiers, artifactsSha256: frame.value.field0 } };
+        header = { ...header, frontiers: { ...header.frontiers, artifactsSha256: frame.value } };
         const held = await reuse?.(header);
         if (held) return held;
         break;
       }
-      case "Page": {
-        const value = frame.value.field0;
+      case "page": {
+        const value = frame.value;
         if (!structured || !evidence || !value?.current || page) invalid("document page is misplaced");
         page = { current: value.current, next: value.next };
         break;
       }
-      case "ExpansionComplete": {
-        if (!structured || frame.value.field0 === undefined) invalid("expansion completion is invalid");
+      case "expansionComplete": {
+        if (!structured || frame.value === undefined) invalid("expansion completion is invalid");
         for (const [id, repeat] of repeats)
           if (!repeat.pending && repeat.instanceCount !== BigInt(instances.get(id)?.length ?? 0))
             invalid("repeat instance count is incomplete");
-        if (frame.value.field0 && header) {
+        if (frame.value && header) {
           const held = await reuse?.(header);
           if (held) return held;
         }
         for (const [id, binding] of bindings)
           if (!committed.has(id)) {
-            if (binding.result?.HarmosVariant.case !== "Pending") validateBinding(id);
+            if (binding.result?.kind.case !== "pending") validateBinding(id);
             committed.set(id, binding);
           }
         notify();
         break;
       }
-      case "CardComplete": {
+      case "cardComplete": {
         if (!structured || !evidence) invalid("card completed before evidence");
-        const id = frame.value.field0;
-        if (!id || committed.get(id)?.result?.HarmosVariant.case !== "Pending") invalid("card completion is duplicated");
+        const id = frame.value;
+        if (!id || committed.get(id)?.result?.kind.case !== "pending") invalid("card completion is duplicated");
         validateBinding(id);
         const binding = bindings.get(id);
         if (!binding) invalid("completed card binding is missing");
@@ -1113,8 +1128,8 @@ export async function assembleDocument(
         notify();
         break;
       }
-      case "Completion": {
-        const value = frame.value.field0;
+      case "completion": {
+        const value = frame.value;
         if (!value) invalid("frame payload is missing");
         if (
           value.frameCount !== BigInt(count) ||
@@ -1142,9 +1157,9 @@ export async function assembleDocument(
   if (!complete || !header) invalid("transfer ended before completion");
   validateStructure();
   for (const [id, binding] of bindings) {
-    if (binding.result?.HarmosVariant.case !== "Summary") continue;
+    if (binding.result?.kind.case !== "summary") continue;
     const entries = groups.get(id) ?? [];
-    if (binding.result.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");
+    if (binding.result.kind.value?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");
     for (const group of entries)
       if (group.tileCount !== BigInt(tiles.get(id)?.get(group.ordinal)?.length ?? 0)) invalid("summary tile count is incomplete");
   }

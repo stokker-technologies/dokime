@@ -133,11 +133,13 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
             <span className="text-right">Members</span>
           </div>
           {shown.map((cycle) => (
-            <button
+            <Button
+              variant="plain"
+              size="inline"
               aria-pressed={cycle.cycleId === activeId}
               className={cn(
                 PICKER_ROW,
-                "min-h-[var(--control-height)] rounded-lg py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                "min-h-[var(--control-height)] rounded-lg py-2 text-left hover:bg-muted ",
                 cycle.cycleId === activeId ? "bg-muted" : null,
               )}
               key={cycle.cycleId}
@@ -149,7 +151,7 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
               <span className="font-mono text-xs text-muted-foreground tabular-nums">{cycle.createdLabel}</span>
               <span className="font-mono text-xs text-muted-foreground tabular-nums">{cycle.shortId}</span>
               <span className="text-right font-mono text-xs text-muted-foreground tabular-nums">{caseCountLabel(cycle.caseCount)}</span>
-            </button>
+            </Button>
           ))}
         </div>
       ) : (

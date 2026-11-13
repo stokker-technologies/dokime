@@ -13,7 +13,7 @@
 # Standard Library Imports
 import io
 import json
-import runpy
+import os
 import socket
 import sys
 import tempfile
@@ -46,11 +46,6 @@ class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.runners = [run]
-        for path in sorted((ROOT / "crates/cargo-dokime/templates").rglob("test/run.py.tmpl")):
-            namespace = runpy.run_path(str(path), run_name=f"{run.__package__}.template_runner")
-            module = ModuleType(namespace["__name__"])
-            module.__dict__.update(namespace)
-            cls.runners.append(module)
 
     def test_benchmark_baseline_refresh_and_comparison(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -78,6 +73,7 @@ class RunTests(unittest.TestCase):
                 return 0, None
 
             with (
+                patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}),
                 patch.object(run, "_preflight"),
                 patch.object(run.archive, "_toolchain", return_value="fixture"),
                 patch.object(run.archive, "fixtures"),
@@ -90,7 +86,7 @@ class RunTests(unittest.TestCase):
                     status = run.bench(directory, "system", "rust", ".", False, [])
                 self.assertEqual(status, 1)
                 self.assertIn("sidecar_ingest/scalar/0", output.getvalue())
-                self.assertIn("mise run bench:rust:system --refresh-baseline", output.getvalue())
+                self.assertIn("mise run bench -- --language rust --layer system --refresh-baseline", output.getvalue())
                 self.assertEqual(list(directory.rglob("dev/estimates.json")), [])
 
                 output = io.StringIO()
@@ -110,6 +106,10 @@ class RunTests(unittest.TestCase):
                     self.assertEqual(status, 0)
                     self.assertIn("benchmark regression: sidecar_ingest/scalar/0: 900.0%", output.getvalue())
                     self.assertNotIn("::notice::", output.getvalue())
+                    published = json.loads((directory / "target/benchmarks/benchmarks-rust-system.json").read_text())
+                    self.assertEqual(published["benchmarks"][0]["value"], 1000.0)
+                    self.assertEqual(published["benchmarks"][0]["baseline_value"], 100.0)
+                    self.assertEqual(published["benchmarks"][0]["revision"], "a" * 40)
                     expected = 1000.0 if refresh else 100.0
                     self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], expected)
 

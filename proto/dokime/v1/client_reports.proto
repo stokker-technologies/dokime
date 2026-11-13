@@ -1,0 +1,130 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+import "dokime/v1/documents.proto";
+
+message ReportsDownloadCycleReportRequest {
+  string cycle_id = 1;
+  string identifier = 2;
+}
+
+message ReportsDownloadCycleReportOutput {
+  oneof value {
+    ReportHtmlFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ReportsDownloadCycleReportRunInput {
+  oneof value {
+    ReportsDownloadCycleReportRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ReportsDownloadCycleReportRunOutput {
+  oneof value {
+    ReportHtmlFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ReportsDownloadExecutionReportRequest {
+  string execution_id = 1;
+}
+
+message ReportsDownloadExecutionReportOutput {
+  oneof value {
+    ReportHtmlFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ReportsDownloadExecutionReportRunInput {
+  oneof value {
+    ReportsDownloadExecutionReportRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ReportsDownloadExecutionReportRunOutput {
+  oneof value {
+    ReportHtmlFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ReportsMaterializeReportRequest {
+  ReportSubject subject = 1;
+  StorageCursor at = 2;
+}
+
+message ReportsMaterializeReportRunInput {
+  oneof value {
+    ReportsMaterializeReportRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ReportsMaterializeReportRunOutput {
+  oneof value {
+    MaterializedReport response = 2;
+  }
+}
+
+message ReportsPublishExecutionReportRequest {
+  string execution_id = 1;
+  Document document = 2;
+}
+
+message ReportsPublishExecutionReportRunInput {
+  oneof value {
+    ReportsPublishExecutionReportRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ReportsPublishExecutionReportRunOutput {
+  oneof value {
+    ReportMetadata response = 2;
+  }
+}
+
+service Reports {
+  // Public. Explicitly render and durably publish a document from a sealed execution snapshot.
+  // Rendering or downloading alone never publishes. A rendering failure publishes nothing.
+  rpc PublishExecutionReport (.dokime.v1.ReportsPublishExecutionReportRequest) returns (.dokime.v1.ReportMetadata);
+  // Public. Request first; finish or cancel; await settlement and final status.
+  rpc RunPublishExecutionReport (stream .dokime.v1.ReportsPublishExecutionReportRunInput)
+      returns (stream .dokime.v1.ReportsPublishExecutionReportRunOutput);
+  // Public. dokime.reports.download_cycle_report. Output items precede the final response; require successful
+  // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution.
+  // Metadata precedes ordered chunks and digest completion. Downloading observes the selected report and does not
+  // seal or publish a new report.
+  rpc DownloadCycleReport (.dokime.v1.ReportsDownloadCycleReportRequest) returns (stream .dokime.v1.ReportsDownloadCycleReportOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadCycleReport (stream .dokime.v1.ReportsDownloadCycleReportRunInput)
+      returns (stream .dokime.v1.ReportsDownloadCycleReportRunOutput);
+  // Public. dokime.reports.download_execution_report. Output items precede the final response; require successful
+  // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution. Streams
+  // one execution's report: the one its finalization sealed, or one generated from its current or stored evidence
+  // when there is none to read.
+  // Metadata precedes ordered chunks and digest completion. Rendering a current snapshot is separate from durable
+  // publication/sealing.
+  rpc DownloadExecutionReport (.dokime.v1.ReportsDownloadExecutionReportRequest)
+      returns (stream .dokime.v1.ReportsDownloadExecutionReportOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadExecutionReport (stream .dokime.v1.ReportsDownloadExecutionReportRunInput)
+      returns (stream .dokime.v1.ReportsDownloadExecutionReportRunOutput);
+  // Public. dokime.reports.materialize_report. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc MaterializeReport (.dokime.v1.ReportsMaterializeReportRequest) returns (.dokime.v1.MaterializedReport);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunMaterializeReport (stream .dokime.v1.ReportsMaterializeReportRunInput)
+      returns (stream .dokime.v1.ReportsMaterializeReportRunOutput);
+}

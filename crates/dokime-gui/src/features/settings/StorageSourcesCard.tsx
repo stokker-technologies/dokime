@@ -104,7 +104,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
     const state = column.display({
       cell: ({ row }) => {
         const label = sourceLabel(row.original.identifier);
-        const locked = row.original.identifier === "local" || !canEnable;
+        const locked = row.original.identifier === "native" || !canEnable;
         return (
           <div className="flex items-center gap-2">
             <Switch
@@ -158,6 +158,11 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
 
   return (
     <SettingsCard>
+      {(!canReorder || !canEnable) && (
+        <p className="px-4 py-3 text-sm text-muted-foreground">
+          This Host Does Not Advertise Storage Source Changes. Ordering and Enable Controls Are Unavailable.
+        </p>
+      )}
       <DataTable
         aria-label="Storage Source Priority"
         columns={columns}

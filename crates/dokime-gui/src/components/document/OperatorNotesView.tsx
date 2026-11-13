@@ -24,6 +24,7 @@ import { NotificationMessage } from "@/components/NotificationMessage";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { MarkdownText } from "@/components/MarkdownText";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CLOSED_NOTE_DRAFT,
@@ -38,7 +39,6 @@ import {
 } from "@/features/cycle/operator-notes-model";
 import { timeOfDayLabel } from "@/lib/time-format";
 import type { OperatorNote } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 /* === Types === */
 
@@ -88,15 +88,16 @@ export function EditableOperatorNotes({ notes, pending, failure, onReset, onSubm
       {draft.mode === "adding" ? (
         editor
       ) : (
-        <button
-          className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+        <Button
+          variant="outline"
+          className="justify-start border-dashed text-muted-foreground"
           disabled={draft.mode !== "closed"}
           onClick={() => setDraft(openNewNote())}
           type="button"
         >
           <Plus size={16} />
           Add a Note
-        </button>
+        </Button>
       )}
       {notes.length ? (
         <NoteList
@@ -128,25 +129,19 @@ function NoteEditor({
   if (draft.mode === "closed") return null;
   const ready = noteSubmission(draft) !== null;
   return (
-    <div className="grid gap-2 rounded-lg border border-border/70 p-3">
-      <div aria-label="Note Editor" className="flex gap-1" role="tablist">
+    <Tabs
+      className="grid gap-2 border border-border/70 p-3"
+      value={draft.tab}
+      onValueChange={(value) => onChange(selectNoteTab(draft, value as NoteEditorTab))}
+    >
+      <TabsList aria-label="Note Editor">
         {TABS.map((tab) => (
-          <button
-            aria-selected={draft.tab === tab.id}
-            className={cn(
-              "rounded-lg px-3 py-1 text-xs font-semibold uppercase text-muted-foreground transition-colors hover:text-foreground",
-              draft.tab === tab.id && "bg-muted text-foreground",
-            )}
-            key={tab.id}
-            onClick={() => onChange(selectNoteTab(draft, tab.id))}
-            role="tab"
-            type="button"
-          >
+          <TabsTrigger key={tab.id} value={tab.id}>
             {tab.label}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
-      {draft.tab === "code" ? (
+      </TabsList>
+      <TabsContent value="code">
         <Textarea
           aria-label="Note Markdown"
           className="min-h-28 font-mono text-sm"
@@ -155,11 +150,10 @@ function NoteEditor({
           placeholder="Write the note in Markdown."
           value={draft.markdown}
         />
-      ) : (
-        <div className="min-h-28 rounded-lg border border-border/40 px-3 py-2">
-          <MarkdownText text={draft.markdown} />
-        </div>
-      )}
+      </TabsContent>
+      <TabsContent value="preview" className="min-h-28 border border-border/40 px-3 py-2">
+        <MarkdownText text={draft.markdown} />
+      </TabsContent>
       {failure ? <NotificationMessage error={failure}>{failure.message}</NotificationMessage> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
@@ -169,7 +163,7 @@ function NoteEditor({
           {draft.mode === "adding" ? "Add" : "Save"}
         </Button>
       </div>
-    </div>
+    </Tabs>
   );
 }
 

@@ -43,6 +43,7 @@ export type DocumentPlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; un
 // Renderer points may contain derived statistics and non-wire axis values.
 export type PlotPoint = Omit<NativePlotPoint, "x"> & {
   x: unknown;
+  instant?: string | null;
   low?: number | null;
   high?: number | null;
   mean?: number | null;
@@ -66,16 +67,15 @@ export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
 
 export type DocumentPlotType =
   | "time_series"
-  | "bar"
-  | "xy"
-  | "xy_interval"
-  | "trajectory"
-  | "heatmap"
-  | "xy_value_heatmap"
-  | "wifi_channel_occupancy"
   | "frequency_series"
+  | "xy"
+  | "trajectory"
+  | "contour"
+  | "grid_chart"
+  | "bar"
+  | "pie"
   | "histogram"
-  | "box_summary";
+  | "box_plot";
 
 export type DocumentPlotStyle = "line" | "points" | "line_points" | "step";
 
@@ -136,7 +136,7 @@ export type PlotAnalysis =
       }[];
     }
   | {
-      kind: "box_summary";
+      kind: "box_plot";
       series: {
         key: string;
         label: string;
@@ -162,32 +162,40 @@ export type PlotAnalysis =
         raw_points: number;
       }[];
     }
-  | {
-      kind: "wifi_occupancy";
-      /** Every channel a series reported, ascending. */
-      channels: number[];
-      /** Channels that held a network in any scan, ascending. */
-      occupied_channels: number[];
-      bands: { band: string; occupied_channels: number }[];
-      /** Scans in time order. */
-      scans: WifiOccupancyScan[];
-    };
+  | { kind: "contour"; grid: ContourGrid }
+  | { kind: "grid_chart"; data: GridFrames };
 
-export type WifiOccupancyScan = {
-  time: string;
-  channels: { channel: number; count: number }[];
-  bands: WifiOccupancyBandScan[];
-  occupied_channels: number;
-  total_networks: number;
-  peak_count: number;
+export type ContourGrid = {
+  columns: number;
+  rows: number;
+  x_edges: number[];
+  y_edges: number[];
+  values: number[];
+  valid: boolean[];
 };
 
-export type WifiOccupancyBandScan = {
-  band: string;
-  occupied_channels: number;
-  total_networks: number;
-  peak_count: number;
+export type GridAxisEntry = { key: string; label: string; order: number; group?: string | null };
+export type GridHighlight = {
+  row: import("./document").DocumentDataExpression;
+  column: import("./document").DocumentDataExpression;
+  label: string;
 };
+export type GridDefinition = {
+  row?: import("./document").DocumentDataExpression | null;
+  column?: import("./document").DocumentDataExpression | null;
+  frame?: import("./document").DocumentDataExpression | null;
+  rows: GridAxisEntry[];
+  columns: GridAxisEntry[];
+  highlights: GridHighlight[];
+  summary_label: string;
+};
+export type GridFrame = {
+  instant: string;
+  values: number[];
+  valid: boolean[];
+  highlights: { row: number; column: number; label: string }[];
+};
+export type GridFrames = { rows: GridAxisEntry[]; columns: GridAxisEntry[]; frames: GridFrame[]; summary_label: string };
 
 // Renderer payloads also represent locally materialized, partial plot data.
 export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
@@ -200,6 +208,9 @@ export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_poin
     markers?: PlotMarker[];
     /** One per series of a time series or scatter plot, over the shown window. */
     summaries?: SeriesSummary[];
+    bucket_width_s?: number | null;
+    bucket_window?: { from: number; to: number } | null;
+    replaced_buckets?: number[];
   };
 
 export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {

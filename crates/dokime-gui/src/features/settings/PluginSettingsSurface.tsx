@@ -73,7 +73,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
       : null);
 
   const reload = useReloadPluginMutation();
-  const reloadable = owning ? owning.state === "installed" && owning.restart === "idle" : Boolean(pluginId);
+  const reloadable = owning ? owning.state === "installed" && (!owning.restart || owning.restart === "idle") : Boolean(pluginId);
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
     title: `Settings › Plugins › ${section?.label ?? installation?.metadata?.identity.name ?? sectionId}`,

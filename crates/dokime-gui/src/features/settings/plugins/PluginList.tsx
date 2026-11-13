@@ -114,7 +114,7 @@ export function PluginList({
             title="Reload"
             size="icon-sm"
             variant="ghost"
-            disabled={entry.state !== "installed" || entry.restart !== "idle" || reload.isPending}
+            disabled={entry.state !== "installed" || (entry.restart !== undefined && entry.restart !== "idle") || reload.isPending}
             onClick={() => reload.mutate({ installId: entry.install_id })}
           >
             <RotateCw />

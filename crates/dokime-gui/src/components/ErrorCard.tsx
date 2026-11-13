@@ -44,7 +44,7 @@ export function ErrorCard({ failure, onRetry }: ErrorCardProps) {
     <section role="alert" className="grid gap-3 rounded-md border border-destructive bg-card p-4 text-card-foreground">
       <div className="flex items-center gap-2">
         <AlertCircle aria-hidden="true" className="size-5 shrink-0 text-destructive" />
-        <h3 className="font-heading text-sm font-semibold">{failure.title}</h3>
+        <h3 className="font-sans text-sm font-semibold">{failure.title}</h3>
       </div>
       <p className="whitespace-pre-wrap text-sm">{failure.message}</p>
       <FailureDetails failure={failure} />

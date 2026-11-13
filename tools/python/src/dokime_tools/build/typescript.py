@@ -12,10 +12,13 @@
 # === Imports === #
 
 # Standard Library Imports
+import subprocess
+
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import configuration, frontend
+from dokime_tools.build import configuration, frontend, organization
 from dokime_tools.prepare import generated
+from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
 
@@ -32,13 +35,18 @@ from dokime_tools.prepare import generated
 
 def build(profile: str) -> list[str]:
     """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
-    messages = configuration.messages(profile)
-    if not messages.is_file():
-        raise ValueError(f"missing Product compiler messages {messages}; run `mise run build:rust` first")
-    generated.generate(messages, check=True)
+    generated.prepare()
     generated.stage(profile)
-    built = frontend.build(profile)
-    files = [path for path in built.rglob("*") if path.is_file()]
+    organization.generate_icons()
+    subprocess.run(["pnpm", "run", "typecheck"], cwd=frontend.WEB_ROOT, check=True, creationflags=spawn_flags())
+    web = frontend.build(profile)
+    frontend.build_report([])
+    files = [
+        path
+        for directory in (configuration.ROOT / "target/generated/typescript", configuration.ROOT / "target/generated/host", web)
+        for path in directory.rglob("*")
+        if path.is_file()
+    ]
     return configuration.relative(files)
 
 

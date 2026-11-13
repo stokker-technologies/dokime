@@ -129,7 +129,7 @@ pub(crate) async fn release_all(app: &AppHandle) {
 /* === Private Functions === */
 
 fn media_root(app: &AppHandle) -> PathBuf {
-    app.state::<dokime::paths::ApplicationPaths>().cache().join("media")
+    app.state::<crate::paths::ApplicationPaths>().cache().join("media")
 }
 
 async fn release_with<F>(media_root: &Path, generation: &str, remove: impl FnOnce(PathBuf) -> F) -> Result<(), String>
@@ -151,35 +151,38 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
         ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. } => {
             Err("reports are saved or opened, not previewed as media".into())
         }
-        ArtifactSource::Artifact { artifact_id } => {
-            let id = dokime::domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
-                .map_err(|_| "invalid artifact id".to_string())?;
-            Ok(format!("art-{id}"))
-        }
+        ArtifactSource::Artifact { artifact_id } => Ok(format!("art-{}", cache_identifier(artifact_id)?)),
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
-            let id = dokime::domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
-                .map_err(|_| "invalid execution id".to_string())?;
+            let id = cache_identifier(execution_id)?;
             let digest = Sha256::digest(relative_path.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             Ok(format!("exec-{id}-{digest}"))
         }
     }
 }
 
+// Host Identifiers Are Opaque. Only Digests Become Local Cache Path Segments.
+fn cache_identifier(identifier: &str) -> Result<String, String> {
+    if identifier.is_empty() {
+        return Err("Prepare Media: The Host Content Identifier Is Empty; Refresh Its Inventory".into());
+    }
+    Ok(Sha256::digest(identifier.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
 fn parse_cache_key(key: &str) -> Result<String, String> {
-    if let Some(id) = key.strip_prefix("art-") {
-        let id = dokime::domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
-        return Ok(format!("art-{id}"));
+    let digest = |value: &str| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit());
+    if let Some(id) = key.strip_prefix("art-")
+        && digest(id)
+    {
+        return Ok(format!("art-{}", id.to_ascii_lowercase()));
     }
-    if let Some(rest) = key.strip_prefix("exec-") {
-        let (id, digest) = rest.rsplit_once('-').ok_or_else(|| "invalid media key".to_string())?;
-        let id =
-            dokime::domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
-        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err("invalid media key digest".into());
-        }
-        return Ok(format!("exec-{id}-{}", digest.to_ascii_lowercase()));
+    if let Some(rest) = key.strip_prefix("exec-")
+        && let Some((id, content)) = rest.split_once('-')
+        && digest(id)
+        && digest(content)
+    {
+        return Ok(format!("exec-{}-{}", id.to_ascii_lowercase(), content.to_ascii_lowercase()));
     }
-    Err("invalid media key".into())
+    Err("Prepare Media: Invalid Cache Key; Reload Its Preview".into())
 }
 
 fn parse_request_path(path: &str) -> Option<(String, String)> {
@@ -383,7 +386,18 @@ mod tests {
 
     #[test]
     fn tauri_encoded_media_paths() {
-        let key = "art-2ef1c770-b30d-4185-bc09-b8e1a09ac18c";
+        let key = cache_key(&ArtifactSource::Artifact {
+            artifact_id: "opaque/host/content".into(),
+        })
+        .unwrap();
+        assert_ne!(key, cache_key(&ArtifactSource::Artifact { artifact_id: "other-content".into() }).unwrap());
+        let execution = cache_key(&ArtifactSource::ExecutionFile {
+            execution_id: "imported-execution".into(),
+            relative_path: "images/front.png".into(),
+        })
+        .unwrap();
+        assert_eq!(parse_cache_key(&execution).unwrap(), execution);
+        assert!(cache_key(&ArtifactSource::Artifact { artifact_id: String::new() }).is_err());
         for path in [format!("/12%2F{key}"), format!("/12/{key}")] {
             let (generation, parsed) = parse_request_path(&path).unwrap();
             assert_eq!(generation, "12");

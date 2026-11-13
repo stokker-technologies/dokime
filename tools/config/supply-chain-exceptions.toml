@@ -1,0 +1,64 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# Upstream-Blocked Exceptions Approved on 2026-11-09 Expire on 2026-11-23 UTC; RSA and GLib Retain 2026-11-22.
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2024-0370"
+package = "proc-macro-error"
+version = "1.0.4"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5 -> glib-macros 0.18.5 -> proc-macro-error; the stable Linux GTK3 desktop stack has no compatible maintained replacement."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0371"
+package = "zbus_names"
+version = "4.3.4"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zbus_names 4.3.4; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zbus_names 4.3.4 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0370"
+package = "zvariant"
+version = "5.15.0"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0372"
+package = "zvariant_derive"
+version = "5.15.0"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2024-0429"
+package = "glib"
+version = "0.18.5"
+fixed = "none reported by Cargo Audit"
+category = "unsound"
+reason = "dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5, also through webkit2gtk; the stable Linux GTK3 desktop stack requires glib 0.18 and cannot use glib 0.20 without a desktop platform migration."
+owner = "orchestrator"
+expires = 2026-11-22

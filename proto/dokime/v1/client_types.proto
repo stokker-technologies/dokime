@@ -1,0 +1,3180 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/appearance.proto";
+import "dokime/v1/catalog.proto";
+import "dokime/v1/documents.proto";
+import "dokime/v1/execution.proto";
+import "google/protobuf/timestamp.proto";
+import "dokime/v1/host.proto";
+import "dokime/v1/plugins.proto";
+import "dokime/v1/values.proto";
+import "harmos/v1/types.proto";
+
+// Shared Client Message Contracts
+// Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
+// New message field numbers are protocol-owned; native row-derived schemas are retired.
+message ClientEmpty {}
+enum ExecutionState {
+  EXECUTION_STATE_UNSPECIFIED = 0;
+  EXECUTION_STATE_OPEN = 1;
+  EXECUTION_STATE_CLOSED = 2;
+  EXECUTION_STATE_SEALED = 3;
+}
+// Exactly one attribution is required. Only evaluated outcomes participate in the cycle headline verdict.
+// Declared and unevaluated executions are counted separately; an empty evaluated set is never Passed.
+message ExecutionOutcome {
+  oneof attribution {
+    UnevaluatedOutcome not_evaluated = 1;
+    EvaluatedOutcome evaluated = 2;
+    DeclaredOutcome declared = 3;
+  }
+}
+message UnevaluatedOutcome { Termination termination = 1; string reason = 2; }
+// Unspecified/Pending are invalid here. Without evaluated criteria, use not_evaluated;
+// an empty criterion set cannot produce an evaluated pass.
+message EvaluatedOutcome { ResultStatus status = 1; string reason = 2; }
+message DeclaredOutcome { ResultStatus status = 1; string reason = 2; string importer = 3; }
+// Schemas frozen for this execution, from its plugin catalog or its import-local catalog. Import schemas do not
+// register a plugin or overwrite global definitions.
+message FrozenSchemas {
+  // Frozen descriptors and contract identities for exact payload decoding.
+  harmos.v1.Catalog catalog = 3;
+  repeated RecordSchema records = 1;
+  repeated TelemetrySchema streams = 2;
+}
+message MapValue { map<string, Value> values = 1; }
+// Live manager state, never persisted as an execution state or a Run object.
+enum LiveExecutionState {
+  LIVE_EXECUTION_STATE_UNSPECIFIED = 0;
+  LIVE_EXECUTION_STATE_QUEUED = 1;
+  LIVE_EXECUTION_STATE_INITIALIZING = 2;
+  LIVE_EXECUTION_STATE_STEPPING = 3;
+  LIVE_EXECUTION_STATE_EVALUATING = 4;
+  LIVE_EXECUTION_STATE_CLEANING_UP = 5;
+  LIVE_EXECUTION_STATE_FINISHED = 6;
+  LIVE_EXECUTION_STATE_CANCELLED = 7;
+  LIVE_EXECUTION_STATE_INTERRUPTED = 8;
+}
+
+message AbsoluteTimeFormat {
+  string pattern = 1;
+}
+
+message Admission {
+  string command_id = 1;
+  optional string job_id = 2;
+  Cursor cursor = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+}
+
+message AdmittedPlugin {
+  Plugin plugin = 1;
+}
+
+// Continue plugin identifier ordering within one process epoch and admission revision. Availability changes can
+// invalidate pagination.
+message AdmittedPluginCursor {
+  string epoch = 1;
+  uint64 revision = 2;
+  string after_plugin_id = 3;
+}
+
+message AdmittedPluginPage {
+  repeated AdmittedPlugin plugins = 1;
+  AdmittedPluginCursor next = 2;
+  uint64 total_count = 3;
+  string epoch = 4;
+  uint64 revision = 5;
+}
+
+// Columns are group-by fields in request order followed by aggregate aliases in request order; every row follows
+// that order. complete=false means additional groups exceeded the effective result limit.
+message AggregateReply {
+  repeated string columns = 1;
+  repeated QueryRow rows = 2;
+  bool complete = 3;
+}
+
+// Unary analysis operations use the analysis metadata identifier as their operation ID.
+// Input is one bounded raw scalar series; output must match every declared output.
+message AnalysisRequest {
+  AnalysisSamples samples = 1;
+  MapValue parameters = 2;
+}
+message AnalysisSamples {
+  repeated double axis = 1;
+  repeated double values = 2;
+  string axis_unit = 3;
+  string unit = 4;
+}
+message AnalysisResponse { repeated AnalysisValues outputs = 1; }
+
+message AnalysisComputation {
+  Analysis definition = 1;
+  AnalysisSelection selection = 2;
+  AnalysisEvidence source = 3;
+  repeated AnalysisSeries series = 4;
+}
+
+message AnalysisEvidence {
+  string store = 1;
+  string epoch = 2;
+  uint64 position = 3;
+  string stream = 4;
+  EvidenceScope scope = 5;
+  optional double window_s = 6;
+  repeated string fields = 7;
+  string x_key = 8;
+}
+
+message AnalysisSelection {
+  string id = 1;
+  uint32 version = 2;
+  MapValue parameters = 3;
+}
+
+message AnalysisSeries {
+  string key = 1;
+  string label = 2;
+  optional string origin = 3;
+  uint64 input_samples = 4;
+  double first_axis = 5;
+  double last_axis = 6;
+  repeated AnalysisValues outputs = 7;
+}
+
+message AnalysisValues {
+  string key = 1;
+  string unit = 2;
+  string axis_unit = 3;
+  repeated double axis = 4;
+  repeated double values = 5;
+  repeated uint32 display_indices = 6;
+}
+
+message AnnotationOwner {
+  AnnotationOwnerOwner owner = 1;
+}
+
+message AnnotationOwnerOwner {
+  oneof kind {
+    string cycle_id = 1;
+    PlannedCaseNoteOwner planned_case = 2;
+    ExecutionNoteOwner execution = 3;
+  }
+}
+
+message AnnotationSelection {
+  AnnotationOwner owner = 1;
+  bool include_context = 2;
+}
+
+message AppearanceAssetFrame {
+  AppearanceAssetFramePayload payload = 1;
+}
+
+message AppearanceAssetFramePayload {
+  oneof kind {
+    AppearanceAssetMetadata metadata = 1;
+    ArtifactChunk chunk = 2;
+    ArtifactCompletion complete = 3;
+  }
+}
+
+message AppendCasesReply {
+  Cursor observed_cursor = 1;
+  repeated string execution_ids = 2;
+}
+
+message ApplicationAppearance {
+  ThemeMode theme_mode = 1;
+  optional string theme_family = 2;
+  Density density = 3;
+}
+
+message ApplicationSettings {
+  ApplicationAppearance appearance = 1;
+  ReportDefaults report = 2;
+  ClientPreferences client = 3;
+  TelemetryPreferences telemetry = 4;
+  RemoteListenerSettings listener = 5;
+  PluginPreferences plugins = 6;
+}
+
+message ArchiveReply {
+  bool archived = 1;
+}
+
+enum ArchiveScope {
+  ARCHIVE_SCOPE_UNSPECIFIED = 0;
+  ARCHIVE_SCOPE_UNARCHIVED = 1;
+  ARCHIVE_SCOPE_ARCHIVED = 2;
+  ARCHIVE_SCOPE_ALL = 3;
+}
+
+message ArtifactChunk {
+  uint64 offset = 1;
+  bytes data = 2;
+}
+
+message ArtifactCompletion {
+  uint64 size_bytes = 1;
+  string sha256 = 2;
+}
+
+message ArtifactCursor {
+  string epoch = 1;
+  bytes metadata_sha256 = 2;
+}
+
+message ArtifactFrame {
+  ArtifactFramePayload payload = 1;
+}
+
+message ArtifactFramePayload {
+  oneof kind {
+    ArtifactMetadata metadata = 1;
+    ArtifactChunk chunk = 2;
+    ArtifactCompletion complete = 3;
+  }
+}
+
+message ArtifactMetadata {
+  string artifact_id = 1;
+  string upload_id = 2;
+  ArtifactScope scope = 3;
+  string filename = 4;
+  optional string content_type = 5;
+  uint64 size_bytes = 6;
+  string sha256 = 7;
+  ArtifactState state = 8;
+  google.protobuf.Timestamp created_at = 9;
+  optional string error = 10;
+}
+
+message ArtifactScope {
+  optional string cycle_id = 1;
+  optional string case_id = 2;
+  optional string execution_id = 3;
+}
+
+enum ArtifactState {
+  ARTIFACT_STATE_UNSPECIFIED = 0;
+  ARTIFACT_STATE_COMPLETE = 1;
+  ARTIFACT_STATE_CANCELLED = 2;
+  ARTIFACT_STATE_REJECTED = 3;
+  ARTIFACT_STATE_FAILED = 4;
+}
+
+message BootstrapPaths {
+  string application = 1;
+  string storage = 2;
+  string plugins = 3;
+  string logs = 4;
+}
+
+message Bucket {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+  string execution_id = 3;
+  string stream = 4;
+  string source = 5;
+  repeated uint32 versions = 6;
+  uint64 sample_count = 7;
+  repeated BucketValue fields = 8;
+}
+
+message BucketRequest {
+  uint64 every_nanos = 1;
+  Aggregate aggregate = 2;
+}
+
+message BucketValue {
+  string field = 1;
+  uint64 count = 2;
+  StatisticValue value = 3;
+  optional string unit = 4;
+  Aggregate reducer = 5;
+}
+
+message CachedRefresh {
+  uint64 max_age_ms = 1;
+}
+
+message CapturedErrorCause {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+}
+
+message CapturedRecord {
+  // Original protobuf bytes interpreted using the frozen record descriptor.
+  bytes payload = 16;
+  string record_id = 1;
+  uint64 sequence = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string record_type = 4;
+  uint32 schema_version = 5;
+  string source = 6;
+  Severity severity = 7;
+  optional string message = 8;
+  CapturedRecordError error = 9;
+  Value details = 10;
+  EvidenceScope scope = 11;
+  optional string related_sample_id = 12;
+  optional string related_stream_id = 13;
+  optional string related_artifact_id = 14;
+  google.protobuf.Timestamp received_at = 15;
+}
+
+message CapturedRecordError {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+  repeated CapturedErrorCause cause_chain = 4;
+  optional string stacktrace_attachment = 5;
+  optional string trace_id = 6;
+  optional string correlation_id = 7;
+  optional string diagnostics = 8;
+}
+
+message CapturedRecordSelection {
+  EvidenceScope scope = 1;
+  repeated string record_types = 2;
+  repeated string sources = 3;
+  repeated Severity severities = 4;
+}
+
+message CaseActions {
+  bool delete = 1;
+  repeated string unavailable_reasons = 2;
+}
+
+message CaseDetail {
+  CaseSummary summary = 1;
+  Metadata suite = 2;
+  uint64 parameter_count = 3;
+  uint64 generation_index = 4;
+  Cursor observed_cursor = 5;
+}
+
+message CaseParameter {
+  string name = 1;
+  Value value = 2;
+}
+
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_SKIPPED = 1;
+  CASE_STATUS_INVALIDATED = 2;
+  CASE_STATUS_PLANNED = 3;
+  CASE_STATUS_QUEUED = 4;
+  CASE_STATUS_RUNNING = 5;
+  CASE_STATUS_PASSED = 6;
+  CASE_STATUS_FAILED = 7;
+  CASE_STATUS_BLOCKED = 8;
+  CASE_STATUS_CANCELLED = 9;
+  CASE_STATUS_INTERRUPTED = 10;
+}
+
+message CaseSummary {
+  string case_id = 1;
+  string template_id = 2;
+  Metadata metadata = 3;
+  uint64 ordinal = 4;
+  CaseStatus status = 5;
+  optional string latest_execution_id = 6;
+  optional ExecutionState latest_execution_status = 7;
+  uint32 attempt_count = 8;
+  CaseActions actions = 9;
+  string suite_id = 10;
+  ExecutionOutcome latest_execution_outcome = 11;
+}
+
+message CheckpointContext {
+  ExecutionCheckpoint checkpoint = 1;
+  string session_id = 2;
+  optional string execution_id = 3;
+  EvidenceScope execution_scope = 4;
+  HistoricalCycleContext cycle = 5;
+  repeated HistoricalDocument execution_documents = 6;
+  repeated PromptInstance prompts = 7;
+  repeated HealthItem health = 8;
+  repeated OperatorNote notes = 9;
+  repeated TraceabilitySnapshot traceability = 10;
+  AppearanceSnapshot appearance = 11;
+}
+
+message CheckpointDocument {
+  ExecutionCheckpoint checkpoint = 1;
+  HistoricalExecutionDocument document = 2;
+  bool acquisition_finished = 3;
+}
+
+message CheckpointEvidence {
+  ExecutionCheckpoint checkpoint = 1;
+  repeated ExecutionFileMetadata outputs = 2;
+  repeated ArtifactMetadata artifacts = 3;
+  repeated RecordSchema record_schemas = 4;
+  repeated CheckpointTelemetryTable telemetry_tables = 5;
+}
+
+message CheckpointFileWindow {
+  ExecutionCheckpoint checkpoint = 1;
+  ExecutionFileWindow content = 2;
+}
+
+message CheckpointRecordPage {
+  ExecutionCheckpoint checkpoint = 1;
+  repeated SavedRecord records = 2;
+  optional string next_after = 3;
+  repeated HistoryIssue issues = 4;
+  bool issues_truncated = 5;
+}
+
+message CheckpointTelemetryPage {
+  ExecutionCheckpoint checkpoint = 1;
+  string table = 2;
+  repeated SavedTelemetrySample rows = 3;
+  optional string next_after = 4;
+  repeated HistoryIssue issues = 5;
+  bool issues_truncated = 6;
+}
+
+message CheckpointTelemetryTable {
+  string table = 1;
+  TelemetrySchema schema = 2;
+}
+
+message ClientPreferences {
+  uint64 connect_timeout_ms = 1;
+  uint64 request_timeout_ms = 2;
+}
+
+message ContourGrid {
+  uint32 columns = 1;
+  uint32 rows = 2;
+  repeated double x_edges = 3;
+  repeated double y_edges = 4;
+  repeated double values = 5;
+  repeated bool valid = 6;
+}
+
+message ControlReply {
+  Cursor observed_cursor = 1;
+}
+
+message CreateCycleReply {
+  repeated string execution_ids = 3;
+  string cycle_id = 1;
+  Cursor observed_cursor = 2;
+}
+
+message CreatedPairing {
+  PairingFile pairing = 1;
+}
+
+enum CriterionStatus {
+  CRITERION_STATUS_UNSPECIFIED = 0;
+  CRITERION_STATUS_PENDING = 1;
+  CRITERION_STATUS_PASSED = 2;
+  CRITERION_STATUS_FAILED = 3;
+  CRITERION_STATUS_INDETERMINATE = 4;
+  CRITERION_STATUS_SKIPPED = 5;
+}
+
+// A process/stream-qualified observation position. Page continuations keep the exact captured revision; watches
+// may accept an earlier position in the same epoch. A future position or a different epoch/stream requires
+// explicit resynchronization.
+message Cursor {
+  string epoch = 1;
+  string stream = 2;
+  uint64 position = 3;
+}
+
+message CycleBrowsePage {
+  repeated SavedCycleSummary entries = 1;
+  StorageCursor at = 2;
+  optional uint64 next_after_sequence = 3;
+}
+
+message CycleFilter {
+  string text = 1;
+  repeated CycleStatus statuses = 2;
+  google.protobuf.Timestamp created_after = 3;
+  google.protobuf.Timestamp created_before = 4;
+  optional ArchiveScope archive = 5;
+}
+
+message CycleOrder {
+  CycleOrderKey key = 1;
+  bool descending = 2;
+}
+
+enum CycleOrderKey {
+  CYCLE_ORDER_KEY_UNSPECIFIED = 0;
+  CYCLE_ORDER_KEY_UPDATED_AT = 1;
+  CYCLE_ORDER_KEY_CREATED_AT = 2;
+  CYCLE_ORDER_KEY_LABEL = 3;
+}
+
+message CyclePage {
+  repeated CycleSummary rows = 1;
+  Schema schema = 2;
+  Snapshot snapshot = 3;
+  PageLimits limits = 4;
+  optional string next = 5;
+  bool complete = 6;
+}
+
+enum CyclePhase {
+  CYCLE_PHASE_UNSPECIFIED = 0;
+  CYCLE_PHASE_ACTIVE = 1;
+  CYCLE_PHASE_SEALING = 2;
+  CYCLE_PHASE_SEALED = 3;
+  CYCLE_PHASE_SEAL_FAILED = 4;
+}
+
+message CycleScope {
+  string cycle_id = 1;
+  optional string execution_id = 2;
+}
+
+message CycleSelection {
+  repeated string cycle_ids = 1;
+  repeated CyclePhase phases = 2;
+  Window created_at = 3;
+  optional ArchiveScope archive = 4;
+  repeated CycleStatus statuses = 5;
+}
+
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_READY = 1;
+  CYCLE_STATUS_RUNNING = 2;
+  CYCLE_STATUS_PAUSED = 3;
+  CYCLE_STATUS_STOPPING = 4;
+  CYCLE_STATUS_COMPLETED = 5;
+  CYCLE_STATUS_FAILED = 6;
+  CYCLE_STATUS_BLOCKED = 7;
+  CYCLE_STATUS_STOPPED = 8;
+}
+
+message CycleSummary {
+  string cycle_id = 1;
+  Metadata metadata = 2;
+  CyclePhase phase = 3;
+  CycleStatus status = 4;
+  uint64 case_count = 5;
+  uint64 execution_count = 6;
+  bool continue_automatically = 7;
+  Cursor observed_cursor = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  ResultSummary result = 12;
+  bool archived = 13;
+  bool sealed = 14;
+  uint64 running_count = 15;
+  uint64 queued_count = 16;
+  optional string seal_failure = 17;
+  optional string rerun_of = 18;
+}
+
+message DeleteExecutionResponse {
+  string request_identifier = 1;
+  string execution_identifier = 2;
+  bool local_complete = 3;
+}
+
+enum Density {
+  DENSITY_UNSPECIFIED = 0;
+  DENSITY_COMFORTABLE = 1;
+  DENSITY_COMPACT = 2;
+  DENSITY_TOUCH = 3;
+}
+
+message Diagnostic {
+  string message = 1;
+  repeated string chain = 2;
+  string location = 3;
+  repeated string span_trace = 4;
+  string backtrace = 5;
+}
+
+message DocumentBinding {
+  string source_id = 1;
+  Metadata metadata = 2;
+  DocumentBindingResult result = 3;
+}
+
+message DocumentBindingResult {
+  oneof kind {
+    bool literal = 1;
+    DocumentSummary summary = 2;
+    DocumentPlotDefinition plot = 3;
+    bool pending = 4;
+    DocumentCardFailure failure = 5;
+  }
+}
+
+message DocumentCard {
+  Metadata metadata = 1;
+  repeated PlotFilter filters = 2;
+  DocumentCardBody body = 3;
+}
+
+message DocumentCardBody {
+  oneof kind {
+    string markdown = 1;
+    DocumentTable table = 2;
+    DocumentSummary summary = 3;
+    DocumentOwnerReference owner = 4;
+  }
+}
+
+message DocumentCardBudget {
+  string name = 1;
+  uint64 limit = 2;
+  uint64 reached = 3;
+  string card_id = 4;
+}
+
+message DocumentCardFailure {
+  string code = 1;
+  string message = 2;
+  DocumentCardBudget budget = 3;
+}
+
+enum DocumentCardKind {
+  DOCUMENT_CARD_KIND_UNSPECIFIED = 0;
+  DOCUMENT_CARD_KIND_TEXT = 1;
+  DOCUMENT_CARD_KIND_TELEMETRY_SUMMARY = 2;
+  DOCUMENT_CARD_KIND_PLOT = 3;
+  DOCUMENT_CARD_KIND_TABLE = 4;
+  DOCUMENT_CARD_KIND_STEPS = 5;
+  DOCUMENT_CARD_KIND_CRITERIA = 6;
+  DOCUMENT_CARD_KIND_TRACEABILITY = 7;
+  DOCUMENT_CARD_KIND_NOTES = 8;
+  DOCUMENT_CARD_KIND_RECORDS = 9;
+  DOCUMENT_CARD_KIND_ARTIFACTS = 10;
+  DOCUMENT_CARD_KIND_MEDIA = 11;
+  DOCUMENT_CARD_KIND_HEALTH = 12;
+  DOCUMENT_CARD_KIND_TELEMETRY_CONTEXT = 13;
+}
+
+message DocumentCompletion {
+  uint64 frame_count = 1;
+  uint64 card_count = 2;
+  uint64 layout_node_count = 3;
+  uint64 binding_count = 4;
+  uint64 repeat_count = 5;
+  uint64 section_count = 6;
+  bool partial = 7;
+}
+
+enum DocumentDensity {
+  DOCUMENT_DENSITY_UNSPECIFIED = 0;
+  DOCUMENT_DENSITY_COMPACT = 1;
+  DOCUMENT_DENSITY_NORMAL = 2;
+  DOCUMENT_DENSITY_SPACIOUS = 3;
+}
+
+message DocumentEvidenceCut {
+  DocumentTelemetryCut cut = 1;
+  bool telemetry = 2;
+  bool cacheable = 3;
+}
+
+message DocumentFrame {
+  DocumentFrameFrame frame = 1;
+}
+
+message DocumentFrameFrame {
+  oneof kind {
+    DocumentHeader header = 1;
+    DocumentLayoutNode layout_node = 2;
+    DocumentCard card = 3;
+    DocumentTableRow table_row = 4;
+    DocumentSummaryGroup summary_group = 5;
+    DocumentSummaryTile summary_tile = 6;
+    DocumentWarning warning = 7;
+    DocumentCompletion completion = 8;
+    DocumentSummaryGroupDefinition group_definition = 9;
+    DocumentSummaryTileDefinition tile_definition = 10;
+    DocumentBinding binding = 11;
+    DocumentRepeatSelection repeat_selection = 12;
+    DocumentRepeatInstance repeat_instance = 13;
+    DocumentSectionIdentity section_identity = 14;
+    DocumentCompletion structure_complete = 15;
+    string card_complete = 16;
+    bool expansion_complete = 17;
+    DocumentEvidenceCut evidence_cut = 18;
+    string section_removal = 19;
+    string artifact_cut = 20;
+    DocumentPage page = 21;
+  }
+}
+
+message DocumentFrontiers {
+  string process_epoch = 1;
+  uint64 state_revision = 2;
+  DocumentTelemetryCut telemetry = 3;
+  optional string artifacts_sha256 = 4;
+  DocumentTelemetryCut evidence = 5;
+}
+
+message DocumentHeader {
+  string document_id = 1;
+  Metadata metadata = 2;
+  EvidenceScope scope = 3;
+  DocumentFrontiers frontiers = 4;
+}
+
+message DocumentLayoutNode {
+  uint64 ordinal = 1;
+  optional uint64 parent_ordinal = 2;
+  DocumentLayoutNodeNode node = 3;
+}
+
+message DocumentLayoutNodeNode {
+  oneof kind {
+    DocumentSection section = 1;
+    DocumentPlacement placement = 2;
+  }
+}
+
+message DocumentOwnerReference {
+  DocumentCardKind kind = 1;
+  optional string plot_id = 2;
+  DocumentPlotDefinition plot = 3;
+}
+
+message DocumentPage {
+  string current = 1;
+  optional string next = 2;
+}
+
+message DocumentPlacement {
+  string card_id = 1;
+  DocumentSpan column_span = 2;
+  uint32 row_span = 3;
+  int32 order = 4;
+  DocumentDensity density = 5;
+  DocumentRail rail = 6;
+}
+
+message DocumentPlotDefinition {
+  Metadata metadata = 1;
+  PlotRequest request = 2;
+  PlotPresentation presentation = 3;
+  DataExpression z_expression = 4;
+}
+
+enum DocumentRail {
+  DOCUMENT_RAIL_UNSPECIFIED = 0;
+  DOCUMENT_RAIL_MAIN = 1;
+  DOCUMENT_RAIL_RIGHT = 2;
+  DOCUMENT_RAIL_LEFT = 3;
+}
+
+message DocumentRepeat {
+  DataExpression value = 1;
+  string label_template = 2;
+  optional string id_template = 3;
+  DataExpression order_by = 4;
+  repeated PlotFilter filters = 5;
+}
+
+message DocumentRepeatInstance {
+  string selection_id = 1;
+  uint64 ordinal = 2;
+  string suffix = 3;
+  string node_id = 4;
+  PlotFilter filter = 5;
+}
+
+message DocumentRepeatSelection {
+  string node_id = 1;
+  uint64 instance_count = 2;
+  bool pending = 3;
+}
+
+message DocumentScope {
+  string cycle_id = 1;
+  string execution_id = 2;
+}
+
+message DocumentSection {
+  string node_id = 1;
+  Metadata metadata = 2;
+  DocumentRepeat repeat = 3;
+}
+
+message DocumentSectionIdentity {
+  string node_id = 1;
+  Metadata metadata = 2;
+  optional string unavailable = 3;
+}
+
+message DocumentSpan {
+  uint32 base = 1;
+  optional uint32 sm = 2;
+  optional uint32 md = 3;
+  optional uint32 lg = 4;
+  optional uint32 xl = 5;
+}
+
+message DocumentSummary {
+  uint64 group_count = 1;
+}
+
+message DocumentSummaryCondition {
+  FilterOperator operator = 1;
+  Value value = 2;
+  DocumentSummaryState state = 3;
+}
+
+enum DocumentSummaryFormat {
+  DOCUMENT_SUMMARY_FORMAT_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_FORMAT_AUTO = 1;
+  DOCUMENT_SUMMARY_FORMAT_NUMBER = 2;
+  DOCUMENT_SUMMARY_FORMAT_PERCENT = 3;
+  DOCUMENT_SUMMARY_FORMAT_DURATION = 4;
+  DOCUMENT_SUMMARY_FORMAT_DISTANCE = 5;
+  DOCUMENT_SUMMARY_FORMAT_STATUS = 6;
+  DOCUMENT_SUMMARY_FORMAT_TEXT = 7;
+}
+
+message DocumentSummaryGroup {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  Metadata metadata = 3;
+  uint64 tile_count = 4;
+}
+
+message DocumentSummaryGroupDefinition {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  Metadata metadata = 3;
+  uint64 tile_count = 4;
+}
+
+enum DocumentSummaryPresentation {
+  DOCUMENT_SUMMARY_PRESENTATION_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_PRESENTATION_VALUE = 1;
+  DOCUMENT_SUMMARY_PRESENTATION_PROGRESS = 2;
+  DOCUMENT_SUMMARY_PRESENTATION_BADGE = 3;
+}
+
+enum DocumentSummaryStat {
+  DOCUMENT_SUMMARY_STAT_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_STAT_LATEST = 1;
+}
+
+enum DocumentSummaryState {
+  DOCUMENT_SUMMARY_STATE_UNSPECIFIED = 0;
+  DOCUMENT_SUMMARY_STATE_OK = 1;
+  DOCUMENT_SUMMARY_STATE_WARNING = 2;
+  DOCUMENT_SUMMARY_STATE_CRITICAL = 3;
+  DOCUMENT_SUMMARY_STATE_MUTED = 4;
+}
+
+message DocumentSummaryTile {
+  string card_id = 1;
+  uint64 group_ordinal = 2;
+  uint64 ordinal = 3;
+  Metadata metadata = 4;
+  Value value = 5;
+  DocumentSummaryStat stat = 6;
+  DocumentSummaryFormat format = 7;
+  DocumentSummaryPresentation presentation = 8;
+  optional string unit = 9;
+  optional DocumentSummaryState state = 10;
+  optional string unavailable = 11;
+}
+
+message DocumentSummaryTileDefinition {
+  string card_id = 1;
+  uint64 group_ordinal = 2;
+  uint64 ordinal = 3;
+  Metadata metadata = 4;
+  DataExpression value = 5;
+  repeated PlotFilter filters = 6;
+  DocumentSummaryStat stat = 7;
+  DocumentSummaryFormat format = 8;
+  DocumentSummaryPresentation presentation = 9;
+  optional string unit = 10;
+  repeated DocumentSummaryCondition conditions = 11;
+}
+
+message DocumentTable {
+  uint64 row_count = 1;
+}
+
+message DocumentTableRow {
+  string card_id = 1;
+  uint64 ordinal = 2;
+  TableRow values = 3;
+}
+
+message DocumentTelemetryCut {
+  string store = 1;
+  string epoch = 2;
+  uint64 position = 3;
+}
+
+message DocumentWarning {
+  string code = 1;
+  string message = 2;
+}
+
+enum Downsample {
+  DOWNSAMPLE_UNSPECIFIED = 0;
+  DOWNSAMPLE_RAW = 1;
+  DOWNSAMPLE_MIN_MAX = 2;
+  DOWNSAMPLE_LTTB = 3;
+  DOWNSAMPLE_AUTO = 4;
+}
+
+message EditNoteResponse {
+  OperatorNote note = 1;
+}
+
+message ElapsedFormat {
+  ElapsedUnit unit = 1;
+}
+
+enum ElapsedUnit {
+  ELAPSED_UNIT_UNSPECIFIED = 0;
+  ELAPSED_UNIT_SECONDS = 1;
+  ELAPSED_UNIT_MILLISECONDS = 2;
+  ELAPSED_UNIT_MINUTES = 3;
+}
+
+message EngineeringFormat {
+  uint32 significant_digits = 1;
+}
+
+message EvidenceCounts {
+  uint64 records = 1;
+  uint64 telemetry = 2;
+  uint64 prompts = 3;
+  uint64 artifacts = 4;
+  uint64 health = 5;
+  uint64 traceability = 6;
+  uint64 notes = 7;
+}
+
+message EvidenceExportFrame {
+  EvidenceExportPayload payload = 1;
+}
+
+message EvidenceExportMetadata {
+  EvidenceSubject subject = 1;
+  string filename = 2;
+  uint32 schema_version = 3;
+  uint64 size_bytes = 4;
+  string sha256 = 5;
+}
+
+message EvidenceExportPayload {
+  oneof kind {
+    EvidenceExportMetadata metadata = 1;
+    ArtifactChunk chunk = 2;
+    ArtifactCompletion complete = 3;
+  }
+}
+
+message EvidenceOrigin {
+  EvidenceOriginKind kind = 1;
+}
+
+message EvidenceOriginKind {
+  oneof kind {
+    bool default = 1;
+    bool initialization = 2;
+    string step_attempt_id = 3;
+    bool cleanup = 4;
+  }
+}
+
+message EvidenceScope {
+  optional string session_id = 1;
+  optional string cycle_id = 2;
+  optional string case_id = 3;
+  optional string execution_id = 4;
+  optional string step_id = 5;
+  optional string criterion_id = 6;
+  optional string template_id = 7;
+  optional string suite_id = 8;
+  EvidenceOrigin origin = 9;
+}
+
+enum EvidenceSection {
+  EVIDENCE_SECTION_UNSPECIFIED = 0;
+  EVIDENCE_SECTION_OUTPUTS = 1;
+  EVIDENCE_SECTION_ARTIFACTS = 2;
+  EVIDENCE_SECTION_RECORD_SCHEMAS = 3;
+  EVIDENCE_SECTION_TELEMETRY_TABLES = 4;
+}
+
+message EvidenceSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+enum ExecutionAvailability {
+  EXECUTION_AVAILABILITY_UNSPECIFIED = 0;
+  EXECUTION_AVAILABILITY_LIVE = 1;
+  EXECUTION_AVAILABILITY_STORED = 2;
+  EXECUTION_AVAILABILITY_INTERRUPTED = 3;
+  EXECUTION_AVAILABILITY_UNCHECKPOINTED = 4;
+}
+
+// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
+message ExecutionBinding {
+  string execution_id = 1;
+  string case_id = 2;
+}
+
+// Counts cover the whole filtered cycle selection, not just the current page. Headline result folds evaluated
+// outcomes only; declared_count and not_evaluated_count remain separate.
+message ExecutionBrowseCycle {
+  string cycle_id = 1;
+  ExecutionBrowseLifecycle lifecycle = 2;
+  optional ResultStatus result_status = 3;
+  uint64 case_count = 4;
+  uint64 execution_count = 5;
+  uint64 unrun_count = 6;
+  uint64 queued_count = 7;
+  uint64 running_count = 8;
+  uint64 passed_count = 9;
+  uint64 failed_count = 10;
+  uint64 blocked_count = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp finished_at = 13;
+  optional string label = 14;
+  optional CyclePhase phase = 15;
+  uint64 declared_count = 16;
+  uint64 not_evaluated_count = 17;
+}
+
+message ExecutionBrowseEntry {
+  HistoricalExecutionMetadata metadata = 1;
+  ExecutionCheckpoint checkpoint = 2;
+  ExecutionAvailability availability = 3;
+  bool archived = 4;
+}
+
+enum ExecutionBrowseLifecycle {
+  EXECUTION_BROWSE_LIFECYCLE_UNSPECIFIED = 0;
+  EXECUTION_BROWSE_LIFECYCLE_RUNNING = 1;
+  EXECUTION_BROWSE_LIFECYCLE_INTERRUPTED = 2;
+  EXECUTION_BROWSE_LIFECYCLE_PENDING = 3;
+  EXECUTION_BROWSE_LIFECYCLE_UNCHECKPOINTED = 4;
+  EXECUTION_BROWSE_LIFECYCLE_COMPLETED = 5;
+}
+
+message ExecutionBrowsePage {
+  Cursor cursor = 9;
+  repeated ExecutionBrowseEntry entries = 1;
+  optional string next_after_execution_id = 2;
+  bool discovery_complete = 3;
+  repeated string conflicts = 4;
+  uint32 omitted_conflicts = 5;
+  repeated HistoryIssue issues = 6;
+  uint32 omitted_issues = 7;
+  repeated ExecutionBrowseCycle cycles = 8;
+}
+
+message ExecutionCheckpoint {
+  string execution_identifier = 1;
+  StorageCursor position = 2;
+  bytes version = 3;
+  StorageCursor evidence_through = 4;
+}
+
+enum ExecutionCommandAction {
+  EXECUTION_COMMAND_ACTION_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_ACTION_NEXT = 1;
+  EXECUTION_COMMAND_ACTION_RUN_STEP = 2;
+  EXECUTION_COMMAND_ACTION_FINISH = 3;
+}
+
+enum ExecutionCommandPhase {
+  EXECUTION_COMMAND_PHASE_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_PHASE_ACCEPTED = 1;
+  EXECUTION_COMMAND_PHASE_DISPATCHING = 2;
+  EXECUTION_COMMAND_PHASE_RUNNING = 3;
+  EXECUTION_COMMAND_PHASE_COMPLETED = 4;
+  EXECUTION_COMMAND_PHASE_REFUSED = 5;
+  EXECUTION_COMMAND_PHASE_FAILED = 6;
+  EXECUTION_COMMAND_PHASE_INTERRUPTED = 7;
+}
+
+message ExecutionCommandReceipt {
+  string request_id = 1;
+  string command_id = 2;
+  string execution_id = 3;
+  ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+  ExecutionCommandPhase phase = 6;
+  optional string attempt_id = 7;
+  google.protobuf.Timestamp accepted_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  optional string detail = 10;
+}
+
+message ExecutionControls {
+  optional string request_id = 1;
+  bool paused = 2;
+  bool stop_requested = 3;
+  bool can_pause = 4;
+  bool can_resume = 5;
+  bool can_stop = 6;
+  ExecutionMode mode = 7;
+  bool can_start = 8;
+  bool can_rerun = 9;
+  bool can_cancel = 10;
+  bool can_inspect = 11;
+  bool can_export = 12;
+}
+
+// Evidence identity, origin, outcome, schemas and capabilities are independent of optional live manager state.
+// Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
+// capability.
+message ExecutionOutcomeCounts {
+  uint64 evaluated_count = 1;
+  uint64 not_evaluated_count = 2;
+  uint64 declared_count = 3;
+  optional ResultStatus result_status = 4;
+}
+
+message ExecutionDetail {
+  ExecutionProgressValue progress = 20;
+  .harmos.v1.Position resolved_at = 21;
+  // Counts and evaluated-only verdict for all executions in this cycle.
+  ExecutionOutcomeCounts cycle_counts = 19;
+  // Verified digest of the sealed immutable execution and evidence.
+  bytes seal = 18;
+  ReportStatus report = 1;
+  ExecutionSummary summary = 2;
+  string cycle_id = 3;
+  EvidenceScope scope = 4;
+  Metadata admitted_suite = 5;
+  Metadata admitted_template = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp finished_at = 8;
+  uint64 input_parameter_count = 9;
+  uint64 output_parameter_count = 10;
+  uint64 step_count = 11;
+  Cursor observed_cursor = 12;
+  ExecutionControls controls = 13;
+  Origin origin = 14;
+  ExecutionOutcome outcome = 15;
+  FrozenSchemas schemas = 16;
+  optional LiveExecutionState live_state = 17;
+}
+
+message ExecutionFileDownloadFrame {
+  ExecutionFileDownloadFramePayload payload = 1;
+}
+
+message ExecutionFileDownloadFramePayload {
+  oneof kind {
+    ExecutionFileDownloadMetadata metadata = 1;
+    ArtifactChunk chunk = 2;
+    ArtifactCompletion complete = 3;
+  }
+}
+
+message ExecutionFileDownloadMetadata {
+  string relative_path = 1;
+  optional string content_type = 2;
+  ExecutionFileKind kind = 3;
+  ExecutionFileState state = 4;
+  uint64 observed_size_bytes = 5;
+}
+
+message ExecutionFileFollowFrame {
+  ExecutionFileFollowFramePayload payload = 1;
+}
+
+message ExecutionFileFollowFramePayload {
+  oneof kind {
+    ExecutionFileFollowMetadata metadata = 1;
+    ArtifactChunk chunk = 2;
+    ExecutionFileFollowTerminal terminal = 3;
+  }
+}
+
+message ExecutionFileFollowMetadata {
+  ExecutionFileIdentity identity = 1;
+  string content_type = 2;
+  ExecutionFileKind kind = 3;
+  ExecutionFilePhase phase = 4;
+  uint64 available_length = 5;
+  uint64 offset = 6;
+}
+
+message ExecutionFileFollowTerminal {
+  ExecutionFilePhase phase = 1;
+  uint64 length = 2;
+  ExecutionFileSeal sealed = 3;
+}
+
+message ExecutionFileIdentity {
+  StoreHistory history = 1;
+  string file_id = 2;
+  string execution_id = 3;
+  string relative_path = 4;
+}
+
+enum ExecutionFileKind {
+  EXECUTION_FILE_KIND_UNSPECIFIED = 0;
+  EXECUTION_FILE_KIND_TEXT = 1;
+  EXECUTION_FILE_KIND_BINARY = 2;
+  EXECUTION_FILE_KIND_MEDIA = 3;
+  EXECUTION_FILE_KIND_UNKNOWN = 4;
+}
+
+message ExecutionFileMetadata {
+  string relative_path = 1;
+  optional string content_type = 2;
+  ExecutionFileKind kind = 3;
+  ExecutionFileState state = 4;
+  uint64 size_bytes = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+enum ExecutionFilePhase {
+  EXECUTION_FILE_PHASE_UNSPECIFIED = 0;
+  EXECUTION_FILE_PHASE_PRODUCING = 1;
+  EXECUTION_FILE_PHASE_FINISHED = 2;
+  EXECUTION_FILE_PHASE_ABANDONED = 3;
+}
+
+message ExecutionFileSeal {
+  ExecutionFileIdentity identity = 1;
+  StorageCursor position = 2;
+  uint64 length = 3;
+  string sha256 = 4;
+}
+
+enum ExecutionFileState {
+  EXECUTION_FILE_STATE_UNSPECIFIED = 0;
+  EXECUTION_FILE_STATE_STREAMING = 1;
+  EXECUTION_FILE_STATE_FINALIZED = 2;
+  EXECUTION_FILE_STATE_INTERRUPTED = 3;
+}
+
+message ExecutionFileWindow {
+  string relative_path = 1;
+  optional string content_type = 2;
+  ExecutionFileKind kind = 3;
+  ExecutionFileState state = 4;
+  uint64 offset = 5;
+  uint64 observed_size_bytes = 6;
+  bytes data = 7;
+}
+
+message ExecutionFilesCursor {
+  string epoch = 1;
+  string execution_id = 2;
+  bytes metadata_sha256 = 3;
+}
+
+message ExecutionFilter {
+  string text = 1;
+  repeated ExecutionState statuses = 2;
+  repeated string template_ids = 3;
+  repeated string cycle_ids = 4;
+  google.protobuf.Timestamp started_after = 5;
+  google.protobuf.Timestamp started_before = 6;
+  optional ArchiveScope archive = 7;
+}
+
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  EXECUTION_MODE_AUTOMATIC = 1;
+  EXECUTION_MODE_INTERACTIVE = 2;
+}
+
+message ExecutionNoteOwner {
+  string cycle_id = 1;
+  string execution_id = 2;
+}
+
+message ExecutionOrder {
+  ExecutionOrderKey key = 1;
+  bool descending = 2;
+}
+
+enum ExecutionOrderKey {
+  EXECUTION_ORDER_KEY_UNSPECIFIED = 0;
+  EXECUTION_ORDER_KEY_STARTED_AT = 1;
+  EXECUTION_ORDER_KEY_FINISHED_AT = 2;
+  EXECUTION_ORDER_KEY_TITLE = 3;
+}
+
+message ExecutionPage {
+  // Counts cover the complete filtered selection.
+  ExecutionOutcomeCounts outcome_counts = 7;
+  repeated ExecutionSummary rows = 1;
+  Schema schema = 2;
+  Snapshot snapshot = 3;
+  PageLimits limits = 4;
+  optional string next = 5;
+  bool complete = 6;
+}
+
+enum ExecutionParameterSet {
+  EXECUTION_PARAMETER_SET_UNSPECIFIED = 0;
+  EXECUTION_PARAMETER_SET_INPUTS = 1;
+  EXECUTION_PARAMETER_SET_OUTPUTS = 2;
+}
+
+message ExecutionSelection {
+  repeated string template_ids = 1;
+  repeated string cycle_ids = 2;
+  repeated ExecutionState statuses = 3;
+  Window started_at = 4;
+  optional ArchiveScope archive = 5;
+}
+
+message ExecutionStep {
+  string step_id = 1;
+  Metadata metadata = 2;
+  StepStatus status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  uint64 measurement_count = 6;
+  uint64 criterion_count = 7;
+  uint64 ordinal = 8;
+  Diagnostic detail = 9;
+  repeated StepCriterion criteria = 10;
+}
+
+message ExecutionSummary {
+  ExecutionControls controls = 7;
+  string execution_id = 1;
+  string case_id = 2;
+  uint64 ordinal = 3;
+  bool archived = 4;
+  ExecutionState state = 5;
+  ExecutionOutcome outcome = 6;
+}
+
+enum FftDetrend {
+  FFT_DETREND_UNSPECIFIED = 0;
+  FFT_DETREND_NONE = 1;
+  FFT_DETREND_MEAN = 2;
+}
+
+enum FftWindow {
+  FFT_WINDOW_UNSPECIFIED = 0;
+  FFT_WINDOW_HANN = 1;
+  FFT_WINDOW_RECTANGULAR = 2;
+}
+
+message Field {
+  string id = 1;
+  FieldType value_type = 2;
+  bool nullable = 3;
+  optional string unit = 4;
+}
+
+enum FieldType {
+  FIELD_TYPE_UNSPECIFIED = 0;
+  FIELD_TYPE_BOOLEAN = 1;
+  FIELD_TYPE_INTEGER = 2;
+  FIELD_TYPE_INT64 = 3;
+  FIELD_TYPE_UINT64 = 4;
+  FIELD_TYPE_FLOAT64 = 5;
+  FIELD_TYPE_TEXT = 6;
+  FIELD_TYPE_DATETIME = 7;
+  FIELD_TYPE_SEVERITY = 8;
+  FIELD_TYPE_OBJECT = 9;
+  FIELD_TYPE_ARRAY = 10;
+}
+
+// Source: harmos-domain/src/model/storage/files.rs
+message FileMetadata {
+  string id = 1;
+  optional string scope = 2;
+  string media_type = 3;
+  optional uint64 expected_length = 4;
+  optional bytes expected_sha256 = 5;
+}
+
+// Source: harmos-domain/src/model/storage/files.rs
+// A durable file identity qualified by native store history and sequence, with its metadata, length and SHA-256.
+// Digest byte strings are exactly 32 bytes.
+message FileReference {
+  StorageCursor position = 1;
+  FileMetadata metadata = 2;
+  uint64 length = 3;
+  bytes sha256 = 4;
+}
+
+message FixedFormat {
+  uint32 decimals = 1;
+}
+
+enum FrequencyLevelUnit {
+  FREQUENCY_LEVEL_UNIT_UNSPECIFIED = 0;
+  FREQUENCY_LEVEL_UNIT_LINEAR = 1;
+  FREQUENCY_LEVEL_UNIT_DB = 2;
+  FREQUENCY_LEVEL_UNIT_DBU = 3;
+  FREQUENCY_LEVEL_UNIT_DBM = 4;
+}
+
+message GridCell {
+  uint32 row = 1;
+  uint32 column = 2;
+  string label = 3;
+}
+
+message GridDefinition {
+  DataExpression row = 1;
+  DataExpression column = 2;
+  DataExpression frame = 3;
+  repeated GridAxisEntry rows = 4;
+  repeated GridAxisEntry columns = 5;
+  repeated GridHighlight highlights = 6;
+  string summary_label = 7;
+}
+
+message GridFrame {
+  string instant = 1;
+  repeated double values = 2;
+  repeated bool valid = 3;
+  repeated GridCell highlights = 4;
+}
+
+message GridFrames {
+  repeated GridAxisEntry rows = 1;
+  repeated GridAxisEntry columns = 2;
+  repeated GridFrame frames = 3;
+  string summary_label = 4;
+}
+
+message HealthItem {
+  string health_item_id = 1;
+  EvidenceScope scope = 2;
+  Severity severity = 3;
+  string message = 4;
+  optional string detail = 5;
+  google.protobuf.Timestamp observed_at = 6;
+}
+
+message HistoricalCycle {
+  string cycle_id = 1;
+  Metadata metadata = 2;
+  CyclePhase phase = 3;
+  CycleStatus lifecycle = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  repeated CaseSummary cases = 8;
+  ResultSummary result = 9;
+}
+
+message HistoricalCycleContext {
+  HistoricalCycle cycle = 1;
+  repeated string execution_order = 2;
+}
+
+message HistoricalDocument {
+  DocumentHeader presentation = 1;
+  repeated DocumentLayoutNode layout_nodes = 2;
+  repeated HistoricalDocumentCard cards = 3;
+  repeated DocumentTableRow table_rows = 4;
+}
+
+message HistoricalDocumentCard {
+  Metadata metadata = 1;
+  repeated HistoricalDocumentFilter filters = 2;
+  HistoricalDocumentCardBody body = 3;
+}
+
+message HistoricalDocumentCardBody {
+  oneof kind {
+    string markdown = 1;
+    DocumentTable table = 2;
+    HistoricalTelemetrySummary summary = 3;
+    DocumentPlotDefinition plot = 4;
+    DocumentOwnerReference owner = 5;
+  }
+}
+
+message HistoricalDocumentFilter {
+  DataExpression expression = 1;
+  FilterOperator operator = 2;
+  Value value = 3;
+}
+
+message HistoricalExecutionCycle {
+  string cycle_id = 1;
+  Metadata metadata = 2;
+}
+
+message HistoricalExecutionDocument {
+  HistoricalExecutionCycle cycle = 1;
+  HistoricalTestExecution execution = 2;
+}
+
+message HistoricalExecutionMetadata {
+  string execution_id = 1;
+  optional string cycle_id = 2;
+  string case_id = 3;
+  string title = 4;
+  ExecutionState status = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
+  optional string template_id = 8;
+  optional string suite_label = 9;
+  Origin origin = 10;
+  ExecutionOutcome outcome = 11;
+}
+
+message HistoricalStep {
+  string step_id = 1;
+  Metadata metadata = 2;
+  StepStatus status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  repeated StepMeasurement measurements = 6;
+  repeated StepCriterion criteria = 7;
+}
+
+message HistoricalStepAttempt {
+  string attempt_id = 1;
+  string step_id = 2;
+  google.protobuf.Timestamp started_at = 3;
+  google.protobuf.Timestamp finished_at = 4;
+  StepTermination termination = 5;
+  Diagnostic detail = 6;
+}
+
+message HistoricalSummaryCondition {
+  FilterOperator operator = 1;
+  Value value = 2;
+  DocumentSummaryState state = 3;
+}
+
+message HistoricalSummaryGroup {
+  Metadata metadata = 1;
+  repeated HistoricalSummaryTile tiles = 2;
+}
+
+message HistoricalSummaryTile {
+  Metadata metadata = 1;
+  DataExpression value = 2;
+  repeated HistoricalDocumentFilter filters = 3;
+  DocumentSummaryStat stat = 4;
+  DocumentSummaryFormat format = 5;
+  DocumentSummaryPresentation presentation = 6;
+  optional string unit = 7;
+  repeated HistoricalSummaryCondition conditions = 8;
+}
+
+message HistoricalTelemetrySummary {
+  repeated HistoricalSummaryGroup groups = 1;
+}
+
+// Immutable evidence at the selected checkpoint. The frozen origin replaces native plugin/case snapshots.
+// Attempt evidence is interpreted through the TestCase in PluginRun; imports have no fabricated case or
+// criteria.
+message HistoricalTestExecution {
+  string execution_id = 1;
+  string case_id = 2;
+  Metadata suite = 3;
+  ExecutionState status = 4;
+  EvidenceScope scope = 5;
+  repeated MaterializedParameter output_parameters = 6;
+  repeated HistoricalDocument documents = 7;
+  repeated HealthItem health = 8;
+  repeated OperatorNote notes = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp finished_at = 11;
+  repeated HistoricalStep steps = 12;
+  repeated HistoricalStepAttempt step_attempts = 13;
+  Origin origin = 14;
+  ExecutionOutcome outcome = 15;
+  FrozenSchemas schemas = 16;
+  Metadata template = 17;
+  repeated Parameter parameter_definitions = 18;
+  repeated MaterializedParameter input_parameters = 19;
+  repeated Document document_definitions = 20;
+  Metadata case_metadata = 21;
+  uint64 generation_index = 22;
+  string suite_id = 23;
+  optional string host_version = 24;
+}
+
+message HistoryIssue {
+  optional string source = 1;
+  optional string dataset = 2;
+  string message = 3;
+}
+
+message HostCardBlock {
+  HostCardBlockKind kind = 1;
+}
+
+message HostCardBlockKind {
+  oneof kind {
+    string text = 1;
+    HostCardStatus status = 2;
+    HostCardKeyValueList key_value_list = 3;
+    HostCardMetrics metrics = 4;
+  }
+}
+
+message HostCardBody {
+  repeated HostCardBlock blocks = 1;
+}
+
+message HostCardKeyValue {
+  string label = 1;
+  string value = 2;
+  optional string detail = 3;
+}
+
+message HostCardKeyValueList {
+  repeated HostCardKeyValue items = 1;
+}
+
+message HostCardMetric {
+  string label = 1;
+  string value = 2;
+  optional string unit = 3;
+  optional string trend = 4;
+}
+
+message HostCardMetrics {
+  repeated HostCardMetric items = 1;
+}
+
+message HostCardStatus {
+  string label = 1;
+  HostCardTone tone = 2;
+  optional string detail = 3;
+}
+
+enum HostCardTone {
+  HOST_CARD_TONE_UNSPECIFIED = 0;
+  HOST_CARD_TONE_NEUTRAL = 1;
+  HOST_CARD_TONE_INFO = 2;
+  HOST_CARD_TONE_SUCCESS = 3;
+  HOST_CARD_TONE_WARNING = 4;
+  HOST_CARD_TONE_DANGER = 5;
+}
+
+message InstallPluginChunk {
+  uint64 offset = 1;
+  bytes data = 2;
+}
+
+// Header first, then contiguous nonempty chunks bounded by the advertised message size. EOF/finish must match
+// the declared size and SHA-256. On uncertain acknowledgement, reconcile the manifest by digest before retrying.
+message InstallPluginFrame {
+  InstallPluginFrameFrame frame = 1;
+}
+
+message InstallPluginFrameFrame {
+  oneof kind {
+    InstallPluginHeader header = 1;
+    InstallPluginChunk chunk = 2;
+  }
+}
+
+message InstallPluginHeader {
+  uint64 size_bytes = 1;
+  string sha256 = 2;
+}
+
+// Continue the installation UUID ordering against this exact manifest digest. A changed manifest invalidates the
+// page sequence; start again without a cursor.
+message InstallationCursor {
+  string manifest_sha256 = 1;
+  string after_install_id = 2;
+}
+
+message InstallationPage {
+  repeated PluginInstallation installations = 1;
+  InstallationCursor next = 2;
+  uint64 total_count = 3;
+  string manifest_sha256 = 4;
+}
+
+enum LineStyle {
+  LINE_STYLE_UNSPECIFIED = 0;
+  LINE_STYLE_LINE = 1;
+  LINE_STYLE_POINTS = 2;
+  LINE_STYLE_LINE_POINTS = 3;
+  LINE_STYLE_STEP = 4;
+}
+
+message ListAnalysesReply {
+  repeated Analysis definitions = 1;
+  optional string next_after_id = 2;
+}
+
+message ListArtifactsReply {
+  repeated ArtifactMetadata artifacts = 1;
+  optional string next_after_artifact_id = 2;
+  ArtifactCursor cursor = 3;
+}
+
+message ListCaseParametersReply {
+  repeated CaseParameter parameters = 1;
+}
+
+message ListCasesReply {
+  repeated CaseSummary cases = 1;
+}
+
+message ListCyclesReply {
+  repeated CycleSummary cycles = 1;
+  optional string next_after_cycle_id = 2;
+  Cursor cursor = 3;
+}
+
+message ListExecutionFilesReply {
+  repeated ExecutionFileMetadata files = 1;
+  optional string next_after_path = 2;
+  ExecutionFilesCursor cursor = 3;
+}
+
+message ListExecutionStepsReply {
+  repeated ExecutionStep steps = 1;
+}
+
+message ListExecutionsReply {
+  repeated ExecutionSummary executions = 1;
+  optional string next_after_execution_id = 2;
+  Cursor cursor = 3;
+}
+
+message ListHealthResponse {
+  repeated HealthItem items = 1;
+  Cursor cursor = 2;
+  string next_after_id = 3;
+}
+
+message ListMaterializedParametersReply {
+  repeated MaterializedParameter parameters = 1;
+}
+
+message ListNotesResponse {
+  repeated OperatorNote notes = 1;
+  Cursor cursor = 2;
+  string next_after_id = 3;
+}
+
+message ListPendingPromptsReply {
+  repeated PendingPromptIdentity prompts = 1;
+}
+
+message ListPromptDefinitionsReply {
+  repeated PromptDefinitionIdentity definitions = 1;
+}
+
+message ListRecordSchemasReply {
+  repeated RecordSchemaIdentity schemas = 1;
+}
+
+// Source: crates/dokime-operations-next/src/client/telemetry_list_samples.rs
+message ListSamples {
+  repeated string streams = 1;
+  uint32 limit = 2;
+  repeated uint32 schema_versions = 3;
+  repeated string sources = 4;
+  repeated string signals = 5;
+  EvidenceScope scope = 6;
+  repeated ListTelemetrySamplesRequestAfterStreamCursorsEntry after_stream_cursors = 7;
+  google.protobuf.Timestamp start = 8;
+  google.protobuf.Timestamp end = 9;
+  bool latest = 10;
+}
+
+message ListSuitesReply {
+  repeated SuiteIdentity suites = 1;
+}
+
+message ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+  string key = 1;
+  uint64 value = 2;
+}
+
+message ListTelemetrySchemasReply {
+  repeated TelemetrySchemaIdentity schemas = 1;
+}
+
+message ManualRefresh {
+
+}
+
+message MaterializedParameter {
+  string name = 1;
+  Metadata metadata = 2;
+  optional string group_id = 3;
+  ParameterSource source = 4;
+  Value value = 5;
+  MeasurementUnit unit = 6;
+}
+
+message MaterializedReport {
+  FileReference report = 1;
+}
+
+message MeasurementUnit {
+  Metadata metadata = 1;
+  UnitFamily family = 2;
+  string symbol = 3;
+}
+
+message MutationContext {
+  optional string correlation_id = 1;
+}
+
+message NormalFormat {
+  optional uint32 max_fraction_digits = 1;
+}
+
+enum NotePublication {
+  NOTE_PUBLICATION_UNSPECIFIED = 0;
+  NOTE_PUBLICATION_NO_EXISTING_DATASETS = 1;
+  NOTE_PUBLICATION_CONFIRMED = 2;
+  NOTE_PUBLICATION_UNCONFIRMED = 3;
+}
+
+message NoteReceipt {
+  string epoch = 1;
+  string mutation_id = 2;
+  AnnotationOwner owner = 3;
+  OperatorNote note = 4;
+  repeated string checkpoint_targets = 5;
+  NotePublication publication = 6;
+  repeated string unconfirmed_targets = 7;
+}
+
+message NullableNumber {
+  optional double value = 1;
+}
+
+message OnDemandRefresh {
+
+}
+
+message OperationProgress {
+  string operation_id = 1;
+  string label = 2;
+  string phase = 3;
+  repeated string phases = 4;
+  optional double fraction = 5;
+  google.protobuf.Timestamp started_at = 6;
+  OperationStatus status = 7;
+  google.protobuf.Timestamp finished_at = 8;
+  optional string failure = 9;
+}
+
+enum OperationStatus {
+  OPERATION_STATUS_UNSPECIFIED = 0;
+  OPERATION_STATUS_RUNNING = 1;
+  OPERATION_STATUS_FINISHED = 2;
+  OPERATION_STATUS_FAILED = 3;
+}
+
+message OperatorNote {
+  string note_id = 1;
+  EvidenceScope scope = 2;
+  optional string author = 3;
+  string message = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message Output {
+  oneof kind {
+    Null log = 1;
+    string artifact = 2;
+  }
+}
+
+message PageLimits {
+  uint32 rows = 1;
+  uint64 bytes = 2;
+}
+
+message PageRequest {
+  optional uint32 rows = 1;
+  optional uint64 bytes = 2;
+  optional string after = 3;
+}
+
+message PairingFile {
+  uint32 version = 1;
+  repeated string endpoints = 2;
+  string backend_identifier = 3;
+  string label = 4;
+  optional string certificate_pem = 5;
+  optional string access_key = 6;
+}
+
+message ParameterCursor {
+  Cursor observed = 1;
+  ParameterCursorSelection selection = 2;
+}
+
+message ParameterCursorSelection {
+  oneof kind {
+    string execution_inputs_id = 1;
+    string execution_outputs_id = 2;
+    PlannedCaseParameters planned_case = 3;
+  }
+}
+
+enum ParameterSource {
+  PARAMETER_SOURCE_UNSPECIFIED = 0;
+  PARAMETER_SOURCE_DEFINITION = 1;
+  PARAMETER_SOURCE_TRACEABILITY = 2;
+  PARAMETER_SOURCE_ENVIRONMENT = 3;
+  PARAMETER_SOURCE_RESOURCE = 4;
+  PARAMETER_SOURCE_OPERATOR = 5;
+  PARAMETER_SOURCE_RUNTIME = 6;
+  PARAMETER_SOURCE_TELEMETRY = 7;
+  PARAMETER_SOURCE_RECORD = 8;
+  PARAMETER_SOURCE_OUTPUT = 9;
+}
+
+message PendingPromptIdentity {
+  string prompt_id = 1;
+  PromptDefinitionIdentity definition = 2;
+  EvidenceScope scope = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// A materialized case with its frozen provider origin. Identity/digest/process time come from the captured
+// catalog; the TestCase contains resolved parameters, steps, criteria and stream identifiers. Materialize again
+// if the catalog digest changes before execution.
+message PlannedCase {
+  string case_id = 1;
+  string suite_id = 2;
+  string template_id = 3;
+  Metadata metadata = 4;
+  uint64 ordinal = 5;
+  uint64 selection_index = 6;
+  Origin origin = 7;
+}
+
+message PlannedCaseNoteOwner {
+  string cycle_id = 1;
+  string case_id = 2;
+}
+
+message PlannedCaseParameters {
+  string cycle_id = 1;
+  string case_id = 2;
+}
+
+message PlotAnalysis {
+  PlotAnalysisResult result = 1;
+}
+
+message PlotAnalysisError {
+  string message = 1;
+}
+
+message PlotAnalysisResult {
+  oneof kind {
+    ContourGrid contour = 1;
+    GridFrames grid_chart = 2;
+    PlotHistogramAnalysis histogram = 3;
+    PlotBoxSummaryAnalysis box_plot = 4;
+    PlotSigmaIntervalAnalysis sigma_interval = 5;
+    PlotAnalysisError error = 6;
+  }
+}
+
+enum PlotAxisKind {
+  PLOT_AXIS_KIND_UNSPECIFIED = 0;
+  PLOT_AXIS_KIND_WALL_TIME = 1;
+  PLOT_AXIS_KIND_ELAPSED = 2;
+}
+
+message PlotBoxSummary {
+  string key = 1;
+  uint64 count = 2;
+  double min = 3;
+  double q1 = 4;
+  double median = 5;
+  double q3 = 6;
+  double max = 7;
+  double lower_whisker = 8;
+  double upper_whisker = 9;
+  repeated double outliers = 10;
+  string label = 11;
+}
+
+message PlotBoxSummaryAnalysis {
+  repeated PlotBoxSummary series = 1;
+  uint64 total = 2;
+}
+
+enum PlotCartesianMode {
+  PLOT_CARTESIAN_MODE_UNSPECIFIED = 0;
+  PLOT_CARTESIAN_MODE_ALIGNED = 1;
+  PLOT_CARTESIAN_MODE_FACETED = 2;
+}
+
+message PlotColumn {
+  repeated string instants = 1;
+  repeated Value x = 2;
+  repeated NullableNumber y = 3;
+  repeated NullableNumber z = 4;
+}
+
+message PlotDomain {
+  double min = 1;
+  double max = 2;
+}
+
+message PlotEnvelope {
+  string plot_id = 1;
+  uint64 revision = 2;
+  string epoch = 3;
+  string selection = 4;
+  PlotPayload payload = 5;
+  PlotPayloadDiagnostics diagnostics = 6;
+  repeated string warnings = 7;
+}
+
+message PlotFftOptions {
+  optional double sample_rate_hz = 1;
+  FftWindow window = 2;
+  FftDetrend detrend = 3;
+  FrequencyLevelUnit level_unit = 4;
+  bool include_dc = 5;
+  optional double min_frequency_hz = 6;
+  optional double max_frequency_hz = 7;
+}
+
+message PlotFilter {
+  DataExpression expression = 1;
+  FilterOperator operator = 2;
+  Value value = 3;
+}
+
+message PlotFrame {
+  optional PlotCartesianMode mode = 1;
+  repeated double time = 2;
+  repeated PlotColumn series = 3;
+  PlotDomain x_domain = 4;
+  PlotDomain y_domain = 5;
+  uint64 point_count = 6;
+  string signature = 7;
+}
+
+message PlotHistogramAnalysis {
+  repeated PlotHistogramSeries series = 1;
+}
+
+message PlotHistogramBin {
+  double lower = 1;
+  double upper = 2;
+  uint64 count = 3;
+}
+
+message PlotHistogramOptions {
+  uint64 bins = 1;
+  optional string unit = 2;
+}
+
+message PlotHistogramSeries {
+  string key = 1;
+  repeated PlotHistogramBin bins = 2;
+  uint64 count = 3;
+  PlotHistogramStatistics statistics = 4;
+}
+
+message PlotHistogramStatistics {
+  double mean = 1;
+  double median = 2;
+  double std = 3;
+  double rms = 4;
+  double min = 5;
+  double max = 6;
+}
+
+message PlotIntervalOptions {
+  double bin_width = 1;
+  double sigma = 2;
+  bool clip_to_observed = 3;
+}
+
+message PlotMarker {
+  Value x = 1;
+  string label = 2;
+  string record_type = 3;
+  string color = 4;
+}
+
+message PlotPayload {
+  string stream = 1;
+  string x_key = 2;
+  optional string series_by = 3;
+  Value context = 4;
+  repeated PlotSeries series = 5;
+  PlotFrame frame = 6;
+  repeated PlotMarker markers = 7;
+  uint64 max_points = 8;
+  optional double window_s = 9;
+  string generated_at = 10;
+  ValueFormat x_format = 11;
+  optional string run_started_at = 12;
+  optional string cycle_started_at = 13;
+  PlotAnalysis analysis = 14;
+  AnalysisComputation computed = 15;
+  repeated PlotSeriesSummary summaries = 16;
+  optional double bucket_width_s = 17;
+  PlotWindow bucket_window = 18;
+  repeated double replaced_buckets = 19;
+}
+
+message PlotPayloadDiagnostics {
+  // Number of retained source rows consumed by this window reduction.
+  uint64 examined_rows = 7;
+  // Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+  uint64 resolution_nanos = 8;
+  uint64 series_count = 1;
+  uint64 point_count = 2;
+  uint64 raw_point_count = 3;
+  bool downsampled = 4;
+  uint64 max_points = 5;
+  optional double window_s = 6;
+}
+
+message PlotPresentation {
+  LineStyle style = 1;
+  PlotFftOptions fft = 2;
+  PlotIntervalOptions interval = 3;
+  PlotHistogramOptions histogram = 4;
+  repeated PlotReferenceLine reference_lines = 5;
+  repeated PlotReferenceBand reference_bands = 6;
+  ValueFormat x_format = 7;
+  ValueFormat y_format = 8;
+  PlotAxisKind x_axis = 9;
+  optional string x_axis_unit = 10;
+  optional double scale = 11;
+}
+
+message PlotReferenceBand {
+  PlotReferenceValue min = 1;
+  PlotReferenceValue max = 2;
+  optional string label = 3;
+  string color = 4;
+  PlotReferenceValue center = 5;
+  PlotReferenceValue tolerance = 6;
+}
+
+message PlotReferenceLine {
+  PlotReferenceValue value = 1;
+  optional string label = 2;
+  string color = 3;
+}
+
+message PlotReferenceValue {
+  optional double constant = 1;
+  DataExpression expression = 2;
+}
+
+message PlotRequest {
+  optional BarArrangement arrangement = 1;
+  bool pareto = 2;
+  optional double hole = 3;
+  optional XyInterval xy_interval = 4;
+  GridDefinition grid = 5;
+  optional Reduction reduction = 6;
+  ContourRender render = 7;
+  PlotWindow y_viewport = 8;
+  optional uint32 panel_height = 9;
+  optional string plot_id = 10;
+  PlotKind plot_type = 11;
+  LineStyle style = 12;
+  AxisScale x_scale = 13;
+  AxisScale y_scale = 14;
+  string stream = 15;
+  repeated string y_keys = 16;
+  repeated string marker_record_types = 17;
+  repeated PlotFilter filters = 18;
+  optional string x_key = 19;
+  optional string series_by = 20;
+  DataExpression x_expression = 21;
+  repeated DataExpression y_expressions = 22;
+  DataExpression series_by_expression = 23;
+  optional string z_stream = 24;
+  optional string z_field = 25;
+  optional string unit = 26;
+  optional uint64 max_points = 27;
+  optional double window_s = 28;
+  EvidenceScope scope = 29;
+  Downsample technique = 30;
+  DataExpression z_expression = 31;
+  PlotFftOptions fft = 32;
+  PlotIntervalOptions interval = 33;
+  PlotHistogramOptions histogram = 34;
+  AnalysisSelection analysis = 35;
+  PlotWindow summary_window = 36;
+  PlotWindow viewport = 37;
+  optional uint32 panel_width = 38;
+  // Optional fixed evidence cut; binds document plots to one captured snapshot.
+  StorageCursor at = 39;
+}
+
+message PlotSeries {
+  string key = 1;
+  string label = 2;
+  optional string unit = 3;
+  uint64 raw_points = 4;
+  bool downsampled = 5;
+  ValueFormat format = 6;
+}
+
+message PlotSeriesSummary {
+  string series_id = 1;
+  uint64 count = 2;
+  optional double min = 3;
+  optional double max = 4;
+  optional double mean = 5;
+  optional double median = 6;
+  optional double std = 7;
+  optional double rms = 8;
+  PlotWindow window = 9;
+}
+
+message PlotSigmaBin {
+  double x = 1;
+  uint64 count = 2;
+  double mean = 3;
+  double lower = 4;
+  double upper = 5;
+}
+
+message PlotSigmaIntervalAnalysis {
+  repeated PlotSigmaSeries series = 1;
+}
+
+message PlotSigmaSeries {
+  string key = 1;
+  repeated PlotSigmaBin bins = 2;
+  uint64 raw_points = 3;
+}
+
+message PlotSnapshotsReply {
+  repeated PlotEnvelope envelopes = 1;
+}
+
+message PlotStreamFrame {
+  repeated PlotStreamUpdate updates = 1;
+}
+
+enum PlotStreamKind {
+  PLOT_STREAM_KIND_UNSPECIFIED = 0;
+  PLOT_STREAM_KIND_SNAPSHOT = 1;
+  PLOT_STREAM_KIND_REPLACE = 2;
+  PLOT_STREAM_KIND_DELTA = 3;
+  PLOT_STREAM_KIND_STATISTICS = 4;
+  PLOT_STREAM_KIND_ERROR = 5;
+}
+
+message PlotStreamUpdate {
+  PlotStreamKind kind = 1;
+  PlotEnvelope envelope = 2;
+}
+
+message PlotWindow {
+  double from = 1;
+  double to = 2;
+}
+
+message PluginIdentity {
+  string name = 1;
+  string version = 2;
+  string description = 3;
+}
+
+// Installed bundle metadata plus its managed entry. Connection/process availability is Plugin.state;
+// installation state describes bundle management, not whether a plugin is connected.
+message PluginInstallation {
+  string install_id = 1;
+  string sha256 = 2;
+  google.protobuf.Timestamp installed_at = 3;
+  PluginInstallationState state = 4;
+  PluginMetadata metadata = 5;
+  optional string error = 6;
+  Plugin plugin = 7;
+}
+
+enum PluginInstallationState {
+  PLUGIN_INSTALLATION_STATE_UNSPECIFIED = 0;
+  PLUGIN_INSTALLATION_STATE_INSTALLED = 1;
+  PLUGIN_INSTALLATION_STATE_DISABLED = 2;
+  PLUGIN_INSTALLATION_STATE_REMOVAL_PENDING = 3;
+}
+
+message PluginMetadata {
+  PluginIdentity identity = 1;
+  repeated string owners = 2;
+  uint64 size_bytes = 3;
+}
+
+message PluginPreferences {
+  uint32 startup_timeout_s = 1;
+  uint32 stop_timeout_s = 2;
+}
+
+// Saved and discovered settings by identifier. There is no injected applied snapshot or unapplied comparison.
+// Reads expose no secret values.
+message PluginRuntimeSettings {
+  SettingsCatalog settings = 1;
+  MapValue values = 2;
+  repeated SecretAvailability secrets = 3;
+  MapValue discovered = 4;
+}
+
+message PreviewSelectionReply {
+  repeated PlannedCase cases = 1;
+  Cursor observed_cursor = 2;
+}
+
+message PromptDefinitionIdentity {
+  string prompt_type = 1;
+  string title = 2;
+}
+
+message PromptInstance {
+  string prompt_id = 1;
+  Prompt definition = 2;
+  PromptKind kind = 3;
+  MapValue values = 4;
+  EvidenceScope scope = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+enum PromptKind {
+  PROMPT_KIND_UNSPECIFIED = 0;
+  PROMPT_KIND_CONFIRMATION = 1;
+  PROMPT_KIND_FORM = 2;
+  PROMPT_KIND_CHOICE = 3;
+  PROMPT_KIND_STATUS = 4;
+  PROMPT_KIND_VERIFICATION = 5;
+}
+
+message PromptResponse {
+  string prompt_id = 1;
+  string action = 2;
+  string responder = 3;
+  google.protobuf.Timestamp submitted_at = 4;
+  MapValue values = 5;
+  bool accepted = 6;
+}
+
+message PromptResponseReceipt {
+  string command_id = 1;
+  string prompt_id = 2;
+  uint64 committed_revision = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+  Cursor observed_cursor = 5;
+}
+
+message PromptView {
+  PromptInstance prompt = 1;
+  PromptResponse response = 2;
+  Cursor observed_cursor = 3;
+}
+
+// The aggregate vocabulary is shared with document expressions. Percentile requires a rank in the inclusive
+// range 0..100. Aliases are unique and distinct from group-by columns. Count without a column counts rows; null
+// inputs are skipped for other aggregates.
+message QueryAggregate {
+  Aggregate aggregate = 1;
+  string column = 2;
+  string alias = 3;
+  optional double percentile = 4;
+}
+
+message QueryFilter {
+  string column = 1;
+  QueryFilterOperator op = 2;
+  repeated Value values = 3;
+}
+
+enum QueryFilterOperator {
+  QUERY_FILTER_OPERATOR_UNSPECIFIED = 0;
+  QUERY_FILTER_OPERATOR_EQ = 1;
+  QUERY_FILTER_OPERATOR_NEQ = 2;
+  QUERY_FILTER_OPERATOR_IN = 3;
+  QUERY_FILTER_OPERATOR_GT = 4;
+  QUERY_FILTER_OPERATOR_GTE = 5;
+  QUERY_FILTER_OPERATOR_LT = 6;
+  QUERY_FILTER_OPERATOR_LTE = 7;
+  QUERY_FILTER_OPERATOR_IS_NULL = 8;
+}
+
+message QueryRow {
+  repeated Value values = 1;
+}
+
+enum QuerySource {
+  QUERY_SOURCE_UNSPECIFIED = 0;
+  QUERY_SOURCE_CYCLES = 1;
+  QUERY_SOURCE_CASES = 2;
+  QUERY_SOURCE_EXECUTIONS = 3;
+  QUERY_SOURCE_STEPS = 4;
+  QUERY_SOURCE_RECORDS = 5;
+}
+
+message RecordDisplay {
+  RecordIcon icon = 1;
+  RecordTone tone = 2;
+}
+
+message RecordField {
+  Metadata metadata = 1;
+  ValueType value_type = 2;
+  bool required = 3;
+  bool nullable = 4;
+  MeasurementUnit unit = 5;
+  repeated Value choices = 6;
+  Value default_value = 7;
+  ValueFormat format = 8;
+}
+
+enum RecordIcon {
+  RECORD_ICON_UNSPECIFIED = 0;
+  RECORD_ICON_ACTIVITY = 1;
+  RECORD_ICON_ALERT_TRIANGLE = 2;
+  RECORD_ICON_ARCHIVE = 3;
+  RECORD_ICON_BELL = 4;
+  RECORD_ICON_CHECK_CIRCLE = 5;
+  RECORD_ICON_CIRCLE_DASHED = 6;
+  RECORD_ICON_CLIPBOARD_CHECK = 7;
+  RECORD_ICON_CPU = 8;
+  RECORD_ICON_FILE_TEXT = 9;
+  RECORD_ICON_FLAG = 10;
+  RECORD_ICON_GAUGE = 11;
+  RECORD_ICON_HEART_PULSE = 12;
+  RECORD_ICON_HELP_CIRCLE = 13;
+  RECORD_ICON_MESSAGE_SQUARE_TEXT = 14;
+  RECORD_ICON_PACKAGE = 15;
+  RECORD_ICON_PLUG = 16;
+  RECORD_ICON_RADIO_TOWER = 17;
+  RECORD_ICON_ROTATE_CCW = 18;
+  RECORD_ICON_SHIELD_ALERT = 19;
+  RECORD_ICON_TARGET = 20;
+  RECORD_ICON_TIMER_RESET = 21;
+  RECORD_ICON_WRENCH = 22;
+  RECORD_ICON_ZAP = 23;
+  RECORD_ICON_CLOCK = 24;
+}
+
+message RecordPage {
+  repeated CapturedRecord records = 1;
+  Cursor scanned = 2;
+  Cursor through = 3;
+  bool replay_complete = 4;
+  uint64 retained_after = 5;
+}
+
+message RecordSchema {
+  string record_type = 1;
+  uint32 schema_version = 2;
+  Metadata metadata = 3;
+  optional string template_identifier = 4;
+  optional string owner_suite_id = 5;
+  Severity default_severity = 6;
+  repeated RecordField fields = 7;
+  optional ValidationMode validation_mode = 8;
+  bool allow_extra_fields = 9;
+  RecordDisplay display = 10;
+}
+
+message RecordSchemaIdentity {
+  string record_type = 1;
+  uint32 schema_version = 2;
+  Metadata metadata = 3;
+}
+
+message RecordScope {
+  oneof kind {
+    string execution = 1;
+    CycleScope cycle = 2;
+  }
+}
+
+enum RecordTone {
+  RECORD_TONE_UNSPECIFIED = 0;
+  RECORD_TONE_INFO = 1;
+  RECORD_TONE_SUCCESS = 2;
+  RECORD_TONE_WARNING = 3;
+  RECORD_TONE_DANGER = 4;
+  RECORD_TONE_ACCENT = 5;
+  RECORD_TONE_MUTED = 6;
+  RECORD_TONE_NEUTRAL = 7;
+}
+
+message RecordingAudio {
+  bool microphone = 1;
+  bool system = 2;
+}
+
+message RecordingFrame {
+  RecordingFramePayload payload = 1;
+}
+
+message RecordingFramePayload {
+  oneof kind {
+    RecordingProgress progress = 1;
+    ArtifactMetadata completed = 2;
+  }
+}
+
+message RecordingProgress {
+  uint64 elapsed_ms = 1;
+  uint64 size_bytes = 2;
+}
+
+// Exact registered suite/template identifiers. Parameter dimensions expand deterministically in selection order.
+// A multiple-valued parameter receives its selected values as one list rather than an expansion dimension. File
+// values are opaque plugin strings; they grant no client filesystem authority.
+message RegisteredSelection {
+  string suite_id = 1;
+  string template_id = 2;
+  repeated RegisteredSelectionParametersEntry parameters = 3;
+  repeated RegisteredSelectionFilesEntry files = 4;
+}
+
+message RegisteredSelectionFilesEntry {
+  string key = 1;
+  SelectedFile value = 2;
+}
+
+message RegisteredSelectionParametersEntry {
+  string key = 1;
+  SelectionValues value = 2;
+}
+
+message Rejection {
+  string code = 1;
+  string message = 2;
+  repeated ValidationIssue issues = 3;
+}
+
+message RemoteEndpoint {
+  string address = 1;
+  optional string adapter_name = 2;
+}
+
+message RemoteListenerSettings {
+  bool enabled = 1;
+  string address = 2;
+  bool tls_enabled = 3;
+  bool authentication_enabled = 4;
+  repeated string certificate_names = 5;
+}
+
+message RemoteListenerStatus {
+  RemoteListenerSettings settings = 1;
+  optional string listening_address = 2;
+  optional string certificate_pem = 3;
+  bool key_configured = 4;
+  optional string error = 5;
+  repeated RemoteEndpoint endpoints = 6;
+}
+
+message RenameReply {
+  string label = 1;
+}
+
+message ReportDefaults {
+  uint32 source_bytes = 1;
+  uint32 value_depth = 2;
+  uint32 table_rows = 3;
+  uint32 plot_points = 4;
+  Downsample plot_downsample = 5;
+}
+
+message ReportHtmlChunk {
+  uint64 offset = 1;
+  bytes data = 2;
+}
+
+message ReportHtmlCompletion {
+  uint64 size_bytes = 1;
+  string sha256 = 2;
+}
+
+// Report metadata first, then contiguous chunks in offset order, then completion. Verify size and SHA-256 and
+// require a successful final RPC response/status before accepting the bytes.
+message ReportHtmlFrame {
+  ReportHtmlFramePayload payload = 1;
+}
+
+message ReportHtmlFramePayload {
+  oneof kind {
+    ReportMetadata report = 1;
+    ReportHtmlChunk chunk = 2;
+    ReportHtmlCompletion complete = 3;
+  }
+}
+
+message ReportMetadata {
+  string test_cycle_id = 1;
+  optional string test_execution_id = 2;
+  string identifier = 3;
+  Metadata metadata = 4;
+  google.protobuf.Timestamp generated_at = 5;
+  ReportOrigin origin = 6;
+  repeated string warnings = 7;
+}
+
+enum ReportOrigin {
+  REPORT_ORIGIN_UNSPECIFIED = 0;
+  REPORT_ORIGIN_SEALED = 1;
+  REPORT_ORIGIN_CURRENT = 2;
+}
+
+enum ReportState {
+  REPORT_STATE_UNSPECIFIED = 0;
+  REPORT_STATE_PENDING = 1;
+  REPORT_STATE_READY = 2;
+  REPORT_STATE_FAILED = 3;
+}
+
+message ReportStatus {
+  ReportState state = 1;
+  optional string failure = 2;
+}
+
+message ReportSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+message RerunCaseNotice {
+  string case_id = 1;
+  string suite_id = 2;
+  string reason = 3;
+}
+
+message RerunCycleReply {
+  string cycle_id = 1;
+  Cursor observed_cursor = 2;
+  repeated RerunCaseNotice skipped = 3;
+  repeated RerunCaseNotice dropped_parameters = 4;
+}
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_PENDING = 1;
+  RESULT_STATUS_PASSED = 2;
+  RESULT_STATUS_FAILED = 3;
+  RESULT_STATUS_BLOCKED = 4;
+  RESULT_STATUS_CANCELLED = 5;
+}
+
+message ResultSummary {
+  ResultStatus status = 1;
+  uint32 passed = 2;
+  uint32 failed = 3;
+  uint32 blocked = 4;
+  uint32 skipped = 5;
+  uint32 declared = 6;
+  uint32 not_evaluated = 7;
+}
+
+message RuntimeShellSnapshot {
+  string session_id = 1;
+  uint64 revision = 2;
+  bool shutting_down = 3;
+  Metadata hub_metadata = 4;
+  uint64 test_suite_count = 5;
+  repeated CycleSummary cycle_summaries = 6;
+  EvidenceCounts evidence_counts = 7;
+  Cursor observed_cursor = 8;
+  optional string next_after_cycle_id = 9;
+}
+
+message RuntimeStateFrame {
+  Cursor cursor = 1;
+  bool resynchronized = 2;
+  bool shutting_down = 3;
+  uint64 cycle_count = 4;
+  repeated OperationProgress operations = 5;
+}
+
+message SamplePage {
+  repeated SampleRow rows = 1;
+  Schema schema = 2;
+  Snapshot snapshot = 3;
+  PageLimits limits = 4;
+  optional string next = 5;
+  bool complete = 6;
+}
+
+message SampleRow {
+  oneof kind {
+    TelemetrySample raw = 1;
+    Bucket bucket = 2;
+  }
+}
+
+message SavedCycleSummary {
+  string cycle_id = 1;
+  Metadata metadata = 2;
+  CyclePhase phase = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  uint64 execution_count = 6;
+  bool archived = 7;
+}
+
+message SavedRecord {
+  string epoch = 1;
+  CapturedRecord record = 2;
+}
+
+message SavedTelemetrySample {
+  string epoch = 1;
+  uint64 ordinal = 2;
+  TelemetrySample sample = 3;
+}
+
+message Schema {
+  string identity = 1;
+  repeated uint32 versions = 2;
+  repeated Field fields = 3;
+}
+
+message ScientificFormat {
+  uint32 significant_digits = 1;
+}
+
+message SecretArchive {
+  bytes data = 1;
+}
+
+message SecretAvailability {
+  string identifier = 1;
+  bool available = 2;
+}
+
+enum SecretImportAction {
+  SECRET_IMPORT_ACTION_UNSPECIFIED = 0;
+  SECRET_IMPORT_ACTION_REPLACE = 1;
+  SECRET_IMPORT_ACTION_SKIP = 2;
+}
+
+message SecretImportChoice {
+  string identifier = 1;
+  SecretImportAction action = 2;
+}
+
+message SecretImportEntry {
+  Metadata metadata = 1;
+  bool exists = 2;
+}
+
+message SecretImportPreview {
+  string host_id = 1;
+  string host_label = 2;
+  uint64 generation = 3;
+  repeated SecretImportEntry entries = 4;
+}
+
+message SecretLookupValue {
+  optional string value = 1;
+}
+
+message SecretSnapshot {
+  string host_id = 1;
+  string host_label = 2;
+  uint64 generation = 3;
+  repeated SecretSummary entries = 4;
+  bool cleanup_pending = 5;
+}
+
+message SecretSummary {
+  Metadata metadata = 1;
+  repeated string known_uses = 2;
+}
+
+message SelectedFile {
+  SelectedFileKind kind = 1;
+}
+
+message SelectedFileKind {
+  oneof kind {
+    string value = 1;
+    Null clear = 2;
+  }
+}
+
+// Selections and case_ids are mutually exclusive. Preserve order and duplicate selections. At most 256
+// selections and 1000 expanded cases; max_cases zero uses that case cap. A cycle_id continues that cycle's label
+// numbering.
+message SelectionPlan {
+  repeated RegisteredSelection selections = 1;
+  uint32 max_cases = 2;
+  repeated string case_ids = 3;
+  string cycle_id = 4;
+}
+
+message SelectionValues {
+  repeated Value values = 1;
+}
+
+message SettingsCard {
+  string plugin_id = 1;
+  string card_id = 2;
+  string section_id = 3;
+  string label = 4;
+  optional string description = 5;
+  HostCardBody body = 6;
+  SettingsCardRefreshPolicy refresh = 7;
+  SettingsCardState state = 8;
+  int32 order = 9;
+}
+
+message SettingsCardRefreshPolicy {
+  SettingsCardRefreshPolicyPolicy policy = 1;
+}
+
+message SettingsCardRefreshPolicyPolicy {
+  oneof kind {
+    ManualRefresh manual = 1;
+    CachedRefresh cached = 2;
+    OnDemandRefresh on_demand = 3;
+  }
+}
+
+enum SettingsCardState {
+  SETTINGS_CARD_STATE_UNSPECIFIED = 0;
+  SETTINGS_CARD_STATE_READY = 1;
+  SETTINGS_CARD_STATE_DISABLED = 2;
+  SETTINGS_CARD_STATE_DISCONNECTED = 3;
+  SETTINGS_CARD_STATE_STALE = 4;
+  SETTINGS_CARD_STATE_ERROR = 5;
+  SETTINGS_CARD_STATE_PERMISSION_DENIED = 6;
+}
+
+message SettingsFrame {
+  BootstrapPaths bootstrap_paths = 1;
+  repeated SettingsSection sections = 2;
+  repeated SettingsCard cards = 3;
+}
+
+message SettingsSection {
+  string section_id = 1;
+  string label = 2;
+  optional string description = 3;
+  SettingsSectionOwner owner = 4;
+  int32 order = 5;
+}
+
+message SettingsSectionOwner {
+  oneof kind {
+    bool app = 1;
+    string installed_plugin_id = 2;
+  }
+}
+
+message SettingsSnapshot {
+  uint64 revision = 1;
+  ApplicationSettings settings = 2;
+}
+
+message SiPrefixFormat {
+  uint32 significant_digits = 1;
+}
+
+message Snapshot {
+  string token = 1;
+  string identity = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message SnapshotRef {
+  oneof kind {
+    string token = 1;
+    ExecutionCheckpoint checkpoint = 2;
+  }
+}
+
+message StartExecutionOutcome {
+  oneof kind {
+    Admission accepted = 1;
+    Rejection rejected = 2;
+  }
+}
+
+// Admission or resolution of an existing start identity, never execution completion. Read the execution and
+// watch its state after acceptance; cancelling the start call alone does not cancel admitted work.
+message StartExecutionReply {
+  StartExecutionOutcome outcome = 1;
+}
+
+message StatisticValue {
+  oneof kind {
+    uint64 count = 1;
+    double number = 2;
+  }
+}
+
+message StepCriterion {
+  string criterion_id = 1;
+  Metadata metadata = 2;
+  CriterionStatus status = 3;
+  Value observed = 4;
+  optional string message = 5;
+  uint64 ordinal = 6;
+}
+
+message StepMeasurement {
+  Metadata metadata = 1;
+  Value value = 2;
+  MeasurementUnit unit = 3;
+  uint64 ordinal = 4;
+}
+
+message StepPageCursor {
+  Cursor revision = 1;
+  string execution_id = 2;
+  string step_id = 3;
+  StepPageKind kind = 4;
+  uint64 next_ordinal = 5;
+}
+
+enum StepPageKind {
+  STEP_PAGE_KIND_UNSPECIFIED = 0;
+  STEP_PAGE_KIND_STEPS = 1;
+  STEP_PAGE_KIND_MEASUREMENTS = 2;
+}
+
+enum StepStatus {
+  STEP_STATUS_UNSPECIFIED = 0;
+  STEP_STATUS_PENDING = 1;
+  STEP_STATUS_RUNNING = 2;
+  STEP_STATUS_PASSED = 3;
+  STEP_STATUS_FAILED = 4;
+  STEP_STATUS_SKIPPED = 5;
+  STEP_STATUS_CANCELLED = 6;
+}
+
+enum StepTermination {
+  STEP_TERMINATION_UNSPECIFIED = 0;
+  STEP_TERMINATION_COMPLETED = 1;
+  STEP_TERMINATION_FAILED = 2;
+  STEP_TERMINATION_CANCELLED = 3;
+  STEP_TERMINATION_INTERRUPTED = 4;
+}
+
+// Source: harmos-domain/src/model/storage/files.rs
+message StorageCursor {
+  StoreHistory history = 1;
+  uint64 sequence = 2;
+}
+
+message StorageSource {
+  string identifier = 1;
+  string adapter = 2;
+  int64 priority = 3;
+  bool enabled = 4;
+}
+
+message StorageSources {
+  repeated StorageSource sources = 1;
+}
+
+// Source: harmos-domain/src/model/storage/files.rs
+message StoreHistory {
+  string store = 1;
+  string epoch = 2;
+}
+
+message SuiteIdentity {
+  string suite_id = 1;
+  string source = 2;
+  Metadata metadata = 3;
+}
+
+message TelemetryColumn {
+  Metadata metadata = 1;
+  ValueType value_type = 2;
+  TelemetryRole role = 3;
+  MeasurementUnit unit = 4;
+  optional string display_unit = 5;
+  bool required = 6;
+  bool nullable = 7;
+  Value default_value = 8;
+  ValueFormat format = 9;
+}
+
+message TelemetryPreferences {
+  uint64 interval_ms = 1;
+}
+
+enum TelemetryRole {
+  TELEMETRY_ROLE_UNSPECIFIED = 0;
+  TELEMETRY_ROLE_VALUE = 1;
+  TELEMETRY_ROLE_COUNTER = 2;
+  TELEMETRY_ROLE_STATE = 3;
+  TELEMETRY_ROLE_DISTANCE = 4;
+  TELEMETRY_ROLE_LATENCY = 5;
+  TELEMETRY_ROLE_THROUGHPUT = 6;
+}
+
+message TelemetrySample {
+  // Original row bytes interpreted using the frozen stream descriptor.
+  bytes payload = 12;
+  string sample_id = 1;
+  string stream = 2;
+  uint32 schema_version = 3;
+  uint64 sequence = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  google.protobuf.Timestamp received_at = 6;
+  string source = 7;
+  EvidenceScope scope = 8;
+  MapValue values = 9;
+  MapValue summary = 10;
+  MapValue metadata = 11;
+}
+
+message TelemetrySamplesReply {
+  repeated TelemetrySample samples = 1;
+  repeated TelemetrySamplesReplyThroughStreamCursorsEntry through_stream_cursors = 2;
+  bool complete = 3;
+}
+
+message TelemetrySamplesReplyThroughStreamCursorsEntry {
+  string key = 1;
+  uint64 value = 2;
+}
+
+message TelemetrySchema {
+  string stream = 1;
+  uint32 schema_version = 2;
+  Schema storage_schema = 3;
+  Metadata metadata = 4;
+  optional string template_identifier = 5;
+  optional string owner_suite_id = 6;
+  repeated TelemetryColumn columns = 7;
+  optional string default_x = 8;
+  bool allow_extra_fields = 9;
+  bool scalar = 10;
+  optional ValidationMode validation_mode = 11;
+  bool foreign = 12;
+}
+
+message TelemetrySchemaIdentity {
+  string stream = 1;
+  uint32 schema_version = 2;
+  Metadata metadata = 3;
+}
+
+enum ThemeMode {
+  THEME_MODE_UNSPECIFIED = 0;
+  THEME_MODE_SYSTEM = 1;
+  THEME_MODE_LIGHT = 2;
+  THEME_MODE_DARK = 3;
+}
+
+message TraceabilitySnapshot {
+  bytes revision = 6;
+  .harmos.v1.Position resolved_at = 7;
+  string traceability_id = 1;
+  EvidenceScope scope = 2;
+  google.protobuf.Timestamp created_at = 3;
+  repeated TraceabilityEntry entries = 4;
+  Metadata metadata = 5;
+}
+
+enum UnitFamily {
+  UNIT_FAMILY_UNSPECIFIED = 0;
+  UNIT_FAMILY_COUNT = 1;
+  UNIT_FAMILY_DISTANCE = 2;
+  UNIT_FAMILY_DURATION = 3;
+  UNIT_FAMILY_FREQUENCY = 4;
+  UNIT_FAMILY_POWER = 5;
+  UNIT_FAMILY_TEMPERATURE = 6;
+  UNIT_FAMILY_VOLTAGE = 7;
+  UNIT_FAMILY_RATIO = 8;
+  UNIT_FAMILY_CUSTOM = 9;
+}
+
+message UpdateSettings {
+  uint64 expected_revision = 1;
+  ApplicationSettings settings = 2;
+}
+
+message UploadArtifactFrame {
+  UploadArtifactFramePayload payload = 1;
+}
+
+message UploadArtifactFramePayload {
+  oneof kind {
+    UploadArtifactHeader header = 1;
+    ArtifactChunk chunk = 2;
+    ArtifactCompletion complete = 3;
+  }
+}
+
+message UploadArtifactHeader {
+  ArtifactScope scope = 1;
+  string filename = 2;
+  optional string content_type = 3;
+  uint64 size_bytes = 4;
+  optional string sha256 = 5;
+}
+
+message ValidationIssue {
+  string path = 1;
+  string message = 2;
+  optional string expected = 3;
+}
+
+enum ValidationMode {
+  VALIDATION_MODE_UNSPECIFIED = 0;
+  VALIDATION_MODE_STRICT = 1;
+  VALIDATION_MODE_PROTOTYPE = 2;
+}
+
+message ValueFormat {
+  ValueFormatKind kind = 1;
+}
+
+message ValueFormatKind {
+  oneof kind {
+    NormalFormat normal = 1;
+    FixedFormat fixed = 2;
+    ScientificFormat scientific = 3;
+    EngineeringFormat engineering = 4;
+    SiPrefixFormat si_prefix = 5;
+    AbsoluteTimeFormat absolute_time = 6;
+    ElapsedFormat elapsed_since_run = 7;
+    ElapsedFormat elapsed_since_cycle = 8;
+  }
+}
+
+message Window {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}

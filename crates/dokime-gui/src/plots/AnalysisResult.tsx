@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useId, useMemo, useState } from "react";
@@ -76,18 +77,18 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
         {entries.length > 1 && (
           <>
             <label htmlFor={inputId}>Output</label>
-            <select
-              id={inputId}
-              value={selected < entries.length ? selected : 0}
-              className="rounded-lg border bg-background px-2 py-1 text-sm"
-              onChange={(event) => setSelected(Number(event.target.value))}
-            >
-              {entries.map((item, index) => (
-                <option key={`${item.series.key}/${item.output.key}`} value={index}>
-                  {item.series.label} · {item.schema?.label ?? item.output.key}
-                </option>
-              ))}
-            </select>
+            <Select value={String(selected < entries.length ? selected : 0)} onValueChange={(value) => setSelected(Number(value))}>
+              <SelectTrigger id={inputId}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {entries.map((item, index) => (
+                  <SelectItem key={`${item.series.key}/${item.output.key}`} value={String(index)}>
+                    {item.series.label} · {item.schema?.label ?? item.output.key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </>
         )}
       </div>

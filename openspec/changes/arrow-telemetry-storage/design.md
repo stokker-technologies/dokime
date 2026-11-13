@@ -2,7 +2,7 @@
 
 ## Context
 
-Arrow IPC telemetry storage is landed on `dev`. This retained change owns its remaining query-latency obligation. The query-only follow-up in `perf/arrow-query` preserves the landed format, write path, finalize and export contracts. Motivation and the original locked decisions remain in `proposal.md`.
+Arrow IPC telemetry storage is landed on `dev`. This retained change owns its remaining query-latency obligation. The integrated query-only follow-up preserves the landed format, write path, finalize and export contracts. Motivation and the original locked decisions remain in `proposal.md`.
 
 ## Goals and Non-Goals
 
@@ -32,7 +32,9 @@ The IPC file starts with eight bytes of magic/padding before its embedded stream
 
 ## Ownership and Dependency Order
 
-The query follow-up has one writer in the current `perf/arrow-query` worktree; its initial tree was clean at the merged Arrow storage commit and tracked `origin/dev`. Tasks lock the source inventory. The change is activated through `stkr specification start arrow-telemetry-storage` with a native persistent goal.
+The query implementation is integrated on `feat/grpc-plugins`. Its remaining
+measurement comparison belongs to this retained change; use the combined
+ownership and wave order in `grpc-plugins/design.md`.
 
 Implement schema/configuration and catalog first, then writer/recovery, reader/durable cursor consumers, exports, documentation and benchmarks. Retire superseded code in the same feature. Keep existing managed Harmos lifecycle contracts and public operation declarations as the boundary.
 
@@ -60,7 +62,7 @@ The plot integration fixture still asserted full-history report XY/histogram out
 
 ## Validation and Delivery
 
-Use discovered mise tasks with standard compiler preflight and `UV_PROJECT_ENVIRONMENT` absent; do not redirect Python or temporary environments. Run targeted proof during implementation. After complete source closure, run the requested workspace checks/format and the existing benchmark task exactly once with an origin/dev comparison; no installers or umbrella lanes. TypeScript check/lint applies only if GUI changes. The owner's explicit no-push instruction overrides ordinary delivery automation.
+Use discovered mise tasks with standard compiler-output safeguards and `UV_PROJECT_ENVIRONMENT` absent; do not redirect Python or temporary environments. Run targeted proof during implementation. After complete source closure, run the requested workspace checks/format and the existing benchmark task exactly once with an origin/dev comparison; no installers or umbrella lanes. TypeScript check/lint applies only if GUI changes. The owner's explicit no-push instruction overrides ordinary delivery automation.
 
 ## Risks and Rollout
 

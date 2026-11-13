@@ -34,13 +34,6 @@ from dokime_tools.build import cargo, frontend
 
 
 def desktop(arguments: Sequence[str]) -> None:
-    # Prepare The Same Frontend Input As The Native Product Build.
-    dist = frontend.WEB_ROOT / "dist"
-    if not dist.is_dir():
-        dist.mkdir(parents=True)
-        (dist / "index.html").write_text("", encoding="utf-8")
-
-    # Lint The Declared Desktop Selection.
     cargo.clippy(frontend.ROOT, arguments)
 
 

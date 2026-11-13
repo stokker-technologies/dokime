@@ -14,6 +14,11 @@ type ExecutionControls = {
   requestId?: string;
   paused: boolean;
   stopRequested: boolean;
+  canStart: boolean;
+  canRerun: boolean;
+  canCancel: boolean;
+  canInspect: boolean;
+  canExport: boolean;
   canPause: boolean;
   canResume: boolean;
   canStop: boolean;
@@ -314,8 +319,7 @@ export type TestExecution = {
   template_id: string;
   attempt_index: number;
   invalidation?: ExecutionInvalidation | null;
-  status: /* A planned attempt: the runtime reports it `SKIPPED` before sealing,
-       which means "not run yet" rather than "passed over". */
+  status:
     | "planned"
     | "created"
     | "running"

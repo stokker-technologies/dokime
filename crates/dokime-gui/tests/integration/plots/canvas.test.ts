@@ -218,7 +218,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         await command("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...from });
         await command("Input.dispatchMouseEvent", { type: "mouseMoved", buttons: 1, ...to });
         await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...to });
-        await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
         assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
           "10",
           "10",
@@ -236,7 +236,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           for (const y of [area.y + 1, area.y + area.height - 1]) {
             await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: area.x + (area.width * index) / 19, y });
             const result = await evaluate(`(async () => {
-              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              await (async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })();
               const tooltip = document.querySelector('[role="tooltip"]');
               if (!tooltip) return null;
               const box = tooltip.getBoundingClientRect();
@@ -256,6 +256,129 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
             assert.deepEqual(result, { inside: true, startVisible: true, wraps: true, truncated: true });
           }
         }
+      }
+    }
+    await command("Network.enable", {});
+    await command("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
+    for (const frozen of [false, true]) {
+      await evaluate(`window.canvasFixture.playback(${frozen})`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["2", "2"],
+      );
+      await evaluate(
+        `(() => { const slider = document.querySelector('[aria-label="Trajectory Instant"][role="slider"]'); slider.dispatchEvent(new KeyboardEvent('keydown', {key:'Home',code:'Home',bubbles:true})); })()`,
+      );
+      await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["0", "2"],
+      );
+      assert.equal(
+        await evaluate(`document.querySelector('[data-trajectory-instant]').getAttribute('data-trajectory-instant')`),
+        "2026-01-01T00:00:00Z",
+      );
+      assert.equal(await evaluate(`document.querySelector('[data-cell]').textContent`), "2");
+      const track = await evaluate(
+        `(() => { const card = document.querySelector('[data-trajectory-instant]'); return {canvas:card.querySelectorAll('canvas').length, points:window.canvasFixture.counts()[0]}; })()`,
+      );
+      assert.deepEqual(track, { canvas: 1, points: 1 });
+      // A Real Pointer Drag Selects This Grid Without Moving The Trajectory.
+      const rect = (await evaluate(
+        `(() => {const slider=document.querySelector('[aria-label="Grid Instant"][data-slot="slider"]');slider.scrollIntoView({block:"center"});const box=slider.getBoundingClientRect();return {x:box.left+box.width*0.5,y:box.top+box.height*0.5};})()`,
+      )) as { x: number; y: number };
+      await command("Input.dispatchMouseEvent", { type: "mousePressed", x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+      await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+      await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["0", "1"],
+      );
+      assert.equal(await evaluate(`document.querySelector('[data-cell]').textContent`), "1");
+    }
+    // Summary Marks Must Have Painted Area In Both Themes And Densities.
+    for (const dark of [false, true]) {
+      for (const touch of [false, true]) {
+        await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        assert.deepEqual(
+          await evaluate(
+            `(() => [...document.querySelectorAll('[data-testid="contour-plot"]')].map(chart => ({bins:chart.querySelectorAll('rect[data-bin]').length,gaps:chart.querySelectorAll('rect[data-bin="1"],rect[data-bin="2"]').length})))()`,
+          ),
+          [
+            { bins: 2, gaps: 0 },
+            { bins: 2, gaps: 0 },
+          ],
+        );
+        assert.equal(
+          await evaluate(
+            `document.querySelectorAll('[data-testid="grouped-bar-plot"] rect[data-category], [data-testid="stacked-bar-plot"] rect[data-category]').length`,
+          ),
+          12,
+        );
+        assert.deepEqual(
+          await evaluate(
+            `(() => [...document.querySelectorAll('[data-testid="pareto-plot"] circle[data-percent]')].map(node => Number(node.getAttribute('data-percent'))))()`,
+          ),
+          [37.5, 75, 100],
+        );
+        const interiors = await evaluate(`(() => [...document.querySelectorAll('[data-pie-hole]')].map(chart => {
+          const svg = chart.querySelector('svg');
+          const box = svg.viewBox.baseVal;
+          const point = new DOMPoint(box.width * 0.51, box.height * 0.513);
+          return [...svg.querySelectorAll('path')].some(path => path.isPointInFill(point));
+        }))()`);
+        assert.deepEqual(interiors, [true, false]);
+        const marks = await evaluate(`(() => {
+          const selectors = {
+            histogram: 'button > span',
+            bar: 'div[style*="background-color"]',
+            box: 'span[style*="right"]',
+            grid: '[data-valid="true"]',
+          };
+          return Object.entries(selectors).map(([kind, selector]) => {
+            const chart = document.querySelector('[data-plot-kind="' + kind + '"]');
+            return { kind, marks: [...chart.querySelectorAll(selector)].filter(node => node.style.height !== '0px').map(node => {
+              const bounds = node.getBoundingClientRect();
+              const color = getComputedStyle(node).backgroundColor;
+              const surface = getComputedStyle(chart.querySelector('section, article')).backgroundColor;
+              return { area: bounds.width > 0 && bounds.height > 0, filled: color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent' && color !== surface };
+            }) };
+          });
+        })()`);
+        assert.deepEqual(
+          marks,
+          [
+            {
+              kind: "histogram",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "bar",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "box",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "grid",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+          ],
+          `Summary geometry and fills: dark=${dark}, touch=${touch}`,
+        );
       }
     }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);

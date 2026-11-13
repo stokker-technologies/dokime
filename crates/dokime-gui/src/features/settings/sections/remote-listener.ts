@@ -19,17 +19,8 @@
 
 // Local Imports
 import { failureOf } from "@/lib/notification-details";
-import type { Wire } from "@/lib/rpc/canonical";
-import type * as rpc from "@/lib/rpc/generated/client";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-export type ListenerStatus = Wire<Awaited<ReturnType<typeof rpc.remoteReadListener>>>;
-export type ListenerSettings = NonNullable<ListenerStatus["settings"]>;
+import type { ListenerSettings, ListenerStatus } from "@/lib/api/native-remote";
+export type { ListenerSettings, ListenerStatus } from "@/lib/api/native-remote";
 
 /** One committed control; certificate identities change only through regeneration. */
 export type ListenerChange = Partial<Pick<ListenerSettings, "address" | "authenticationEnabled" | "enabled" | "tlsEnabled">>;
@@ -67,7 +58,7 @@ export async function commitListener({ status, change, send, fail }: Commit): Pr
 }
 
 export function certificateIssue(status: ListenerStatus): string | null {
-  return appliedSettings(status).tlsEnabled && !status.certificatePem
+  return appliedSettings(status).tlsEnabled && status.certificatePem === ""
     ? "TLS is on but this host has no certificate, so the listener cannot start. Generate one for this host's names."
     : null;
 }

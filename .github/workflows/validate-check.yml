@@ -1,0 +1,134 @@
+name: Validation / Check
+'on':
+  workflow_call:
+    inputs:
+      channel:
+        description: ci, stable or nightly
+        type: string
+        required: true
+      profile:
+        description: Build Profile
+        type: string
+        default: dev
+permissions:
+  contents: read
+env:
+  PROFILE: ${{ inputs.profile }}
+  MISE_LOCKED: '1'
+  MISE_EXPERIMENTAL: '1'
+  CARGO_INCREMENTAL: '0'
+  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: core.longpaths
+  GIT_CONFIG_VALUE_0: 'true'
+jobs:
+  check:
+    name: Check / ${{ matrix.work }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - id: setup
+      uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        bootstrap: ${{ matrix.bootstrap }}
+    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
+      with:
+        path: ${{ steps.setup.outputs.cargo_downloads-path }}
+        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
+      with:
+        path: ${{ steps.setup.outputs.mise-path }}
+        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
+        steps.setup.outputs.pnpm-path != ''
+      with:
+        path: ${{ steps.setup.outputs.pnpm-path }}
+        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
+      with:
+        path: ${{ steps.setup.outputs.uv-path }}
+        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
+        && steps.setup.outputs.sccache-path != ''
+      with:
+        path: ${{ steps.setup.outputs.sccache-path }}
+        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
+    env:
+      CI_TRANSPORT: 'true'
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      SCCACHE_CACHE_SIZE: 8G
+      COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
+      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,aqua:EmbarkStudios/cargo-deny,aqua:rustsec/rustsec/cargo-audit
+      CI_PROFILE: ${{ inputs.profile }}
+      CI_PLATFORM: ${{ matrix.platform }}
+      CI_CACHE_PROFILE: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          work: Repository
+          command: check -- --repository
+          bootstrap: '[]'
+          inputs: ''
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 30
+          work: Supply Chain
+          command: check -- --supply
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+          inputs: ''
+        - platform: windows
+          runner: windows-latest
+          minutes: 30
+          work: Supply Chain
+          command: check -- --supply
+          bootstrap: '[]'
+          inputs: ''
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          work: Python
+          command: check -- --language python
+          bootstrap: '[]'
+          inputs: ''
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          work: TypeScript
+          command: check -- --language typescript
+          bootstrap: '[]'
+          inputs: ''
+        - platform: unix
+          runner: ubuntu-latest
+          minutes: 120
+          work: Rust
+          command: check -- --language rust
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+          inputs: ''
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Rust
+          command: check -- --language rust
+          bootstrap: '[]'
+          inputs: ''

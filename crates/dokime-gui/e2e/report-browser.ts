@@ -72,6 +72,7 @@ export class ReportBrowser {
         "--disable-gpu",
         "--no-sandbox",
         "--no-first-run",
+        ...(process.platform === "win32" ? ["--edge-skip-compat-layer-relaunch"] : []),
         `--user-data-dir=${join(root, "report-browser")}`,
         `--remote-debugging-port=${port}`,
         "about:blank",
@@ -169,11 +170,12 @@ export class ReportBrowser {
             if (location.href !== ${JSON.stringify(url)}) return false;
             return new Promise(resolve => {
               const ready = () => {
-                const root = document.getElementById('root');
-                const data = document.getElementById('hub-report-data');
-                if (!root?.childElementCount || !data) return false;
-                const report = JSON.parse(data.textContent);
-                if (report.test_executions.length && !document.querySelector('[data-level="case"]')) return false;
+                // Host Reports Are Self-Contained HTML With Frozen Evidence.
+                if (document.readyState !== 'complete') return false;
+                if (!document.querySelector('h1')?.textContent?.trim()) return false;
+                const identity = [...document.querySelectorAll('body > dl dt')].map(node => node.textContent);
+                if (!identity.includes('Execution') || !identity.includes('Cycle')) return false;
+                if (!document.querySelector('section h2') || !document.querySelector('section ol li')) return false;
                 resolve(true);
                 return true;
               };
@@ -249,19 +251,12 @@ export class ReportBrowser {
     } catch (error) {
       failures.push(error);
     }
-    // Close Only The Browser Started With This Owner's Unique Profile.
+    // The Tabs Are Closed; Release The Process Owning This Disposable Profile.
     if (this.process.exitCode === null && this.process.signalCode === null) {
       const exited = once(this.process, "exit");
       const timer = new AbortController();
-      let socket: WebSocket | undefined;
       try {
-        const version = await fetch(`${this.debug}/json/version`, { signal: AbortSignal.timeout(this.wait) }).then((r) => r.json());
-        socket = new WebSocket(version.webSocketDebuggerUrl);
-        await new Promise<void>((resolve, reject) => {
-          socket?.addEventListener("open", () => resolve(), { once: true });
-          socket?.addEventListener("error", () => reject(new Error("Owned browser control failed")), { once: true });
-        });
-        socket.send(JSON.stringify({ id: 1, method: "Browser.close" }));
+        this.process.kill("SIGKILL");
         await Promise.race([
           exited,
           delay(this.wait, undefined, { signal: timer.signal }).then(() => {
@@ -273,10 +268,12 @@ export class ReportBrowser {
         failures.push(error);
       } finally {
         timer.abort();
-        socket?.close();
       }
     }
-    if (failures.length) throw new AggregateError(failures, "Owned report browser cleanup failed");
+    if (failures.length) {
+      const reasons = failures.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
+      throw new AggregateError(failures, `Owned report browser cleanup failed: ${reasons}`);
+    }
   }
 }
 

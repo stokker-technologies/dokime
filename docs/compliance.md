@@ -41,8 +41,8 @@ or attestation alone does not demonstrate compliance. See the
 
 ## Evidence and Remaining Work
 
-Existing evidence includes [build instructions](../CONTRIBUTING.md), release tooling,
-checksums and Windows/Linux CI. [SECURITY.md](../SECURITY.md) is pending publication.
+Existing evidence includes [build instructions](CONTRIBUTING.md), release tooling,
+checksums and Windows/Linux CI. [SECURITY.md](SECURITY.md) is pending publication.
 Release attestations and SBOMs are pending supply-chain delivery and verification on
 published assets; do not infer their presence on older releases. Executed per-layer
 test counts in release notes remain pending release-tooling implementation.

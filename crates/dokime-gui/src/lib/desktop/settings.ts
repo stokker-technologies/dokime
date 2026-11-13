@@ -15,10 +15,15 @@
 
 import { createPreferencesCommands } from "@generated/native-preferences";
 import { invoke } from "./commands";
+import { readPreferences, savePreferences } from "../host/preferences";
 
 /* === Public Constants === */
 
-export const preferencesCommands = createPreferencesCommands(invoke);
+export const preferencesCommands = {
+  ...createPreferencesCommands(invoke),
+  desktopSettingsRead: readPreferences,
+  desktopSettingsUpdate: savePreferences,
+};
 
 /* === Types === */
 

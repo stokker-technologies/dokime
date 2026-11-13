@@ -15,13 +15,13 @@
 import io
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
 import tarfile
 import tempfile
 import threading
-import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -65,7 +65,11 @@ class ScheduleTests(unittest.TestCase):
                 directory = Path(temporary).resolve()
                 target = directory / "producer/target"
                 binaries = {
-                    name: {"binary-name": name, "kind": kind, "binary-path": str(target / "debug/deps" / name)}
+                    f"fixture::{name}" if kind == "test" else name: {
+                        "binary-name": name,
+                        "kind": kind,
+                        "binary-path": str(target / "debug/deps" / name),
+                    }
                     for name, kind in kinds.items()
                 }
                 metadata = {
@@ -75,7 +79,7 @@ class ScheduleTests(unittest.TestCase):
                 files = {
                     "target/nextest/binaries-metadata.json": json.dumps(metadata).encode(),
                     "target/nextest/cargo-metadata.json": b"{}",
-                    **{f"target/debug/deps/{name}": name.encode() for name in binaries},
+                    **{f"target/debug/deps/{name}": name.encode() for name in kinds},
                     "target/debug/dokime": b"cli",
                     "target/debug/build/schema/output": b"generated schema",
                     "target/nextest/libdirs/host/runtime.dll": b"runtime library",
@@ -88,15 +92,23 @@ class ScheduleTests(unittest.TestCase):
                         member.size = len(data)
                         output.addfile(member, io.BytesIO(data))
 
-                extracted = directory / "extracted"
-                archive.extract(directory, "dev", extracted, category=category)
-                self.assertEqual(set(archive.binaries(directory, "dev", extracted)), expected)
-                for name, data in files.items():
-                    path = extracted / name
-                    if name.startswith("target/debug/deps/") and Path(name).name not in expected:
-                        self.assertFalse(path.exists())
-                    elif name != "target/nextest/binaries-metadata.json":
-                        self.assertEqual(path.read_bytes(), data)
+                expected_ids = {identity for identity, entry in binaries.items() if entry["binary-name"] in expected}
+                selected = min(expected_ids)
+                package = selected.split("::", 1)[0]
+                for index, arguments in enumerate(
+                    ([], ["-E", f"binary_id(={selected})"], ["--filterset", f"package(={package})"], ["-E", "test(save) | all()"])
+                ):
+                    extracted = directory / f"extracted-{index}"
+                    archive.extract(directory, "dev", extracted, category=category, arguments=arguments)
+                    included = {selected} if index == 1 or index == 2 and package != "fixture" else expected_ids
+                    self.assertEqual(set(archive.binaries(directory, "dev", extracted)), included)
+                    included_names = {binaries[identity]["binary-name"] for identity in included}
+                    for name, data in files.items():
+                        path = extracted / name
+                        if name.startswith("target/debug/deps/") and Path(name).name not in included_names:
+                            self.assertFalse(path.exists())
+                        elif name != "target/nextest/binaries-metadata.json":
+                            self.assertEqual(path.read_bytes(), data)
 
     def test_archive_dispatch(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -135,12 +147,11 @@ class ScheduleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()
             repository = Path(__file__).resolve().parents[4]
-            configuration = tomllib.loads((repository / "mise.toml").read_text(encoding="utf-8"))
             # Project The Authored Graph Without Product Prerequisites Or Native Test Binaries.
             source = (repository / "mise.toml").read_text(encoding="utf-8")
-            start = source.index("[tasks.test]")
-            stop = source.index("# === Bench === #", start)
-            tasks = source[start:stop]
+            blocks = re.split(r"(?=^\[tasks\.)", source, flags=re.MULTILINE)
+            tasks = "\n".join(block for block in blocks if block.startswith(('[tasks."test:', '[tasks."ci:test"]')))
+            tasks = tasks.replace('[tasks."ci:test"]', "[tasks.test]")
             (directory / "tools/python/tests/integration").mkdir(parents=True)
             (directory / "tools/project.toml").write_text("", encoding="utf-8")
             (directory / "tools/python/tests/integration/test_prepared.py").write_text(
@@ -194,7 +205,7 @@ class ScheduleTests(unittest.TestCase):
                 encoding="utf-8",
             )
             tool = f'"{sys.executable}" "{wrapper}"'
-            header = f"[settings]\njobs={configuration['settings']['jobs']}\n[vars]\ntools={json.dumps(tool)}\npython={json.dumps(tool)}\nlane=''\n"
+            header = f"[vars]\ntools={json.dumps(tool)}\npython={json.dumps(tool)}\nlane=''\n"
             prerequisite = (
                 "\n[tasks.prepare]\nrun="
                 + json.dumps(tool + " prerequisite")

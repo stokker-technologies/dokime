@@ -40,13 +40,16 @@ export type DataSource =
   | { type: "parameter"; name: string }
   | { type: "dimension"; name: string }
   | { type: "record"; record_type: string }
-  | { type: "artifact"; artifact: string };
+  | { type: "artifact"; artifact: string }
+  | { type: "literal"; value: unknown };
 
 /* One member of the Harmos aggregate vocabulary by its display name; a
    percentile is `p` and a whole rank from 0 to 100. */
-export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | `p${number}`;
+export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | "first" | "last" | `p${number}`;
 
 export type DataTransform =
+  | { type: "scale"; factor: number }
+  | { type: "offset"; value: number }
   | { type: "aggregate"; aggregate: Aggregate }
   | { type: "time_between"; previous_record_type: string }
   | { type: "detail"; name: string }
@@ -169,6 +172,13 @@ export type Metadata = {
 export type PlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; unit: string };
 
 export type PlotDefinition = {
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xy_interval?: "sigma" | null;
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./types/plot").GridDefinition | null;
   metadata: Metadata;
   plot_type: PlotType;
   stream?: string | null;
@@ -210,6 +220,13 @@ export type PlotDescriptor = {
 };
 
 export type PlotInput = {
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xy_interval?: "sigma" | null;
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./types/plot").GridDefinition | null;
   plot_id: Identifier;
   scope: RecordScope;
   plot_type: PlotType;
@@ -249,24 +266,7 @@ export type PlotStyle = "line" | "points" | "line_points" | "step";
 
 export type DownsampleTechnique = "lttb" | "min_max" | "raw";
 
-export type PlotType =
-  | "time_series"
-  | "bar"
-  | "grouped_bar"
-  | "stacked_bar"
-  | "pie"
-  | "donut"
-  | "pareto"
-  | "xy"
-  | "xy_interval"
-  | "trajectory"
-  | "heatmap"
-  | "xy_value_heatmap"
-  | "wifi_channel_occupancy"
-  | "frequency_series"
-  | "histogram"
-  | "box_summary"
-  | "aggregate_table";
+export type PlotType = import("./types/plot").DocumentPlotType;
 
 export type RecordScope = {
   session_id?: SessionId | null;

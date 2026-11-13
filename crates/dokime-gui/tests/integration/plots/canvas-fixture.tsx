@@ -23,6 +23,17 @@ import { createRoot } from "react-dom/client";
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@/plots/interaction";
+import { HistogramChart } from "@/components/HistogramChart";
+import { PiePlot } from "@/plots/catalog/PiePlot";
+import { BarPlot } from "@/plots/catalog/BarPlot";
+import { BoxPlot } from "@/plots/catalog/BoxPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
+import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import { documentPlotSpec } from "@/plots/grouping";
+import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
+import type { PlotCardSpec } from "@/plots/types";
 import "@/styles.css";
 
 /* === Re-Exports === */
@@ -37,6 +48,8 @@ declare global {
       mount: (style: DocumentPlotStyle, faceted: boolean, zoom: boolean, dark: boolean, withMarkers?: boolean) => Promise<void>;
       counts: () => number[];
       toggle: (index: number) => Promise<void>;
+      summaries: (dark: boolean, touch: boolean) => Promise<void>;
+      playback: (frozen: boolean) => Promise<void>;
     };
   }
 }
@@ -87,6 +100,238 @@ function startCanvasFixture() {
   };
 
   window.canvasFixture = {
+    async playback(frozen) {
+      const instants = ["2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z", "2026-01-01T00:00:09Z"];
+      const declaration = {
+        plot_id: "track",
+        title: "Trajectory",
+        stream: "readings",
+        plot_type: "trajectory",
+        x: "x",
+        y: ["y"],
+      } as DocumentViewPlot;
+      const payload: PlotPayload = {
+        stream: "readings",
+        x_key: "x",
+        max_points: 100,
+        generated_at: instants[2],
+        series: [
+          {
+            key: "track",
+            label: "Track",
+            raw_points: 3,
+            downsampled: false,
+            points: instants.map((instant, i) => ({ x: i % 2, y: i, instant })),
+          },
+        ],
+      };
+      const trajectory = documentPlotSpec({ plot: declaration, payload });
+      const grid = documentPlotSpec({
+        plot: { ...declaration, plot_id: "grid", title: "Grid", plot_type: "grid_chart" },
+        payload: {
+          ...payload,
+          series: [],
+          analysis: {
+            kind: "grid_chart",
+            data: {
+              rows: [{ key: "sensor", label: "Sensor", order: 0 }],
+              columns: [{ key: "site", label: "Site", order: 0 }],
+              frames: instants.map((instant, i) => ({ instant, values: [i], valid: [true], highlights: [] })),
+              summary_label: "Readings",
+            },
+          },
+        },
+      });
+      root.render(
+        createElement(
+          PlotInteractionProvider,
+          { zoom: frozen },
+          createElement(
+            "div",
+            null,
+            createElement(TrajectoryPlot, { key: `trajectory:${frozen}`, plot: trajectory }),
+            createElement(GridChartPlot, { key: `grid:${frozen}`, plot: grid }),
+          ),
+        ),
+      );
+      await settled();
+    },
+    async summaries(dark, touch) {
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.dataset.density = touch ? "touch" : "comfortable";
+      const plot = {
+        title: "Distribution",
+        unit: "V",
+        colors: [],
+        series: [
+          {
+            key: "signal",
+            label: "Signal",
+            points: [
+              { x: "A", y: 5 },
+              { x: "B", y: -3 },
+            ],
+          },
+        ],
+        analysis: {
+          kind: "box_plot",
+          total: 12,
+          series: [{ key: "A", label: "A", lower_whisker: 0, q1: 1, median: 2, q3: 3, upper_whisker: 4, outliers: [5] }],
+        },
+      } as unknown as PlotCardSpec;
+      root.render(
+        createElement(
+          "div",
+          {},
+          createElement(
+            "div",
+            { "data-plot-kind": "histogram" },
+            createElement(HistogramChart, {
+              title: "Samples",
+              unit: "V",
+              distribution: {
+                count: 12,
+                bins: [
+                  { lower: 0, upper: 1, count: 3 },
+                  { lower: 1, upper: 2, count: 0 },
+                  { lower: 2, upper: 3, count: 9 },
+                ],
+              },
+            }),
+          ),
+          createElement("div", { "data-plot-kind": "bar" }, createElement(BarPlot, { plot })),
+          createElement("div", { "data-plot-kind": "box" }, createElement(BoxPlot, { plot })),
+          createElement(
+            "div",
+            { "data-plot-kind": "grid" },
+            createElement(GridChartPlot, {
+              plot: {
+                ...plot,
+                analysis: {
+                  kind: "grid_chart",
+                  data: {
+                    rows: [{ key: "sensor", label: "Sensor", order: 0 }],
+                    columns: [
+                      { key: "left", label: "Left", order: 0 },
+                      { key: "right", label: "Right", order: 1 },
+                    ],
+                    frames: [{ instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: [] }],
+                    summary_label: "Readings",
+                  },
+                },
+              },
+            }),
+          ),
+          ...["cells", "bands"].map((render) =>
+            createElement(ContourPlot, {
+              key: render,
+              plot: documentPlotSpec({
+                plot: {
+                  plot_id: `contour.${render}`,
+                  title: "Surface",
+                  stream: "readings",
+                  plot_type: "contour",
+                  y: ["y"],
+                  render,
+                } as DocumentViewPlot,
+                payload: {
+                  stream: "readings",
+                  x_key: "x",
+                  series: [],
+                  max_points: 4,
+                  generated_at: "2026-01-01T00:00:00Z",
+                  analysis: {
+                    kind: "contour",
+                    grid: {
+                      columns: 2,
+                      rows: 2,
+                      x_edges: [0, 1, 2],
+                      y_edges: [0, 1, 2],
+                      values: [0, 0, 0, 4],
+                      valid: [true, false, false, true],
+                    },
+                  },
+                },
+              }),
+            }),
+          ),
+          ...["grouped", "stacked", "pareto"].map((option) =>
+            createElement(BarPlot, {
+              key: option,
+              plot: {
+                ...plot,
+                plotType: "bar",
+                arrangement: option === "pareto" ? null : (option as "grouped" | "stacked"),
+                pareto: option === "pareto",
+                analysis: null,
+                series: (option === "pareto" ? [0] : [0, 1]).map((index) => ({
+                  key: `series${index}`,
+                  label: `Series ${index}`,
+                  raw_points: 3,
+                  downsampled: false,
+                  points: [
+                    { x: "a", y: 2 + index },
+                    { x: "b", y: 3 + index },
+                    { x: "c", y: 3 + index },
+                  ],
+                })),
+              },
+            }),
+          ),
+          createElement(XyIntervalPlot, {
+            plot: documentPlotSpec({
+              plot: {
+                plot_id: "interval",
+                title: "Interval",
+                stream: "readings",
+                plot_type: "xy",
+                xy_interval: "sigma",
+                y: ["value"],
+              } as DocumentViewPlot,
+              payload: {
+                stream: "readings",
+                x_key: "x",
+                max_points: 10,
+                generated_at: "2026-01-01T00:00:00Z",
+                series: [],
+                analysis: {
+                  kind: "sigma_interval",
+                  series: [{ key: "value", raw_points: 5, bins: [{ x: 1, count: 5, mean: 4, lower: 2, upper: 6 }] }],
+                },
+              },
+            }),
+          }),
+          ...[0, 0.5].map((hole) =>
+            createElement(
+              "div",
+              { "data-pie-hole": hole },
+              createElement(PiePlot, {
+                plot: {
+                  ...plot,
+                  plotType: "pie",
+                  hole,
+                  analysis: null,
+                  series: [
+                    {
+                      key: "total",
+                      label: "Total",
+                      raw_points: 3,
+                      downsampled: false,
+                      points: [
+                        { x: "a", y: 2 },
+                        { x: "b", y: 3 },
+                        { x: "c", y: 3 },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            ),
+          ),
+        ),
+      );
+      await settled();
+    },
     async mount(style, faceted, zoom, dark, withMarkers = false) {
       document.documentElement.classList.toggle("dark", dark);
       const x = Array.from({ length: 20 }, (_, index) => 1_700_000_000 + index * 11);

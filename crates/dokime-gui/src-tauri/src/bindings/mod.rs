@@ -65,29 +65,26 @@ native_commands! {
         () -> Result<Option<std::path::PathBuf>, crate::Error>
         => crate::app::desktop::desktop_pairing_create;
     async desktop_backend_import_pairing
-        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
-        (identifier: Option<String>) -> Result<Option<dokime::client::profiles::Document>, crate::connection::ConnectionError>
+        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>]
+        (identifier: Option<String>) -> Result<Option<crate::connection::registry::Document>, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_import_pairing;
 
-    async desktop_backends_list [] () -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+    async desktop_backends_list [] () -> Result<crate::connection::registry::Document, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backends_list;
-    async desktop_backend_add [registry: tauri::State<'_, crate::connection::registry::Registry>]
-        (profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
-        => crate::connection::registry::desktop_backend_add;
     async desktop_backend_remove
         [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
-        (identifier: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        (identifier: String) -> Result<crate::connection::registry::Document, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_remove;
     async desktop_backend_use
         [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
         (identifier: String) -> Result<crate::connection::ConnectionSnapshot, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_use;
     async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
-        (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        (scope: crate::app::preferences::SettingsScope) -> Result<tauri::ipc::Response, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_read;
     async desktop_settings_update [app: tauri::AppHandle, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
-        (scope: dokime::domain::model::settings::application::SettingsScope, update: dokime::domain::model::settings::application::UpdateSettings)
-        -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
+        (scope: crate::app::preferences::SettingsScope, update: Vec<u8>)
+        -> Result<tauri::ipc::Response, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_update;
 
     // Secret-free native launch preferences.
@@ -199,25 +196,6 @@ native_commands! {
         (title: String) -> Result<(), String>
         => crate::app::desktop::desktop_set_title;
 
-    // The organization pack applied at boot and the one that applies on the next start.
-    sync desktop_organization_status
-        [state: tauri::State<'_, crate::app::organization::OrganizationState>]
-        () -> Result<crate::app::organization::OrganizationStatus, String>
-        => crate::app::organization::desktop_organization_status;
-
-    // Pick, validate and stage a organization pack zip; None when the picker is dismissed.
-    async desktop_organization_choose
-        [app: tauri::AppHandle]
-        () -> Result<Option<crate::app::organization::OrganizationStatus>, String>
-        => crate::app::organization::desktop_organization_choose;
-
-    // Delete the pending and active packs; the compiled brand applies on the next start.
-    async desktop_organization_remove
-        [app: tauri::AppHandle]
-        () -> Result<crate::app::organization::OrganizationStatus, String>
-        => crate::app::organization::desktop_organization_remove;
-
-    // Drain all runtime resources before requesting Tauri's non-cancellable restart.
     async desktop_restart
         [app: tauri::AppHandle]
         () -> Result<(), String>
@@ -254,12 +232,12 @@ native_commands! {
         => crate::app::updates::desktop_updates_install;
 
     async desktop_plugin_release_check
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (generation: String) -> Result<Vec<crate::app::updates::plugins::Release>, String>
         => crate::app::updates::plugins::desktop_plugin_release_check;
 
     async desktop_plugin_release_install
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
         => crate::app::updates::plugins::desktop_plugin_release_install;
 }

@@ -1,0 +1,73 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
+"""Receive And Export Task Artifacts Through The Single Archive Implementation."""
+
+# === Imports === #
+
+# Standard Library Imports
+import json
+import os
+from pathlib import Path
+
+# Third Party Imports
+# Local Imports
+from ..build.paths import target
+from . import artifacts
+
+# Type Checking Imports
+
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
+
+# === Public Functions === #
+
+
+def receive() -> None:
+    """Extract Only Explicitly Downloaded Transport Archives."""
+    selected = os.environ.get("CI_INPUT_ARCHIVES")
+    if os.environ.get("CI_TRANSPORT") != "true" and selected is None:
+        return
+    archives = sorted(Path("target/ci").glob("*.tar.zst"))
+    if selected is not None:
+        profile = os.environ.get("PROFILE", "dev")
+        platform = os.environ.get("CI_PLATFORM", "windows" if os.name == "nt" else "unix")
+        archives = [Path(path.replace("{profile}", profile).replace("{platform}", platform)) for path in json.loads(selected)]
+        for archive in archives:
+            if not archive.is_file():
+                raise FileNotFoundError(f"missing CI input archive: {archive}")
+    for archive in archives:
+        artifacts.extract(Path.cwd(), archive)
+
+
+def send(profile: str) -> None:
+    """Export The Producer's Declared Outputs Once For All Consumers."""
+    for output in json.loads(os.environ.get("CI_OUTPUTS", "[]")):
+        artifacts.pack(
+            Path.cwd(),
+            Path(
+                output["archive"]
+                .replace("{profile}", profile)
+                .replace("{platform}", os.environ.get("CI_PLATFORM", "windows" if os.name == "nt" else "unix"))
+            ),
+            output["paths"],
+            profile,
+            target(),
+        )
+
+
+# === Private Functions === #
+
+# === Entry Point === #

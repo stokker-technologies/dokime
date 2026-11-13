@@ -1,230 +1,128 @@
 # Repository Tooling
 
-`lint:rust` owns Clippy with warnings denied. `check:rust` includes it, and CI
-Check / Rust gates it. Build, test, bench, fixture and focused compilation tasks
-retain compiler preflight without running Clippy. Use an explicit
-`mise run build:rust:focused -- clippy <arguments>` for a selected Clippy run.
+Use `mise tasks` to discover entry points, with arguments after `--`. Preparation
+installs the root `.venv/` and frontend dependencies. Build, test and checks use
+project tasks; compiler caches belong to the workstation.
 
-Desktop and benchmark selections are covered by `lint:rust`.
-
-`mise run lint:rust --extended` lints the optional compatibility selections;
-`build:rust:compatibility` checks them without Clippy. Extended lint remains local-only.
-
-Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
-own environment setup, synchronization, version metadata, binding generation,
-frontend preparation, native packaging, CI and
-test execution. The shared Python environment lives at repository-root `.venv/`.
-
-After changing Python dependencies, `mise run prepare --refresh-lock` refreshes
-the workspace `uv.lock` before the ordinary locked synchronization. The test group
-includes both optional dataframe libraries; focused tabular tests also block their
-imports to verify dependency-free iteration and missing-extra errors.
-
-The desktop GUI owns its web tooling under `crates/dokime-gui/`: Biome, the
-pnpm lock and the RPC generator in its `tools/`. Rust
-performance workloads live under the owning crate's `benches/`.
-
-Desktop development process trees are owned by the task-built `cargo-dokime`
-executable with the application's validated packaging settings. `mise run dev`
-selects that executable from its existing Cargo compiler record. The unchanged
-`tauri:dev` and `build:report:watch` package commands select the development
-artifact from `mise run build:rust` by default; `--build-json <record>` selects
-another successful task build. Missing artifacts fail explicitly; these
-launchers never build or install a supervisor. `tauri:dev --print-config`
-continues to inspect frontend launch configuration without an artifact.
-`operational.packaging.process_stop_ms` bounds each cleanup stage separately:
-Unix gets one graceful-wait budget and one forced-reap budget, up to twice the
-configured duration; Windows uses only the forced-reap budget. Surviving owned
-descendants are terminated even when their leader already exited.
-
-Each Python package carries its own `[tool.ty]` configuration. `lint:python`
-type-checks the repository tooling with `ty check --project tools/python`;
-`check:python:bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
-
-`mise run build:rust:tests` packages the host and OBC fixture bundles from the
-Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
-Rust stories resolve those fixtures from the Tests export, so the archive owns
-the bundles its integration lane requires.
-
-## CI Compiler Caches
-
-Compiler caches are separated by OS, architecture, build profile and producer.
-All use `SCCACHE_CACHE_SIZE=8G`; archive-only test consumers need no compiler cache.
-The existing Product identities remain unchanged:
-
-```text
-Product: ci-v5-sccache-<os>-<arch>-<profile>-<hash(mise.lock)>-<hash(Cargo.lock)>
-Tests:   ci-v5-sccache-<os>-<arch>-<profile>-tests-<hash(mise.lock)>-<hash(Cargo.lock)>
-Bench:   ci-v5-sccache-<os>-<arch>-bench-bench-<hash(mise.lock)>-<hash(Cargo.lock)>
-```
-
-Each identity first restores its exact key, then its prefix ending before
-`hash(Cargo.lock)`. Tests and Bench then fall back to the matching Product exact
-key and prefix; Bench uses the release Product cache. This seeds new identities
-while preserving test-only and benchmark-only compilation units in later runs.
-
-Only the corresponding Build / Product, Build / Tests or Build / Bench job saves
-its cache, after a successful build and only on an exact-key miss. PRs restore
-only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
-`READ_WRITE` mode and saves release Product, release Tests and bench Bench caches.
-`.github/actions/setup/run.py` resolves `CACHE_PLAN` using the build job's
-`COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
-save policy. The workflows own producer selection.
-
-## Benchmark Baselines
-
-Nightly Rust System and Integration benchmarks restore baselines by branch,
-OS, architecture and leaf: `ci-v6-bench-baselines-<os>-<arch>-<branch>-bench-rust-<leaf>`.
-Restore prefixes try that identity first, then the former v5 identity containing
-`hash(mise.lock)`. Successful Nightlies on dev save refreshed measurements with
-run ID and attempt suffixes, so immutable caches retain the latest baseline.
-The restore identity no longer changes with the source revision or lock file.
-
-`mise run bench:rust:<leaf> --refresh-baseline` seeds missing native baselines
-and emits a `::notice::` naming each benchmark. Without refresh, a missing
-baseline fails and names the refresh command. Existing baselines retain their
-regression comparison and threshold; failed benchmark executions still fail.
-
-## Native Python SDK Builds
-
-`sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
+## Focused Development
 
 ```sh
-mise run build --profile dev
-mise run build:python --profile dev
-mise run test:python:wheel --profile dev
-mise run package:python --profile dev
+mise run prepare
+mise run build -- --package dokime-runtime-next --check
+mise run build -- --cargo check --locked --offline --package dokime-operations-next
+mise run test -- --package dokime-runtime-next --target system --story storage_root_admission
+mise run test -- --package dokime-protocol --target integration
+mise run test -- --changed crates/dokime-runtime-next/tests/system/manager_lifecycles.rs --plan
+mise run format
+mise run check -- --language rust
+mise run check -- --language python
+mise run check -- --language typescript
+mise run check -- --repository
 ```
 
-The explicit Python producer uses maturin and PyO3's Python 3.13+ stable ABI.
-Ordinary Rust Product, Tests and Bench producers exclude `dokime-python`; Cargo's
-`default-members` also omit it. The SDK depends on `dokime` and `dokime-server` by
-the owner-locked exception to facade-only bindings, and its source-root exception
-is declared in `.stkr/project.toml`.
+Focused tests use nextest and compile only the selected package/target. `--exact`
+selects a test, `--story` selects a module, and `--filterset` takes a nextest expression.
+`--artifact tests` consumes the matching prepared archive without compilation.
+An empty selection fails. Clippy runs through lint/check, never build/test.
 
-CI builds Product and then Python on Linux and Windows, restoring the matching
-Product compiler cache. Both use the native Cargo target directory and the same
-profile; release wheels enable the server's native media feature. Shared Cargo
-units reuse only when their resolved dependency features match. The wheel and
-package exports use `target/{build,package}/<profile>/<native-target>/python/`.
-Package copies the built wheel and never compiles it. Release assets collect both
-native wheels; no source distribution or platform-independent wheel is produced.
-`test:python:wheel` installs into a disposable environment outside the checkout
-and imports the native extension with isolated Python path handling.
-
-## Focused Python Checks
-
-`mise run test:python:unit --select <expression>` and `mise run test:python:integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build:python`. `check:python:bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
-
-For client acceptance without the desktop or Rust test archive, build the focused
-native inputs and select their fixture root:
+## Fixtures and Stories
 
 ```sh
-mise run build:python:fixtures
-mise run test:python:acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+mise run build:host-fixtures
+mise run build:cli-fixtures
+mise run test -- --package dokime-runtime-next --target system
+mise run test -- --package dokime-cli-next --target system
+mise -C sdk/rust run sdk:test
+mise -C sdk/python run sdk:test
+mise -C sdk/csharp run test
+mise -C sdk/cpp run test
+mise run build -- --artifact tests
 ```
 
-Add `--select backend` to run only the installed-wheel backend startup, pairing,
-storage refusal and installed-plugin collision stories during backend work.
+Host fixture production builds the Rust reference, content fixture and host;
+C# and C++ producers use their SDK tasks. `build:host-fixtures --language
+rust|python|csharp|cpp` selects one producer. Fixtures are exported under
+`target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
+Rust starter built through its own mise task. Stories never compile plugins.
 
-Use the corresponding native target directory on Linux. The foreign-operation
-socket fixtures come from Rust contract construction; refresh their JSON with
-`mise run build:rust:focused -- run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
+`HARMOS_SOURCE`, `DOKIME_HARMOS_CACHE` and `DOKIME_CPP_BUILD_DIR` may select
+workstation source/dependency caches; do not put them in project configuration.
+Python consumes the built pure wheel and the pinned library SDK. Linux stories
+own an isolated session bus/keyring for credential storage; install `dbus` and
+`gnome-keyring`. Windows uses its operating system credential store and removes
+every disposable root's protected slots through the product removal operation
+before deleting that root, including when a story unwinds.
 
-## Python System Story and Batch Measurements
+## Desktop Integration
 
-`sdk/python/tests/{unit,integration,acceptance,system}/` separate pure value
-invariants, in-process callback ownership, installed-wheel stories and the
-CLI/SDK composition. `sdk/python/examples/starter/` supplies `dokime new --lang
-python`; it is embedded by `crates/dokime-cli/src/commands/new.rs`, so changing the
-starter requires rebuilding the CLI as well as validating the Python source.
+The desktop native package is restored to workspace and default membership.
+Build it with `mise run build -- --package dokime-gui`; add
+`--features tauri/custom-protocol` to embed the prepared live frontend.
+Product builds prepare generated clients, icons and the production frontend before
+compiling and exporting the native shell with `custom-protocol`. Tests Build also
+prepares the SDK desktop bundle. Run focused native desktop stories with
+`--features testing`; their disposable-root owner removes credentials after the
+runtime stops, including on failure. WebView lanes are available through
+`mise run test -- --language typescript --layer system --select native-desktop`
+and the same command with `--select two-gui-remote`. Both drivers use the current
+host and SDK thermal fixture. Frontend unit and integration selection includes all
+retained suites. PR and Nightly select native acceptance plus both WebView lanes
+on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 
-```sh
-mise run build:python:fixtures
-mise run test:python:system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
-```
+`mise run generate` builds the desktop's `export_preferences` example and reads
+canonical defaults through its embedded host, then generates protobuf messages,
+preference view models and native command declarations. The exporter owns a fresh
+temporary host and removes its credentials through the host operation after joining
+shutdown, including on failure. Previous generator and user roots stay intact.
+Generation requires the platform credential store, as ordinary host startup does.
+`mise -C crates/dokime-gui run generate:host-frontend` regenerates canonical host
+messages and native dispatch. Product staging carries both `generated/typescript`
+and `generated/host`; consumers restore both before importing the frontend.
+`mise -C crates/dokime-gui run build:frontend` typechecks and builds the live shell.
+`mise -C crates/dokime-gui run generate:report` builds the standalone renderer into
+GUI-owned `dist-report/`, without recreating a retired runtime package.
 
-The system story starts the generated Python plugin, exports pairing, runs a
-prompt and measurement execution, seals its report, and reopens it without the
-plugin. It consumes only the native CLI and wheel, never a desktop or test
-archive. Nightly runs the same task on Linux and Windows; PR and dev jobs do not
-select it. Use `linux-x86_64` for the corresponding local Linux fixture path.
+`mise run generate -- --protocol` regenerates checked-in Rust protocol output;
+add `--check` to prove its drift. Never edit generated files.
+The protocol task also generates four-language SDK roots through the pinned
+library's descriptor table/generator; its check verifies those outputs for drift.
+Never edit generated files.
 
-After validation has stopped, measure the same 10,000-row, 1,000-row-batch workload:
+## Build and Delivery Artifacts
 
-```sh
-mise run build:rust:focused -- run --locked -p dokime-python --example authoring-batch
-mise run bench:python:system
-```
+`mise run build` produces the current host/CLI workspace. Tests Build produces
+one archive plus host/CLI fixtures and the vendored protobuf compiler input.
+The native desktop package compiles with workspace selections; Product now exports
+its shell and frontend inputs for the restored hosted consumers. Shipping sidecar
+plugins and removed macro/compiler fixtures are not selected. The current Cargo
+workspace also contains protocol, storage, operations-next, runtime-next, CLI-next,
+SDK and bundle inspection packages.
 
-The native example and Python benchmark both await admitted ingestion. Python's
-native pytest-benchmark JSON under `target/benchmarks/` additionally records
-synchronous bridge preparation (snapshot, encoding and value conversion) and the
-awaited publication separately. These are development-profile workstation
-measurements, not a throughput target. Timings are absent from correctness tests.
+Product outputs live under `target/build/<profile>/<target>/`; packages under
+`target/package/<profile>/<target>/`. CLI archives retain the `dokime-next` binary.
+The distribution ZIP contains that CLI, the desktop, authored organization resources
+and legal notices. Native Tauri packaging consumes those verified Product bytes
+without compiling or patching them and produces Windows NSIS or Linux DEB/RPM
+installers. Stable publication signs the validated Windows Product, refreshes its
+distribution inventory and packages it before generating updater signatures;
+Nightly stays unsigned. Shipping sidecar feeds await their re-authoring tasks.
+The pure Python wheel/source pair uses the shared `any/python/` target.
 
-## Test Hang Guards
+`tools/project.toml` owns package/release/test policy; `mise.toml` owns commands
+and tool pins. `.stkr/project.toml` contains only Hub source policy. Configuration
+under `tools/config/` is selected explicitly. Do not redirect another project's
+Python environment or place TEMP/TMP inside a checkout.
 
-`[conventions.testing.deadlines]` in `tools/project.toml` owns the lane hang guards.
-The test runner passes these values to nextest, pytest and Vitest. Script lanes,
-including native desktop system tests, also have a whole-lane process-tree timeout
-using the same configured deadline. These guards terminate hangs; completed story
-durations remain measurements and never change a runner's pass/fail result.
-Rust fixture operations and in-story waits
-share `STORY_BOUND` and `FIXTURE_POLICY` in
-`crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
-waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.
-Product operation policies keep their own deadlines.
+## Hosted Validation
 
-## Workstation Builds
+Pull requests and Nightly retain native Linux and Windows host/SDK validation.
+PR host fixtures select Rust/Python; Nightly adds C#/C++ equivalence. All local
+host stories are available by target. Dev pushes run quick checks/builds; PRs run
+stories. Full validation belongs to hosted CI and Nightly after combined source
+closure. Local work uses focused proof and never substitutes Windows for Linux.
+Nightly publication depends on packages; its final report appends suite outcomes.
+Release publication requires separately authorized exact-commit green evidence.
 
-Compiling tasks run through `tools/python/src/dokime_tools/build/machine.py`, which starts the
-shared compiler cache for the command. Nothing serializes compilation: tasks in
-any repository or worktree run at the same time, and no worker or compiler
-thread limits are added.
-
-For non-CI runs, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
-`SCCACHE_DIR=<OS user cache>/sccache`, `SCCACHE_CACHE_SIZE=20G` and disables
-incremental compilation. Each worktree keeps its own `target/`; matching
-cacheable crate compilations can reuse results across worktrees. CI retains
-its existing per-profile cache settings. sccache is already a pinned mise tool.
-Local wrappers reuse the existing `ci/compiler.py` foreground-server helper with
-an owned endpoint, so an older daemon cannot silently select another store.
-Concurrent tasks each own a server on the same store. Only that owned server is
-stopped after the command; each task prints its cache hit and miss counts.
-If allocation failures recur, disable it for one run by setting
-`RUSTC_WRAPPER` to an empty value:
-
-```sh
-RUSTC_WRAPPER= mise run build:rust
-```
-
-In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
-the override with `Remove-Item Env:RUSTC_WRAPPER`.
-
-## Validation
-
-Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
-full validation across the declared platforms.
-
-Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips the whole run after Plan / Freshness (every downstream job) for scheduled heads already published or heads with another in-progress or queued Nightly run.
-
-Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
-`target/package/<profile>/<target>/rust/dokime-distribution-<version>-<triple>.zip`.
-Package jobs already include these ZIPs in their Rust artifacts. Staging requires
-byte-identical notices across targets and fails with the artifact path if a copy
-is missing or differs. Both Nightly and stable publication reuse these bytes for
-the shared notice downloads and CLI and sidecar archives; publication does not
-regenerate notices or require GUI `node_modules` for them.
-
-Release tooling shares the notice download helper for all HTTP requests, including
-provider pages, the crates index and release identity tokens. It makes at most six
-attempts on connection errors, timeouts, incomplete reads, SSL EOF and HTTP 5xx;
-HTTP 4xx responses are never retried. Exponential delays start at two seconds,
-cap at thirty seconds and use jitter between half and all of the delay. Small
-requests use sixty-second timeouts; uploads add one second per decimal MB, capped
-at thirty minutes. Before retrying a GitHub asset upload, the tooling lists assets
-and deletes matching names, including partial uploads. Successful uploads must
-match the local size and, when the API supplies it, SHA-256 digest; staged asset
-hashes come from the same inventory as SHA256SUMS. Exhausted requests report the
-operation, URL, attempt count and last cause.
+Native test reports remain under `target/test-reports/` and traces under
+`target/traces/`. Preserve them before native `cargo clean`. Disk monitoring and
+cleanup are workstation responsibilities, never project preflights.

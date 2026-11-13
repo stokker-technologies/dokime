@@ -12,8 +12,9 @@
 
 # Standard Library Imports
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 # Third Party Imports
 
@@ -35,8 +36,7 @@ from pathlib import Path
 def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
     """Select The Non-Test Binaries One Cargo Build Reported."""
     selected: dict[str, set[Path]] = {name: set() for name in names}
-    for line in messages.read_text(encoding="utf-8").splitlines():
-        item = json.loads(line) if line.startswith("{") else {}
+    for item in artifacts(messages):
         target = item.get("target", {})
         name = target.get("name")
         if (
@@ -58,3 +58,11 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
 # === Private Functions === #
 
 # === Entry Point === #
+
+
+def artifacts(messages: Path) -> Iterator[dict[str, Any]]:
+    """Decode Cargo Artifact Records Once For All Output Consumers."""
+    for line in messages.read_text(encoding="utf-8").splitlines():
+        item = json.loads(line) if line.startswith("{") else {}
+        if item.get("reason") == "compiler-artifact" and not item.get("profile", {}).get("test"):
+            yield item

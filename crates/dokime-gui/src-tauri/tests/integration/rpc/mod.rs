@@ -11,355 +11,6 @@
 
 mod upload;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-use serde_json::json;
-use sha2::Digest;
-
-// Local Imports
-use crate::support::bridge::{self, Harness, fenced};
-use crate::support::server::Fixture;
-use crate::wire::WireMessage;
-use dokime::domain::model;
-use dokime::operations::backend;
-use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
-
-/* === Constants === */
-
-const INSTALL: &str = "/dokime.v1.Plugins/Install";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-struct InstallInput {
-    entered: Option<tokio::sync::oneshot::Sender<()>>,
-    dropped: Option<tokio::sync::oneshot::Sender<()>>,
-}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-impl tokio_stream::Stream for InstallInput {
-    type Item = model::plugins::wire::InstallPluginFrame;
-
-    fn poll_next(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
-        let Some(entered) = self.entered.take() else {
-            return std::task::Poll::Pending;
-        };
-        entered.send(()).unwrap();
-
-        std::task::Poll::Ready(Some(model::plugins::wire::InstallPluginFrame {
-            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Header(model::plugins::wire::InstallPluginHeader {
-                size_bytes: 1,
-                sha256: "00".repeat(32),
-            })),
-        }))
-    }
-}
-
-impl Drop for InstallInput {
-    fn drop(&mut self) {
-        if let Some(dropped) = self.dropped.take() {
-            let _ = dropped.send(());
-        }
-    }
-}
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-fn large_bundle(resource_bytes: usize) -> Vec<u8> {
-    bundle_for_target(resource_bytes, dokime::plugins::NATIVE_TARGET)
-}
-
-fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
-    let owner = "fixture";
-    let declaration =
-        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
-    let policy = crate::support::settings::FIXTURE_POLICY;
-    let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
-        .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
-    let contracts =
-        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
-    let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
-    let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
-    let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
-    let executable = format!(
-        "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap()
-    );
-    let resource = vec![0xCDu8; resource_bytes];
-    harmos_packaging::bundle::Bundle::build(
-        harmos_packaging::bundle::Identity {
-            name: "fixture".into(),
-            version: "1.0.0".parse().unwrap(),
-            description: "A fixture.".into(),
-            package: Default::default(),
-        },
-        &[
-            harmos_packaging::bundle::Source {
-                path: "bin/fixture",
-                bytes: executable.as_bytes(),
-                executable: Some(harmos_packaging::bundle::Executable {
-                    facility: harmos_packaging::bundle::Facility::Sidecar,
-                    target: target.into(),
-                    registrations: vec![],
-                }),
-            },
-            harmos_packaging::bundle::Source {
-                path: "resources/payload.bin",
-                bytes: &resource,
-                executable: None,
-            },
-        ],
-        harmos_packaging::bundle::Limits::default(),
-    )
-    .unwrap()
-    .bytes()
-    .to_vec()
-}
-
-fn invoke(window: &bridge::Window, cmd: &str, bytes: Vec<u8>) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
-    bridge::invoke(window, cmd, bytes, &serde_json::Value::Null)
-}
-
-fn envelope(field: u8, message: &[u8]) -> Vec<u8> {
-    let mut bytes = vec![(field << 3) | 2];
-    let mut length = message.len();
-    while length >= 0x80 {
-        bytes.push((length as u8) | 0x80);
-        length >>= 7;
-    }
-    bytes.push(length as u8);
-    bytes.extend_from_slice(message);
-    bytes
-}
-
-fn install_header(size_bytes: u64, sha256: String) -> Vec<u8> {
-    envelope(
-        2,
-        &model::plugins::wire::InstallPluginFrame {
-            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Header(model::plugins::wire::InstallPluginHeader {
-                size_bytes,
-                sha256,
-            })),
-        }
-        .wire_bytes(),
-    )
-}
-
-fn install(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
-    const CHUNK_BYTES: usize = 256 * 1024;
-    let sha256 = hex(&sha2::Sha256::digest(bytes));
-
-    let (stream, channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).expect("the bridge admits the install stream");
-    harness
-        .control("rpc_stream_send", generation, stream, &install_header(bytes.len() as u64, sha256), json!({}))
-        .expect("the header is accepted");
-
-    for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
-        let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = model::plugins::wire::InstallPluginFrame {
-            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Chunk(model::plugins::wire::InstallPluginChunk {
-                offset: offset as u64,
-                data: bytes[offset..end].to_vec(),
-            })),
-        };
-        harness
-            .control("rpc_stream_send", generation, stream, &envelope(2, &chunk.wire_bytes()), json!({}))
-            .unwrap_or_else(|error| panic!("write {} failed: {error:?}", index + 1));
-    }
-
-    harness.control("rpc_stream_finish", generation, stream, &[], json!({})).expect("the input closes");
-    harness.settle(channel)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn refuses_invalid_dispatch() {
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    for command in ["rpc", "rpc_stream_open"] {
-        for (bytes, kind) in
-            [(vec![], "invalid_request"), (vec![0; 40], "incompatible_descriptor"), (vec![0; 4_194_304_usize + 40 + 1], "limit_exceeded")]
-        {
-            assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
-        }
-        for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
-            let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path": path}));
-            assert_eq!(
-                bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers).unwrap_err()["kind"],
-                "invalid_request",
-                "{command} {path:?}"
-            );
-        }
-    }
-    // A stream needs a channel to deliver to.
-    assert_eq!(
-        bridge::invoke(
-            &harness.window,
-            "rpc_stream_open",
-            fenced(generation, &[]),
-            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
-        )
-        .unwrap_err()["kind"],
-        "invalid_request"
-    );
-    // A superseded generation is refused before anything reaches the backend.
-    assert_eq!(
-        bridge::invoke(&harness.window, "rpc", fenced(generation + 1, &[]), &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),)
-            .unwrap_err()["detail"]["kind"],
-        "superseded"
-    );
-    for command in ["rpc_stream_send", "rpc_stream_finish", "rpc_stream_cancel"] {
-        assert_eq!(harness.control(command, generation, 99, &[], json!({})).unwrap_err()["kind"], "unknown_stream");
-    }
-    let (stream, channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).unwrap();
-    for credit in ["0", "33", "x", "1"] {
-        assert_eq!(
-            harness.control("rpc_stream_ack", generation, stream, &[], json!({"dokime-rpc-credit": credit}),).unwrap_err()["kind"],
-            "invalid_ack",
-            "credit {credit} exceeds what was delivered"
-        );
-    }
-    harness.control("rpc_stream_cancel", generation, stream, &[], json!({})).unwrap();
-    let frames = harness.settle(channel);
-    assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
-    fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn unary_call_bridges() {
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let reply = bridge::invoke(
-        &harness.window,
-        "rpc",
-        fenced(generation, &backend::GetIdentity {}.wire_bytes()),
-        &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
-    )
-    .unwrap();
-    let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
-        panic!("a unary reply is raw bytes");
-    };
-    assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-    let (identity, _admitted_memory) = model::backend::wire::BackendIdentity::from_wire(&reply[8..]).unwrap();
-    assert_eq!(identity.backend_id, fixture.session.status().backend.unwrap().backend_id);
-    // A typed backend status crosses unchanged.
-    let missing = bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}))
-        .unwrap_err();
-    assert_eq!(missing["kind"], "grpc");
-    assert_eq!(missing["detail"]["code"], tonic::Code::PermissionDenied as i32);
-    fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn native_client_installs_large_bundle() {
-    use dokime::client::{Client, Target};
-
-    let fixture = Fixture::new().await;
-    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
-    let bytes = large_bundle(70 * 1024 * 1024);
-    let sha256 = dokime::client::plugin_bundle_digest(&bytes);
-    let installed = client.plugins_install_bundle(bytes, sha256.clone(), |_, _| {}).await.unwrap();
-    assert_eq!(installed.sha256, sha256);
-    assert!(matches!(installed.state, model::plugins::wire::PluginInstallationState::Installed));
-    client.close();
-    fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn owner_cancellation_health() {
-    use tauri::Manager;
-
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (stream, channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).unwrap();
-    harness.app.state::<Bridge>().cancel_owner("main");
-    assert_eq!(
-        harness.control("rpc_stream_send", generation, stream, &install_header(1, "0".repeat(64)), json!({}),).unwrap_err()["kind"],
-        "unknown_stream"
-    );
-    let frames = harness.settle(channel);
-    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
-    assert_eq!(error["kind"], "cancelled");
-    let client =
-        dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
-    assert!(client.call(backend::GetHealth {}).await.is_ok());
-    fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn generation_fences_streams() {
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (_stream, channel) = harness.open(generation, "/dokime.v1.Observation/WatchRuntime", &[], false).unwrap();
-    fixture.session.disconnect().unwrap();
-    let frames = harness.settle(channel);
-    for frame in &frames {
-        assert_eq!(u64::from_le_bytes(frame[..8].try_into().unwrap()), generation);
-    }
-    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
-    assert_eq!(error["detail"]["kind"], "superseded");
-    assert_eq!(
-        bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),)
-            .unwrap_err()["detail"]["kind"],
-        "superseded"
-    );
-    fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn client_close_drops() {
-    use dokime::client::{Client, Error, Target};
-
-    let fixture = Fixture::new().await;
-    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
-    let (entered, ready) = tokio::sync::oneshot::channel();
-    let (dropped, released) = tokio::sync::oneshot::channel();
-    let uploading = client.clone();
-    let task = tokio::spawn(async move {
-        uploading
-            .plugins_install(InstallInput {
-                entered: Some(entered),
-                dropped: Some(dropped),
-            })
-            .await
-    });
-    ready.await.unwrap();
-
-    client.close();
-    assert!(matches!(task.await.unwrap(), Err(Error::Closed)));
-    released.await.unwrap();
-
-    fixture.close().await;
-}
-
 #[cfg(feature = "testing")]
 mod native {
     /* === Modules === */
@@ -368,14 +19,9 @@ mod native {
 
     /* === Imports === */
 
-    // Standard Library Imports
-
-    // Third Party Imports
-    use tauri::Manager;
-
-    // Local Imports
     use super::*;
     use dokime_gui::testing::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
+    use tauri::Manager;
 
     /* === Constants === */
 
@@ -422,126 +68,301 @@ mod native {
         .await
     }
 
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn invalid_bundle_returns_error_then_valid_file_installs() {
-        let fixture = Fixture::new().await;
-        let (app, window) = app_and_window(&fixture.session);
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("plugin.dokime");
-        std::fs::write(&path, b"not a plugin bundle").unwrap();
-        app.state::<DroppedFiles>().record("main", std::slice::from_ref(&path));
-
-        let error = install_file(&app, &window, true).await.expect_err("invalid archive returns a normal command failure");
-        assert!(!error.is_empty());
-
-        std::fs::write(&path, large_bundle(1024)).unwrap();
-        app.state::<DroppedFiles>().record("main", &[path]);
-        let installed = install_file(&app, &window, true).await.expect("a failed installation leaves the command usable");
-        assert!(installed.is_some());
-        fixture.close().await;
-    }
-
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn unreadable_file_returns_error() {
-        let fixture = Fixture::new().await;
-        let (app, window) = app_and_window(&fixture.session);
-        let root = tempfile::tempdir().unwrap();
-        app.state::<DroppedFiles>().record("main", &[root.path().join("missing.dokime")]);
-
-        install_file(&app, &window, true).await.expect_err("file read failure returns to the frontend");
-        fixture.close().await;
-    }
-
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn missing_picker_returns_error() {
-        let fixture = Fixture::new().await;
-        let (app, window) = app_and_window(&fixture.session);
-
-        install_file(&app, &window, false).await.expect_err("unmanaged dialog state must not panic");
-        fixture.close().await;
-    }
-
     /* === Tests === */
 
-    #[dokime_tracing::trace_test]
     #[test]
-    fn install_future_size() {
-        let (app, window) = app_and_window(&dokime_gui::connection::ConnectionSession::default());
-        let future = desktop_plugin_install_file(
-            window,
-            app.state::<dokime_gui::connection::ConnectionSession>(),
-            app.state::<DroppedFiles>(),
-            app.handle().clone(),
-            "0".into(),
-            false,
-            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
-        );
-        let bytes = std::mem::size_of_val(&future);
-        eprintln!("desktop_plugin_install_file (mock): {bytes} bytes");
-        assert!(bytes <= 16 * 1024, "plugin install command future uses {bytes} bytes");
+    fn invalid_bundle_returns_error_then_valid_file_installs() {
+        dokime_gui::test_support::run(async {
+            // A Failed File Installation Leaves the Native Command Usable
+            let fixture = Fixture::new().await;
+            let (app, window) = app_and_window(&fixture.session);
+            let root = dokime_gui::test_support::tempdir().unwrap();
+            let path = root.path().join("plugin.dokime");
+            std::fs::write(&path, b"not a plugin bundle").unwrap();
+            app.state::<DroppedFiles>().record("main", std::slice::from_ref(&path));
+            assert!(!install_file(&app, &window, true).await.unwrap_err().is_empty());
+            std::fs::write(&path, bundle(1024, native_target())).unwrap();
+            app.state::<DroppedFiles>().record("main", &[path]);
+            assert!(install_file(&app, &window, true).await.unwrap().is_some());
+            fixture.close().await;
+        })
     }
+
+    #[test]
+    fn unreadable_file_returns_error() {
+        dokime_gui::test_support::run(async {
+            // A Missing Dropped File Returns an Actionable Native Error
+            let fixture = Fixture::new().await;
+            let (app, window) = app_and_window(&fixture.session);
+            let root = dokime_gui::test_support::tempdir().unwrap();
+            app.state::<DroppedFiles>().record("main", &[root.path().join("missing.dokime")]);
+            assert!(install_file(&app, &window, true).await.is_err());
+            fixture.close().await;
+        })
+    }
+
+    #[test]
+    fn missing_picker_returns_error() {
+        dokime_gui::test_support::run(async {
+            // Missing Dialog State Must Return to the Frontend Without Panicking
+            let fixture = Fixture::new().await;
+            let (app, window) = app_and_window(&fixture.session);
+            assert!(install_file(&app, &window, false).await.is_err());
+            fixture.close().await;
+        })
+    }
+}
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Third Party Imports
+use prost::Message;
+use serde_json::json;
+use sha2::{Digest, Sha256};
+
+// Local Imports
+use crate::support::bridge::{self, Harness, fenced};
+use crate::support::server::Fixture;
+use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
+use dokime_sdk::{client::v1 as library, v1};
+
+/* === Constants === */
+
+const INSTALL: &str = "/dokime.v1.Plugins/Install";
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
+    bridge::invoke(window, command, bytes, &serde_json::Value::Null)
+}
+
+fn install_item(kind: v1::install_plugin_frame_frame::Kind) -> v1::InstallPluginFrame {
+    v1::InstallPluginFrame {
+        frame: Some(v1::InstallPluginFrameFrame { kind: Some(kind) }),
+    }
+}
+
+fn install_header(size_bytes: u64, sha256: String) -> Vec<u8> {
+    v1::PluginsInstallInput {
+        value: Some(v1::plugins_install_input::Value::Item(install_item(v1::install_plugin_frame_frame::Kind::Header(
+            v1::InstallPluginHeader { size_bytes, sha256 },
+        )))),
+    }
+    .encode_to_vec()
+}
+
+fn install(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
+    // Open the Canonical Client Input and Stream Bounded Chunks
+    let opening = v1::PluginsInstallInput {
+        value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+    };
+    let (stream, channel) = harness.open(generation, INSTALL, &opening.encode_to_vec(), true).unwrap();
+    harness
+        .control("rpc_stream_send", generation, stream, &install_header(bytes.len() as u64, hex(&Sha256::digest(bytes))), json!({}))
+        .unwrap();
+    for (index, data) in bytes.chunks(256 * 1024).enumerate() {
+        let frame = v1::PluginsInstallInput {
+            value: Some(v1::plugins_install_input::Value::Item(install_item(v1::install_plugin_frame_frame::Kind::Chunk(
+                v1::InstallPluginChunk {
+                    offset: (index * 256 * 1024) as u64,
+                    data: data.to_vec(),
+                },
+            )))),
+        };
+        harness.control("rpc_stream_send", generation, stream, &frame.encode_to_vec(), json!({})).unwrap();
+    }
+    harness.control("rpc_stream_finish", generation, stream, &[], json!({})).unwrap();
+    harness.settle(channel)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn bundle(resource_bytes: usize, target: &str) -> Vec<u8> {
+    // Package the Prepared SDK Executable, Never Compile from a Story
+    let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
+    let executable = std::fs::read(executable).expect("Build Host Fixtures Before the Desktop Stories");
+    let compatibility = br#"{"schema":1,"requires_dokime":">=0.1.0"}"#;
+    let resource = vec![0xCD; resource_bytes];
+    let filename = format!("bin/thermal{}", std::env::consts::EXE_SUFFIX);
+    let manifest = serde_json::to_vec(&json!({"schema":1, "identity":{"name":"desktop-fixture", "version":"1.0.0", "description":"Desktop Fixture"},
+        "files":[
+            {"path":filename, "size":executable.len(), "sha256":hex(&Sha256::digest(&executable)), "executable":{"facility":"sidecar", "target":target}},
+            {"path":"dokime.json", "size":compatibility.len(), "sha256":hex(&Sha256::digest(compatibility))},
+            {"path":"resources/payload.bin", "size":resource.len(), "sha256":hex(&Sha256::digest(&resource))}
+        ]})).unwrap();
+    let mut archive = tar::Builder::new(Vec::new());
+    for (path, bytes) in [
+        ("manifest.json", manifest.as_slice()),
+        (filename.as_str(), executable.as_slice()),
+        ("dokime.json", compatibility.as_slice()),
+        ("resources/payload.bin", resource.as_slice()),
+    ] {
+        let mut header = tar::Header::new_ustar();
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o700);
+        header.set_cksum();
+        archive.append_data(&mut header, path, bytes).unwrap();
+    }
+    archive.into_inner().unwrap()
+}
+
+fn native_target() -> &'static str {
+    if cfg!(target_os = "windows") { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" }
 }
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[test]
-fn client_stream_opens() {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (stream, _channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).expect("the bridge admits the stream");
-    assert!(stream > 0);
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
+fn refuses_invalid_dispatch() {
+    dokime_gui::test_support::run(async {
+        // Invalid Envelopes Are Refused Before Host Dispatch
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        for command in ["rpc", "rpc_stream_open"] {
+            for (bytes, kind) in
+                [(vec![], "invalid_request"), (vec![0; 40], "incompatible_descriptor"), (vec![0; 4_194_304 + 41], "limit_exceeded")]
+            {
+                assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
+            }
+            for path in [None, Some("harmos.v1.Status/Get"), Some("/a/b/c")] {
+                let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path":path}));
+                assert_eq!(
+                    bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers).unwrap_err()["kind"],
+                    "invalid_request"
+                );
+            }
+        }
+        assert_eq!(
+            bridge::invoke(&harness.window, "rpc", fenced(generation + 1, &[]), &json!({"dokime-rpc-path":"/harmos.v1.Status/Get"}))
+                .unwrap_err()["detail"]["kind"],
+            "superseded"
+        );
+        fixture.close().await;
+    })
 }
 
-#[dokime_tracing::trace_test]
+#[test]
+fn unary_call_bridges() {
+    dokime_gui::test_support::run(async {
+        // Canonical Library Status Crosses Tauri with Its Generation Fence
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let reply =
+            bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/harmos.v1.Status/Get"})).unwrap();
+        let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
+            panic!("Status Replies with Canonical Bytes");
+        };
+        assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
+        let identity = library::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
+        assert_eq!(identity.host_id, fixture.session.status().backend.unwrap().backend_id);
+        let error = bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.v1.Missing/Call"}))
+            .unwrap_err();
+        assert_eq!(error["kind"], "grpc");
+        fixture.close().await;
+    })
+}
+
+#[test]
+fn owner_cancellation_health() {
+    dokime_gui::test_support::run(async {
+        use tauri::Manager;
+        // Releasing a WebView Cancels Its Input and Leaves the Host Available
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let opening = v1::PluginsInstallInput {
+            value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+        };
+        let (stream, channel) = harness.open(generation, INSTALL, &opening.encode_to_vec(), true).unwrap();
+        harness.app.state::<Bridge>().cancel_owner("main");
+        assert_eq!(
+            harness.control("rpc_stream_send", generation, stream, &install_header(1, "00".repeat(32)), json!({})).unwrap_err()["kind"],
+            "unknown_stream"
+        );
+        assert_eq!(harness.settle(channel).last().unwrap()[8], FRAME_ERROR);
+        let client = fixture.client().await;
+        let _: library::StatusGetResponse = client.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await.unwrap();
+        fixture.close().await;
+    })
+}
+
+#[test]
+fn generation_fences_streams() {
+    dokime_gui::test_support::run(async {
+        // Open the Host Watch Before Invalidating Its Native Generation
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let generation = fixture.generation();
+        let (_, channel) = harness.open(generation, "/dokime.v1.Observation/WatchRuntime", &[], false).unwrap();
+        fixture.session.disconnect().unwrap();
+        let frames = harness.settle(channel);
+        assert!(frames.iter().all(|frame| u64::from_le_bytes(frame[..8].try_into().unwrap()) == generation));
+        assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
+        let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+        assert_eq!(error["detail"]["kind"], "superseded");
+        fixture.close().await;
+    })
+}
+
 #[test]
 fn installs_large_bundle() {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let bytes = large_bundle(70 * 1024 * 1024);
-    let frames = install(&harness, generation, &bytes);
-
-    let terminal = frames.last().expect("the stream returns a terminal status");
-    let terminal = String::from_utf8_lossy(&terminal[9..]);
-    assert_eq!(frames.len(), 2, "one reply, then the final status: {terminal:?}");
-    assert_eq!(frames[0][8], FRAME_MESSAGE);
-    assert_eq!(frames[1][8], FRAME_END);
-
-    let (installation, _admitted_memory) =
-        model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
-    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
-    assert!(matches!(installation.state, model::plugins::wire::PluginInstallationState::Installed));
-    assert!(installation.installed_at.is_some());
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
+    dokime_gui::test_support::run(async {
+        // A Large Verified SDK Bundle Crosses Bounded Native Input Frames
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let bytes = bundle(70 * 1024 * 1024, native_target());
+        let frames = install(&harness, fixture.generation(), &bytes);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0][8], FRAME_MESSAGE);
+        assert_eq!(frames[1][8], FRAME_END);
+        let installation = v1::PluginInstallation::decode(&frames[0][9..]).unwrap();
+        assert_eq!(installation.sha256, hex(&Sha256::digest(&bytes)));
+        assert_eq!(installation.state, v1::PluginInstallationState::Installed as i32);
+        fixture.close().await;
+    })
 }
 
-#[dokime_tracing::trace_test]
 #[test]
 fn refuses_foreign_bundle() {
-    let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let frames = install(&harness, generation, &bundle_for_target(1024, target));
-    let terminal = frames.last().unwrap();
-    assert_eq!(terminal[8], FRAME_ERROR);
-    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
-    let message = error["detail"]["message"].as_str().unwrap_or_default();
-    assert!(message.contains("no executable for this host"), "expected a host-target refusal, got: {error}");
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
+    dokime_gui::test_support::run(async {
+        // Target Selection Belongs to the Host that Receives the Bundle
+        let target = if cfg!(target_os = "windows") { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
+        let fixture = Fixture::new().await;
+        let harness = Harness::new(fixture.session.clone());
+        let frames = install(&harness, fixture.generation(), &bundle(1024, target));
+        assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
+        let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+        assert_eq!(error["kind"], "grpc");
+        assert_eq!(error["detail"]["code"], tonic::Code::InvalidArgument as i32);
+        let page: v1::InstallationPage = fixture
+            .client()
+            .await
+            .unary("/dokime.v1.Plugins/ListInstallations", v1::PluginsListInstallationsRequest::default())
+            .await
+            .unwrap();
+        assert!(page.installations.is_empty());
+        fixture.close().await;
+    })
 }

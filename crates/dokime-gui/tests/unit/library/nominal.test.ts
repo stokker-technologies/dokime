@@ -16,6 +16,10 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { SuiteSchema } from "@host/dokime/v1/catalog_pb.js";
+import { SuiteIdentitySchema } from "@host/dokime/v1/client_types_pb.js";
+import { ValueType } from "@host/dokime/v1/values_pb.js";
 
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
@@ -27,6 +31,9 @@ import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { TestCycleSelection } from "@/lib/types";
+import type { SuiteTemplateEntry } from "@/lib/types";
+import { TemplateProcedure } from "@/features/library/TemplateDialog";
+import { mapSuite as mapHostSuite } from "@/lib/host/catalog";
 
 /* === Re-Exports === */
 
@@ -81,6 +88,25 @@ function preview(...cases: Record<string, unknown>[]): Preview {
 }
 
 /* === Entry Point === */
+
+test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog", () => {
+  const template = {
+    steps: [
+      { step_id: "second", method_name: "second", order: 2 },
+      { step_id: "first", method_name: "first", order: 1 },
+    ],
+  } as SuiteTemplateEntry;
+  const markup = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  assert.deepEqual(
+    [...markup.matchAll(/data-step-id="([^"]+)"/g)].map((step) => step[1]),
+    ["first", "second"],
+  );
+  assert.deepEqual(
+    template.steps.map((step) => step.step_id),
+    ["second", "first"],
+  );
+  assert.equal(renderToStaticMarkup(createElement(TemplateProcedure, { template: { ...template, steps: [] } })), "");
+});
 
 test("Template Problems Keep Each Field and Its Validation Cause", () => {
   const definition = {
@@ -212,4 +238,67 @@ test("Generated Identifier and Artifact Labels Respect Word Positions", () => {
     assert.equal(titleCaseIdentifier(identifier), label);
     assert.equal(artifactLabel(identifier), label);
   }
+});
+
+test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", () => {
+  // Decode the Actual Host Wire Shape Before Projecting It for the Library
+  const definition = create(SuiteSchema, {
+    metadata: { identifier: "fixture.suite", label: "Fixture Suite" },
+    templates: [
+      {
+        metadata: { identifier: "fixture.template", label: "Fixture Template" },
+        parameters: [
+          {
+            metadata: { identifier: "range", label: "Range", attributes: { declared: { kind: { case: "boolean", value: true } } } },
+            type: ValueType.INTEGER,
+            unit: "K",
+            expression: { kind: { case: "range", value: { start: 4n, stop: -2n, step: -2n } } },
+            expansion: { kind: { case: "cartesian", value: true } },
+            runtimeWritable: true,
+          },
+          {
+            metadata: { identifier: "identifier" },
+            type: ValueType.UNSIGNED_INTEGER,
+            choices: [{ kind: { case: "unsignedInteger", value: 18446744073709551615n } }],
+          },
+          {
+            metadata: { identifier: "names" },
+            type: ValueType.LIST,
+            elementType: ValueType.TEXT,
+            minItems: 2,
+            maxItems: 3,
+            expression: {
+              kind: {
+                case: "literal",
+                value: {
+                  kind: {
+                    case: "list",
+                    value: { values: [{ kind: { case: "text", value: "first" } }, { kind: { case: "text", value: "second" } }] },
+                  },
+                },
+              },
+            },
+          },
+        ],
+        files: [{ metadata: { identifier: "input" }, defaultValue: "sample.csv", required: true, mediaTypes: ["text/csv"] }],
+      },
+    ],
+  });
+  const suite = fromBinary(SuiteSchema, toBinary(SuiteSchema, definition));
+  const identity = create(SuiteIdentitySchema, { suiteId: "fixture.suite", source: "fixture.plugin" });
+  const projected = mapHostSuite(suite, identity);
+  const [range, unsigned, names] = projected.members[0].parameter_definitions;
+  assert.deepEqual(range.values, [4, 2, 0]);
+  assert.equal(range.unit, "K");
+  assert.equal(range.metadata.runtime_writable, true);
+  assert.deepEqual(range.expansion, { kind: "cartesian" });
+  assert.deepEqual(range.metadata.attributes, { declared: true });
+  assert.deepEqual(
+    unsigned.choices.map((value) => JSON.parse(JSON.stringify(value))),
+    [{ __dokime_native_integer__: true, decimal: "18446744073709551615", unsigned: true }],
+  );
+  assert.deepEqual(names.values, [["first", "second"]]);
+  assert.deepEqual(names.list, { element_type: "string", min_items: 2, max_items: 3 });
+  assert.equal(projected.members[0].file_definitions[0].default, "sample.csv");
+  assert.throws(() => mapHostSuite(suite, create(SuiteIdentitySchema, { suiteId: "another.suite" })));
 });

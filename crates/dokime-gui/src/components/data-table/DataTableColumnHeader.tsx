@@ -13,6 +13,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { FlexRender, type Header, type RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
@@ -56,14 +57,16 @@ export function DataTableColumnHeader<TData extends RowData>({ header }: DataTab
       )}
     >
       {column.getCanSort() ? (
-        <button
-          className="inline-flex min-w-0 items-center gap-1 rounded-lg text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        <Button
+          variant="plain"
+          size="inline"
+          className="inline-flex min-w-0 items-center gap-1 rounded-lg text-left hover:text-foreground"
           onClick={column.getToggleSortingHandler()}
           type="button"
         >
           {name}
           <SortGlyph aria-hidden className={cn("size-3 shrink-0", sorted ? "text-foreground" : "opacity-40")} />
-        </button>
+        </Button>
       ) : (
         name
       )}

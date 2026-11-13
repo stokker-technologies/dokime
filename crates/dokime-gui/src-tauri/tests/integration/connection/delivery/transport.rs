@@ -7,7 +7,7 @@
  * ***
  */
 
-// Controlled Native Content Stream Fixture
+// Controlled Canonical Content Stream
 
 /* === Modules === */
 
@@ -20,20 +20,17 @@ use std::sync::Arc;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
-use super::{FixtureFuture, Gate, HttpFuture, HttpRequest, HttpResponse, Service, wire_codec};
-use dokime::client::contracts::content;
-use dokime::domain::model::content::wire as model;
+use super::{Gate, HttpRequest, HttpResponse, Service};
+use dokime_sdk::v1;
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
-
-type Envelope = dokime::harmos::grpc::OutputEnvelope<model::ArtifactFrame, ()>;
 
 /* === Structs === */
 
@@ -62,7 +59,7 @@ impl tonic::server::NamedService for Content {
 impl tonic::codegen::Service<HttpRequest> for Content {
     type Response = HttpResponse;
     type Error = std::convert::Infallible;
-    type Future = HttpFuture;
+    type Future = BoxFuture<HttpResponse, Self::Error>;
 
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
         std::task::Poll::Ready(Ok(()))
@@ -73,28 +70,23 @@ impl tonic::codegen::Service<HttpRequest> for Content {
         Box::pin(async move {
             let response = match request.uri().path() {
                 "/dokime.v1.Content/DownloadArtifact" => {
-                    wire_codec::<content::DownloadArtifact, dokime::harmos::operations::Response<Envelope>>()
-                        .server()
-                        .server_streaming(Download(service), request)
-                        .await
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).server_streaming(Download(service), request).await
                 }
-                _ => Status::unimplemented("unused test route").into_http(),
+                _ => Status::unimplemented("Fixture Route Is Not Served").into_http(),
             };
             Ok(response)
         })
     }
 }
 
-impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamItem<content::DownloadArtifact>> for Download {
-    type Response = dokime::harmos::operations::Response<Envelope>;
+impl tonic::server::ServerStreamingService<v1::ContentDownloadArtifactRequest> for Download {
+    type Response = v1::ContentDownloadArtifactOutput;
     type ResponseStream = tokio_stream::wrappers::ReceiverStream<Result<Self::Response, Status>>;
-    type Future = FixtureFuture<Response<Self::ResponseStream>>;
+    type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
 
-    fn call(&mut self, request: Request<dokime::harmos::operations::StreamItem<content::DownloadArtifact>>) -> Self::Future {
+    fn call(&mut self, request: Request<v1::ContentDownloadArtifactRequest>) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
-            service.authorize(&request)?;
-            let request = request.into_inner().into_request().map_err(|error| Status::data_loss(error.to_string()))?.0;
             let settings = {
                 let mut settings = service.download.lock().unwrap();
                 settings.calls += 1;
@@ -102,34 +94,36 @@ impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamIte
             };
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             tokio::spawn(async move {
+                // Send Contiguous Data with a Separately Verifiable Completion
                 let bytes = bytes();
                 let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-                let metadata = model::ArtifactMetadata {
-                    artifact_id: request.artifact_id,
-                    upload_id: "fixture".into(),
-                    scope: None,
+                let metadata = v1::ArtifactMetadata {
+                    artifact_id: request.into_inner().artifact_id,
                     filename: "evidence.bin".into(),
-                    content_type: Some("application/octet-stream".into()),
                     size_bytes: bytes.len() as u64,
                     sha256: digest.clone(),
-                    state: model::ArtifactState::Complete,
-                    created_at: None,
-                    error: None,
+                    state: v1::ArtifactState::Complete as i32,
+                    ..Default::default()
                 };
-                let frame =
-                    |payload| dokime::harmos::operations::Response::new(Envelope::Item(model::ArtifactFrame { payload: Some(payload) }));
-                if sender.send(Ok(frame(model::ArtifactFramePayload::Metadata(Box::new(metadata))))).await.is_err() {
+                let frame = |kind| v1::ContentDownloadArtifactOutput {
+                    value: Some(v1::content_download_artifact_output::Value::Item(v1::ArtifactFrame {
+                        payload: Some(v1::ArtifactFramePayload { kind: Some(kind) }),
+                    })),
+                };
+                if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Metadata(metadata)))).await.is_err() {
                     return;
                 }
                 for (index, chunk) in bytes.chunks(8192).enumerate() {
-                    let chunk = model::ArtifactChunk {
+                    let chunk = v1::ArtifactChunk {
                         offset: (index * 8192) as u64,
                         data: chunk.to_vec(),
                     };
-                    if sender.send(Ok(frame(model::ArtifactFramePayload::Chunk(chunk)))).await.is_err() {
+                    if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Chunk(chunk)))).await.is_err() {
                         return;
                     }
                 }
+
+                // Hold Completion Until the Story Releases or Cancels the Stream
                 if let Some(gate) = settings.gate {
                     gate.entered.notify_one();
                     tokio::select! {
@@ -137,14 +131,18 @@ impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamIte
                         _ = sender.closed() => return,
                     }
                 }
-                let complete = model::ArtifactCompletion {
+                let complete = v1::ArtifactCompletion {
                     size_bytes: bytes.len() as u64,
                     sha256: if settings.corrupt { "00".repeat(32) } else { digest },
                 };
-                if sender.send(Ok(frame(model::ArtifactFramePayload::Complete(complete)))).await.is_err() {
+                if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Complete(complete)))).await.is_err() {
                     return;
                 }
-                let _ = sender.send(Ok(dokime::harmos::operations::Response::new(Envelope::Response(())))).await;
+                let _ = sender
+                    .send(Ok(v1::ContentDownloadArtifactOutput {
+                        value: Some(v1::content_download_artifact_output::Value::Response(Default::default())),
+                    }))
+                    .await;
             });
             Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(receiver)))
         })
