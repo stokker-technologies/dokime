@@ -40,6 +40,90 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl Store {
+    pub fn note(&self, name: &str) -> Result<v1::OperatorNote> {
+        let payload: Vec<u8> = self
+            .lock()?
+            .query_row("SELECT payload FROM notes WHERE id=?1", [name], |row| row.get(0))
+            .optional()?
+            .ok_or_else(|| Error::NotFound("Get Note: Select an Existing Note".into()))?;
+        Ok(v1::OperatorNote::decode(payload.as_slice())?)
+    }
+
+    pub fn set_note(&self, request: v1::evidence::NotesSetRequest, author: &str) -> Result<v1::evidence::NotesSetResponse> {
+        use harmos_protocol::v1::{History, Position, Receipt, Section};
+        use sha2::{Digest, Sha256};
+        if request.request_id.is_empty() {
+            return Err(Error::Invalid("Set Note: Supply a Request ID".into()));
+        }
+        let fingerprint = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let key = format!("request:note:{}:{}", request.name, request.request_id);
+        let saved: Option<Vec<u8>> =
+            transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0)).optional()?;
+        if let Some(saved) = saved {
+            let saved = Section::decode(saved.as_slice())?;
+            if saved.r#type != fingerprint {
+                return Err(Error::Conflict("Set Note: Use a New Request ID for Changed Content".into()));
+            }
+            return Ok(v1::evidence::NotesSetResponse::decode(saved.payload.as_slice())?);
+        }
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM notes WHERE id=?1", [&request.name], |row| row.get(0))?;
+        let mut note = v1::OperatorNote::decode(payload.as_slice())?;
+        if note.author.as_deref() != Some(author) {
+            return Err(Error::Permission("Set Note: Sign In as Its Author".into()));
+        }
+        require_owner(&transaction, note.scope.as_ref().ok_or_else(|| Error::Incompatible("Missing Note Scope".into()))?)?;
+        let revision_key = format!("revision:note:{}", request.name);
+        let revision: Option<Vec<u8>> =
+            transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&revision_key], |row| row.get(0)).optional()?;
+        let revision = revision.unwrap_or_else(|| 0_u64.to_be_bytes().to_vec());
+        if revision != request.expected_revision {
+            return Err(Error::Conflict("Set Note: Get Its Current Revision".into()));
+        }
+        let sequence = u64::from_be_bytes(revision.as_slice().try_into().map_err(|_| Error::Incompatible("Note Revision".into()))?)
+            .checked_add(1)
+            .ok_or_else(|| Error::Invalid("Set Note: Revision Exhausted".into()))?;
+        let value = request.value.ok_or_else(|| Error::Invalid("Set Note: Supply Its Whole Writable Value".into()))?;
+        note.message = value.message.clone();
+        let position = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: format!("note/{}", request.name),
+            }),
+            sequence,
+        };
+        let response = v1::evidence::NotesSetResponse {
+            value: Some(value),
+            revision: sequence.to_be_bytes().to_vec(),
+            receipt: Some(Receipt {
+                request_id: request.request_id,
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            }),
+        };
+        transaction.execute("UPDATE notes SET payload=?2 WHERE id=?1", params![request.name, note.encode_to_vec()])?;
+        for (key, payload) in [
+            (revision_key, response.revision.clone()),
+            (
+                key,
+                Section {
+                    r#type: fingerprint,
+                    payload: response.encode_to_vec(),
+                }
+                .encode_to_vec(),
+            ),
+        ] {
+            transaction.execute(
+                "INSERT INTO administration VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                params![key, payload],
+            )?;
+        }
+        transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
+        Ok(response)
+    }
     pub fn create_note(&self, receipt: v1::evidence::NotesCreateResponse) -> Result<v1::evidence::NotesCreateResponse> {
         let note = receipt.note.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Body".into()))?;
         let scope = note.scope.as_ref().ok_or_else(|| Error::Invalid("Create Note: Select Its Owner".into()))?;
@@ -49,9 +133,10 @@ impl Store {
             transaction.query_row("SELECT receipt FROM notes WHERE id=?1", [&note.note_id], |row| row.get(0)).optional()?;
         if let Some(bytes) = existing {
             let existing = v1::evidence::NotesCreateResponse::decode(bytes.as_slice())?;
-            if existing.note.as_ref().is_none_or(|existing| {
-                    existing.scope != note.scope || existing.author != note.author || existing.message != note.message
-                })
+            if existing
+                .note
+                .as_ref()
+                .is_none_or(|existing| existing.scope != note.scope || existing.author != note.author || existing.message != note.message)
             {
                 return Err(Error::AlreadyExists("Create Note: Use a New Mutation ID for Different Content or Ownership".into()));
             }

@@ -47,6 +47,45 @@ pub struct ResourceValue {
 /* === Implementations === */
 
 impl Store {
+    pub fn requested_evidence(
+        &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8],
+    ) -> Result<Option<(Evidence, Receipt)>> {
+        let connection = self.lock()?;
+        let saved: Option<(Vec<u8>, i64)> = connection
+            .query_row(
+                "SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",
+                params![execution, operation, request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((saved, sequence)) = saved else {
+            return Ok(None);
+        };
+        if saved != fingerprint {
+            return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));
+        }
+        let payload: Vec<u8> = connection.query_row(
+            "SELECT payload FROM evidence WHERE execution=?1 AND position=?2",
+            params![execution, sequence],
+            |row| row.get(0),
+        )?;
+        let position = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: execution.into(),
+            }),
+            sequence: sequence as u64,
+        };
+        Ok(Some((
+            Evidence::decode(payload.as_slice())?,
+            Receipt {
+                request_id: request_id.into(),
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            },
+        )))
+    }
     pub fn resource_value(&self, execution: &str, resource: &str, at: Option<&Position>) -> Result<ResourceValue> {
         let mut connection = self.lock()?;
         if self.cancelled.is_some() {

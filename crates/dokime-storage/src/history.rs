@@ -62,26 +62,28 @@ impl Store {
         )?;
         Ok((sequence as u64, v1::CycleSummary::decode(payload.as_slice())?))
     }
-    pub fn deletion(&self, request: &str, execution: &str, seal: &[u8]) -> Result<bool> {
-        let existing: Option<(String, Vec<u8>)> = self
+    pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<v1::ExecutionsDeleteResponse>> {
+        let saved: Option<(String, Vec<u8>)> = self
             .lock()?
-            .query_row("SELECT execution,seal FROM deletions WHERE request=?1", [request], |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_row("SELECT execution,response FROM deletions WHERE request=?1", [request], |row| Ok((row.get(0)?, row.get(1)?)))
             .optional()?;
-        let Some((previous, version)) = existing else {
-            return Ok(false);
+        let Some((previous, payload)) = saved else {
+            return Ok(None);
         };
-        if previous != execution || version != seal {
-            return Err(Error::Invalid("Delete Execution: Use a New Request ID for a Different Checkpoint".into()));
+        if previous != execution {
+            return Err(Error::Conflict("Delete Execution: Use a New Request ID for a Different Execution".into()));
         }
-        Ok(true)
+        Ok(Some(v1::ExecutionsDeleteResponse::decode(payload.as_slice())?))
     }
-    pub fn delete_sealed_execution(&self, request: &str, execution: &str, expected: &[u8]) -> Result<()> {
+    pub fn delete_sealed_execution(
+        &self, request: &str, execution: &str, expected: &[u8], response: &v1::ExecutionsDeleteResponse,
+    ) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let (state, seal): (i32, Vec<u8>) =
             transaction.query_row("SELECT state,seal FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))?;
         if state != 2 || seal != expected || crate::store::digest(&transaction, execution)? != seal {
-            return Err(Error::Invalid("Delete Execution: Inspect Its Current Sealed Checkpoint Before Deleting".into()));
+            return Err(Error::Invalid("Delete Execution: Inspect Its Current Seal Before Deleting".into()));
         }
         transaction.execute("DELETE FROM artifact_calls WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM artifact_transfers WHERE execution=?1", [execution])?;
@@ -89,7 +91,7 @@ impl Store {
             .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
         transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM plot_preferences WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
         transaction.execute("DELETE FROM record_fields WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM sample_fields WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM sample_batches WHERE execution=?1", [execution])?;
@@ -103,7 +105,7 @@ impl Store {
         transaction.execute("DELETE FROM streams WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM bindings WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM executions WHERE id=?1", [execution])?;
-        transaction.execute("INSERT INTO deletions VALUES (?1,?2,?3)", params![request, execution, seal])?;
+        transaction.execute("INSERT INTO deletions VALUES (?1,?2,?3,?4)", params![request, execution, seal, response.encode_to_vec()])?;
         // A Global Evidence Cut Cannot Silently Lose a Deleted History.
         transaction.execute("DELETE FROM evidence_reads", [])?;
         let history = harmos_protocol::v1::History {

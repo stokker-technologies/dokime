@@ -96,6 +96,117 @@ pub struct CycleArchive {
 /* === Implementations === */
 
 impl Store {
+    pub fn attach_artifact(
+        &self, operation: &str, request: v1::content::ArtifactsCreateRequest, now_ns: i64,
+    ) -> Result<v1::content::ArtifactsCreateResponse> {
+        use harmos_protocol::v1::{History, Position, Receipt};
+        if request.request_id.is_empty() {
+            return Err(Error::Invalid("Create Artifact: Supply a Request ID".into()));
+        }
+        let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution Scope".into()))?;
+        let execution =
+            scope.execution_id.as_deref().ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution Scope".into()))?;
+        let reference = request.file.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Published Content".into()))?;
+        let source = reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select a Named File Reference".into()))?;
+        let fingerprint = Sha256::digest(request.encode_to_vec()).to_vec();
+        let identifier = Sha256::digest(format!("{operation}/{execution}/{}", request.request_id))
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let replay: Option<(Vec<u8>, i64)> = transaction
+            .query_row(
+                "SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",
+                params![execution, operation, request.request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let (artifact, sequence) = if let Some((saved, sequence)) = replay {
+            if saved != fingerprint {
+                return Err(Error::Conflict("Create Artifact: Use a New Request ID for Changed Content or Metadata".into()));
+            }
+            let payload: Vec<u8> =
+                transaction.query_row("SELECT metadata FROM content_objects WHERE id=?1", [&identifier], |row| row.get(0))?;
+            (v1::ArtifactMetadata::decode(payload.as_slice())?, sequence as u64)
+        } else {
+            require_open(&transaction, execution)?;
+            let (owner, length, sha256, phase): (String, i64, String, i32) =
+                transaction.query_row("SELECT execution,length,sha256,phase FROM content_objects WHERE id=?1", [&source.id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })?;
+            let digest = (0..sha256.len())
+                .step_by(2)
+                .map(|index| {
+                    u8::from_str_radix(&sha256[index..index + 2], 16)
+                        .map_err(|_| Error::Invalid("Create Artifact: Restore Its Published Digest".into()))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            if owner != execution
+                || phase != 2
+                || reference.length != length as u64
+                || reference.sha256 != digest
+                || source.expected_length.is_some_and(|expected| expected != length as u64)
+                || source.expected_sha256.as_ref().is_some_and(|expected| expected != &digest)
+                || reference
+                    .position
+                    .as_ref()
+                    .and_then(|position| position.history.as_ref())
+                    .is_none_or(|history| history.store != self.identity.as_ref() || history.epoch != execution)
+            {
+                return Err(Error::Invalid(
+                    "Create Artifact: Keep Its Original Published File Reference Within the Execution Scope".into(),
+                ));
+            }
+            let artifact = v1::ArtifactMetadata {
+                artifact_id: identifier.clone(),
+                scope: Some(scope.clone()),
+                filename: request.filename.clone(),
+                content_type: Some(request.content_type.clone()),
+                size_bytes: length as u64,
+                sha256: sha256.clone(),
+                state: v1::ArtifactState::Complete as i32,
+                created_at: Some(prost_types::Timestamp {
+                    seconds: now_ns.div_euclid(1_000_000_000),
+                    nanos: now_ns.rem_euclid(1_000_000_000) as i32,
+                }),
+                ..Default::default()
+            };
+            transaction.execute(
+                "INSERT INTO content_objects VALUES(?1,?2,?3,1,?4,?5,?6,2)",
+                params![identifier, execution, request.filename, artifact.encode_to_vec(), length, sha256],
+            )?;
+            transaction.execute(
+                "INSERT INTO content_chunks SELECT ?1,offset,payload FROM content_chunks WHERE object=?2",
+                params![identifier, source.id],
+            )?;
+            let sequence = next_position(&transaction, execution)?;
+            append_reference(&transaction, execution, "artifact:metadata", artifact.encode_to_vec())?;
+            transaction.execute(
+                "INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",
+                params![execution, operation, request.request_id, fingerprint, sequence as i64],
+            )?;
+            (artifact, sequence)
+        };
+        transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
+        let position = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: execution.into(),
+            }),
+            sequence,
+        };
+        Ok(v1::content::ArtifactsCreateResponse {
+            artifact: Some(artifact),
+            receipt: Some(Receipt {
+                request_id: request.request_id,
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            }),
+        })
+    }
     pub fn publish_artifact_chunk(
         &self, execution: &str, request: v1::PublishArtifact, identifier: &str, now_ns: i64,
     ) -> Result<v1::ArtifactReceipt> {

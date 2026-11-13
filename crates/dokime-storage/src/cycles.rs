@@ -70,7 +70,7 @@ impl Store {
                 receipt.detail = Some("Host Restarted; Inspect the Sealed Execution Before Starting a New Run".into());
                 transaction.execute(
                     "UPDATE commands SET payload=?1 WHERE request=?2 AND id=?3",
-                    params![receipt.encode_to_vec(), receipt.request_id, receipt.command_id],
+                    params![receipt.encode_to_vec(), receipt.execution_id, receipt.command_id],
                 )?;
             }
         }

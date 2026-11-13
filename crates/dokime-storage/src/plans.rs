@@ -76,6 +76,21 @@ impl Store {
             case.case_id = format!("case-{registration}-{index}");
             transaction.execute("INSERT INTO cases VALUES (?1,?2,?3)", params![case.case_id, cycle, case.encode_to_vec()])?;
         }
+        if let Some(key) = key {
+            let position = harmos_protocol::v1::Position {
+                history: Some(harmos_protocol::v1::History {
+                    store: self.identity.to_string(),
+                    epoch: "case-registrations".into(),
+                }),
+                sequence: registration as u64,
+            };
+            reply.receipt = Some(harmos_protocol::v1::Receipt {
+                request_id: key.into(),
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            });
+        }
         if reply.encoded_len() > max_reply_bytes {
             return Err(Error::Invalid("Register Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));
         }

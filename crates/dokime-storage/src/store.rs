@@ -115,7 +115,6 @@ impl Store {
                     "evidence_reads",
                     "executions",
                     "notes",
-                    "plot_preferences",
                     "plugins",
                     "read_positions",
                     "record_fields",
@@ -129,6 +128,12 @@ impl Store {
                     "streams",
                 ]
             {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
+            let response_column: bool =
+                connection
+                    .query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('deletions') WHERE name='response')", [], |row| row.get(0))?;
+            if !response_column {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -153,7 +158,6 @@ impl Store {
                 CREATE INDEX content_path ON content_objects(execution,path);
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
-                CREATE TABLE plot_preferences(execution TEXT NOT NULL REFERENCES executions(id), document TEXT NOT NULL, plot TEXT NOT NULL, points INTEGER, technique INTEGER NOT NULL, PRIMARY KEY(execution,document,plot));
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
@@ -162,7 +166,7 @@ impl Store {
                 CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
                 CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
                 CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
-                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL);
+                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL, response BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
@@ -334,20 +338,54 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
     }
-    pub fn append_requested(&self,execution:&str,operation:&str,request_id:&str,fingerprint:&[u8],mut evidence:Evidence)->Result<(u64,harmos_protocol::v1::Receipt)> {
-        use harmos_protocol::v1::{History,Position,Receipt};
-        if request_id.is_empty(){return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));}
-        let mut connection=self.lock()?;let transaction=connection.transaction()?;
-        let saved:Option<(Vec<u8>,i64)>=transaction.query_row("SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",params![execution,operation,request_id],|row|Ok((row.get(0)?,row.get(1)?))).optional()?;
-        let position=if let Some((saved,position))=saved {if saved!=fingerprint{return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));}position as u64}else{
-            insert_evidence(&transaction,execution,&mut evidence)?;
-            transaction.execute("INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",params![execution,operation,request_id,fingerprint,evidence.position as i64])?;
+    pub fn append_requested(
+        &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
+    ) -> Result<(u64, harmos_protocol::v1::Receipt)> {
+        use harmos_protocol::v1::{History, Position, Receipt};
+        if request_id.is_empty() {
+            return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
+        }
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let saved: Option<(Vec<u8>, i64)> = transaction
+            .query_row(
+                "SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",
+                params![execution, operation, request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let position = if let Some((saved, position)) = saved {
+            if saved != fingerprint {
+                return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));
+            }
+            position as u64
+        } else {
+            insert_evidence(&transaction, execution, &mut evidence)?;
+            transaction.execute(
+                "INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",
+                params![execution, operation, request_id, fingerprint, evidence.position as i64],
+            )?;
             evidence.position
         };
-        transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)",params![execution,position as i64])?;
-        transaction.commit()?;self.changed.send_modify(|revision|*revision+=1);
-        let durable=Position {history:Some(History {store:self.identity.to_string(),epoch:execution.into()}),sequence:position};
-        Ok((position,Receipt {request_id:request_id.into(),accepted_at:Some(durable.clone()),durable_at:Some(durable),completed:true}))
+        transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)", params![execution, position as i64])?;
+        transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
+        let durable = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: execution.into(),
+            }),
+            sequence: position,
+        };
+        Ok((
+            position,
+            Receipt {
+                request_id: request_id.into(),
+                accepted_at: Some(durable.clone()),
+                durable_at: Some(durable),
+                completed: true,
+            },
+        ))
     }
     pub fn open_stream(&self, execution: &str, stream: &str) -> Result<()> {
         let connection = self.lock()?;
@@ -452,62 +490,59 @@ impl Store {
 
 /* === Private Functions === */
 
-fn insert_evidence(transaction:&rusqlite::Transaction<'_>,execution:&str,evidence:&mut Evidence)->Result<()> {
-        require_open(transaction, execution)?;
-        evidence.position = next_position(transaction, execution)?;
+fn insert_evidence(transaction: &rusqlite::Transaction<'_>, execution: &str, evidence: &mut Evidence) -> Result<()> {
+    require_open(transaction, execution)?;
+    evidence.position = next_position(transaction, execution)?;
+    transaction.execute(
+        "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
+        params![execution, evidence.position as i64, evidence.encode_to_vec()],
+    )?;
+    if evidence.kind == "attempt:start" {
         transaction.execute(
-            "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
-            params![execution, evidence.position as i64, evidence.encode_to_vec()],
+            "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
+            params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
         )?;
-        if evidence.kind == "attempt:start" {
-            transaction.execute(
-                "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
-                params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
-            )?;
-        }
-        if let Some(kind) = evidence.kind.strip_prefix("record:") {
-            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
-            let definition = Execution::decode(payload.as_slice())?;
-            let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
-            for section in &catalog.sections {
-                if section.r#type != "dokime.v1.RecordContracts" {
-                    continue;
-                }
-                let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
-                let Some(contract) = contracts
-                    .records
-                    .iter()
-                    .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
-                else {
-                    continue;
-                };
-                let Some(types) = catalog.types.clone() else {
-                    continue;
-                };
-                let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
-                    continue;
-                };
-                let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
-                    continue;
-                };
-                let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
-                    continue;
-                };
-                let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
-                    continue;
-                };
-                for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
-                    transaction.execute(
-                        "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
-                    )?;
-                }
+    }
+    if let Some(kind) = evidence.kind.strip_prefix("record:") {
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let definition = Execution::decode(payload.as_slice())?;
+        let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
+        for section in &catalog.sections {
+            if section.r#type != "dokime.v1.RecordContracts" {
+                continue;
+            }
+            let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
+            let Some(contract) =
+                contracts.records.iter().find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
+            else {
+                continue;
+            };
+            let Some(types) = catalog.types.clone() else {
+                continue;
+            };
+            let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
+                continue;
+            };
+            let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
+                continue;
+            };
+            let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
+                continue;
+            };
+            let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
+                continue;
+            };
+            for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
+                transaction.execute(
+                    "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
+                )?;
             }
         }
+    }
 
-Ok(())
+    Ok(())
 }
-
 
 fn configure_read_functions(connection: &Connection) -> Result<()> {
     connection.create_scalar_function(

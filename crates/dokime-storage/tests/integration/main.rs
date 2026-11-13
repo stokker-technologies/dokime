@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod report_integrity;
+mod resource_positions;
 
 /* === Re-Exports === */
 

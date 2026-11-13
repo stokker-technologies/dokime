@@ -41,8 +41,11 @@ use crate::{Error, Result, Store};
 impl Store {
     pub fn administration_value(&self, key: &str, initial: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
         let connection = self.lock()?;
-        let payload: Option<Vec<u8>> = connection.query_row("SELECT payload FROM administration WHERE id=?1", [key], |row| row.get(0)).optional()?;
-        let revision: Option<Vec<u8>> = connection.query_row("SELECT payload FROM administration WHERE id=?1", [format!("revision:{key}")], |row| row.get(0)).optional()?;
+        let payload: Option<Vec<u8>> =
+            connection.query_row("SELECT payload FROM administration WHERE id=?1", [key], |row| row.get(0)).optional()?;
+        let revision: Option<Vec<u8>> = connection
+            .query_row("SELECT payload FROM administration WHERE id=?1", [format!("revision:{key}")], |row| row.get(0))
+            .optional()?;
         Ok((payload.unwrap_or_else(|| initial.to_vec()), revision.unwrap_or_else(|| 0_u64.to_be_bytes().to_vec())))
     }
 
@@ -50,33 +53,70 @@ impl Store {
         &self, key: &str, expected: &[u8], request_id: &str, fingerprint: &[u8], payload: &[u8],
     ) -> Result<(Vec<u8>, Vec<u8>, harmos_protocol::v1::Receipt)> {
         use harmos_protocol::v1::{History, Position, Receipt, Section};
-        if request_id.is_empty() { return Err(Error::Invalid(format!("Set {key}: Supply a Request ID"))); }
+        if request_id.is_empty() {
+            return Err(Error::Invalid(format!("Set {key}: Supply a Request ID")));
+        }
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let request_key = format!("request:{key}:{request_id}");
-        let saved: Option<Vec<u8>> = transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&request_key], |row|row.get(0)).optional()?;
+        let saved: Option<Vec<u8>> =
+            transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&request_key], |row| row.get(0)).optional()?;
         let result = if let Some(saved) = saved {
             let saved = Section::decode(saved.as_slice())?;
-            if saved.r#type.as_bytes() != fingerprint { return Err(Error::Conflict(format!("Set {key}: Use a New Request ID for a Changed Value"))); }
+            if saved.r#type.as_bytes() != fingerprint {
+                return Err(Error::Conflict(format!("Set {key}: Use a New Request ID for a Changed Value")));
+            }
             Section::decode(saved.payload.as_slice())?
         } else {
             let revision_key = format!("revision:{key}");
-            let revision: Option<Vec<u8>> = transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&revision_key], |row|row.get(0)).optional()?;
-            let revision = revision.unwrap_or_else(||0_u64.to_be_bytes().to_vec());
-            if expected != revision { return Err(Error::Conflict(format!("Set {key}: Get Its Current Revision"))); }
-            let sequence = u64::from_be_bytes(revision.as_slice().try_into().map_err(|_|Error::Incompatible(format!("{key} Revision")))?).checked_add(1).ok_or_else(||Error::Invalid(format!("Set {key}: Revision Exhausted")))?;
-            let result = Section {r#type:sequence.to_string(),payload:payload.to_vec()};
-            let saved = Section {r#type:String::from_utf8(fingerprint.to_vec()).map_err(|_|Error::Invalid(format!("Set {key}: Supply an ASCII Fingerprint")))?,payload:result.encode_to_vec()};
-            for (id,bytes) in [(key.to_string(),payload.to_vec()),(revision_key,sequence.to_be_bytes().to_vec()),(request_key,saved.encode_to_vec())] {
-                transaction.execute("INSERT INTO administration VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",params![id,bytes])?;
+            let revision: Option<Vec<u8>> =
+                transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&revision_key], |row| row.get(0)).optional()?;
+            let revision = revision.unwrap_or_else(|| 0_u64.to_be_bytes().to_vec());
+            if expected != revision {
+                return Err(Error::Conflict(format!("Set {key}: Get Its Current Revision")));
+            }
+            let sequence = u64::from_be_bytes(revision.as_slice().try_into().map_err(|_| Error::Incompatible(format!("{key} Revision")))?)
+                .checked_add(1)
+                .ok_or_else(|| Error::Invalid(format!("Set {key}: Revision Exhausted")))?;
+            let result = Section {
+                r#type: sequence.to_string(),
+                payload: payload.to_vec(),
+            };
+            let saved = Section {
+                r#type: String::from_utf8(fingerprint.to_vec())
+                    .map_err(|_| Error::Invalid(format!("Set {key}: Supply an ASCII Fingerprint")))?,
+                payload: result.encode_to_vec(),
+            };
+            for (id, bytes) in
+                [(key.to_string(), payload.to_vec()), (revision_key, sequence.to_be_bytes().to_vec()), (request_key, saved.encode_to_vec())]
+            {
+                transaction.execute(
+                    "INSERT INTO administration VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                    params![id, bytes],
+                )?;
             }
             result
         };
-        let sequence = result.r#type.parse::<u64>().map_err(|_|Error::Incompatible(format!("{key} Request Receipt")))?;
+        let sequence = result.r#type.parse::<u64>().map_err(|_| Error::Incompatible(format!("{key} Request Receipt")))?;
         transaction.commit()?;
-        self.changed.send_modify(|revision|*revision+=1);
-        let position=Position {history:Some(History {store:self.identity.to_string(),epoch:format!("value/{key}")}),sequence};
-        Ok((result.payload,sequence.to_be_bytes().to_vec(),Receipt {request_id:request_id.into(),accepted_at:Some(position.clone()),durable_at:Some(position),completed:true}))
+        self.changed.send_modify(|revision| *revision += 1);
+        let position = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: format!("value/{key}"),
+            }),
+            sequence,
+        };
+        Ok((
+            result.payload,
+            sequence.to_be_bytes().to_vec(),
+            Receipt {
+                request_id: request_id.into(),
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            },
+        ))
     }
     pub fn delete_administration(&self, key: &str) -> Result<()> {
         self.lock()?.execute("DELETE FROM administration WHERE id=?1", [key])?;
@@ -128,7 +168,6 @@ impl Store {
         transaction.commit()?;
         Ok(true)
     }
-
 }
 
 /* === Public Functions === */
