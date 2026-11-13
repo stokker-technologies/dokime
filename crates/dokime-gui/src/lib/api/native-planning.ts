@@ -15,25 +15,24 @@
 
 import {
   CaseStatus,
-  CriterionStatus,
-  CyclePhase,
-  CycleStatus,
-  CycleOrderKey,
-  ExecutionState,
-  LiveExecutionState,
-  ResultStatus,
-  StepStatus,
   type CaseDetail as HostCaseDetail,
   type CaseSummary as HostCaseSummary,
-  type CycleSummary as HostCycleSummary,
-  type ExecutionSummary as HostExecutionSummary,
   type CaseActions as HostCaseActions,
-  type Cursor as HostCursor,
-  type ExecutionOutcome,
+} from "@host/dokime/client/v1/cases_pb.js";
+import {
+  CriterionStatus,
+  LiveExecutionState,
+  StepStatus,
+  type ExecutionSummary as HostExecutionSummary,
   type ExecutionControls,
-} from "@host/dokime/v1/client_types_pb.js";
+} from "@host/dokime/client/v1/executions_pb.js";
+import { CyclePhase, CycleStatus, type CycleSummary as HostCycleSummary } from "@host/dokime/v1/cycles_pb.js";
+import { CycleOrderKey } from "@host/dokime/client/v1/cycles_pb.js";
+import { ExecutionState, ResultStatus, type ExecutionOutcome } from "@host/dokime/v1/execution_pb.js";
+import type { ReadCut } from "@host/harmos/v1/types_pb.js";
+import { required, cutKey } from "@/lib/rpc/canonical";
 import { Termination } from "@host/dokime/v1/execution_pb.js";
-import type { Value as HostValue } from "@host/dokime/v1/values_pb.js";
+import type { Value as HostValue } from "@host/dokime/v1/scalar_pb.js";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import { jsonToNativeValue, metadataJson, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
@@ -53,7 +52,7 @@ import type {
   TestExecution,
   TestTemplateMetadata,
 } from "@/lib/types";
-import { fetchNativeSuite, fetchNativeSuites } from "@/lib/host/catalog";
+import { fetchNativeSuite, fetchNativeSuites } from "@/lib/host/suites";
 import {
   durationSeconds,
   mapBounded,
@@ -66,7 +65,7 @@ import {
   timestampIso,
 } from "./native-values";
 
-type Cursor = Wire<HostCursor>;
+type Cursor = Wire<ReadCut>;
 type CaseDetail = Wire<HostCaseDetail>;
 type CaseSummary = Wire<HostCaseSummary>;
 type ExecutionSummary = Wire<HostExecutionSummary>;
@@ -81,7 +80,7 @@ export async function previewNativeTestCycle(
   request: PreviewTestCycleRequest,
 ): Promise<PreviewTestCycleResponse> {
   const plan = await nativeSelectionPlan(session, request, request.cycle_id ?? "");
-  const reply = await rpc.planningPreviewSelection(session, { plan });
+  const reply = await rpc.casesCreate(session, { plan, validateOnly: true });
   return {
     case_count: reply.cases.length,
     cases: reply.cases.map((item, _index) => ({
@@ -113,7 +112,7 @@ export type NewCycleRequest = {
  * Cases materialize and append separately. Creation never starts hardware.
  */
 export async function createNativeTestCycle(session: SessionIdentity, request: NewCycleRequest): Promise<{ cycleId: string }> {
-  const created = await rpc.executionCreateCycle(session, {
+  const created = await rpc.cyclesCreate(session, {
     metadata: {
       identifier: "",
       label: request.label,
@@ -122,9 +121,9 @@ export async function createNativeTestCycle(session: SessionIdentity, request: N
       attributes: {},
     },
     continueAutomatically: request.continueAutomatically,
-    context: { correlationId: crypto.randomUUID() },
+    requestId: crypto.randomUUID(),
   });
-  return { cycleId: created.cycleId };
+  return { cycleId: required(created.cycle, "Create Cycle").cycleId };
 }
 
 export async function appendNativeTestCycle(
@@ -132,16 +131,16 @@ export async function appendNativeTestCycle(
   cycleId: string,
   selections: TestCycleSelection[],
 ): Promise<StartTestCycleResponse> {
-  const destination = await rpc.executionGetCycle(session, { cycleId });
+  const destination = required((await rpc.cyclesGet(session, { name: cycleId })).cycle, "Get Cycle");
   if (destination.phase !== CyclePhase.ACTIVE) throw new Error("Choose an Active cycle before adding cases.");
   /* Materialize Reusable Cases Before Registering Explicit Attempts */
   const plan = await nativeSelectionPlan(session, { parameters: {}, selections }, cycleId);
-  const registered = await rpc.planningRegisterSelection(session, { plan, idempotencyKey: crypto.randomUUID() });
+  const registered = await rpc.casesCreate(session, { plan, requestId: crypto.randomUUID() });
   const materialized = registered.cases;
   const executions = materialized.map((item) => ({ executionId: crypto.randomUUID(), caseId: item.caseId }));
   if (executions.length > NATIVE_CASE_LIMIT)
     throw new NativeApiLimitError("Execution.AppendExecutions", `more than ${NATIVE_CASE_LIMIT} cases`);
-  await rpc.executionAppendExecutions(session, { cycleId, executions });
+  await rpc.executionsCreate(session, { parent: cycleId, executions, requestId: crypto.randomUUID() });
   const next = await fetchNativeTestCyclePlan(session, cycleId);
   if (!next) throw new Error("The cycle disappeared after appending planned cases.");
   return { plan: next };
@@ -176,10 +175,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
     );
 
   const caseDetails = await mapBounded(cases, async (item) => {
-    const detail = await rpc.executionGetCase(session, {
-      cycleId: summary.cycleId,
-      caseId: item.caseId,
-    });
+    const detail = required((await rpc.casesGet(session, { parent: summary.cycleId, name: item.caseId })).value, "Get Case");
     const parameters = await listNativeCaseParameters(session, summary.cycleId, item.caseId);
     return { item, detail, parameters };
   });
@@ -279,7 +275,7 @@ export function mapNativeExecutionSummary(item: ExecutionSummary, cases: TestCas
 
 function mapTemplateMetadata(template: SuiteTemplateEntry): TestTemplateMetadata {
   // Keep the original cycle-plan projection: the HTTP runtime mapper also
-  // supplied no authored metadata here. Native Catalog carries the same
+  // supplied no authored metadata here. The Suite Definition carries the same
   // suite-picker fields; document/record owners provide those views.
   return {
     template_id: template.template_id,
@@ -337,7 +333,7 @@ async function nativeSelectionPlan(
   session: SessionIdentity,
   request: PreviewTestCycleRequest,
   cycleId = "",
-): Promise<Wire<NonNullable<Parameters<typeof rpc.planningPreviewSelection>[1]["plan"]>>> {
+): Promise<Wire<NonNullable<Parameters<typeof rpc.casesCreate>[1]["plan"]>>> {
   const selections =
     request.selections && request.selections.length > 0
       ? request.selections
@@ -375,7 +371,7 @@ async function nativeSelectionPlan(
     };
   });
   const maxCases = request.max_cases ?? NATIVE_CASE_LIMIT;
-  if (maxCases < 1 || maxCases > NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Planning.SelectionPlan", `max_cases ${maxCases}`);
+  if (maxCases < 1 || maxCases > NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Cases.Create", `max_cases ${maxCases}`);
   return {
     selections: nativeSelections,
     maxCases,
@@ -393,37 +389,10 @@ export type NativeStartAdmission = { commandId: string; jobId: string | null };
  * issues; raising it verbatim is what lets the workspace tell the operator
  * why, rather than leaving a control that did nothing.
  */
-export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof rpc.executionStartExecution>>>): NativeStartAdmission {
-  if (reply.outcome?.kind.case === "accepted") {
-    const accepted = reply.outcome.kind.value;
-    if (!accepted) throw new Error("Native execution admission has no accepted payload.");
-    return { commandId: accepted.commandId, jobId: accepted.jobId ?? null };
-  }
-  if (reply.outcome?.kind.case === "rejected") {
-    const detail = reply.outcome.kind.value;
-    if (!detail) throw new Error("Native execution admission has no rejection payload.");
-    const issues = detail.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
-    /* The code travels with the message. It is the runtime's own vocabulary
-       for the refusal — `conflict`, `runtime_unavailable`,
-       `provider_identity_changed` — and without it the operator, and anyone
-       reading a gate log, has prose and no way to tell two refusals apart. */
-    const message = detail.code ? `${detail.code}: ${detail.message}` : detail.message;
-    const failure = new Error(issues ? `${message} (${issues})` : message);
-    Object.assign(failure, {
-      notificationFailure: {
-        reason: detail.code,
-        operation: "Execution.StartExecution",
-        operationId: "dokime.execution.start_execution",
-        problems: detail.issues.map((issue) => ({
-          label: issue.path,
-          message: issue.message,
-          causes: issue.expected ? [`Expected: ${issue.expected}`] : undefined,
-        })),
-      },
-    });
-    throw failure;
-  }
-  throw new Error("The native backend returned no execution admission outcome.");
+export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof rpc.executionsStart>>>): NativeStartAdmission {
+  const execution = required(reply.execution, "Start Execution");
+  const commandId = required(execution.controls?.requestId, "Start Execution Admission");
+  return { commandId, jobId: null };
 }
 
 /**
@@ -436,68 +405,57 @@ export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof 
  * is ascending.
  */
 export type NativeCycleSelection = {
-  filter?: NonNullable<Parameters<typeof rpc.executionListCycles>[1]["filter"]>;
-  order?: NonNullable<Parameters<typeof rpc.executionListCycles>[1]["order"]>;
+  filter?: NonNullable<Parameters<typeof rpc.cyclesList>[1]["filter"]>;
+  order?: NonNullable<Parameters<typeof rpc.cyclesList>[1]["order"]>;
 };
 
 /** Every page of Execution.ListCycles under one unchanged selection. */
 export async function listNativeCycles(session: SessionIdentity, selection: NativeCycleSelection = {}): Promise<CycleSummary[]> {
   const result: CycleSummary[] = [];
-  let afterCycleId = "";
-  let cursor: Cursor | undefined;
-  /* The contract rejects a continuation whose selection or order changed
-     rather than silently restarting it, so both are built once and repeated
-     by reference on every page of this read. */
+  let pageToken = "";
+  let at: Cursor | undefined;
   const filter = selection.filter ?? { text: "", statuses: [] };
-  const order = selection.order ?? {
-    key: CycleOrderKey.UPDATED_AT,
-    descending: true,
-  };
+  const order = selection.order ?? { key: CycleOrderKey.UPDATED_AT, descending: true };
+  const tokens = new Set<string>();
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListCycles(session, {
-      limit: NATIVE_PAGE_SIZE,
-      afterCycleId,
-      cursor,
-      filter,
-      order,
-    });
+    const reply = await rpc.cyclesList(session, { filter, order, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
+    const cut = required(reply.resolvedAt, "List Cycles Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("List Cycles: Retained Cut Changed");
+    at = cut;
     result.push(...reply.cycles);
-    const next = reply.nextAfterCycleId;
-    if (!next) return result;
-    if (next === afterCycleId) throw new NativeApiLimitError("Execution.ListCycles", `cursor did not advance at ${next}`);
-    afterCycleId = next;
-    cursor = reply.cursor;
+    if (!reply.nextPageToken) return result;
+    if (tokens.has(reply.nextPageToken)) throw new NativeApiLimitError("Cycles.List", "Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
   }
-  throw new NativeApiLimitError("Execution.ListCycles", `more than ${NATIVE_MAX_PAGES} pages`);
+  throw new NativeApiLimitError("Cycles.List", "Page Budget Reached");
 }
 
 export async function listNativeCases(session: SessionIdentity, cycleId: string): Promise<CaseSummary[]> {
-  return (await rpc.executionListCases(session, { cycleId })).cases;
+  return (await rpc.casesList(session, { parent: cycleId })).cases;
 }
 
 export async function listNativeExecutions(session: SessionIdentity, cycleId: string): Promise<ExecutionSummary[]> {
   const result: ExecutionSummary[] = [];
-  let afterExecutionId = "";
-  let cursor: Cursor | undefined;
+  let pageToken = "";
+  let at: Cursor | undefined;
+  const tokens = new Set<string>();
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListExecutions(session, {
-      cycleId,
-      limit: NATIVE_PAGE_SIZE,
-      afterExecutionId,
-      cursor,
-    });
-    result.push(...reply.executions);
-    const next = reply.nextAfterExecutionId;
-    if (!next) return result;
-    if (next === afterExecutionId) throw new NativeApiLimitError("Execution.ListExecutions", `cursor did not advance at ${next}`);
-    afterExecutionId = next;
-    cursor = reply.cursor;
+    const reply = await rpc.executionsList(session, { parent: cycleId, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
+    const cut = required(reply.resolvedAt, "List Executions Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("List Executions: Retained Cut Changed");
+    at = cut;
+    result.push(...reply.executions.map((item) => required(item.summary, "List Execution Summary")));
+    if (!reply.nextPageToken) return result;
+    if (tokens.has(reply.nextPageToken)) throw new NativeApiLimitError("Executions.List", "Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
   }
-  throw new NativeApiLimitError("Execution.ListExecutions", `more than ${NATIVE_MAX_PAGES} pages`);
+  throw new NativeApiLimitError("Executions.List", "Page Budget Reached");
 }
 
 export async function listNativeCaseParameters(session: SessionIdentity, cycleId: string, caseId: string) {
-  return (await rpc.executionListCaseParameters(session, { cycleId, caseId })).parameters;
+  return (await rpc.casesParameters(session, { parent: cycleId, name: caseId })).parameters;
 }
 
 export function mapCycleStatus(status: CycleStatus | undefined): TestCyclePlan["test_cycle"]["status"] {

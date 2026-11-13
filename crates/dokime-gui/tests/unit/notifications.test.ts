@@ -303,7 +303,7 @@ test("Details Show Problems and Copy Collapsed Diagnostics Without Debug Formatt
   vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
   const failure = {
     reason: "validation",
-    operation: "Planning.PreviewSelection",
+    operation: "Cases.Create",
     operationId: "dokime.planning.preview_selection",
     requestId: "request-7",
     invocationId: "invocation-8",
@@ -368,14 +368,15 @@ test("Details Show Problems and Copy Collapsed Diagnostics Without Debug Formatt
 
 test("Native Rejections and Captured Diagnostics Reach Notification History", async () => {
   const { create, toBinary } = await import("@bufbuild/protobuf");
-  const { StatusSchema, RejectionSchema, CapturedRecordErrorSchema } = await import("@/lib/rpc/generated/errors");
+  const { StatusSchema, FailureSchema, CapturedRecordErrorSchema } = await import("@/lib/rpc/generated/errors");
   const { normalizeRpcError } = await import("@/lib/rpc/errors");
   const history = await import("@/lib/notifications");
   const { notificationDetailsText } = await import("@/lib/notification-details");
-  const rejected = create(RejectionSchema, {
+  const rejected = create(FailureSchema, {
     code: "fixture-invalid",
     message: "fixture-request-refused",
-    issues: [{ path: "parameters.voltage", message: "fixture-out-of-range", expected: "fixture-range" }],
+    operation: "fixture.operation",
+    diagnostics: "fixture-diagnostic",
   });
   const captured = create(CapturedRecordErrorSchema, {
     message: "fixture-summary",
@@ -384,8 +385,8 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     diagnostics: "fixture-backtrace\nfixture-frame",
   });
   for (const [typeUrl, value] of [
-    ["type.googleapis.com/dokime.v1.Rejection", toBinary(RejectionSchema, rejected)],
-    ["type.googleapis.com/dokime.v1.CapturedRecordError", toBinary(CapturedRecordErrorSchema, captured)],
+    ["type.googleapis.com/harmos.v1.Failure", toBinary(FailureSchema, rejected)],
+    ["type.googleapis.com/dokime.client.v1.evidence.CapturedRecordError", toBinary(CapturedRecordErrorSchema, captured)],
   ] as const) {
     const envelope = create(StatusSchema, { code: 3, message: "fixture-request-refused", details: [{ typeUrl, value }] });
     const error = normalizeRpcError({
@@ -397,9 +398,8 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
   }
   const records = (await history.notificationPage()).records;
   const rejection = records.find((record) => record.failure?.reason === "fixture-invalid");
-  assert.deepEqual(rejection?.failure?.problems, [
-    { label: "parameters.voltage", message: "fixture-out-of-range", causes: ["Expected: fixture-range"] },
-  ]);
+  assert.equal(rejection?.failure?.operationId, "fixture.operation");
+  assert.equal(rejection?.failure?.diagnostics, "fixture-diagnostic");
   const diagnostic = records.find((record) => record.failure?.causes?.length);
   assert.ok(diagnostic);
   assert.deepEqual(diagnostic.failure?.causes, ["fixture-root-code: fixture-root", "fixture-wrapper"]);
@@ -416,7 +416,7 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     invocationId: "fixture-invocation-id",
   });
   await assert.rejects(
-    transport.unary("/dokime.v1.Execution/StartExecution", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
+    transport.unary("/dokime.client.v1.Executions/Start", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
     (error: unknown) => {
       assert.equal(error, refusal);
       history.toast.error(failureOf(error, "fixture-admission"));

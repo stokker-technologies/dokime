@@ -4,11 +4,12 @@
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import type { Wire } from "./canonical.js";
 import * as rpc from "../host/client";
-import { LogoVariant } from "@host/dokime/v1/appearance_pb.js";
+import { LogoVariant } from "@host/dokime/client/v1/backend_pb.js";
 
 import type { SessionIdentity } from "./transport.js";
 
-type AppearanceSnapshot = Wire<Awaited<ReturnType<typeof rpc.appearanceGetAppearance>>>;
+import { required } from "./canonical";
+type AppearanceSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendAppearance>>["appearance"]>>;
 
 export interface AppearanceResource {
   appearance: AppearanceSnapshot;
@@ -28,7 +29,7 @@ function invalid(): never {
  * of its installed appearance assets.
  */
 export async function loadAppearance(session: SessionIdentity): Promise<AppearanceResource> {
-  const appearance = await rpc.appearanceGetAppearance(session, {});
+  const appearance = required((await rpc.backendAppearance(session, {})).appearance, "Read Appearance");
   const logos: RuntimeAppLogo[] = [];
   let disposed = false;
   const dispose = () => {

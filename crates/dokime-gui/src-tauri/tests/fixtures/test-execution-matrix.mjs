@@ -6,19 +6,17 @@ const harness = await openHarness();
 let progress;
 try {
   const api = await harness.loadHost("client.js");
-  const types = await harness.loadHost("dokime/v1/client_types_pb.js");
+  const types = await harness.loadHost("dokime/v1/execution_pb.js");
   const execution = await harness.loadHost("dokime/v1/execution_pb.js");
   const scenario = process.argv[2];
   const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
   // Materialize the SDK Fixture's Frozen Origin
-  const catalog = await api.catalogListSuites(session, {});
-  const suite = await api.catalogGetSuite(session, { suiteId: catalog.suites[0].suiteId });
-  const plan = await api.planningMaterializeTemplate(session, { selection: {
-    suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier,
-  } });
+  const registry = await api.suitesList(session, {});
+  const suite = (await api.suitesGet(session, { name: registry.values[0].metadata.identifier })).value;
+  const plan = await api.casesCreate(session, { plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] }, validateOnly: true, requestId: crypto.randomUUID() });
   assert.equal(plan.cases.length, 1);
-  const cycle = await api.executionCreateCycle(session, { origins: plan.cases.map(item => item.origin), continueAutomatically: true });
-  const executionId = cycle.executionIds[0];
+  const cycle = (await api.cyclesCreate(session, { origins: plan.cases.map(item => item.origin), continueAutomatically: true, requestId: crypto.randomUUID() })).cycle;
+  const executionId = (await api.executionsList(session, { parent: cycle.cycleId })).executions[0].summary.executionId;
   // Await an Actual Prompt Phase; Never Wait for a Fixed Duration
   progress = await api.executionsProgressWatch(session, { name: executionId });
   const iterator = progress[Symbol.asyncIterator]();
@@ -27,16 +25,16 @@ try {
     assert.ok(!next.done, "Execution Must Reach Its Operator Question");
     if (next.value.phase === "prompt") break;
   }
-  const pending = await api.promptsListPending(session, { executionId });
+  const pending = await api.promptsList(session, { executionId, pendingOnly: true });
   assert.equal(pending.prompts.length, 1);
   if (scenario === "cancel") {
-    await api.executionCancelExecution(session, { executionId });
+    await api.executionsCancel(session, { name: executionId, requestId: crypto.randomUUID() });
   } else {
-    await api.promptsRespond(session, { promptId: pending.prompts[0].promptId, action: scenario === "complete" ? "yes" : "no", accepted: true });
+    await api.promptsAnswersCreate(session, { parent: pending.prompts[0].prompt.promptId, requestId: crypto.randomUUID(), action: scenario === "complete" ? "yes" : "no", accepted: true });
   }
   while (!(await iterator.next()).done) {}
   // The Host Seals Evidence for Completion, Refusal and Cancellation
-  const detail = await api.executionGetExecution(session, { executionId });
+  const detail = (await api.executionsGet(session, { name: executionId })).execution;
   assert.equal(detail.summary.state, types.ExecutionState.SEALED);
   assert.ok(detail.seal.length);
   if (scenario === "cancel") {
@@ -45,9 +43,9 @@ try {
   } else {
     assert.equal(detail.outcome.attribution.case, "evaluated");
     assert.equal(detail.outcome.attribution.value.status, scenario === "complete" ? types.ResultStatus.PASSED : types.ResultStatus.FAILED);
-    const samples = await api.telemetryListSamples(session, { scope: { executionId } });
+    const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);
-    const records = await api.evidenceListRecords(session, { selection: { scope: { executionId } } });
+    const records = await api.evidenceRecordsList(session, { selection: { scope: { executionId } } });
     const door = records.records.find(record => record.recordType === "thermal.door");
     assert.ok(door);
     assert.deepEqual([...door.payload], scenario === "complete" ? [8, 1] : []);

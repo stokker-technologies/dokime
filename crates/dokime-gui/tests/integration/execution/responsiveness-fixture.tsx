@@ -236,7 +236,7 @@ async function burst(pages = 20) {
     updates,
     expected,
     actual: tail.records.slice(-expected.length).map((record) => record.record_id),
-    through: tail.cursor?.position.toString(),
+    through: tail.cursor?.positions[0]?.sequence.toString(),
     stableProjection:
       previous.sections === latestView.sections &&
       previous.notes === latestView.notes &&

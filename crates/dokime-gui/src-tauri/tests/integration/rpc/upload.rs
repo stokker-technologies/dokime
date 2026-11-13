@@ -25,6 +25,7 @@ use crate::support::{
     server::Fixture,
 };
 use dokime_gui::rpc::Bridge;
+use dokime_protocol::client;
 use dokime_sdk::v1;
 
 /* === Constants === */
@@ -45,22 +46,22 @@ use dokime_sdk::v1;
 
 /* === Private Functions === */
 
-fn header(size_bytes: u64) -> v1::UploadArtifactHeader {
-    v1::UploadArtifactHeader {
+fn header() -> client::content::ArtifactsCreateRequest {
+    client::content::ArtifactsCreateRequest {
         scope: Some(v1::ArtifactScope {
             cycle_id: Some("desktop-cycle".into()),
             execution_id: Some("desktop-content".into()),
             ..Default::default()
         }),
         filename: "upload-sink-fixture.bin".into(),
-        content_type: Some("application/octet-stream".into()),
-        size_bytes,
+        content_type: "application/octet-stream".into(),
+        request_id: "native-upload".into(),
         ..Default::default()
     }
 }
 
-fn open(harness: &Harness, generation: u64, size_bytes: u64) -> u64 {
-    let reply = invoke(&harness.window, "artifact_upload_open", fenced(generation, &header(size_bytes).encode_to_vec())).unwrap();
+fn open(harness: &Harness, generation: u64) -> u64 {
+    let reply = invoke(&harness.window, "artifact_upload_open", fenced(generation, &header().encode_to_vec())).unwrap();
     let tauri::ipc::InvokeResponseBody::Raw(handle) = reply else {
         panic!("Upload Returns a Native Handle");
     };
@@ -85,7 +86,7 @@ fn upload_sink_completes() {
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
-        let id = open(&harness, generation, 6);
+        let id = open(&harness, generation);
         invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap();
         invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"bar"))).unwrap();
 
@@ -110,7 +111,7 @@ fn upload_refuses_gap() {
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
-        let id = open(&harness, generation, 3);
+        let id = open(&harness, generation);
         let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 2, b"foo"))).unwrap_err();
         assert_eq!(error["kind"], "invalid_ack");
         harness.app.state::<Bridge>().cancel_owner("main");
@@ -125,7 +126,7 @@ fn upload_owner_cancels() {
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
-        let id = open(&harness, generation, 3);
+        let id = open(&harness, generation);
         harness.app.state::<Bridge>().cancel_owner("main");
         let error = invoke(&harness.window, "artifact_upload_write", fenced(generation, &write_payload(id, 1, b"foo"))).unwrap_err();
         assert_eq!(error["kind"], "unknown_stream");
@@ -139,7 +140,7 @@ fn upload_sink_opens() {
         // Native Open Returns Before Input Has Finished
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
-        assert!(open(&harness, fixture.generation(), 1) > 0);
+        assert!(open(&harness, fixture.generation()) > 0);
         harness.app.state::<Bridge>().cancel_owner("main");
         fixture.close().await;
     })

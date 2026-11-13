@@ -13,9 +13,9 @@
 
 import assert from "node:assert/strict";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { SecretImportAction, SecretSnapshotSchema, SecretImportPreviewSchema } from "@host/dokime/v1/client_types_pb.js";
+import { SecretImportAction, SecretSnapshotSchema } from "@host/dokime/client/v1/secrets_pb.js";
 import { beforeEach, test, vi } from "vitest";
-import { SecretsImportRequestSchema } from "@host/dokime/v1/client_secrets_pb.js";
+import { SecretsImportRequestSchema } from "@host/dokime/client/v1/secrets_pb.js";
 import { readSecrets, putSecret, removeSecret, previewSecrets, importSecrets } from "@/lib/api/native-secrets";
 
 const fixture = vi.hoisted(() => ({ unary: vi.fn() }));
@@ -39,12 +39,21 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
       },
     ],
   });
-  const requests: unknown[] = [];
+  const requests: { path: string; value: unknown }[] = [];
+  const revision = new Uint8Array([1, 2, 3]);
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     assert.equal(identity, session);
-    assert.ok(path.startsWith("/dokime.v1.Secrets/"));
-    requests.push(fromBinary(input, toBinary(input, create(input, request))));
-    return fromBinary(output, toBinary(SecretSnapshotSchema, snapshot));
+    const value = fromBinary(input, toBinary(input, create(input, request)));
+    requests.push({ path, value });
+    const reply =
+      path === "/harmos.v1.Status/Get"
+        ? { status: { identity: { hostId: "fixture-host", applicationName: "Fixture Host" } } }
+        : path.endsWith("/Get")
+          ? { revision, value: { metadata: { identifier: "token" } } }
+          : path.endsWith("/List")
+            ? { generation, entries: snapshot.entries }
+            : { receipt: { requestId: request.requestId, completed: true } };
+    return fromBinary(output, toBinary(output, create(output, reply)));
   });
   const catalog = await readSecrets(session);
   assert.equal(catalog.generation, generation);
@@ -52,40 +61,40 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
   assert.deepEqual(catalog.entries[0].knownUses, ["fixture"]);
   await putSecret(session, { identifier: "token", label: "Token" }, undefined, generation);
   await removeSecret(session, "token", generation);
-  const [, put, remove] = requests as [
-    unknown,
-    { generation: bigint; metadata: { identifier: string }; value?: string },
-    { generation: bigint; identifiers: string[] },
-  ];
-  assert.equal(put.generation, generation);
-  assert.equal(put.value, undefined);
-  assert.equal(put.metadata.identifier, "token");
-  assert.deepEqual(remove.identifiers, ["token"]);
-  assert.equal(remove.generation, generation);
+  const put = requests.find((item) => item.path.endsWith("/Set"))?.value as {
+    name: string;
+    expectedRevision: Uint8Array;
+    value: { metadata: { identifier: string }; value?: string };
+  };
+  const remove = requests.find((item) => item.path.endsWith("/Delete"))?.value as { names: string[]; expectedRevision: Uint8Array };
+  assert.equal(put.name, "token");
+  assert.equal(put.value.value, undefined);
+  assert.equal(put.value.metadata.identifier, "token");
+  assert.deepEqual(put.expectedRevision, revision);
+  assert.deepEqual(remove.names, ["token"]);
+  assert.deepEqual(remove.expectedRevision, revision);
+  await assert.rejects(putSecret(session, { identifier: "token", label: "Token" }, undefined, generation - 1n));
 });
 
 test("Secret Transfer Sends Explicit Import Choices and Preserves Conflicts", async () => {
   const data = new Uint8Array([1, 2, 3]);
   const conflict = { kind: "conflict", message: "generation changed" };
-  fixture.unary.mockImplementationOnce(async (_path, _input, output) =>
-    fromBinary(
-      output,
-      toBinary(
-        SecretImportPreviewSchema,
-        create(SecretImportPreviewSchema, {
-          hostId: "fixture-host",
-          generation,
-          entries: [
-            { metadata: { identifier: "replace", label: "Replace" }, exists: true },
-            { metadata: { identifier: "skip", label: "Skip" } },
-          ],
-        }),
-      ),
-    ),
-  );
+  fixture.unary.mockImplementationOnce(async (_path, _input, output, _identity, request) => {
+    assert.equal(request.validateOnly, true);
+    return create(output, {
+      preview: {
+        hostId: "fixture-host",
+        generation,
+        entries: [
+          { metadata: { identifier: "replace", label: "Replace" }, exists: true },
+          { metadata: { identifier: "skip", label: "Skip" } },
+        ],
+      },
+    });
+  });
   const preview = await previewSecrets(session, data);
   fixture.unary.mockImplementationOnce(async (path, input, _output, _identity, request) => {
-    assert.equal(path, "/dokime.v1.Secrets/Import");
+    assert.equal(path, "/dokime.client.v1.Secrets/Import");
     const decoded = fromBinary(SecretsImportRequestSchema, toBinary(input, create(input, request)));
     assert.equal(decoded.generation, generation);
     assert.deepEqual(decoded.data, data);

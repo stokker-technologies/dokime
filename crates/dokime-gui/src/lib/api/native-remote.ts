@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 // Access-Owned Listener Projection for Desktop Settings.
-import type { ApplicationSettings, SettingsSnapshot } from "@generated/application-settings";
+import type { ApplicationSettings, PreferencesSnapshot } from "@generated/application-settings";
 import * as rpc from "@/lib/host/client";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -22,7 +22,7 @@ export type ListenerStatus = {
   keyConfigured?: boolean;
   endpoints: { address: string; adapterName?: string }[];
 };
-export type ScopedPreferencesSnapshot = SettingsSnapshot & { listener?: ListenerStatus };
+export type ScopedPreferencesSnapshot = PreferencesSnapshot & { listener?: ListenerStatus };
 
 export async function readNativeListener(session: SessionIdentity): Promise<ListenerStatus> {
   return projectListener(await rpc.accessListenerGet(session, {}));
@@ -47,7 +47,7 @@ export async function regenerateNativeCertificate(session: SessionIdentity): Pro
   return { ...(await readNativeListener(session)), certificatePem: certificate.certificatePem };
 }
 
-export async function withNativeListener(session: SessionIdentity, snapshot: SettingsSnapshot): Promise<ScopedPreferencesSnapshot> {
+export async function withNativeListener(session: SessionIdentity, snapshot: PreferencesSnapshot): Promise<ScopedPreferencesSnapshot> {
   const listener = await readNativeListener(session);
   return { ...snapshot, listener, settings: { ...snapshot.settings, listener: listenerPreferences(listener.settings) } };
 }

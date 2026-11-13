@@ -16,7 +16,9 @@ import assert from "node:assert/strict";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { ExecutionState, ExecutionSummarySchema, CycleSummarySchema, ExecutionOutcomeSchema } from "@host/dokime/v1/client_types_pb.js";
+import { ExecutionState, ExecutionOutcomeSchema } from "@host/dokime/v1/execution_pb.js";
+import { ExecutionSummarySchema } from "@host/dokime/client/v1/executions_pb.js";
+import { CycleSummarySchema } from "@host/dokime/v1/cycles_pb.js";
 import { Termination } from "@host/dokime/v1/execution_pb.js";
 
 // Local Imports
@@ -117,8 +119,10 @@ test("Live File Refresh", () => {
   const files = createExecutionFileRefresh(refresh, 100);
   const frame = (phase: string, cursor = "1") =>
     ({
-      cursor: { epoch: "epoch", stream: "runtime", position: BigInt(cursor) },
-      operations: [{ operationId: "upload", phase, startedAt: { seconds: 1n, nanos: 0 } }],
+      resolvedAt: {
+        positions: [{ history: { store: "runtime", epoch: "epoch" }, sequence: BigInt(cursor) }],
+        revisions: [{ name: "overview", revision: new TextEncoder().encode(phase) }],
+      },
     }) as unknown as RuntimeStateFrame;
   try {
     files.observe(frame("Receiving 3 B"));
@@ -137,7 +141,7 @@ test("Live File Refresh", () => {
     files.observe(frame("Saving", "2"));
     vi.advanceTimersByTime(100);
     assert.equal(refresh.mock.calls.length, 4);
-    files.observe({ ...frame("Saving", "2"), resynchronized: true });
+    files.observe({ ...frame("Saving", "2"), opening: true });
     vi.advanceTimersByTime(100);
     assert.equal(refresh.mock.calls.length, 5);
     files.observe(frame("Finished", "2"));

@@ -11,12 +11,10 @@
 
 /* === External Imports === */
 
-import {
-  ElapsedUnit as HostElapsedUnit,
-  type ValueFormat as HostValueFormat,
-  type EvidenceScope,
-} from "@host/dokime/v1/client_types_pb.js";
-import { ValueType, type Metadata, type Value } from "@host/dokime/v1/values_pb.js";
+import { ElapsedUnit as HostElapsedUnit, type ValueFormat as HostValueFormat } from "@host/dokime/v1/formatting_pb.js";
+import type { EvidenceScope } from "@host/dokime/v1/evidence_pb.js";
+import { ValueType, type Value } from "@host/dokime/v1/scalar_pb.js";
+import type { Metadata } from "@host/dokime/v1/metadata_pb.js";
 
 /* === Local Imports === */
 

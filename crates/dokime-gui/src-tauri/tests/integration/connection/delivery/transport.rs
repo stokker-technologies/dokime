@@ -24,7 +24,8 @@ use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
 use super::{Gate, HttpRequest, HttpResponse, Service};
-use dokime_sdk::v1;
+use dokime_protocol::{client, v1};
+use dokime_sdk::client::v1 as library;
 
 /* === Constants === */
 
@@ -44,107 +45,129 @@ pub struct DownloadConfig {
 #[derive(Clone)]
 pub struct Content(pub Service);
 
+#[derive(Clone)]
+pub struct Storage(pub Service);
+
+struct Metadata(Service);
 struct Download(Service);
-
-/* === Enums === */
-
-/* === Traits === */
 
 /* === Implementations === */
 
 impl tonic::server::NamedService for Content {
-    const NAME: &'static str = "dokime.v1.Content";
+    const NAME: &'static str = "dokime.client.v1.content.Artifacts";
+}
+impl tonic::server::NamedService for Storage {
+    const NAME: &'static str = "harmos.v1.Storage";
 }
 
 impl tonic::codegen::Service<HttpRequest> for Content {
     type Response = HttpResponse;
     type Error = std::convert::Infallible;
     type Future = BoxFuture<HttpResponse, Self::Error>;
-
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
         std::task::Poll::Ready(Ok(()))
     }
-
     fn call(&mut self, request: HttpRequest) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
-            let response = match request.uri().path() {
-                "/dokime.v1.Content/DownloadArtifact" => {
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).server_streaming(Download(service), request).await
+            Ok(match request.uri().path() {
+                "/dokime.client.v1.content.Artifacts/Get" => {
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Metadata(service), request).await
                 }
-                _ => Status::unimplemented("Fixture Route Is Not Served").into_http(),
-            };
-            Ok(response)
+                _ => Status::unimplemented("Read Artifact: Fixture Route Is Unavailable").into_http(),
+            })
         })
     }
 }
 
-impl tonic::server::ServerStreamingService<v1::ContentDownloadArtifactRequest> for Download {
-    type Response = v1::ContentDownloadArtifactOutput;
-    type ResponseStream = tokio_stream::wrappers::ReceiverStream<Result<Self::Response, Status>>;
-    type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
-
-    fn call(&mut self, request: Request<v1::ContentDownloadArtifactRequest>) -> Self::Future {
+impl tonic::codegen::Service<HttpRequest> for Storage {
+    type Response = HttpResponse;
+    type Error = std::convert::Infallible;
+    type Future = BoxFuture<HttpResponse, Self::Error>;
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+    fn call(&mut self, request: HttpRequest) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
-            let settings = {
-                let mut settings = service.download.lock().unwrap();
-                settings.calls += 1;
-                settings.clone()
-            };
-            let (sender, receiver) = tokio::sync::mpsc::channel(1);
-            tokio::spawn(async move {
-                // Send Contiguous Data with a Separately Verifiable Completion
-                let bytes = bytes();
-                let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-                let metadata = v1::ArtifactMetadata {
-                    artifact_id: request.into_inner().artifact_id,
-                    filename: "evidence.bin".into(),
-                    size_bytes: bytes.len() as u64,
-                    sha256: digest.clone(),
-                    state: v1::ArtifactState::Complete as i32,
-                    ..Default::default()
-                };
-                let frame = |kind| v1::ContentDownloadArtifactOutput {
-                    value: Some(v1::content_download_artifact_output::Value::Item(v1::ArtifactFrame {
-                        payload: Some(v1::ArtifactFramePayload { kind: Some(kind) }),
-                    })),
-                };
-                if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Metadata(metadata)))).await.is_err() {
-                    return;
+            Ok(match request.uri().path() {
+                "/harmos.v1.Storage/GetFileBytes" => {
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await
                 }
-                for (index, chunk) in bytes.chunks(8192).enumerate() {
-                    let chunk = v1::ArtifactChunk {
-                        offset: (index * 8192) as u64,
-                        data: chunk.to_vec(),
-                    };
-                    if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Chunk(chunk)))).await.is_err() {
-                        return;
-                    }
-                }
+                _ => Status::unimplemented("Read File Bytes: Fixture Route Is Unavailable").into_http(),
+            })
+        })
+    }
+}
 
-                // Hold Completion Until the Story Releases or Cancels the Stream
-                if let Some(gate) = settings.gate {
-                    gate.entered.notify_one();
-                    tokio::select! {
-                        permit = gate.release.acquire() => { permit.unwrap().forget(); }
-                        _ = sender.closed() => return,
-                    }
-                }
-                let complete = v1::ArtifactCompletion {
-                    size_bytes: bytes.len() as u64,
-                    sha256: if settings.corrupt { "00".repeat(32) } else { digest },
-                };
-                if sender.send(Ok(frame(v1::artifact_frame_payload::Kind::Complete(complete)))).await.is_err() {
-                    return;
-                }
-                let _ = sender
-                    .send(Ok(v1::ContentDownloadArtifactOutput {
-                        value: Some(v1::content_download_artifact_output::Value::Response(Default::default())),
-                    }))
-                    .await;
-            });
-            Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(receiver)))
+impl tonic::server::UnaryService<client::content::ArtifactsGetRequest> for Metadata {
+    type Response = client::content::ArtifactsGetResponse;
+    type Future = BoxFuture<Response<Self::Response>, Status>;
+    fn call(&mut self, request: Request<client::content::ArtifactsGetRequest>) -> Self::Future {
+        self.0.download.lock().unwrap().calls += 1;
+        Box::pin(async move {
+            let bytes = bytes();
+            let digest = Sha256::digest(&bytes);
+            let metadata = v1::ArtifactMetadata {
+                artifact_id: request.into_inner().name,
+                filename: "evidence.bin".into(),
+                size_bytes: bytes.len() as u64,
+                sha256: digest.iter().map(|byte| format!("{byte:02x}")).collect(),
+                state: v1::ArtifactState::Complete as i32,
+                ..Default::default()
+            };
+            let mut reply = client::content::ArtifactsGetResponse {
+                metadata: Some(metadata),
+                ..Default::default()
+            };
+            let file = reply.file.get_or_insert_default();
+            file.length = bytes.len() as u64;
+            file.sha256 = digest.to_vec();
+            let metadata = file.metadata.get_or_insert_default();
+            metadata.id = "fixture-artifact".into();
+            metadata.media_type = "application/octet-stream".into();
+            Ok(Response::new(reply))
+        })
+    }
+}
+
+impl tonic::server::UnaryService<library::StorageGetFileBytesRequest> for Download {
+    type Response = library::StorageGetFileBytesResponse;
+    type Future = BoxFuture<Response<Self::Response>, Status>;
+    fn call(&mut self, request: Request<library::StorageGetFileBytesRequest>) -> Self::Future {
+        let settings = self.0.download.lock().unwrap().clone();
+        Box::pin(async move {
+            let request = request.into_inner();
+            let original = bytes();
+            let begin = request.offset as usize;
+            let end = begin.saturating_add(request.max_bytes as usize).min(original.len());
+            if begin > end {
+                return Err(Status::out_of_range("Read File Bytes: Invalid Offset"));
+            }
+            if let Some(gate) = settings.gate {
+                gate.entered.notify_one();
+                gate.release.acquire().await.unwrap().forget();
+            }
+            let mut data = original[begin..end].to_vec();
+            if settings.corrupt && !data.is_empty() {
+                data[0] ^= 1;
+            }
+            let mut reply = library::StorageGetFileBytesResponse {
+                data,
+                total_length: original.len() as u64,
+                sha256: Sha256::digest(&original).to_vec(),
+                ..Default::default()
+            };
+            let position = reply.resolved_at.get_or_insert_default();
+            let entry = library::Position {
+                history: Some(library::History {
+                    store: "fixture".into(),
+                    epoch: "content".into(),
+                }),
+                sequence: 1,
+            };
+            position.positions.push(entry);
+            Ok(Response::new(reply))
         })
     }
 }

@@ -22,9 +22,9 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Local Imports
 use super::*;
+use dokime_protocol::{client, v1};
 use dokime_runtime_next::{ControlledClock, PlacementSettings};
 use dokime_sdk::client::v1::{self as library, access};
-use dokime_sdk::v1;
 use tokio_stream::StreamExt;
 
 /* === Constants === */
@@ -152,17 +152,15 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn std:
         let session = owner.start(root.path()).await?;
         let discovered = crate::connection::transport::backend(&session);
         assert!(discovered.methods.iter().any(|method| method == "/harmos.v1.access.Listener/Get"));
-        let request = v1::ObservationWatchRuntimeRequest::default().encode_to_vec();
-        let mut watch = session.watch_raw("/dokime.v1.Observation/WatchRuntime", &request).await?;
+        let request = client::backend::OverviewWatchRequest::default().encode_to_vec();
+        let mut watch = session.watch_raw("/dokime.client.v1.backend.Overview/Watch", &request).await?;
         let opening = watch.next().await.ok_or("Watch Runtime: Missing Initial Frame")??;
-        let opening = v1::ObservationWatchRuntimeOutput::decode(opening.as_slice())?;
-        let Some(v1::observation_watch_runtime_output::Value::Item(opening)) = opening.value else {
-            return Err("Watch Runtime: Expected Initial State".into());
-        };
-        assert!(opening.resynchronized);
+        let opening = client::backend::OverviewWatchResponse::decode(opening.as_slice())?;
+        assert!(opening.opening);
 
         // A Mutation and Its Read Use Canonical Generated Messages on the Same SDK Root
-        let request = v1::ExecutionCreateCycleRequest {
+        let request = client::CyclesCreateRequest {
+            request_id: "desktop-native-cycle".into(),
             metadata: Some(v1::Metadata {
                 label: "Desktop Native Journey".into(),
                 ..Default::default()
@@ -170,35 +168,36 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn std:
             ..Default::default()
         }
         .encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Execution/CreateCycle", &request).await?;
-        let cycle = v1::CreateCycleReply::decode(response.as_slice())?;
+        let response = session.call_raw("/dokime.client.v1.Cycles/Create", &request).await?;
+        let cycle = client::CyclesCreateResponse::decode(response.as_slice())?.cycle.ok_or("Create Cycle: Missing Value")?;
         assert!(!cycle.cycle_id.is_empty());
         loop {
             let frame = watch.next().await.ok_or("Watch Runtime: Closed Before Cycle Admission")??;
-            let frame = v1::ObservationWatchRuntimeOutput::decode(frame.as_slice())?;
-            let Some(v1::observation_watch_runtime_output::Value::Item(frame)) = frame.value else {
-                return Err("Watch Runtime: Finished Before Cycle Admission".into());
-            };
-            if frame.cycle_count == 1 {
+            let frame = client::backend::OverviewWatchResponse::decode(frame.as_slice())?;
+            if frame.overview.is_some_and(|overview| overview.cycle_summaries.len() == 1) {
                 break;
             }
         }
-        let request = v1::ExecutionGetCycleRequest { cycle_id: cycle.cycle_id.clone() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Execution/GetCycle", &request).await?;
-        assert_eq!(v1::CycleSummary::decode(response.as_slice())?.cycle_id, cycle.cycle_id);
+        let request = client::CyclesGetRequest {
+            name: cycle.cycle_id.clone(),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let response = session.call_raw("/dokime.client.v1.Cycles/Get", &request).await?;
+        assert_eq!(client::CyclesGetResponse::decode(response.as_slice())?.cycle.unwrap().cycle_id, cycle.cycle_id);
 
         // Read Traceability Through Its Revisioned Resource and Retain the Scoped Cut
         let scope = v1::EvidenceScope {
             cycle_id: Some(cycle.cycle_id.clone()),
             ..Default::default()
         };
-        let request = v1::evidence::TraceabilityGetRequest {
+        let request = client::evidence::TraceabilityGetRequest {
             scope: Some(scope.clone()),
             ..Default::default()
         }
         .encode_to_vec();
-        let response = session.call_raw("/dokime.v1.evidence.Traceability/Get", &request).await?;
-        let response = v1::evidence::TraceabilityGetResponse::decode(response.as_slice())?;
+        let response = session.call_raw("/dokime.client.v1.evidence.Traceability/Get", &request).await?;
+        let response = client::evidence::TraceabilityGetResponse::decode(response.as_slice())?;
         assert!(response.snapshots.is_empty());
         assert!(response.next_page_token.is_empty());
         let cut = response.resolved_at.ok_or("Get Traceability: Missing Read Cut")?;
@@ -206,21 +205,21 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn std:
         assert!(cut.revisions.is_empty());
 
         // Watch Traceability on the Same Native Connection Until Owned Shutdown
-        let request = v1::evidence::TraceabilityWatchRequest {
+        let request = client::evidence::TraceabilityWatchRequest {
             scope: Some(scope),
             at: Some(cut.clone()),
             ..Default::default()
         }
         .encode_to_vec();
-        let mut traceability = session.watch_raw("/dokime.v1.evidence.Traceability/Watch", &request).await?;
+        let mut traceability = session.watch_raw("/dokime.client.v1.evidence.Traceability/Watch", &request).await?;
         let opening = traceability.next().await.ok_or("Watch Traceability: Missing Opening")??;
-        let opening = v1::evidence::TraceabilityWatchResponse::decode(opening.as_slice())?;
+        let opening = client::evidence::TraceabilityWatchResponse::decode(opening.as_slice())?;
         assert!(opening.opening);
         assert!(opening.snapshots.is_empty());
         assert_eq!(opening.resolved_at.as_ref(), Some(&cut));
 
         // Unknown Routes Fail Explicitly and Shutdown Joins the Idle Watch
-        let error = session.call_raw("/dokime.v1.Unknown/Get", &[]).await.unwrap_err();
+        let error = session.call_raw("/dokime.client.v1.Unknown/Get", &[]).await.unwrap_err();
         assert!(matches!(error, Error::Rpc(status) if status.code() == tonic::Code::Unimplemented));
         owner.close().await?;
         while let Some(frame) = watch.next().await {
@@ -303,221 +302,325 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), Box<dyn std::error::Error>> {
+fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn std::error::Error>> {
     crate::test_support::run(async {
-        // Start the Prepared Shared Plugin and the Embedded Desktop Host
+        use sha2::Digest;
         let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| crate::test_support::fixture("dokime-rust-thermal"));
-        if !executable.is_file() {
-            return Err("Prepare Desktop Execution: Run mise run build:host-fixtures -- --language rust".into());
-        }
         let configuration = settings();
         let mut plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &configuration.host.placement).await?;
         let root = crate::test_support::tempdir()?;
         let mut owner = Connection::new(configuration)?;
         let result = async {
-        let session = owner.start(root.path()).await?;
-        let request = v1::AddRemotePlugin { url: plugin.endpoint().into() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Plugins/Add", &request).await?;
-        let admitted = v1::Plugin::decode(response.as_slice())?;
-        assert!(!admitted.entry.is_empty());
+            // Admit the Prepared Plugin and Read Its Top-Level Suite Resource.
+            let session = owner.start(root.path()).await?;
+            let admitted: client::Plugin =
+                session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
+            assert!(!admitted.entry.is_empty());
+            let suites: client::SuitesListResponse =
+                session.unary("/dokime.client.v1.Suites/List", client::SuitesListRequest::default()).await?;
+            let suite = suites.values.first().ok_or("Read Suite: Missing Prepared Fixture")?;
+            let suite_id = suite.metadata.as_ref().ok_or("Read Suite: Missing Identity")?.identifier.clone();
+            let suite: client::SuitesGetResponse = session
+                .unary(
+                    "/dokime.client.v1.Suites/Get",
+                    client::SuitesGetRequest {
+                        name: suite_id.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let suite = suite.value.ok_or("Read Suite: Missing Definition")?;
+            let template = suite.templates.first().and_then(|template| template.metadata.as_ref()).ok_or("Read Suite: Missing Template")?;
+            let plan: client::CasesCreateResponse = session
+                .unary(
+                    "/dokime.client.v1.Cases/Create",
+                    client::CasesCreateRequest {
+                        plan: Some(client::SelectionPlan {
+                            selections: vec![client::RegisteredSelection {
+                                suite_id,
+                                template_id: template.identifier.clone(),
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        }),
+                        validate_only: true,
+                        request_id: "desktop-preview".into(),
+                    },
+                )
+                .await?;
+            let origins =
+                plan.cases.into_iter().map(|case| case.origin.ok_or("Materialize Case: Missing Origin")).collect::<Result<Vec<_>, _>>()?;
+            let cycle: client::CyclesCreateResponse = session
+                .unary(
+                    "/dokime.client.v1.Cycles/Create",
+                    client::CyclesCreateRequest {
+                        origins,
+                        continue_automatically: true,
+                        request_id: "desktop-cycle".into(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let cycle = cycle.cycle.ok_or("Create Cycle: Missing Value")?;
+            let executions: client::ExecutionsListResponse = session
+                .unary(
+                    "/dokime.client.v1.Executions/List",
+                    client::ExecutionsListRequest {
+                        parent: cycle.cycle_id.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let execution = executions
+                .executions
+                .first()
+                .and_then(|item| item.summary.as_ref())
+                .ok_or("Start Execution: Missing Identity")?
+                .execution_id
+                .clone();
 
-        // Read the Canonical Catalog and Materialize Its Frozen Case
-        let request = v1::CatalogListSuitesRequest::default().encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Catalog/ListSuites", &request).await?;
-        let suites = v1::ListSuitesReply::decode(response.as_slice())?;
-        let suite = suites.suites.first().ok_or("Read Desktop Catalog: Missing Prepared Suite")?;
-        let request = v1::CatalogGetSuiteRequest { suite_id: suite.suite_id.clone() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Catalog/GetSuite", &request).await?;
-        let suite = v1::Suite::decode(response.as_slice())?;
-        let template = suite.templates.first().and_then(|template| template.metadata.as_ref()).ok_or("Read Desktop Catalog: Missing Template")?;
-        let request = v1::PlanningMaterializeTemplateRequest {
-            selection: Some(v1::RegisteredSelection {
-                suite_id: suite.metadata.as_ref().ok_or("Read Desktop Catalog: Missing Suite Identity")?.identifier.clone(),
-                template_id: template.identifier.clone(),
+            // Await the Operator Question Through the Owned Progress Watch.
+            let request = client::executions::ProgressWatchRequest { name: execution.clone(), at: None }.encode_to_vec();
+            let mut progress = session.watch_raw("/dokime.client.v1.executions.Progress/Watch", &request).await?;
+            loop {
+                let frame = progress.next().await.ok_or("Observe Execution: Closed Before Prompt")??;
+                let frame = client::executions::ProgressWatchResponse::decode(frame.as_slice())?;
+                assert!(!frame.finished);
+                if frame.phase == "prompt" {
+                    break;
+                }
+            }
+            let prompts: client::PromptsListResponse = session
+                .unary(
+                    "/dokime.client.v1.Prompts/List",
+                    client::PromptsListRequest {
+                        execution_id: Some(execution.clone()),
+                        pending_only: true,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let prompt = prompts.prompts.first().and_then(|view| view.prompt.as_ref()).ok_or("Answer Prompt: Missing Question")?;
+
+            // Observe a Plot Before Answering, Then Join the Terminal Progress.
+            let plot_request = v1::PlotRequest {
+                plot_id: Some("temperature".into()),
+                stream: "thermal.temperature".into(),
+                y_keys: vec!["celsius".into()],
+                scope: Some(v1::EvidenceScope {
+                    execution_id: Some(execution.clone()),
+                    ..Default::default()
+                }),
+                technique: v1::Downsample::Raw as i32,
+                max_points: Some(128),
                 ..Default::default()
-            }),
-        }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Planning/MaterializeTemplate", &request).await?;
-        let plan = v1::PreviewSelectionReply::decode(response.as_slice())?;
-        let origins = plan.cases.into_iter().map(|case| case.origin.ok_or("Materialize Desktop Case: Missing Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
+            };
+            let request = client::plots::SnapshotsWatchRequest {
+                requests: vec![plot_request.clone()],
+                ..Default::default()
+            }
+            .encode_to_vec();
+            let mut plots = session.watch_raw("/dokime.client.v1.plots.Snapshots/Watch", &request).await?;
+            let opening = plots.next().await.ok_or("Watch Plot: Missing Opening")??;
+            let opening = client::plots::SnapshotsWatchResponse::decode(opening.as_slice())?;
+            assert!(opening.opening);
+            assert_eq!(opening.updates.len(), 1);
+            let _: client::prompts::AnswersCreateResponse = session
+                .unary(
+                    "/dokime.client.v1.prompts.Answers/Create",
+                    client::prompts::AnswersCreateRequest {
+                        parent: prompt.prompt_id.clone(),
+                        action: "yes".into(),
+                        accepted: true,
+                        request_id: "desktop-answer".into(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let mut terminal = false;
+            while let Some(frame) = progress.next().await {
+                assert!(!terminal);
+                terminal = client::executions::ProgressWatchResponse::decode(frame?.as_slice())?.finished;
+            }
+            assert!(terminal);
+            drop(plots);
 
-        // Start the Execution and Wait for Its Operator Question Through SDK Watch
-        let request = v1::ExecutionCreateCycleRequest { origins, continue_automatically: true, ..Default::default() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Execution/CreateCycle", &request).await?;
-        let cycle = v1::CreateCycleReply::decode(response.as_slice())?;
-        let execution = cycle.execution_ids.first().ok_or("Start Desktop Execution: Missing Execution Identity")?.clone();
-        let request = v1::executions::ProgressWatchRequest { name: execution.clone(), at: None }.encode_to_vec();
-        let mut progress = session.watch_raw("/dokime.v1.executions.Progress/Watch", &request).await?;
-        loop {
-            let frame = progress.next().await.ok_or("Observe Desktop Execution: Closed Before Prompt")??;
-            let frame = v1::executions::ProgressWatchResponse::decode(frame.as_slice())?;
-            if frame.finished { return Err("Observe Desktop Execution: Finished Before Prompt".into()); }
-            if frame.phase == "prompt" { break; }
-        }
-        let request = v1::PromptsListPendingRequest { execution_id: Some(execution.clone()), ..Default::default() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Prompts/ListPending", &request).await?;
-        let prompts = v1::ListPendingPromptsReply::decode(response.as_slice())?;
-        let prompt = prompts.prompts.first().ok_or("Answer Desktop Prompt: Missing Pending Question")?;
-        // Upload Through the Same Owned SDK Session While Its Execution Is Open
-        use sha2::Digest;
-        let attachment = vec![42; 140_003];
-        let attachment_digest = sha2::Sha256::digest(&attachment).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        let mut upload = vec![v1::UploadArtifactFrame {
-            payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Header(v1::UploadArtifactHeader {
-                scope: Some(v1::ArtifactScope { execution_id: Some(execution.clone()), cycle_id: Some(cycle.cycle_id.clone()), ..Default::default() }),
-                filename: "attachment.bin".into(), size_bytes: attachment.len() as u64, sha256: Some(attachment_digest.clone()), ..Default::default()
-            })) }),
-        }];
-        for (index, data) in attachment.chunks(64 * 1024).enumerate() {
-            upload.push(v1::UploadArtifactFrame { payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Chunk(v1::ArtifactChunk { offset: (index * 64 * 1024) as u64, data: data.to_vec() })) }) });
-        }
-        upload.push(v1::UploadArtifactFrame { payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Complete(v1::ArtifactCompletion { size_bytes: attachment.len() as u64, sha256: attachment_digest.clone() })) }) });
-        let artifact = session.upload_artifact(tokio_stream::iter(upload)).await?;
+            // Decode Sealed Evidence With the Digest-Cached Descriptor Set.
+            let detail: client::ExecutionsGetResponse = session
+                .unary(
+                    "/dokime.client.v1.Executions/Get",
+                    client::ExecutionsGetRequest {
+                        name: execution.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let detail = detail.execution.ok_or("Get Execution: Missing Value")?;
+            assert_eq!(detail.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
+            assert!(!detail.seal.is_empty());
+            let mut cache = dokime_sdk::client::FrozenSchemaCache::default();
+            let descriptors = cache.get(session.client(), &detail).await?;
+            assert!(std::sync::Arc::ptr_eq(&descriptors, &cache.get(session.client(), &detail).await?));
+            let records: client::evidence::RecordsListResponse = session
+                .unary(
+                    "/dokime.client.v1.evidence.Records/List",
+                    client::evidence::RecordsListRequest {
+                        selection: Some(client::evidence::CapturedRecordSelection {
+                            scope: Some(v1::EvidenceScope {
+                                execution_id: Some(execution.clone()),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert!(records.records.iter().any(|record| record.record_type == "thermal.door"));
+            let samples: client::evidence::SamplesListResponse = session
+                .unary(
+                    "/dokime.client.v1.evidence.Samples/List",
+                    client::evidence::SamplesListRequest {
+                        scope: Some(v1::EvidenceScope {
+                            execution_id: Some(execution.clone()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert!(!samples.samples.is_empty());
+            let snapshots: client::plots::SnapshotsListResponse = session
+                .unary(
+                    "/dokime.client.v1.plots.Snapshots/List",
+                    client::plots::SnapshotsListRequest {
+                        requests: vec![plot_request],
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(snapshots.envelopes.len(), 1);
 
-        // Subscribe to the Execution Plot Before Answering the Live Prompt
-        let plot_request = v1::PlotRequest {
-            plot_id: Some("temperature".into()), stream: "thermal.temperature".into(), y_keys: vec!["celsius".into()],
-            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }),
-            technique: v1::Downsample::Raw as i32, max_points: Some(128), ..Default::default()
-        };
-        let request = v1::PlotsWatchRequest { requests: vec![plot_request.clone()] }.encode_to_vec();
-        let mut plots = session.watch_raw("/dokime.v1.Plots/Watch", &request).await?;
-        let opening = plots.next().await.ok_or("Watch Desktop Plot: Missing Opening Snapshot")??;
-        let opening = v1::PlotsWatchOutput::decode(opening.as_slice())?;
-        let Some(v1::plots_watch_output::Value::Item(opening)) = opening.value else { return Err("Watch Desktop Plot: Missing Opening Item".into()); };
-        assert_eq!(opening.updates.len(), 1);
-        assert_eq!(opening.updates[0].kind, v1::PlotStreamKind::Snapshot as i32);
-        assert_eq!(opening.updates[0].envelope.as_ref().unwrap().plot_id, "temperature");
-
-        let request = v1::PromptsRespondRequest { prompt_id: prompt.prompt_id.clone(), action: "yes".into(), accepted: true, ..Default::default() }.encode_to_vec();
-        session.call_raw("/dokime.v1.Prompts/Respond", &request).await?;
-        let mut terminal = false;
-        while let Some(frame) = progress.next().await {
-            let frame = v1::executions::ProgressWatchResponse::decode(frame?.as_slice())?;
-            if terminal { return Err("Observe Desktop Execution: Frame After Completion".into()); }
-            terminal = frame.finished;
-        }
-        assert!(terminal);
-
-        // Inspect the Sealed Execution and Its Captured Record and Telemetry
-        let request = v1::ExecutionGetExecutionRequest { execution_id: execution.clone() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Execution/GetExecution", &request).await?;
-        let detail = v1::ExecutionDetail::decode(response.as_slice())?;
-        assert_eq!(detail.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
-        assert!(!detail.seal.is_empty());
-        assert!(matches!(detail.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()), Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == v1::ResultStatus::Passed as i32));
-        let request = v1::EvidenceListRecordsRequest { selection: Some(v1::CapturedRecordSelection {
-            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }), ..Default::default()
-        }), ..Default::default() }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Evidence/ListRecords", &request).await?;
-        let records = v1::RecordPage::decode(response.as_slice())?;
-        assert!(records.records.iter().any(|record| !record.payload.is_empty()));
-        let request = v1::TelemetryListSamplesRequest {
-            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }), ..Default::default()
-        }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Telemetry/ListSamples", &request).await?;
-        let samples = v1::TelemetrySamplesReply::decode(response.as_slice())?;
-        assert!(samples.samples.iter().any(|sample| !sample.payload.is_empty()));
-
-        // Settle the Live Plot and Read the Same Saved Sample Set
-        let mut plot_terminal = false;
-        let mut plotted = false;
-        while let Some(frame) = plots.next().await {
-            let frame = v1::PlotsWatchOutput::decode(frame?.as_slice())?;
-            match frame.value {
-                Some(v1::plots_watch_output::Value::Item(frame)) if !plot_terminal => {
-                    for update in frame.updates {
-                        assert_eq!(update.kind, v1::PlotStreamKind::Snapshot as i32);
-                        let payload = update.envelope.and_then(|envelope| envelope.payload).ok_or("Watch Desktop Plot: Missing Payload")?;
-                        plotted |= payload.series.iter().any(|series| series.raw_points > 0);
+            // Consume Every Ordered Document Page at the Returned Cut.
+            let mut request = client::DocumentsGetRequest {
+                scope: Some(v1::DocumentScope {
+                    cycle_id: cycle.cycle_id.clone(),
+                    execution_id: execution.clone(),
+                }),
+                ..Default::default()
+            };
+            let mut header = false;
+            let mut completed = false;
+            loop {
+                let reply: client::DocumentsGetResponse = session.unary("/dokime.client.v1.Documents/Get", request.clone()).await?;
+                for frame in reply.frames {
+                    assert!(!completed);
+                    match frame.frame.and_then(|frame| frame.kind) {
+                        Some(client::document_frame_frame::Kind::Header(value)) => {
+                            assert!(!header);
+                            assert_eq!(value.frontiers.unwrap().process_epoch, session.product_epoch());
+                            header = true;
+                        }
+                        Some(client::document_frame_frame::Kind::Completion(_)) => completed = true,
+                        _ => {}
                     }
                 }
-                Some(v1::plots_watch_output::Value::Response(_)) if !plot_terminal => plot_terminal = true,
-                _ => return Err("Watch Desktop Plot: Invalid Terminal Sequence".into()),
+                if reply.next_page_token.is_empty() {
+                    break;
+                }
+                assert_ne!(request.page_token, reply.next_page_token);
+                request.page_token = reply.next_page_token;
+                request.at = reply.resolved_at;
             }
-        }
-        assert!(plot_terminal && plotted);
-        let request = v1::PlotsQuerySnapshotsRequest { requests: vec![plot_request] }.encode_to_vec();
-        let response = session.call_raw("/dokime.v1.Plots/QuerySnapshots", &request).await?;
-        let saved = v1::PlotSnapshotsReply::decode(response.as_slice())?;
-        let saved = saved.envelopes.first().and_then(|envelope| envelope.payload.as_ref()).ok_or("Read Desktop Plot: Missing Saved Payload")?;
-        assert!(saved.series.iter().any(|series| series.raw_points == samples.samples.len() as u64));
+            assert!(header && completed);
 
-        // Capture the Canonical Default Document with Its Product Process Epoch
-        let request = v1::DocumentsCaptureCurrentDocumentRequest {
-            scope: Some(v1::DocumentScope { cycle_id: cycle.cycle_id.clone(), execution_id: execution.clone() }),
-            ..Default::default()
-        }.encode_to_vec();
-        let mut document = session.watch_raw("/dokime.v1.Documents/CaptureCurrentDocument", &request).await?;
-        let mut document_header = false;
-        let mut document_complete = false;
-        let mut document_terminal = false;
-        while let Some(frame) = document.next().await {
-            let frame = v1::DocumentsCaptureCurrentDocumentOutput::decode(frame?.as_slice())?;
-            match frame.value {
-                Some(v1::documents_capture_current_document_output::Value::Item(frame)) if !document_terminal => match frame.frame.and_then(|frame| frame.kind) {
-                    Some(v1::document_frame_frame::Kind::Header(header)) => {
-                        assert!(!document_header);
-                        assert_eq!(header.document_id, "execution");
-                        assert_eq!(header.frontiers.as_ref().unwrap().process_epoch, session.product_epoch());
-                        document_header = true;
-                    }
-                    Some(v1::document_frame_frame::Kind::Completion(_)) => document_complete = true,
-                    _ => {}
-                },
-                Some(v1::documents_capture_current_document_output::Value::Response(_)) if !document_terminal => document_terminal = true,
-                _ => return Err("Read Desktop Document: Invalid Terminal Sequence".into()),
+            // Deliver the Report Through Library Ranges and the Native Verified Writer.
+            let subject = client::ReportSubject {
+                kind: Some(client::report_subject::Kind::Execution(execution.clone())),
+            };
+            let prepared: client::ReportsCreateResponse = session
+                .unary(
+                    "/dokime.client.v1.Reports/Create",
+                    client::ReportsCreateRequest {
+                        subject: Some(subject.clone()),
+                        request_id: "desktop-prepare-report".into(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let file = prepared.file.ok_or("Prepare Report: Missing File Reference")?;
+            let _: client::ReportsPublishResponse = session
+                .unary(
+                    "/dokime.client.v1.Reports/Publish",
+                    client::ReportsPublishRequest {
+                        name: file.metadata.ok_or("Publish Report: Missing File Identity")?.id,
+                        subject: Some(subject),
+                        expected_revision: file.sha256,
+                        request_id: "desktop-publish-report".into(),
+                    },
+                )
+                .await?;
+            let report: client::ReportsGetResponse = session
+                .unary(
+                    "/dokime.client.v1.Reports/Get",
+                    client::ReportsGetRequest {
+                        subject: Some(client::ReportSubject {
+                            kind: Some(client::report_subject::Kind::Execution(execution.clone())),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let reference = report.file.ok_or("Read Report: Missing File Reference")?;
+            let mut bytes = Vec::new();
+            let mut at = None;
+            while bytes.len() < reference.length as usize {
+                let reply: library::StorageGetFileBytesResponse = session
+                    .unary(
+                        "/harmos.v1.Storage/GetFileBytes",
+                        library::StorageGetFileBytesRequest {
+                            file: Some(reference.clone()),
+                            offset: bytes.len() as u64,
+                            max_bytes: 65_536,
+                            at: at.clone(),
+                        },
+                    )
+                    .await?;
+                assert_eq!(reply.total_length, reference.length);
+                assert_eq!(reply.sha256, reference.sha256);
+                assert!(!reply.data.is_empty());
+                if at.is_some() {
+                    assert_eq!(at, reply.resolved_at);
+                }
+                at = reply.resolved_at;
+                bytes.extend(reply.data);
             }
+            assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), reference.sha256);
+            let active = crate::connection::ConnectionSession::default();
+            let connected = active
+                .connect(crate::connection::ConnectRequest {
+                    target: crate::connection::ConnectionTarget::Local { endpoint: session.endpoint().to_owned() },
+                    expected_backend_id: None,
+                })
+                .await
+                .map_err(|error| format!("{error:?}"))?;
+            let lease = active.lease(&connected.generation).map_err(|error| format!("{error:?}"))?;
+            let destination = root.path().join("native-export.html");
+            let exported = crate::app::content::fetch_verified(
+                &lease,
+                &crate::app::desktop::ArtifactSource::ExecutionReport { execution_id: execution },
+                &destination,
+                crate::rpc::protocol::FRAME_BYTES as usize,
+            )
+            .await?;
+            assert_eq!(exported.size_bytes, reference.length);
+            assert_eq!(std::fs::read(destination)?, bytes);
+            active.disconnect().map_err(|error| format!("{error:?}"))?;
+            Ok::<(), Box<dyn std::error::Error>>(())
         }
-        assert!(document_header && document_complete && document_terminal);
-
-        // Read the Report Through SDK Delivery and Verify Every Byte Against Its Completion
-        let request = v1::ReportsDownloadExecutionReportRequest { execution_id: execution.clone() }.encode_to_vec();
-        let mut report = session.watch_raw("/dokime.v1.Reports/DownloadExecutionReport", &request).await?;
-        let mut bytes = Vec::new();
-        let mut completion = None;
-        let mut terminal = false;
-        while let Some(frame) = report.next().await {
-            let frame = v1::ReportsDownloadExecutionReportOutput::decode(frame?.as_slice())?;
-            match frame.value {
-                Some(v1::reports_download_execution_report_output::Value::Item(frame)) if !terminal => match frame.payload.and_then(|payload| payload.kind) {
-                    Some(v1::report_html_frame_payload::Kind::Report(_)) if bytes.is_empty() => {}
-                    Some(v1::report_html_frame_payload::Kind::Chunk(chunk)) if completion.is_none() => {
-                        assert_eq!(chunk.offset, bytes.len() as u64);
-                        bytes.extend(chunk.data);
-                    }
-                    Some(v1::report_html_frame_payload::Kind::Complete(value)) if completion.is_none() => completion = Some(value),
-                    _ => return Err("Read Desktop Report: Invalid Transfer Sequence".into()),
-                },
-                Some(v1::reports_download_execution_report_output::Value::Response(_)) if !terminal => terminal = true,
-                _ => return Err("Read Desktop Report: Invalid Terminal Sequence".into()),
-            }
-        }
-        let completion = completion.ok_or("Read Desktop Report: Missing Verified Completion")?;
-        assert!(terminal);
-        assert_eq!(completion.size_bytes, bytes.len() as u64);
-        let digest = sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        assert_eq!(completion.sha256, digest);
-
-        // Export Through the Native Delivery Owner, Requiring Completion and Final Status
-        let active = crate::connection::ConnectionSession::default();
-        let connected = active.connect(crate::connection::ConnectRequest { target: crate::connection::ConnectionTarget::Local { endpoint: session.endpoint().to_owned() }, expected_backend_id: None }).await.map_err(|error| format!("{error:?}"))?;
-        let lease = active.lease(&connected.generation).map_err(|error| format!("{error:?}"))?;
-        let destination = root.path().join("native-export.html");
-        let exported = crate::app::content::fetch_verified(&lease, &crate::app::desktop::ArtifactSource::ExecutionReport { execution_id: execution }, &destination, crate::rpc::protocol::FRAME_BYTES as usize).await?;
-        assert_eq!(exported.size_bytes, completion.size_bytes);
-        assert_eq!(exported.sha256, completion.sha256);
-        assert_eq!(std::fs::read(destination)?, bytes);
-        let destination = root.path().join("native-attachment.bin");
-        let exported = crate::app::content::fetch_verified(&lease, &crate::app::desktop::ArtifactSource::Artifact { artifact_id: artifact.artifact_id }, &destination, crate::rpc::protocol::FRAME_BYTES as usize).await?;
-        assert_eq!(exported.sha256, attachment_digest);
-        assert_eq!(std::fs::read(destination)?, attachment);
-        active.disconnect().map_err(|error| format!("{error:?}"))?;
-
-        Ok::<(), Box<dyn std::error::Error>>(())
-    }.await;
+        .await;
         let host_close = owner.close().await;
         let plugin_close = plugin.close().await;
         result?;
@@ -599,9 +702,9 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
         assert!(first.cancellation().is_cancelled());
         assert!(connection.lease(&ready.connection.generation).is_err());
         let next = connection.lease(&connection.status().generation).map_err(|error| format!("{error:?}"))?;
-        let suites: v1::ListSuitesReply =
-            next.client().unary("/dokime.v1.Catalog/ListSuites", v1::CatalogListSuitesRequest::default()).await?;
-        assert!(suites.suites.is_empty());
+        let suites: client::SuitesListResponse =
+            next.client().unary("/dokime.client.v1.Suites/List", client::SuitesListRequest::default()).await?;
+        assert!(suites.values.is_empty());
         owner.shutdown().await.map_err(|error| format!("{error:?}"))?;
         assert!(next.cancellation().is_cancelled());
         assert_eq!(owner.status().ownership, BackendOwnership::None);

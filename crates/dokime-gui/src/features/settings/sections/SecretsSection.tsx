@@ -36,7 +36,7 @@ import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SecretTransfer } from "@/features/settings/sections/SecretTransfer";
-import { putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEntry } from "@/lib/api/native-secrets";
+import { putSecret, readSecrets, removeSecret, type SecretSnapshot, type SecretEntry } from "@/lib/api/native-secrets";
 
 /* === Re-Exports === */
 
@@ -86,7 +86,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
     void navigate({ hash: "", replace: true });
   }, [identifier, snapshot, navigate]);
 
-  async function change(work: () => Promise<SecretCatalog>) {
+  async function change(work: () => Promise<SecretSnapshot>) {
     setBusy(true);
     setError(null);
     try {

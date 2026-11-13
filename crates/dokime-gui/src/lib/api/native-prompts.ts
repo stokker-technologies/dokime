@@ -15,18 +15,20 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { PromptKind } from "@host/dokime/v1/client_types_pb.js";
-import { PromptFieldKind, PromptActionEmphasis, StreamMatchOperator, type EvidenceCondition } from "@host/dokime/v1/host_pb.js";
-import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { PromptKind } from "@host/dokime/client/v1/prompts_pb.js";
+import { PromptFieldKind, PromptActionEmphasis } from "@host/dokime/v1/prompts_pb.js";
+import { StreamMatchOperator, type EvidenceCondition } from "@host/dokime/v1/evidence_pb.js";
+import { Severity } from "@host/dokime/v1/evidence_pb.js";
 import { recordScopeFromNative, jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
-import { mapBounded, NativeApiLimitError, nowIso, timestampIso } from "./native-values";
+import { NativeApiLimitError, nowIso, timestampIso } from "./native-values";
 
 /* === Types === */
 
-type PromptView = Wire<Awaited<ReturnType<typeof rpc.promptsGetPrompt>>>;
+type PromptView = Wire<NonNullable<Awaited<ReturnType<typeof rpc.promptsGet>>["prompt"]>>;
+import { required } from "@/lib/rpc/canonical";
 type PromptInstance = NonNullable<PromptView["prompt"]>;
 type NativePromptResponse = NonNullable<PromptView["response"]>;
 type PromptDefinition = NonNullable<PromptInstance["definition"]>;
@@ -36,18 +38,12 @@ export async function fetchNativePendingPrompts(
   session: SessionIdentity,
   options: { cycleId?: string | null; executionId?: string | null } = {},
 ): Promise<PromptRequest[]> {
-  const reply = await rpc.promptsListPending(session, {
+  const reply = await rpc.promptsList(session, {
+    pendingOnly: true,
     ...(options.cycleId ? { cycleId: options.cycleId } : {}),
     ...(options.executionId ? { executionId: options.executionId } : {}),
   });
-  const identities = reply.prompts;
-  const views = await mapBounded(identities, (identity) => rpc.promptsGetPrompt(session, { promptId: identity.promptId }));
-  return views.map((view, index) => {
-    if (!view.prompt) {
-      throw new Error(`Native prompt ${identities[index]?.promptId ?? "unknown"} has no instance.`);
-    }
-    return mapNativePrompt(view.prompt, view.response);
-  });
+  return reply.prompts.map((view) => mapNativePrompt(required(view.prompt, "Read Pending Prompt"), view.response));
 }
 
 export async function respondNativePrompt(
@@ -56,31 +52,24 @@ export async function respondNativePrompt(
   action: string,
   values: Record<string, unknown>,
 ): Promise<CommandReceipt> {
-  const receipt = await rpc.promptsRespond(session, {
-    promptId: correlationId,
+  const reply = await rpc.promptsAnswersCreate(session, {
+    parent: correlationId,
     action,
     values: { values: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, jsonToNativeValue(value)])) },
     accepted: !["abort", "cancel"].includes(action),
-    context: { correlationId: crypto.randomUUID() },
+    requestId: crypto.randomUUID(),
   });
-  const acceptedAt = timestampIso(receipt.acceptedAt) ?? nowIso();
+  const answer = required(reply.answer, "Answer Prompt");
+  const receipt = required(reply.receipt, "Answer Prompt Receipt");
+  const acceptedAt = timestampIso(answer.submittedAt) ?? nowIso();
   return {
-    command_id: receipt.commandId,
+    command_id: receipt.requestId,
     kind: "prompt.response",
-    target_id: receipt.promptId,
+    target_id: correlationId,
     status: "applied",
     accepted_at: acceptedAt,
     updated_at: acceptedAt,
-    result: {
-      committed_revision: String(receipt.committedRevision),
-      observed_cursor: receipt.observedCursor
-        ? {
-            epoch: receipt.observedCursor.epoch,
-            stream: receipt.observedCursor.stream,
-            position: String(receipt.observedCursor.position),
-          }
-        : null,
-    },
+    result: { accepted: receipt.completed },
   };
 }
 

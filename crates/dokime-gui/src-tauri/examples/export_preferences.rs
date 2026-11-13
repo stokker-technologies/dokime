@@ -21,7 +21,8 @@ use prost::Message;
 
 // Local Imports
 use dokime_gui::native_session::backend::{self, Backend};
-use dokime_sdk::{client::v1::access, v1};
+use dokime_protocol::client;
+use dokime_sdk::client::v1::access;
 
 /* === Constants === */
 
@@ -71,11 +72,11 @@ async fn export_at(directory: &std::path::Path, root: &std::path::Path) -> Resul
     let session = owner.session()?;
     let result = async {
         // Read Product Defaults and the Independently Owned Listener.
-        let mut snapshot: v1::SettingsSnapshot =
-            session.unary("/dokime.v1.Settings/ReadApplicationSettings", v1::SettingsReadApplicationSettingsRequest {}).await?;
+        let mut snapshot: client::SettingsGetResponse =
+            session.unary("/dokime.client.v1.Settings/Get", client::SettingsGetRequest::default()).await?;
         let listener: access::ListenerGetResponse = session.unary("/harmos.v1.access.Listener/Get", access::ListenerGetRequest {}).await?;
         let listener = listener.value.ok_or("Export Preferences: Host Omitted Listener")?;
-        snapshot.settings.as_mut().ok_or("Export Preferences: Host Omitted Settings")?.listener = Some(v1::RemoteListenerSettings {
+        snapshot.value.as_mut().ok_or("Export Preferences: Host Omitted Settings")?.listener = Some(client::RemoteListenerSettings {
             enabled: listener.enabled,
             address: listener.endpoint,
             certificate_names: listener.certificate_names,

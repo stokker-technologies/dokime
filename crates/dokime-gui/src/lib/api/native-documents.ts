@@ -15,8 +15,10 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as v1 from "@host/dokime/v1/client_types_pb.js";
-import * as definitions from "@host/dokime/v1/documents_pb.js";
+import * as protocolV1Plots from "@host/dokime/v1/plots_pb.js";
+import * as protocolClientV1Documents from "@host/dokime/client/v1/documents_pb.js";
+import type * as protocolV1Documents from "@host/dokime/v1/documents_pb.js";
+import * as protocolV1Expressions from "@host/dokime/v1/expressions_pb.js";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -33,6 +35,7 @@ import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentDataExpression, DocumentDownsampleTechnique, DocumentViewCard, DocumentViewPayload, Metadata } from "@/lib/types";
+import { required, cutKey } from "@/lib/rpc/canonical";
 import { safeNumber } from "./native-values";
 import { mapNativeValueFormat, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
 
@@ -43,8 +46,8 @@ const GUI_PLOT_TRANSFORMS = 32;
 
 /* === Canonical Types === */
 
-type DocumentFrame = v1.DocumentFrame;
-const DocumentFrameSchema = v1.DocumentFrameSchema;
+type DocumentFrame = protocolClientV1Documents.DocumentFrame;
+const DocumentFrameSchema = protocolClientV1Documents.DocumentFrameSchema;
 type VariantValue<T, K extends string> =
   Extract<NonNullable<T> extends { kind: infer V } ? V : never, { case: K }> extends { value: infer F } ? NonNullable<F> : never;
 type FrameValue<K extends string> = VariantValue<Wire<DocumentFrame>["frame"], K>;
@@ -60,7 +63,7 @@ type DocumentSummaryTileDefinition = FrameValue<"tileDefinition">;
 type DocumentRepeatSelection = FrameValue<"repeatSelection">;
 type DocumentRepeatInstance = FrameValue<"repeatInstance">;
 type DocumentSectionIdentity = FrameValue<"sectionIdentity">;
-type DocumentScope = Wire<v1.DocumentScope>;
+type DocumentScope = Wire<protocolV1Documents.DocumentScope>;
 type DocumentSummaryGroup = FrameValue<"summaryGroup">;
 type DocumentSummaryTile = FrameValue<"summaryTile">;
 type DocumentSummaryPresentation = NonNullable<DocumentSummaryTile["presentation"]>;
@@ -109,6 +112,7 @@ export interface DocumentSelection {
 }
 
 export interface NativeDocumentRequest {
+  at?: Parameters<typeof rpc.documentsGet>[1]["at"];
   cycleId: string;
   executionId: string;
   documentId: string;
@@ -144,13 +148,23 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
   if (!update.cycleId || !update.executionId || !update.documentId || !update.plotId) {
     throw new Error("An execution document and a plot are required.");
   }
-  const variants = { auto: v1.Downsample.AUTO, raw: v1.Downsample.RAW, min_max: v1.Downsample.MIN_MAX, lttb: v1.Downsample.LTTB } as const;
-  await rpc.documentsUpdatePlotSettings(session, {
+  const variants = {
+    auto: protocolV1Plots.Downsample.AUTO,
+    raw: protocolV1Plots.Downsample.RAW,
+    min_max: protocolV1Plots.Downsample.MIN_MAX,
+    lttb: protocolV1Plots.Downsample.LTTB,
+  } as const;
+  const identity = {
     scope: { cycleId: update.cycleId, executionId: update.executionId },
     documentId: update.documentId,
     plotId: update.plotId,
-    displayPoints: update.displayPoints ?? undefined,
-    downsample: variants[update.downsample],
+  };
+  const current = await rpc.plotsSettingsGet(session, identity);
+  await rpc.plotsSettingsSet(session, {
+    ...identity,
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+    value: { displayPoints: update.displayPoints ?? undefined, downsample: variants[update.downsample] },
   });
   if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
 }
@@ -165,31 +179,41 @@ export async function fetchNativeDocument(
 ): Promise<CompletedDocument> {
   const scope = createDocumentScope(request);
   const documentId = request.executionId && request.documentId === "default" ? "" : request.documentId;
-  let reader: Awaited<ReturnType<typeof rpc.documentsCaptureCurrentDocument>> | undefined;
-  let dispose: (() => void) | undefined;
-  const abort = () => {
-    void reader?.cancel().catch(() => undefined);
-  };
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    reader = await rpc.documentsCaptureCurrentDocument(session, {
-      scope,
-      documentId,
-      structureOnly: request.structureOnly ?? false,
-      cardIds: request.cardIds ?? [],
-      page: request.page,
-    });
-    if (signal?.aborted || !session.isCurrent()) {
-      await reader.cancel();
-      throw new Error("Document transfer cancelled.");
+  let cancelled = false;
+  const dispose = session.own(() => {
+    cancelled = true;
+  });
+  const active = () => !cancelled && !signal?.aborted && session.isCurrent();
+  const frames = (async function* () {
+    let pageToken = request.page ?? "";
+    let at: Parameters<typeof rpc.documentsGet>[1]["at"] = request.at;
+    const tokens = new Set<string>();
+    for (let index = 0; index < 4096; index++) {
+      if (!active()) throw new Error("Read Document: Selection Changed or Transfer Cancelled");
+      const reply = await rpc.documentsGet(session, {
+        scope,
+        documentId,
+        structureOnly: request.structureOnly ?? false,
+        cardIds: request.cardIds ?? [],
+        pageToken,
+        at,
+      });
+      const cut = required(reply.resolvedAt, "Read Document Cut");
+      if (at && cutKey(at) !== cutKey(cut)) invalid("retained document cut changed");
+      at = cut;
+      for (const frame of reply.frames) yield frame;
+      if (!reply.nextPageToken) return;
+      if (tokens.has(reply.nextPageToken)) invalid("document continuation did not advance");
+      pageToken = reply.nextPageToken;
+      tokens.add(pageToken);
     }
-    dispose = session.own(() => {
-      void reader?.cancel().catch(() => undefined);
-    });
+    invalid("document page budget exceeded");
+  })();
+  try {
     return await assembleDocument(
-      reader,
+      frames,
       { scope, documentId, epoch: request.epoch, structureOnly: request.structureOnly, cardIds: request.cardIds },
-      () => !signal?.aborted && session.isCurrent(),
+      active,
       publish,
       async (header) => {
         if (
@@ -199,16 +223,13 @@ export async function fetchNativeDocument(
             ([id, binding]) => (!request.cardIds?.length || request.cardIds.includes(id)) && binding.result?.kind.case === "failure",
           ) &&
           sameFrontiers(header.frontiers, previous.header.frontiers)
-        ) {
-          await reader?.cancel();
+        )
           return previous;
-        }
         return undefined;
       },
     );
   } finally {
-    signal?.removeEventListener("abort", abort);
-    dispose?.();
+    dispose();
   }
 }
 
@@ -293,13 +314,13 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
             format: summaryFormat(tile.format),
             presentation: mapSummaryPresentation(tile.presentation),
             state: tile.state === undefined ? null : mapSummaryState(tile.state),
-            stat: tile.stat === v1.DocumentSummaryStat.LATEST ? "latest" : undefined,
+            stat: tile.stat === protocolClientV1Documents.DocumentSummaryStat.LATEST ? "latest" : undefined,
           }),
         ),
       })),
     });
   }
-  if (result.case === "plot" && body.case === "owner" && body.value?.kind === v1.DocumentCardKind.PLOT) {
+  if (result.case === "plot" && body.case === "owner" && body.value?.kind === protocolClientV1Documents.DocumentCardKind.PLOT) {
     if (!result.value) invalid("plot binding is missing");
     const plot = mapNativePlot(result.value, id);
     return documentCard(metadata, "plots", { plots: [plot] });
@@ -399,70 +420,80 @@ function mapNativePlacementLayout(placement?: {
 }
 
 function mapDensity(value?: DocumentDensity): "compact" | "normal" | "spacious" {
-  return value === v1.DocumentDensity.COMPACT ? "compact" : value === v1.DocumentDensity.SPACIOUS ? "spacious" : "normal";
+  return value === protocolClientV1Documents.DocumentDensity.COMPACT
+    ? "compact"
+    : value === protocolClientV1Documents.DocumentDensity.SPACIOUS
+      ? "spacious"
+      : "normal";
 }
 function mapRail(value?: DocumentRail): "main" | "right" | "left" {
-  return value === v1.DocumentRail.LEFT ? "left" : value === v1.DocumentRail.RIGHT ? "right" : "main";
+  return value === protocolClientV1Documents.DocumentRail.LEFT
+    ? "left"
+    : value === protocolClientV1Documents.DocumentRail.RIGHT
+      ? "right"
+      : "main";
 }
 function mapCardKind(value: DocumentCardKind | undefined): DocumentViewCard["kind"] | null {
   switch (value) {
-    case v1.DocumentCardKind.PLOT:
+    case protocolClientV1Documents.DocumentCardKind.PLOT:
       return "plots";
-    case v1.DocumentCardKind.STEPS:
+    case protocolClientV1Documents.DocumentCardKind.STEPS:
       return "steps";
-    case v1.DocumentCardKind.CRITERIA:
+    case protocolClientV1Documents.DocumentCardKind.CRITERIA:
       return "criteria";
-    case v1.DocumentCardKind.TRACEABILITY:
+    case protocolClientV1Documents.DocumentCardKind.TRACEABILITY:
       return "traceability";
-    case v1.DocumentCardKind.NOTES:
+    case protocolClientV1Documents.DocumentCardKind.NOTES:
       return "notes";
-    case v1.DocumentCardKind.RECORDS:
+    case protocolClientV1Documents.DocumentCardKind.RECORDS:
       return "records";
-    case v1.DocumentCardKind.ARTIFACTS:
+    case protocolClientV1Documents.DocumentCardKind.ARTIFACTS:
       return "artifacts";
-    case v1.DocumentCardKind.MEDIA:
+    case protocolClientV1Documents.DocumentCardKind.MEDIA:
       return "media";
-    case v1.DocumentCardKind.HEALTH:
+    case protocolClientV1Documents.DocumentCardKind.HEALTH:
       return "health";
-    case v1.DocumentCardKind.TELEMETRY_CONTEXT:
+    case protocolClientV1Documents.DocumentCardKind.TELEMETRY_CONTEXT:
       return "telemetry_context";
     default:
       return null;
   }
 }
-function summaryFormat(value: v1.DocumentSummaryFormat): "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text" {
+function summaryFormat(
+  value: protocolClientV1Documents.DocumentSummaryFormat,
+): "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text" {
   switch (value) {
-    case v1.DocumentSummaryFormat.NUMBER:
+    case protocolClientV1Documents.DocumentSummaryFormat.NUMBER:
       return "number";
-    case v1.DocumentSummaryFormat.PERCENT:
+    case protocolClientV1Documents.DocumentSummaryFormat.PERCENT:
       return "percent";
-    case v1.DocumentSummaryFormat.DURATION:
+    case protocolClientV1Documents.DocumentSummaryFormat.DURATION:
       return "duration";
-    case v1.DocumentSummaryFormat.DISTANCE:
+    case protocolClientV1Documents.DocumentSummaryFormat.DISTANCE:
       return "distance";
-    case v1.DocumentSummaryFormat.STATUS:
+    case protocolClientV1Documents.DocumentSummaryFormat.STATUS:
       return "status";
-    case v1.DocumentSummaryFormat.TEXT:
+    case protocolClientV1Documents.DocumentSummaryFormat.TEXT:
       return "text";
     default:
       return "auto";
   }
 }
 function mapSummaryPresentation(value: DocumentSummaryPresentation | undefined): "value" | "progress" | "badge" {
-  return value === v1.DocumentSummaryPresentation.PROGRESS
+  return value === protocolClientV1Documents.DocumentSummaryPresentation.PROGRESS
     ? "progress"
-    : value === v1.DocumentSummaryPresentation.BADGE
+    : value === protocolClientV1Documents.DocumentSummaryPresentation.BADGE
       ? "badge"
       : "value";
 }
 function mapSummaryState(value: DocumentSummaryState | undefined): "ok" | "warning" | "critical" | "muted" | null {
-  return value === v1.DocumentSummaryState.OK
+  return value === protocolClientV1Documents.DocumentSummaryState.OK
     ? "ok"
-    : value === v1.DocumentSummaryState.WARNING
+    : value === protocolClientV1Documents.DocumentSummaryState.WARNING
       ? "warning"
-      : value === v1.DocumentSummaryState.CRITICAL
+      : value === protocolClientV1Documents.DocumentSummaryState.CRITICAL
         ? "critical"
-        : value === v1.DocumentSummaryState.MUTED
+        : value === protocolClientV1Documents.DocumentSummaryState.MUTED
           ? "muted"
           : null;
 }
@@ -512,18 +543,18 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       sigma: interval?.sigma,
       clip_to_observed: interval?.clipToObserved,
     },
-    arrangement: request.arrangement ? (request.arrangement === definitions.BarArrangement.GROUPED ? "grouped" : "stacked") : null,
+    arrangement: request.arrangement ? (request.arrangement === protocolV1Plots.BarArrangement.GROUPED ? "grouped" : "stacked") : null,
     pareto: request.pareto,
     hole: request.hole ?? null,
     xy_interval: request.xyInterval ? "sigma" : null,
     reduction: request.reduction
       ? ({
-          [definitions.Reduction.MEAN]: "mean" as const,
-          [definitions.Reduction.MIN]: "min" as const,
-          [definitions.Reduction.MAX]: "max" as const,
+          [protocolV1Plots.Reduction.MEAN]: "mean" as const,
+          [protocolV1Plots.Reduction.MIN]: "min" as const,
+          [protocolV1Plots.Reduction.MAX]: "max" as const,
         }[request.reduction] ?? null)
       : null,
-    render: request.render === definitions.ContourRender.BANDS ? "bands" : "cells",
+    render: request.render === protocolV1Plots.ContourRender.BANDS ? "bands" : "cells",
     grid: request.grid
       ? {
           row: mapNativeExpression(request.grid.row),
@@ -585,73 +616,73 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
  * (`Lttb`) maps without an edit here; `Unspecified` stays the default.
  */
 function mapDownsampleTechnique(value: NativeDownsampleTechnique | undefined): DocumentDownsampleTechnique | null {
-  return value === v1.Downsample.AUTO
+  return value === protocolV1Plots.Downsample.AUTO
     ? "auto"
-    : value === v1.Downsample.RAW
+    : value === protocolV1Plots.Downsample.RAW
       ? "raw"
-      : value === v1.Downsample.MIN_MAX
+      : value === protocolV1Plots.Downsample.MIN_MAX
         ? "min_max"
-        : value === v1.Downsample.LTTB
+        : value === protocolV1Plots.Downsample.LTTB
           ? "lttb"
           : null;
 }
 function mapNativePlotAxis(kind: NativePlotAxisKind | undefined, unit: string | undefined): DocumentViewCard["plots"][number]["x_axis"] {
-  return kind === v1.PlotAxisKind.WALL_TIME
+  return kind === protocolClientV1Documents.PlotAxisKind.WALL_TIME
     ? { kind: "wall_time" }
-    : kind === v1.PlotAxisKind.ELAPSED
+    : kind === protocolClientV1Documents.PlotAxisKind.ELAPSED
       ? { kind: "elapsed", unit: unit?.trim() || "s" }
       : null;
 }
 function mapNativePlotType(value?: PlotType): DocumentViewCard["plots"][number]["plot_type"] {
   switch (value) {
-    case definitions.PlotKind.TIME_SERIES:
+    case protocolV1Plots.PlotKind.TIME_SERIES:
       return "time_series";
-    case definitions.PlotKind.FREQUENCY_SERIES:
+    case protocolV1Plots.PlotKind.FREQUENCY_SERIES:
       return "frequency_series";
-    case definitions.PlotKind.XY:
+    case protocolV1Plots.PlotKind.XY:
       return "xy";
-    case definitions.PlotKind.TRAJECTORY:
+    case protocolV1Plots.PlotKind.TRAJECTORY:
       return "trajectory";
-    case definitions.PlotKind.CONTOUR:
+    case protocolV1Plots.PlotKind.CONTOUR:
       return "contour";
-    case definitions.PlotKind.GRID_CHART:
+    case protocolV1Plots.PlotKind.GRID_CHART:
       return "grid_chart";
-    case definitions.PlotKind.BAR:
+    case protocolV1Plots.PlotKind.BAR:
       return "bar";
-    case definitions.PlotKind.PIE:
+    case protocolV1Plots.PlotKind.PIE:
       return "pie";
-    case definitions.PlotKind.HISTOGRAM:
+    case protocolV1Plots.PlotKind.HISTOGRAM:
       return "histogram";
-    case definitions.PlotKind.BOX_PLOT:
+    case protocolV1Plots.PlotKind.BOX_PLOT:
       return "box_plot";
     default:
       throw new Error(`Unsupported document plot type: ${value}`);
   }
 }
 function mapPlotStyle(value?: PlotStyle): "line" | "points" | "line_points" | "step" {
-  return value === v1.LineStyle.POINTS
+  return value === protocolV1Plots.LineStyle.POINTS
     ? "points"
-    : value === v1.LineStyle.LINE_POINTS
+    : value === protocolV1Plots.LineStyle.LINE_POINTS
       ? "line_points"
-      : value === v1.LineStyle.STEP
+      : value === protocolV1Plots.LineStyle.STEP
         ? "step"
         : "line";
 }
 function mapAxisScale(value?: AxisScale): "linear" | "log" {
-  return value === definitions.AxisScale.LOG ? "log" : "linear";
+  return value === protocolV1Plots.AxisScale.LOG ? "log" : "linear";
 }
 function mapFftWindow(value?: FftWindow): "hann" | "rectangular" {
-  return value === v1.FftWindow.RECTANGULAR ? "rectangular" : "hann";
+  return value === protocolV1Plots.FftWindow.RECTANGULAR ? "rectangular" : "hann";
 }
 function mapFftDetrend(value?: FftDetrend): "none" | "mean" {
-  return value === v1.FftDetrend.NONE ? "none" : "mean";
+  return value === protocolV1Plots.FftDetrend.NONE ? "none" : "mean";
 }
 function mapFrequencyLevelUnit(value?: FrequencyLevelUnit): "linear" | "dB" | "dBu" | "dBm" {
-  return value === v1.FrequencyLevelUnit.DB
+  return value === protocolV1Plots.FrequencyLevelUnit.DB
     ? "dB"
-    : value === v1.FrequencyLevelUnit.DBU
+    : value === protocolV1Plots.FrequencyLevelUnit.DBU
       ? "dBu"
-      : value === v1.FrequencyLevelUnit.DBM
+      : value === protocolV1Plots.FrequencyLevelUnit.DBM
         ? "dBm"
         : "linear";
 }
@@ -670,19 +701,19 @@ function mapNativeFilter(filter: PlotRequest["filters"][number]): {
 }
 function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists" {
   switch (value) {
-    case definitions.FilterOperator.NE:
+    case protocolV1Expressions.FilterOperator.NE:
       return "ne";
-    case definitions.FilterOperator.GT:
+    case protocolV1Expressions.FilterOperator.GT:
       return "gt";
-    case definitions.FilterOperator.GE:
+    case protocolV1Expressions.FilterOperator.GE:
       return "gte";
-    case definitions.FilterOperator.LT:
+    case protocolV1Expressions.FilterOperator.LT:
       return "lt";
-    case definitions.FilterOperator.LE:
+    case protocolV1Expressions.FilterOperator.LE:
       return "lte";
-    case definitions.FilterOperator.CONTAINS:
+    case protocolV1Expressions.FilterOperator.CONTAINS:
       return "contains";
-    case definitions.FilterOperator.EXISTS:
+    case protocolV1Expressions.FilterOperator.EXISTS:
       return "exists";
     default:
       return "eq";
@@ -720,20 +751,20 @@ function mapNativeExpression(value?: DataExpression, depth = 0): import("../docu
     case "aggregate": {
       const input = mapNativeExpression(kind.value.input, depth + 1);
       if (!input) invalid("aggregate input is missing");
-      const names: Partial<Record<definitions.Aggregate, import("../document-contracts").Aggregate>> = {
-        [definitions.Aggregate.FIRST]: "first",
-        [definitions.Aggregate.LAST]: "last",
-        [definitions.Aggregate.COUNT]: "count",
-        [definitions.Aggregate.SUM]: "sum",
-        [definitions.Aggregate.MIN]: "min",
-        [definitions.Aggregate.MAX]: "max",
-        [definitions.Aggregate.MEAN]: "mean",
-        [definitions.Aggregate.STDDEV]: "std",
-        [definitions.Aggregate.MEDIAN]: "median",
-        [definitions.Aggregate.RMS]: "rms",
+      const names: Partial<Record<protocolV1Expressions.Aggregate, import("../document-contracts").Aggregate>> = {
+        [protocolV1Expressions.Aggregate.FIRST]: "first",
+        [protocolV1Expressions.Aggregate.LAST]: "last",
+        [protocolV1Expressions.Aggregate.COUNT]: "count",
+        [protocolV1Expressions.Aggregate.SUM]: "sum",
+        [protocolV1Expressions.Aggregate.MIN]: "min",
+        [protocolV1Expressions.Aggregate.MAX]: "max",
+        [protocolV1Expressions.Aggregate.MEAN]: "mean",
+        [protocolV1Expressions.Aggregate.STDDEV]: "std",
+        [protocolV1Expressions.Aggregate.MEDIAN]: "median",
+        [protocolV1Expressions.Aggregate.RMS]: "rms",
       };
       const aggregate =
-        kind.value.kind === definitions.Aggregate.PERCENTILE ? (`p${kind.value.percentile}` as const) : names[kind.value.kind];
+        kind.value.kind === protocolV1Expressions.Aggregate.PERCENTILE ? (`p${kind.value.percentile}` as const) : names[kind.value.kind];
       if (!aggregate) invalid("aggregate kind is missing");
       return { ...input, label: value.label || input.label, transforms: [...(input.transforms ?? []), { type: "aggregate", aggregate }] };
     }
@@ -951,7 +982,7 @@ export async function assembleDocument(
         const expectedResult =
           source.body?.kind.case === "summary"
             ? "summary"
-            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === v1.DocumentCardKind.PLOT
+            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === protocolClientV1Documents.DocumentCardKind.PLOT
               ? "plot"
               : "literal";
         if (

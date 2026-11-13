@@ -108,7 +108,7 @@ pub fn run<T>(story: impl Future<Output = T>) -> T {
 pub fn tempdir() -> std::io::Result<Root> {
     ROOTS
         .try_with(|roots| {
-            let directory = tempfile::tempdir()?;
+            let directory = tempfile::Builder::new().prefix("dokime-desktop-story-").tempdir()?;
             let root = Root(directory.path().to_owned());
             roots.lock().unwrap().push(directory);
             Ok(root)

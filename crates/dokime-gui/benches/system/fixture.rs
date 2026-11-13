@@ -15,6 +15,8 @@
 
 /* === Imports === */
 
+use dokime_protocol::client;
+
 // Standard Library Imports
 use std::{path::Path, time::Duration};
 
@@ -89,26 +91,33 @@ impl Fixture {
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let plugin = dokime_runtime_next::PluginProcess::start(&std::env::current_exe().unwrap(), true, &placement).await.unwrap();
-        let _: v1::Plugin = session.unary("/dokime.v1.Plugins/Add", v1::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
-        let plan: v1::PreviewSelectionReply = session
+        let _: client::Plugin =
+            session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
+        let plan: client::CasesCreateResponse = session
             .unary(
-                "/dokime.v1.Planning/MaterializeTemplate",
-                v1::PlanningMaterializeTemplateRequest {
-                    selection: Some(v1::RegisteredSelection {
-                        suite_id: "bench.pipeline".into(),
-                        template_id: "bench.pipeline.capture".into(),
+                "/dokime.client.v1.Cases/Create",
+                client::CasesCreateRequest {
+                    plan: Some(client::SelectionPlan {
+                        selections: vec![client::RegisteredSelection {
+                            suite_id: "bench.pipeline".into(),
+                            template_id: "bench.pipeline.capture".into(),
+                            ..Default::default()
+                        }],
                         ..Default::default()
                     }),
+                    validate_only: true,
+                    request_id: "bench-preview".into(),
                 },
             )
             .await
             .unwrap();
-        let created: v1::CreateCycleReply = session
+        let created: client::CyclesCreateResponse = session
             .unary(
-                "/dokime.v1.Execution/CreateCycle",
-                v1::ExecutionCreateCycleRequest {
+                "/dokime.client.v1.Cycles/Create",
+                client::CyclesCreateRequest {
                     origins: plan.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                     continue_automatically: true,
+                    request_id: "bench-cycle".into(),
                     metadata: Some(v1::Metadata {
                         label: "Pipeline Bench".into(),
                         ..Default::default()
@@ -118,8 +127,18 @@ impl Fixture {
             )
             .await
             .unwrap();
-        let cycle = created.cycle_id;
-        let execution = created.execution_ids[0].clone();
+        let cycle = created.cycle.unwrap().cycle_id;
+        let executions: client::ExecutionsListResponse = session
+            .unary(
+                "/dokime.client.v1.Executions/List",
+                client::ExecutionsListRequest {
+                    parent: cycle.clone(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let execution = executions.executions[0].summary.as_ref().unwrap().execution_id.clone();
         std::fs::write(manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle, "execution": execution})).unwrap()).unwrap();
         Self {
             owner,
@@ -132,26 +151,28 @@ impl Fixture {
 
     pub async fn publish(&self, action: &str) {
         // Await the Producer's Question Before Releasing Its Next Publication
-        let mut changes = self.session.watch_raw("/dokime.v1.Observation/WatchRuntime", &[]).await.unwrap();
+        let mut changes = self.session.watch_raw("/dokime.client.v1.backend.Overview/Watch", &[]).await.unwrap();
         loop {
-            let pending: v1::ListPendingPromptsReply = self
+            let pending: client::PromptsListResponse = self
                 .session
                 .unary(
-                    "/dokime.v1.Prompts/ListPending",
-                    v1::PromptsListPendingRequest {
+                    "/dokime.client.v1.Prompts/List",
+                    client::PromptsListRequest {
                         execution_id: Some(self.execution.clone()),
+                        pending_only: true,
                         ..Default::default()
                     },
                 )
                 .await
                 .unwrap();
             if let Some(prompt) = pending.prompts.first() {
-                let _: v1::PromptResponseReceipt = self
+                let _: client::prompts::AnswersCreateResponse = self
                     .session
                     .unary(
-                        "/dokime.v1.Prompts/Respond",
-                        v1::PromptsRespondRequest {
-                            prompt_id: prompt.prompt_id.clone(),
+                        "/dokime.client.v1.prompts.Answers/Create",
+                        client::prompts::AnswersCreateRequest {
+                            parent: prompt.prompt.as_ref().unwrap().prompt_id.clone(),
+                            request_id: "bench-answer".into(),
                             action: action.into(),
                             accepted: true,
                             ..Default::default()
@@ -167,7 +188,7 @@ impl Fixture {
 
     pub async fn prepared(&self) {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
-        let request = v1::PlotsWatchRequest {
+        let request = client::plots::SnapshotsWatchRequest {
             requests: vec![v1::PlotRequest {
                 stream: "bench.pipeline".into(),
                 y_keys: vec!["y1".into()],
@@ -178,19 +199,19 @@ impl Fixture {
                 max_points: Some(32),
                 ..Default::default()
             }],
+            ..Default::default()
         };
         let bytes = prost::Message::encode_to_vec(&request);
-        let mut watch = self.session.watch_raw("/dokime.v1.Plots/Watch", &bytes).await.unwrap();
+        let mut watch = self.session.watch_raw("/dokime.client.v1.plots.Snapshots/Watch", &bytes).await.unwrap();
         while let Some(frame) = watch.next().await {
-            let frame = <v1::PlotsWatchOutput as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
-            if let Some(v1::plots_watch_output::Value::Item(frame)) = frame.value
-                && frame
-                    .updates
-                    .iter()
-                    .filter_map(|update| update.envelope.as_ref())
-                    .filter_map(|envelope| envelope.payload.as_ref())
-                    .flat_map(|payload| &payload.series)
-                    .any(|series| series.raw_points >= ROWS as u64)
+            let frame = <client::plots::SnapshotsWatchResponse as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
+            if frame
+                .updates
+                .iter()
+                .filter_map(|update| update.envelope.as_ref())
+                .filter_map(|envelope| envelope.payload.as_ref())
+                .flat_map(|payload| &payload.series)
+                .any(|series| series.raw_points >= ROWS as u64)
             {
                 return;
             }
@@ -216,7 +237,7 @@ pub fn serve() -> dokime_sdk::Result<()> {
     Plugin::new("desktop-benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
-        .requires_host::<dokime_sdk::protocol::context::v1::PromptsCreateRequest>()
+        .requires_host::<dokime_sdk::protocol::plugin::host::v1::PromptsCreateRequest>()
         .remote()
         .serve()
 }
@@ -249,7 +270,7 @@ async fn publish(context: &Context, publisher: Publisher<Row>) -> dokime_sdk::Re
         }
         sequence += count;
         let answer = context
-            .prompt(dokime_sdk::protocol::context::v1::PromptsCreateRequest {
+            .prompt(dokime_sdk::protocol::plugin::host::v1::PromptsCreateRequest {
                 prompt: format!("next-{sequence}"),
                 prompt_type: "bench.next".into(),
                 ..Default::default()

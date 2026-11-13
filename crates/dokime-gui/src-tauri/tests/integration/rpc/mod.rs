@@ -117,6 +117,8 @@ mod native {
 
 /* === Imports === */
 
+use dokime_protocol::client;
+
 // Third Party Imports
 use prost::Message;
 use serde_json::json;
@@ -126,11 +128,11 @@ use sha2::{Digest, Sha256};
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
-use dokime_sdk::{client::v1 as library, v1};
+use dokime_sdk::client::v1 as library;
 
 /* === Constants === */
 
-const INSTALL: &str = "/dokime.v1.Plugins/Install";
+const INSTALL: &str = "/dokime.client.v1.Plugins/Install";
 
 /* === Macros === */
 
@@ -152,16 +154,16 @@ fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<taur
     bridge::invoke(window, command, bytes, &serde_json::Value::Null)
 }
 
-fn install_item(kind: v1::install_plugin_frame_frame::Kind) -> v1::InstallPluginFrame {
-    v1::InstallPluginFrame {
-        frame: Some(v1::InstallPluginFrameFrame { kind: Some(kind) }),
+fn install_item(kind: client::install_plugin_frame_frame::Kind) -> client::InstallPluginFrame {
+    client::InstallPluginFrame {
+        frame: Some(client::InstallPluginFrameFrame { kind: Some(kind) }),
     }
 }
 
 fn install_header(size_bytes: u64, sha256: String) -> Vec<u8> {
-    v1::PluginsInstallInput {
-        value: Some(v1::plugins_install_input::Value::Item(install_item(v1::install_plugin_frame_frame::Kind::Header(
-            v1::InstallPluginHeader { size_bytes, sha256 },
+    client::PluginsInstallInput {
+        value: Some(client::plugins_install_input::Value::Item(install_item(client::install_plugin_frame_frame::Kind::Header(
+            client::InstallPluginHeader { size_bytes, sha256 },
         )))),
     }
     .encode_to_vec()
@@ -169,17 +171,17 @@ fn install_header(size_bytes: u64, sha256: String) -> Vec<u8> {
 
 fn install(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
     // Open the Canonical Client Input and Stream Bounded Chunks
-    let opening = v1::PluginsInstallInput {
-        value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+    let opening = client::PluginsInstallInput {
+        value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
     };
     let (stream, channel) = harness.open(generation, INSTALL, &opening.encode_to_vec(), true).unwrap();
     harness
         .control("rpc_stream_send", generation, stream, &install_header(bytes.len() as u64, hex(&Sha256::digest(bytes))), json!({}))
         .unwrap();
     for (index, data) in bytes.chunks(256 * 1024).enumerate() {
-        let frame = v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Item(install_item(v1::install_plugin_frame_frame::Kind::Chunk(
-                v1::InstallPluginChunk {
+        let frame = client::PluginsInstallInput {
+            value: Some(client::plugins_install_input::Value::Item(install_item(client::install_plugin_frame_frame::Kind::Chunk(
+                client::InstallPluginChunk {
                     offset: (index * 256 * 1024) as u64,
                     data: data.to_vec(),
                 },
@@ -277,8 +279,9 @@ fn unary_call_bridges() {
         assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
         let identity = library::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, fixture.session.status().backend.unwrap().backend_id);
-        let error = bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.v1.Missing/Call"}))
-            .unwrap_err();
+        let error =
+            bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.client.v1.Missing/Call"}))
+                .unwrap_err();
         assert_eq!(error["kind"], "grpc");
         fixture.close().await;
     })
@@ -292,8 +295,8 @@ fn owner_cancellation_health() {
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
-        let opening = v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+        let opening = client::PluginsInstallInput {
+            value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
         };
         let (stream, channel) = harness.open(generation, INSTALL, &opening.encode_to_vec(), true).unwrap();
         harness.app.state::<Bridge>().cancel_owner("main");
@@ -315,7 +318,7 @@ fn generation_fences_streams() {
         let fixture = Fixture::new().await;
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
-        let (_, channel) = harness.open(generation, "/dokime.v1.Observation/WatchRuntime", &[], false).unwrap();
+        let (_, channel) = harness.open(generation, "/dokime.client.v1.backend.Overview/Watch", &[], false).unwrap();
         fixture.session.disconnect().unwrap();
         let frames = harness.settle(channel);
         assert!(frames.iter().all(|frame| u64::from_le_bytes(frame[..8].try_into().unwrap()) == generation));
@@ -337,9 +340,9 @@ fn installs_large_bundle() {
         assert_eq!(frames.len(), 2);
         assert_eq!(frames[0][8], FRAME_MESSAGE);
         assert_eq!(frames[1][8], FRAME_END);
-        let installation = v1::PluginInstallation::decode(&frames[0][9..]).unwrap();
+        let installation = client::PluginInstallation::decode(&frames[0][9..]).unwrap();
         assert_eq!(installation.sha256, hex(&Sha256::digest(&bytes)));
-        assert_eq!(installation.state, v1::PluginInstallationState::Installed as i32);
+        assert_eq!(installation.state, client::PluginInstallationState::Installed as i32);
         fixture.close().await;
     })
 }
@@ -356,10 +359,10 @@ fn refuses_foreign_bundle() {
         let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
         assert_eq!(error["kind"], "grpc");
         assert_eq!(error["detail"]["code"], tonic::Code::InvalidArgument as i32);
-        let page: v1::InstallationPage = fixture
+        let page: client::InstallationPage = fixture
             .client()
             .await
-            .unary("/dokime.v1.Plugins/ListInstallations", v1::PluginsListInstallationsRequest::default())
+            .unary("/dokime.client.v1.Plugins/ListInstallations", client::PluginsListInstallationsRequest::default())
             .await
             .unwrap();
         assert!(page.installations.is_empty());

@@ -15,10 +15,12 @@
 
 import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
 
-import * as v1 from "@host/dokime/v1/client_types_pb.js";
+import * as protocolV1Evidence from "@host/dokime/v1/evidence_pb.js";
+import * as protocolClientV1ContentExecutionFiles from "@host/dokime/client/v1/content/execution_files_pb.js";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
+import { required, cutKey } from "@/lib/rpc/canonical";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
@@ -38,11 +40,9 @@ const GUI_SMALL_PAGE_ITEMS = 100;
 /* === Canonical Types === */
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
-type ArtifactFrame = Wire<v1.ArtifactFrame>;
-type ExecutionFileFollowFrame = Wire<v1.ExecutionFileFollowFrame>;
-type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["artifacts"][number];
-type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["files"][number];
-type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["cursor"]>;
+type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentArtifactsList>>>["artifacts"][number];
+type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["files"][number];
+type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["resolvedAt"]>;
 type ExecutionFileKind = ExecutionFileMetadata["kind"];
 type ExecutionFileState = ExecutionFileMetadata["state"];
 type ArtifactState = ArtifactMetadata["state"];
@@ -61,25 +61,25 @@ export function nativeContentSession(session: SessionIdentity, own: NativeConten
 
 export async function fetchNativeExecutionFiles(session: SessionIdentity, executionId: string): Promise<ArtifactRecord[]> {
   const files: ExecutionFileMetadata[] = [];
-  let afterPath = "";
-  let cursor: ExecutionFilesCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.contentListExecutionFiles(session, {
-      executionId,
-      limit: GUI_SMALL_PAGE_ITEMS,
-      afterPath,
-      cursor,
+  let pageToken = "";
+  let at: ExecutionFilesCursor | undefined;
+  const tokens = new Set<string>();
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.contentExecutionFilesList(session, {
+      parent: executionId,
+      at,
+      page: { pageSize: GUI_SMALL_PAGE_ITEMS, pageToken },
     });
+    const cut = required(reply.resolvedAt, "List Execution Files Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("List Execution Files: Retained Cut Changed");
+    at = cut;
     files.push(...reply.files);
-    const next = reply.nextAfterPath;
-    if (!next) return files.map((file) => mapExecutionFile(executionId, file));
-    if (next === afterPath) {
-      throw new NativeApiLimitError("Content.ListExecutionFiles", `cursor did not advance at ${next}`);
-    }
-    afterPath = next;
-    cursor = reply.cursor;
+    if (!reply.nextPageToken) return files.map((file) => mapExecutionFile(executionId, file));
+    if (tokens.has(reply.nextPageToken)) throw new Error("List Execution Files: Repeated Page Token");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
   }
-  throw new NativeApiLimitError("Content.ListExecutionFiles", `more than ${NATIVE_MAX_PAGES} pages`);
+  throw new NativeApiLimitError("ExecutionFiles.List", "Page Budget Reached");
 }
 
 /**
@@ -94,22 +94,22 @@ export async function readNativeExecutionFileWindow(
   maxBytes: number,
 ): Promise<ExecutionFileReadWindow> {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > EXECUTION_FILE_WINDOW_BYTES) {
-    throw new NativeApiLimitError("Content.ReadExecutionFile", `max_bytes must be between 1 and ${EXECUTION_FILE_WINDOW_BYTES}`);
+    throw new NativeApiLimitError("ExecutionFiles.Get", `max_bytes must be between 1 and ${EXECUTION_FILE_WINDOW_BYTES}`);
   }
   if (!Number.isSafeInteger(offset) || offset < 0) {
-    throw new NativeApiLimitError("Content.ReadExecutionFile", "offset is invalid");
+    throw new NativeApiLimitError("ExecutionFiles.Get", "offset is invalid");
   }
-  const window = await rpc.contentReadExecutionFile(session, {
-    executionId,
-    relativePath: path,
-    offset: BigInt(offset),
-    maxBytes,
-  });
+  const item = await rpc.contentExecutionFilesGet(session, { parent: executionId, name: path });
+  const file = required(item.file, "Read Execution File");
+  const metadata = required(item.metadata, "Read Execution File Metadata");
+  const window = await rpc.storageGetFileBytes(session, { file, offset: BigInt(offset), maxBytes: BigInt(maxBytes), at: item.resolvedAt });
+  if (window.totalLength !== file.length || cutKey(window.sha256) !== cutKey(file.sha256) || window.data.length > maxBytes)
+    throw new Error("Read Execution File: Invalid Range or Digest");
   return {
-    offset: safeNumber(window.offset, "Content.ReadExecutionFile offset"),
-    observedSizeBytes: safeNumber(window.observedSizeBytes, "Content.ReadExecutionFile size"),
+    offset,
+    observedSizeBytes: safeNumber(window.totalLength, "Read File Length"),
     data: window.data,
-    state: mapFileState(window.state),
+    state: mapFileState(metadata.state),
   };
 }
 
@@ -125,28 +125,51 @@ export async function followNativeExecutionFile(
   { identity, offset = 0 }: { identity?: ExecutionFileIdentity | null; offset?: number } = {},
 ): Promise<NativeStream<ExecutionFileFollowEvent>> {
   if (!Number.isSafeInteger(offset) || offset < 0 || (offset > 0 && !identity)) {
-    throw new NativeApiLimitError("Content.FollowExecutionFile", "a resume offset requires the original identity");
+    throw new NativeApiLimitError("ExecutionFiles.Get", "a resume offset requires the original identity");
   }
-  const stream = await rpc.contentFollowExecutionFile(session, {
-    executionId,
-    relativePath: path,
-    identity: identity
-      ? {
-          history: { store: identity.store, epoch: identity.epoch },
-          fileId: identity.fileId,
-          executionId: identity.executionId,
-          relativePath: identity.relativePath,
-        }
-      : undefined,
-    offset: BigInt(offset),
-    maxBytes: EXECUTION_FILE_WINDOW_BYTES,
+  const item = await rpc.contentExecutionFilesGet(session, { parent: executionId, name: path });
+  const file = required(item.file, "Follow Execution File");
+  const history = required(file.position?.history, "Follow Execution File History");
+  const id = required(file.metadata, "Follow Execution File Metadata").id;
+  if (identity && (identity.store !== history.store || identity.epoch !== history.epoch || identity.fileId !== id))
+    throw new Error("Follow Execution File: Original Identity Changed");
+  const stream = await rpc.storageWatchFileBytes(session, {
+    source: { source: { case: "stored", value: file } },
+    start: { start: { case: "at", value: BigInt(offset) } },
   });
   return {
     cancel: () => stream.cancel(),
     async *[Symbol.asyncIterator]() {
+      let length = offset;
+      const state = required(item.metadata, "Follow Execution File State").state;
+      yield {
+        kind: "metadata",
+        identity: { store: history.store, epoch: history.epoch, fileId: id, executionId, relativePath: path },
+        phase:
+          state === protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING
+            ? "producing"
+            : state === protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED
+              ? "abandoned"
+              : "finished",
+        availableLength: safeNumber(file.length, "Follow File Length"),
+        offset,
+      } as ExecutionFileFollowEvent;
       for await (const frame of stream) {
-        yield mapFollowFrame(frame);
+        const event = frame.event?.event;
+        if (event?.case === "data") {
+          const position = safeNumber(event.value.offset, "Follow File Offset");
+          if (position !== length) throw new Error("Follow Execution File: Noncontiguous Range");
+          yield { kind: "chunk", offset: position, data: event.value.bytes } as ExecutionFileFollowEvent;
+          length += event.value.bytes.length;
+        } else if (event?.case === "truncated" || event?.case === "replaced")
+          throw new Error("Follow Execution File: Content Changed; Reopen Its Metadata");
       }
+      yield {
+        kind: "terminal",
+        phase: state === protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
+        length,
+        sha256: [...file.sha256].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+      } as ExecutionFileFollowEvent;
     },
   };
 }
@@ -167,34 +190,9 @@ export async function fetchNativeArtifactBytes(
   artifactId: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const id = artifactId.trim();
-  if (!id) throw new Error("Content.DownloadArtifact requires an artifact ID.");
-  let reader: NativeStream<ArtifactFrame> | undefined;
-  let release: (() => void) | undefined;
-  let cancelPromise: Promise<void> | undefined;
-  const cancel = async (): Promise<void> => {
-    if (!reader) return;
-    cancelPromise ??= reader.cancel();
-    await cancelPromise;
-  };
-  if (signal?.aborted || !session.isCurrent()) {
-    throw new Error("Artifact transfer cancelled.");
-  }
-  const abort = () => void cancel().catch(() => undefined);
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    reader = await rpc.contentDownloadArtifact(session, { artifactId: id });
-    if (signal?.aborted || !session.isCurrent()) {
-      await cancel();
-      throw new Error("Artifact transfer cancelled.");
-    }
-    release = session.own(() => void cancel().catch(() => undefined));
-    return await assembleArtifactBytes(reader, id, () => !signal?.aborted && session.isCurrent());
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    await cancel().catch(() => undefined);
-    release?.();
-  }
+  const reply = await rpc.contentArtifactsGet(session, { name: artifactId });
+  const reference = required(reply.file, "Read Artifact File");
+  return readFileReference(session, reference, signal, reply.resolvedAt);
 }
 
 type NativeContentArtifact = Pick<ArtifactRecord, "artifact_id" | "group_id" | "label" | "path" | "scope">;
@@ -258,7 +256,7 @@ export async function uploadNativeArtifact(session: NativeContentSession, option
   }
   const file = options.file;
   if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > NATIVE_CONTENT_BYTES) {
-    throw new NativeApiLimitError("Content.UploadArtifact", `payload exceeds ${NATIVE_CONTENT_BYTES} bytes`);
+    throw new NativeApiLimitError("Artifacts.Create", `payload exceeds ${NATIVE_CONTENT_BYTES} bytes`);
   }
   let upload: Awaited<ReturnType<typeof openNativeArtifactUpload>> | undefined;
   let release: (() => void) | undefined;
@@ -278,7 +276,7 @@ export async function uploadNativeArtifact(session: NativeContentSession, option
       scope,
       filename,
       ...(contentType ? { contentType } : {}),
-      sizeBytes: BigInt(file.size),
+      requestId: crypto.randomUUID(),
     });
     release = session.own(() => void cancel().catch(() => undefined));
     for (let offset = 0; offset < file.size; offset += NATIVE_UPLOAD_SLICE_BYTES) {
@@ -321,7 +319,7 @@ function mapArtifactMetadata(metadata: ArtifactMetadata, overrides?: NativeArtif
     content_kind: mapContentKind(contentType, filename),
     stream_state: mapArtifactState(metadata.state),
     description: metadata.error ?? overrides?.description ?? null,
-    size_bytes: safeNumber(metadata.sizeBytes, "Content.ArtifactMetadata size"),
+    size_bytes: safeNumber(metadata.sizeBytes, "Artifact Metadata size"),
     group_id: overrides?.groupId ?? "cycle-artifacts",
     group_label: overrides?.groupLabel ?? "Cycle Artifacts",
     supersedes_artifact_id: null,
@@ -379,11 +377,11 @@ function mapArtifactScope(scope?: ArtifactScope): ArtifactRecord["scope"] {
 
 function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
   switch (state) {
-    case v1.ArtifactState.COMPLETE:
+    case protocolV1Evidence.ArtifactState.COMPLETE:
       return "finalized";
-    case v1.ArtifactState.CANCELLED:
-    case v1.ArtifactState.REJECTED:
-    case v1.ArtifactState.FAILED:
+    case protocolV1Evidence.ArtifactState.CANCELLED:
+    case protocolV1Evidence.ArtifactState.REJECTED:
+    case protocolV1Evidence.ArtifactState.FAILED:
       return "interrupted";
     default:
       return "static";
@@ -417,7 +415,7 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
     content_kind: mapFileKind(file.kind),
     stream_state: mapFileState(file.state),
     description: "Execution folder file",
-    size_bytes: safeNumber(file.sizeBytes, "Content.ExecutionFileMetadata size"),
+    size_bytes: safeNumber(file.sizeBytes, "Execution File Metadata size"),
     group_id: "execution-files",
     group_label: "Execution Files",
     created_at: createdAt,
@@ -427,11 +425,11 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
 
 function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
   switch (kind) {
-    case v1.ExecutionFileKind.TEXT:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.TEXT:
       return "text";
-    case v1.ExecutionFileKind.BINARY:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.BINARY:
       return "binary";
-    case v1.ExecutionFileKind.MEDIA:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -440,161 +438,53 @@ function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "un
 
 function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
   switch (state) {
-    case v1.ExecutionFileState.STREAMING:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING:
       return "streaming";
-    case v1.ExecutionFileState.FINALIZED:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.FINALIZED:
       return "finalized";
-    case v1.ExecutionFileState.INTERRUPTED:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "static";
   }
 }
 
-function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEvent {
-  const payload = frame.payload?.kind;
-  switch (payload?.case) {
-    case "metadata": {
-      const metadata = payload.value;
-      const identity = metadata?.identity;
-      if (!metadata || !identity?.history || !identity.fileId) {
-        throw new Error("Content.FollowExecutionFile metadata has no original identity.");
-      }
-      return {
-        kind: "metadata",
-        identity: {
-          store: identity.history.store,
-          epoch: identity.history.epoch,
-          fileId: identity.fileId,
-          executionId: identity.executionId,
-          relativePath: identity.relativePath,
-        },
-        phase: mapFollowPhase(metadata.phase, ["Producing", "Finished", "Abandoned"]),
-        availableLength: safeNumber(metadata.availableLength, "Content.FollowExecutionFile available length"),
-        offset: safeNumber(metadata.offset, "Content.FollowExecutionFile offset"),
-      };
-    }
-    case "chunk": {
-      const chunk = payload.value;
-      if (!chunk) throw new Error("Content.FollowExecutionFile chunk is missing.");
-      return {
-        kind: "chunk",
-        offset: safeNumber(chunk.offset, "Content.FollowExecutionFile chunk offset"),
-        data: chunk.data,
-      };
-    }
-    case "terminal": {
-      const terminal = payload.value;
-      if (!terminal) throw new Error("Content.FollowExecutionFile terminal is missing.");
-      const sha256 = terminal.sealed?.sha256.toLowerCase() ?? null;
-      if (sha256 !== null && !/^[0-9a-f]{64}$/u.test(sha256)) {
-        throw new Error("Content.FollowExecutionFile seal digest is invalid.");
-      }
-      return {
-        kind: "terminal",
-        phase: mapFollowPhase(terminal.phase, ["Finished", "Abandoned"]),
-        length: safeNumber(terminal.length, "Content.FollowExecutionFile length"),
-        sha256,
-      };
-    }
-    default:
-      throw new Error("Content.FollowExecutionFile sent an unknown frame.");
+/** Bounded Library Range Reads, Pinned to One Returned Cut and Verified Digest. */
+export async function readFileReference(
+  session: SessionIdentity,
+  file: NonNullable<Parameters<typeof rpc.storageGetFileBytes>[1]["file"]>,
+  signal?: AbortSignal,
+  at?: Parameters<typeof rpc.storageGetFileBytes>[1]["at"],
+  maxBytes = NATIVE_CONTENT_BYTES,
+): Promise<Uint8Array> {
+  const length = safeNumber(required(file.length, "Read File Length"), "Read File Length");
+  if (length > maxBytes || required(file.sha256, "Read File Digest").length !== 32)
+    throw new Error("Read File: Content Exceeds Its Budget or Has No Digest");
+  const result = new Uint8Array(length);
+  for (let offset = 0; offset < length; ) {
+    if (!session.isCurrent() || signal?.aborted) throw new Error("Read File: Transfer Cancelled");
+    const reply = await rpc.storageGetFileBytes(session, {
+      file,
+      offset: BigInt(offset),
+      maxBytes: BigInt(Math.min(EXECUTION_FILE_WINDOW_BYTES, length - offset)),
+      at,
+    });
+    const cut = required(reply.resolvedAt, "Read File Cut");
+    if (
+      (at && cutKey(at) !== cutKey(cut)) ||
+      reply.totalLength !== BigInt(length) ||
+      cutKey(reply.sha256) !== cutKey(file.sha256) ||
+      !reply.data.length ||
+      reply.data.length > Math.min(EXECUTION_FILE_WINDOW_BYTES, length - offset)
+    )
+      throw new Error("Read File: Invalid Range, Digest or Retained Cut");
+    at = cut;
+    result.set(reply.data, offset);
+    offset += reply.data.length;
   }
-}
-
-function mapFollowPhase<const Allowed extends readonly ("Producing" | "Finished" | "Abandoned")[]>(
-  phase: v1.ExecutionFilePhase | undefined,
-  allowed: Allowed,
-): Lowercase<Allowed[number]> {
-  const name =
-    phase === v1.ExecutionFilePhase.PRODUCING
-      ? "Producing"
-      : phase === v1.ExecutionFilePhase.FINISHED
-        ? "Finished"
-        : phase === v1.ExecutionFilePhase.ABANDONED
-          ? "Abandoned"
-          : undefined;
-  const match = allowed.find((candidate) => candidate === name);
-  if (!match) throw new Error(`Content.FollowExecutionFile phase ${name ?? "unset"} is invalid here.`);
-  return match.toLowerCase() as Lowercase<Allowed[number]>;
-}
-
-async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifactId: string, active: () => boolean): Promise<Uint8Array> {
-  let metadataSize: number | undefined;
-  let expectedSha: string | undefined;
-  let expectedOffset = 0;
-  let completeSize: number | undefined;
-  let completeSha: string | undefined;
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  let completed = false;
-  for await (const frame of reader) {
-    if (!active()) throw new Error("Artifact transfer cancelled.");
-    if (completed) throw new Error("Artifact transfer continued after completion.");
-    const payload = frame.payload?.kind;
-    if (!payload?.case || !payload.value) throw new Error("Content transfer contained an incomplete frame.");
-    switch (payload.case) {
-      case "metadata": {
-        if (!payload.value) throw new Error("Transfer frame payload is missing.");
-        const metadata = payload.value;
-        if (metadata.artifactId !== artifactId || metadataSize !== undefined) {
-          throw new Error("Artifact metadata identity is invalid.");
-        }
-        metadataSize = safeNumber(metadata.sizeBytes, "Content.ArtifactMetadata size");
-        expectedSha = metadata.sha256.toLowerCase();
-        if (!/^[0-9a-f]{64}$/u.test(expectedSha)) {
-          throw new Error("Artifact metadata digest is invalid.");
-        }
-        if (metadataSize > NATIVE_CONTENT_BYTES) throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
-        break;
-      }
-      case "chunk": {
-        if (!payload.value) throw new Error("Transfer frame payload is missing.");
-        if (metadataSize === undefined) {
-          throw new Error("Artifact data arrived before metadata.");
-        }
-        const chunk = payload.value;
-        if (chunk.data.byteLength === 0) {
-          throw new Error("Artifact chunk size is invalid.");
-        }
-        const offset = safeNumber(chunk.offset, "Content.ArtifactChunk offset");
-        if (offset !== expectedOffset) throw new Error("Artifact chunks are not contiguous.");
-        total += chunk.data.byteLength;
-        if (total > NATIVE_CONTENT_BYTES) throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
-        chunks.push(chunk.data);
-        expectedOffset += chunk.data.byteLength;
-        break;
-      }
-      case "complete": {
-        if (!payload.value) throw new Error("Transfer frame payload is missing.");
-        if (metadataSize === undefined || completeSize !== undefined) {
-          throw new Error("Artifact completed before metadata or twice.");
-        }
-        const completion = payload.value;
-        completeSize = safeNumber(completion.sizeBytes, "Content.ArtifactCompletion size");
-        completeSha = completion.sha256.toLowerCase();
-        if (!/^[0-9a-f]{64}$/u.test(completeSha)) {
-          throw new Error("Artifact completion digest is invalid.");
-        }
-        completed = true;
-        break;
-      }
-      default:
-        throw new Error("Artifact transfer contained an unknown frame.");
-    }
-  }
-  if (metadataSize === undefined || completeSize === undefined || !completed)
-    throw new Error("Artifact transfer ended before metadata and completion.");
-  if (metadataSize !== total || completeSize !== total || completeSha !== expectedSha)
-    throw new Error("Artifact transfer size or digest does not match its metadata.");
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const actualSha = await sha256Hex(bytes);
-  if (!active()) throw new Error("Artifact transfer cancelled.");
-  if (actualSha !== completeSha) throw new Error("Artifact digest verification failed.");
-  return bytes;
+  if (
+    (await sha256Hex(result)) !== [...required(file.sha256, "Read File Digest")].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  )
+    throw new Error("Read File: SHA-256 Mismatch");
+  return result;
 }

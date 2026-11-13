@@ -25,7 +25,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime_sdk::v1;
+use dokime_protocol::client;
 use sha2::{Digest, Sha256};
 const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -141,7 +141,7 @@ async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<Pat
 
 pub(super) async fn install(
     lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
-) -> Result<v1::PluginInstallation, String> {
+) -> Result<client::PluginInstallation, String> {
     let size_bytes = bytes.len() as u64;
     let hashing = move || {
         let digest = Sha256::digest(&bytes);
@@ -151,9 +151,9 @@ pub(super) async fn install(
     if expected_digest.is_some_and(|expected| !expected.eq_ignore_ascii_case(&sha256)) {
         return Err("The downloaded plugin does not match the release SHA-256".into());
     }
-    let header = v1::InstallPluginFrame {
-        frame: Some(v1::InstallPluginFrameFrame {
-            kind: Some(v1::install_plugin_frame_frame::Kind::Header(v1::InstallPluginHeader { size_bytes, sha256 })),
+    let header = client::InstallPluginFrame {
+        frame: Some(client::InstallPluginFrameFrame {
+            kind: Some(client::install_plugin_frame_frame::Kind::Header(client::InstallPluginHeader { size_bytes, sha256 })),
         }),
     };
     let (sender, receiver) = tokio::sync::mpsc::channel(2);
@@ -161,9 +161,12 @@ pub(super) async fn install(
     let uploading = async move {
         let mut offset = 0;
         for chunk in bytes.chunks(64 * 1024) {
-            let frame = v1::InstallPluginFrame {
-                frame: Some(v1::InstallPluginFrameFrame {
-                    kind: Some(v1::install_plugin_frame_frame::Kind::Chunk(v1::InstallPluginChunk { offset, data: chunk.to_vec() })),
+            let frame = client::InstallPluginFrame {
+                frame: Some(client::InstallPluginFrameFrame {
+                    kind: Some(client::install_plugin_frame_frame::Kind::Chunk(client::InstallPluginChunk {
+                        offset,
+                        data: chunk.to_vec(),
+                    })),
                 }),
             };
             sender.send(frame).await.map_err(text)?;

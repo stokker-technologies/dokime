@@ -13,8 +13,8 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { PluginInstallationState } from "@host/dokime/v1/client_types_pb.js";
-import { PluginState } from "@host/dokime/v1/plugins_pb.js";
+import { PluginInstallationState } from "@host/dokime/client/v1/plugins_pb.js";
+import { PluginState } from "@host/dokime/client/v1/plugins_pb.js";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports

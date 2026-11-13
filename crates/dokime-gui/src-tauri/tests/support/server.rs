@@ -19,7 +19,7 @@ use std::path::Path;
 // Local Imports
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
-use dokime_sdk::v1;
+use dokime_protocol::{client, v1};
 
 /* === Constants === */
 
@@ -91,8 +91,12 @@ impl Fixture {
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &placement).await.unwrap();
-        let _: v1::Plugin =
-            self.client().await.unary("/dokime.v1.Plugins/Add", v1::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
+        let _: client::Plugin = self
+            .client()
+            .await
+            .unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() })
+            .await
+            .unwrap();
         plugin
     }
 

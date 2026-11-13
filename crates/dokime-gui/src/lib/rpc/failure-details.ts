@@ -21,7 +21,7 @@ import { fromBinary } from "@bufbuild/protobuf";
 // Local Imports
 import type { RpcError } from "@/lib/desktop/rpc";
 import type { NotificationFailure } from "@/lib/notification-details";
-import { CapturedRecordErrorSchema, RejectionSchema, StatusSchema } from "./generated/errors";
+import { CapturedRecordErrorSchema, FailureSchema, StatusSchema } from "./generated/errors";
 
 /* === Re-Exports === */
 
@@ -53,16 +53,13 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
   try {
     const status = fromBinary(StatusSchema, Uint8Array.from(error.detail.details));
     for (const detail of status.details) {
-      if (detail.typeUrl === "type.googleapis.com/dokime.v1.Rejection") {
-        const rejection = fromBinary(RejectionSchema, detail.value);
+      if (detail.typeUrl === "type.googleapis.com/harmos.v1.Failure") {
+        const rejection = fromBinary(FailureSchema, detail.value);
         failure.message = rejection.message;
         failure.reason = rejection.code || reason;
-        failure.problems = rejection.issues.map((issue) => ({
-          label: issue.path,
-          message: issue.message,
-          causes: issue.expected ? [`Expected: ${issue.expected}`] : undefined,
-        }));
-      } else if (detail.typeUrl === "type.googleapis.com/dokime.v1.CapturedRecordError") {
+        failure.operationId = rejection.operation || undefined;
+        failure.diagnostics = rejection.diagnostics || undefined;
+      } else if (detail.typeUrl === "type.googleapis.com/dokime.client.v1.evidence.CapturedRecordError") {
         const captured = fromBinary(CapturedRecordErrorSchema, detail.value);
         failure.message = captured.message;
         failure.reason = captured.code || failure.reason;

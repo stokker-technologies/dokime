@@ -13,8 +13,8 @@
 
 /* === Local Imports === */
 
-import { NotePublication as Publication } from "@host/dokime/v1/client_types_pb.js";
-import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { required, cutKey } from "@/lib/rpc/canonical";
+import { Severity } from "@host/dokime/v1/evidence_pb.js";
 import { recordScopeFromNative } from "@/lib/host/values";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
@@ -24,77 +24,62 @@ import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, 
 
 /* === Types === */
 
-type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.notesCreateNote>[1]["owner"]>>;
-type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.notesListNotes>[1]["selection"]>>;
-type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.notesListNotes>>["notes"][number]>;
-type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.healthListHealth>>["items"][number]>;
-type NotePublication = Wire<Awaited<ReturnType<typeof rpc.notesCreateNote>>>["publication"];
+type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.evidenceNotesCreate>[1]["owner"]>>;
+type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.evidenceNotesList>[1]["selection"]>>;
+type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.evidenceNotesList>>["notes"][number]>;
+type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.evidenceHealthEventsList>>["events"][number]>;
 
 /* === Public API === */
 
 export async function fetchNativeNotes(session: SessionIdentity, scope: RecordScope): Promise<OperatorNote[]> {
   const selection = annotationSelection(scope);
-  const notes: NativeOperatorNote[] = [];
-  let afterId = "";
-  let cursor: Parameters<typeof rpc.notesListNotes>[1]["cursor"];
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.notesListNotes(session, {
-      selection,
-      limit: NATIVE_SMALL_PAGE_SIZE,
-      afterId,
-      cursor,
-    });
-    notes.push(...reply.notes);
-    const next = reply.nextAfterId;
-    if (!next) return notes.map(mapNativeNote);
-    if (next === afterId) {
-      throw new NativeApiLimitError("Notes.ListNotes", `cursor did not advance at ${next}`);
-    }
-    afterId = next;
-    cursor = reply.cursor;
+  const items: NativeOperatorNote[] = [];
+  let pageToken = "";
+  let at: Parameters<typeof rpc.evidenceNotesList>[1]["at"];
+  const tokens = new Set<string>();
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.evidenceNotesList(session, { selection, at, page: { pageSize: NATIVE_SMALL_PAGE_SIZE, pageToken } });
+    const cut = required(reply.resolvedAt, "Read Annotation Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("Read Annotations: Retained Cut Changed");
+    at = cut;
+    items.push(...reply.notes);
+    if (!reply.nextPageToken) return items.map(mapNativeNote);
+    if (tokens.has(reply.nextPageToken)) throw new NativeApiLimitError("Read Annotations", "Repeated Page Token");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
   }
-  throw new NativeApiLimitError("Notes.ListNotes", `more than ${NATIVE_MAX_PAGES} pages`);
+  throw new NativeApiLimitError("Read Annotations", "Page Budget Reached");
 }
 
 export async function fetchNativeHealth(session: SessionIdentity, scope: RecordScope): Promise<HealthItem[]> {
   const selection = annotationSelection(scope);
   const items: NativeHealthItem[] = [];
-  let afterId = "";
-  let cursor: Parameters<typeof rpc.healthListHealth>[1]["cursor"];
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.healthListHealth(session, {
-      selection,
-      limit: NATIVE_SMALL_PAGE_SIZE,
-      afterId,
-      cursor,
-    });
-    items.push(...reply.items);
-    const next = reply.nextAfterId;
-    if (!next) return items.map(mapNativeHealth);
-    if (next === afterId) {
-      throw new NativeApiLimitError("Health.ListHealth", `cursor did not advance at ${next}`);
-    }
-    afterId = next;
-    cursor = reply.cursor;
+  let pageToken = "";
+  let at: Parameters<typeof rpc.evidenceHealthEventsList>[1]["at"];
+  const tokens = new Set<string>();
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.evidenceHealthEventsList(session, { selection, at, page: { pageSize: NATIVE_SMALL_PAGE_SIZE, pageToken } });
+    const cut = required(reply.resolvedAt, "Read Annotation Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("Read Annotations: Retained Cut Changed");
+    at = cut;
+    items.push(...reply.events);
+    if (!reply.nextPageToken) return items.map(mapNativeHealth);
+    if (tokens.has(reply.nextPageToken)) throw new NativeApiLimitError("Read Annotations", "Repeated Page Token");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
   }
-  throw new NativeApiLimitError("Health.ListHealth", `more than ${NATIVE_MAX_PAGES} pages`);
+  throw new NativeApiLimitError("Read Annotations", "Page Budget Reached");
 }
 
-export async function createNativeNote(
-  session: SessionIdentity,
-  epoch: string,
-  text: string,
-  scope?: RecordScope | null,
-): Promise<CommandReceipt> {
+export async function createNativeNote(session: SessionIdentity, text: string, scope?: RecordScope | null): Promise<CommandReceipt> {
   const message = text.trim();
   if (!message) throw new Error("A note cannot be empty.");
   const mutationId = crypto.randomUUID();
   const owner = annotationOwner(scope);
-  const receipt = await rpc.notesCreateNote(session, {
-    epoch,
-    mutationId,
+  const receipt = await rpc.evidenceNotesCreate(session, {
+    requestId: mutationId,
     owner,
-    message,
+    value: { message },
   });
   const acceptedAt = timestampIso(receipt.note?.createdAt) ?? nowIso();
   return {
@@ -104,20 +89,21 @@ export async function createNativeNote(
     status: "applied",
     accepted_at: acceptedAt,
     updated_at: acceptedAt,
-    result: {
-      publication: notePublicationName(receipt.publication),
-      checkpoint_targets: receipt.checkpointTargets,
-      unconfirmed_targets: receipt.unconfirmedTargets,
-    },
+    result: { accepted: receipt.receipt?.completed },
   };
 }
 
-export async function editNativeNote(session: SessionIdentity, epoch: string, noteId: string, text: string): Promise<OperatorNote> {
+export async function editNativeNote(session: SessionIdentity, noteId: string, text: string): Promise<OperatorNote> {
   const message = text.trim();
   if (!message) throw new Error("A note cannot be empty.");
-  const reply = await rpc.notesEditNote(session, { epoch, noteId, message });
-  if (!reply.note) throw new Error(`Native note ${noteId} returned no edited note.`);
-  return mapNativeNote(reply.note);
+  const current = await rpc.evidenceNotesGet(session, { name: noteId });
+  await rpc.evidenceNotesSet(session, {
+    name: noteId,
+    value: { message },
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+  });
+  return mapNativeNote(required((await rpc.evidenceNotesGet(session, { name: noteId })).note, "Read Edited Note"));
 }
 
 /* === Mapping === */
@@ -153,19 +139,6 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
     created_at: createdAt,
     scope: recordScopeFromNative(item.scope),
   };
-}
-
-function notePublicationName(value: NotePublication): string {
-  switch (value) {
-    case Publication.NO_EXISTING_DATASETS:
-      return "no_existing_datasets";
-    case Publication.CONFIRMED:
-      return "confirmed";
-    case Publication.UNCONFIRMED:
-      return "unconfirmed";
-    default:
-      return "unspecified";
-  }
 }
 
 export function annotationOwner(scope?: RecordScope | null): AnnotationOwner {

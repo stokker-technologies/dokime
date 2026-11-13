@@ -84,7 +84,10 @@ export async function openNativeRecordStream() {
 
 export function appendPage() {
   const next = record();
-  pending.push({ records: [next], cursor: { epoch: "fixture", stream: "fixture", position: BigInt(sequence) } });
+  pending.push({
+    records: [next],
+    cursor: { positions: [{ history: { store: "fixture", epoch: "fixture" }, sequence: BigInt(sequence) }], revisions: [] },
+  });
   wake?.();
   return next.record_id;
 }

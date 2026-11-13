@@ -17,9 +17,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { SuiteSchema } from "@host/dokime/v1/catalog_pb.js";
-import { SuiteIdentitySchema } from "@host/dokime/v1/client_types_pb.js";
-import { ValueType } from "@host/dokime/v1/values_pb.js";
+import { SuiteSchema } from "@host/dokime/v1/suites_pb.js";
+
+import { ValueType } from "@host/dokime/v1/scalar_pb.js";
 
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
@@ -33,7 +33,7 @@ import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/f
 import type { TestCycleSelection } from "@/lib/types";
 import type { SuiteTemplateEntry } from "@/lib/types";
 import { TemplateProcedure } from "@/features/library/TemplateDialog";
-import { mapSuite as mapHostSuite } from "@/lib/host/catalog";
+import { mapSuite as mapHostSuite } from "@/lib/host/suites";
 
 /* === Re-Exports === */
 
@@ -285,8 +285,7 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
     ],
   });
   const suite = fromBinary(SuiteSchema, toBinary(SuiteSchema, definition));
-  const identity = create(SuiteIdentitySchema, { suiteId: "fixture.suite", source: "fixture.plugin" });
-  const projected = mapHostSuite(suite, identity);
+  const projected = mapHostSuite(suite);
   const [range, unsigned, names] = projected.members[0].parameter_definitions;
   assert.deepEqual(range.values, [4, 2, 0]);
   assert.equal(range.unit, "K");
@@ -300,5 +299,5 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
   assert.deepEqual(names.values, [["first", "second"]]);
   assert.deepEqual(names.list, { element_type: "string", min_items: 2, max_items: 3 });
   assert.equal(projected.members[0].file_definitions[0].default, "sample.csv");
-  assert.throws(() => mapHostSuite(suite, create(SuiteIdentitySchema, { suiteId: "another.suite" })));
+  assert.throws(() => mapHostSuite(create(SuiteSchema)));
 });

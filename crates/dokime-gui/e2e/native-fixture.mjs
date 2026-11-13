@@ -41,15 +41,15 @@ const options = parseArgs({
   },
 }).values;
 const profile = options.profile;
-const nativeTarget = (process.platform === "win32" ? "windows" : "linux") + "-" + (process.arch === "x64" ? "x86_64" : "aarch64");
+const nativeTarget = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
-const backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, "fixtures/desktop/dokime-next" + executableSuffix);
-const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, "bin/dokime-gui" + executableSuffix);
+const backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `fixtures/desktop/dokime-next${executableSuffix}`);
+const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 const cliBinary = backendBinary;
-const pluginExecutable = join(built, "fixtures/host/dokime-rust-thermal" + executableSuffix);
+const pluginExecutable = join(built, `fixtures/host/dokime-rust-thermal${executableSuffix}`);
 const credentialHost =
-  process.env.DOKIME_HOST_FIXTURE ?? join(built, (profile === "bench" ? "bin/" : "fixtures/host/") + "dokime-host-next" + executableSuffix);
+  process.env.DOKIME_HOST_FIXTURE ?? join(built, `${profile === "bench" ? "bin/" : "fixtures/host/"}dokime-host-next${executableSuffix}`);
 const windows = process.platform === "win32";
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
 const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004", Control: "\uE009", Backspace: "\uE003", End: "\uE010" };
@@ -1756,7 +1756,7 @@ async function openNativeReport(path) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path }),
   });
-  assert.ok(reopened.ok, "The owned report browser reopens saved HTML: " + (await reopened.text()));
+  assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${await reopened.text()}`);
   await reportBrowser.closeTabs();
 }
 

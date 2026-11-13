@@ -165,14 +165,17 @@ test("Status Pill", () => {
 test("Live Data Flow", () => {
   // A Record Tail Appends from Its Stream, Keeps the Latest and Never Duplicates
   const record = (id: number) => ({ record_id: `r${id}` }) as HubRecord;
-  const cursor = (position: number) => ({ epoch: "e", position: BigInt(position), stream: "s" });
+  const cursor = (position: number) => ({
+    positions: [{ history: { store: "s", epoch: "e" }, sequence: BigInt(position) }],
+    revisions: [],
+  });
   const tail = { cursor: cursor(2), records: [record(1), record(2)] };
   const appended = appendRecordTail(tail, [record(2), record(3)], cursor(3));
   assert.deepEqual(
     appended.records.map((item) => item.record_id),
     ["r1", "r2", "r3"],
   );
-  assert.equal(appended.cursor?.position, 3n);
+  assert.equal(appended.cursor?.positions[0]?.sequence, 3n);
   assert.equal(appendRecordTail(tail, [record(1)], null).records, tail.records, "a page of held records leaves the tail as it was");
   const full = { cursor: cursor(1), records: Array.from({ length: RECORD_TAIL }, (_, index) => record(index)) };
   const capped = appendRecordTail(full, [record(RECORD_TAIL)], cursor(2));

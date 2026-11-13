@@ -238,7 +238,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
         }
         if (signal.aborted) return;
         if (!jumped) {
-          throw new Error("Content.FollowExecutionFile ended without a terminal frame.");
+          throw new Error("ExecutionFiles.Get ended without a terminal frame.");
         }
         await subscription.cancel();
       }

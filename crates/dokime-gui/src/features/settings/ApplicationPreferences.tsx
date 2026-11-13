@@ -14,7 +14,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
+import type { ApplicationSettings, SettingsScope, PreferencesSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
@@ -209,7 +209,7 @@ function PreferencesForm({
   onPendingChange,
 }: {
   onPendingChange?: (pending: boolean) => void;
-  snapshot: SettingsSnapshot;
+  snapshot: PreferencesSnapshot;
   scope: SettingsScope;
   advanced: boolean;
   section?: PreferencesSection;
@@ -223,12 +223,15 @@ function PreferencesForm({
   const save = useSavePreferences(scope);
   const query = usePreferences(scope);
   const baseline = useRef(snapshot);
+  const observed = useRef(snapshot);
   const writing = useRef(false);
   const version = useRef(0);
   const saveRef = useRef(save.mutateAsync);
   saveRef.current = save.mutateAsync;
   useEffect(() => {
-    if (edited.size === 0 && !writing.current && snapshot.revision >= baseline.current.revision) {
+    if (observed.current === snapshot) return;
+    observed.current = snapshot;
+    if (edited.size === 0 && !writing.current) {
       baseline.current = snapshot;
       setDraft(structuredClone(snapshot.settings));
     }

@@ -6,7 +6,8 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 
 /* === Local Imports === */
 
-import { type ArtifactMetadata, ArtifactMetadataSchema, UploadArtifactHeaderSchema } from "@host/dokime/v1/client_types_pb.js";
+import { type ArtifactMetadata, ArtifactMetadataSchema } from "@host/dokime/v1/evidence_pb.js";
+import { ArtifactsCreateRequestSchema } from "@host/dokime/client/v1/content/artifacts_pb.js";
 import type { RpcError } from "../desktop/rpc";
 import type { Wire } from "./canonical";
 import { normalizeRpcError } from "./errors";
@@ -30,21 +31,21 @@ export interface NativeArtifactUpload {
  * Open a native artifact upload sink.
  *
  * Unlike `openClientStream`, the caller never builds or encodes an
- * `UploadArtifactFrame` chunk or completion frame itself: only the initial
+ * artifact chunk or completion frame itself: only the initial
  * header crosses as a typed protobuf message. Rust hashes every later raw
- * slice incrementally and synthesizes the chunk/completion frames from it,
+ * slice incrementally and publishes the library-owned file before creating its artifact,
  * so `write` here takes plain bytes rather than a protobuf message.
  */
 export async function openNativeArtifactUpload(
   session: SessionIdentity,
-  header: MessageInitShape<typeof UploadArtifactHeaderSchema>,
+  header: MessageInitShape<typeof ArtifactsCreateRequestSchema>,
 ): Promise<NativeArtifactUpload> {
   const response = responseBytes(
     session,
     await invokeOwned<ArrayBuffer>(
       session,
       "artifact_upload_open",
-      requestBytes(session, toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header))),
+      requestBytes(session, toBinary(ArtifactsCreateRequestSchema, create(ArtifactsCreateRequestSchema, header))),
     ),
     16,
   );

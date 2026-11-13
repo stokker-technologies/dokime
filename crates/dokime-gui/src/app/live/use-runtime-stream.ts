@@ -21,7 +21,6 @@ import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflo
 import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-queries";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import { operationsFromFrame } from "@/shell/status-bar-operations";
 import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
   createExecutionFileRefresh,
@@ -151,15 +150,17 @@ function handleRuntimeFrame(
   setHubState({
     error: null,
     lastStreamFrameAt: Date.now(),
-    operations: operationsFromFrame(frame.operations),
+    operations: [],
   });
-  if (frame.shuttingDown) {
+  if (frame.overview?.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
   /* Execution files refresh separately on operation changes; the other
      projections follow changes to the state cursor. */
-  const cursor = frame.cursor ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}` : null;
-  if (frame.resynchronized || (cursor !== null && cursor !== observed)) {
+  const cursor = frame.resolvedAt
+    ? JSON.stringify(frame.resolvedAt, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value))
+    : null;
+  if (frame.opening || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =
       queryClient.isFetching({
         predicate: (query) => query.queryKey[0] === workflowQueryKeys.all[0] && query.queryKey.at(-1) === sessionGeneration,

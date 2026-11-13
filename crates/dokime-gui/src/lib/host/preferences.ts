@@ -14,20 +14,19 @@
 /* === Imports === */
 
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import type { ApplicationSettings, SettingsScope, SettingsSnapshot, UpdateSettings } from "@generated/application-settings";
+import type { ApplicationSettings, SettingsScope, PreferencesSnapshot, PreferencesUpdate } from "@generated/application-settings";
 import {
   Density,
-  Downsample,
-  SettingsSnapshotSchema,
   ThemeMode,
-  UpdateSettingsSchema,
   ApplicationSettingsSchema,
   ApplicationAppearanceSchema,
   ClientPreferencesSchema,
   PluginPreferencesSchema,
   ReportDefaultsSchema,
   TelemetryPreferencesSchema,
-} from "@host/dokime/v1/client_types_pb.js";
+} from "@host/dokime/client/v1/settings_pb.js";
+import { Downsample } from "@host/dokime/v1/plots_pb.js";
+import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@host/dokime/client/v1/settings_pb.js";
 import { invoke } from "../desktop/commands";
 import { safeNumber } from "../api/native-values";
 
@@ -51,15 +50,16 @@ const downsampling = {
 
 /* === Public Functions === */
 
-export async function readPreferences(scope: SettingsScope): Promise<SettingsSnapshot> {
+export async function readPreferences(scope: SettingsScope): Promise<PreferencesSnapshot> {
   return snapshot(await invoke<ArrayBuffer>("desktop_settings_read", { scope }));
 }
 
-export async function savePreferences(scope: SettingsScope, update: UpdateSettings): Promise<SettingsSnapshot> {
+export async function savePreferences(scope: SettingsScope, update: PreferencesUpdate): Promise<PreferencesSnapshot> {
   const settings = update.settings;
-  const request = create(UpdateSettingsSchema, {
-    expectedRevision: BigInt(update.expected_revision),
-    settings: create(ApplicationSettingsSchema, {
+  const request = create(SettingsSetRequestSchema, {
+    expectedRevision: new Uint8Array(update.expected_revision),
+    requestId: crypto.randomUUID(),
+    value: create(ApplicationSettingsSchema, {
       appearance: create(ApplicationAppearanceSchema, {
         themeMode: themeModes[settings.appearance.theme_mode],
         themeFamily: settings.appearance.theme_family ?? undefined,
@@ -83,14 +83,16 @@ export async function savePreferences(scope: SettingsScope, update: UpdateSettin
       telemetry: create(TelemetryPreferencesSchema, { intervalMs: BigInt(settings.telemetry.interval_ms) }),
     }),
   });
-  return snapshot(await invoke<ArrayBuffer>("desktop_settings_update", { scope, update: [...toBinary(UpdateSettingsSchema, request)] }));
+  return snapshot(
+    await invoke<ArrayBuffer>("desktop_settings_update", { scope, update: [...toBinary(SettingsSetRequestSchema, request)] }),
+  );
 }
 
 /* === Private Functions === */
 
-function snapshot(bytes: ArrayBuffer): SettingsSnapshot {
-  const reply = fromBinary(SettingsSnapshotSchema, new Uint8Array(bytes));
-  const settings = reply.settings;
+function snapshot(bytes: ArrayBuffer): PreferencesSnapshot {
+  const reply = fromBinary(SettingsGetResponseSchema, new Uint8Array(bytes));
+  const settings = reply.value;
   if (!settings?.appearance || !settings.client || !settings.listener || !settings.plugins || !settings.report || !settings.telemetry)
     throw new Error("Read Preferences: Host Omitted a Settings Section; Reconnect and Retry");
   const themeMode = Object.entries(themeModes).find(([, value]) => value === settings.appearance?.themeMode)?.[0] as
@@ -105,7 +107,7 @@ function snapshot(bytes: ArrayBuffer): SettingsSnapshot {
   if (!themeMode || !density || !plotDownsample)
     throw new Error("Read Preferences: Host Returned an Unsupported Preference; Update the Desktop");
   return {
-    revision: safeNumber(reply.revision, "Preferences Revision"),
+    revision: [...reply.revision],
     settings: {
       appearance: { theme_mode: themeMode, theme_family: settings.appearance.themeFamily ?? null, density },
       client: {

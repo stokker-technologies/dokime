@@ -13,7 +13,7 @@
 
 /* === Local Imports === */
 
-import * as v1 from "@host/dokime/v1/client_types_pb.js";
+import * as protocolClientV1Settings from "@host/dokime/client/v1/settings_pb.js";
 import { jsonToNativeValue, nativeValuesToJson } from "@/lib/host/values";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
@@ -31,20 +31,21 @@ import { safeNumber } from "./native-values";
 
 /* === Types === */
 
-type SettingsFrame = Wire<Awaited<ReturnType<typeof rpc.settingsGetSettings>>>;
+type SettingsFrame = Wire<NonNullable<Awaited<ReturnType<typeof rpc.settingsSchema>>["schema"]>>;
+import { required } from "@/lib/rpc/canonical";
 type SettingsSection = SettingsFrame["sections"][number];
 type SettingsCard = SettingsFrame["cards"][number];
 type SettingsCardState = SettingsCard["state"];
-type HostCardTone = v1.HostCardTone;
+type HostCardTone = protocolClientV1Settings.HostCardTone;
 
-type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>>;
-type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["settings"][number];
+type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsGet>>>;
+type SettingContribution = NonNullable<PluginRuntimeSettings["schema"]>["settings"][number];
 type SettingValues = PluginSettingsView["values"];
 
 /* === Settings frame === */
 
 export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
-  const frame = await rpc.settingsGetSettings(session, {});
+  const frame = required((await rpc.settingsSchema(session, {})).schema, "Get Settings Schema");
   const paths = frame.bootstrapPaths;
   return {
     bootstrap_paths: paths ? { application: paths.application, storage: paths.storage, plugins: paths.plugins, logs: paths.logs } : null,
@@ -60,9 +61,9 @@ export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSettings): PluginSettingsView {
   return {
     settings: {
-      contributions: settings.settings?.settings.map(mapSettingContribution) ?? [],
+      contributions: settings.schema?.settings.map(mapSettingContribution) ?? [],
     },
-    values: nativeValuesToJson(settings.values?.values) as SettingValues,
+    values: nativeValuesToJson(settings.value?.values) as SettingValues,
     discovered: nativeValuesToJson(settings.discovered?.values) as SettingValues,
     secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
     restart: undefined,
@@ -71,16 +72,18 @@ export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSett
 }
 
 export async function getNativePluginSettings(session: SessionIdentity, pluginId: string) {
-  return mapNativePluginRuntimeSettings(await rpc.settingsGetPluginSettings(session, { pluginId }));
+  return mapNativePluginRuntimeSettings(await rpc.pluginsSettingsGet(session, { name: pluginId }));
 }
 
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
-  return mapNativePluginRuntimeSettings(
-    await rpc.settingsUpdatePluginSettings(session, {
-      pluginId,
-      values: { values: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, jsonToNativeValue(value)])) },
-    }),
-  );
+  const current = await rpc.pluginsSettingsGet(session, { name: pluginId });
+  await rpc.pluginsSettingsSet(session, {
+    name: pluginId,
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+    value: { values: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, jsonToNativeValue(value)])) },
+  });
+  return getNativePluginSettings(session, pluginId);
 }
 
 /* === Mapping === */
@@ -221,15 +224,15 @@ function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): Runtime
 
 function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "warning" | "danger" {
   switch (tone) {
-    case v1.HostCardTone.NEUTRAL:
+    case protocolClientV1Settings.HostCardTone.NEUTRAL:
       return "neutral";
-    case v1.HostCardTone.INFO:
+    case protocolClientV1Settings.HostCardTone.INFO:
       return "info";
-    case v1.HostCardTone.SUCCESS:
+    case protocolClientV1Settings.HostCardTone.SUCCESS:
       return "success";
-    case v1.HostCardTone.WARNING:
+    case protocolClientV1Settings.HostCardTone.WARNING:
       return "warning";
-    case v1.HostCardTone.DANGER:
+    case protocolClientV1Settings.HostCardTone.DANGER:
       return "danger";
     default:
       return "neutral";
@@ -238,17 +241,17 @@ function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "
 
 function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["state"] {
   switch (state) {
-    case v1.SettingsCardState.READY:
+    case protocolClientV1Settings.SettingsCardState.READY:
       return "ready";
-    case v1.SettingsCardState.DISABLED:
+    case protocolClientV1Settings.SettingsCardState.DISABLED:
       return "disabled";
-    case v1.SettingsCardState.DISCONNECTED:
+    case protocolClientV1Settings.SettingsCardState.DISCONNECTED:
       return "disconnected";
-    case v1.SettingsCardState.STALE:
+    case protocolClientV1Settings.SettingsCardState.STALE:
       return "stale";
-    case v1.SettingsCardState.ERROR:
+    case protocolClientV1Settings.SettingsCardState.ERROR:
       return "error";
-    case v1.SettingsCardState.PERMISSION_DENIED:
+    case protocolClientV1Settings.SettingsCardState.PERMISSION_DENIED:
       return "permission_denied";
     default:
       throw new Error("Native settings returned an unknown card state.");

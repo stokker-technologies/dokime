@@ -173,23 +173,35 @@ try {
   }
 
   // Register Frozen Cases Before Appending Explicit Execution Attempts.
-  const catalogA = await call(a, "Catalog", "ListSuites");
-  assert.deepEqual((await call(b, "Catalog", "ListSuites")).suites, catalogA.suites);
-  const suite = catalogA.suites.find((item) => item.metadata.label === "Thermal");
+  const catalogA = await call(a, "Suites", "List", {});
+  assert.deepEqual((await call(b, "Suites", "List", {})).values, catalogA.values);
+  const suite = catalogA.values.find((item) => item.metadata.label === "Thermal");
   assert.ok(suite, "The Shared SDK Fixture Is Admitted");
-  const definition = await call(a, "Catalog", "GetSuite", { suiteId: suite.suiteId });
-  assert.deepEqual((await call(b, "Catalog", "GetSuite", { suiteId: suite.suiteId })).templates, definition.templates);
+  const definition = await call(a, "Suites", "Get", { name: suite.metadata.identifier }).then((reply) => reply.value);
+  assert.deepEqual(
+    (await call(b, "Suites", "Get", { name: suite.metadata.identifier }).then((reply) => reply.value)).templates,
+    definition.templates,
+  );
   await b.goto("/cycles");
   const title = "Shared Remote Campaign";
-  const cycle = await call(a, "Execution", "CreateCycle", { metadata: { label: title } });
+  const cycle = await call(a, "Cycles", "Create", { requestId: crypto.randomUUID(), metadata: { label: title } }).then(
+    (reply) => reply.cycle,
+  );
   await until("Second Desktop Observes New Cycle Without Refresh", async () => (await b.text()).includes(title));
-  const plan = await call(a, "Planning", "RegisterSelection", {
-    plan: { cycleId: cycle.cycleId, selections: [{ suiteId: suite.suiteId, templateId: definition.templates[0].metadata.identifier }] },
-    idempotencyKey: randomUUID(),
+  const plan = await call(a, "Cases", "Create", {
+    plan: {
+      cycleId: cycle.cycleId,
+      selections: [{ suiteId: suite.metadata.identifier, templateId: definition.templates[0].metadata.identifier }],
+    },
+    requestId: randomUUID(),
   });
   assert.equal(plan.cases.length, 1);
   const executionId = randomUUID();
-  await call(a, "Execution", "AppendExecutions", { cycleId: cycle.cycleId, executions: [{ executionId, caseId: plan.cases[0].caseId }] });
+  await call(a, "Executions", "Create", {
+    requestId: crypto.randomUUID(),
+    parent: cycle.cycleId,
+    executions: [{ executionId, caseId: plan.cases[0].caseId }],
+  });
   for (const gui of [a, b]) {
     await gui.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
     await until("Shared Execution Selected", () => gui.find("css selector", `li[data-execution-id="${executionId}"]`));
@@ -204,30 +216,26 @@ try {
     "Both Desktops Observe Sealed Result",
     async () => (await a.text()).includes("Passed") && (await b.text()).includes("Passed"),
   );
-  const detailA = await call(a, "Execution", "GetExecution", { executionId });
-  const detailB = await call(b, "Execution", "GetExecution", { executionId });
+  const detailA = await call(a, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
+  const detailB = await call(b, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(detailA.summary.state, "EXECUTION_STATE_SEALED");
   assert.deepEqual(detailB, detailA);
   assert.equal(detailA.outcome.evaluated.status, "RESULT_STATUS_PASSED");
-  const recordsA = await call(a, "Evidence", "ListRecords", { selection: { scope: { executionId } } });
-  const samplesA = await call(a, "Telemetry", "ListSamples", { scope: { executionId } });
+  const recordsA = await call(a, "dokime.client.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
+  const samplesA = await call(a, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(recordsA.records.some((item) => item.payload));
-  assert.ok(samplesA.samples.some((item) => item.payload));
-  assert.deepEqual(await call(b, "Evidence", "ListRecords", { selection: { scope: { executionId } } }), recordsA);
-  assert.deepEqual(await call(b, "Telemetry", "ListSamples", { scope: { executionId } }), samplesA);
+  assert.ok(samplesA.samples.some((item) => item.raw?.payload));
+  assert.deepEqual(await call(b, "dokime.client.v1.evidence.Records", "List", { selection: { scope: { executionId } } }), recordsA);
+  assert.deepEqual(await call(b, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } }), samplesA);
 
   // Each Native Owner Saves and Reopens the Same Verified Sealed Report.
-  await call(a, "Reports", "PublishExecutionReport", {
-    executionId,
-    document: {
-      metadata: { identifier: "desktop.report", label: "Thermal Evidence" },
-      sections: [
-        {
-          metadata: { identifier: "records", label: "Captured Evidence" },
-          cards: [{ metadata: { identifier: "records.list", label: "Records" }, evidence: "EVIDENCE_CARD_RECORDS" }],
-        },
-      ],
-    },
+  const subject = { execution: executionId };
+  const preview = await call(a, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
+  await call(a, "Reports", "Publish", {
+    subject,
+    name: preview.file.metadata.id,
+    expectedRevision: preview.file.sha256,
+    requestId: crypto.randomUUID(),
   });
   const hashes = [],
     archives = [];
@@ -271,8 +279,8 @@ try {
 
   // Revocation Removes Only One Pairing and Preserves the Other Client.
   await call(a, "harmos.v1.access.Pairings", "Delete", { name: imported[1].name });
-  await assert.rejects(call(b, "Catalog", "ListSuites"), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
-  assert.deepEqual((await call(a, "Catalog", "ListSuites")).suites, catalogA.suites);
+  await assert.rejects(call(b, "Suites", "List", {}), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
+  assert.deepEqual((await call(a, "Suites", "List", {})).values, catalogA.values);
   assert.ok(await b.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"));
 
   // Certificate Rotation Refuses the Old Trust Pin and a New Pairing Recovers.
@@ -291,7 +299,10 @@ try {
   await pick(a, "desktop_pairing_create", {}, replacement, "Save");
   await pick(a, "desktop_backend_import_pairing", { identifier: "replacement" }, replacement);
   await a.connected();
-  assert.equal((await call(a, "Execution", "GetExecution", { executionId })).summary.state, "EXECUTION_STATE_SEALED");
+  assert.equal(
+    (await call(a, "Executions", "Get", { name: executionId }).then((reply) => reply.execution)).summary.state,
+    "EXECUTION_STATE_SEALED",
+  );
 } catch (error) {
   failure = error;
   for (const [index, gui] of sessions.entries()) {

@@ -21,8 +21,9 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind } from "@host/dokime/v1/client_types_pb.js";
-import { mapNativePlotStreamFrame } from "@/lib/api/native-plots";
+import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { PlotStreamKind } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import type { PlotPayloadStreamMessage } from "@/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState } from "@/plots/live-frames";
 
@@ -120,7 +121,7 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
       },
     ],
   });
-  const decoded = mapNativePlotStreamFrame(revision);
+  const decoded = mapNativePlotWatchPage(revision);
   assert.deepEqual(
     decoded.updates.map((update) => [update.plot_id, update.kind]),
     [
@@ -128,12 +129,12 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
       ["refused", "error"],
     ],
   );
-  const pending = mapNativePlotStreamFrame(
+  const pending = mapNativePlotWatchPage(
     create(WatchFrameSchema, {
       updates: [{ kind: PlotStreamKind.UNSPECIFIED, envelope: { plotId: "healthy" } }],
     }),
   );
   assert.deepEqual(pending, { updates: [{ kind: "pending", plot_id: "healthy" }] });
-  assert.throws(() => mapNativePlotStreamFrame(create(WatchFrameSchema)));
-  assert.throws(() => mapNativePlotStreamFrame(create(WatchFrameSchema, { updates: [{}] })));
+  assert.throws(() => mapNativePlotWatchPage(create(WatchFrameSchema)));
+  assert.throws(() => mapNativePlotWatchPage(create(WatchFrameSchema, { updates: [{}] })));
 });

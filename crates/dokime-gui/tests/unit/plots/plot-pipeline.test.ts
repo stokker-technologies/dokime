@@ -21,8 +21,9 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind } from "@host/dokime/v1/client_types_pb.js";
-import { mapNativePlotStreamFrame, toNativePlotRequest } from "@/lib/api/native-plots";
+import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { PlotStreamKind } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { mapNativePlotWatchPage, toNativePlotRequest } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
 
@@ -134,7 +135,7 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
       },
     })),
   });
-  const decoded = mapNativePlotStreamFrame(wire).updates;
+  const decoded = mapNativePlotWatchPage(wire).updates;
   assert.deepEqual(
     decoded.map((message) => message.kind),
     ["delta", "statistics"],

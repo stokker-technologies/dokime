@@ -49,7 +49,7 @@ const { values: options } = parseArgs({
   },
 });
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const target = (process.platform === "win32" ? "windows" : "linux") + "-" + (process.arch === "x64" ? "x86_64" : "aarch64");
+const target = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const reports = join(workspace, "target/tests", options.profile, target, "system-typescript");
 const sessions = [];
 const results = [];
@@ -69,11 +69,12 @@ async function story(name, run, required = false) {
   try {
     await run();
     results.push({ name, seconds: (performance.now() - started) / 1000 });
-    process.stdout.write(name + ": Passed\n");
+    process.stdout.write(`${name}: Passed\n`);
   } catch (error) {
     results.push({ name, seconds: (performance.now() - started) / 1000, error });
+    process.stderr.write(`${name}: ${error.stack ?? error}\n`);
     await desktop?.screenshot(name).catch(() => {});
-    await writeFile(join(evidence, name + ".txt"), error.stack + "\n" + (await desktop?.text().catch(() => ""))).catch(() => {});
+    await writeFile(join(evidence, `${name}.txt`), `${error.stack}\n${await desktop?.text().catch(() => "")}`).catch(() => {});
     if (required) throw error;
   }
 }
@@ -100,13 +101,16 @@ async function owned() {
   assert.equal(status.connection.phase, "connected");
   const identity = await call(local, "harmos.v1.Status", "Get");
   assert.ok(identity.status.identity.hostId);
-  const saved = await call(local, "Execution", "CreateCycle", { metadata: { label: "Preserved Local Cycle" } });
+  const saved = await call(local, "Cycles", "Create", {
+    requestId: crypto.randomUUID(),
+    metadata: { label: "Preserved Local Cycle" },
+  }).then((reply) => reply.cycle);
   await close(local);
   const restarted = await startSession(root, undefined, evidence);
   sessions.push(restarted);
   desktop = restarted;
   await restarted.connected();
-  const restored = await call(restarted, "Execution", "GetCycle", { cycleId: saved.cycleId });
+  const restored = await call(restarted, "Cycles", "Get", { name: saved.cycleId }).then((reply) => reply.cycle);
   assert.equal(restored.metadata.label, "Preserved Local Cycle");
   await close(restarted);
 }
@@ -134,48 +138,44 @@ async function library() {
   await desktop.clickCss('[data-testid="template-add"]');
   await until("Template Added", () => desktop.execute("return !document.querySelector('[role=dialog]');"));
   await desktop.clickNamed("button", "Open Cycle");
-  await until("Cycle Workspace", async () => (await desktop.location()).pathname === "/cycles/" + cycleId);
+  await until("Cycle Workspace", async () => (await desktop.location()).pathname === `/cycles/${cycleId}`);
   executionId = await until("Registered Execution Row", () =>
     desktop.execute('return document.querySelector("li[data-execution-id]")?.dataset.executionId;'),
   );
-  cycle = await call(desktop, "Execution", "GetCycle", { cycleId });
-  const detail = await call(desktop, "Execution", "GetExecution", { executionId });
+  cycle = await call(desktop, "Cycles", "Get", { name: cycleId }).then((reply) => reply.cycle);
+  const detail = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(detail.summary.state, "EXECUTION_STATE_OPEN");
-  await desktop.clickCss('li[data-execution-id="' + executionId + '"] button[data-tree-select]');
+  await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
 }
 
 async function execute() {
-  await desktop.clickCss('li[data-execution-id="' + executionId + '"] button[data-tree-actions]');
+  await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
   await desktop.clickNamed("menuitem", "Start Execution");
   await until("Live Operator Prompt", () => desktop.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
   assert.ok((await desktop.text()).includes("Door"));
   await answerPendingPrompts(desktop);
   const detail = await until("Sealed Execution", async () => {
-    const current = await call(desktop, "Execution", "GetExecution", { executionId });
+    const current = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
     return current.summary.state === "EXECUTION_STATE_SEALED" ? current : null;
   });
   assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
   assert.ok(detail.seal);
   await until("Passed Result in WebView", async () => (await desktop.text()).includes("Passed"));
-  const records = await call(desktop, "Evidence", "ListRecords", { selection: { scope: { executionId } } });
-  const samples = await call(desktop, "Telemetry", "ListSamples", { scope: { executionId } });
+  const records = await call(desktop, "dokime.client.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
+  const samples = await call(desktop, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(records.records.some((record) => record.payload));
-  assert.ok(samples.samples.some((sample) => sample.payload));
+  assert.ok(samples.samples.some((sample) => sample.raw?.payload));
   assert.ok(await desktop.execute('return Boolean(document.querySelector("[data-execution-section=Records]"));'));
 }
 
 async function reportsAndHistory() {
-  await call(desktop, "Reports", "PublishExecutionReport", {
-    executionId,
-    document: {
-      metadata: { identifier: "desktop.report", label: "Thermal Evidence" },
-      sections: [
-        {
-          metadata: { identifier: "records", label: "Captured Evidence" },
-          cards: [{ metadata: { identifier: "records.list", label: "Records" }, evidence: "EVIDENCE_CARD_RECORDS" }],
-        },
-      ],
-    },
+  const subject = { execution: executionId };
+  const preview = await call(desktop, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
+  await call(desktop, "Reports", "Publish", {
+    subject,
+    name: preview.file.metadata.id,
+    expectedRevision: preview.file.sha256,
+    requestId: crypto.randomUUID(),
   });
   const status = await invoke(desktop, "desktop_session_status");
   const path = join(work, "thermal-execution.html");
@@ -212,26 +212,32 @@ async function reportsAndHistory() {
   await writeFile(join(evidence, "thermal-execution.html"), html);
   await desktop.goto("/history");
   await until("History Lists Sealed Execution", async () => (await desktop.text()).includes("Thermal"));
-  await desktop.goto("/cycles/" + cycle.cycleId + "?executionId=" + executionId, { reload: true });
+  await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
   await until("Saved Execution Reopens", async () => (await desktop.text()).includes("Passed"));
 }
 
 async function cancellation() {
-  const suites = await call(desktop, "Catalog", "ListSuites");
-  const suite = await call(desktop, "Catalog", "GetSuite", { suiteId: suites.suites[0].suiteId });
-  const plan = await call(desktop, "Planning", "MaterializeTemplate", {
-    selection: { suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier },
+  const suites = await call(desktop, "Suites", "List", {});
+  const suite = await call(desktop, "Suites", "Get", { name: suites.values[0].metadata.identifier }).then((reply) => reply.value);
+  const plan = await call(desktop, "Cases", "Create", {
+    requestId: crypto.randomUUID(),
+    plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] },
+    validateOnly: true,
   });
-  const pending = await call(desktop, "Execution", "CreateCycle", {
+  const pending = await call(desktop, "Cycles", "Create", {
+    requestId: crypto.randomUUID(),
     origins: plan.cases.map((item) => item.origin),
     continueAutomatically: true,
-  });
-  const executionId = pending.executionIds[0];
-  await desktop.goto("/cycles/" + pending.cycleId + "?executionId=" + executionId, { reload: true });
-  await until("Cancellation Prompt", async () => (await call(desktop, "Prompts", "ListPending", { executionId })).prompts.length);
-  await call(desktop, "Execution", "CancelExecution", { executionId });
+  }).then((reply) => reply.cycle);
+  const executionId = (await call(desktop, "Executions", "List", { parent: pending.cycleId })).executions[0].summary.executionId;
+  await desktop.goto(`/cycles/${pending.cycleId}?executionId=${executionId}`, { reload: true });
+  await until(
+    "Cancellation Prompt",
+    async () => (await call(desktop, "Prompts", "List", { pendingOnly: true, executionId })).prompts.length,
+  );
+  await call(desktop, "Executions", "Cancel", { requestId: crypto.randomUUID(), name: executionId });
   const detail = await until("Cancelled Execution Sealed", async () => {
-    const current = await call(desktop, "Execution", "GetExecution", { executionId });
+    const current = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
     return current.summary.state === "EXECUTION_STATE_SEALED" ? current : null;
   });
   assert.equal(detail.outcome.notEvaluated.termination, "TERMINATION_CANCELLED");
@@ -248,8 +254,8 @@ async function settings() {
     ["about", "Dokime"],
     ["backends", "Backends"],
   ]) {
-    await desktop.goto("/settings/" + section);
-    await until("Settings " + section, async () => (await desktop.text()).includes(label));
+    await desktop.goto(`/settings/${section}`);
+    await until(`Settings ${section}`, async () => (await desktop.text()).includes(label));
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
@@ -279,7 +285,7 @@ try {
   evidence = await mkdtemp(join(reports, "native-desktop-"));
   work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
   cleanup = await prepareNativeFixture(work, evidence);
-  process.stdout.write("Evidence: " + evidence + "\n");
+  process.stdout.write(`Evidence: ${evidence}\n`);
   await story("Owned Startup and Restart", owned, true);
   if (options.workflow !== "ownership") {
     const backend = await startBackend(work, evidence);
@@ -303,7 +309,7 @@ try {
     if (["appearance", "execution"].includes(options.workflow)) await story("Appearance and Touch", appearance);
   }
 } catch (error) {
-  process.stderr.write(error.stack + "\n");
+  process.stderr.write(`${error.stack}\n`);
   process.exitCode = 1;
   if (!results.some((result) => result.error)) results.push({ name: "Fixture Setup", seconds: 0, error });
 } finally {
@@ -340,7 +346,7 @@ try {
               '" time="' +
               result.seconds +
               '">' +
-              (result.error ? '<failure message="' + xml(result.error.message) + '">' + xml(result.error.stack) + "</failure>" : "") +
+              (result.error ? `<failure message="${xml(result.error.message)}">${xml(result.error.stack)}</failure>` : "") +
               "</testcase>",
           )
           .join("") +
@@ -349,5 +355,5 @@ try {
   }
   if (failures) process.exitCode = 1;
   else if (work) await rm(work, { recursive: true, force: true });
-  process.stdout.write("Native Desktop: " + (results.length - failures) + " Passed; " + failures + " Failed\n");
+  process.stdout.write(`Native Desktop: ${results.length - failures} Passed; ${failures} Failed\n`);
 }

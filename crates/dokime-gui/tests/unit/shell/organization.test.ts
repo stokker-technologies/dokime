@@ -22,7 +22,7 @@ import { afterEach, test, vi } from "vitest";
 // Local Imports
 import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
-import { LogoVariant } from "@host/dokime/v1/appearance_pb.js";
+import { LogoVariant } from "@host/dokime/client/v1/backend_pb.js";
 import type { RuntimeThemeFamily } from "@/lib/appearance";
 import { applyBrandFavicon } from "@/lib/favicon";
 import { materializeThemeFamilyVariables } from "@/lib/theme-family";
@@ -35,7 +35,7 @@ import { applyReportAppearance } from "@/report/report-appearance";
 const LIGHT = "data:image/svg+xml;base64,PHN2Zy8+";
 const DARK = "data:image/png;base64,iVBORw==";
 const hostAppearance = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/host/client", () => ({ appearanceGetAppearance: hostAppearance }));
+vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance }));
 
 /* === Types === */
 
@@ -177,7 +177,7 @@ test("Host Appearance Preserves Declarations Without Inventing Asset Delivery", 
     LogoVariant.CONTAINED_ON_LIGHT,
     LogoVariant.CONTAINED_ON_DARK,
   ].map((variant) => ({ variant }));
-  hostAppearance.mockResolvedValue({ logos });
+  hostAppearance.mockResolvedValue({ appearance: { logos } });
   const resource = await loadAppearance(session);
   assert.equal(resource.appearance.logos.length, 4);
   assert.deepEqual(resource.logos, []);
@@ -193,9 +193,9 @@ test("Host Appearance Preserves Declarations Without Inventing Asset Delivery", 
   const brand = brandFromLogos("Fixture", installed);
   assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
   assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);
-  hostAppearance.mockResolvedValue({ logos: [logos[0], logos[0]] });
+  hostAppearance.mockResolvedValue({ appearance: { logos: [logos[0], logos[0]] } });
   await assert.rejects(loadAppearance(session));
-  hostAppearance.mockResolvedValue({ logos: [] });
+  hostAppearance.mockResolvedValue({ appearance: { logos: [] } });
   const empty = await loadAppearance(session);
   assert.equal(empty.unavailableReason, undefined);
   empty.dispose();

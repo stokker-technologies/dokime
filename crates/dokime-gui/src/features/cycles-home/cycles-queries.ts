@@ -16,7 +16,8 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 /* === Local Imports === */
 
-import { ArchiveScope, CycleOrderKey } from "@host/dokime/v1/client_types_pb.js";
+import { ArchiveScope } from "@host/dokime/v1/cycles_pb.js";
+import { CycleOrderKey } from "@host/dokime/client/v1/cycles_pb.js";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";

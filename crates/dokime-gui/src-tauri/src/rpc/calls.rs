@@ -30,8 +30,6 @@ use super::*;
 /* === Constants === */
 
 const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
-const DESKTOP_STREAM_TIMEOUT_MS: u64 = 86_400_000;
-const DESKTOP_UNARY_TIMEOUT_MS: u64 = 10_000;
 
 pub const PATH_HEADER: &str = "dokime-rpc-path";
 pub const DEADLINE_HEADER: &str = "dokime-rpc-deadline-ms";
@@ -232,13 +230,12 @@ pub async fn rpc<R: tauri::Runtime>(
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
         let path = path(request.headers())?;
-        let deadline =
-            deadline(request.headers(), Duration::from_millis(DESKTOP_UNARY_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS))?;
         // Unary calls wait for their budget: they are short, and a burst of
         // queries must not fail because a few others are still in flight.
         let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
         let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
         let client = context.client();
+        let deadline = deadline(request.headers(), client.read_timeout(), client.watch_timeout())?;
         let client = if header(request.headers(), DEADLINE_HEADER)?.is_some() { client.with_timeout(deadline) } else { client };
         let response = context.execute(client.call_raw(path, payload)).await?;
         context.reply_bytes(&response)
@@ -253,10 +250,13 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
 ) -> Result<Response, RpcError> {
     let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
     let headers = request.headers();
+    let permit = bridge.admit(bridge.streams.budget())?;
+    let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
+    let configured = context.client();
     let opening = Opening {
         path: path(headers)?.to_owned(),
         deadline: header(headers, DEADLINE_HEADER)?
-            .map(|_| deadline(headers, Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS)))
+            .map(|_| deadline(headers, configured.watch_timeout(), configured.watch_timeout()))
             .transpose()?,
         payload: payload.to_vec(),
         keep_input: match header(headers, INPUT_HEADER)? {
@@ -268,8 +268,6 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
     let channel = JavaScriptChannelId::from_str(header(headers, CHANNEL_HEADER)?.ok_or(RpcError::InvalidRequest)?)
         .map_err(|_| RpcError::InvalidRequest)?
         .channel_on(webview.as_ref().clone());
-    let permit = bridge.admit(bridge.streams.budget())?;
-    let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
     bridge.streams.open(context, channel, opening)
 }
 
@@ -402,18 +400,18 @@ mod tests {
 
     #[test]
     fn paths_name_one_method() {
-        for valid in ["/dokime.v1.Plots/Watch", "/a/b"] {
+        for valid in ["/dokime.client.v1.plots.Snapshots/Watch", "/a/b"] {
             assert_eq!(path(&headers(&[(PATH_HEADER, valid)])).unwrap(), valid);
         }
         for invalid in [
             "",
             "/",
-            "dokime.v1.Plots/Watch",
-            "/dokime.v1.Plots/",
+            "dokime.client.v1.plots.Snapshots/Watch",
+            "/dokime.client.v1.plots.Snapshots/",
             "//Watch",
-            "/dokime.v1.Plots/Watch/extra",
-            "/dokime.v1.Plots/Wa.tch",
-            "/dokime v1/Watch",
+            "/dokime.client.v1.plots.Snapshots/Watch/extra",
+            "/dokime.client.v1.plots.Snapshots/Wa.tch",
+            "/dokime client v1/Watch",
         ] {
             assert!(path(&headers(&[(PATH_HEADER, invalid)])).is_err(), "{invalid}");
         }
@@ -422,8 +420,8 @@ mod tests {
 
     #[test]
     fn deadlines_are_positive_and_bounded() {
-        let unary = Duration::from_millis(DESKTOP_UNARY_TIMEOUT_MS);
-        let maximum = Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS);
+        let unary = Duration::from_millis(500);
+        let maximum = Duration::from_millis(2000);
         assert_eq!(deadline(&headers(&[]), unary, maximum).unwrap(), unary);
         assert_eq!(deadline(&headers(&[(DEADLINE_HEADER, "1500")]), unary, maximum).unwrap(), Duration::from_millis(1500));
         assert_eq!(deadline(&headers(&[(DEADLINE_HEADER, "999999999999")]), unary, maximum).unwrap(), maximum);

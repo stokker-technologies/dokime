@@ -7,17 +7,18 @@
  * ***
  */
 
-// Host Catalog and Template Presentation.
+// Host Suite and Template Presentation.
 
 /* === External Imports === */
 
-import type { Parameter, ParameterExpression, Suite, TestCaseTemplate } from "@host/dokime/v1/catalog_pb.js";
-import type { SuiteIdentity } from "@host/dokime/v1/client_types_pb.js";
-import { ValueType } from "@host/dokime/v1/values_pb.js";
+import type { Parameter, ParameterExpression } from "@host/dokime/v1/parameters_pb.js";
+import type { Suite, TestCaseTemplate } from "@host/dokime/v1/suites_pb.js";
+import { required } from "@/lib/rpc/canonical";
+import { ValueType } from "@host/dokime/v1/scalar_pb.js";
 
 /* === Local Imports === */
 
-import { mapBounded, NATIVE_CASE_LIMIT, NativeApiLimitError, safeNumber, uniqueStrings } from "@/lib/api/native-values";
+import { NATIVE_CASE_LIMIT, NativeApiLimitError, safeNumber, uniqueStrings } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { ParameterDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
@@ -27,33 +28,26 @@ import { metadataJson, nativeValueToJson, valueTypeName } from "./values";
 /* === Public Functions === */
 
 export async function fetchNativeSuites(session: SessionIdentity): Promise<TestSuiteEntry[]> {
-  const identities = await listSuites(session);
-  return mapBounded(identities, async (identity) =>
-    mapSuite(await client.catalogGetSuite(session, { suiteId: identity.suiteId }), identity),
-  );
+  return (await listSuites(session)).map(mapSuite);
 }
 
 export async function fetchNativeSuite(session: SessionIdentity, suiteId: string): Promise<TestSuiteEntry | null> {
-  const identity = (await listSuites(session)).find((suite) => suite.suiteId === suiteId);
-  if (!identity) return null;
-  return mapSuite(await client.catalogGetSuite(session, { suiteId }), identity);
+  return mapSuite(required((await client.suitesGet(session, { name: suiteId })).value, "Get Suite"));
 }
 
-async function listSuites(session: SessionIdentity): Promise<Wire<SuiteIdentity>[]> {
-  const reply = await client.catalogListSuites(session, {});
-  return reply.suites;
+async function listSuites(session: SessionIdentity): Promise<Wire<Suite>[]> {
+  return (await client.suitesList(session, {})).values;
 }
 
-export function mapSuite(definition: Wire<Suite>, identity: Wire<SuiteIdentity>): TestSuiteEntry {
-  if (!identity.suiteId || !definition.metadata?.identifier) throw new Error("Read Suite: Missing Catalog Identity");
-  if (identity.suiteId !== definition.metadata.identifier) throw new Error("Read Suite: Catalog Identity Changed; Refresh the Library");
-  const name = definition.metadata.label || identity.suiteId;
+export function mapSuite(definition: Wire<Suite>): TestSuiteEntry {
+  const identifier = required(definition.metadata?.identifier, "Read Suite Identity");
+  const name = definition.metadata?.label || identifier;
   return {
-    suite_id: identity.suiteId,
+    suite_id: identifier,
     name,
-    description: definition.metadata.description || null,
+    description: definition.metadata?.description || null,
     version: null,
-    source: identity.source,
+    source: "",
     path: [name],
     tags: uniqueStrings(definition.tags),
     members: definition.templates.map((template) => mapTemplate(template, name)),
@@ -63,7 +57,7 @@ export function mapSuite(definition: Wire<Suite>, identity: Wire<SuiteIdentity>)
 
 export function mapParameter(parameter: Wire<Parameter>): ParameterDefinition {
   const identifier = parameter.metadata?.identifier;
-  if (!identifier) throw new Error("Read Parameter: Missing Catalog Identity");
+  if (!identifier) throw new Error("Read Parameter: Missing Definition Identity");
   const choices = parameter.choices.map((value) => nativeValueToJson(value));
   const expansion = parameter.expansion?.kind;
   return {
@@ -97,7 +91,7 @@ export function mapParameter(parameter: Wire<Parameter>): ParameterDefinition {
 
 function mapTemplate(template: Wire<TestCaseTemplate>, suite: string): SuiteTemplateEntry {
   const identifier = template.metadata?.identifier;
-  if (!identifier) throw new Error("Read Template: Missing Catalog Identity");
+  if (!identifier) throw new Error("Read Template: Missing Definition Identity");
   const name = template.metadata?.label || identifier;
   return {
     template_id: identifier,
@@ -109,7 +103,7 @@ function mapTemplate(template: Wire<TestCaseTemplate>, suite: string): SuiteTemp
     parameter_definitions: template.parameters.map(mapParameter),
     file_definitions: template.files.map((file) => {
       const identifier = file.metadata?.identifier;
-      if (!identifier) throw new Error("Read File Parameter: Missing Catalog Identity");
+      if (!identifier) throw new Error("Read File Parameter: Missing Definition Identity");
       return {
         name: identifier,
         default: file.defaultValue ?? null,
@@ -120,7 +114,7 @@ function mapTemplate(template: Wire<TestCaseTemplate>, suite: string): SuiteTemp
         metadata: metadataJson(file.metadata),
       };
     }),
-    // Steps Belong to the Materialized Case, Not the Template Catalog.
+    // Steps Belong to the Materialized Case, Not the Template Definition.
     steps: [],
     metadata: metadataJson(template.metadata),
   };

@@ -20,8 +20,6 @@
 
 /* === External Imports === */
 
-import { OperationStatus } from "@host/dokime/v1/client_types_pb.js";
-
 /* === Types === */
 
 export type BackendOperationStatus = "running" | "finished" | "failed";
@@ -49,7 +47,7 @@ export type OperationFrame = {
   phase: string;
   fraction?: number;
   startedAt?: { seconds: bigint | number; nanos: number };
-  status?: OperationStatus;
+  status?: BackendOperationStatus;
   failure?: string;
 };
 
@@ -114,11 +112,11 @@ function fractionOf(value: number | undefined): number | null {
   return Math.min(1, Math.max(0, value));
 }
 
-function statusOf(member: OperationStatus | undefined): BackendOperationStatus {
+function statusOf(member: BackendOperationStatus | undefined): BackendOperationStatus {
   switch (member) {
-    case OperationStatus.FINISHED:
+    case "finished":
       return "finished";
-    case OperationStatus.FAILED:
+    case "failed":
       return "failed";
     default:
       return "running";
