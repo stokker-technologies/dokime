@@ -169,12 +169,16 @@ WebView stories. Regenerate its typed SDK dispatch after host contract changes:
 
 ```sh
 mise -C crates/dokime-gui run generate:host
+mise -C crates/dokime-gui run generate:host-frontend
 mise run test -- --package dokime-gui --target lib --story connection::host::tests
 mise run check -- --language rust --package dokime-gui
 ```
 
 These native journeys establish connection ownership and transport behavior;
 they do not establish that the desktop's WebView consumers have moved to that host.
+The frontend generator composes the checked-in product descriptors with the
+exact locked library descriptors, refusing conflicting schemas. Ordinary GUI
+binding preparation also prepares these modules under `target/generated/host/`.
 
 Desktop development process trees are owned by the task-built `cargo-dokime`
 executable with the application's validated packaging settings. `mise run dev`

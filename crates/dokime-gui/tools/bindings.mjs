@@ -230,3 +230,7 @@ await new Generator({
   root: gui,
   config: getConfig({ target: "react", routesDirectory: "./src/routes", generatedRouteTree: "./src/routeTree.gen.ts" }, gui),
 }).run();
+
+// Prepare the Canonical Host Adapter Alongside Its Consumers During Cutover.
+const hostMessages = spawnSync(process.execPath, [resolve(gui, "tools/host-bindings.mjs"), "--frontend"], { stdio: "inherit" });
+if (hostMessages.status !== 0) throw new Error("Generate Canonical Desktop Host Messages Before Checking Its Consumers");

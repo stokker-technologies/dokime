@@ -252,3 +252,135 @@ async fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dy
     owner.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), Box<dyn std::error::Error>> {
+    // Start the Prepared Shared Plugin and the Embedded Desktop Host
+    let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN").map(std::path::PathBuf::from).unwrap_or_else(|| {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../target/debug")
+            .join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX))
+    });
+    if !executable.is_file() {
+        return Err("Prepare Desktop Execution: Run mise run build:host-fixtures -- --language rust".into());
+    }
+    let configuration = settings();
+    let mut plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &configuration.host.placement).await?;
+    let root = tempfile::tempdir()?;
+    let mut owner = Connection::new(configuration)?;
+    let result = async {
+        let session = owner.start(root.path()).await?;
+        let request = v1::AddRemotePlugin { url: plugin.endpoint().into() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Plugins/Add", &request).await?;
+        let admitted = v1::Plugin::decode(response.as_slice())?;
+        assert!(!admitted.entry.is_empty());
+
+        // Read the Canonical Catalog and Materialize Its Frozen Case
+        let request = v1::CatalogListSuitesRequest::default().encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Catalog/ListSuites", &request).await?;
+        let suites = v1::ListSuitesReply::decode(response.as_slice())?;
+        let suite = suites.suites.first().ok_or("Read Desktop Catalog: Missing Prepared Suite")?;
+        let request = v1::CatalogGetSuiteRequest { suite_id: suite.suite_id.clone() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Catalog/GetSuite", &request).await?;
+        let suite = v1::Suite::decode(response.as_slice())?;
+        let template = suite.templates.first().and_then(|template| template.metadata.as_ref()).ok_or("Read Desktop Catalog: Missing Template")?;
+        let request = v1::PlanningMaterializeTemplateRequest {
+            selection: Some(v1::RegisteredSelection {
+                suite_id: suite.metadata.as_ref().ok_or("Read Desktop Catalog: Missing Suite Identity")?.identifier.clone(),
+                template_id: template.identifier.clone(),
+                ..Default::default()
+            }),
+        }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Planning/MaterializeTemplate", &request).await?;
+        let plan = v1::PreviewSelectionReply::decode(response.as_slice())?;
+        let origins = plan.cases.into_iter().map(|case| case.origin.ok_or("Materialize Desktop Case: Missing Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
+
+        // Start the Execution and Wait for Its Operator Question Through SDK Watch
+        let request = v1::ExecutionCreateCycleRequest { origins, continue_automatically: true, ..Default::default() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Execution/CreateCycle", &request).await?;
+        let cycle = v1::CreateCycleReply::decode(response.as_slice())?;
+        let execution = cycle.execution_ids.first().ok_or("Start Desktop Execution: Missing Execution Identity")?.clone();
+        let request = v1::ObservationWatchExecutionProgressRequest { test_execution_id: execution.clone() }.encode_to_vec();
+        let mut progress = session.watch_raw("/dokime.v1.Observation/WatchExecutionProgress", &request).await?;
+        loop {
+            let frame = progress.next().await.ok_or("Observe Desktop Execution: Closed Before Prompt")??;
+            let frame = v1::ObservationWatchExecutionProgressOutput::decode(frame.as_slice())?;
+            let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value else {
+                return Err("Observe Desktop Execution: Finished Before Prompt".into());
+            };
+            if frame.progress.is_some_and(|progress| progress.phase == "prompt") { break; }
+        }
+        let request = v1::PromptsListPendingRequest { execution_id: Some(execution.clone()), ..Default::default() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Prompts/ListPending", &request).await?;
+        let prompts = v1::ListPendingPromptsReply::decode(response.as_slice())?;
+        let prompt = prompts.prompts.first().ok_or("Answer Desktop Prompt: Missing Pending Question")?;
+        let request = v1::PromptsRespondRequest { prompt_id: prompt.prompt_id.clone(), action: "yes".into(), accepted: true, ..Default::default() }.encode_to_vec();
+        session.call_raw("/dokime.v1.Prompts/Respond", &request).await?;
+        let mut terminal = false;
+        while let Some(frame) = progress.next().await {
+            let frame = v1::ObservationWatchExecutionProgressOutput::decode(frame?.as_slice())?;
+            match frame.value {
+                Some(v1::observation_watch_execution_progress_output::Value::Item(_)) if !terminal => {}
+                Some(v1::observation_watch_execution_progress_output::Value::Response(_)) if !terminal => terminal = true,
+                _ => return Err("Observe Desktop Execution: Invalid Terminal Sequence".into()),
+            }
+        }
+        assert!(terminal);
+
+        // Inspect the Sealed Execution and Its Captured Record and Telemetry
+        let request = v1::ExecutionGetExecutionRequest { execution_id: execution.clone() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Execution/GetExecution", &request).await?;
+        let detail = v1::ExecutionDetail::decode(response.as_slice())?;
+        assert_eq!(detail.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
+        assert!(!detail.seal.is_empty());
+        assert!(matches!(detail.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()), Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == v1::ResultStatus::Passed as i32));
+        let request = v1::EvidenceListRecordsRequest { selection: Some(v1::CapturedRecordSelection {
+            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }), ..Default::default()
+        }), ..Default::default() }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Evidence/ListRecords", &request).await?;
+        let records = v1::RecordPage::decode(response.as_slice())?;
+        assert!(records.records.iter().any(|record| !record.payload.is_empty()));
+        let request = v1::TelemetryListSamplesRequest {
+            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }), ..Default::default()
+        }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Telemetry/ListSamples", &request).await?;
+        let samples = v1::TelemetrySamplesReply::decode(response.as_slice())?;
+        assert!(samples.samples.iter().any(|sample| !sample.payload.is_empty()));
+
+        // Read the Report Through SDK Delivery and Verify Every Byte Against Its Completion
+        let request = v1::ReportsDownloadExecutionReportRequest { execution_id: execution }.encode_to_vec();
+        let mut report = session.watch_raw("/dokime.v1.Reports/DownloadExecutionReport", &request).await?;
+        let mut bytes = Vec::new();
+        let mut completion = None;
+        let mut terminal = false;
+        while let Some(frame) = report.next().await {
+            let frame = v1::ReportsDownloadExecutionReportOutput::decode(frame?.as_slice())?;
+            match frame.value {
+                Some(v1::reports_download_execution_report_output::Value::Item(frame)) if !terminal => match frame.payload.and_then(|payload| payload.kind) {
+                    Some(v1::report_html_frame_payload::Kind::Report(_)) if bytes.is_empty() => {}
+                    Some(v1::report_html_frame_payload::Kind::Chunk(chunk)) if completion.is_none() => {
+                        assert_eq!(chunk.offset, bytes.len() as u64);
+                        bytes.extend(chunk.data);
+                    }
+                    Some(v1::report_html_frame_payload::Kind::Complete(value)) if completion.is_none() => completion = Some(value),
+                    _ => return Err("Read Desktop Report: Invalid Transfer Sequence".into()),
+                },
+                Some(v1::reports_download_execution_report_output::Value::Response(_)) if !terminal => terminal = true,
+                _ => return Err("Read Desktop Report: Invalid Terminal Sequence".into()),
+            }
+        }
+        let completion = completion.ok_or("Read Desktop Report: Missing Verified Completion")?;
+        assert!(terminal);
+        assert_eq!(completion.size_bytes, bytes.len() as u64);
+        use sha2::Digest;
+        let digest = sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(completion.sha256, digest);
+        Ok::<(), Box<dyn std::error::Error>>(())
+    }.await;
+    let host_close = owner.close().await;
+    let plugin_close = plugin.close().await;
+    result?;
+    host_close?;
+    plugin_close?;
+    Ok(())
+}

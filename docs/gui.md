@@ -25,7 +25,15 @@ an available operation does not establish a migrated or proven screen.
 readiness through `Status.Get`, pinned remote pairing, connection cancellation,
 and joined Watch/host shutdown. Its native journeys cover attach/detach,
 restart identity, incompatible-root preservation, certificate rotation and live
-SDK delivery. The Tauri command bridge and view adapters still require cutover.
+SDK delivery. The shared thermal fixture also proves catalog reads, an execution
+through its prompt to sealing, record and telemetry reads, and report bytes with
+digest verification through that same adapter. The Tauri command bridge and
+view adapters still require cutover.
+
+`src/lib/host/` is the canonical frontend data boundary. Its catalog projection
+reads the host's suite/template identities, structured units and typed parameter
+expressions; steps come from materialized cases. The catalog projection is
+covered by the Library unit story and is not yet wired into the running shell.
 
 ### Native Commands and Events
 

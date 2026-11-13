@@ -463,9 +463,14 @@ existing host services, proto and generated Rust protocol remain with their owne
   - [x] Implement the native SDK connection owner and descriptor-derived dispatch; prove embedded readiness, attach/detach ownership, restart identity, incompatible-root preservation, bounded Watch delivery and joined shutdown, and pinned pairing with certificate rotation.
   - [ ] Switch the Tauri command bridge and frontend adapters to this owner, remove the superseded session/client path and pass the native WebView Start and Connect journey.
 - [ ] Close Catalog and Suites through the new host and preserve parameter/template presentation.
+  - [x] Generate canonical ES messages/client calls from the product and exact pinned library descriptors; project suites/templates and typed parameters into the existing Library view models, with precision/list/range proof.
+  - [ ] Wire the canonical catalog adapter into the running shell and pass its native WebView Library journey.
 - [ ] Close Execution with live progress, observations, prompts and gap resynchronization.
+  - [x] Drive the shared thermal fixture through the desktop SDK adapter: admit its catalog, materialize a frozen case, run it through a watched prompt, answer it and observe terminal completion.
 - [ ] Close live and saved Evidence, Telemetry and Plots.
+  - [x] Read captured record payloads and telemetry from the sealed thermal execution through the desktop SDK adapter. Plot and WebView evidence consumers remain open.
 - [ ] Close Documents and Reports with verified native export.
+  - [x] Read the thermal execution report through the desktop SDK Watch transport and verify ordered chunks, completion size, digest and terminal response. Native picker/export and document consumers remain open.
 - [ ] Close History browsing and saved execution details.
 - [ ] Close Settings, Secrets and Appearance with revision conflicts and scope preserved.
 - [ ] Close Plugins install/list/remove and restart availability.

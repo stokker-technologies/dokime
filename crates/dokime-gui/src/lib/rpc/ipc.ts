@@ -31,9 +31,6 @@ interface Call {
 
 /* === Constants === */
 
-const DESKTOP_STREAM_TIMEOUT_MS = 86_400_000;
-const DESKTOP_UNARY_TIMEOUT_MS = 10_000;
-
 const maxFrameBytes = DESKTOP_FRAME_BYTES;
 /** Native And WebView Delivery Share One Local Admission Policy. */
 const streamCredit = DESKTOP_STREAM_CREDIT;
@@ -97,11 +94,11 @@ export async function unary<I extends DescMessage, O extends DescMessage>(
   output: O,
   session: SessionIdentity,
   request: MessageInitShape<I>,
-  timeoutMs = DESKTOP_UNARY_TIMEOUT_MS,
+  timeoutMs?: number,
 ): Promise<MessageShape<O>> {
   const reply = await invokeOwned<ArrayBuffer>(session, "rpc", requestBytes(session, toBinary(input, create(input, request))), {
     [headers.path]: path,
-    [headers.deadline]: String(timeoutMs),
+    ...(timeoutMs === undefined ? {} : { [headers.deadline]: String(timeoutMs) }),
   });
   return fromBinary(output, responseBytes(session, reply, 8).subarray(8));
 }
@@ -113,7 +110,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope?: DescMessage,
-  timeoutMs = DESKTOP_STREAM_TIMEOUT_MS,
+  timeoutMs?: number,
 ): Promise<NativeStream<MessageShape<O>>> {
   const call = await openCall(path, session, toBinary(input, create(input, request)), false, timeoutMs);
   let ended = false;
@@ -176,7 +173,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   session: SessionIdentity,
   request: MessageInitShape<I>,
   envelope: DescMessage,
-  timeoutMs: number,
+  timeoutMs?: number,
 ): Promise<NativeClientStream<I, O>> {
   /* A client-streaming operation opens with its request, then carries items;
      the generated client sends a default request and hands the first item
@@ -250,7 +247,13 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
 }
 
 /* === Private Functions === */
-async function openCall(path: string, session: SessionIdentity, opening: Uint8Array, keepInput: boolean, timeoutMs: number): Promise<Call> {
+async function openCall(
+  path: string,
+  session: SessionIdentity,
+  opening: Uint8Array,
+  keepInput: boolean,
+  timeoutMs?: number,
+): Promise<Call> {
   const generation = integer(session.generation);
   const frames: Uint8Array[] = [];
   let wake: (() => void) | undefined;
@@ -263,7 +266,7 @@ async function openCall(path: string, session: SessionIdentity, opening: Uint8Ar
   });
   const reply = await invokeOwned<ArrayBuffer>(session, "rpc_stream_open", requestBytes(session, opening), {
     [headers.path]: path,
-    [headers.deadline]: String(timeoutMs),
+    ...(timeoutMs === undefined ? {} : { [headers.deadline]: String(timeoutMs) }),
     [headers.channel]: channel.toJSON(),
     [headers.input]: keepInput ? "open" : "closed",
   });
