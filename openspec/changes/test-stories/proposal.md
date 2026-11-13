@@ -8,11 +8,8 @@ change under the same convention.
 ## Why
 
 Several areas carry as many lines of test as of source. Two audits found
-little duplicated coverage. The volume comes from repeated setup (a service
-is prepared 108 times, a client connected 114 times and a server shut down
-260 times in the server tests), from driver files that dispatch unrelated
-scenarios, from workloads sized like benchmarks, and from tests that depend
-on real time.
+little duplicated coverage. The volume comes from repeated setup, driver files that dispatch unrelated
+scenarios, workloads sized like benchmarks, and tests that depend on real time.
 
 ## What Changes
 

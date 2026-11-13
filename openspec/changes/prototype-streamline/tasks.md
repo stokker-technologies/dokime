@@ -1,17 +1,7 @@
 # Prototype Streamline Tasks
 
-## Integration
-
-Resume on the combined `feat/grpc-plugins` branch using its design's waves.
-The gRPC change owns SDK extraction and protocol migration; remote simplification
-owns pairing-file replacements, tooling streamline owns the task interface, and
-plot pipeline owns kernels and the relaxed memory contract. Deferred crate
-extraction needs measurements after removals. Checked tasks record source work;
-remaining native proof and unavailable historical baselines stay open.
-
 ## Report Saving Consolidation
 
-Source Inventory: shared Rust story lifecycle/report support; runtime and server fixture factories and the artifact-transfer story constructor and native Host teardown; desktop journey/browser harness, explicit host bundle fixture installation, explicit JUnit selection accounting and History list/detail busy states; their central no-report exemptions; dedicated report story removal; `mise.toml`, Python measurement wrapper, report system bench and standard benchmark host/OBC fixture preparation, README, CONTRIBUTING, testing skill and its tracked projections, and this change's report contracts. Other open changes and their implementation remain outside this assignment.
 - [x] RS.1 Finalize report-producing system stories in their shared harness: save final sealed execution reports, reopen and verify seal identity and artifacts; keep explicit no-report exemptions centrally, remove dedicated report stories and update guidance.
 - [x] RS.2 Delete `measure:report-save`, its Python wrapper and owned references; leave no extra report-save command.
 - [x] RS.3 Retain useful large-cycle save timing as an ordinary Criterion system bench selected through `bench:rust:system`, removing its custom measurement path.
@@ -19,10 +9,9 @@ Source Inventory: shared Rust story lifecycle/report support; runtime and server
 ## HP1 Host Plugin Split
 - [x] HP1.0 Adopt the released Harmos lifecycle API in domain and operations definitions without changing release branches.
 - [x] HP1.1 Migrate workspace Harmos pins and all application, plugin, macro, scaffold and fixture consumers to revision the Harmos lifecycle checkpoint: Lifecycle, Setup resources/lanes/catalogs, carrier attributes and constant inventories; remove superseded registration APIs. Own manifests/lock, crates/, plugins/, affected README/docs and authoring guidance. Preserve storage/replay and shutdown ownership. Runtime and server composition now prepare handlers/resources before launch and activate against the live handle in initialize; startup callers, plugin/scaffold authors and fixtures use the new lifecycle.
-- [x] HP1.1.1 Complete runtime activation ordering: validate recovered ownership, start record capture and commit startup recovery inside initialize before assembling the live handle. Remove the now-late reconciliation callback and the fixture's duplicate listener catalog. Existing reboot, prompt, revision and listener assertions pass in runtime integration; current runtime proof is recorded under HP1.4.
+- [x] HP1.1.1 Complete runtime activation ordering: validate recovered ownership, start record capture and commit startup recovery inside initialize before assembling the live handle. Remove the now-late reconciliation callback and the fixture's duplicate listener catalog.
 - [x] HP1.2 Complete 9.0.1/9.0.2 host split into plugins/sidecars/host and OBC relocation into plugins/sidecars/obc. Remove the runtime host feature/dependency and native ingest path; use plugin ingest. Move existing collectors/tests and provide one operation catalog with shared definitions and declaration-selected Windows/Unix implementations; add no host controls.
-- [x] HP1.2.1 Complete the native row replacement found during ingest review: remove HostTimestamp/HostTextList and the host-only payload decoder from domain/runtime, use native repeated fields plus framework timestamps, carry acquisition instants in operation replies and publish stamped batches. Own host table/contracts, SDK rows, typed codec, host operations/observers and affected tests/docs. Keep v1 and refuse incompatible existing roots without reset. Native row contract and runtime codec tests pass; host contract/settings (7), Windows collector (4), portable definitions and final workspace/all-targets checks pass. Fixture payloads use the generic codec and built desktop/Python fixtures select the host bundle explicitly.
-  Harmos authoring limitation at the Harmos lifecycle checkpoint: `observer(interval_ms = ...)` accepts only a literal. The host implements the shared Observer and inert descriptor traits directly so observer cadence and stream contracts retain one domain-owned source. No Harmos source changes.
+- [x] HP1.2.1 Complete the native row replacement found during ingest review: remove HostTimestamp/HostTextList and the host-only payload decoder from domain/runtime, use native repeated fields plus framework timestamps, carry acquisition instants in operation replies and publish stamped batches. Own host table/contracts, SDK rows, typed codec, host operations/observers and affected tests/docs. Keep v1 and refuse incompatible existing roots without reset.
 - [x] HP1.3 Complete explicit installer bundling for 9.0.3 with repeatable --plugin bundle arguments; packaging supplies plugin-host.dokime, with no implicit code default. Update installer/packaging tests and documentation; exclude test-only OBC from shipping defaults.
 - [ ] HP1.4 Complete remaining native Linux host/plugin proof against the published dependency graph.
 - [x] HP1.5 Owner confirmed pre-launch server composition: all catalogs, lanes and resources register in Lifecycle::prepare; live runtime activation happens in initialize. Remove the post-launch registration path and migrate startup callers and fixtures in step 1. The final message is the report captured by -o.
@@ -77,12 +66,10 @@ Source Inventory: shared Rust story lifecycle/report support; runtime and server
 
 ## 7. Parallel Slice H — Paired Harmos Writer Handoff
 
-Integration inventory additions: `harmos-macros/src/message.rs` and `message/{composition,enumeration}.rs` provide `skip_default` for the domain's custom preference defaults. `harmos-storage/src/snapshot.rs` preserves shutdown rejection after in-flight reads settle. `arrow.rs` and `query/reader.rs` retain IPC output sizing required by transport admission. Targeted compiler fixes also touch `harmos-runtime/tests/operations/wire/owned_wire.rs`; no authoring-streamline worktree is modified.
 - [x] 7.1 Consume the published upstream storage API without memory-charge plumbing; keep upstream implementation outside this repository and consumer proof in 11.23.
 
 ## 8. Final Single Integration Slice — Verify and Fix
 
-Integration inventory additions: `plugins/sidecars/obc/src/lib.rs` removes the retired sidecar policy consumer found by the shipping build. `runtime/query/plots/context.rs`, `plot/payload/mod.rs` and `plot/mod.rs` remove the remaining plot-context allocation estimator without changing context enrichment.
 - [x] 8.1 After all handoffs take sole ownership of the combined Dokime tree. Own shared workspace/crate manifests, locks, `.cargo/config.toml`, build/task/generator configuration, GUI package/lock/config files, repository tooling, root `mise.toml`, README/CONTRIBUTING/docs, `.agents/`, generated surfaces and `openspec/`. No commit/publish without later authorization or other-worktree writes. Read skeleton/conventions before source creation and review README impact.
 - [x] 8.2 Integrate A–F and H's API checkpoint; resolve settings bootstrap/store access, catalogs, command registration, constructors, generators and all remaining consumers. Regenerate via project tasks. Use published Harmos pins before final full validation; retain the local override while implementation still needs it.
 - [x] 8.3 Search for remaining TOML readers, handwritten mirrors, ReadSession/RetainedMemory/SampleAdmission consumers and orphan modules. Inspect preserved performance changes against git diff HEAD, including repeated-item regression and exact envelope boundaries. Add requirement deltas with WHEN/THEN scenarios from proposal before strict validation/retirement; reconcile old tasks without falsifying completion.
@@ -181,7 +168,7 @@ Every payload is produced once at its boundary, borrowed along the path and cons
 - [x] R4.A.2 Validate shared-sample admission, registered-codec payload tracking, rejection without replay, one measurement-field JSON encoding and host-stamped lease scope.
 - [x] R4.A.3 Replace per-scope durable payload copies with one durable admission row plus scope references, preserving per-execution closure, partial acceptance, scope filtering and replay.
 - [ ] R4.A.4 Unify Harmos publication validation with Dokime value projection; the current native-to-storage pass counter excludes Harmos PublicationLease::admit_locked validation and cannot establish one payload pass end to end. Preserve malformed-payload rejection and all schema/transport limits.
-- [x] R4.A.5 Review sidecar message shape changes without building additional artifacts. No boundary-crossing `#[harmos::message]` type changed fields, field order or field types in the R4.A Harmos or Dokime edits; affected type names: none. Sidecar wire protocol and message fingerprints are unchanged by this slice. Matched plugin/runtime initialization was not run and is not claimed.
+- [x] R4.A.5 Review sidecar message shape changes without building additional artifacts.
 - [x] R4.B Telemetry watch and transport: push cursor and limit into the storage query (no `after: 0`, no in-memory filter of full history); progress frames never evict evidence frames from the transport ring; cap `gaps`; bound dedup spools.
 - [x] R4.B.1 Verify bounded sample dedup, strict per-stream admission ordering and the exact gap counter with the focused transport tests, including seven-day admission. Retain 64 recent identities and one sequence high-water mark per stream.
 - [x] R4.B.2 Persist acknowledged sample positions and reconcile receiver receipts before indexed replay.
@@ -193,18 +180,9 @@ Every payload is produced once at its boundary, borrowed along the path and cons
 - [x] R4.D Report: cycle members decoded once from the spool; telemetry scanned once per materialization; `needs_rows` derived, not hardcoded.
 - [x] R4.D.1 Verify decode-once report materialization, shared telemetry scans, preview release and identical fixture HTML; keep comparative report-save measurement in R4.V.9.1.
 - [x] R4.E Polling: execution supervisors react to their own execution's commits only; log subscribers tail incrementally with async I/O, one parser per file.
-- [x] R4.E.1 Execution owner: close `domains/execution/run/{mod,commands,host,session,supervision}.rs` and `domains/execution/requests.rs`;
-  prove that unrelated committed snapshots never trigger command queries, own command admission invalidates one cached durable receipt,
-  and stop/cycle-close concerns still interrupt the run. Run the focused supervision and long-command query-count tests against the shared tree.
-  Receipt caching retains one mutable command receipt across polls and invalidates it only on this execution's command-admission signal.
-  long-command receipt caching. R4.V repaired the startup future layout without raising the query-depth limit; the required server `--tests`
-  selection now compiles and all 31 server library tests pass. Remaining server runtime failures are tracked in R4.V.10.
-  README impact reviewed: no documented setup, public interface or user operation changes.
-- [x] R4.E.2 Server log owner: close `grpc/logs.rs` and `grpc/backend/status.rs`; prove one shared parser, appended-byte reads, bounded replay
-  and partial-line storage, and correct replay after truncation. Run the focused log tests against the shared tree.
-- [x] R4.E.3 Close the execution owner's existing ingest integration in `domains/execution/provider_finish.rs` and `execution/serving.rs`:
-  supply payload-validation provenance and stamp shared sample delivery with its requesting execution's scope while preserving the producer's
-  own origin. Run the focused delivery-scope test.
+- [x] R4.E.1 Execution owner: close `domains/execution/run/{mod,commands,host,session,supervision}.rs` and `domains/execution/requests.rs`; prove that unrelated committed snapshots never trigger command queries, own command admission invalidates one cached durable receipt, and stop/cycle-close concerns still interrupt the run. Run the focused supervision and long-command query-count tests against the shared tree. Receipt caching retains one mutable command receipt across polls and invalidates it only on this execution's command-admission signal.
+- [x] R4.E.2 Server log owner: close `grpc/logs.rs` and `grpc/backend/status.rs`; prove one shared parser, appended-byte reads, bounded replay and partial-line storage, and correct replay after truncation. Run the focused log tests against the shared tree.
+- [x] R4.E.3 Close the execution owner's existing ingest integration in `domains/execution/provider_finish.rs` and `execution/serving.rs`: supply payload-validation provenance and stamp shared sample delivery with its requesting execution's scope while preserving the producer's own origin. Run the focused delivery-scope test.
 - [ ] R4.V Verify–fix–verify: targeted suites for every touched crate, multi-day proofs, latency numbers for the 40k and ~1M-sample plot cases.
 - [x] R4.V.4 Review all handed-off dirty files with exclusive writer ownership. Retain provider cancellation filtering for R4.E, exact gap-count propagation through execution evidence/context/run for R4.B, the telemetry visitor documentation correction, and the recorded UUID v7 pairing fixture repair. Remove telemetry reader formatting-only churn and state/notes line-ending-only churn because neither implements a pending contract. Adopt the two rendered tooling files separately. README impact: these corrections do not change documented setup or commands.
 - [ ] R4.V.5 Complete remaining Linux native suites and paired current/sealed report measurements through focused tasks; retain Windows results without claiming cross-platform proof.
@@ -213,11 +191,8 @@ Every payload is produced once at its boundary, borrowed along the path and cons
 - [x] R4.V.7.1 Remove only the two obsolete memory-pool refusal stories, oversized_report_unsealed and pool_refusal_settles: neither injects a real storage fault, and their reduced batch_bytes setting now controls paging rather than refusing total capture size. Strengthen whole_capture_seals to retain their 8,192-row spectrum input alongside 20,000 pulse rows through the same 512 KiB storage pages, verifying exact saved raw counts. Preserve the separate permanent I/O, cancellation, corruption and durability tests.
 - [x] R4.V.7.2 Verify runtime unit, acceptance and integration regressions for exact rational scalar conversion without changing report semantics.
 - [x] R4.V.1 Reduce the runtime startup future layout so the server system target compiles without increasing the query-depth limit.
-- [x] R4.V.2 Repair denied test Clippy warnings in runtime `report/query/plots.rs` (outer-attribute spacing), `files/lines.rs` and
-  `plot/payload/analyses.rs` (default-field reassignment), `runtime/storage/telemetry.rs` (needless generic borrow), and
-  `tests/acceptance/services/durability/cycles.rs` (needless borrow). Rerun R4.E's supervision and delivery-scope proofs without warning overrides.
-- [x] R4.V.3 Plot owner: repair the missing `super::numeric_value` references in `crates/dokime-runtime/src/plot/stored.rs` so focused library
-  compilation can finish. Then rerun the final R4.E library selection, including `domains::execution::run::commands` for the cached receipt proof.
+- [x] R4.V.2 Repair denied test Clippy warnings in runtime `report/query/plots.rs` (outer-attribute spacing), `files/lines.rs` and `plot/payload/analyses.rs` (default-field reassignment), `runtime/storage/telemetry.rs` (needless generic borrow), and `tests/acceptance/services/durability/cycles.rs` (needless borrow). Rerun R4.E's supervision and delivery-scope proofs without warning overrides.
+- [x] R4.V.3 Plot owner: repair the missing `super::numeric_value` references in `crates/dokime-runtime/src/plot/stored.rs` so focused library compilation can finish. Then rerun the final R4.E library selection, including `domains::execution::run::commands` for the cached receipt proof.
 
 ## Section 9 — Crate Reorganization (After the Work Blocker Is Removed)
 

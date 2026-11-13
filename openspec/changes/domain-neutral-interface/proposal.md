@@ -5,9 +5,7 @@ owner's go. Builds on `grpc-plugins`, `plot-pipeline` and `plot-kinds`.
 
 ## Why
 
-The product contains knowledge that belongs to one plugin. The Wi-Fi channel
-occupancy plot is a hardcoded component with matching special cases in the
-runtime, about 1,430 lines in all. The interface also names that plugin's
+The product contains knowledge that belongs to one plugin. The interface also names that plugin's
 streams and fields, carries a dedicated Wi-Fi channel selector, fixes the
 host-system fields shown in traceability, and guesses units from field names.
 The rule is that the interface knows kinds of plot and kinds of input and
@@ -36,5 +34,4 @@ only a URL.
 - Generic parameter controls, traceability contributions, field metadata and
   plot-group labels in the interface/runtime; plugin declarations, tests and
   authoring guidance. Plot kinds, grid frames and report playback belong to
-  `plot-kinds`; its proposed catalog replaces the earlier unsupported-kind
-  deletion plan and awaits owner confirmation.
+  `plot-kinds`.

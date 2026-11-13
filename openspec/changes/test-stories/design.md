@@ -59,11 +59,6 @@ async fn operator_runs_a_case_and_reads_the_report() -> Result<(), TestError> {
 | `R/tests/system/execution_sampling.rs:28..80` | 20,000 rows, 8,192 spectrum rows | The acceptance counterparts using the same helpers |
 | `R/tests/system/evidence_durability.rs:47`, `managed_durability.rs:47`, `retained_evidence.rs:47`, `telemetry_plot_history.rs:49` | 10,080 rows; 50,000 samples | The integration counterparts using the same helpers |
 
-Slowest recorded tests to shorten by sharing startup: storage recovery
-requests (128 s), plugin sealing (73 s), hot reload and replacement (68 s
-each), stop and report retry (54 s). The figures are from older timing
-reports and are measured again in task 1.1.
-
 ## Real Time
 
 Replaced by the virtual or paused clock, or by an awaited event:

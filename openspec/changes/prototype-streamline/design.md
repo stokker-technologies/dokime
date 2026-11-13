@@ -70,8 +70,7 @@ Telemetry decoding preserves the producer sequence used for identity checks. Str
 
 ## Round 3
 
-The task inventory retains unfinished source and proof obligations. Integration
-and ownership follow `grpc-plugins` Resuming and Implementation Waves.
+The task inventory retains unfinished source and proof obligations. Integration and ownership follow `grpc-plugins` Implementation Waves.
 
 Secret machine fields become `identifier`/`identifiers` without aliases; human display remains `label`. Backend `Profile.name` becomes `identifier` plus `label`, and defaults/keyring associations/selection reference identifier. Keep existing `secret_id` references as references to that identifier. Domain validation owns the bounded ASCII identifier grammar and nonblank label contract. Versions remain v1; no migrations, compatibility readers, legacy detection, imports or resets. Old unrelated user files remain untouched.
 
@@ -100,7 +99,7 @@ Identity bootstrap remains separate from manager-admitted data initialization. I
 
 Reports stage through buffered hashing output, spool selected document/member data, and deliver immutable leased FileReference/FileReader rather than HTML vectors. Preserve 64 MiB document limits, exact evidence, integrity, durability, output order and cancellation. Save picks destination first and downloads to an adjacent tempfile for atomic publication; Open retains cache behavior. Report deadline is 300 s, ordinary requests 30 s; transfer payload target 1 MiB fits the exact encoded ceiling, prefetch is four frames/4 MiB. Runtime/Harmos tuning and conditional native-platform measurements are itemized in tasks.md; no unconditional read pool, 1,800 s policy or relaxed durability. Measure identical large current/sealed cycles before/after and preserve evidence of actual results.
 
-No parked/disabled tests survive: restore live pending cases into real targets or delete obsolete ones. Integration verifies all targeted suites and desktop build, regenerates consumers, reconciles earlier tasks and adds requirement deltas; source closure, delivery and `stkr specification finish prototype-streamline` remain pending until their actual prerequisites complete. Their implemented source is integrated; their remaining validation tasks stay open.
+No parked/disabled tests survive: restore live pending cases into real targets or delete obsolete ones. Integration verifies all targeted suites and desktop build, regenerates consumers, reconciles earlier tasks and adds requirement deltas; source closure, delivery and `stkr specification finish prototype-streamline` remain pending until their actual prerequisites complete.
 
 CLI recovery and client execution/listener operations also own large futures on the heap; the native embedded CLI must run on the default test-thread stack. Pairing client identifiers use the workspace-enabled UUID v7 generator, avoiding a hidden dependency on UUID v4 feature unification. Python report prefetch forwards failures to the consumer and observes the failed reader task, preserving propagation without unobserved-task warnings. Report measurement consumes the stamped benchmark and matching plugin fixture through the standard `bench:rust:system` Criterion target; current and sealed timings are distinct observations, not a fabricated historical speedup.
 
