@@ -148,3 +148,28 @@ fn remove_credentials(root: &Path) -> std::io::Result<()> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_story_joins_host_and_removes_its_credentials() {
+        let path = Arc::new(Mutex::new(PathBuf::new()));
+        let observed = path.clone();
+        let failure = std::panic::catch_unwind(|| {
+            run(async {
+                let root = tempdir().unwrap();
+                *observed.lock().unwrap() = root.path().to_owned();
+                let owner = crate::native_session::DesktopSession::with_local_backend(
+                    crate::connection::ConnectionSession::default(),
+                    crate::native_session::backend::Backend::new(root.path().to_owned()),
+                );
+                owner.select(crate::native_session::BackendSelection::OwnedLocal).await.unwrap();
+                panic!("fixture.story.failed");
+            })
+        });
+        assert!(failure.is_err());
+        assert!(!path.lock().unwrap().exists());
+    }
+}

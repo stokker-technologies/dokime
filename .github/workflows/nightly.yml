@@ -91,6 +91,42 @@ jobs:
       channel: nightly
       profile: release
       fixture-language: ${{ matrix.language }}
+  build_bench:
+    name: Build / Bench
+    uses: ./.github/workflows/validate-build-tests.yml
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
+    with:
+      channel: nightly
+      profile: release
+      bench: true
+  bench:
+    name: Bench / Desktop
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_bench
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+        - platform: windows
+          runner: windows-latest
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      bootstrap: ${{ matrix.bootstrap }}
+      work: Rust / Desktop
+      command: bench -- --language rust --layer system --binary system-desktop --refresh-baseline
+      archives: '["target/ci/build-bench-{platform}.tar.zst"]'
+      minutes: 120
+      suite: desktop-bench
   build_python:
     name: Build / Python
     uses: ./.github/workflows/validate-build-python.yml
@@ -130,6 +166,48 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Desktop / Execution
+          command: test -- --language typescript --layer system --select native-desktop
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Desktop / Connections
+          command: test -- --language typescript --layer system --select two-gui-remote
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          work: Rust / Acceptance
+          command: test -- --language rust --layer acceptance
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Desktop / Execution
+          command: test -- --language typescript --layer system --select native-desktop
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Desktop / Connections
+          command: test -- --language typescript --layer system --select two-gui-remote
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          work: Rust / Acceptance
+          command: test -- --language rust --layer acceptance
+          bootstrap: '[]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -399,6 +477,8 @@ jobs:
     - check
     - build_product
     - build_tests
+    - build_bench
+    - bench
     - build_host_fixtures
     - build_python
     - check_generated

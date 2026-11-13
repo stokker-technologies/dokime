@@ -38,7 +38,8 @@ operator questions, retries, cancellation, cleanup and report publication.
 ### GUI
 
 The native desktop is back in the Cargo workspace and uses the execution host.
-Its journey and installer restoration checklist remains open. See [GUI Guidance](docs/gui.md).
+Its Product includes native installers; the remaining document-capture limitation
+and unavailable host controls are listed in [GUI Guidance](docs/gui.md).
 
 #### Examples
 

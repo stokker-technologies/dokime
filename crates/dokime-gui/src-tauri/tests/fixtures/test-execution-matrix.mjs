@@ -7,6 +7,7 @@ let progress;
 try {
   const api = await harness.loadHost("client.js");
   const types = await harness.loadHost("dokime/v1/client_types_pb.js");
+  const execution = await harness.loadHost("dokime/v1/execution_pb.js");
   const scenario = process.argv[2];
   const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
   // Materialize the SDK Fixture's Frozen Origin
@@ -39,14 +40,17 @@ try {
   assert.equal(detail.summary.state, types.ExecutionState.SEALED);
   assert.ok(detail.seal.length);
   if (scenario === "cancel") {
-    assert.equal(detail.outcome.attribution.case, "terminated");
+    assert.equal(detail.outcome.attribution.case, "notEvaluated");
+    assert.equal(detail.outcome.attribution.value.termination, execution.Termination.CANCELLED);
   } else {
     assert.equal(detail.outcome.attribution.case, "evaluated");
     assert.equal(detail.outcome.attribution.value.status, scenario === "complete" ? types.ResultStatus.PASSED : types.ResultStatus.FAILED);
     const samples = await api.telemetryListSamples(session, { scope: { executionId } });
     assert.ok(samples.samples.length);
     const records = await api.evidenceListRecords(session, { selection: { scope: { executionId } } });
-    assert.ok(records.records.some(record => record.payload.length));
+    const door = records.records.find(record => record.recordType === "thermal.door");
+    assert.ok(door);
+    assert.deepEqual([...door.payload], scenario === "complete" ? [8, 1] : []);
   }
 } finally {
   await progress?.cancel();

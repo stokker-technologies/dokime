@@ -55,8 +55,10 @@ with an action rather than returning incomplete results. See
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
-Desktop native integration has a separate restoration checklist in the combined
-change; this candidate does not package desktop installers.
+The desktop embeds the same host and also attaches to a pinned remote host.
+Product packaging includes the portable desktop distribution and native Windows
+NSIS or Linux DEB/RPM installers. The remaining document-capture limitation and
+unavailable host controls are listed in [GUI Guidance](gui.md#host-connection).
 
 The host composes the library Access and Status services directly. Access manages
 the authenticated TLS listener, pairings, revocation and certificate rotation;

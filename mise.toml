@@ -285,6 +285,15 @@ description = "Build the Generated GUI Client and Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
+[tasks."build:rust:bench"]
+hide = true
+description = "Build Native Desktop Benchmarks and Matching Hosts"
+usage = 'flag "--binary <binary>"'
+run = [
+  { task = "build:typescript --profile dev" },
+  "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}",
+]
+
 [tasks."test:python"]
 hide = true
 description = "Test Python Layers"
@@ -402,6 +411,30 @@ run = [
   "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}",
 ]
 
+[tasks."test:rust:acceptance"]
+hide = true
+description = "Test Native Desktop Acceptance"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--prepared"
+flag "--select <select>"
+'''
+run = '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}'''
+
+[tasks."bench:rust:system"]
+hide = true
+description = "Measure Prepared Native Desktop Benchmarks"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--binary <binary>"
+flag "--select <select>"
+flag "--refresh-baseline"
+'''
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated --profile bench",
+  "{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select %} -- {{usage.select}}{% endif %}",
+]
+
 [tasks."test:typescript"]
 hide = true
 description = "Test TypeScript Layers"
@@ -444,7 +477,7 @@ flag "--select <select>"
 run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% endif %}''',
-  '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit --exclude "tests/unit/{settings/preferences,console/nominal,cycle/{nominal,projection,document-stream},history/totals,library/nominal,shell/navigation,plots/{columnar-frame,live-frames,plot-pipeline}}.test.ts" --testNamePattern "^(?!.*Native Rejections and Captured Diagnostics Reach Notification History)"{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
+  '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 
 [tasks."test:typescript:integration"]
@@ -459,7 +492,7 @@ flag "--select <select>"
 run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
   '''{% if usage.prepared and not usage.select %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
-  '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration --exclude "tests/integration/{cycle/{document-query,lifecycle,saved-report},execution/responsiveness,plots/nominal,settings/registry,shell/{contracts,status}}.test.ts"{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
+  '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 
 [tasks."package:python"]
@@ -470,6 +503,12 @@ flag "--profile <profile>" default="dev"
 flag "--target <target>" default="any"
 '''
 run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target any"
+
+[tasks."build:distribution"]
+hide = true
+description = "Refresh the Verified Portable Distribution After Signing"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}"
 
 [tasks."package:rust"]
 hide = true
@@ -483,6 +522,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.notices",
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.installer --profile {{usage.profile}}",
 ]
 
 [tasks."ci:nightly-freshness"]

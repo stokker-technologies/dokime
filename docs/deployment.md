@@ -59,20 +59,19 @@ The existing `TAURI_SIGNING_PRIVATE_KEY` and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` remain separate updater credentials.
 Stable release policy still requires them. Authenticode runs before minisign,
 so the updater signature covers the final signed installer bytes. Packaging
-also signs the staged GUI after its icon resources are replaced and signs the
-installed CLI before inventory digests are calculated. The standalone exported
+uses the GUI's already compiled icon resources and signs the installed CLI
+before inventory digests are calculated. The standalone exported
 executables are signed before their archives are created. The action refreshes
 the portable distribution export from those signed product bytes through the
 existing exporter, which regenerates its integrity inventory.
 
 ### Release Wiring
 
-In the Windows package job, **replace** the existing
-`mise run package:rust --profile ...` step with this step, after all Build
-artifacts are extracted and before package archiving, checksums, attestations
-or upload. Keep the job's existing Windows/release selection condition if it
-is more specific. The same step supports unsigned fork and Nightly runs.
-Linux retains its existing packaging step. Do not add a later installer
+Stable publication's Windows signing job downloads the validated review's Product
+archives and invokes this action before package archiving, checksums, attestations
+or upload. The publisher consumes that job's signed package and the review's Linux
+and Python packages. PR and Nightly package without release credentials.
+Linux retains its native packaging step. Do not add a later installer
 signing step: that would invalidate minisign, SHA256SUMS and attestations.
 
 ```yaml
@@ -94,12 +93,12 @@ signing step: that would invalidate minisign, SHA256SUMS and attestations.
     pfx-password: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
 ```
 
-The action wraps packaging; credentials are scoped to its steps rather than
+The action in `.github/actions/sign-windows/action.yml` wraps packaging; credentials are scoped to its steps rather than
 written to the job environment. Local packaging can opt into the same hook
 with `DOKIME_AUTHENTICODE_PROVIDER=azure` or `pfx` and the corresponding
-environment variables mapped in the action. The manifest remains unchanged;
-existing `[signing.installer]` certificate-store signing is an alternative
-and must not be combined with the hook. Do not sign untrusted pull-request
+environment variables mapped in the action. `tools/powershell/authenticode.ps1`
+owns provider selection, signing and verification; the native bundler invokes it
+before creating updater signatures. Do not sign untrusted pull-request
 code with release credentials.
 
 ## Windows Installation Scope

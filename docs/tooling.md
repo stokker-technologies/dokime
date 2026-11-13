@@ -62,9 +62,10 @@ prepares the SDK desktop bundle. Run focused native desktop stories with
 `--features testing`; their disposable-root owner removes credentials after the
 runtime stops, including on failure. WebView lanes are available through
 `mise run test -- --language typescript --layer system --select native-desktop`
-and the same command with `--select two-gui-remote`. Their retained journey
-expectations, hosted selection, installers and signing remain restoration work.
-The retained frontend suite exclusions have not yet been removed.
+and the same command with `--select two-gui-remote`. Both drivers use the current
+host and SDK thermal fixture. Frontend unit and integration selection includes all
+retained suites. PR and Nightly select native acceptance plus both WebView lanes
+on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 
 `mise run generate` builds the desktop's `export_preferences` example and reads
 canonical defaults through its embedded host, then generates protobuf messages,
@@ -86,15 +87,19 @@ add `--check` to prove its drift. Never edit generated files.
 `mise run build` produces the current host/CLI workspace. Tests Build produces
 one archive plus host/CLI fixtures and the vendored protobuf compiler input.
 The native desktop package compiles with workspace selections; Product now exports
-its shell and frontend inputs. Hosted consumers remain restoration work. Shipping sidecar
+its shell and frontend inputs for the restored hosted consumers. Shipping sidecar
 plugins and removed macro/compiler fixtures are not selected. The current Cargo
 workspace also contains protocol, storage, operations-next, runtime-next, CLI-next,
 SDK and bundle inspection packages.
 
 Product outputs live under `target/build/<profile>/<target>/`; packages under
 `target/package/<profile>/<target>/`. CLI archives retain the `dokime-next` binary.
-The distribution ZIP contains that CLI and legal notices. Desktop installers and
-shipping sidecar feeds return only after their restoration/re-authoring tasks.
+The distribution ZIP contains that CLI, the desktop, authored organization resources
+and legal notices. Native Tauri packaging consumes those verified Product bytes
+without compiling or patching them and produces Windows NSIS or Linux DEB/RPM
+installers. Stable publication signs the validated Windows Product, refreshes its
+distribution inventory and packages it before generating updater signatures;
+Nightly stays unsigned. Shipping sidecar feeds await their re-authoring tasks.
 The pure Python wheel/source pair uses the shared `any/python/` target.
 
 `tools/project.toml` owns package/release/test policy; `mise.toml` owns commands

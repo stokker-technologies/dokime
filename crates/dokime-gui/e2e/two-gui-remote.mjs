@@ -15,13 +15,12 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 
 // Third Party Imports
 
@@ -157,9 +156,9 @@ try {
     const pairing = JSON.parse(await readFile(access, "utf8"));
     assert.ok(pairing.certificate_pem && pairing.access_key);
     const after = await call(a, "harmos.v1.access.Pairings", "List");
-    const admitted = after.pairings.find((item) => !before.pairings.some((prior) => prior.name === item.name));
+    const admitted = after.pairings.find((item) => !before.pairings.some((prior) => prior.id === item.id));
     assert.ok(admitted, "Each Desktop Receives Its Own Revocable Pairing");
-    imported.push({ name: admitted.name, pairing, access });
+    imported.push({ name: admitted.id, pairing, access });
     await pick(gui, "desktop_backend_import_pairing", { identifier: `story-${name}` }, access);
     await gui.connected();
     const selected = await invoke(gui, "desktop_session_status");
@@ -218,6 +217,18 @@ try {
   assert.deepEqual(await call(b, "Telemetry", "ListSamples", { scope: { executionId } }), samplesA);
 
   // Each Native Owner Saves and Reopens the Same Verified Sealed Report.
+  await call(a, "Reports", "PublishExecutionReport", {
+    executionId,
+    document: {
+      metadata: { identifier: "desktop.report", label: "Thermal Evidence" },
+      sections: [
+        {
+          metadata: { identifier: "records", label: "Captured Evidence" },
+          cards: [{ metadata: { identifier: "records.list", label: "Records" }, evidence: "EVIDENCE_CARD_RECORDS" }],
+        },
+      ],
+    },
+  });
   const hashes = [],
     archives = [];
   for (const [name, gui] of [
@@ -265,7 +276,7 @@ try {
   assert.ok(await b.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"));
 
   // Certificate Rotation Refuses the Old Trust Pin and a New Pairing Recovers.
-  await call(a, "harmos.v1.access.Certificates", "Create", { certificateNames: ["localhost", "127.0.0.1"] });
+  await call(a, "harmos.v1.access.Certificates", "Create", {});
   await assert.rejects(invoke(a, "desktop_backend_use", { identifier: "story-a" }));
   await invoke(a, "desktop_session_select", {
     selection: {

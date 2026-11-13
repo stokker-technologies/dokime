@@ -303,7 +303,7 @@ def main(arguments: list[str] | None = None) -> int:
             if args.project != "tools/python":
                 for language in languages:
                     for layer in layers:
-                        if (language == "typescript" and layer == "acceptance") or (language == "rust" and layer == "acceptance"):
+                        if language == "typescript" and layer == "acceptance":
                             continue
                         if language == "python" and not (Path("sdk/python/tests") / layer).is_dir():
                             continue

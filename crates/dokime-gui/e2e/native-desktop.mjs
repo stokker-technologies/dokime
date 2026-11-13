@@ -12,7 +12,6 @@
 /* === Imports === */
 
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -65,7 +64,7 @@ let executionId;
 
 /* === Private Functions === */
 
-async function story(name, run) {
+async function story(name, run, required = false) {
   const started = performance.now();
   try {
     await run();
@@ -75,7 +74,7 @@ async function story(name, run) {
     results.push({ name, seconds: (performance.now() - started) / 1000, error });
     await desktop?.screenshot(name).catch(() => {});
     await writeFile(join(evidence, name + ".txt"), error.stack + "\n" + (await desktop?.text().catch(() => ""))).catch(() => {});
-    throw error;
+    if (required) throw error;
   }
 }
 
@@ -166,8 +165,20 @@ async function execute() {
 }
 
 async function reportsAndHistory() {
+  await call(desktop, "Reports", "PublishExecutionReport", {
+    executionId,
+    document: {
+      metadata: { identifier: "desktop.report", label: "Thermal Evidence" },
+      sections: [
+        {
+          metadata: { identifier: "records", label: "Captured Evidence" },
+          cards: [{ metadata: { identifier: "records.list", label: "Records" }, evidence: "EVIDENCE_CARD_RECORDS" }],
+        },
+      ],
+    },
+  });
   const status = await invoke(desktop, "desktop_session_status");
-  const path = join(evidence, "thermal-execution.html");
+  const path = join(work, "thermal-execution.html");
   await desktop.execute(
     `const pending = {done:false}; window.__storyPicker=pending;
     window.__TAURI_INTERNALS__.invoke("desktop_artifact_deliver",arguments[0]).then(
@@ -198,6 +209,7 @@ async function reportsAndHistory() {
   const html = await readFile(saved.value.path, "utf8");
   assert.ok(html.includes("Thermal"), "The Saved Report Contains Frozen Execution Content");
   await openNativeReport(saved.value.path);
+  await writeFile(join(evidence, "thermal-execution.html"), html);
   await desktop.goto("/history");
   await until("History Lists Sealed Execution", async () => (await desktop.text()).includes("Thermal"));
   await desktop.goto("/cycles/" + cycle.cycleId + "?executionId=" + executionId, { reload: true });
@@ -222,8 +234,8 @@ async function cancellation() {
     const current = await call(desktop, "Execution", "GetExecution", { executionId });
     return current.summary.state === "EXECUTION_STATE_SEALED" ? current : null;
   });
-  assert.ok(detail.outcome.terminated);
-  await until("WebView Shows Termination", async () => /Cancel|Terminat/.test(await desktop.text()));
+  assert.equal(detail.outcome.notEvaluated.termination, "TERMINATION_CANCELLED");
+  await until("WebView Shows Stopped Execution", async () => (await desktop.text()).includes("Stopped"));
 }
 
 async function settings() {
@@ -268,7 +280,7 @@ try {
   work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
   cleanup = await prepareNativeFixture(work, evidence);
   process.stdout.write("Evidence: " + evidence + "\n");
-  await story("Owned Startup and Restart", owned);
+  await story("Owned Startup and Restart", owned, true);
   if (options.workflow !== "ownership") {
     const backend = await startBackend(work, evidence);
     desktop = await startSession(join(work, "attached"), backend.endpoint, evidence);
@@ -281,7 +293,7 @@ try {
       assert.ok(identity.status.identity.hostId);
     });
     if (options.workflow === "execution") {
-      await story("Catalog and Registered Cases", library);
+      await story("Catalog and Registered Cases", library, true);
       await story("Execution Progress Prompts and Evidence", execute);
       await story("Documents Reports and History", reportsAndHistory);
       await story("Execution Cancellation", cancellation);

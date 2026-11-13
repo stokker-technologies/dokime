@@ -38,6 +38,8 @@ of native installer appearance. Native plugin installation, pairing export, fire
 registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
+Reloading the WebView adopts and verifies the native owner's current connection,
+including an imported remote profile, before considering launch arguments.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
 use canonical host messages. SDK and binary adapter stories prove their boundaries;
@@ -51,6 +53,17 @@ helper uses canonical host schemas and the descriptor fence, including numeric
 enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
 verified native delivery. Their complete WebView proof remains open.
+The thermal fixture does not publish a report automatically. Stories explicitly
+publish a selected evidence document before requiring a sealed download; a render
+without publication correctly retains the host's Current origin.
+
+The execution WebView currently reaches a real passed result and captured evidence,
+but its document card reports Evidence Unavailable: the host sends EvidenceCut before
+StructureComplete and declares cards afterward. The adapter retains its ordering,
+identity and completion checks; this mismatch is a Host Request, not a disabled
+execution control. The old facade inventory test is removed because that generated
+facade no longer exists; type checking, the host import smoke and native IPC stories
+cover the current client boundary.
 
 Native stories retain their disposable roots outside the test runtime. After
 owned tasks stop, including on assertion failure, the host fixture removes each

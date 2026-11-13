@@ -2,12 +2,11 @@
 import assert from "node:assert/strict";
 
 import { execFile, spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 
-import { createReadStream, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 
-import { appendFile, copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -25,7 +24,6 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
-import { call } from "./native-rpc.mjs";
 import { ReportBrowser } from "./report-browser.ts";
 import { traceSpan } from "./test-trace.mjs";
 
@@ -50,7 +48,8 @@ const backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, "fixtures/deskto
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, "bin/dokime-gui" + executableSuffix);
 const cliBinary = backendBinary;
 const pluginExecutable = join(built, "fixtures/host/dokime-rust-thermal" + executableSuffix);
-const credentialHost = process.env.DOKIME_HOST_FIXTURE ?? join(built, "fixtures/host/dokime-host-next" + executableSuffix);
+const credentialHost =
+  process.env.DOKIME_HOST_FIXTURE ?? join(built, (profile === "bench" ? "bin/" : "fixtures/host/") + "dokime-host-next" + executableSuffix);
 const windows = process.platform === "win32";
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
 const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004", Control: "\uE009", Backspace: "\uE003", End: "\uE010" };
@@ -1757,7 +1756,7 @@ async function openNativeReport(path) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path }),
   });
-  assert.ok(reopened.ok, "The owned report browser reopens saved HTML");
+  assert.ok(reopened.ok, "The owned report browser reopens saved HTML: " + (await reopened.text()));
   await reportBrowser.closeTabs();
 }
 
