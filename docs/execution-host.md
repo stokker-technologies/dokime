@@ -275,6 +275,10 @@ policies retain their own deadlines.
 Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
 half. Build with `mise run build -- --package dokime-cli-next`.
 
+`dokime-next --endpoint URL operation list --json` returns the complete bounded
+admitted operation catalog, including owner, generation and contract. It has no
+paging flags.
+
 ```sh
 dokime-next new first-plugin --lang rust
 dokime-next new remote-plugin --lang python

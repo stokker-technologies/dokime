@@ -15,6 +15,7 @@ mod catalog;
 mod cycle;
 mod execution;
 mod new;
+mod operation;
 mod plan;
 mod plugin;
 mod proto;
@@ -65,6 +66,9 @@ pub(crate) enum Command {
     Execution(execution::Command),
 
     Status(status::Args),
+
+    #[command(subcommand)]
+    Operation(operation::Command),
 }
 
 /* === Traits === */
@@ -83,6 +87,7 @@ impl Command {
             Self::Cycle(command) => command.action(),
             Self::Execution(command) => command.action(),
             Self::Status(_) => "Read Host Status",
+            Self::Operation(command) => command.action(),
         }
     }
 }
@@ -100,6 +105,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Cycle(command) => cycle::run(command, endpoint, settings).await,
         Command::Execution(command) => execution::run(command, endpoint, settings).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
+        Command::Operation(command) => operation::run(command, endpoint, settings).await,
     }
 }
 

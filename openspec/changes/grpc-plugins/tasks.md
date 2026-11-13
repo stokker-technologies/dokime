@@ -469,7 +469,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Restore native Rust desktop and TypeScript system stories on PR and Nightly, and desktop benchmarks.
   - [ ] Restore desktop distribution/installer packaging, signing and release assets.
 - [ ] Complete command-line parity after host support is available.
-  - [ ] `operation list`: discover admitted operations.
+  - [x] `operation list`: discover admitted operations; `operator_discovers_operations` compares the whole host catalog.
   - [ ] `operation show`: inspect an operation contract.
   - [ ] `operation call`: invoke typed operations through the generic client.
   - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
