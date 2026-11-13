@@ -45,8 +45,8 @@ arrow-array = { workspace = true }
 arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 prost = { workspace = true }
-prost-types = { workspace = true }
 prost-reflect = { workspace = true }
+prost-types = { workspace = true }
 
 # Configuration
 
@@ -107,6 +107,10 @@ tempfile = { workspace = true }
 # === Target Dependencies === #
 
 # === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
 
 # === Bench Targets === #
 

@@ -216,7 +216,9 @@ impl Context {
         self.transport.cancelled().await
     }
 
-    pub async fn prompt(&self, question: v1::OperatorQuestion) -> Result<v1::OperatorAnswer> {
+    pub async fn prompt(
+        &self, question: dokime_protocol::context::PromptsCreateRequest,
+    ) -> Result<dokime_protocol::context::PromptsCreateResponse> {
         self.host(question).await
     }
     pub async fn settings(&self) -> Result<v1::SavedSettings> {
@@ -229,8 +231,10 @@ impl Context {
         self.host(v1::ReadSecret { identifier: identifier.into() }).await
     }
 
-    pub async fn record<T: Message>(&self, record: &crate::Record<T>, value: T) -> Result<v1::RecordReceipt> {
-        self.host(v1::PublishRecord {
+    pub async fn record<T: Message>(
+        &self, record: &crate::Record<T>, value: T,
+    ) -> Result<dokime_protocol::context::evidence::RecordsAppendResponse> {
+        self.host(dokime_protocol::context::evidence::RecordsAppendRequest {
             execution: self.execution_id().into(),
             kind: record.identifier().into(),
             payload: value.encode_to_vec(),
@@ -239,8 +243,10 @@ impl Context {
         .await
     }
 
-    pub async fn records(&self, kind: impl Into<String>, step: impl Into<String>, limit: u32) -> Result<v1::Records> {
-        self.host(v1::RecordsRequest {
+    pub async fn records(
+        &self, kind: impl Into<String>, step: impl Into<String>, limit: u32,
+    ) -> Result<dokime_protocol::context::evidence::RecordsListResponse> {
+        self.host(dokime_protocol::context::evidence::RecordsListRequest {
             execution: self.execution_id().into(),
             kind: kind.into(),
             step: step.into(),
@@ -249,8 +255,10 @@ impl Context {
         .await
     }
 
-    pub async fn statistics(&self, stream: impl Into<String>, field: impl Into<String>, step: impl Into<String>) -> Result<v1::Statistics> {
-        self.host(v1::StatisticsRequest {
+    pub async fn statistics(
+        &self, stream: impl Into<String>, field: impl Into<String>, step: impl Into<String>,
+    ) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
+        self.host(dokime_protocol::context::EvidenceStatisticsRequest {
             execution: self.execution_id().into(),
             stream: stream.into(),
             field: field.into(),
@@ -271,7 +279,7 @@ impl Context {
     }
 
     pub async fn log(&self, severity: v1::Severity, message: impl Into<String>) -> Result<()> {
-        self.host(v1::WriteLog {
+        self.host(dokime_protocol::context::evidence::LogsAppendRequest {
             execution: self.execution_id().into(),
             severity: severity as i32,
             message: message.into(),

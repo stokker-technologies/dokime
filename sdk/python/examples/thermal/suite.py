@@ -4,7 +4,7 @@
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 
 import dokime
-from dokime.context import HOST_OPERATIONS
+from dokime import HOST_OPERATIONS
 from dokime.v1 import message
 
 
@@ -33,7 +33,7 @@ class Thermal:
 
     @dokime.step("Hold", identifier="hold")
     async def hold(self, ctx):
-        answer = await ctx.operation(message("OperatorQuestion", prompt="door", prompt_type="thermal.door"))
+        answer = await ctx.operation(message("dokime.context.v1.PromptsCreateRequest", prompt="door", prompt_type="thermal.door"))
         await ctx.record("thermal.door", Door(closed=answer.action == "yes" and answer.accepted))
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
@@ -75,12 +75,12 @@ def plugin():
         ],
     )
     needed = {
-        "dokime.execution.prompt",
-        "dokime.execution.record",
-        "dokime.execution.records",
-        "dokime.execution.statistics",
+        "dokime.context.v1.Prompts/Create",
+        "dokime.context.v1.evidence.Records/Append",
+        "dokime.context.v1.evidence.Records/List",
+        "dokime.context.v1.Evidence/Statistics",
         "dokime.execution.progress",
-        "dokime.execution.log",
+        "dokime.context.v1.evidence.Logs/Append",
         "harmos.context.v1.Time/Sleep",
     }
     return dokime.Plugin(

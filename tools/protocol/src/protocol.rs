@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -82,10 +83,21 @@ pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::E
 pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let proto = root.join("proto");
     let (compiler, includes) = self::compiler(root)?;
-    let mut inputs = fs::read_dir(proto.join("dokime/v1"))?.map(|entry| entry.map(|entry| entry.path())).collect::<Result<Vec<_>, _>>()?;
-    inputs.retain(|path| path.extension().is_some_and(|extension| extension == "proto"));
+    let mut pending = vec![proto.join("dokime")];
+    let mut inputs = Vec::new();
+    while let Some(parent) = pending.pop() {
+        for entry in fs::read_dir(parent)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "proto") {
+                inputs.push(path);
+            }
+        }
+    }
     inputs.sort();
     let mut config = prost_build::Config::new();
+    config.include_file("modules.rs");
     config.protoc_executable(&compiler);
     config.extern_path(".harmos.v1", "::harmos_protocol::v1");
     config.extern_path(".harmos.plugin.v1", "::harmos_protocol::plugin");
@@ -104,8 +116,28 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     let descriptors = descriptors.encode_to_vec();
     fs::write(output.join("descriptors.bin"), &descriptors)?;
     let pool = prost_reflect::DescriptorPool::decode(descriptors.as_slice())?;
+    let packages =
+        pool.files().map(|file| file.package_name().to_owned()).filter(|package| package.starts_with("dokime.")).collect::<BTreeSet<_>>();
+    let mut modules = String::from("// @generated from authoritative protobuf packages.\n");
+    let mut parents: Vec<&str> = Vec::new();
+    for package in &packages {
+        let parts = package.split('.').collect::<Vec<_>>();
+        let shared = parents.iter().zip(&parts).take_while(|(left, right)| left == right).count();
+        for _ in shared..parents.len() {
+            modules.push_str("}\n");
+        }
+        for part in &parts[shared..] {
+            modules.push_str(&format!("pub mod {part} {{\n"));
+        }
+        modules.push_str(&format!("include!(\"{package}.rs\");\n"));
+        parents = parts;
+    }
+    for _ in parents {
+        modules.push_str("}\n");
+    }
+    fs::write(output.join("modules.rs"), modules)?;
     let mut reflection = String::from("// @generated from authoritative protobuf descriptors.\n");
-    for message in pool.all_messages().filter(|message| message.package_name() == "dokime.v1" && !message.is_map_entry()) {
+    for message in pool.all_messages().filter(|message| message.package_name().starts_with("dokime.") && !message.is_map_entry()) {
         let mut parents = Vec::new();
         let mut parent = message.parent_message();
         while let Some(message) = parent {
@@ -114,9 +146,10 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
         }
         parents.reverse();
         parents.push(message.name().to_upper_camel_case());
-        let path = parents.join("::");
+        let package = message.package_name().replace('.', "::");
+        let path = format!("{package}::{}", parents.join("::"));
         reflection.push_str(&format!(
-            "impl prost_reflect::ReflectMessage for crate::v1::{path} {{\n\
+            "impl prost_reflect::ReflectMessage for crate::{path} {{\n\
              fn descriptor(&self) -> prost_reflect::MessageDescriptor {{\n\
              crate::descriptor_pool().get_message_by_name(\"{}\").expect(\"generated protocol descriptor\")\n\
              }}\n}}\n",

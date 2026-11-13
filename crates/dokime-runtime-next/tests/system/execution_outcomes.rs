@@ -126,37 +126,6 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(OutcomeCounts::from_outcomes([result.executions[1].execution.outcome.as_ref().unwrap()]).verdict, None);
         assert_eq!(OutcomeCounts::from_outcomes([]).verdict, None);
 
-        // Read Mixed Attributions and Counts Through the Client Services
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut query = v1::query_client::QueryClient::connect(process.url.clone()).await?;
-        let page = query
-            .list_executions(v1::QueryListExecutionsRequest {
-                selection: Some(v1::ExecutionSelection {
-                    cycle_ids: vec![cycle_identifier.clone()],
-                    ..Default::default()
-                }),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        let counts = page.outcome_counts.unwrap();
-        assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
-        assert_eq!(counts.result_status, Some(v1::ResultStatus::Passed as i32));
-        assert!(page.rows.iter().any(|row| matches!(
-            row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-            Some(v1::execution_outcome::Attribution::Declared(_))
-        )));
-        let mut reader = v1::execution_client::ExecutionClient::connect(process.url.clone()).await?;
-        for row in &page.rows {
-            let detail =
-                reader.get_execution(v1::ExecutionGetExecutionRequest { execution_id: row.execution_id.clone() }).await?.into_inner();
-            assert_eq!(detail.cycle_counts.as_ref(), Some(&counts));
-            assert_eq!(detail.summary.as_ref(), Some(row));
-            assert!(detail.controls.as_ref().unwrap().can_inspect);
-        }
-        process.close().await?;
-
         // Replace the Catalog and Rematerialize Instead of Reusing the Stale Case
         host.remove_plugin(&entry).await?;
         plugin.close().await?;
@@ -190,6 +159,37 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         assert!(host.start_cycle(vec![invalid]).await.is_err());
         assert_eq!(host.executions()?, before);
         host.shutdown().await?;
+
+        // Read Mixed Attributions and Counts Through the Client Services Once the Root Is Released
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let mut query = v1::query_client::QueryClient::connect(process.url.clone()).await?;
+        let page = query
+            .list_executions(v1::QueryListExecutionsRequest {
+                selection: Some(v1::ExecutionSelection {
+                    cycle_ids: vec![cycle_identifier.clone()],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let counts = page.outcome_counts.unwrap();
+        assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
+        assert_eq!(counts.result_status, Some(v1::ResultStatus::Passed as i32));
+        assert!(page.rows.iter().any(|row| matches!(
+            row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
+            Some(v1::execution_outcome::Attribution::Declared(_))
+        )));
+        let mut reader = v1::execution_client::ExecutionClient::connect(process.url.clone()).await?;
+        for row in &page.rows {
+            let detail =
+                reader.get_execution(v1::ExecutionGetExecutionRequest { execution_id: row.execution_id.clone() }).await?.into_inner();
+            assert_eq!(detail.cycle_counts.as_ref(), Some(&counts));
+            assert_eq!(detail.summary.as_ref(), Some(row));
+            assert!(detail.controls.as_ref().unwrap().can_inspect);
+        }
+        process.close().await?;
         revised.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })

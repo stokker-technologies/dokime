@@ -82,7 +82,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [rust, python, csharp, cpp]
+        language:
+        - rust
+        - python
+        - csharp
+        - cpp
     with:
       channel: nightly
       profile: release
@@ -95,64 +99,6 @@ jobs:
       profile: release
     needs:
     - freshness
-    if: needs.freshness.outputs.build == 'true'
-  build_bench:
-    name: Build / Bench
-    needs:
-    - freshness
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
-    - run: mise run build -- --artifact bench --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-bench-bench-unix
-        path: target/ci/build-bench-bench-unix.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
-        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
-        steps.setup.outputs.mise-path != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
-        steps.setup.outputs.uv-path != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
-        && steps.setup.outputs.sccache-path != ''
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: '[{"archive":"target/ci/build-bench-bench-unix.tar.zst","paths":["target/build/bench/{target}"]}]'
-      CI_CACHE_PROFILE: bench
     if: needs.freshness.outputs.build == 'true'
   check_generated:
     name: Check / Generated
@@ -196,15 +142,15 @@ jobs:
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -217,45 +163,29 @@ jobs:
           minutes: 120
           work: Python / Wheel
           command: test -- --language python --wheel
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Wheel
           command: test -- --language python --wheel
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -273,33 +203,17 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: Rust / Starter
-          command: test -- --starter
-          bootstrap: '[]'
-          archives: '["target/ci/build-generator-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Starter
-          command: test -- --starter
-          bootstrap: '[]'
-          archives: '["target/ci/build-generator-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
           work: Rust / System
           command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System
           command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -314,38 +228,6 @@ jobs:
           command: test -- --language rust --layer unit
           bootstrap: '[]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / System / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: TypeScript / System / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / System / Connections
-          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: TypeScript / System / Connections
-          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
-          bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
   test_host:
     name: Test / Execution Host
     uses: ./.github/workflows/validate-test.yml
@@ -367,8 +249,9 @@ jobs:
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host
       command: test -- --artifact tests --package dokime-runtime-next --target system
-      bootstrap: '${{ matrix.platform == ''unix'' && ''["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'' || ''[]'' }}'
-      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
+      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst",
+        "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host
   coverage:
@@ -391,11 +274,6 @@ jobs:
       if: contains(format(',{0},', matrix.inputs), ',0,')
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-plugins-${{ env.PROFILE }}-unix
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',1,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
         name: build-product-python-${{ env.PROFILE }}-any
         path: target/ci
       if: contains(format(',{0},', matrix.inputs), ',2,')
@@ -409,16 +287,6 @@ jobs:
         name: build-clients-${{ env.PROFILE }}-unix
         path: target/ci
       if: contains(format(',{0},', matrix.inputs), ',4,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-generator-${{ env.PROFILE }}-unix
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',5,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-gui-${{ env.PROFILE }}-unix
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',6,')
     - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -488,103 +356,6 @@ jobs:
           command: test -- --language rust --coverage
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
           inputs: 0,1,2,3,4,5,6
-  bench:
-    name: Bench / ${{ matrix.work }} (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    needs:
-    - build_bench
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ matrix.bootstrap }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-bench-bench-unix
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',0,')
-    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: results-${{ strategy.job-index }}-${{ github.job }}-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: 'target/tests/
-
-          target/traces/
-
-          target/test-reports/
-
-          target/benchmarks/
-
-          target/coverage/'
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.bench_baselines-cache-hit
-        != 'true' && steps.setup.outputs.bench_baselines-path != ''
-      with:
-        path: ${{ steps.setup.outputs.bench_baselines-path }}
-        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
-        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
-        steps.setup.outputs.mise-path != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
-        steps.setup.outputs.uv-path != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    env:
-      CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
-      CI_PROFILE: release
-      CI_PLATFORM: ${{ matrix.platform }}
-      CI_CACHE_PROFILE: bench
-      CI_BENCH: 'true'
-      CI_BENCH_LAYER: ${{ matrix.layer }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / System
-          command: bench -- --language rust --layer system --refresh-baseline
-          bootstrap: '[]'
-          inputs: '0'
-          layer: system
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Unit
-          command: bench -- --language rust --layer unit --refresh-baseline
-          bootstrap: '[]'
-          inputs: '0'
-          layer: unit
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Integration
-          command: bench -- --language rust --layer integration --refresh-baseline
-          bootstrap: '[]'
-          inputs: '0'
-          layer: integration
   package:
     name: Package
     uses: ./.github/workflows/validate-package.yml
@@ -630,12 +401,10 @@ jobs:
     - build_tests
     - build_host_fixtures
     - build_python
-    - build_bench
     - check_generated
     - test
     - test_host
     - coverage
-    - bench
     - package
     - release_dry
     - publish

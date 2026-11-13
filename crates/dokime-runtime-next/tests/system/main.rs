@@ -16,6 +16,7 @@ mod client_answers_operator_prompts;
 mod client_browses_catalog;
 mod client_browses_execution_evidence;
 mod client_browses_sealed_history;
+mod client_cancels_managed_installation;
 mod client_collects_backend_diagnostics;
 mod client_controls_execution_lifecycle;
 mod client_edits_settings;

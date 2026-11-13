@@ -108,7 +108,7 @@ pub async fn desktop_plugin_install_file<R: tauri::Runtime>(
         };
 
         let _ = progress.send(InstallProgress::Reading);
-        let reading = move || dokime::harmos::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
+        let reading = move || harmos_runtime::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
         let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
         let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
         install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))

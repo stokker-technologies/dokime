@@ -2,10 +2,10 @@
 
 ## Resuming
 
-Owner decision (2026-11-12): build the new execution host beside the old loop,
-then prove the shared thermal suite end to end. A later atomic cutover switches
-CLI and desktop and deletes the old loop, crates and tests. This changes order,
-not the clean replacement contract; no compatibility layer is introduced.
+Owner decision (2026-11-13): delete the old execution loop before splitting the
+protocol faces. The current CLI/SDKs use the execution host. The desktop switch
+proceeds in its own worktree; native workspace/CI/package restoration is tracked
+together in tasks.md. No compatibility layer or retained old crate is introduced.
 The `feat/gp-host-new` worktree owns new storage, operations and runtime crates,
 additive workspace membership, their guide and this change. It returns local commits.
 
@@ -688,7 +688,6 @@ harmos-storage <--- harmos-operations <--- harmos-runtime
 
 dokime-storage ---> Harmos storage interface
 dokime-runtime ---> harmos-runtime
-dokime-tracing                        small development support
 ```
 
 The Dokime host direction is protocol → storage → operations → runtime → CLI
@@ -704,7 +703,6 @@ transport libraries and authoring derives do not introduce host dependencies.
 | `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, effects, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
 | `dokime-storage` | Both `crates/dokime-runtime/src/storage/` and `src/runtime/storage/` merge here after wave 5, through the Harmos storage interface. Persisted shapes belong here; lifecycle decisions remain in runtime. The `storage-interface` change owns capabilities, exceptions, cycle cuts and benchmark proof. |
 | `dokime-cli`, `dokime-gui` | Product commands and desktop composition respectively. The CLI embeds the runtime library, not its binary or a server facade. |
-| `dokime-tracing` | Small shared development subscriber and trace-export support; remains independent. |
 
 `dokime-domain` dissolves: definitions become protocol messages, host rules move
 to their operations, and persisted shapes move to storage. Before storage
@@ -886,7 +884,7 @@ The CLI owns executable-only tar packaging using the existing schema-1 manifest,
 `build:cli-fixtures` generates and builds the Rust starter through its mise task; system stories compare those exact source bytes and consume the exported executable.
 Installer packaging, old CLI removal and binary renaming remain atomic cutover work; this additive CLI never imports the old host.
 
-All Harmos git consumers pin `de07fc54f38ece9fcd660af3146876aaf651fe3c`; native legacy hosts retain registry 0.1.14.
+All Harmos Git consumers pin the owner-selected single-SDK revision. The old native hosts and their registry dependencies are removed.
 The protocol dispatcher binds Request.scope directly; SDK execution validation reads Context::scope(), and native Harmos callers use Scope/with_scope when adopted.
 Harmos storage adoption will replace dokime-storage's direct SQLite transactions, Arrow batch persistence and hand-owned projection/index queries; it is a separate task.
 
@@ -1149,3 +1147,32 @@ The combined data/execution/administration host uses one v1 storage table invent
 Duplicate note mutation identities retain ALREADY_EXISTS; optimistic administration revision conflicts retain ABORTED. The storage errors distinguish these meanings before transport projection. History deletion removes chunked content, derived data indexes, plot preferences and execution notes atomically with the sealed execution.
 
 Plot analysis dispatch resolves the ready provider by its frozen Description.id; the administration entry UUID identifies placement and is never passed to the native invocation registry.
+
+## Open Questions
+
+The deletion candidate builds without the native desktop. The project-wide source
+checker still reads that dormant manifest and reports its references to deleted
+workspace dependencies. Its restoration task owns the native cutover; restoring
+old dependencies here would violate the owner's deletion decision.
+
+Source-policy proof also remains open for generated protobuf auditing, authored
+skeleton/grouping findings and environmental unit journeys. Generated protocol
+files retain their generator and drift proof. The mandatory root contributing
+entry and the project instruction to keep guides in docs/ need one consistent
+owner; the maintained contributing guide currently remains in docs/.
+
+The canonical formatter refuses the thermal Python suite because its schema
+constants depend on a preceding factory function. Preserve that execution order
+until the source policy supports dependent module declarations. The protocol
+generator also has no domain error type: adding an unused error module only to
+satisfy the checker would create a placeholder rather than a required contract.
+
+
+Windows host proof is currently blocked by the operating-system credential store:
+Access credential publication returns native Windows error 8 from set_password,
+including in an isolated serial host story after compilation has finished. The
+failure is before the listener is announced; Host, CLI and Python SDK journeys
+therefore cannot complete. Focused diagnostic output is retained under
+`target/native-credential-failure.log`. No credentials belonging to existing roots
+were removed, and no alternate store, retry, deadline or budget change is added.
+The storage policy and pending source work remain unchanged.

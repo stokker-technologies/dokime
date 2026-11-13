@@ -16,7 +16,7 @@ import os
 import unittest
 from pathlib import Path
 
-from harmos.conformance.__main__ import plugin
+from harmos.conformance import plugin
 
 # Third Party Imports
 import dokime

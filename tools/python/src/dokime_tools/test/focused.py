@@ -21,7 +21,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from ..build import cargo, configuration
+from ..build import cargo
 from ..process import spawn_flags
 from . import nextest, policy, report
 
@@ -54,14 +54,7 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
             values.append(name)
     names = [values[index + 1] for index, value in enumerate(values[:-1]) if value == "--test"]
     packages = {values[index + 1] for index, value in enumerate(values[:-1]) if value in ("--package", "-p")}
-    flags = configuration.test_features("dev")
-    canonical = {
-        feature
-        for index, flag in enumerate(flags[:-1])
-        if flag == "--features"
-        for feature in flags[index + 1].split(",")
-        if feature.split("/", 1)[0] in packages
-    }
+    canonical: set[str] = set()
     if "--tests" in values:
         # Names Drive Deadline Overrides Only, Never Widen The Cargo Selection.
         metadata = subprocess.run(
@@ -232,9 +225,7 @@ def changed(directory: Path, paths: Sequence[str], layer: str | None, *, plan: b
         check=True,
         creationflags=spawn_flags(),
     )
-    flags = configuration.test_features("dev")
-    features = [feature for index, flag in enumerate(flags[:-1]) if flag == "--features" for feature in flags[index + 1].split(",")]
-    commands = selections(directory, json.loads(result.stdout), paths, layer, features)
+    commands = selections(directory, json.loads(result.stdout), paths, layer, [])
 
     # Run Only The Selected Targets, Preserving Cargo's Compiler Parallelism.
     for command in commands:

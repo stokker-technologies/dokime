@@ -288,7 +288,6 @@ async fn run_matrix() {
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn desktop_runs_matrix() {
     run_matrix().await;

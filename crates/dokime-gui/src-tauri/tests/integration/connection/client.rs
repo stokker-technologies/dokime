@@ -71,7 +71,6 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn negotiation_deadline_expires_and_reconnects() {
     // Hold Negotiation After The Request Reaches The Backend.
@@ -102,7 +101,6 @@ async fn negotiation_deadline_expires_and_reconnects() {
     server_health(&server.endpoint).await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn uploads_use_stream_deadlines() {
     for mode in ["raw", "typed", "prepared"] {
@@ -129,7 +127,6 @@ async fn uploads_use_stream_deadlines() {
     }
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn raw_stream_deadline_expires() {
     let mut service = Service::new("stream-deadline");
@@ -154,7 +151,6 @@ async fn raw_stream_deadline_expires() {
     server_health(&server.endpoint).await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn client_close_cancels() {
     let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;
@@ -182,7 +178,6 @@ async fn client_close_cancels() {
     server_health(&server.endpoint).await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn client_verifies_identity() {
     let service = Service::new("shared");
@@ -210,7 +205,6 @@ async fn client_verifies_identity() {
     assert!(matches!(client.verify(false).await, Err(Error::Closed)));
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn client_response_limit() {
     let mut service = Service::new("shared");
@@ -224,7 +218,6 @@ async fn client_response_limit() {
     ));
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_close_releases() {
     for action in ["client", "stream", "drop"] {
@@ -260,7 +253,6 @@ async fn stream_close_releases() {
     }
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_clones_close() {
     let mut service = Service::new("shared");
@@ -292,7 +284,6 @@ async fn stream_clones_close() {
     client.call(backend::GetHealth {}).await.unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn upload_stop_releases() {
     for action in ["reply", "caller", "client"] {
@@ -332,7 +323,6 @@ async fn upload_stop_releases() {
     }
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn upload_operation_closes() {
     for action in ["finish", "cancel", "client", "waiter"] {

@@ -3,7 +3,7 @@
 The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
 Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
 plugins and clients compile no host. It uses Harmos at
-`26010c03516060deb5f70d17af3fbf0e49d9fbe2`.
+`81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
 The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
 context, data contracts, streams and the separate `client` namespace.
 
@@ -134,7 +134,7 @@ Generated Dokime messages bind through `dokime::host::Call<T>`:
 use dokime::{host, prelude::*, v1};
 
 async fn note(ctx: &Context) -> Result<()> {
-    ctx.operation(host::Call(v1::WriteLog {
+    ctx.operation(host::Call(dokime::protocol::context::v1::evidence::LogsAppendRequest {
         execution: ctx.execution_id().into(),
         severity: v1::Severity::Info as i32,
         message: "Measurement Started".into(),
@@ -144,7 +144,7 @@ async fn note(ctx: &Context) -> Result<()> {
 }
 ```
 
-Declare `.requires_host::<v1::WriteLog>()` on the plugin for that call.
+Declare `.requires_host::<dokime::protocol::context::v1::evidence::LogsAppendRequest>()` on the plugin for that call.
 `ctx.host(request)` accepts the generated request directly and returns its generated
 reply. `prompt`, `record`, `records`, `statistics`, `progress`, `log`, `secret`,
 `settings` and `typed_settings` are thin conveniences. Artifact, file capture,
@@ -158,7 +158,7 @@ value to `.record(...)` on Plugin and `ctx.record(&contract, value)` to publish 
 Publication waits for the host receipt. The record type accumulator is inferred;
 it contributes record descriptors to the one `dokime.v1.RecordContracts` section.
 `Prompt::new(...).field(...).action(...)` composes a catalog prompt;
-`ctx.prompt(v1::OperatorQuestion { ... })` uses its identifier or an inline definition.
+`ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest { ... })` uses its identifier or an inline definition.
 
 `Observer::new(&stream, handler).every_ms(...)` answers host ticks with rows stamped
 by Harmos using the tick time. `.interval_setting(...)` selects a saved cadence.
@@ -237,7 +237,7 @@ admission; the exact request is tracked under
 
 The external consumer in `sdk/rust/tests/consumer` owns the focused test targets and
 all test-only reference-host dependencies. Its child-process fixture reuses the
-existing standalone `crates/dokime-domain/src/process/` constructor by source path
+existing standalone `crates/dokime-runtime-next/src/process/` constructor by source path
 to retain the repository's console-window policy without depending on that crate.
 It compiles the SDK from its actual path and builds the sample plugin. Its standalone lock isolates SDK proof from the
 concurrent host/facade cutover; `.prepare` refreshes that consumer's dependency lock
@@ -286,11 +286,9 @@ matrix proof remain separate from local Windows runs.
 
 | Owner | Adoption Work |
 | --- | --- |
-| Workspace/host | Retire or relocate the existing `crates/dokime` facade identity and point the workspace `dokime` dependency to `sdk/rust`; keep host helpers under runtime/operations/storage. Add canonical SDK build/test selection to owned tooling. |
-| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime`. |
+| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime-next`. |
 | Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
 | Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |
-| Old `dokime-client` | Migrate pairing/Target, discovery, cycle/execution handles, paging/follow and transfers to generated-message consumers as their protocol contracts land; delete its raw/native transport and the crate after consumers move. |
 
 These migrations belong to the host/consumer owner. The Rust SDK adds no host-enabling
 features and leaves those existing crates and plugins untouched.

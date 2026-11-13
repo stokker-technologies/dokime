@@ -59,6 +59,7 @@ fn main() {
         let frontend = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dist");
         println!("cargo:rerun-if-changed={}", frontend.display());
     }
+    embed_organization(&manifest);
     tauri_build::build();
 
     // Tauri embeds its manifest in binaries only. Library test executables also
@@ -131,4 +132,26 @@ fn git(directory: &std::path::Path, arguments: &[&str]) -> Option<String> {
 fn commit(value: &str) -> bool {
     let digit = |byte: u8| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte);
     (7..=64).contains(&value.len()) && value.bytes().all(digit)
+}
+
+fn embed_organization(manifest: &std::path::Path) {
+    let root = manifest.join("../../../organization").canonicalize().expect("organization directory");
+    println!("cargo:rerun-if-changed={}", root.display());
+    let mut pending = vec![root.clone()];
+    let mut files = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(directory).expect("organization entries") {
+            let entry = entry.expect("organization file");
+            let path = entry.path();
+            if entry.file_type().expect("organization file type").is_dir() {
+                pending.push(path);
+            } else {
+                let relative = path.strip_prefix(&root).expect("pack file").to_string_lossy().replace('\\', "/");
+                files.push(format!("({relative:?}, include_bytes!({:?}) as &[u8]),", path.to_str().expect("pack path")));
+            }
+        }
+    }
+    files.sort();
+    let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("build output"));
+    std::fs::write(output.join("organization.rs"), format!("&[{}]", files.join("\n"))).expect("embedded organization");
 }

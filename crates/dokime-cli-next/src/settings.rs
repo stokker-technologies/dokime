@@ -129,6 +129,7 @@ impl Settings {
     }
     pub fn client(&self) -> dokime::client::ClientSettings {
         dokime::client::ClientSettings {
+            transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
             retained_bytes: self.retained_bytes,
             message_bytes: self.message_bytes,
             input_items: self.stream_buffer,

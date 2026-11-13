@@ -56,7 +56,6 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shutdown_releases_store() {
     let root = tempfile::tempdir().unwrap();
@@ -80,7 +79,6 @@ async fn shutdown_releases_store() {
     replacement.shutdown().await.unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn blocked_store_recovers() {
     let root = tempfile::tempdir().unwrap();
@@ -94,7 +92,6 @@ async fn blocked_store_recovers() {
     owner.shutdown().await.unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn start_reports_phases() {
     let root = tempfile::tempdir().unwrap();
@@ -106,7 +103,6 @@ async fn start_reports_phases() {
     session.close().await.unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn live_owner_refused() {
     let root = tempfile::tempdir().unwrap();
@@ -130,7 +126,6 @@ async fn live_owner_refused() {
     successor.shutdown().await.unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn failed_start_releases() {
     let root = tempfile::tempdir().unwrap();
@@ -152,7 +147,6 @@ async fn failed_start_releases() {
     lease.try_lock().unwrap();
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn overlapping_selection() {
     let root = tempfile::tempdir().unwrap();
@@ -170,7 +164,6 @@ async fn overlapping_selection() {
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unsupported_reset_preserves_live_host() {
     let root = tempfile::tempdir().unwrap();

@@ -190,7 +190,6 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {
     let fixture = Fixture::new().await;
@@ -245,7 +244,6 @@ async fn refuses_invalid_dispatch() {
     fixture.close().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unary_call_bridges() {
     let fixture = Fixture::new().await;
@@ -272,7 +270,6 @@ async fn unary_call_bridges() {
     fixture.close().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_client_installs_large_bundle() {
     use dokime::client::{Client, Target};
@@ -288,7 +285,6 @@ async fn native_client_installs_large_bundle() {
     fixture.close().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn owner_cancellation_health() {
     use tauri::Manager;
@@ -311,7 +307,6 @@ async fn owner_cancellation_health() {
     fixture.close().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn generation_fences_streams() {
     let fixture = Fixture::new().await;
@@ -333,7 +328,6 @@ async fn generation_fences_streams() {
     fixture.close().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn client_close_drops() {
     use dokime::client::{Client, Error, Target};
@@ -422,8 +416,7 @@ mod native {
         .await
     }
 
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn invalid_bundle_returns_error_then_valid_file_installs() {
         let fixture = Fixture::new().await;
         let (app, window) = app_and_window(&fixture.session);
@@ -442,8 +435,7 @@ mod native {
         fixture.close().await;
     }
 
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn unreadable_file_returns_error() {
         let fixture = Fixture::new().await;
         let (app, window) = app_and_window(&fixture.session);
@@ -454,8 +446,7 @@ mod native {
         fixture.close().await;
     }
 
-    #[dokime_tracing::trace_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn missing_picker_returns_error() {
         let fixture = Fixture::new().await;
         let (app, window) = app_and_window(&fixture.session);
@@ -466,8 +457,7 @@ mod native {
 
     /* === Tests === */
 
-    #[dokime_tracing::trace_test]
-    #[test]
+        #[test]
     fn install_future_size() {
         let (app, window) = app_and_window(&dokime_gui::connection::ConnectionSession::default());
         let future = desktop_plugin_install_file(
@@ -487,7 +477,6 @@ mod native {
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[test]
 fn client_stream_opens() {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
@@ -501,7 +490,6 @@ fn client_stream_opens() {
     runtime.block_on(fixture.close());
 }
 
-#[dokime_tracing::trace_test]
 #[test]
 fn installs_large_bundle() {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
@@ -527,7 +515,6 @@ fn installs_large_bundle() {
     runtime.block_on(fixture.close());
 }
 
-#[dokime_tracing::trace_test]
 #[test]
 fn refuses_foreign_bundle() {
     let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };

@@ -132,10 +132,3 @@ jobs:
           command: check -- --language rust
           bootstrap: '[]'
           inputs: ''
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: WebAssembly
-          command: check -- --wasm
-          bootstrap: '[]'
-          inputs: ''

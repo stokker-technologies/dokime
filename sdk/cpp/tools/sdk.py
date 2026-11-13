@@ -55,6 +55,7 @@ def main() -> None:
     parser.add_argument("--harmos-source", type=Path, default=os.environ.get("HARMOS_SOURCE"))
     parser.add_argument("--harmos-cache", type=Path, default=os.environ.get("DOKIME_HARMOS_CACHE"))
     parser.add_argument("--fetch-dependencies", action="store_true")
+    parser.add_argument("--fresh", action="store_true", help="Refresh the CMake Configuration While Preserving Compiled Outputs")
     parser.add_argument("--target")
     parser.add_argument("--host", type=Path)
     parser.add_argument("--version", default="0.1.0")
@@ -101,8 +102,9 @@ def main() -> None:
             str(directory),
             "-DCMAKE_BUILD_TYPE=Debug",
             "-DDOKIME_BUILD_CONFORMANCE=ON",
-            "-DHARMOS_AUDIENCE=Host",
         ]
+        if args.fresh:
+            command += ["--fresh"]
         if os.name == "nt":
             command += ["-G", "Visual Studio 17 2022", "-A", "x64"]
         source = args.harmos_source.resolve() if args.harmos_source else ""

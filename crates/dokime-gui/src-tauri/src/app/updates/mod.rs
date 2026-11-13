@@ -139,7 +139,7 @@ impl UpdateState {
         if bytes.len() as u64 > DESKTOP_UPDATE_SETTINGS_BYTES {
             return Err("Update selection exceeds its configured byte budget".into());
         }
-        dokime::harmos::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
+        harmos_runtime::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
@@ -235,7 +235,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let path = root.join("selection.json");
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;
-    match dokime::harmos::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
+    match harmos_runtime::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
         Ok(bytes) => {
             let selection = serde_json::from_slice::<Selection>(&bytes);
             let selected = selection.map_err(|_| "Saved update selection is invalid".to_owned()).and_then(|selection| {

@@ -201,7 +201,7 @@ def stage(
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
-            if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
+            if destination.name.startswith(("dokime-cli-next-",)) and destination.name.endswith((".zip", ".tar.gz")):
                 notices.archive(shared, destination)
             files.append(_describe(root, destination))
     for destination in layout.plugin_archives(directory, root, plugins):
@@ -218,7 +218,7 @@ def stage(
     native = _native()
     if native not in targets:
         raise policy.ToolError("protocol export requires a packaged native CLI target")
-    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime")
+    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime-next")
     with temporary.directory() as temporary_root:
         executable = temporary_root / cli["binary"]
         executable.write_bytes(packages.binary_bytes(root / native / cli["output"], cli["binary"]))

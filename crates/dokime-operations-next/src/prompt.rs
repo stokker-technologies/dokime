@@ -23,11 +23,10 @@ use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.execution.prompt";
+pub const ID: &str = "dokime.context.v1.Prompts/Create";
 
 /* === Macros === */
 
@@ -44,12 +43,14 @@ pub const ID: &str = "dokime.execution.prompt";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::OperatorQuestion, v1::OperatorAnswer>(
+    crate::declaration::<dokime_protocol::context::PromptsCreateRequest, dokime_protocol::context::PromptsCreateResponse>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(resources: &Resources, request: v1::OperatorQuestion) -> Result<v1::OperatorAnswer> {
+pub async fn handle(
+    resources: &Resources, request: dokime_protocol::context::PromptsCreateRequest,
+) -> Result<dokime_protocol::context::PromptsCreateResponse> {
     resources.check_action_scope(&resources.execution, ID)?;
     resources.evidence("prompt", request.encode_to_vec(), None)?;
     let answer = resources.prompts.ask(&resources.execution, request).await?;

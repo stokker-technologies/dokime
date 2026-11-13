@@ -36,7 +36,7 @@ dokime-protocol = { workspace = true }
 dokime-storage = { workspace = true }
 
 # Git
-harmos-protocol = { workspace = true, features = ["host"] }
+harmos-protocol = { workspace = true }
 harmos-runtime = { workspace = true }
 harmos-storage = { workspace = true }
 
@@ -92,7 +92,7 @@ tonic = { workspace = true, features = ["tls-ring"] }
 
 [dev-dependencies]
 # Local
-dokime = { version = "0.1.5", path = "../../sdk/rust" }
+dokime = { path = "../../sdk/rust" }
 
 # Git
 
@@ -103,7 +103,6 @@ dokime = { version = "0.1.5", path = "../../sdk/rust" }
 # Utilities
 
 # Serialization
-
 # Cryptography
 sha2 = { workspace = true }
 

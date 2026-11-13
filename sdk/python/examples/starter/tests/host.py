@@ -61,6 +61,8 @@ class Host:
                 stdout=asyncio.subprocess.PIPE,
             )
             host.children.append(bus)
+            if bus.stdout is None:
+                raise RuntimeError("Start SDK Credential Store: dbus-daemon Started Without an Output Pipe")
             address = (await bus.stdout.readline()).decode().strip()
             if not address:
                 raise RuntimeError("Start SDK Credential Store: dbus-daemon Exited Before Announcing Its Address")
@@ -77,6 +79,8 @@ class Host:
                 stdout=asyncio.subprocess.DEVNULL,
             )
             host.children.append(keyring)
+            if keyring.stdin is None:
+                raise RuntimeError("Start SDK Credential Store: The Keyring Started Without an Input Pipe")
             keyring.stdin.write(b"sdk-story-keyring-password")
             await keyring.stdin.drain()
             keyring.stdin.close()
@@ -123,6 +127,8 @@ class Host:
             stdout=asyncio.subprocess.PIPE,
             creationflags=host.flags,
         )
+        if host.process.stdout is None:
+            raise RuntimeError("Start SDK Host: The Host Started Without an Output Pipe")
         url = (await host.process.stdout.readline()).decode().strip()
         if not url.startswith("http://127.0.0.1:"):
             raise RuntimeError("Start SDK Host: The Host Exited Before Announcing Its Listener")

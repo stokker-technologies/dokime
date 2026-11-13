@@ -57,9 +57,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--repository", action="store_true")
     parser.add_argument("--bindings", action="store_true")
     parser.add_argument("--supply", action="store_true")
-    parser.add_argument("--wasm", action="store_true")
     parser.add_argument("--wheel", action="store_true")
-    parser.add_argument("--starter", action="store_true")
     parser.add_argument("--dry", action="store_true")
     parser.add_argument("--stage", choices=("assets", "python", "finalize"))
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
@@ -131,7 +129,7 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("build --check requires --package")
     if args.changed:
         if args.operation != "test" or any(
-            (args.package, args.features, args.exact, args.story, args.target, args.select, args.coverage, args.wheel, args.starter)
+            (args.package, args.features, args.exact, args.story, args.target, args.select, args.coverage, args.wheel)
         ):
             parser.error("--changed selects test packages, targets and required features from paths")
         if args.language not in (None, "rust") or args.profile != "dev":
@@ -249,7 +247,7 @@ def main(arguments: list[str] | None = None) -> int:
     if args.exact or args.target and args.operation != "package":
         parser.error("--exact and --target require a focused test (or --target for package)")
     if args.operation == "test" and not any(
-        (args.language, args.layer, args.coverage, args.wheel, args.starter, args.project, args.select, args.artifacts)
+        (args.language, args.layer, args.coverage, args.wheel, args.project, args.select, args.artifacts)
     ):
         return subprocess.run(
             ["mise", "run", "ci:test", "--", "--profile", args.profile],
@@ -273,12 +271,10 @@ def main(arguments: list[str] | None = None) -> int:
             tasks = [("check:python:bindings", profile)]
         elif args.supply:
             tasks = [("check:rust:supply", [])]
-        elif args.wasm:
-            return cargo.focused(Path.cwd(), "check", ["--locked", "-p", "dokime-domain", "--target", "wasm32-unknown-unknown"])
         else:
             tasks = [("check:repository", [])]
             tasks += [(f"check:{language}", []) for language in languages if language != "toml"]
-            tasks += [("check:typescript:generated", profile)] if "typescript" in languages else []
+
     elif args.operation == "build":
         if args.artifact == "fixtures":
             parser.error("native Python client fixtures were removed; use the pure SDK's focused stories")
@@ -293,8 +289,6 @@ def main(arguments: list[str] | None = None) -> int:
     elif args.operation == "test":
         if args.wheel:
             tasks = [("test:python:wheel", profile + (["--stubs"] if args.bindings else []))]
-        elif args.starter:
-            tasks = [("test:rust:starter", profile)]
         elif args.coverage:
             tasks = [(f"test:{language}:coverage", profile) for language in languages if language in ("rust", "python")]
         else:
@@ -309,7 +303,9 @@ def main(arguments: list[str] | None = None) -> int:
             if args.project != "tools/python":
                 for language in languages:
                     for layer in layers:
-                        if language == "typescript" and layer == "acceptance":
+                        if (language == "typescript" and layer in ("acceptance", "system")) or (
+                            language == "rust" and layer == "acceptance"
+                        ):
                             continue
                         if language == "python" and not (Path("sdk/python/tests") / layer).is_dir():
                             continue

@@ -70,7 +70,7 @@ pub async fn handle(context: &Context, request: v1::PromptsRespondRequest) -> Re
         super::prompt_validation::validate(&definition, request.action.trim(), request.accepted, &values, &snapshot)?;
         context.host.record_answer(
             &execution,
-            v1::OperatorAnswer {
+            dokime_protocol::context::PromptsCreateResponse {
                 prompt: question.prompt,
                 action: request.action.trim().into(),
                 accepted: request.accepted,

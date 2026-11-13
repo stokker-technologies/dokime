@@ -49,7 +49,6 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn reset_refuses_unowned() {
     let root = tempfile::tempdir().unwrap();
@@ -66,7 +65,6 @@ async fn reset_refuses_unowned() {
     assert!(store.join("local.sqlite").exists());
 }
 
-#[dokime_tracing::trace_test]
 #[test]
 fn backup_archives_store() {
     let root = tempfile::tempdir().unwrap();

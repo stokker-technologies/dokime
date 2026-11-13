@@ -32,7 +32,7 @@ pub use client::{Client, ClientSettings};
 pub use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
-pub use dokime_protocol::{builders, v1};
+pub use dokime_protocol::{builders, dokime as protocol, v1};
 pub use error::{Error, Result};
 pub use harmos::clock;
 pub use harmos::{Classification, Failure, OperationPolicy, OperationRequest, Publisher, Visibility};

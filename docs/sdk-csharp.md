@@ -5,7 +5,7 @@ composed plugin authoring, typed host calls, canonical plot/document builders
 and a channel-owning client facade. It builds messages and any declared service
 stubs with `Grpc.Tools` directly from `proto/dokime/v1/*.proto`; generated C# is
 never committed. The Harmos SDK source is compiled into Dokime without modifications from
-revision `26010c03516060deb5f70d17af3fbf0e49d9fbe2`.
+revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
 
 ## Build and Install
 

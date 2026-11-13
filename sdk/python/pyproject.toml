@@ -11,7 +11,7 @@ requires = ["hatchling==1.33.0", "grpcio-tools==1.85.1"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dokime"
+name = "dokime-sdk"
 version = "0.1.5"
 description = "Remote Dokime plugin authoring and generated gRPC clients."
 requires-python = ">=3.13"
@@ -19,7 +19,7 @@ license = "Apache-2.0"
 dependencies = [
   "grpcio>=1.85.1,<2",
   "protobuf>=7.35.1,<8",
-  "harmos-plugin @ git+https://github.com/stokker-technologies/harmos@26010c03516060deb5f70d17af3fbf0e49d9fbe2#subdirectory=sdk/python",
+  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@81d32d3bc9ab3e2121746923712ec9508cee3ec7#subdirectory=sdk/python",
 ]
 
 [tool.hatch.metadata]

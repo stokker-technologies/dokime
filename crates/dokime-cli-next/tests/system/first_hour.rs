@@ -77,6 +77,28 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         let entry = installation["plugin"]["entry"].as_str().ok_or("Install Plugin: Missing Managed Entry")?;
         let suites: serde_json::Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
         let suite = suites["suites"][0]["suite_id"].as_str().ok_or("List Suites: Missing Suite Identity")?;
+        // Preview Without Registration, Then Recover the Same Registered Reply
+        let plan = serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"example.capture"}],"max_cases":1}});
+        let input = directory.path().join("plan.json");
+        std::fs::write(&input, serde_json::to_vec(&plan)?)?;
+        let preview: serde_json::Value = serde_json::from_str(
+            &super::run(&["--endpoint", &endpoint, "plan", "preview", "--input-file", input.to_str().unwrap(), "--json"]).await?,
+        )?;
+        assert_eq!(preview["cases"].as_array().unwrap().len(), 1);
+        let mut plan = plan;
+        plan["idempotency_key"] = "first-hour-selection".into();
+        std::fs::write(&input, serde_json::to_vec(&plan)?)?;
+        let registered =
+            super::run(&["--endpoint", &endpoint, "plan", "register", "--input-file", input.to_str().unwrap(), "--json"]).await?;
+        let replayed =
+            super::run(&["--endpoint", &endpoint, "plan", "register", "--input-file", input.to_str().unwrap(), "--json"]).await?;
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&registered)?, serde_json::from_str::<serde_json::Value>(&replayed)?);
+        plan["plan"]["max_cases"] = 2.into();
+        std::fs::write(&input, serde_json::to_vec(&plan)?)?;
+        assert!(
+            super::run(&["--endpoint", &endpoint, "plan", "register", "--input-file", input.to_str().unwrap(), "--json"]).await.is_err()
+        );
+
         let cases = directory.path().join("rust-cases.pb");
         super::run(&[
             "--endpoint",
@@ -101,6 +123,15 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         let report = directory.path().join("rust.html");
         super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await?;
         assert!(!std::fs::read(&report)?.is_empty());
+
+        // Download the Completed Cycle Without Publishing a Report
+        let report = directory.path().join("cycle.html");
+        let cycle_id = cycle["cycle_id"].as_str().ok_or("Start Cycle: Missing Cycle")?;
+        super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", report.to_str().unwrap()]).await?;
+        let html = std::fs::read_to_string(&report)?;
+        assert!(html.contains("<html"));
+        assert!(super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", report.to_str().unwrap()]).await.is_err());
+        assert_eq!(std::fs::read_to_string(&report)?, html);
 
         // Remove the Rust Entry Before Attaching the Same Example Identity Remotely
         super::run(&["--endpoint", &endpoint, "plugin", "remove", entry]).await?;

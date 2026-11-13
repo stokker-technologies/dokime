@@ -33,8 +33,8 @@ void identifier(const std::string &value) {
     throw std::invalid_argument("Identifier Is Required");
 }
 template <class Q>
-Context context(harmos::Context &transport, const Q &request, const std::string &template_id, const std::string &plugin_id,
-                const std::shared_ptr<detail::Executions> &executions, std::string item = {}) {
+Context execution_context(harmos::Context &transport, const Q &request, const std::string &template_id, const std::string &plugin_id,
+                          const std::shared_ptr<detail::Executions> &executions, std::string item = {}) {
   const auto &origin = request.origin();
   const bool same_case = google::protobuf::util::MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
   const bool same_plugin = origin.plugin_run().plugin() == plugin_id;
@@ -101,7 +101,7 @@ Plugin &Plugin::suite(Suite suite) {
           [state, id, plugin_id, item, run = std::move(step.run)](harmos::Context &transport, v1::StepRequest request) {
             if (request.step() != item)
               throw std::invalid_argument("Step Identifier Does Not Match Its Operation");
-            auto ctx = context(transport, request, id, plugin_id, state, item);
+            auto ctx = execution_context(transport, request, id, plugin_id, state, item);
             run(ctx);
             return v1::StepResponse{};
           });
@@ -130,7 +130,7 @@ Plugin &Plugin::suite(Suite suite) {
           [state, id, plugin_id, item, evaluate = std::move(criterion.evaluate)](harmos::Context &transport, v1::CriterionRequest request) {
             if (request.criterion() != item)
               throw std::invalid_argument("Criterion Identifier Does Not Match Its Operation");
-            auto ctx = context(transport, request, id, plugin_id, state, item);
+            auto ctx = execution_context(transport, request, id, plugin_id, state, item);
             v1::CriterionResponse response;
             response.set_passed(evaluate(ctx));
             return response;
@@ -162,7 +162,7 @@ Plugin &Plugin::suite(Suite suite) {
       native_.operation(harmos::Operation<v1::InitializeRequest, v1::InitializeResponse>(
           id + ".initialize", harmos::wire::VISIBILITY_PROTECTED,
           [state, id, plugin_id, initialize = std::move(value.initialize)](harmos::Context &transport, v1::InitializeRequest request) {
-            auto ctx = context(transport, request, id, plugin_id, state);
+            auto ctx = execution_context(transport, request, id, plugin_id, state);
             try {
               initialize(ctx);
             } catch (...) {
@@ -177,7 +177,7 @@ Plugin &Plugin::suite(Suite suite) {
     native_.operation(harmos::Operation<v1::CleanupRequest, v1::CleanupResponse>(
         id + ".cleanup", harmos::wire::VISIBILITY_PROTECTED,
         [state, id, plugin_id, cleanup = std::move(value.cleanup)](harmos::Context &transport, v1::CleanupRequest request) {
-          auto ctx = context(transport, request, id, plugin_id, state);
+          auto ctx = execution_context(transport, request, id, plugin_id, state);
           try {
             if (cleanup)
               cleanup(ctx);

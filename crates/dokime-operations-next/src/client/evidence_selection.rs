@@ -140,10 +140,10 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
 }
 pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<v1::CapturedRecord>> {
     let (kind, payload, timestamp, severity, message) = if let Some(kind) = evidence.kind.strip_prefix("record:") {
-        let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         (kind.into(), record.payload, record.at, v1::Severity::Info as i32, None)
     } else if evidence.kind == "log" {
-        let log = v1::WriteLog::decode(evidence.payload.as_slice())?;
+        let log = dokime_protocol::context::evidence::LogsAppendRequest::decode(evidence.payload.as_slice())?;
         ("dokime.log".into(), evidence.payload.clone(), log.at, log.severity, Some(log.message))
     } else {
         return Ok(None);

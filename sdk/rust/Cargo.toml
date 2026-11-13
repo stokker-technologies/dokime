@@ -31,7 +31,7 @@ dokime-derive = { version = "0.1.5", path = "derive" }
 dokime-protocol = { workspace = true }
 
 # Git
-harmos = { workspace = true, features = ["client"] }
+harmos = { workspace = true }
 harmos-protocol = { workspace = true }
 
 # Error Handling

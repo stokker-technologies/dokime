@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,6 +14,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 
 // Local Imports
 use crate::{Error, Result, client::Context};
@@ -65,9 +69,11 @@ pub(super) fn initial() -> v1::SettingsSnapshot {
         }),
     }
 }
+
 pub(super) fn read(context: &Context) -> Result<v1::SettingsSnapshot> {
     Ok(context.host.store().administration("preferences")?.unwrap_or_else(initial))
 }
+
 pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
     let appearance = settings.appearance.as_ref().ok_or_else(|| invalid("Supply Appearance Preferences"))?;
     if appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256) {
@@ -104,6 +110,7 @@ pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
     }
     Ok(())
 }
+
 pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::PluginRuntimeSettings> {
     let plugin = context
         .host
@@ -113,6 +120,7 @@ pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::PluginRu
         .ok_or_else(|| invalid("Select an Installed or Remote Plugin"))?;
     for_plugin(&context.host.store(), plugin)
 }
+
 pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> Result<v1::PluginRuntimeSettings> {
     let settings_owner = plugin.description.as_ref().map(|description| description.id.clone()).unwrap_or_else(|| plugin.entry.clone());
     let mut settings = v1::SettingsCatalog::default();
@@ -161,6 +169,7 @@ pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> R
         ..Default::default()
     })
 }
+
 pub(super) fn validate_plugin(settings: &v1::SettingsCatalog, values: &v1::MapValue) -> Result<()> {
     for (key, value) in &values.values {
         let setting = settings
@@ -193,6 +202,7 @@ pub(super) fn validate_plugin(settings: &v1::SettingsCatalog, values: &v1::MapVa
 fn invalid(message: &str) -> Error {
     Error::Invalid(format!("Save Settings: {message}"))
 }
+
 fn duration(value: u64) -> Result<()> {
     if value == 0 || value > (1_u64 << 53) - 1 || std::time::Duration::from_millis(value).as_nanos() > i64::MAX as u128 {
         return Err(invalid("Supply a Positive Exact Duration Within the Clock Range"));

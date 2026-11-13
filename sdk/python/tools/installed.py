@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -43,7 +42,6 @@ def main():
         ["uv", "pip", "install", "--python", sys.executable, "--reinstall", "--no-cache", str(wheels[0])],
         check=True,
         creationflags=spawn_flags(),
-        env=dict(os.environ, HARMOS_AUDIENCE="host"),
     )
 
 

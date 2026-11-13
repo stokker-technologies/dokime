@@ -23,7 +23,6 @@ use async_trait::async_trait;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
 use dokime_storage::{Evidence, Store};
 
 /* === Constants === */
@@ -56,7 +55,9 @@ pub trait Clock: Send + Sync {
 }
 #[async_trait]
 pub trait Prompts: Send + Sync {
-    async fn ask(&self, execution: &str, question: v1::OperatorQuestion) -> Result<v1::OperatorAnswer>;
+    async fn ask(
+        &self, execution: &str, question: dokime_protocol::context::PromptsCreateRequest,
+    ) -> Result<dokime_protocol::context::PromptsCreateResponse>;
 }
 
 /* === Implementations === */

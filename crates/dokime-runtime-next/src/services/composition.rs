@@ -119,7 +119,7 @@ pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc
         transport: transport(settings),
         handshake_timeout: settings.read_timeout,
         pairings: NonZeroUsize::new(settings.max_cases).unwrap(),
-        read_leases: NonZeroUsize::new(settings.page_items).unwrap(),
+
         label_bytes: PAIRING_LABEL_BYTES,
     }
 }

@@ -23,19 +23,12 @@ foreach(placement managed remote)
 endforeach()
 
 if(DOKIME_BUILD_CONFORMANCE)
-  # Reuse the Reference Fixture Source, Replacing Only Its Plugin Composition.
-  file(READ "${harmos_SOURCE_DIR}/sdk/cpp/examples/conformance/main.cpp" fixture)
-  string(REPLACE "harmos::Plugin plugin" "dokime::Plugin plugin" fixture "${fixture}")
-  string(REPLACE "#include <iostream>" "#include <iostream>\n#include <dokime/plugin.hpp>" fixture "${fixture}")
-  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/conformance.cpp" CONTENT "${fixture}" @ONLY)
-  add_library(dokime_conformance_protocol STATIC)
-  protobuf_generate(TARGET dokime_conformance_protocol LANGUAGE cpp
-    PROTOS "${harmos_SOURCE_DIR}/sdk/cpp/proto/harmos/conformance/v1/fixture.proto"
-    IMPORT_DIRS "${harmos_SOURCE_DIR}/sdk/cpp/proto" "${DOKIME_PROTOBUF_INCLUDE}"
-    PROTOC_OUT_DIR "${DOKIME_GENERATED}" PROTOC_EXE "$<TARGET_FILE:protoc>")
-  target_link_libraries(dokime_conformance_protocol PUBLIC Dokime::Cpp)
+  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/conformance.cpp" CONTENT
+    "#include <harmos/conformance.hpp>
+int main(int argc, char** argv) { auto plugin = harmos::conformance::plugin(); if (argc == 3 && std::string(argv[1]) == \"--address\") plugin.serve(argv[2]); else plugin.serve(); }
+" @ONLY)
   add_executable(dokime-conformance "${CMAKE_CURRENT_BINARY_DIR}/conformance.cpp")
-  target_link_libraries(dokime-conformance PRIVATE dokime_conformance_protocol)
+  target_link_libraries(dokime-conformance PRIVATE Dokime::Cpp)
 endif()
 add_library(dokime_thermal_protocol STATIC)
 protobuf_generate(TARGET dokime_thermal_protocol LANGUAGE cpp

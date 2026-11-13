@@ -271,7 +271,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     dokime_storage::Evidence {
                         kind: "record:measurement".into(),
                         source_ns: 0,
-                        payload: v1::PublishRecord {
+                        payload: dokime_protocol::context::evidence::RecordsAppendRequest {
                             execution: id.into(),
                             kind: "measurement".into(),
                             payload: v1::PlotDomain { min: value, max: value + 7.0 }.encode_to_vec(),

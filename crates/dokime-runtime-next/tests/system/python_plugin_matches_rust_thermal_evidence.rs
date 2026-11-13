@@ -1,9 +1,47 @@
+/* ***
+ *
+ * dokime-rust-workspace
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
 // SPDX-License-Identifier: Apache-2.0
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::HashMap;
+
+// Third Party Imports
+
+// Local Imports
 use dokime_protocol::v1;
 use dokime_runtime_next::Host;
 use dokime_storage::{ExecutionState, OutcomeCounts};
-use std::collections::HashMap;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 #[tokio::test]
 async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,7 +75,7 @@ async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
             let prompt = host.next_prompt(&execution).await?;
             host.answer(
                 &execution,
-                v1::OperatorAnswer {
+                dokime_protocol::context::PromptsCreateResponse {
                     prompt: prompt.prompt,
                     action: "yes".into(),
                     accepted: true,
@@ -83,3 +121,5 @@ async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
     })
     .await?
 }
+
+/* === Tests === */

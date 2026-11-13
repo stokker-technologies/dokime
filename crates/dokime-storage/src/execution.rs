@@ -167,11 +167,11 @@ impl ExecutionSnapshot {
     pub fn records(&self, kind: &str) -> Vec<&Evidence> {
         self.evidence.iter().filter(|entry| entry.kind == format!("record:{kind}")).collect()
     }
-    pub fn logs(&self) -> Result<Vec<v1::WriteLog>> {
+    pub fn logs(&self) -> Result<Vec<dokime_protocol::context::evidence::LogsAppendRequest>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "log")
-            .map(|entry| v1::WriteLog::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn progress(&self) -> Result<Vec<v1::ReportProgress>> {

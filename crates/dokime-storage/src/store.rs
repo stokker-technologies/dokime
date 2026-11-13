@@ -310,7 +310,7 @@ impl Store {
                 let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
                     continue;
                 };
-                let Ok(record) = v1::PublishRecord::decode(evidence.payload.as_slice()) else {
+                let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
                     continue;
                 };
                 let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {

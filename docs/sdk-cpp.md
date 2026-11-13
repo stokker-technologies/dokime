@@ -1,7 +1,7 @@
 # C++ SDK
 
 `sdk/cpp` is a C++20 source SDK. `Dokime::Cpp` provides plugin composition on
-Harmos revision `26010c03516060deb5f70d17af3fbf0e49d9fbe2`, generated Dokime
+Harmos revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`, generated Dokime
 messages and service stubs, a channel-owning client, and the plot/document builders.
 Only `.proto` files are authoritative; CMake runs the build's own `protoc` and
 `grpc_cpp_plugin`, so generated sources never need to be committed.
@@ -162,3 +162,9 @@ See [Execution Host](execution-host.md) for prerequisites and focused runs.
 roots over its channel, such as `client.access.listener.get(request)`.
 The pinned library root currently creates its own gRPC client context; authenticated
 root calls need the metadata/cancellation capability recorded in Library Requests.
+
+If CMake reports a cached generator/platform mismatch, rerun the existing configure
+task with --fresh to refresh its configuration while retaining compiled outputs:
+
+    mise -C sdk/cpp run configure -- --fresh --fetch-dependencies
+

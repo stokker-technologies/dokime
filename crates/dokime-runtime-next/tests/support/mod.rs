@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub mod bundles;
+
 mod credentials;
 mod settings;
 pub mod thermal;
@@ -121,11 +123,11 @@ pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> std::collec
     ])
 }
 pub fn answer(
-    host: &dokime_runtime_next::Host, execution: &str, prompt: dokime_protocol::v1::OperatorQuestion,
+    host: &dokime_runtime_next::Host, execution: &str, prompt: dokime_protocol::context::PromptsCreateRequest,
 ) -> dokime_runtime_next::Result<()> {
     host.answer(
         execution,
-        dokime_protocol::v1::OperatorAnswer {
+        dokime_protocol::context::PromptsCreateResponse {
             prompt: prompt.prompt,
             accepted: true,
             action: "continue".into(),
@@ -175,11 +177,31 @@ pub fn python() -> PathBuf {
 pub fn client_settings() -> dokime::client::ClientSettings {
     let bounds = settings();
     dokime::client::ClientSettings {
+        transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(1024) },
         retained_bytes: bounds.placement.message_bytes,
         message_bytes: bounds.placement.message_bytes,
         input_items: bounds.placement.stream_window,
         input_bytes: bounds.placement.message_bytes,
     }
+}
+
+pub fn content_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let folder = match std::env::var("TEST_PROFILE") {
+        Ok(profile) => repository
+            .join("target/build")
+            .join(profile)
+            .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
+            .join("fixtures/host"),
+        Err(_) => repository.join("target/debug/examples"),
+    };
+    let executable = std::env::var_os("DOKIME_CONTENT_PLUGIN")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| folder.join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX)));
+    if !executable.is_file() {
+        return Err("Build the Content Fixture Through mise run build:host-fixtures".into());
+    }
+    Ok(executable)
 }
 
 /* === Private Functions === */

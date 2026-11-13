@@ -115,7 +115,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let store=Store::open(root.path())?;
         let catalog=harmos_protocol::v1::Catalog {types:Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),streams:["cells","calibration"].into_iter().map(|id|harmos_protocol::v1::StreamDeclaration {id:id.into(),row:"dokime.v1.PlotDomain".into(),..Default::default()}).collect(),..Default::default()};
         let mut catalog=catalog;
-        let records=v1::RecordContracts {records:vec![v1::RecordContract {metadata:Some(v1::Metadata {identifier:"event".into(),..Default::default()}),message:"dokime.v1.WriteLog".into()}]};
+        let records=v1::RecordContracts {records:vec![v1::RecordContract {metadata:Some(v1::Metadata {identifier:"event".into(),..Default::default()}),message:"dokime.context.v1.evidence.LogsAppendRequest".into()}]};
         catalog.sections.push(harmos_protocol::v1::Section {r#type:"dokime.v1.RecordContracts".into(),payload:records.encode_to_vec()});
         store.create(&Execution {identifier:"advanced".into(),cycle:"advanced".into(),catalog:catalog.encode_to_vec(),origin:Some(v1::Origin {kind:Some(v1::origin::Kind::Import(v1::Import::default()))}),..Default::default()})?;
         for stream in ["cells","calibration"] {
@@ -123,7 +123,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
             let samples=(0..32).map(|index|Sample {stream:stream.into(),source_ns:index*1_000_000_000,row:v1::PlotDomain {min:if stream=="cells"{(index%4+1) as f64}else{2.0},max:(index+1) as f64}.encode_to_vec(),..Default::default()}).collect::<Vec<_>>();
             store.sample_batch("advanced",&samples)?;
         }
-        for time in [5,25] {store.append("advanced",dokime_storage::Evidence {kind:"record:event".into(),source_ns:time*1_000_000_000,payload:v1::PublishRecord {execution:"advanced".into(),kind:"event".into(),payload:v1::WriteLog {message:"Captured Event".into(),..Default::default()}.encode_to_vec(),..Default::default()}.encode_to_vec(),..Default::default()})?;}
+        for time in [5,25] {store.append("advanced",dokime_storage::Evidence {kind:"record:event".into(),source_ns:time*1_000_000_000,payload:dokime_protocol::context::evidence::RecordsAppendRequest {execution:"advanced".into(),kind:"event".into(),payload:dokime_protocol::context::evidence::LogsAppendRequest {message:"Captured Event".into(),..Default::default()}.encode_to_vec(),..Default::default()}.encode_to_vec(),..Default::default()})?;}
         store.close_streams("advanced")?;
         store.close("advanced",v1::Termination::Completed,v1::ExecutionOutcome::default())?;
         store.seal("advanced")?;

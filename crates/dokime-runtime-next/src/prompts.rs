@@ -29,7 +29,6 @@ use tokio::sync::{Notify, oneshot};
 // Local Imports
 use crate::{Error, Result, SchedulerClock, host::lock};
 use dokime_operations_next::Prompts;
-use dokime_protocol::v1;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -49,8 +48,8 @@ pub(crate) struct PromptManager {
     runtime: tokio::sync::watch::Sender<u64>,
 }
 struct Pending {
-    question: v1::OperatorQuestion,
-    answer: Option<oneshot::Sender<v1::OperatorAnswer>>,
+    question: dokime_protocol::context::PromptsCreateRequest,
+    answer: Option<oneshot::Sender<dokime_protocol::context::PromptsCreateResponse>>,
 }
 
 /* === Enums === */
@@ -72,7 +71,7 @@ impl PromptManager {
     }
     pub(crate) async fn next(
         &self, execution: &str, executions: &crate::execution_manager::ExecutionManager,
-    ) -> Result<v1::OperatorQuestion> {
+    ) -> Result<dokime_protocol::context::PromptsCreateRequest> {
         loop {
             let changed = self.changed.notified();
             if let Some(pending) = lock(&self.pending)?.get(execution) {
@@ -98,14 +97,14 @@ impl PromptManager {
         self.runtime.send_modify(|revision| *revision += 1);
         Ok(())
     }
-    pub fn pending_prompts(&self) -> Result<Vec<(String, v1::OperatorQuestion)>> {
+    pub fn pending_prompts(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>> {
         Ok(lock(&self.pending)?
             .iter()
             .filter(|(_, pending)| pending.answer.as_ref().is_some_and(|answer| !answer.is_closed()))
             .map(|(execution, pending)| (execution.clone(), pending.question.clone()))
             .collect())
     }
-    pub fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    pub fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         let mut pending = lock(&self.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Execution Question".into()))?;
         if answer.prompt != prompt.question.prompt {
@@ -119,7 +118,7 @@ impl PromptManager {
             .map_err(|_| Error::Invalid("Answer Prompt: The Execution Stopped; Inspect Its Evidence".into()))?;
         Ok(())
     }
-    pub fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    pub fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         let mut pending = lock(&self.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Active Question".into()))?;
         if prompt.question.prompt != answer.prompt || prompt.answer.as_ref().is_none_or(oneshot::Sender::is_closed) {
@@ -145,7 +144,9 @@ impl PromptManager {
 }
 #[async_trait]
 impl Prompts for PromptManager {
-    async fn ask(&self, execution: &str, question: v1::OperatorQuestion) -> dokime_operations_next::Result<v1::OperatorAnswer> {
+    async fn ask(
+        &self, execution: &str, question: dokime_protocol::context::PromptsCreateRequest,
+    ) -> dokime_operations_next::Result<dokime_protocol::context::PromptsCreateResponse> {
         let (send, receive) = oneshot::channel();
         {
             let mut pending = self

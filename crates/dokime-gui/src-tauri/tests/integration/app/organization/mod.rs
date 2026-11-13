@@ -25,7 +25,7 @@ mod malformed_policy_diagnostics_do_not_echo_manifest_values;
 // Third Party Imports
 
 // Local Imports
-use dokime::config::organization::resolve_directory;
+use dokime_gui::testing::resolve_directory;
 
 /* === Constants === */
 

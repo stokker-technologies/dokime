@@ -15,14 +15,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Dokime/**/*.cs" />
-    <Compile Include="obj/harmos/sdk/csharp/Harmos/*.cs" />
+    <Compile Include="obj/harmos/sdk/csharp/Harmos/**/*.cs" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <None Include="../../docs/sdk-csharp.md" Pack="true" PackagePath="/" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
     <PackageReference Include="Google.Protobuf" Version="3.36.2" />
     <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
     <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
-    <Protobuf Include="../../proto/dokime/v1/*.proto" ProtoRoot="../../proto" GrpcServices="Both" />
+    <Protobuf Include="../../proto/dokime/**/*.proto" ProtoRoot="../../proto" GrpcServices="Both" />
     <Protobuf Include="../../proto/harmos/**/*.proto" Exclude="../../proto/harmos/v1/guest.proto" ProtoRoot="../../proto" GrpcServices="Both" />
   </ItemGroup>
 </Project>

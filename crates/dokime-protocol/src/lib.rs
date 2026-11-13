@@ -20,11 +20,11 @@ mod reflection;
 mod sources;
 
 // Checked-In Output of the Generator Exercised by the Integration Drift Check.
-#[rustfmt::skip]
-pub mod v1;
+include!("generated/modules.rs");
 
 /* === Re-Exports === */
 
+pub use dokime::{context::v1 as context, v1};
 pub use sources::SOURCES;
 
 /* === Imports === */

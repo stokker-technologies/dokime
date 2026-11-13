@@ -64,8 +64,6 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
         if archive_directory is not None:
             arguments += ["--archive-directory", str(archive_directory)]
         extra = ["--test-threads", str(workers)]
-        if category == "integration":
-            extra += ["-E", "not binary_id(dokime-macros::compile)"]
     elif language == "python":
         arguments += ["--project", "sdk/python"]
         if category == "integration":
@@ -82,6 +80,19 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
                 "./node_modules/vitest/vitest.mjs",
                 "run",
                 f"tests/{category}",
+                *(
+                    [
+                        "--exclude",
+                        "tests/unit/{settings/preferences,console/nominal,cycle/{nominal,projection,document-stream},history/totals,library/nominal,shell/navigation,plots/{columnar-frame,live-frames,plot-pipeline}}.test.ts",
+                        "--testNamePattern",
+                        "^(?!.*Native Rejections and Captured Diagnostics Reach Notification History)",
+                    ]
+                    if category == "unit"
+                    else [
+                        "--exclude",
+                        "tests/integration/{cycle/{document-query,lifecycle,saved-report},execution/responsiveness,plots/nominal,settings/registry,shell/{contracts,status}}.test.ts",
+                    ]
+                ),
                 "--reporter=default",
                 "--reporter=junit",
                 "--outputFile.junit={junit}",

@@ -57,12 +57,10 @@ enum LiveExecutionState {
   LIVE_EXECUTION_STATE_INTERRUPTED = 8;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message AbsoluteTimeFormat {
   string pattern = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message Admission {
   string command_id = 1;
   optional string job_id = 2;
@@ -70,12 +68,10 @@ message Admission {
   google.protobuf.Timestamp accepted_at = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message AdmittedPlugin {
   Plugin plugin = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 // Continue plugin identifier ordering within one process epoch and admission revision. Availability changes can
 // invalidate pagination.
 message AdmittedPluginCursor {
@@ -84,7 +80,6 @@ message AdmittedPluginCursor {
   string after_plugin_id = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message AdmittedPluginPage {
   repeated AdmittedPlugin plugins = 1;
   AdmittedPluginCursor next = 2;
@@ -93,7 +88,6 @@ message AdmittedPluginPage {
   uint64 revision = 5;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 // Columns are group-by fields in request order followed by aggregate aliases in request order; every row follows
 // that order. complete=false means additional groups exceeded the effective result limit.
 message AggregateReply {
@@ -102,7 +96,6 @@ message AggregateReply {
   bool complete = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 // Unary analysis operations use the analysis metadata identifier as their operation ID.
 // Input is one bounded raw scalar series; output must match every declared output.
 message AnalysisRequest {
@@ -124,7 +117,6 @@ message AnalysisComputation {
   repeated AnalysisSeries series = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message AnalysisEvidence {
   string store = 1;
   string epoch = 2;
@@ -136,14 +128,12 @@ message AnalysisEvidence {
   string x_key = 8;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message AnalysisSelection {
   string id = 1;
   uint32 version = 2;
   MapValue parameters = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message AnalysisSeries {
   string key = 1;
   string label = 2;
@@ -154,7 +144,6 @@ message AnalysisSeries {
   repeated AnalysisValues outputs = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message AnalysisValues {
   string key = 1;
   string unit = 2;
@@ -164,12 +153,10 @@ message AnalysisValues {
   repeated uint32 display_indices = 6;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message AnnotationOwner {
   AnnotationOwnerOwner owner = 1;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message AnnotationOwnerOwner {
   oneof kind {
     string cycle_id = 1;
@@ -178,18 +165,15 @@ message AnnotationOwnerOwner {
   }
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message AnnotationSelection {
   AnnotationOwner owner = 1;
   bool include_context = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message AppearanceAssetFrame {
   AppearanceAssetFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message AppearanceAssetFramePayload {
   oneof kind {
     AppearanceAssetMetadata metadata = 1;
@@ -198,20 +182,17 @@ message AppearanceAssetFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message AppendCasesReply {
   Cursor observed_cursor = 1;
   repeated string execution_ids = 2;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message ApplicationAppearance {
   ThemeMode theme_mode = 1;
   optional string theme_family = 2;
   Density density = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message ApplicationSettings {
   ApplicationAppearance appearance = 1;
   ReportDefaults report = 2;
@@ -221,12 +202,10 @@ message ApplicationSettings {
   PluginPreferences plugins = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ArchiveReply {
   bool archived = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ArchiveScope {
   ARCHIVE_SCOPE_UNSPECIFIED = 0;
   ARCHIVE_SCOPE_UNARCHIVED = 1;
@@ -234,30 +213,25 @@ enum ArchiveScope {
   ARCHIVE_SCOPE_ALL = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactChunk {
   uint64 offset = 1;
   bytes data = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactCompletion {
   uint64 size_bytes = 1;
   string sha256 = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactCursor {
   string epoch = 1;
   bytes metadata_sha256 = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactFrame {
   ArtifactFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactFramePayload {
   oneof kind {
     ArtifactMetadata metadata = 1;
@@ -266,7 +240,6 @@ message ArtifactFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactMetadata {
   string artifact_id = 1;
   string upload_id = 2;
@@ -280,14 +253,12 @@ message ArtifactMetadata {
   optional string error = 10;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ArtifactScope {
   optional string cycle_id = 1;
   optional string case_id = 2;
   optional string execution_id = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 enum ArtifactState {
   ARTIFACT_STATE_UNSPECIFIED = 0;
   ARTIFACT_STATE_COMPLETE = 1;
@@ -296,7 +267,6 @@ enum ArtifactState {
   ARTIFACT_STATE_FAILED = 4;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message BootstrapPaths {
   string application = 1;
   string storage = 2;
@@ -304,7 +274,6 @@ message BootstrapPaths {
   string logs = 4;
 }
 
-// Source: crates/dokime-domain/src/model/query/reduction.rs
 message Bucket {
   google.protobuf.Timestamp start = 1;
   google.protobuf.Timestamp end = 2;
@@ -316,13 +285,11 @@ message Bucket {
   repeated BucketValue fields = 8;
 }
 
-// Source: crates/dokime-domain/src/model/query/reduction.rs
 message BucketRequest {
   uint64 every_nanos = 1;
   Aggregate aggregate = 2;
 }
 
-// Source: crates/dokime-domain/src/model/query/reduction.rs
 message BucketValue {
   string field = 1;
   uint64 count = 2;
@@ -331,19 +298,16 @@ message BucketValue {
   Aggregate reducer = 5;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message CachedRefresh {
   uint64 max_age_ms = 1;
 }
 
-// Source: crates/dokime-domain/src/model/evidence/wire.rs
 message CapturedErrorCause {
   string message = 1;
   optional string code = 2;
   optional string source = 3;
 }
 
-// Source: crates/dokime-domain/src/model/evidence/wire.rs
 message CapturedRecord {
   // Original protobuf bytes interpreted using the frozen record descriptor.
   bytes payload = 16;
@@ -364,7 +328,6 @@ message CapturedRecord {
   google.protobuf.Timestamp received_at = 15;
 }
 
-// Source: crates/dokime-domain/src/model/evidence/wire.rs
 message CapturedRecordError {
   string message = 1;
   optional string code = 2;
@@ -376,7 +339,6 @@ message CapturedRecordError {
   optional string diagnostics = 8;
 }
 
-// Source: crates/dokime-domain/src/model/evidence/wire.rs
 message CapturedRecordSelection {
   EvidenceScope scope = 1;
   repeated string record_types = 2;
@@ -384,13 +346,11 @@ message CapturedRecordSelection {
   repeated Severity severities = 4;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CaseActions {
   bool delete = 1;
   repeated string unavailable_reasons = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CaseDetail {
   CaseSummary summary = 1;
   Metadata suite = 2;
@@ -399,13 +359,11 @@ message CaseDetail {
   Cursor observed_cursor = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CaseParameter {
   string name = 1;
   Value value = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum CaseStatus {
   CASE_STATUS_UNSPECIFIED = 0;
   CASE_STATUS_SKIPPED = 1;
@@ -420,7 +378,6 @@ enum CaseStatus {
   CASE_STATUS_INTERRUPTED = 10;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CaseSummary {
   string case_id = 1;
   string template_id = 2;
@@ -435,7 +392,6 @@ message CaseSummary {
   ExecutionOutcome latest_execution_outcome = 11;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointContext {
   ExecutionCheckpoint checkpoint = 1;
   string session_id = 2;
@@ -450,14 +406,12 @@ message CheckpointContext {
   AppearanceSnapshot appearance = 11;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointDocument {
   ExecutionCheckpoint checkpoint = 1;
   HistoricalExecutionDocument document = 2;
   bool acquisition_finished = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointEvidence {
   ExecutionCheckpoint checkpoint = 1;
   repeated ExecutionFileMetadata outputs = 2;
@@ -466,13 +420,11 @@ message CheckpointEvidence {
   repeated CheckpointTelemetryTable telemetry_tables = 5;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointFileWindow {
   ExecutionCheckpoint checkpoint = 1;
   ExecutionFileWindow content = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointRecordPage {
   ExecutionCheckpoint checkpoint = 1;
   repeated SavedRecord records = 2;
@@ -481,7 +433,6 @@ message CheckpointRecordPage {
   bool issues_truncated = 5;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointTelemetryPage {
   ExecutionCheckpoint checkpoint = 1;
   string table = 2;
@@ -491,19 +442,16 @@ message CheckpointTelemetryPage {
   bool issues_truncated = 6;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CheckpointTelemetryTable {
   string table = 1;
   TelemetrySchema schema = 2;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message ClientPreferences {
   uint64 connect_timeout_ms = 1;
   uint64 request_timeout_ms = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message ContourGrid {
   uint32 columns = 1;
   uint32 rows = 2;
@@ -513,24 +461,20 @@ message ContourGrid {
   repeated bool valid = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ControlReply {
   Cursor observed_cursor = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CreateCycleReply {
   repeated string execution_ids = 3;
   string cycle_id = 1;
   Cursor observed_cursor = 2;
 }
 
-// Source: crates/dokime-domain/src/model/remote.rs
 message CreatedPairing {
   PairingFile pairing = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum CriterionStatus {
   CRITERION_STATUS_UNSPECIFIED = 0;
   CRITERION_STATUS_PENDING = 1;
@@ -540,7 +484,6 @@ enum CriterionStatus {
   CRITERION_STATUS_SKIPPED = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire_cursor.rs
 // A process/stream-qualified observation position. Page continuations keep the exact captured revision; watches
 // may accept an earlier position in the same epoch. A future position or a different epoch/stream requires
 // explicit resynchronization.
@@ -550,14 +493,12 @@ message Cursor {
   uint64 position = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message CycleBrowsePage {
   repeated SavedCycleSummary entries = 1;
   StorageCursor at = 2;
   optional uint64 next_after_sequence = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CycleFilter {
   string text = 1;
   repeated CycleStatus statuses = 2;
@@ -566,13 +507,11 @@ message CycleFilter {
   optional ArchiveScope archive = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CycleOrder {
   CycleOrderKey key = 1;
   bool descending = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum CycleOrderKey {
   CYCLE_ORDER_KEY_UNSPECIFIED = 0;
   CYCLE_ORDER_KEY_UPDATED_AT = 1;
@@ -580,7 +519,6 @@ enum CycleOrderKey {
   CYCLE_ORDER_KEY_LABEL = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message CyclePage {
   repeated CycleSummary rows = 1;
   Schema schema = 2;
@@ -590,7 +528,6 @@ message CyclePage {
   bool complete = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/result.rs
 enum CyclePhase {
   CYCLE_PHASE_UNSPECIFIED = 0;
   CYCLE_PHASE_ACTIVE = 1;
@@ -599,13 +536,11 @@ enum CyclePhase {
   CYCLE_PHASE_SEAL_FAILED = 4;
 }
 
-// Source: crates/dokime-domain/src/model/query/selection.rs
 message CycleScope {
   string cycle_id = 1;
   optional string execution_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/query/selection.rs
 message CycleSelection {
   repeated string cycle_ids = 1;
   repeated CyclePhase phases = 2;
@@ -614,7 +549,6 @@ message CycleSelection {
   repeated CycleStatus statuses = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum CycleStatus {
   CYCLE_STATUS_UNSPECIFIED = 0;
   CYCLE_STATUS_READY = 1;
@@ -627,7 +561,6 @@ enum CycleStatus {
   CYCLE_STATUS_STOPPED = 8;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message CycleSummary {
   string cycle_id = 1;
   Metadata metadata = 2;
@@ -649,14 +582,12 @@ message CycleSummary {
   optional string rerun_of = 18;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message DeleteExecutionResponse {
   string request_identifier = 1;
   string execution_identifier = 2;
   bool local_complete = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 enum Density {
   DENSITY_UNSPECIFIED = 0;
   DENSITY_COMFORTABLE = 1;
@@ -664,7 +595,6 @@ enum Density {
   DENSITY_TOUCH = 3;
 }
 
-// Source: crates/dokime-domain/src/model/identity/wire.rs
 message Diagnostic {
   string message = 1;
   repeated string chain = 2;
@@ -673,14 +603,12 @@ message Diagnostic {
   string backtrace = 5;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentBinding {
   string source_id = 1;
   Metadata metadata = 2;
   DocumentBindingResult result = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentBindingResult {
   oneof kind {
     bool literal = 1;
@@ -691,14 +619,12 @@ message DocumentBindingResult {
   }
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentCard {
   Metadata metadata = 1;
   repeated PlotFilter filters = 2;
   DocumentCardBody body = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentCardBody {
   oneof kind {
     string markdown = 1;
@@ -708,7 +634,6 @@ message DocumentCardBody {
   }
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentCardBudget {
   string name = 1;
   uint64 limit = 2;
@@ -716,14 +641,12 @@ message DocumentCardBudget {
   string card_id = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentCardFailure {
   string code = 1;
   string message = 2;
   DocumentCardBudget budget = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentCardKind {
   DOCUMENT_CARD_KIND_UNSPECIFIED = 0;
   DOCUMENT_CARD_KIND_TEXT = 1;
@@ -741,7 +664,6 @@ enum DocumentCardKind {
   DOCUMENT_CARD_KIND_TELEMETRY_CONTEXT = 13;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentCompletion {
   uint64 frame_count = 1;
   uint64 card_count = 2;
@@ -752,7 +674,6 @@ message DocumentCompletion {
   bool partial = 7;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentDensity {
   DOCUMENT_DENSITY_UNSPECIFIED = 0;
   DOCUMENT_DENSITY_COMPACT = 1;
@@ -760,19 +681,16 @@ enum DocumentDensity {
   DOCUMENT_DENSITY_SPACIOUS = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentEvidenceCut {
   DocumentTelemetryCut cut = 1;
   bool telemetry = 2;
   bool cacheable = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentFrame {
   DocumentFrameFrame frame = 1;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentFrameFrame {
   oneof kind {
     DocumentHeader header = 1;
@@ -799,7 +717,6 @@ message DocumentFrameFrame {
   }
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentFrontiers {
   string process_epoch = 1;
   uint64 state_revision = 2;
@@ -808,7 +725,6 @@ message DocumentFrontiers {
   DocumentTelemetryCut evidence = 5;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentHeader {
   string document_id = 1;
   Metadata metadata = 2;
@@ -816,14 +732,12 @@ message DocumentHeader {
   DocumentFrontiers frontiers = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentLayoutNode {
   uint64 ordinal = 1;
   optional uint64 parent_ordinal = 2;
   DocumentLayoutNodeNode node = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentLayoutNodeNode {
   oneof kind {
     DocumentSection section = 1;
@@ -831,20 +745,17 @@ message DocumentLayoutNodeNode {
   }
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentOwnerReference {
   DocumentCardKind kind = 1;
   optional string plot_id = 2;
   DocumentPlotDefinition plot = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentPage {
   string current = 1;
   optional string next = 2;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentPlacement {
   string card_id = 1;
   DocumentSpan column_span = 2;
@@ -854,7 +765,6 @@ message DocumentPlacement {
   DocumentRail rail = 6;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentPlotDefinition {
   Metadata metadata = 1;
   PlotRequest request = 2;
@@ -862,7 +772,6 @@ message DocumentPlotDefinition {
   DataExpression z_expression = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentRail {
   DOCUMENT_RAIL_UNSPECIFIED = 0;
   DOCUMENT_RAIL_MAIN = 1;
@@ -870,7 +779,6 @@ enum DocumentRail {
   DOCUMENT_RAIL_LEFT = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentRepeat {
   DataExpression value = 1;
   string label_template = 2;
@@ -879,7 +787,6 @@ message DocumentRepeat {
   repeated PlotFilter filters = 5;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentRepeatInstance {
   string selection_id = 1;
   uint64 ordinal = 2;
@@ -888,34 +795,29 @@ message DocumentRepeatInstance {
   PlotFilter filter = 5;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentRepeatSelection {
   string node_id = 1;
   uint64 instance_count = 2;
   bool pending = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentScope {
   string cycle_id = 1;
   string execution_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSection {
   string node_id = 1;
   Metadata metadata = 2;
   DocumentRepeat repeat = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSectionIdentity {
   string node_id = 1;
   Metadata metadata = 2;
   optional string unavailable = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSpan {
   uint32 base = 1;
   optional uint32 sm = 2;
@@ -924,19 +826,16 @@ message DocumentSpan {
   optional uint32 xl = 5;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummary {
   uint64 group_count = 1;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummaryCondition {
   FilterOperator operator = 1;
   Value value = 2;
   DocumentSummaryState state = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentSummaryFormat {
   DOCUMENT_SUMMARY_FORMAT_UNSPECIFIED = 0;
   DOCUMENT_SUMMARY_FORMAT_AUTO = 1;
@@ -948,7 +847,6 @@ enum DocumentSummaryFormat {
   DOCUMENT_SUMMARY_FORMAT_TEXT = 7;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummaryGroup {
   string card_id = 1;
   uint64 ordinal = 2;
@@ -956,7 +854,6 @@ message DocumentSummaryGroup {
   uint64 tile_count = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummaryGroupDefinition {
   string card_id = 1;
   uint64 ordinal = 2;
@@ -964,7 +861,6 @@ message DocumentSummaryGroupDefinition {
   uint64 tile_count = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentSummaryPresentation {
   DOCUMENT_SUMMARY_PRESENTATION_UNSPECIFIED = 0;
   DOCUMENT_SUMMARY_PRESENTATION_VALUE = 1;
@@ -972,13 +868,11 @@ enum DocumentSummaryPresentation {
   DOCUMENT_SUMMARY_PRESENTATION_BADGE = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentSummaryStat {
   DOCUMENT_SUMMARY_STAT_UNSPECIFIED = 0;
   DOCUMENT_SUMMARY_STAT_LATEST = 1;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum DocumentSummaryState {
   DOCUMENT_SUMMARY_STATE_UNSPECIFIED = 0;
   DOCUMENT_SUMMARY_STATE_OK = 1;
@@ -987,7 +881,6 @@ enum DocumentSummaryState {
   DOCUMENT_SUMMARY_STATE_MUTED = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummaryTile {
   string card_id = 1;
   uint64 group_ordinal = 2;
@@ -1002,7 +895,6 @@ message DocumentSummaryTile {
   optional string unavailable = 11;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentSummaryTileDefinition {
   string card_id = 1;
   uint64 group_ordinal = 2;
@@ -1017,32 +909,27 @@ message DocumentSummaryTileDefinition {
   repeated DocumentSummaryCondition conditions = 11;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentTable {
   uint64 row_count = 1;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentTableRow {
   string card_id = 1;
   uint64 ordinal = 2;
   TableRow values = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentTelemetryCut {
   string store = 1;
   string epoch = 2;
   uint64 position = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message DocumentWarning {
   string code = 1;
   string message = 2;
 }
 
-// Source: crates/dokime-domain/src/model/document/definition.rs
 enum Downsample {
   DOWNSAMPLE_UNSPECIFIED = 0;
   DOWNSAMPLE_RAW = 1;
@@ -1051,17 +938,14 @@ enum Downsample {
   DOWNSAMPLE_AUTO = 4;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message EditNoteResponse {
   OperatorNote note = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message ElapsedFormat {
   ElapsedUnit unit = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum ElapsedUnit {
   ELAPSED_UNIT_UNSPECIFIED = 0;
   ELAPSED_UNIT_SECONDS = 1;
@@ -1069,12 +953,10 @@ enum ElapsedUnit {
   ELAPSED_UNIT_MINUTES = 3;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message EngineeringFormat {
   uint32 significant_digits = 1;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message EvidenceCounts {
   uint64 records = 1;
   uint64 telemetry = 2;
@@ -1085,12 +967,10 @@ message EvidenceCounts {
   uint64 notes = 7;
 }
 
-// Source: crates/dokime-domain/src/model/exports.rs
 message EvidenceExportFrame {
   EvidenceExportPayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/exports.rs
 message EvidenceExportMetadata {
   EvidenceSubject subject = 1;
   string filename = 2;
@@ -1099,7 +979,6 @@ message EvidenceExportMetadata {
   string sha256 = 5;
 }
 
-// Source: crates/dokime-domain/src/model/exports.rs
 message EvidenceExportPayload {
   oneof kind {
     EvidenceExportMetadata metadata = 1;
@@ -1108,12 +987,10 @@ message EvidenceExportPayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/identity/wire.rs
 message EvidenceOrigin {
   EvidenceOriginKind kind = 1;
 }
 
-// Source: crates/dokime-domain/src/model/identity/wire.rs
 message EvidenceOriginKind {
   oneof kind {
     bool default = 1;
@@ -1123,7 +1000,6 @@ message EvidenceOriginKind {
   }
 }
 
-// Source: crates/dokime-domain/src/model/identity/wire.rs
 message EvidenceScope {
   optional string session_id = 1;
   optional string cycle_id = 2;
@@ -1136,7 +1012,6 @@ message EvidenceScope {
   EvidenceOrigin origin = 9;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 enum EvidenceSection {
   EVIDENCE_SECTION_UNSPECIFIED = 0;
   EVIDENCE_SECTION_OUTPUTS = 1;
@@ -1145,7 +1020,6 @@ enum EvidenceSection {
   EVIDENCE_SECTION_TELEMETRY_TABLES = 4;
 }
 
-// Source: crates/dokime-domain/src/model/exports.rs
 message EvidenceSubject {
   oneof kind {
     string execution = 1;
@@ -1153,7 +1027,6 @@ message EvidenceSubject {
   }
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 enum ExecutionAvailability {
   EXECUTION_AVAILABILITY_UNSPECIFIED = 0;
   EXECUTION_AVAILABILITY_LIVE = 1;
@@ -1162,13 +1035,12 @@ enum ExecutionAvailability {
   EXECUTION_AVAILABILITY_UNCHECKPOINTED = 4;
 }
 
-// Source: crates/dokime-operations/src/execution/append_executions.rs
+// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
 message ExecutionBinding {
   string execution_id = 1;
   string case_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 // Counts cover the whole filtered cycle selection, not just the current page. Headline result folds evaluated
 // outcomes only; declared_count and not_evaluated_count remain separate.
 message ExecutionBrowseCycle {
@@ -1191,7 +1063,6 @@ message ExecutionBrowseCycle {
   uint64 not_evaluated_count = 17;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message ExecutionBrowseEntry {
   HistoricalExecutionMetadata metadata = 1;
   ExecutionCheckpoint checkpoint = 2;
@@ -1199,7 +1070,6 @@ message ExecutionBrowseEntry {
   bool archived = 4;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 enum ExecutionBrowseLifecycle {
   EXECUTION_BROWSE_LIFECYCLE_UNSPECIFIED = 0;
   EXECUTION_BROWSE_LIFECYCLE_RUNNING = 1;
@@ -1209,7 +1079,6 @@ enum ExecutionBrowseLifecycle {
   EXECUTION_BROWSE_LIFECYCLE_COMPLETED = 5;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message ExecutionBrowsePage {
   Cursor cursor = 9;
   repeated ExecutionBrowseEntry entries = 1;
@@ -1222,7 +1091,6 @@ message ExecutionBrowsePage {
   repeated ExecutionBrowseCycle cycles = 8;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire_checkpoint.rs
 message ExecutionCheckpoint {
   string execution_identifier = 1;
   StorageCursor position = 2;
@@ -1230,7 +1098,6 @@ message ExecutionCheckpoint {
   StorageCursor evidence_through = 4;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ExecutionCommandAction {
   EXECUTION_COMMAND_ACTION_UNSPECIFIED = 0;
   EXECUTION_COMMAND_ACTION_NEXT = 1;
@@ -1238,7 +1105,6 @@ enum ExecutionCommandAction {
   EXECUTION_COMMAND_ACTION_FINISH = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ExecutionCommandPhase {
   EXECUTION_COMMAND_PHASE_UNSPECIFIED = 0;
   EXECUTION_COMMAND_PHASE_ACCEPTED = 1;
@@ -1250,7 +1116,6 @@ enum ExecutionCommandPhase {
   EXECUTION_COMMAND_PHASE_INTERRUPTED = 7;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ExecutionCommandReceipt {
   string request_id = 1;
   string command_id = 2;
@@ -1264,7 +1129,6 @@ message ExecutionCommandReceipt {
   optional string detail = 10;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ExecutionControls {
   optional string request_id = 1;
   bool paused = 2;
@@ -1280,7 +1144,6 @@ message ExecutionControls {
   bool can_export = 12;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 // Evidence identity, origin, outcome, schemas and capabilities are independent of optional live manager state.
 // Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
 // capability.
@@ -1315,12 +1178,10 @@ message ExecutionDetail {
   optional LiveExecutionState live_state = 17;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileDownloadFrame {
   ExecutionFileDownloadFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileDownloadFramePayload {
   oneof kind {
     ExecutionFileDownloadMetadata metadata = 1;
@@ -1329,7 +1190,6 @@ message ExecutionFileDownloadFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileDownloadMetadata {
   string relative_path = 1;
   optional string content_type = 2;
@@ -1338,12 +1198,10 @@ message ExecutionFileDownloadMetadata {
   uint64 observed_size_bytes = 5;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileFollowFrame {
   ExecutionFileFollowFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileFollowFramePayload {
   oneof kind {
     ExecutionFileFollowMetadata metadata = 1;
@@ -1352,7 +1210,6 @@ message ExecutionFileFollowFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileFollowMetadata {
   ExecutionFileIdentity identity = 1;
   string content_type = 2;
@@ -1362,14 +1219,12 @@ message ExecutionFileFollowMetadata {
   uint64 offset = 6;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileFollowTerminal {
   ExecutionFilePhase phase = 1;
   uint64 length = 2;
   ExecutionFileSeal sealed = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileIdentity {
   StoreHistory history = 1;
   string file_id = 2;
@@ -1377,7 +1232,6 @@ message ExecutionFileIdentity {
   string relative_path = 4;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 enum ExecutionFileKind {
   EXECUTION_FILE_KIND_UNSPECIFIED = 0;
   EXECUTION_FILE_KIND_TEXT = 1;
@@ -1386,7 +1240,6 @@ enum ExecutionFileKind {
   EXECUTION_FILE_KIND_UNKNOWN = 4;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileMetadata {
   string relative_path = 1;
   optional string content_type = 2;
@@ -1396,7 +1249,6 @@ message ExecutionFileMetadata {
   google.protobuf.Timestamp created_at = 6;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 enum ExecutionFilePhase {
   EXECUTION_FILE_PHASE_UNSPECIFIED = 0;
   EXECUTION_FILE_PHASE_PRODUCING = 1;
@@ -1404,7 +1256,6 @@ enum ExecutionFilePhase {
   EXECUTION_FILE_PHASE_ABANDONED = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileSeal {
   ExecutionFileIdentity identity = 1;
   StorageCursor position = 2;
@@ -1412,7 +1263,6 @@ message ExecutionFileSeal {
   string sha256 = 4;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 enum ExecutionFileState {
   EXECUTION_FILE_STATE_UNSPECIFIED = 0;
   EXECUTION_FILE_STATE_STREAMING = 1;
@@ -1420,7 +1270,6 @@ enum ExecutionFileState {
   EXECUTION_FILE_STATE_INTERRUPTED = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFileWindow {
   string relative_path = 1;
   optional string content_type = 2;
@@ -1431,14 +1280,12 @@ message ExecutionFileWindow {
   bytes data = 7;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ExecutionFilesCursor {
   string epoch = 1;
   string execution_id = 2;
   bytes metadata_sha256 = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message ExecutionFilter {
   string text = 1;
   repeated ExecutionState statuses = 2;
@@ -1449,26 +1296,22 @@ message ExecutionFilter {
   optional ArchiveScope archive = 7;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ExecutionMode {
   EXECUTION_MODE_UNSPECIFIED = 0;
   EXECUTION_MODE_AUTOMATIC = 1;
   EXECUTION_MODE_INTERACTIVE = 2;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message ExecutionNoteOwner {
   string cycle_id = 1;
   string execution_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message ExecutionOrder {
   ExecutionOrderKey key = 1;
   bool descending = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 enum ExecutionOrderKey {
   EXECUTION_ORDER_KEY_UNSPECIFIED = 0;
   EXECUTION_ORDER_KEY_STARTED_AT = 1;
@@ -1476,7 +1319,6 @@ enum ExecutionOrderKey {
   EXECUTION_ORDER_KEY_TITLE = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message ExecutionPage {
   // Counts cover the complete filtered selection.
   ExecutionOutcomeCounts outcome_counts = 7;
@@ -1488,14 +1330,12 @@ message ExecutionPage {
   bool complete = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ExecutionParameterSet {
   EXECUTION_PARAMETER_SET_UNSPECIFIED = 0;
   EXECUTION_PARAMETER_SET_INPUTS = 1;
   EXECUTION_PARAMETER_SET_OUTPUTS = 2;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message ExecutionProgress {
   string test_execution_id = 1;
   string step_id = 2;
@@ -1506,7 +1346,6 @@ message ExecutionProgress {
   optional uint64 remaining_ms = 7;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message ExecutionProgressFrame {
   uint64 revision = 1;
   bool resynchronized = 2;
@@ -1514,7 +1353,6 @@ message ExecutionProgressFrame {
   bool cleared = 4;
 }
 
-// Source: crates/dokime-domain/src/model/query/selection.rs
 message ExecutionSelection {
   repeated string template_ids = 1;
   repeated string cycle_ids = 2;
@@ -1523,7 +1361,6 @@ message ExecutionSelection {
   optional ArchiveScope archive = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ExecutionStep {
   string step_id = 1;
   Metadata metadata = 2;
@@ -1537,7 +1374,6 @@ message ExecutionStep {
   repeated StepCriterion criteria = 10;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ExecutionSummary {
   ExecutionControls controls = 7;
   string execution_id = 1;
@@ -1548,21 +1384,18 @@ message ExecutionSummary {
   ExecutionOutcome outcome = 6;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 enum FftDetrend {
   FFT_DETREND_UNSPECIFIED = 0;
   FFT_DETREND_NONE = 1;
   FFT_DETREND_MEAN = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 enum FftWindow {
   FFT_WINDOW_UNSPECIFIED = 0;
   FFT_WINDOW_HANN = 1;
   FFT_WINDOW_RECTANGULAR = 2;
 }
 
-// Source: crates/dokime-domain/src/model/query/schema.rs
 message Field {
   string id = 1;
   FieldType value_type = 2;
@@ -1570,7 +1403,6 @@ message Field {
   optional string unit = 4;
 }
 
-// Source: crates/dokime-domain/src/model/query/schema.rs
 enum FieldType {
   FIELD_TYPE_UNSPECIFIED = 0;
   FIELD_TYPE_BOOLEAN = 1;
@@ -1604,12 +1436,10 @@ message FileReference {
   bytes sha256 = 4;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message FixedFormat {
   uint32 decimals = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 enum FrequencyLevelUnit {
   FREQUENCY_LEVEL_UNIT_UNSPECIFIED = 0;
   FREQUENCY_LEVEL_UNIT_LINEAR = 1;
@@ -1618,14 +1448,12 @@ enum FrequencyLevelUnit {
   FREQUENCY_LEVEL_UNIT_DBM = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message GridCell {
   uint32 row = 1;
   uint32 column = 2;
   string label = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message GridDefinition {
   DataExpression row = 1;
   DataExpression column = 2;
@@ -1636,7 +1464,6 @@ message GridDefinition {
   string summary_label = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message GridFrame {
   string instant = 1;
   repeated double values = 2;
@@ -1644,7 +1471,6 @@ message GridFrame {
   repeated GridCell highlights = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message GridFrames {
   repeated GridAxisEntry rows = 1;
   repeated GridAxisEntry columns = 2;
@@ -1652,7 +1478,6 @@ message GridFrames {
   string summary_label = 4;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message HealthItem {
   string health_item_id = 1;
   EvidenceScope scope = 2;
@@ -1662,7 +1487,6 @@ message HealthItem {
   google.protobuf.Timestamp observed_at = 6;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalCycle {
   string cycle_id = 1;
   Metadata metadata = 2;
@@ -1675,13 +1499,11 @@ message HistoricalCycle {
   ResultSummary result = 9;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalCycleContext {
   HistoricalCycle cycle = 1;
   repeated string execution_order = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalDocument {
   DocumentHeader presentation = 1;
   repeated DocumentLayoutNode layout_nodes = 2;
@@ -1689,14 +1511,12 @@ message HistoricalDocument {
   repeated DocumentTableRow table_rows = 4;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalDocumentCard {
   Metadata metadata = 1;
   repeated HistoricalDocumentFilter filters = 2;
   HistoricalDocumentCardBody body = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalDocumentCardBody {
   oneof kind {
     string markdown = 1;
@@ -1707,26 +1527,22 @@ message HistoricalDocumentCardBody {
   }
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalDocumentFilter {
   DataExpression expression = 1;
   FilterOperator operator = 2;
   Value value = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalExecutionCycle {
   string cycle_id = 1;
   Metadata metadata = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalExecutionDocument {
   HistoricalExecutionCycle cycle = 1;
   HistoricalTestExecution execution = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalExecutionMetadata {
   string execution_id = 1;
   optional string cycle_id = 2;
@@ -1741,7 +1557,6 @@ message HistoricalExecutionMetadata {
   ExecutionOutcome outcome = 11;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalStep {
   string step_id = 1;
   Metadata metadata = 2;
@@ -1752,7 +1567,6 @@ message HistoricalStep {
   repeated StepCriterion criteria = 7;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalStepAttempt {
   string attempt_id = 1;
   string step_id = 2;
@@ -1762,20 +1576,17 @@ message HistoricalStepAttempt {
   Diagnostic detail = 6;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalSummaryCondition {
   FilterOperator operator = 1;
   Value value = 2;
   DocumentSummaryState state = 3;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalSummaryGroup {
   Metadata metadata = 1;
   repeated HistoricalSummaryTile tiles = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalSummaryTile {
   Metadata metadata = 1;
   DataExpression value = 2;
@@ -1787,12 +1598,10 @@ message HistoricalSummaryTile {
   repeated HistoricalSummaryCondition conditions = 8;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoricalTelemetrySummary {
   repeated HistoricalSummaryGroup groups = 1;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 // Immutable evidence at the selected checkpoint. The frozen origin replaces native plugin/case snapshots.
 // Attempt evidence is interpreted through the TestCase in PluginRun; imports have no fabricated case or
 // criteria.
@@ -1823,19 +1632,16 @@ message HistoricalTestExecution {
   optional string host_version = 24;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message HistoryIssue {
   optional string source = 1;
   optional string dataset = 2;
   string message = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardBlock {
   HostCardBlockKind kind = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardBlockKind {
   oneof kind {
     string text = 1;
@@ -1845,24 +1651,20 @@ message HostCardBlockKind {
   }
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardBody {
   repeated HostCardBlock blocks = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardKeyValue {
   string label = 1;
   string value = 2;
   optional string detail = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardKeyValueList {
   repeated HostCardKeyValue items = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardMetric {
   string label = 1;
   string value = 2;
@@ -1870,19 +1672,16 @@ message HostCardMetric {
   optional string trend = 4;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardMetrics {
   repeated HostCardMetric items = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message HostCardStatus {
   string label = 1;
   HostCardTone tone = 2;
   optional string detail = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 enum HostCardTone {
   HOST_CARD_TONE_UNSPECIFIED = 0;
   HOST_CARD_TONE_NEUTRAL = 1;
@@ -1892,20 +1691,17 @@ enum HostCardTone {
   HOST_CARD_TONE_DANGER = 5;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message InstallPluginChunk {
   uint64 offset = 1;
   bytes data = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 // Header first, then contiguous nonempty chunks bounded by the advertised message size. EOF/finish must match
 // the declared size and SHA-256. On uncertain acknowledgement, reconcile the manifest by digest before retrying.
 message InstallPluginFrame {
   InstallPluginFrameFrame frame = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message InstallPluginFrameFrame {
   oneof kind {
     InstallPluginHeader header = 1;
@@ -1913,13 +1709,11 @@ message InstallPluginFrameFrame {
   }
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message InstallPluginHeader {
   uint64 size_bytes = 1;
   string sha256 = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 // Continue the installation UUID ordering against this exact manifest digest. A changed manifest invalidates the
 // page sequence; start again without a cursor.
 message InstallationCursor {
@@ -1927,7 +1721,6 @@ message InstallationCursor {
   string after_install_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message InstallationPage {
   repeated PluginInstallation installations = 1;
   InstallationCursor next = 2;
@@ -1935,7 +1728,6 @@ message InstallationPage {
   string manifest_sha256 = 4;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum LineStyle {
   LINE_STYLE_UNSPECIFIED = 0;
   LINE_STYLE_LINE = 1;
@@ -1944,90 +1736,76 @@ enum LineStyle {
   LINE_STYLE_STEP = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message ListAnalysesReply {
   repeated Analysis definitions = 1;
   optional string next_after_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ListArtifactsReply {
   repeated ArtifactMetadata artifacts = 1;
   optional string next_after_artifact_id = 2;
   ArtifactCursor cursor = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListCaseParametersReply {
   repeated CaseParameter parameters = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListCasesReply {
   repeated CaseSummary cases = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListCyclesReply {
   repeated CycleSummary cycles = 1;
   optional string next_after_cycle_id = 2;
   Cursor cursor = 3;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message ListExecutionFilesReply {
   repeated ExecutionFileMetadata files = 1;
   optional string next_after_path = 2;
   ExecutionFilesCursor cursor = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListExecutionStepsReply {
   repeated ExecutionStep steps = 1;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListExecutionsReply {
   repeated ExecutionSummary executions = 1;
   optional string next_after_execution_id = 2;
   Cursor cursor = 3;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message ListHealthResponse {
   repeated HealthItem items = 1;
   Cursor cursor = 2;
   string next_after_id = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListMaterializedParametersReply {
   repeated MaterializedParameter parameters = 1;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message ListNotesResponse {
   repeated OperatorNote notes = 1;
   Cursor cursor = 2;
   string next_after_id = 3;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message ListPendingPromptsReply {
   repeated PendingPromptIdentity prompts = 1;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message ListPromptDefinitionsReply {
   repeated PromptDefinitionIdentity definitions = 1;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListRecordSchemasReply {
   repeated RecordSchemaIdentity schemas = 1;
 }
 
-// Source: crates/dokime-operations/src/telemetry/list_samples.rs
+// Source: crates/dokime-operations-next/src/client/telemetry_list_samples.rs
 message ListSamples {
   repeated string streams = 1;
   uint32 limit = 2;
@@ -2041,28 +1819,23 @@ message ListSamples {
   bool latest = 10;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListSuitesReply {
   repeated SuiteIdentity suites = 1;
 }
 
-// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 message ListTelemetrySamplesRequestAfterStreamCursorsEntry {
   string key = 1;
   uint64 value = 2;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListTelemetrySchemasReply {
   repeated TelemetrySchemaIdentity schemas = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message ManualRefresh {
 
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message MaterializedParameter {
   string name = 1;
   Metadata metadata = 2;
@@ -2072,29 +1845,24 @@ message MaterializedParameter {
   MeasurementUnit unit = 6;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message MaterializedReport {
   FileReference report = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message MeasurementUnit {
   Metadata metadata = 1;
   UnitFamily family = 2;
   string symbol = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message MutationContext {
   optional string correlation_id = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message NormalFormat {
   optional uint32 max_fraction_digits = 1;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 enum NotePublication {
   NOTE_PUBLICATION_UNSPECIFIED = 0;
   NOTE_PUBLICATION_NO_EXISTING_DATASETS = 1;
@@ -2102,7 +1870,6 @@ enum NotePublication {
   NOTE_PUBLICATION_UNCONFIRMED = 3;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message NoteReceipt {
   string epoch = 1;
   string mutation_id = 2;
@@ -2113,17 +1880,14 @@ message NoteReceipt {
   repeated string unconfirmed_targets = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message NullableNumber {
   optional double value = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message OnDemandRefresh {
 
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message OperationProgress {
   string operation_id = 1;
   string label = 2;
@@ -2136,7 +1900,6 @@ message OperationProgress {
   optional string failure = 9;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 enum OperationStatus {
   OPERATION_STATUS_UNSPECIFIED = 0;
   OPERATION_STATUS_RUNNING = 1;
@@ -2144,7 +1907,6 @@ enum OperationStatus {
   OPERATION_STATUS_FAILED = 3;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message OperatorNote {
   string note_id = 1;
   EvidenceScope scope = 2;
@@ -2153,7 +1915,6 @@ message OperatorNote {
   google.protobuf.Timestamp created_at = 5;
 }
 
-// Source: crates/dokime-domain/src/model/process/wire.rs
 message Output {
   oneof kind {
     Null log = 1;
@@ -2161,20 +1922,17 @@ message Output {
   }
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message PageLimits {
   uint32 rows = 1;
   uint64 bytes = 2;
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message PageRequest {
   optional uint32 rows = 1;
   optional uint64 bytes = 2;
   optional string after = 3;
 }
 
-// Source: crates/dokime-domain/src/model/remote.rs
 message PairingFile {
   uint32 version = 1;
   repeated string endpoints = 2;
@@ -2184,13 +1942,11 @@ message PairingFile {
   optional string access_key = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ParameterCursor {
   Cursor observed = 1;
   ParameterCursorSelection selection = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ParameterCursorSelection {
   oneof kind {
     string execution_inputs_id = 1;
@@ -2199,7 +1955,6 @@ message ParameterCursorSelection {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ParameterSource {
   PARAMETER_SOURCE_UNSPECIFIED = 0;
   PARAMETER_SOURCE_DEFINITION = 1;
@@ -2213,7 +1968,6 @@ enum ParameterSource {
   PARAMETER_SOURCE_OUTPUT = 9;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PendingPromptIdentity {
   string prompt_id = 1;
   PromptDefinitionIdentity definition = 2;
@@ -2221,7 +1975,6 @@ message PendingPromptIdentity {
   google.protobuf.Timestamp created_at = 4;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 // A materialized case with its frozen provider origin. Identity/digest/process time come from the captured
 // catalog; the TestCase contains resolved parameters, steps, criteria and stream identifiers. Materialize again
 // if the catalog digest changes before execution.
@@ -2235,29 +1988,24 @@ message PlannedCase {
   Origin origin = 7;
 }
 
-// Source: crates/dokime-domain/src/model/notes/wire.rs
 message PlannedCaseNoteOwner {
   string cycle_id = 1;
   string case_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message PlannedCaseParameters {
   string cycle_id = 1;
   string case_id = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotAnalysis {
   PlotAnalysisResult result = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotAnalysisError {
   string message = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotAnalysisResult {
   oneof kind {
     ContourGrid contour = 1;
@@ -2269,14 +2017,12 @@ message PlotAnalysisResult {
   }
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 enum PlotAxisKind {
   PLOT_AXIS_KIND_UNSPECIFIED = 0;
   PLOT_AXIS_KIND_WALL_TIME = 1;
   PLOT_AXIS_KIND_ELAPSED = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotBoxSummary {
   string key = 1;
   uint64 count = 2;
@@ -2291,20 +2037,17 @@ message PlotBoxSummary {
   string label = 11;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotBoxSummaryAnalysis {
   repeated PlotBoxSummary series = 1;
   uint64 total = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 enum PlotCartesianMode {
   PLOT_CARTESIAN_MODE_UNSPECIFIED = 0;
   PLOT_CARTESIAN_MODE_ALIGNED = 1;
   PLOT_CARTESIAN_MODE_FACETED = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotColumn {
   repeated string instants = 1;
   repeated Value x = 2;
@@ -2312,13 +2055,11 @@ message PlotColumn {
   repeated NullableNumber z = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotDomain {
   double min = 1;
   double max = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotEnvelope {
   string plot_id = 1;
   uint64 revision = 2;
@@ -2329,7 +2070,6 @@ message PlotEnvelope {
   repeated string warnings = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotFftOptions {
   optional double sample_rate_hz = 1;
   FftWindow window = 2;
@@ -2340,14 +2080,12 @@ message PlotFftOptions {
   optional double max_frequency_hz = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotFilter {
   DataExpression expression = 1;
   FilterOperator operator = 2;
   Value value = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotFrame {
   optional PlotCartesianMode mode = 1;
   repeated double time = 2;
@@ -2358,25 +2096,21 @@ message PlotFrame {
   string signature = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotHistogramAnalysis {
   repeated PlotHistogramSeries series = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotHistogramBin {
   double lower = 1;
   double upper = 2;
   uint64 count = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotHistogramOptions {
   uint64 bins = 1;
   optional string unit = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotHistogramSeries {
   string key = 1;
   repeated PlotHistogramBin bins = 2;
@@ -2384,7 +2118,6 @@ message PlotHistogramSeries {
   PlotHistogramStatistics statistics = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotHistogramStatistics {
   double mean = 1;
   double median = 2;
@@ -2394,14 +2127,12 @@ message PlotHistogramStatistics {
   double max = 6;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotIntervalOptions {
   double bin_width = 1;
   double sigma = 2;
   bool clip_to_observed = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotMarker {
   Value x = 1;
   string label = 2;
@@ -2409,7 +2140,6 @@ message PlotMarker {
   string color = 4;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotPayload {
   string stream = 1;
   string x_key = 2;
@@ -2432,7 +2162,6 @@ message PlotPayload {
   repeated double replaced_buckets = 19;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotPayloadDiagnostics {
   // Number of retained source rows consumed by this window reduction.
   uint64 examined_rows = 7;
@@ -2446,7 +2175,6 @@ message PlotPayloadDiagnostics {
   optional double window_s = 6;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message PlotPresentation {
   LineStyle style = 1;
   PlotFftOptions fft = 2;
@@ -2461,7 +2189,6 @@ message PlotPresentation {
   optional double scale = 11;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message PlotReferenceBand {
   PlotReferenceValue min = 1;
   PlotReferenceValue max = 2;
@@ -2471,20 +2198,17 @@ message PlotReferenceBand {
   PlotReferenceValue tolerance = 6;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message PlotReferenceLine {
   PlotReferenceValue value = 1;
   optional string label = 2;
   string color = 3;
 }
 
-// Source: crates/dokime-domain/src/model/documents/wire.rs
 message PlotReferenceValue {
   optional double constant = 1;
   DataExpression expression = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotRequest {
   optional BarArrangement arrangement = 1;
   bool pareto = 2;
@@ -2528,7 +2252,6 @@ message PlotRequest {
   StorageCursor at = 39;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSeries {
   string key = 1;
   string label = 2;
@@ -2538,7 +2261,6 @@ message PlotSeries {
   ValueFormat format = 6;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSeriesSummary {
   string series_id = 1;
   uint64 count = 2;
@@ -2551,7 +2273,6 @@ message PlotSeriesSummary {
   PlotWindow window = 9;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSigmaBin {
   double x = 1;
   uint64 count = 2;
@@ -2560,29 +2281,24 @@ message PlotSigmaBin {
   double upper = 5;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSigmaIntervalAnalysis {
   repeated PlotSigmaSeries series = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSigmaSeries {
   string key = 1;
   repeated PlotSigmaBin bins = 2;
   uint64 raw_points = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotSnapshotsReply {
   repeated PlotEnvelope envelopes = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotStreamFrame {
   repeated PlotStreamUpdate updates = 1;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 enum PlotStreamKind {
   PLOT_STREAM_KIND_UNSPECIFIED = 0;
   PLOT_STREAM_KIND_SNAPSHOT = 1;
@@ -2592,26 +2308,22 @@ enum PlotStreamKind {
   PLOT_STREAM_KIND_ERROR = 5;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotStreamUpdate {
   PlotStreamKind kind = 1;
   PlotEnvelope envelope = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotWindow {
   double from = 1;
   double to = 2;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message PluginIdentity {
   string name = 1;
   string version = 2;
   string description = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 // Installed bundle metadata plus its managed entry. Connection/process availability is Plugin.state;
 // installation state describes bundle management, not whether a plugin is connected.
 message PluginInstallation {
@@ -2624,7 +2336,6 @@ message PluginInstallation {
   Plugin plugin = 7;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 enum PluginInstallationState {
   PLUGIN_INSTALLATION_STATE_UNSPECIFIED = 0;
   PLUGIN_INSTALLATION_STATE_INSTALLED = 1;
@@ -2632,20 +2343,17 @@ enum PluginInstallationState {
   PLUGIN_INSTALLATION_STATE_REMOVAL_PENDING = 3;
 }
 
-// Source: crates/dokime-domain/src/model/plugins/wire.rs
 message PluginMetadata {
   PluginIdentity identity = 1;
   repeated string owners = 2;
   uint64 size_bytes = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message PluginPreferences {
   uint32 startup_timeout_s = 1;
   uint32 stop_timeout_s = 2;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 // Saved and discovered settings by identifier. There is no injected applied snapshot or unapplied comparison.
 // Reads expose no secret values.
 message PluginRuntimeSettings {
@@ -2655,19 +2363,16 @@ message PluginRuntimeSettings {
   MapValue discovered = 4;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message PreviewSelectionReply {
   repeated PlannedCase cases = 1;
   Cursor observed_cursor = 2;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PromptDefinitionIdentity {
   string prompt_type = 1;
   string title = 2;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PromptInstance {
   string prompt_id = 1;
   Prompt definition = 2;
@@ -2677,7 +2382,6 @@ message PromptInstance {
   google.protobuf.Timestamp created_at = 6;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 enum PromptKind {
   PROMPT_KIND_UNSPECIFIED = 0;
   PROMPT_KIND_CONFIRMATION = 1;
@@ -2687,7 +2391,6 @@ enum PromptKind {
   PROMPT_KIND_VERIFICATION = 5;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PromptResponse {
   string prompt_id = 1;
   string action = 2;
@@ -2697,7 +2400,6 @@ message PromptResponse {
   bool accepted = 6;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PromptResponseReceipt {
   string command_id = 1;
   string prompt_id = 2;
@@ -2706,14 +2408,12 @@ message PromptResponseReceipt {
   Cursor observed_cursor = 5;
 }
 
-// Source: crates/dokime-domain/src/model/prompts/wire.rs
 message PromptView {
   PromptInstance prompt = 1;
   PromptResponse response = 2;
   Cursor observed_cursor = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 // The aggregate vocabulary is shared with document expressions. Percentile requires a rank in the inclusive
 // range 0..100. Aliases are unique and distinct from group-by columns. Count without a column counts rows; null
 // inputs are skipped for other aggregates.
@@ -2724,14 +2424,12 @@ message QueryAggregate {
   optional double percentile = 4;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 message QueryFilter {
   string column = 1;
   QueryFilterOperator op = 2;
   repeated Value values = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 enum QueryFilterOperator {
   QUERY_FILTER_OPERATOR_UNSPECIFIED = 0;
   QUERY_FILTER_OPERATOR_EQ = 1;
@@ -2744,12 +2442,10 @@ enum QueryFilterOperator {
   QUERY_FILTER_OPERATOR_IS_NULL = 8;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 message QueryRow {
   repeated Value values = 1;
 }
 
-// Source: crates/dokime-domain/src/model/query/wire.rs
 enum QuerySource {
   QUERY_SOURCE_UNSPECIFIED = 0;
   QUERY_SOURCE_CYCLES = 1;
@@ -2759,13 +2455,11 @@ enum QuerySource {
   QUERY_SOURCE_RECORDS = 5;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message RecordDisplay {
   RecordIcon icon = 1;
   RecordTone tone = 2;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message RecordField {
   Metadata metadata = 1;
   ValueType value_type = 2;
@@ -2777,7 +2471,6 @@ message RecordField {
   ValueFormat format = 8;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum RecordIcon {
   RECORD_ICON_UNSPECIFIED = 0;
   RECORD_ICON_ACTIVITY = 1;
@@ -2806,7 +2499,6 @@ enum RecordIcon {
   RECORD_ICON_CLOCK = 24;
 }
 
-// Source: crates/dokime-domain/src/model/evidence/wire.rs
 message RecordPage {
   repeated CapturedRecord records = 1;
   Cursor scanned = 2;
@@ -2815,7 +2507,6 @@ message RecordPage {
   uint64 retained_after = 5;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message RecordSchema {
   string record_type = 1;
   uint32 schema_version = 2;
@@ -2829,14 +2520,12 @@ message RecordSchema {
   RecordDisplay display = 10;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message RecordSchemaIdentity {
   string record_type = 1;
   uint32 schema_version = 2;
   Metadata metadata = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/selection.rs
 message RecordScope {
   oneof kind {
     string execution = 1;
@@ -2844,7 +2533,6 @@ message RecordScope {
   }
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum RecordTone {
   RECORD_TONE_UNSPECIFIED = 0;
   RECORD_TONE_INFO = 1;
@@ -2856,18 +2544,15 @@ enum RecordTone {
   RECORD_TONE_NEUTRAL = 7;
 }
 
-// Source: crates/dokime-domain/src/model/media/wire.rs
 message RecordingAudio {
   bool microphone = 1;
   bool system = 2;
 }
 
-// Source: crates/dokime-domain/src/model/media/wire.rs
 message RecordingFrame {
   RecordingFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/media/wire.rs
 message RecordingFramePayload {
   oneof kind {
     RecordingProgress progress = 1;
@@ -2875,13 +2560,11 @@ message RecordingFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/media/wire.rs
 message RecordingProgress {
   uint64 elapsed_ms = 1;
   uint64 size_bytes = 2;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 // Exact registered suite/template identifiers. Parameter dimensions expand deterministically in selection order.
 // A multiple-valued parameter receives its selected values as one list rather than an expansion dimension. File
 // values are opaque plugin strings; they grant no client filesystem authority.
@@ -2892,32 +2575,27 @@ message RegisteredSelection {
   repeated RegisteredSelectionFilesEntry files = 4;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message RegisteredSelectionFilesEntry {
   string key = 1;
   SelectedFile value = 2;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message RegisteredSelectionParametersEntry {
   string key = 1;
   SelectionValues value = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message Rejection {
   string code = 1;
   string message = 2;
   repeated ValidationIssue issues = 3;
 }
 
-// Source: crates/dokime-domain/src/model/remote.rs
 message RemoteEndpoint {
   string address = 1;
   optional string adapter_name = 2;
 }
 
-// Source: crates/dokime-domain/src/model/remote.rs
 message RemoteListenerSettings {
   bool enabled = 1;
   string address = 2;
@@ -2926,7 +2604,6 @@ message RemoteListenerSettings {
   repeated string certificate_names = 5;
 }
 
-// Source: crates/dokime-domain/src/model/remote.rs
 message RemoteListenerStatus {
   RemoteListenerSettings settings = 1;
   optional string listening_address = 2;
@@ -2936,12 +2613,10 @@ message RemoteListenerStatus {
   repeated RemoteEndpoint endpoints = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message RenameReply {
   string label = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message ReportDefaults {
   uint32 source_bytes = 1;
   uint32 value_depth = 2;
@@ -2950,26 +2625,22 @@ message ReportDefaults {
   Downsample plot_downsample = 5;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportHtmlChunk {
   uint64 offset = 1;
   bytes data = 2;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportHtmlCompletion {
   uint64 size_bytes = 1;
   string sha256 = 2;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 // Report metadata first, then contiguous chunks in offset order, then completion. Verify size and SHA-256 and
 // require a successful final RPC response/status before accepting the bytes.
 message ReportHtmlFrame {
   ReportHtmlFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportHtmlFramePayload {
   oneof kind {
     ReportMetadata report = 1;
@@ -2978,7 +2649,6 @@ message ReportHtmlFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportMetadata {
   string test_cycle_id = 1;
   optional string test_execution_id = 2;
@@ -2989,14 +2659,12 @@ message ReportMetadata {
   repeated string warnings = 7;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 enum ReportOrigin {
   REPORT_ORIGIN_UNSPECIFIED = 0;
   REPORT_ORIGIN_SEALED = 1;
   REPORT_ORIGIN_CURRENT = 2;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 enum ReportState {
   REPORT_STATE_UNSPECIFIED = 0;
   REPORT_STATE_PENDING = 1;
@@ -3004,13 +2672,11 @@ enum ReportState {
   REPORT_STATE_FAILED = 3;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportStatus {
   ReportState state = 1;
   optional string failure = 2;
 }
 
-// Source: crates/dokime-domain/src/model/reports/wire.rs
 message ReportSubject {
   oneof kind {
     string execution = 1;
@@ -3018,14 +2684,12 @@ message ReportSubject {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message RerunCaseNotice {
   string case_id = 1;
   string suite_id = 2;
   string reason = 3;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message RerunCycleReply {
   string cycle_id = 1;
   Cursor observed_cursor = 2;
@@ -3033,7 +2697,6 @@ message RerunCycleReply {
   repeated RerunCaseNotice dropped_parameters = 4;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum ResultStatus {
   RESULT_STATUS_UNSPECIFIED = 0;
   RESULT_STATUS_PENDING = 1;
@@ -3043,7 +2706,6 @@ enum ResultStatus {
   RESULT_STATUS_CANCELLED = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ResultSummary {
   ResultStatus status = 1;
   uint32 passed = 2;
@@ -3054,7 +2716,6 @@ message ResultSummary {
   uint32 not_evaluated = 7;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message RuntimeShellSnapshot {
   string session_id = 1;
   uint64 revision = 2;
@@ -3067,7 +2728,6 @@ message RuntimeShellSnapshot {
   optional string next_after_cycle_id = 9;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message RuntimeStateFrame {
   Cursor cursor = 1;
   bool resynchronized = 2;
@@ -3076,7 +2736,6 @@ message RuntimeStateFrame {
   repeated OperationProgress operations = 5;
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message SamplePage {
   repeated SampleRow rows = 1;
   Schema schema = 2;
@@ -3086,7 +2745,6 @@ message SamplePage {
   bool complete = 6;
 }
 
-// Source: crates/dokime-domain/src/model/query/page.rs
 message SampleRow {
   oneof kind {
     TelemetrySample raw = 1;
@@ -3094,7 +2752,6 @@ message SampleRow {
   }
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message SavedCycleSummary {
   string cycle_id = 1;
   Metadata metadata = 2;
@@ -3105,62 +2762,52 @@ message SavedCycleSummary {
   bool archived = 7;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message SavedRecord {
   string epoch = 1;
   CapturedRecord record = 2;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 message SavedTelemetrySample {
   string epoch = 1;
   uint64 ordinal = 2;
   TelemetrySample sample = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/schema.rs
 message Schema {
   string identity = 1;
   repeated uint32 versions = 2;
   repeated Field fields = 3;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message ScientificFormat {
   uint32 significant_digits = 1;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 message SecretArchive {
   bytes data = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SecretAvailability {
   string identifier = 1;
   bool available = 2;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 enum SecretImportAction {
   SECRET_IMPORT_ACTION_UNSPECIFIED = 0;
   SECRET_IMPORT_ACTION_REPLACE = 1;
   SECRET_IMPORT_ACTION_SKIP = 2;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 message SecretImportChoice {
   string identifier = 1;
   SecretImportAction action = 2;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 message SecretImportEntry {
   Metadata metadata = 1;
   bool exists = 2;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 message SecretImportPreview {
   string host_id = 1;
   string host_label = 2;
@@ -3168,12 +2815,10 @@ message SecretImportPreview {
   repeated SecretImportEntry entries = 4;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 message SecretLookupValue {
   optional string value = 1;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 message SecretSnapshot {
   string host_id = 1;
   string host_label = 2;
@@ -3182,18 +2827,15 @@ message SecretSnapshot {
   bool cleanup_pending = 5;
 }
 
-// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 message SecretSummary {
   Metadata metadata = 1;
   repeated string known_uses = 2;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message SelectedFile {
   SelectedFileKind kind = 1;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message SelectedFileKind {
   oneof kind {
     string value = 1;
@@ -3201,7 +2843,6 @@ message SelectedFileKind {
   }
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 // Selections and case_ids are mutually exclusive. Preserve order and duplicate selections. At most 256
 // selections and 1000 expanded cases; max_cases zero uses that case cap. A cycle_id continues that cycle's label
 // numbering.
@@ -3212,12 +2853,10 @@ message SelectionPlan {
   string cycle_id = 4;
 }
 
-// Source: crates/dokime-domain/src/model/planning/wire.rs
 message SelectionValues {
   repeated Value values = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsCard {
   string plugin_id = 1;
   string card_id = 2;
@@ -3230,12 +2869,10 @@ message SettingsCard {
   int32 order = 9;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsCardRefreshPolicy {
   SettingsCardRefreshPolicyPolicy policy = 1;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsCardRefreshPolicyPolicy {
   oneof kind {
     ManualRefresh manual = 1;
@@ -3244,7 +2881,6 @@ message SettingsCardRefreshPolicyPolicy {
   }
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 enum SettingsCardState {
   SETTINGS_CARD_STATE_UNSPECIFIED = 0;
   SETTINGS_CARD_STATE_READY = 1;
@@ -3255,14 +2891,12 @@ enum SettingsCardState {
   SETTINGS_CARD_STATE_PERMISSION_DENIED = 6;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsFrame {
   BootstrapPaths bootstrap_paths = 1;
   repeated SettingsSection sections = 2;
   repeated SettingsCard cards = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsSection {
   string section_id = 1;
   string label = 2;
@@ -3271,7 +2905,6 @@ message SettingsSection {
   int32 order = 5;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message SettingsSectionOwner {
   oneof kind {
     bool app = 1;
@@ -3279,25 +2912,21 @@ message SettingsSectionOwner {
   }
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message SettingsSnapshot {
   uint64 revision = 1;
   ApplicationSettings settings = 2;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message SiPrefixFormat {
   uint32 significant_digits = 1;
 }
 
-// Source: crates/dokime-domain/src/model/query/snapshot.rs
 message Snapshot {
   string token = 1;
   string identity = 2;
   google.protobuf.Timestamp expires_at = 3;
 }
 
-// Source: crates/dokime-domain/src/model/query/snapshot.rs
 message SnapshotRef {
   oneof kind {
     string token = 1;
@@ -3305,7 +2934,6 @@ message SnapshotRef {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message StartExecutionOutcome {
   oneof kind {
     Admission accepted = 1;
@@ -3313,14 +2941,12 @@ message StartExecutionOutcome {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 // Admission or resolution of an existing start identity, never execution completion. Read the execution and
 // watch its state after acceptance; cancelling the start call alone does not cancel admitted work.
 message StartExecutionReply {
   StartExecutionOutcome outcome = 1;
 }
 
-// Source: crates/dokime-domain/src/model/query/reduction.rs
 message StatisticValue {
   oneof kind {
     uint64 count = 1;
@@ -3328,7 +2954,6 @@ message StatisticValue {
   }
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message StepCriterion {
   string criterion_id = 1;
   Metadata metadata = 2;
@@ -3338,7 +2963,6 @@ message StepCriterion {
   uint64 ordinal = 6;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message StepMeasurement {
   Metadata metadata = 1;
   Value value = 2;
@@ -3346,7 +2970,6 @@ message StepMeasurement {
   uint64 ordinal = 4;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message StepPageCursor {
   Cursor revision = 1;
   string execution_id = 2;
@@ -3355,14 +2978,12 @@ message StepPageCursor {
   uint64 next_ordinal = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum StepPageKind {
   STEP_PAGE_KIND_UNSPECIFIED = 0;
   STEP_PAGE_KIND_STEPS = 1;
   STEP_PAGE_KIND_MEASUREMENTS = 2;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 enum StepStatus {
   STEP_STATUS_UNSPECIFIED = 0;
   STEP_STATUS_PENDING = 1;
@@ -3373,7 +2994,6 @@ enum StepStatus {
   STEP_STATUS_CANCELLED = 6;
 }
 
-// Source: crates/dokime-domain/src/model/history/wire.rs
 enum StepTermination {
   STEP_TERMINATION_UNSPECIFIED = 0;
   STEP_TERMINATION_COMPLETED = 1;
@@ -3388,7 +3008,6 @@ message StorageCursor {
   uint64 sequence = 2;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message StorageSource {
   string identifier = 1;
   string adapter = 2;
@@ -3396,7 +3015,6 @@ message StorageSource {
   bool enabled = 4;
 }
 
-// Source: crates/dokime-domain/src/model/settings/wire.rs
 message StorageSources {
   repeated StorageSource sources = 1;
 }
@@ -3407,14 +3025,12 @@ message StoreHistory {
   string epoch = 2;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message SuiteIdentity {
   string suite_id = 1;
   string source = 2;
   Metadata metadata = 3;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message TelemetryColumn {
   Metadata metadata = 1;
   ValueType value_type = 2;
@@ -3427,12 +3043,10 @@ message TelemetryColumn {
   ValueFormat format = 9;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message TelemetryPreferences {
   uint64 interval_ms = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum TelemetryRole {
   TELEMETRY_ROLE_UNSPECIFIED = 0;
   TELEMETRY_ROLE_VALUE = 1;
@@ -3443,7 +3057,6 @@ enum TelemetryRole {
   TELEMETRY_ROLE_THROUGHPUT = 6;
 }
 
-// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 message TelemetrySample {
   // Original row bytes interpreted using the frozen stream descriptor.
   bytes payload = 12;
@@ -3460,20 +3073,17 @@ message TelemetrySample {
   MapValue metadata = 11;
 }
 
-// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 message TelemetrySamplesReply {
   repeated TelemetrySample samples = 1;
   repeated TelemetrySamplesReplyThroughStreamCursorsEntry through_stream_cursors = 2;
   bool complete = 3;
 }
 
-// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 message TelemetrySamplesReplyThroughStreamCursorsEntry {
   string key = 1;
   uint64 value = 2;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message TelemetrySchema {
   string stream = 1;
   uint32 schema_version = 2;
@@ -3489,14 +3099,12 @@ message TelemetrySchema {
   bool foreign = 12;
 }
 
-// Source: crates/dokime-domain/src/model/catalog/wire.rs
 message TelemetrySchemaIdentity {
   string stream = 1;
   uint32 schema_version = 2;
   Metadata metadata = 3;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 enum ThemeMode {
   THEME_MODE_UNSPECIFIED = 0;
   THEME_MODE_SYSTEM = 1;
@@ -3504,7 +3112,6 @@ enum ThemeMode {
   THEME_MODE_DARK = 3;
 }
 
-// Source: crates/dokime-domain/src/model/observation/wire.rs
 message TraceabilityPage {
   EvidenceScope scope = 1;
   repeated TraceabilitySnapshot snapshots = 2;
@@ -3514,7 +3121,6 @@ message TraceabilityPage {
   string host_traceability_fingerprint = 6;
 }
 
-// Source: crates/dokime-domain/src/model/identity/wire.rs
 message TraceabilitySnapshot {
   string traceability_id = 1;
   EvidenceScope scope = 2;
@@ -3523,7 +3129,6 @@ message TraceabilitySnapshot {
   Metadata metadata = 5;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum UnitFamily {
   UNIT_FAMILY_UNSPECIFIED = 0;
   UNIT_FAMILY_COUNT = 1;
@@ -3537,18 +3142,15 @@ enum UnitFamily {
   UNIT_FAMILY_CUSTOM = 9;
 }
 
-// Source: crates/dokime-domain/src/model/settings/application.rs
 message UpdateSettings {
   uint64 expected_revision = 1;
   ApplicationSettings settings = 2;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message UploadArtifactFrame {
   UploadArtifactFramePayload payload = 1;
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message UploadArtifactFramePayload {
   oneof kind {
     UploadArtifactHeader header = 1;
@@ -3557,7 +3159,6 @@ message UploadArtifactFramePayload {
   }
 }
 
-// Source: crates/dokime-domain/src/model/content/wire.rs
 message UploadArtifactHeader {
   ArtifactScope scope = 1;
   string filename = 2;
@@ -3566,26 +3167,22 @@ message UploadArtifactHeader {
   optional string sha256 = 5;
 }
 
-// Source: crates/dokime-domain/src/model/execution/wire.rs
 message ValidationIssue {
   string path = 1;
   string message = 2;
   optional string expected = 3;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 enum ValidationMode {
   VALIDATION_MODE_UNSPECIFIED = 0;
   VALIDATION_MODE_STRICT = 1;
   VALIDATION_MODE_PROTOTYPE = 2;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message ValueFormat {
   ValueFormatKind kind = 1;
 }
 
-// Source: crates/dokime-domain/src/model/definition/wire.rs
 message ValueFormatKind {
   oneof kind {
     NormalFormat normal = 1;
@@ -3599,7 +3196,6 @@ message ValueFormatKind {
   }
 }
 
-// Source: crates/dokime-domain/src/model/query/selection.rs
 message Window {
   google.protobuf.Timestamp start = 1;
   google.protobuf.Timestamp end = 2;

@@ -9,15 +9,9 @@
 
 /* === Modules === */
 
-pub mod build;
 pub mod bundle;
-mod error;
-pub mod installer;
-pub mod process;
 
 /* === Re-Exports === */
-
-pub use error::Error;
 
 /* === Imports === */
 
@@ -32,6 +26,8 @@ pub use error::Error;
 /* === Macros === */
 
 /* === Type Aliases === */
+
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /* === Structs === */
 

@@ -140,7 +140,9 @@ pub(super) fn execution_scope(scope: Option<&v1::EvidenceScope>) -> Result<&str>
         .filter(|identifier| !identifier.is_empty())
         .ok_or_else(|| Error::Invalid("Read Requires an Execution Identifier".into()))
 }
-pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &v1::OperatorQuestion) -> Result<v1::Prompt> {
+pub(super) fn prompt_definition(
+    snapshot: &ExecutionSnapshot, question: &dokime_protocol::context::PromptsCreateRequest,
+) -> Result<v1::Prompt> {
     if let Some(definition) = &question.definition {
         return Ok(definition.clone());
     }
@@ -219,7 +221,7 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
         if !snapshot.step_contains(step.unwrap_or_default(), evidence.position) {
             continue;
         }
-        let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         let mut scope = scope(snapshot);
         scope.step_id = Some(evidence.step.clone());
         records.push(v1::CapturedRecord {
@@ -280,12 +282,13 @@ pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
 pub(super) fn prompt_id(execution: &str, prompt: &str, position: u64) -> String {
     format!("{execution}/{prompt}/{position}")
 }
-pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, v1::OperatorQuestion)> {
+pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, dokime_protocol::context::PromptsCreateRequest)> {
     for (execution, question) in context.host.pending()? {
         let snapshot = super::execution_state::evidence(context, &execution)?;
         if let Some(entry) = snapshot.evidence.iter().rev().find(|entry| {
             entry.kind == "prompt"
-                && v1::OperatorQuestion::decode(entry.payload.as_slice()).is_ok_and(|stored| stored.prompt == question.prompt)
+                && dokime_protocol::context::PromptsCreateRequest::decode(entry.payload.as_slice())
+                    .is_ok_and(|stored| stored.prompt == question.prompt)
         }) && prompt_id(&execution, &question.prompt, entry.position) == identifier
         {
             return Ok((execution, question));

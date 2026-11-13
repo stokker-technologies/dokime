@@ -373,46 +373,25 @@ impl Session {
             .await?;
         session.product_epoch = cycles.cursor.filter(|cursor| !cursor.epoch.is_empty()).ok_or(Error::IncompleteIdentity)?.epoch;
         let mut methods = std::collections::BTreeSet::new();
-        let mut tokens = std::collections::BTreeSet::new();
-        let mut token = String::new();
+        let catalog: dokime_sdk::client::v1::CatalogEntriesListResponse = session
+            .unary(
+                "/harmos.v1.CatalogEntries/List",
+                dokime_sdk::client::v1::CatalogEntriesListRequest {
+                    kind: dokime_sdk::client::v1::CatalogKind::Operations as i32,
+                    ..Default::default()
+                },
+            )
+            .await?;
         let mut retained_bytes = 0usize;
-        loop {
-            let page: dokime_sdk::client::v1::CatalogEntriesListResponse = session
-                .unary(
-                    "/harmos.v1.CatalogEntries/List",
-                    dokime_sdk::client::v1::CatalogEntriesListRequest {
-                        kind: dokime_sdk::client::v1::CatalogKind::Operations as i32,
-                        page: Some(dokime_sdk::client::v1::PageRequest {
-                            page_size: settings
-                                .services
-                                .page_items
-                                .try_into()
-                                .map_err(|_| Status::invalid_argument("Discover Host Operations: Configure a Valid Page Bound"))?,
-                            max_bytes: settings.services.message_bytes as u64,
-                            page_token: token,
-                        }),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            for operation in page.operations.into_iter().filter(|operation| operation.grpc_available) {
-                if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
-                    let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method);
-                    retained_bytes = retained_bytes.saturating_add(path.len());
-                    methods.insert(path);
-                }
+        for operation in catalog.operations.into_iter().filter(|operation| operation.grpc_available) {
+            if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
+                let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method);
+                retained_bytes = retained_bytes.saturating_add(path.len());
+                methods.insert(path);
             }
-            token = page.next_page_token;
-            retained_bytes = retained_bytes.saturating_add(token.len());
-            if retained_bytes > settings.client.retained_bytes.get() {
-                return Err(Status::resource_exhausted("Discover Host Operations: Catalog Exceeds the Connection Retention Budget").into());
-            }
-            if token.is_empty() {
-                break;
-            }
-            if !tokens.insert(token.clone()) {
-                return Err(Status::data_loss("Discover Host Operations: Page Cursor Did Not Advance").into());
-            }
+        }
+        if retained_bytes > settings.client.retained_bytes.get() {
+            return Err(Status::resource_exhausted("Discover Host Operations: Catalog Exceeds the Connection Retention Budget").into());
         }
         session.methods = methods.into_iter().collect();
         Ok(session)
@@ -526,6 +505,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
             stream_buffer: stream_buffer.get(),
         },
         client: ClientSettings {
+            transfer: dokime_sdk::client::StorageTransferSettings::default(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).expect("desktop retained bytes"),
             message_bytes,
             input_items: stream_buffer,

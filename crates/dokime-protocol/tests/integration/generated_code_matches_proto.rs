@@ -101,17 +101,26 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(vendored, published);
 
     // Compare Protocol Outputs, Retaining Evidence on Failure.
-    for (generated, committed) in [
-        ("dokime.v1.rs", "src/v1.rs"),
-        ("descriptors.bin", "src/descriptors.bin"),
-        ("reflection.rs", "src/reflection.rs"),
-        ("sources.rs", "src/sources.rs"),
-    ] {
-        let actual = fs::read(output.path().join(generated))?;
-        let expected = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(committed))?;
+    for entry in fs::read_dir(output.path())? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_str().ok_or("Generated Filename Is Not UTF-8")?;
+        if name.starts_with("harmos.") {
+            continue;
+        }
+        let destination = match name {
+            "descriptors.bin" | "reflection.rs" | "sources.rs" => Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(name),
+            _ => Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated").join(name),
+        };
+        let actual = fs::read(entry.path())?;
+        let expected = fs::read(&destination)?;
         if actual != expected {
             let output = output.keep();
-            panic!("generated Rust differs from {committed}; run mise run generate -- --protocol; evidence: {}", output.display());
+            panic!(
+                "generated Rust differs from {}; run mise run generate -- --protocol; evidence: {}",
+                destination.display(),
+                output.display()
+            );
         }
     }
     Ok(())

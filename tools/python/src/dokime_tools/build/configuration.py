@@ -16,7 +16,6 @@ import argparse
 import os
 import subprocess
 import sys
-import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
@@ -42,30 +41,8 @@ PROFILES = policy.PROFILES
 # === Public Functions === #
 
 
-def features(profile: str, *, desktop: bool = True, extended: bool = False) -> list[str]:
-    """Resolve The Repository-Owned Shipping Feature Configuration."""
-    declaration = tomllib.loads((ROOT / "mise.toml").read_text(encoding="utf-8"))["vars"]
-    selected = [declaration["rust_plugin_features"]]
-    if desktop:
-        selected.append(declaration["rust_desktop_features"])
-    if profile == "release":
-        selected.append(declaration["rust_release_features"])
-    if extended:
-        selected.append(declaration["rust_extended_features"])
-    return ["--features", ",".join(selected)] if selected else []
-
-
 def messages(profile: str) -> Path:
     return paths.output(ROOT, "build", profile) / "product/compiler.json"
-
-
-def test_features(profile: str, *, extended: bool = False) -> list[str]:
-    """Resolve The Canonical Tests Configuration For Producers And Focused Consumers."""
-    return [
-        *features(profile, desktop=False, extended=extended),
-        "--features",
-        "dokime-runtime/testing,dokime-gui/testing",
-    ]
 
 
 def relative(paths: list[Path]) -> list[str]:

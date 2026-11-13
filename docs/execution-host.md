@@ -1,11 +1,10 @@
 # New Execution Host
 
-The independent host is built beside the current command-line and desktop host.
+The execution host serves the command-line tool and SDK clients.
 `dokime-runtime-next` composes plugin entries, scoped unary lifecycle dispatch,
 controlled orchestration time and cycle execution. `dokime-operations-next` owns
 one declaration and handler per supported host operation. `dokime-storage` owns
-SQLite execution evidence and Arrow IPC sample batches. These crates have no
-normal dependency on the old domain, runtime, server, client or facade.
+SQLite execution evidence and Arrow IPC sample batches. The SDK depends only on product protocol and the library SDK.
 
 ## Live Ownership
 
@@ -74,8 +73,10 @@ Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode
 The storage root retains a backend identity; each process has a new boot epoch.
 Before opening the evidence database, the host takes the root's exclusive
 `local.lock` lease. An occupied root returns `Error::OccupiedRoot` with its path;
-stop its owner or choose another root. Cloned host handles and execution workers
-retain the lease until they are dropped after shutdown. A stale lock file after
+stop its owner or choose another root. Shutdown releases the lease once owned work
+has settled, so the same process can reopen the root; a handle that remains refuses
+new plugins and cycles. A host dropped without shutdown releases the lease with its
+last handle and its execution workers. A stale lock file after
 a crash is harmless: the operating system releases the lock, and no data is reset.
 The bootstrap listener accepts loopback addresses. The library's Access.Listener.Get/Set
 owns the separate authenticated TLS listener. Enable it with the revision from Get,
@@ -265,7 +266,7 @@ policies retain their own deadlines.
 
 ## Command-Line Candidate
 
-`crates/dokime-cli-next` builds `dokime-next`, beside the old installed tool.
+`crates/dokime-cli-next` builds the current `dokime-next` tool.
 Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
 half. Build with `mise run build -- --package dokime-cli-next`.
 
@@ -356,7 +357,7 @@ The base host refuses managed `Plugins.Install`/`Plugins.Remove`, cycle
 `StartExecution`/`StopExecution`. Their commands send real SDK requests and report
 the host's named refusal. The service owners complete these independently;
 `first_hour_from_rust_bundle_to_python_remote` requires their convergence.
-`remote_first_hour_runs_rust_and_python` exercises the currently served route.
+`remote_first_hour_runs_rust_and_python` exercises the currently served workflow.
 `scaffold_languages_and_export_protocol_without_a_host` covers all four starters,
 existing-destination preservation and embedded proto export.
 
@@ -368,9 +369,24 @@ mise run test -- --package dokime-cli-next --target system
 The fixture producer uses `dokime-next new`, builds that exact generated Rust
 project through its mise task against the local SDK candidate, and exports its
 sources/executable with Tests. Stories compare generated source bytes and never
-compile plugins. Tests Build includes this producer. `dokime installer package`,
-old tool removal, installed binary naming and desktop migration remain cutover
-work; installer packaging stays with the old tool until then.
+compile plugins. Tests Build includes this producer.
+Installed binary renaming and desktop integration remain on the combined restoration checklist. Installer packaging is not selected in this candidate.
+
+## Canonical Selection Requests
+
+`dokime-next plan preview --input-file preview.json --json` accepts a
+PlanningPreviewSelectionRequest in protobuf JSON. `plan register --input-file
+register.json --out cases.pb --json` accepts PlanningRegisterSelectionRequest,
+including the caller-retained idempotency_key. Replaying the same request returns
+the original registered reply; changing it under that key conflicts. `--out` saves
+the protobuf reply for `cycle create --cases cases.pb`.
+
+```json
+{"plan":{"selections":[{"suite_id":"<catalog suite ID>","template_id":"example.capture"}],"max_cases":1},"idempotency_key":"my-selection"}
+```
+
+Omit idempotency_key in a preview request. `cycle report <cycle-id> --out cycle.html`
+downloads a verified HTML preview and refuses to overwrite an existing output.
 
 ## Compare Every SDK
 
@@ -537,13 +553,167 @@ series plus typed parameters and returns its declared `AnalysisValues`.
 | Storage Documents | `plot_preferences`, `save_plot_preferences`, `document_value`, `document_value_filtered`, `document_distinct` |
 | Storage Queries | `read_session`, `cycle_execution_page`, `cycle_is_sealed`, `plot_selection`, `plot_group_values`, `select_plot_group`, `sigma_window`, `contour_scaled_window`, `sampled_time_series_window` |
 
-## Cutover
+## Desktop Integration
 
-CLI and desktop still use the old host. The integration cutover must migrate
-those consumers, delete the superseded loop, crates and tests, and rename the
-`-next` crates. The console-free process constructor is copied from `dokime-domain/src/process/`
-into the new runtime. Delete its old owner at cutover; no old crate is imported.
-The dispatcher uses the published `harmos.v1.Request.scope` field directly;
-it does not call the old Harmos runtime's scope-losing invocation API and needs
-no local path override. The native-runtime scoped-call adoption remains with
-its owning cutover.
+The desktop native package is temporarily excluded from Cargo membership while
+its independent host switch is completed. Restore workspace/default membership,
+native Product builds, generated settings checks, hosted native/system stories,
+benchmarks, distribution/installer packaging and signing together using the task
+in `openspec/changes/grpc-plugins/tasks.md`. The frontend source remains present.
+
+## Context Protocol Packages
+
+Plugin child calls for records, logs, statistics, prompts, document parts,
+file capture and environment use `dokime.context.v1` and its nested packages.
+Their wrappers are `<Service><Method>Request/Response`; identities are
+`package.Service/Method`. These declarations add no client gRPC entry methods.
+Environment and Time.Get now resolve through the active invocation and the
+host clock. Document and file-capture declarations still need their remaining
+handlers; the grammar task list retains those obligations.
+
+The plugin lifecycle, client resource split, Progress/Traceability/Effects
+revision contracts, HostValues and library plugin/transfer composition remain
+open. The lifecycle binding-policy dependency has a failing consumer proof in
+Library Requests. Existing context groups are replaced without wire aliases.
+
+## Present Operation to Grammar Name
+
+The locked client mapping below is the desktop adapter's rename inventory.
+Each automatic `Run` twin maps to the same destination and is removed. A `+`
+separates workflow calls. Service groups migrate with their consumers; the
+operation-grammar task list records which replacements are implemented.
+
+| Present Operation | Grammar Name |
+| --- | --- |
+| `Appearance.GetAppearance` | `Backend.Appearance` |
+| `Backend.CollectDiagnostics` | `Status.Diagnostics.Get` |
+| `Backend.GetAvailability` | `Status.Get` |
+| `Backend.GetHealth` | `Status.Get` |
+| `Backend.GetIdentity` | `Status.Get` |
+| `Backend.WatchLogs` | `Status.Logs.Watch` |
+| `Backend.WatchTrace` | `Status.TraceEvents.Watch` |
+| `Catalog.GetRecordSchema` | `Catalog.RecordSchemas.Get` |
+| `Catalog.GetSuite` | `Catalog.Suites.Get` |
+| `Catalog.GetTelemetrySchema` | `Catalog.StreamSchemas.Get` |
+| `Catalog.ListRecordSchemas` | `Catalog.RecordSchemas.List` |
+| `Catalog.ListSuites` | `Catalog.Suites.List` |
+| `Catalog.ListTelemetrySchemas` | `Catalog.StreamSchemas.List` |
+| `Content.DownloadAppearanceAsset` | `Storage.GetFileBytes` |
+| `Content.DownloadArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` |
+| `Content.DownloadEvidence` | `Evidence.Archive` + `Storage.GetFileBytes` |
+| `Content.DownloadExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.GetFileBytes` |
+| `Content.FollowExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.WatchFileBytes` |
+| `Content.ListArtifacts` | `Content.Artifacts.List` |
+| `Content.ListExecutionFiles` | `Content.ExecutionFiles.List` |
+| `Content.ReadExecutionFile` | `Content.ExecutionFiles.Get` |
+| `Content.UploadArtifact` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Content.Artifacts.Create` |
+| `Documents.CaptureCurrentDocument` | `Documents.Get` |
+| `Documents.UpdatePlotSettings` | `Plots.Settings.Set` |
+| `Evidence.GetCapturedRecordSchema` | `Catalog.RecordSchemas.Get` |
+| `Evidence.ListRecords` | `Evidence.Records.List` |
+| `Evidence.WatchRecords` | `Evidence.Records.Watch` |
+| `Execution.AppendExecutions` | `Executions.Create` |
+| `Execution.CancelExecution` | `Executions.Cancel` |
+| `Execution.CreateCycle` | `Cycles.Create` |
+| `Execution.DeleteCase` | `Cases.Delete` |
+| `Execution.GetCase` | `Cases.Get` |
+| `Execution.GetCycle` | `Cycles.Get` |
+| `Execution.GetExecution` | `Executions.Get` |
+| `Execution.GetExecutionCommand` | `Executions.Commands.Get` |
+| `Execution.ListCaseParameters` | `Cases.Parameters` |
+| `Execution.ListCases` | `Cases.List` |
+| `Execution.ListCycles` | `Cycles.List` |
+| `Execution.ListExecutionParameters` | `Executions.Parameters` |
+| `Execution.ListExecutionSteps` | `Executions.Steps` |
+| `Execution.ListExecutions` | `Executions.List` |
+| `Execution.PauseCycle` | `Cycles.Set` |
+| `Execution.PauseExecution` | `Executions.Set` |
+| `Execution.RenameCycle` | `Cycles.Set` |
+| `Execution.RenameExecution` | `Executions.Set` |
+| `Execution.RerunCycle` | `Cycles.Create` |
+| `Execution.ResumeCycle` | `Cycles.Set` |
+| `Execution.ResumeExecution` | `Executions.Set` |
+| `Execution.SealCycle` | `Cycles.Seal` |
+| `Execution.SetCycleArchived` | `Cycles.Set` |
+| `Execution.SetExecutionArchived` | `Executions.Set` |
+| `Execution.StartExecution` | `Executions.Start` |
+| `Execution.StopExecution` | `Executions.Stop` |
+| `Execution.SubmitExecutionCommand` | `Executions.Commands.Create` |
+| `Execution.UpdateCyclePolicy` | `Cycles.Set` |
+| `Health.ListHealth` | `Evidence.HealthEvents.List` |
+| `History.BrowseCycles` | `Cycles.List` |
+| `History.BrowseExecutions` | `Executions.List` |
+| `History.DeleteExecution` | `Executions.Delete` |
+| `History.DownloadCheckpointArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` |
+| `History.GetCheckpointContext` | `Executions.Get` + `Cycles.Get` + `Documents.Get` + `Prompts.List` + `Evidence.HealthEvents.List` + `Evidence.Notes.List` + `Evidence.Traceability.Get` + `Backend.Appearance` |
+| `History.GetCheckpointDocument` | `Documents.Get` |
+| `History.GetCheckpointEvidence` | `Content.Artifacts.List` + `Content.ExecutionFiles.List` + `Catalog.RecordSchemas.List` + `Catalog.StreamSchemas.List` |
+| `History.GetExecutionCheckpoint` | `Executions.Get` |
+| `History.ListCheckpointRecords` | `Evidence.Records.List` |
+| `History.ListCheckpointTelemetry` | `Evidence.Samples.List` |
+| `History.ReadCheckpointOutput` | `Content.ExecutionFiles.Get` |
+| `Media.AudioRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
+| `Media.CameraRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
+| `Media.Photo` | `Media.Captures.Create` |
+| `Media.ScreenRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
+| `Media.Screenshot` | `Media.Captures.Create` |
+| `Notes.CreateNote` | `Evidence.Notes.Create` |
+| `Notes.EditNote` | `Evidence.Notes.Set` |
+| `Notes.ListNotes` | `Evidence.Notes.List` |
+| `Observation.GetRuntimeShell` | `Backend.Overview.Get` |
+| `Observation.GetTraceability` | `Evidence.Traceability.Get` |
+| `Observation.WatchExecutionProgress` | `Executions.Progress.Watch` |
+| `Observation.WatchRuntime` | `Backend.Overview.Watch` |
+| `Planning.MaterializeTemplate` | `Cases.Create` |
+| `Planning.PreviewSelection` | `Cases.Create` |
+| `Planning.RegisterSelection` | `Cases.Create` |
+| `Plots.ListAnalyses` | `Catalog.Analyses` |
+| `Plots.QuerySnapshots` | `Plots.Snapshots.List` |
+| `Plots.Watch` | `Plots.Snapshots.Watch` |
+| `Plugins.GetInstallation` | `Plugins.Get` |
+| `Plugins.Install` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Plugins.Create` |
+| `Plugins.ListAdmittedPlugins` | `Plugins.List` |
+| `Plugins.ListInstallations` | `Plugins.List` |
+| `Plugins.Reload` | `Plugins.Restart` |
+| `Plugins.Remove` | `Plugins.Delete` |
+| `Plugins.SetEnabled` | `Plugins.Set` |
+| `Plugins.List` | `Plugins.List` |
+| `Plugins.Add` | `Plugins.Create` |
+| `Prompts.GetDefinition` | `Catalog.PromptDefinitions.Get` |
+| `Prompts.GetPrompt` | `Prompts.Get` |
+| `Prompts.ListDefinitions` | `Catalog.PromptDefinitions.List` |
+| `Prompts.ListPending` | `Prompts.List` |
+| `Prompts.Respond` | `Prompts.Answers.Create` |
+| `Query.Aggregate` | `Aggregates.Get` |
+| `Query.AggregateSamples` | `Evidence.Statistics` |
+| `Query.ListCycles` | `Cycles.List` |
+| `Query.ListExecutions` | `Executions.List` |
+| `Query.ListRecords` | `Evidence.Records.List` |
+| `Query.ListSamples` | `Evidence.Samples.List` |
+| `Remote.CreatePairing` | `Access.Pairings.Create` |
+| `Remote.ReadListener` | `Access.Listener.Get` |
+| `Remote.RegenerateCertificate` | `Access.Certificates.Create` |
+| `Remote.UpdateListener` | `Access.Listener.Set` |
+| `Reports.PublishExecutionReport` | `Reports.Publish` |
+| `Reports.DownloadCycleReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` |
+| `Reports.DownloadExecutionReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` |
+| `Reports.MaterializeReport` | `Reports.Create` |
+| `Runtime.GetHealth` | `Status.Get` |
+| `Runtime.GetIdentity` | `Status.Get` |
+| `Secrets.Export` | `Secrets.Export` |
+| `Secrets.Import` | `Secrets.Import` |
+| `Secrets.List` | `Secrets.List` |
+| `Secrets.Lookup` | `Secrets.Get` |
+| `Secrets.Preview` | `Secrets.Import` |
+| `Secrets.Put` | `Secrets.Set` |
+| `Secrets.Remove` | `Secrets.Delete` |
+| `Settings.GetPluginSettings` | `Plugins.Settings.Get` |
+| `Settings.GetSettings` | `Settings.Schema` |
+| `Settings.ListStorageSources` | `Storage.Sources.Get` |
+| `Settings.ReadApplicationSettings` | `Settings.Get` |
+| `Settings.ReorderStorageSources` | `Storage.Sources.Set` |
+| `Settings.SetStorageSourceEnabled` | `Storage.Sources.Set` |
+| `Settings.UpdateApplicationSettings` | `Settings.Set` |
+| `Settings.UpdatePluginSettings` | `Plugins.Settings.Set` |
+| `Telemetry.ListSamples` | `Evidence.Samples.List` |
+| `Telemetry.WatchSamples` | `Evidence.Samples.Watch` |

@@ -22,14 +22,12 @@ from unittest.mock import patch
 
 from environment import isolate_environment
 
-from dokime_tools.build import cargo, lint, organization
+from dokime_tools.build import cargo, organization
 from dokime_tools.build.rust import __main__ as product
-from dokime_tools.build.rust import desktop
 
 # Third Party Imports
 # Local Imports
 from dokime_tools.ci import tasks
-from dokime_tools.prepare import generated
 from dokime_tools.test import archive
 
 # Type Checking Imports
@@ -41,30 +39,6 @@ from dokime_tools.test import archive
 # === Types === #
 
 # === Classes === #
-
-
-class GeneratedContractTests(unittest.TestCase):
-    def test_overlapping_preparations_read_their_own_compiler_records(self):
-        records = []
-        running = False
-
-        def compile_contracts(*args, **kwargs):
-            nonlocal running
-            output = kwargs["stdout"]
-            output.write("inner" if running else "outer")
-            output.flush()
-            if not running:
-                running = True
-                generated.prepare()
-
-        with (
-            patch.object(generated.subprocess, "run", side_effect=compile_contracts),
-            patch.object(
-                generated, "generate", side_effect=lambda messages, **kwargs: records.append(messages.read_text(encoding="utf-8"))
-            ),
-        ):
-            generated.prepare()
-        self.assertEqual(records, ["inner", "outer"])
 
 
 class ProductCompilerRecordTests(unittest.TestCase):
@@ -85,11 +59,8 @@ class ProductCompilerRecordTests(unittest.TestCase):
 
             with (
                 patch.object(product.paths, "output", return_value=root),
-                patch.object(product.configuration, "features", return_value=[]),
-                patch.object(product.frontend, "WEB_ROOT", web),
                 patch.object(product.subprocess, "run", side_effect=compile_product),
                 patch.object(product.outputs, "executables", return_value={}),
-                patch.object(product.plugins, "prepare", return_value=[]),
                 patch.object(product.cargo, "record_target"),
             ):
                 # Retain The Last Successful Record And The Failed Diagnostics
@@ -185,59 +156,6 @@ class IconInputTests(unittest.TestCase):
                 self.assertEqual((destination / "icon.ico").read_bytes(), outputs["icon.ico"])
 
 
-class DesktopBuildTests(unittest.TestCase):
-    def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
-        self.output = self.root / "output"
-        web = self.output / "web"
-        web.mkdir(parents=True)
-        (web / "index.html").write_bytes(b"<html></html>")
-        (self.output / "product").mkdir()
-        self.native = self.root / "dokime-gui.exe"
-        self.native.write_bytes(b"native fixture")
-        self.commands = []
-        self.fail = False
-        self.enterContext(patch.object(desktop, "ROOT", self.root))
-        self.enterContext(patch.object(desktop.paths, "output", return_value=self.output))
-        self.enterContext(patch.object(desktop.frontend, "WEB_ROOT", self.root / "gui"))
-        self.enterContext(patch.object(desktop.configuration, "features", return_value=[]))
-        self.enterContext(patch.object(desktop.configuration, "relative", return_value=[]))
-        self.enterContext(patch.object(desktop.outputs, "executables", return_value={"dokime-gui": self.native}))
-        self.enterContext(patch.object(desktop.cargo, "record_target"))
-        self.enterContext(patch.object(desktop.distribution, "export"))
-        self.enterContext(patch.object(desktop.subprocess, "run", side_effect=self.compile))
-        self.enterContext(patch.dict(desktop.os.environ, {"TAURI_CONFIG": ""}))
-
-    def compile(self, command, **options):
-        self.commands.append(command)
-        if command[1] == "build":
-            if self.fail:
-                raise subprocess.CalledProcessError(1, command)
-            options["stdout"].write(str(len(self.commands)))
-
-    def test_development_reuses_cargo_and_preserves_the_successful_record_on_failure(self):
-        desktop.build("dev")
-        desktop.build("dev")
-        self.assertEqual([command[1] for command in self.commands], ["build", "build"])
-        messages = self.output / "product/desktop-compiler.json"
-        before = messages.read_bytes()
-        self.fail = True
-        with self.assertRaises(subprocess.CalledProcessError):
-            desktop.build("dev")
-        self.assertEqual(messages.read_bytes(), before)
-        self.assertTrue(messages.with_name("desktop-compiler.pending.json").is_file())
-
-    def test_release_and_custom_frontends_retain_the_existing_clean_flow(self):
-        for profile, overlay in (("release", ""), ("dev", '{"build":{"frontendDist":"../custom"}}')):
-            with self.subTest(profile=profile), patch.dict(desktop.os.environ, {"TAURI_CONFIG": overlay}):
-                self.commands.clear()
-                desktop.build(profile)
-                desktop.build(profile)
-                self.assertEqual([command[1] for command in self.commands], ["clean", "build", "clean", "build"])
-
-
 class FocusedCargoTests(unittest.TestCase):
     def test_focused_test_passes_features_before_harness_arguments(self):
         arguments = [
@@ -299,28 +217,6 @@ class FocusedCargoTests(unittest.TestCase):
         ):
             cargo.focused(Path.cwd(), "build", ["--target-dir", "elsewhere"])
         run.assert_not_called()
-
-
-class DesktopLintTests(unittest.TestCase):
-    def test_prepares_missing_frontend_before_linting(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            web = Path(temporary) / "web"
-            arguments = ["--locked", "--workspace", "--profile", "dev"]
-            with patch.object(lint.frontend, "WEB_ROOT", web), patch.object(lint.cargo, "clippy") as clippy:
-                clippy.side_effect = lambda *args: self.assertTrue((web / "dist/index.html").is_file())
-                lint.desktop(arguments)
-            clippy.assert_called_once_with(lint.frontend.ROOT, arguments)
-
-    def test_preserves_existing_frontend(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            web = Path(temporary)
-            dist = web / "dist"
-            dist.mkdir()
-            index = dist / "index.html"
-            index.write_text("existing frontend", encoding="utf-8")
-            with patch.object(lint.frontend, "WEB_ROOT", web), patch.object(lint.cargo, "clippy"):
-                lint.desktop(["--locked"])
-            self.assertEqual(index.read_text(encoding="utf-8"), "existing frontend")
 
 
 # === Public Functions === #

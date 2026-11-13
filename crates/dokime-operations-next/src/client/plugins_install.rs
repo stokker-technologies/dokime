@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,6 +14,8 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
@@ -52,6 +54,7 @@ pub enum Upload {
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
     super::declaration::<v1::PluginsInstallRequest, v1::PluginInstallation>(ID, settings.mutation_timeout)
 }
+
 pub async fn handle(
     context: &Context, mut input: impl Stream<Item = std::result::Result<Upload, tonic::Status>> + Unpin,
 ) -> Result<v1::PluginInstallation> {
@@ -114,17 +117,25 @@ pub async fn handle(
         };
         host.install_plugin_bundle(bytes, cancelled).await
     });
-    match tokio::time::timeout_at(deadline, &mut task).await {
-        Ok(result) => result.map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?,
-        Err(_) => {
-            let _ = cancel.send(());
-            match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
-                // A Completed Commit Wins Cancellation; Report Its Durable Result
-                Ok(reply) => Ok(reply),
-                Err(Error::Cancelled(_)) => Err(Error::Deadline(ID.into())),
-                Err(error) => Err(error),
-            }
+    let cancellation = async {
+        match input.next().await {
+            Some(Ok(Upload::Cancel)) => Ok::<(), Error>(()),
+            Some(Ok(_)) => Err(invalid("Send Only Cancel After Finishing the Upload")),
+            Some(Err(_)) | None => std::future::pending::<Result<()>>().await,
         }
+    };
+    let failure = tokio::select! {
+        biased;
+        result = &mut task => return result.map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?,
+        _ = tokio::time::sleep_until(deadline) => Error::Deadline(ID.into()),
+        result = cancellation => result.err().unwrap_or_else(|| Error::Cancelled("Install Plugin: Cancelled by the Client".into())),
+    };
+    let _ = cancel.send(());
+    match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
+        // A Completed Commit Wins Cancellation; Report Its Durable Result.
+        Ok(reply) => Ok(reply),
+        Err(Error::Cancelled(_)) => Err(failure),
+        Err(error) => Err(error),
     }
 }
 

@@ -222,7 +222,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     if name == "CHANGELOG.md":
         return {"kind": "changelog", "os": "any", "arch": "any", "format": "md"}
     os_name, arch = _platform(name)
-    if format_ == "whl" or name.startswith("dokime-") and re.fullmatch(r"dokime-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz", name):
+    if format_ == "whl" or name.startswith("dokime_sdk-") and re.fullmatch(r"dokime_sdk-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz", name):
         return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": format_}
     if format_ == "deb" and name.startswith(f"{product}_"):
         return {"kind": "installer", "os": "linux", "arch": "x86_64" if name.endswith("_amd64.deb") else arch, "format": "deb"}

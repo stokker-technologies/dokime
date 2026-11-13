@@ -25,7 +25,6 @@ from unittest import mock
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.build import wheel
-from dokime_tools.package import installer
 from dokime_tools.package import run as package_run
 from dokime_tools.release import layout, registry, reports, run
 
@@ -36,12 +35,12 @@ from dokime_tools.release import layout, registry, reports, run
 # === Constants === #
 
 SETTINGS = {"product": "dokime", "provider": "github", "repository": "example/dokime"}
-EXECUTABLES = {"dokime-cli": "cli", "cargo-dokime": "cargo-dokime"}
+EXECUTABLES = {"dokime-cli": "cli", "companion-tool": "companion-tool"}
 EXPECTED = {
     "CHANGELOG.md": ("changelog", "any", "any", "md"),
     "SHA256SUMS": ("checksums", "any", "any", "txt"),
-    "cargo-dokime-0.1.3-x86_64-pc-windows-msvc.zip": ("cargo-dokime", "windows", "x86_64", "zip"),
-    "cargo-dokime-0.1.3-x86_64-unknown-linux-gnu.tar.gz": ("cargo-dokime", "linux", "x86_64", "tar.gz"),
+    "companion-tool-0.1.3-x86_64-pc-windows-msvc.zip": ("companion-tool", "windows", "x86_64", "zip"),
+    "companion-tool-0.1.3-x86_64-unknown-linux-gnu.tar.gz": ("companion-tool", "linux", "x86_64", "tar.gz"),
     "dokime-0.1.3-1.x86_64.rpm": ("installer", "linux", "x86_64", "rpm"),
     "dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe": ("installer", "windows", "x86_64", "exe"),
     "dokime-cli-0.1.3-x86_64-pc-windows-msvc.zip": ("cli", "windows", "x86_64", "zip"),
@@ -52,8 +51,8 @@ EXPECTED = {
     "dokime-plugins-0.1.3-x86_64-pc-windows-msvc.zip": ("plugin", "windows", "x86_64", "zip"),
     "dokime-plugins-0.1.3-x86_64-unknown-linux-gnu.tar.gz": ("plugin", "linux", "x86_64", "tar.gz"),
     "dokime_0.1.3_amd64.deb": ("installer", "linux", "x86_64", "deb"),
-    "dokime-0.1.3-py3-none-any.whl": ("sdk-python", "any", "any", "whl"),
-    "dokime-0.1.3.tar.gz": ("sdk-python", "any", "any", "tar.gz"),
+    "dokime_sdk-0.1.3-py3-none-any.whl": ("sdk-python", "any", "any", "whl"),
+    "dokime_sdk-0.1.3.tar.gz": ("sdk-python", "any", "any", "tar.gz"),
     "dokime-compliance-0.1.3.zip": ("compliance", "any", "any", "zip"),
     "dokime-proto-0.1.3.zip": ("proto", "any", "any", "zip"),
     "dokime-reports-0.1.3.zip": ("reports", "any", "any", "zip"),
@@ -181,7 +180,7 @@ class StageTests(unittest.TestCase):
                         bundle.writestr(name, b"fixture\n")
                 python = root / "target/package/release/any/python"
                 python.mkdir(parents=True)
-                for name in ("dokime-0.1.3-py3-none-any.whl", "dokime-0.1.3.tar.gz"):
+                for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz"):
                     (python / name).write_bytes(b"packaged Python")
                 shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
 
@@ -212,7 +211,7 @@ class StageTests(unittest.TestCase):
                     {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
                 ]
                 settings = {**SETTINGS, "targets": ["windows-x86_64"]}
-                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
+                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime-next"}]}}
                 with (
                     mock.patch.object(run.sbom, "shell", side_effect=shell),
                     mock.patch.object(run.sbom, "workspace", return_value=[]),
@@ -222,7 +221,7 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
                     mock.patch.object(run.packages, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
+                        run.packages, "definitions", return_value=[{"command": "dokime-next", "binary": binary, "output": "cli.zip"}]
                     ),
                     mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),
@@ -241,8 +240,8 @@ class StageTests(unittest.TestCase):
                         files = layout.uploads(root, staged=True)
                 staged = root / run.ASSETS
                 expected = {
-                    "dokime-0.1.3-py3-none-any.whl",
-                    "dokime-0.1.3.tar.gz",
+                    "dokime_sdk-0.1.3-py3-none-any.whl",
+                    "dokime_sdk-0.1.3.tar.gz",
                     installer.name,
                     "dokime-compliance-0.1.3.zip",
                     "dokime-proto-0.1.3.zip",
@@ -277,16 +276,16 @@ class PythonPackagingTests(unittest.TestCase):
         output = root / "target/build/dev/any/python"
         output.mkdir(parents=True)
         (output / ".gitignore").write_text("*")
-        with zipfile.ZipFile(output / "dokime-0.1.3-py3-none-any.whl", "w") as archive:
-            archive.writestr("dokime-0.1.3.dist-info/METADATA", "Name: dokime\nVersion: 0.1.3\n")
-            archive.writestr("dokime-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
+        with zipfile.ZipFile(output / "dokime_sdk-0.1.3-py3-none-any.whl", "w") as archive:
+            archive.writestr("dokime_sdk-0.1.3.dist-info/METADATA", "Name: dokime-sdk\nVersion: 0.1.3\n")
+            archive.writestr("dokime_sdk-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(
                 "dokime/v1/sources.json", json.dumps({"dokime/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()})
             )
             for name in ("surface.pb", "service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
                 archive.writestr("dokime/v1/" + name, b"generated")
-        with tarfile.open(output / "dokime-0.1.3.tar.gz", "w:gz") as archive:
-            member = tarfile.TarInfo("dokime-0.1.3/proto/dokime/v1/service.proto")
+        with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz") as archive:
+            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/v1/service.proto")
             member.size = len(proto.read_bytes())
             archive.addfile(member, io.BytesIO(proto.read_bytes()))
         return output
@@ -312,7 +311,7 @@ class PythonPackagingTests(unittest.TestCase):
             with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 output = self.fixture(root)
-                source = output / "dokime-0.1.3-py3-none-any.whl"
+                source = output / "dokime_sdk-0.1.3-py3-none-any.whl"
                 with zipfile.ZipFile(source) as archive:
                     contents = {name: archive.read(name) for name in archive.namelist()}
                 if invalid == "native":
@@ -322,11 +321,11 @@ class PythonPackagingTests(unittest.TestCase):
                 elif invalid == "stale":
                     (root / "proto/dokime/v1/service.proto").write_bytes(b"changed")
                 elif invalid == "identity":
-                    contents["dokime-0.1.3.dist-info/METADATA"] = b"Name: other\nVersion: 0.1.3\n"
+                    contents["dokime_sdk-0.1.3.dist-info/METADATA"] = b"Name: other\nVersion: 0.1.3\n"
                 elif invalid == "tag":
-                    contents["dokime-0.1.3.dist-info/WHEEL"] = b"Root-Is-Purelib: false\nTag: cp313-abi3-win_amd64\n"
+                    contents["dokime_sdk-0.1.3.dist-info/WHEEL"] = b"Root-Is-Purelib: false\nTag: cp313-abi3-win_amd64\n"
                 else:
-                    with tarfile.open(output / "dokime-0.1.3.tar.gz", "w:gz"):
+                    with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz"):
                         pass
                 with zipfile.ZipFile(source, "w") as archive:
                     for name, content in contents.items():
@@ -365,31 +364,9 @@ class PythonPackagingTests(unittest.TestCase):
                 self.assertEqual(command[:2], ["uv", "publish"])
                 self.assertEqual(
                     command[-2:],
-                    [f"target/package/dev/any/python/{name}" for name in ("dokime-0.1.3-py3-none-any.whl", "dokime-0.1.3.tar.gz")],
+                    [f"target/package/dev/any/python/{name}" for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz")],
                 )
                 self.assertEqual("--dry-run" in command, dry_run)
-
-
-class SignedIndexTests(unittest.TestCase):
-    def test_published_signature_verification_reads_release_index_only(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            setup = root / "dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe"
-            setup.write_bytes(b"signed installer")
-            index = {
-                "version": "0.1.3",
-                "platforms": {installer.UPDATER_TARGET: {"url": "https://example.test/" + setup.name, "signature": "signature"}},
-                "downloads": {},
-                "plugins": {"format_version": 2, "plugins": []},
-            }
-            policy.write_json(root / "release.json", index)
-            with mock.patch.object(installer, "check"), mock.patch.object(installer, "verify_signature") as verify:
-                installer.check_package(root, dist=root, profile="dev", expected="0.1.3", require_signed=True, published=True)
-                verify.assert_called_once_with(root, setup, "signature")
-                (root / "release.json").unlink()
-                policy.write_json(root / "latest.json", index)
-                with self.assertRaises(FileNotFoundError):
-                    installer.check_package(root, dist=root, profile="dev", expected="0.1.3", require_signed=True, published=True)
 
 
 class NightlyReportTests(unittest.TestCase):

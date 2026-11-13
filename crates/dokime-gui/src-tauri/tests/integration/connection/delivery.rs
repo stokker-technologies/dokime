@@ -48,7 +48,6 @@ use dokime_gui::testing::{ArtifactSource, DeliveryFailure, DeliveryStage, move_v
 
 /* === Tests === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn delivery() {
     let root = tempfile::tempdir().unwrap();

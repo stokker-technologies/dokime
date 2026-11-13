@@ -59,7 +59,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     label: "Reading".into(),
                     ..Default::default()
                 }),
-                message: "dokime.v1.WriteLog".into(),
+                message: "dokime.context.v1.evidence.LogsAppendRequest".into(),
             }],
         };
         let catalog = harmos_protocol::v1::Catalog {
@@ -86,7 +86,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     Evidence {
                         kind: "record:reading".into(),
                         step: "capture".into(),
-                        payload: v1::PublishRecord {
+                        payload: dokime_protocol::context::evidence::RecordsAppendRequest {
                             execution: id.into(),
                             kind: "reading".into(),
                             payload: vec![index],
@@ -101,7 +101,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                 id,
                 Evidence {
                     kind: "log".into(),
-                    payload: v1::WriteLog {
+                    payload: dokime_protocol::context::evidence::LogsAppendRequest {
                         execution: id.into(),
                         severity: v1::Severity::Warning as i32,
                         message: "Review the sensor".into(),
@@ -292,11 +292,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         // Refuse Ambiguous Wire Shapes Even When Names and Field Types Match
         let mut changed = catalog.clone();
         for file in &mut changed.types.as_mut().unwrap().file {
-            if file.package.as_deref() != Some("dokime.v1") {
+            if file.package.as_deref() != Some("dokime.context.v1.evidence") {
                 continue;
             }
             for message in &mut file.message_type {
-                if message.name.as_deref() != Some("WriteLog") {
+                if message.name.as_deref() != Some("LogsAppendRequest") {
                     continue;
                 }
                 for field in &mut message.field {

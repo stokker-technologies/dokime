@@ -41,6 +41,17 @@ use dokime::{prelude::*, v1};
 /* === Private Functions === */
 
 fn main() -> Result<()> {
+    // Hold Managed Startup Until Its Caller Cancels the Installation.
+    if let Ok(address) = std::env::var("DOKIME_PENDING_INSTALL") {
+        use std::io::{Read, Write};
+        let mut connection =
+            std::net::TcpStream::connect(address).map_err(|error| Error::Invalid(format!("Announce Pending Install: {error}")))?;
+        connection.write_all(&[1]).map_err(|error| Error::Invalid(format!("Announce Pending Install: {error}")))?;
+        let mut release = Vec::new();
+        connection.read_to_end(&mut release).map_err(|error| Error::Invalid(format!("Wait for Installation Release: {error}")))?;
+        return Ok(());
+    }
+
     let template = Template::new("content.capture", "Capture Content").step(Step::new("Capture", capture));
     let plugin = Plugin::new("content_fixture", "1.0.0")
         .suite(Suite::new("content", "Content").template(template))

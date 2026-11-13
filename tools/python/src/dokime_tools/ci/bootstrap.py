@@ -61,6 +61,10 @@ GUI_PACKAGES = (
     "linux-libc-dev",
     "libclang-dev",
 )
+CREDENTIAL_STORE_PACKAGES = (
+    "dbus",
+    "gnome-keyring",
+)
 GUI_RUNTIME_PACKAGES = (
     "dbus",
     "gnome-keyring",
@@ -107,8 +111,8 @@ APT_FETCH_ATTEMPTS = len(APT_RETRY_DELAYS_S) + 1
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
-    if arguments.gui_packages or arguments.gui_runtime:
-        install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop)
+    if arguments.gui_packages or arguments.gui_runtime or arguments.credential_store:
+        install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop, credential_store=arguments.credential_store)
     if arguments.desktop:
         if sys.platform == "win32":
             prepare_windows_desktop(Path.cwd())
@@ -149,11 +153,16 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="install only Ubuntu GUI runtime libraries for prebuilt artifacts.",
     )
+    gui.add_argument(
+        "--credential-store",
+        action="store_true",
+        help="install only the session bus and keyring an isolated credential store needs.",
+    )
     parser.add_argument("--desktop", action="store_true")
     return parser.parse_args(argv)
 
 
-def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> None:
+def install_gui_packages(*, runtime: bool = False, desktop: bool = False, credential_store: bool = False) -> None:
     """Install the declared GUI runtime or development packages when missing.
 
     A CI host that is missing them and cannot install them is broken, and the
@@ -164,7 +173,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
     if sys.platform != "linux" or shutil.which("dpkg") is None:
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
-    selected = GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
+    selected = CREDENTIAL_STORE_PACKAGES if credential_store else GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
     packages = (*selected, *(DESKTOP_PACKAGES if desktop else ()))
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")

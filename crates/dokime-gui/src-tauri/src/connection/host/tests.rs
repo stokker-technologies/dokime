@@ -67,6 +67,7 @@ fn settings() -> ConnectionSettings {
             stream_buffer: 8,
         },
         client: ClientSettings {
+            transfer: dokime_sdk::client::StorageTransferSettings::default(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             input_items: NonZeroUsize::new(8).unwrap(),

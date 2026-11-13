@@ -40,7 +40,7 @@ class CustomBuildHook(BuildHookInterface):
         sources = root / "proto" if (root / "proto").is_dir() else root.parents[1] / "proto"
         self.scratch = tempfile.TemporaryDirectory(prefix="dokime-protobuf-")
         output = Path(self.scratch.name)
-        definitions = sorted(sources.glob("dokime/v1/*.proto"))
+        definitions = sorted(sources.glob("dokime/**/*.proto"))
         if not definitions:
             raise ValueError("Dokime builds require the authoritative proto/dokime/v1 sources")
         arguments = [
@@ -62,7 +62,7 @@ class CustomBuildHook(BuildHookInterface):
             path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")
         }
         (package / "sources.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
-        build_data["force_include"][str(package)] = "dokime/v1"
+        build_data["force_include"][str(output / "dokime")] = "dokime"
         for name in ("LICENSE", "NOTICE"):
             source = root / name if (root / name).is_file() else root.parents[1] / name
             build_data["force_include"][str(source)] = f"dokime/{name}"

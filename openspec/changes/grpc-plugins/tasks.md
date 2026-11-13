@@ -197,7 +197,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - [ ] 5.8 Wave 5: delete `dokime-server`, per-service adapters, superseded generation/build dependencies and dead wire conversions after all behavior and consumers move.
 - [ ] 5.9 Wave 5: dissolve `dokime-domain`; migrate definitions to protocol messages, admission/expansion/expression rules to their operations and persisted shapes beside storage, migrating all consumers and deleting duplicate models and superseded guidance.
 - [ ] 5.10 Wave 5: remove the operations contract-only surface and `runtime` feature once no consumer needs them; preserve Harmos built-in declaration/handler co-location and enforce protocol → storage → operations → runtime → CLI/desktop dependencies without reverse edges.
-- [ ] 5.11 Wave 5: retain `dokime-tracing` as small development support and reconcile manifests, examples, README and guides with the target crate ownership.
+- [x] 5.11 Owner amendment (2026-11-13): delete `dokime-tracing` with the retired loop; current host stories own their tracing support. Reconcile manifests, examples and guides with the remaining crates.
 
 ## 6. Final Validation
 
@@ -446,6 +446,64 @@ Source inventory: the local integration merge; shared host routes/state, operati
 - [x] Extend the CLI journey with a served report read and cover remote data routes under bearer authentication.
 - [x] Pass final Windows format, Rust/Python/repository/supply checks, host fixture build, every host story twice without skips, CLI stories, protocol drift, complete Tests artifact build and committed locked/offline metadata. The final complete host runs use `NEXTEST_TEST_THREADS=4`; default parallelism previously exceeded the managed installation operation deadline. Deadlines and project test configuration remain unchanged. The Tests producer also passes its compile contracts. Native Linux and hosted validation remain with integration; no push is authorized.
 
+## Old Loop Deletion and Grammar Continuation
+
+Source inventory: root Cargo manifests/lock and mise tasks; the ten retired loop
+crates, packaging, both sidecars; project-owned tooling, workflows and configuration;
+maintained guides and SDK examples; product protocol, operations, storage, host,
+SDKs and starters for the subsequent grammar slices. Desktop source is excluded.
+The owner authorizes deletion before the desktop and face cutovers (2026-11-13).
+All work remains local on feat/grpc-plugins under the existing implementing marker.
+
+- [x] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
+- [x] Retain current bundle production/inspection without facade dependencies.
+- [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
+- [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+- [ ] Re-author storage/plot benchmarks on the remaining host/storage and restore their Nightly producer and suite selections.
+- [ ] Restore the desktop to the workspace when its switch merges.
+  - [x] Restore crates/dokime-gui/src-tauri workspace and default membership.
+  - [ ] Restore native desktop Product build, icons, embedded resources and generated-settings checks, including tests/unit/settings/preferences.test.ts and its native default exporter.
+  - [ ] Restore frontend production build, route generation and full generated-client type checking with its native preference declarations.
+  - [ ] Restore retained frontend suites that import the removed native message exporter after migrating their generated clients: `console/nominal`, `cycle/nominal`, `cycle/projection`, `cycle/document-stream`, `history/totals`, `library/nominal`, `shell/navigation`, `plots/columnar-frame`, `plots/live-frames`, `plots/plot-pipeline` (all under `tests/unit/*.test.ts`), and the notification story `Native Rejections and Captured Diagnostics Reach Notification History`. Their source remains intact; independent frontend stories stay selected.
+  - [ ] Restore retained frontend integration suites after their native message/client migration: `cycle/document-query`, `cycle/lifecycle`, `cycle/saved-report`, `execution/responsiveness`, `plots/nominal`, `settings/registry`, `shell/contracts`, `shell/status` (all under `tests/integration/*.test.ts`). These import removed native messages or require its generated contract inventory; independent canvas, paging, plugins and report-import stories stay selected.
+  - [ ] Restore native Rust desktop and TypeScript system stories on PR and Nightly, and desktop benchmarks.
+  - [ ] Restore desktop distribution/installer packaging, signing and release assets.
+- [ ] Complete command-line parity after host support is available.
+  - [ ] `operation list`: discover admitted operations.
+  - [ ] `operation show`: inspect an operation contract.
+  - [ ] `operation call`: invoke typed operations through the generic client.
+  - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
+  - [ ] `gui`: launch the native desktop.
+  - [ ] `version`: report detailed JSON/source/channel metadata.
+  - [ ] Pairing-file connection and access pairing export.
+  - [ ] Installer packaging.
+  - [ ] Plugin development supervision and plugin-specific protocol export.
+  - [ ] `execution export`: download a saved evidence archive and files.
+  - [ ] `execution run`: drive interactive commands.
+  - [x] `plan preview`: validate canonical protobuf JSON selection requests without registration.
+  - [x] `plan register`: register canonical protobuf JSON selections and recover identical replies by request key; changed requests conflict.
+  - [ ] Planning convenience flags: resolve suite/template shorthand and construct complete selections from CLI flags.
+  - [x] `cycle report`: download and verify a cycle report without publication; refuse overwriting an existing file.
+- [x] Record promised old-loop journeys without new-host coverage as explicit remaining stories.
+  - [ ] Prove earliest inverse retention, owner-qualified confirmations, reverse restore order and failed startup restoration through new-host Effects.
+  - [ ] Prove stream/record schema evolution and plugin removal retain decoding on one root.
+  - [ ] Prove bounded complete queries, pinned cuts and explicit watch gaps through the final grammar.
+  - [ ] Prove typed cross-plugin invocation, cancellation propagation and client authorization through the composed registry.
+  - [ ] Restore SDK-authored host telemetry/controls and device simulation journeys with the two sidecar re-authoring tasks.
+  - [ ] Restore desktop/installer organization, licensing, signature and update journeys with native packaging.
+  - [ ] Retain client-disconnection and partial-capture interruption tasks from removal section 5.3.
+- [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.
+
+## Remaining Source Policy Proof
+
+- [ ] Resolve project-wide native desktop dependency/source findings when its host switch restores workspace ownership; do not restore deleted loop dependencies to make the dormant manifest parse.
+- [ ] Reconcile generated protocol source auditing with generator ownership; keep the protocol drift stories and never hand-format generated bindings.
+- [ ] Reconcile the thermal Python suite's dependent schema declarations and the protocol generator's required-error-module finding with source policy; preserve execution order and do not add unused error types.
+- [x] Move managed-install cancellation to the cross-platform client_cancels_managed_installation system story, using awaited process events and cancellation settlement. Windows proof passes; native Linux execution remains open.
+- [x] Move stored-report byte retention/restart/tamper refusal into the storage integration target without exposing the private database handle.
+- [ ] Reconcile the checker-required root contributing entry with the project-owned guide under docs/.
+- [ ] Reconcile maintained plot task lists with source policy without losing their benchmark requirements or retained evidence.
+
 
 ## Desktop Host Cutover
 
@@ -486,7 +544,7 @@ existing host services, proto and generated Rust protocol remain with their owne
   - [x] Switch status bar identity, traces and diagnostics to library Status resources; verify stable diagnostics ranges/digest and trace List-to-Watch handoff in a native story. Canonical frontend codec stories now cover settings, listener revisions and trace/diagnostics delivery (22 passing). Full WebView proof remains open.
 - [ ] Remove all old-loop references from GUI code, manifests, tests, benches and tooling; retain old crates for integration. The remaining per-journey modules and incompatible request/response shapes are named in `docs/gui.md`, Remaining Journey Adapters. Desktop paths/distribution identity and build facts now have native owners, and tracing uses its maintained independent crate. Desktop update policy and process launching also have current owners. Unsupported plugin release lookup/install refuses before network or file changes; verified bundle installation remains available. Facade support dependencies still cover filesystem publication and installed appearance; old native stories/benches and protocol generation remain migration work.
   - [ ] Integrate the later old-loop deletion deliberately. This building desktop candidate includes integration `5667b9c8c`; integration `ecd90b69d` subsequently deletes its remaining facade/native-support dependencies and excludes the desktop from the root workspace, Product generation, native checks, packaging and system lanes. Before merging that head, replace the GUI's remaining native filesystem/appearance support and have the integration owner restore root workspace/tooling membership. Those root and deleted-package paths are outside this worktree's ownership. Do not treat this candidate as integration-ready or restore an old-host fallback.
-  - [ ] Obtain ownership of only the GUI package dependency entry in the root Cargo.lock before adding direct Harmos filesystem and TOML dependencies and removing the facade. The lockfile is outside the desktop ownership list; its scope decision is pending. No root lockfile edit was made.
+  - [x] Declare desktop support dependencies directly and own their Cargo.lock entries (owner decision, 2026-11-13). Filesystem publication uses Harmos runtime directly; installed appearance and logging are desktop-owned. Product compilation passes after merging integration 7e6854bac; native test fixtures and desktop tooling still need replacement.
 - [ ] Run format, Rust/TypeScript/repository checks, frontend stories, host fixtures, both desktop story lanes, startup proof and clean committed-head locked offline metadata. Record actual failures and remaining proof.
   - [x] Pass twelve focused native host/path stories, seven session acceptance stories, five session/archive integration stories, all 180 frontend unit stories, three canonical secret-transfer stories, frontend/native builds, format and Rust/repository checks on Windows. Manually start the embedded host in a fresh root, connect the shell, navigate Library, read scoped preferences, save Compact density and read it back after reload, and load Secret Storage. Attach to a healthy host while preserving an incompatible local preferences root. Preserve the new store across restart. Correct the status-history/product-epoch readiness mismatch, discover Access/Status methods through the bounded SDK operation catalog, and verify the rebuilt shell connects and renders the listener state with fixed TLS/authentication controls.
   - [x] Move desktop update policy into the shell, remove unreachable facade release-feed installation behind the typed-build Host Request, and use the new host process owner for firewall commands. Three policy/source, two update-trust/selection and three installed-appearance stories pass; the focused GUI Rust check and native build pass.

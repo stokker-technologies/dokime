@@ -138,7 +138,7 @@ def install_wheels(directory: Path, profile: str) -> None:
     if any(root.is_dir() for root in roots) and not wheels:
         raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:
-        environment = dict(os.environ, HARMOS_AUDIENCE="host")
+        environment = dict(os.environ)
         environment.pop("UV_PROJECT_ENVIRONMENT", None)
         subprocess.run(
             [

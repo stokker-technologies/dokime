@@ -94,6 +94,7 @@ impl Contribution for Facts {
 
 pub(super) fn settings(settings: &ClientSettings, host_id: String) -> StatusSettings {
     StatusSettings {
+        read_timeout: settings.read_timeout,
         application_name: "Dokime Execution Host".into(),
         application_version: env!("CARGO_PKG_VERSION").into(),
         host_id,

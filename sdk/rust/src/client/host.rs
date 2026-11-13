@@ -1,7 +1,36 @@
+/* ***
+ *
+ * dokime-rust-workspace
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
 // SPDX-License-Identifier: Apache-2.0
 //! Composed Values over the Generated Dokime Client Services.
-use crate::v1;
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 use tonic::{Status, transport::Channel};
+
+// Local Imports
+use crate::v1;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 pub struct HostClient {
     pub plugins: Plugins,
@@ -16,6 +45,45 @@ pub struct HostClient {
     transport: harmos::Client,
     pub health: Health,
 }
+
+pub struct Plugins(Channel);
+
+pub struct Suites(Channel);
+
+pub struct Templates(Channel);
+
+pub struct Cycles(Channel);
+
+pub struct Executions(Channel);
+
+pub struct Prompts(Channel);
+
+pub struct Records(Channel);
+
+pub struct Samples(Channel);
+
+pub struct Reports(Channel);
+
+pub struct Health(Channel);
+
+pub struct Cycle {
+    channel: Channel,
+    pub identifier: String,
+    pub executions: Vec<String>,
+}
+
+pub struct Progress {
+    channel: Channel,
+    pending: std::collections::VecDeque<String>,
+    stream: Option<tonic::Streaming<v1::ObservationWatchExecutionProgressOutput>>,
+    terminal: bool,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl HostClient {
     pub fn new(channel: Channel, settings: super::ClientSettings) -> Result<Self, Status> {
@@ -46,26 +114,6 @@ impl std::ops::Deref for HostClient {
         &self.transport
     }
 }
-
-pub struct Plugins(Channel);
-
-pub struct Suites(Channel);
-
-pub struct Templates(Channel);
-
-pub struct Cycles(Channel);
-
-pub struct Executions(Channel);
-
-pub struct Prompts(Channel);
-
-pub struct Records(Channel);
-
-pub struct Samples(Channel);
-
-pub struct Reports(Channel);
-
-pub struct Health(Channel);
 
 impl Plugins {
     pub async fn add(&self, url: impl Into<String>) -> Result<v1::Plugin, Status> {
@@ -186,11 +234,6 @@ impl Templates {
     }
 }
 
-pub struct Cycle {
-    channel: Channel,
-    pub identifier: String,
-    pub executions: Vec<String>,
-}
 impl Cycles {
     pub async fn start(&self, cases: Vec<v1::PlannedCase>) -> Result<Cycle, Status> {
         let origins = cases
@@ -210,12 +253,7 @@ impl Cycles {
         })
     }
 }
-pub struct Progress {
-    channel: Channel,
-    pending: std::collections::VecDeque<String>,
-    stream: Option<tonic::Streaming<v1::ObservationWatchExecutionProgressOutput>>,
-    terminal: bool,
-}
+
 impl Cycle {
     pub fn watch(&self) -> Progress {
         Progress {
@@ -226,6 +264,7 @@ impl Cycle {
         }
     }
 }
+
 impl Progress {
     pub async fn next(&mut self) -> Result<Option<v1::ExecutionProgress>, Status> {
         loop {
@@ -259,7 +298,16 @@ impl Progress {
         }
     }
 }
+
 impl Reports {
+    pub async fn download_cycle(&self, cycle: impl Into<String>) -> Result<tonic::Streaming<v1::ReportsDownloadCycleReportOutput>, Status> {
+        let request = v1::ReportsDownloadCycleReportRequest {
+            cycle_id: cycle.into(),
+            identifier: String::new(),
+        };
+        Ok(v1::reports_client::ReportsClient::new(self.0.clone()).download_cycle_report(request).await?.into_inner())
+    }
+
     pub async fn download(
         &self, execution: impl Into<String>,
     ) -> Result<tonic::Streaming<v1::ReportsDownloadExecutionReportOutput>, Status> {
@@ -267,3 +315,9 @@ impl Reports {
         Ok(v1::reports_client::ReportsClient::new(self.0.clone()).download_execution_report(request).await?.into_inner())
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

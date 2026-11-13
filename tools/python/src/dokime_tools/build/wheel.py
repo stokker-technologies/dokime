@@ -75,7 +75,7 @@ def build(root: Path, profile: str) -> list[Path]:
 
 def distributions(root: Path, output: Path, version: str) -> list[Path]:
     """Select The Single Pure SDK Wheel And Source Distribution."""
-    expected = [output / f"dokime-{version}-py3-none-any.whl", output / f"dokime-{version}.tar.gz"]
+    expected = [output / f"dokime_sdk-{version}-py3-none-any.whl", output / f"dokime_sdk-{version}.tar.gz"]
     actual = sorted(path for path in output.iterdir() if path.is_file() and path.name != ".gitignore") if output.is_dir() else []
     if actual != sorted(expected) or any(path.is_symlink() for path in actual):
         raise policy.ToolError(f"expected one dokime pure wheel and source distribution for {version} in {output}")
@@ -88,9 +88,9 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
     parser = email.parser.Parser()
     with zipfile.ZipFile(selected[0]) as archive:
         names = archive.namelist()
-        metadata = parser.parsestr(archive.read(f"dokime-{version}.dist-info/METADATA").decode())
-        wheel = parser.parsestr(archive.read(f"dokime-{version}.dist-info/WHEEL").decode())
-        if metadata["Name"] != "dokime" or metadata["Version"] != version:
+        metadata = parser.parsestr(archive.read(f"dokime_sdk-{version}.dist-info/METADATA").decode())
+        wheel = parser.parsestr(archive.read(f"dokime_sdk-{version}.dist-info/WHEEL").decode())
+        if metadata["Name"] != "dokime-sdk" or metadata["Version"] != version:
             raise policy.ToolError("Python distribution metadata differs from release identity")
         if wheel["Root-Is-Purelib"] != "true" or wheel.get_all("Tag") != ["py3-none-any"]:
             raise policy.ToolError("Python wheel must be pure py3-none-any")
@@ -111,7 +111,7 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
             raise policy.ToolError("Python wheel is missing generated protocol modules")
     with tarfile.open(selected[1], "r:gz") as archive:
         for path in sources:
-            member = f"dokime-{version}/proto/{path.relative_to(root / 'proto').as_posix()}"
+            member = f"dokime_sdk-{version}/proto/{path.relative_to(root / 'proto').as_posix()}"
             content = archive.extractfile(member)
             if content is None or content.read() != path.read_bytes():
                 raise policy.ToolError("Python source distribution is missing authoritative protocol sources")

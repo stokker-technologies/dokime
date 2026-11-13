@@ -23,9 +23,10 @@ from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from harmos.v1 import types_pb2 as wire
 
+from ._context import HOST_OPERATIONS, Context
+
 # Local Imports
 from .authoring import Record, Suite, Template
-from .context import HOST_OPERATIONS, Context
 from .v1 import message, message_type
 from .values import decode
 

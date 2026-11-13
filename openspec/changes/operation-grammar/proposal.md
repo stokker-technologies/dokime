@@ -20,8 +20,8 @@ The maintained architecture contract is docs/architecture.md. Its missing guards
 are explicit tasks here; the data-root-identity delta reconciles obsolete whole-root
 digest requirements with the existing product-owned compatibility decision.
 
-This documentation records the owner's lock on 2026-11-12. No protocol,
-source, test, workflow or specification lifecycle activation is authorized here.
+The owner locked this direction on 2026-11-12 and authorizes implementation
+with the other locked changes under the combined grpc-plugins marker.
 The audience lock separates the plugin protocol (`harmos.plugin.v1`, with product
 catalog operations in `dokime.plugin.v1`), host context (`harmos.context.v1` and
 `dokime.context.v1`) and client API (`harmos.v1` and `dokime.v1`). Nested resources
@@ -95,9 +95,9 @@ replay protection. “No named caller found” is not deletion evidence.
   read-triggered flush with the canonical resource read paths.
 
 These deltas supersede conflicting requirements only after implementation.
-Other open changes, especially `grpc-plugins`,
-`storage-interface` and `imported-executions`, remain unimplemented here; their
-owners must reconcile affected contracts rather than introduce parallel rules.
+The combined grpc-plugins delivery also owns the other locked changes, including
+`storage-interface` and `imported-executions`; implementation must reconcile their
+affected contracts rather than introduce parallel rules.
 
 ## Impact
 
@@ -120,7 +120,5 @@ calls a manager or storage. Prepare face package layout and generation filters
 first, then library services and client-root generation, then product contracts at their final names and manager split, then consumers;
 migrate the desktop once after those services are ready. SDK
 parity/client coverage, retention/restart, watch semantics, deletion with readers
-and managed cancellation coverage are recorded in design.md. README and product
-guides describe current behavior and
-need no edits in this documentation-only delivery; implementation must update affected
-claims and examples with the consumer cutover.
+and managed cancellation coverage are recorded in design.md. Implementation updates affected README and product-guide claims and examples
+with each consumer cutover; unaffected content stays unchanged.

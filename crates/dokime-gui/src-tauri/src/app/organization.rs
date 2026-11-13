@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub mod pack;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -28,7 +30,7 @@ use tauri::Manager;
 
 // Local Imports
 use super::updates::policy;
-use dokime::config::organization::ResolvedPack;
+use pack::ResolvedPack;
 
 /* === Constants === */
 
@@ -162,7 +164,7 @@ impl OrganizationState {
 /* === Public Functions === */
 
 pub(crate) fn resolve() -> OrganizationState {
-    match dokime::config::organization::resolve().and_then(loaded) {
+    match pack::resolve().and_then(loaded) {
         Ok(pack) => OrganizationState { pack: Some(pack), error: None },
         Err(error) => OrganizationState { pack: None, error: Some(error) },
     }
@@ -316,6 +318,8 @@ fn read_inside<'a>(pack: &'a ResolvedPack, relative: &str) -> Result<&'a [u8], S
 #[allow(dead_code)]
 pub(crate) mod testing {
     /* === Modules === */
+
+    pub mod pack;
 
     /* === Re-Exports === */
 

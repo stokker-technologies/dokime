@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*};
 
 // Local Imports
 
@@ -34,7 +34,6 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 /* === Structs === */
 
 pub(crate) struct LoggingGuards {
-    _trace: Option<dokime_tracing::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -69,23 +68,14 @@ pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &
         }
     }
 
-    let installed = dokime_tracing::configure(layers);
-    let trace = if std::env::var_os("DOKIME_TEST_TRACE_DIR").is_some() {
-        Some(installed.expect("install desktop subscriber"))
-    } else {
-        installed.ok()
-    };
+    let _ = tracing_subscriber::registry().with(layers).try_init();
 
     if let Some(path) = log_path {
         let _ = ACTIVE_LOG.set(path.clone());
         tracing::info!(path = %path.display(), "{label} desktop shell log file");
     }
 
-    LoggingGuards {
-        _trace: trace,
-        _stderr: stderr_guard,
-        _file: file_guard,
-    }
+    LoggingGuards { _stderr: stderr_guard, _file: file_guard }
 }
 
 /* === Private Functions === */

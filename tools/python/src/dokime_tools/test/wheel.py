@@ -50,7 +50,6 @@ def main() -> None:
     if len(wheels) != 1:
         raise ValueError("build:python must export exactly one Python wheel")
     environment = dict(os.environ)
-    environment["HARMOS_AUDIENCE"] = "host"
     environment["DOKIME_TEST_HOST"] = str(
         paths.output(root, "build", options.profile) / "fixtures/host" / ("dokime-host-next.exe" if os.name == "nt" else "dokime-host-next")
     )
@@ -73,7 +72,7 @@ def main() -> None:
                     "import dokime; from pathlib import Path; from importlib.metadata import distribution; "
                     "package = Path(dokime.__file__).parent; "
                     "assert package.joinpath('py.typed').is_file(); "
-                    "assert distribution('dokime').read_text('WHEEL').find('Root-Is-Purelib: true') >= 0; "
+                    "assert distribution('dokime-sdk').read_text('WHEEL').find('Root-Is-Purelib: true') >= 0; "
                     "print('Installed Pure Wheel:', dokime.__version__, package)"
                 ),
             ],

@@ -13,7 +13,7 @@
 
 // The Process Owner Formats This Shared Source.
 #[rustfmt::skip]
-#[path = "../../../../crates/dokime-domain/src/process/mod.rs"]
+#[path = "../../../../crates/dokime-runtime-next/src/process/mod.rs"]
 pub mod process;
 
 

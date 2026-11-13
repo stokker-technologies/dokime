@@ -199,13 +199,13 @@ impl ClientHost for State {
     fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>> {
         self.host.executions.progress(execution).map_err(convert)
     }
-    fn pending(&self) -> Result<Vec<(String, v1::OperatorQuestion)>> {
+    fn pending(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>> {
         self.host.pending_prompts().map_err(convert)
     }
-    fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.host.answer(execution, answer).map_err(convert)
     }
-    fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.host.record_answer(execution, answer).map_err(convert)
     }
 }

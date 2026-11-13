@@ -129,9 +129,9 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let log = initialize.child().await?;
-    assert_eq!(log.operation, "dokime.execution.log");
-    assert_eq!(v1::WriteLog::decode(log.payload.as_slice())?.execution, "execution_a");
-    initialize.reply(log.call, v1::WriteLogResponse {}).await?;
+    assert_eq!(log.operation, "dokime.context.v1.evidence.Logs/Append");
+    assert_eq!(dokime::protocol::context::v1::evidence::LogsAppendRequest::decode(log.payload.as_slice())?.execution, "execution_a");
+    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     initialize.finish::<v1::InitializeResponse>().await?;
 
     // Run the First Step and Observe Its Acknowledged Progress Call.
@@ -166,11 +166,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let question = hold.child().await?;
-    assert_eq!(question.operation, "dokime.execution.prompt");
-    assert_eq!(v1::OperatorQuestion::decode(question.payload.as_slice())?.prompt_type, "thermal.door");
+    assert_eq!(question.operation, "dokime.context.v1.Prompts/Create");
+    assert_eq!(dokime::protocol::context::v1::PromptsCreateRequest::decode(question.payload.as_slice())?.prompt_type, "thermal.door");
     hold.reply(
         question.call,
-        v1::OperatorAnswer {
+        dokime::protocol::context::v1::PromptsCreateResponse {
             prompt: "door".into(),
             action: "yes".into(),
             accepted: true,
@@ -179,11 +179,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     )
     .await?;
     let record = hold.child().await?;
-    assert_eq!(record.operation, "dokime.execution.record");
-    let record = (record.call, v1::PublishRecord::decode(record.payload.as_slice())?);
+    assert_eq!(record.operation, "dokime.context.v1.evidence.Records/Append");
+    let record = (record.call, dokime::protocol::context::v1::evidence::RecordsAppendRequest::decode(record.payload.as_slice())?);
     assert_eq!(record.1.execution, "execution_a");
     assert!(Door::decode(record.1.payload.as_slice())?.closed);
-    hold.reply(record.0, v1::RecordReceipt { ordinal: 1 }).await?;
+    hold.reply(record.0, dokime::protocol::context::v1::evidence::RecordsAppendResponse { ordinal: 1 }).await?;
 
     // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
@@ -239,14 +239,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let stats = criterion.child().await?;
-    let query = v1::StatisticsRequest::decode(stats.payload.as_slice())?;
+    let query = dokime::protocol::context::v1::EvidenceStatisticsRequest::decode(stats.payload.as_slice())?;
     assert_eq!(query.execution, "execution_a");
     assert_eq!(query.step, "hold");
     assert_eq!(query.field, "celsius");
     criterion
         .reply(
             stats.call,
-            v1::Statistics {
+            dokime::protocol::context::v1::EvidenceStatisticsResponse {
                 count: 2,
                 max: 84.0,
                 min: 84.0,
@@ -255,11 +255,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(v1::RecordsRequest::decode(records.payload.as_slice())?.limit, 0);
+    assert_eq!(dokime::protocol::context::v1::evidence::RecordsListRequest::decode(records.payload.as_slice())?.limit, 0);
     criterion
         .reply(
             records.call,
-            v1::Records {
+            dokime::protocol::context::v1::evidence::RecordsListResponse {
                 count: 1,
                 last: Some(v1::Record {
                     kind: "thermal.door".into(),
@@ -287,7 +287,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, v1::WriteLogResponse {}).await?;
+    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     cleanup.finish::<v1::CleanupResponse>().await?;
     process.stop(true).await?;
     Ok(())

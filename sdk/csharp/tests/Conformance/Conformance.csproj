@@ -6,6 +6,5 @@
   <ItemGroup>
     <ProjectReference Include="../../Dokime.csproj" />
     <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
-    <Protobuf Include="harmos/conformance/v1/fixture.proto" ProtoRoot="." GrpcServices="None" />
   </ItemGroup>
 </Project>

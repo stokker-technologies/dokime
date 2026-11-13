@@ -40,7 +40,6 @@ use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSess
 
 /* === Private Functions === */
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn attached_backend_survives() {
     let root = tempfile::tempdir().unwrap();
@@ -68,7 +67,6 @@ async fn attached_backend_survives() {
     backend.shutdown().await;
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn disconnect_cancels_discovery() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -83,7 +81,6 @@ async fn disconnect_cancels_discovery() {
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 }
 
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn invalid_local_attachment() {
     let root = tempfile::tempdir().unwrap();

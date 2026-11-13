@@ -81,11 +81,6 @@ jobs:
       if: contains(fromJSON(inputs.archives), 'target/ci/build-cli-{profile}-{platform}.tar.zst')
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-plugins-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci
-      if: contains(fromJSON(inputs.archives), 'target/ci/build-plugins-{profile}-{platform}.tar.zst')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
         name: build-tests-${{ env.PROFILE }}-${{ inputs.platform }}
         path: target/ci
       if: contains(fromJSON(inputs.archives), 'target/ci/build-tests-{profile}-{platform}.tar.zst')
@@ -99,16 +94,6 @@ jobs:
         name: build-clients-${{ env.PROFILE }}-${{ inputs.platform }}
         path: target/ci
       if: contains(fromJSON(inputs.archives), 'target/ci/build-clients-{profile}-{platform}.tar.zst')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-generator-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci
-      if: contains(fromJSON(inputs.archives), 'target/ci/build-generator-{profile}-{platform}.tar.zst')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci
-      if: contains(fromJSON(inputs.archives), 'target/ci/build-gui-{profile}-{platform}.tar.zst')
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       if: contains(inputs.archives, 'build-host-')
       with:
