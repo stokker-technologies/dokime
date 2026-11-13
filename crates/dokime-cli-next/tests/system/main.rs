@@ -15,6 +15,7 @@
 mod credentials;
 mod first_hour;
 mod operator_discovers_operations;
+mod operator_inspects_contract;
 mod remote_first_hour;
 mod scaffold;
 

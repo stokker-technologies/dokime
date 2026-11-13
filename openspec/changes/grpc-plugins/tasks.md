@@ -470,7 +470,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Restore desktop distribution/installer packaging, signing and release assets.
 - [ ] Complete command-line parity after host support is available.
   - [x] `operation list`: discover admitted operations; `operator_discovers_operations` compares the whole host catalog.
-  - [ ] `operation show`: inspect an operation contract.
+  - [x] `operation show`: inspect identity, visibility, policy and shapes; `operator_inspects_contract`.
   - [ ] `operation call`: invoke typed operations through the generic client.
   - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
   - [ ] `gui`: launch the native desktop.

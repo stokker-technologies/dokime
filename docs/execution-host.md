@@ -277,7 +277,8 @@ half. Build with `mise run build -- --package dokime-cli-next`.
 
 `dokime-next --endpoint URL operation list --json` returns the complete bounded
 admitted operation catalog, including owner, generation and contract. It has no
-paging flags.
+paging flags. `operation show ID --json` inspects the same contract, including
+visibility, policy, protobuf descriptors and readable request/response field shapes.
 
 ```sh
 dokime-next new first-plugin --lang rust
