@@ -1150,6 +1150,15 @@ Plot analysis dispatch resolves the ready provider by its frozen Description.id;
 
 ## Open Questions
 
+Library-owned managed entries currently provide global sample publications, while
+product executions require scoped sessions driven by their controlled Tick and
+awaited terminal messages. The pinned manager has no public scoped-session port;
+its activation connection is private. The request and failing consumer proof are
+in `operation-grammar/tasks.md`. Adopt that port before replacing managed execution
+admission; do not add another connection/process owner or change the held Protected
+lifecycle identities. Independent client storage and content composition can proceed.
+
+
 The deletion candidate builds without the native desktop. The project-wide source
 checker still reads that dormant manifest and reports its references to deleted
 workspace dependencies. Its restoration task owns the native cutover; restoring
