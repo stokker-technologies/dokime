@@ -101,7 +101,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    initialize.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
     let mut initialize = process
         .invoke(
@@ -115,7 +115,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    initialize.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
 
     // Reject a Changed Definition on an Already Initialized Execution.
@@ -155,7 +155,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     assert_eq!(
         process.invoke(&case.steps[0].operation, "a", step.clone()).await?.failure().await?.classification,
@@ -167,15 +167,15 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     let get = ramp.child().await?;
     ramp.reply(
         get.call,
-        dokime::protocol::context::v1::executions::ProgressGetResponse {
+        dokime::protocol::plugin::host::v1::executions::ProgressGetResponse {
             revision: vec![0; 8],
             ..Default::default()
         },
     )
     .await?;
     let progress = ramp.child().await?;
-    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.name, "b");
-    ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
+    assert_eq!(dokime::protocol::plugin::host::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.name, "b");
+    ramp.reply(progress.call, dokime::protocol::plugin::host::v1::executions::ProgressSetResponse::default()).await?;
     ramp.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Cleanup May Be the First Operation, Including on a Case Never Initialized.
@@ -192,7 +192,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
 
     // Finish the Remaining Execution and Verify Managed Stop Exits Normally.
@@ -209,7 +209,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     process.stop(false).await?;
     Ok(())

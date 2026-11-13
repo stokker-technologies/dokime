@@ -148,9 +148,9 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let log = initialize.child().await?;
-    assert_eq!(log.operation, "dokime.context.v1.evidence.Logs/Append");
-    assert_eq!(dokime::protocol::context::v1::evidence::LogsAppendRequest::decode(log.payload.as_slice())?.execution, "execution_a");
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    assert_eq!(log.operation, "dokime.plugin.host.v1.evidence.Logs/Append");
+    assert_eq!(dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest::decode(log.payload.as_slice())?.execution, "execution_a");
+    initialize.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
 
     // Run the First Step and Observe Its Acknowledged Progress Call.
@@ -169,7 +169,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let get = ramp.child().await?;
     ramp.reply(
         get.call,
-        dokime::protocol::context::v1::executions::ProgressGetResponse {
+        dokime::protocol::plugin::host::v1::executions::ProgressGetResponse {
             revision: vec![0; 8],
             ..Default::default()
         },
@@ -177,10 +177,10 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     .await?;
     let progress = ramp.child().await?;
     assert_eq!(
-        dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
+        dokime::protocol::plugin::host::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
         1
     );
-    ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
+    ramp.reply(progress.call, dokime::protocol::plugin::host::v1::executions::ProgressSetResponse::default()).await?;
     ramp.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Answer the Operator Prompt and Acknowledge the Record Before the Step Continues.
@@ -197,11 +197,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let question = hold.child().await?;
-    assert_eq!(question.operation, "dokime.context.v1.Prompts/Create");
-    assert_eq!(dokime::protocol::context::v1::PromptsCreateRequest::decode(question.payload.as_slice())?.prompt_type, "thermal.door");
+    assert_eq!(question.operation, "dokime.plugin.host.v1.Prompts/Create");
+    assert_eq!(dokime::protocol::plugin::host::v1::PromptsCreateRequest::decode(question.payload.as_slice())?.prompt_type, "thermal.door");
     hold.reply(
         question.call,
-        dokime::protocol::context::v1::PromptsCreateResponse {
+        dokime::protocol::plugin::host::v1::PromptsCreateResponse {
             prompt: "door".into(),
             action: "yes".into(),
             accepted: true,
@@ -210,12 +210,12 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     )
     .await?;
     let record = hold.child().await?;
-    assert_eq!(record.operation, "dokime.context.v1.evidence.Records/Append");
-    let record = (record.call, dokime::protocol::context::v1::evidence::RecordsAppendRequest::decode(record.payload.as_slice())?);
+    assert_eq!(record.operation, "dokime.plugin.host.v1.evidence.Records/Append");
+    let record = (record.call, dokime::protocol::plugin::host::v1::evidence::RecordsAppendRequest::decode(record.payload.as_slice())?);
     assert_eq!(record.1.execution, "execution_a");
     assert!(Door::decode(record.1.payload.as_slice())?.closed);
     assert!(!record.1.request_id.is_empty());
-    hold.reply(record.0, dokime::protocol::context::v1::evidence::RecordsAppendResponse { ordinal: 1, receipt: None }).await?;
+    hold.reply(record.0, dokime::protocol::plugin::host::v1::evidence::RecordsAppendResponse { ordinal: 1, receipt: None }).await?;
 
     // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
@@ -255,7 +255,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let get = hold.child().await?;
     hold.reply(
         get.call,
-        dokime::protocol::context::v1::executions::ProgressGetResponse {
+        dokime::protocol::plugin::host::v1::executions::ProgressGetResponse {
             revision: vec![0; 8],
             ..Default::default()
         },
@@ -263,10 +263,10 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     .await?;
     let progress = hold.child().await?;
     assert_eq!(
-        dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
+        dokime::protocol::plugin::host::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
         2
     );
-    hold.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
+    hold.reply(progress.call, dokime::protocol::plugin::host::v1::executions::ProgressSetResponse::default()).await?;
     hold.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Evaluate Captured Evidence Through Host Statistics and Bounded Record Reads.
@@ -283,14 +283,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let stats = criterion.child().await?;
-    let query = dokime::protocol::context::v1::EvidenceStatisticsRequest::decode(stats.payload.as_slice())?;
+    let query = dokime::protocol::plugin::host::v1::EvidenceStatisticsRequest::decode(stats.payload.as_slice())?;
     assert_eq!(query.execution, "execution_a");
     assert_eq!(query.step, "hold");
     assert_eq!(query.field, "celsius");
     criterion
         .reply(
             stats.call,
-            dokime::protocol::context::v1::EvidenceStatisticsResponse {
+            dokime::protocol::plugin::host::v1::EvidenceStatisticsResponse {
                 count: 2,
                 max: 84.0,
                 min: 84.0,
@@ -299,13 +299,16 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(dokime::protocol::context::v1::evidence::RecordsListRequest::decode(records.payload.as_slice())?.page.unwrap().page_size, 0);
+    assert_eq!(
+        dokime::protocol::plugin::host::v1::evidence::RecordsListRequest::decode(records.payload.as_slice())?.page.unwrap().page_size,
+        0
+    );
     criterion
         .reply(
             records.call,
-            dokime::protocol::context::v1::evidence::RecordsListResponse {
+            dokime::protocol::plugin::host::v1::evidence::RecordsListResponse {
                 count: 1,
-                last: Some(v1::Record {
+                last: Some(dokime::protocol::plugin::host::v1::evidence::Record {
                     kind: "thermal.door".into(),
                     payload: record.1.payload,
                     ordinal: 1,
@@ -332,7 +335,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
     cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     process.stop(true).await?;
     Ok(())

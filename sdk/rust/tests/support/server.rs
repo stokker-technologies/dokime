@@ -38,6 +38,7 @@ use tonic::{
 use super::TestResult;
 use dokime::{
     client::{CatalogEntriesListResponse, DiscoveredContract, DiscoveredOperation},
+    protocol::client::v1 as client,
     v1,
 };
 
@@ -60,7 +61,7 @@ struct Rpc<const RESOURCE: u8>(Arc<Mutex<Option<CreatedCycle>>>);
 
 struct CreatedCycle {
     name: String,
-    executions: Vec<v1::ExecutionDetail>,
+    executions: Vec<client::ExecutionDetail>,
     at: host::ReadCut,
 }
 
@@ -109,9 +110,9 @@ impl FakeServer {
 impl<const R: u8> NamedService for Rpc<R> {
     const NAME: &'static str = match R {
         0 => "harmos.v1.CatalogEntries",
-        1 => "dokime.v1.backend.Overview",
-        2 => "dokime.v1.Cycles",
-        _ => "dokime.v1.Executions",
+        1 => "dokime.client.v1.backend.Overview",
+        2 => "dokime.client.v1.Cycles",
+        _ => "dokime.client.v1.Executions",
     };
 }
 
@@ -138,7 +139,7 @@ where
             if R == 0 {
                 return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Discover, request).await);
             }
-            if path == "/dokime.v1.backend.Overview/Watch" {
+            if path == "/dokime.client.v1.backend.Overview/Watch" {
                 return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).server_streaming(Watch, request).await);
             }
             Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Overview, request).await)
@@ -166,10 +167,10 @@ impl tonic::server::UnaryService<host::CatalogEntriesListRequest> for Discover {
     }
 }
 
-impl tonic::server::UnaryService<v1::backend::OverviewGetRequest> for Overview {
-    type Response = v1::backend::OverviewGetResponse;
+impl tonic::server::UnaryService<client::backend::OverviewGetRequest> for Overview {
+    type Response = client::backend::OverviewGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<v1::backend::OverviewGetRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<client::backend::OverviewGetRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
             Ok(Response::new(overview()))
@@ -177,14 +178,14 @@ impl tonic::server::UnaryService<v1::backend::OverviewGetRequest> for Overview {
     }
 }
 
-impl tonic::server::ServerStreamingService<v1::backend::OverviewWatchRequest> for Watch {
-    type Response = v1::backend::OverviewWatchResponse;
+impl tonic::server::ServerStreamingService<client::backend::OverviewWatchRequest> for Watch {
+    type Response = client::backend::OverviewWatchResponse;
     type ResponseStream = Pin<Box<dyn futures_util::Stream<Item = Result<Self::Response, Status>> + Send>>;
     type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
-    fn call(&mut self, request: Request<v1::backend::OverviewWatchRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<client::backend::OverviewWatchRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
-            let output: Self::ResponseStream = Box::pin(tokio_stream::iter([Ok(v1::backend::OverviewWatchResponse {
+            let output: Self::ResponseStream = Box::pin(tokio_stream::iter([Ok(client::backend::OverviewWatchResponse {
                 overview: overview().overview,
                 opening: true,
                 ..Default::default()
@@ -194,10 +195,10 @@ impl tonic::server::ServerStreamingService<v1::backend::OverviewWatchRequest> fo
     }
 }
 
-impl tonic::server::UnaryService<v1::CyclesCreateRequest> for CreateCycle {
-    type Response = v1::CyclesCreateResponse;
+impl tonic::server::UnaryService<client::CyclesCreateRequest> for CreateCycle {
+    type Response = client::CyclesCreateResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<v1::CyclesCreateRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<client::CyclesCreateRequest>) -> Self::Future {
         let state = self.0.clone();
         Box::pin(async move {
             let request = request.into_inner();
@@ -213,10 +214,10 @@ impl tonic::server::UnaryService<v1::CyclesCreateRequest> for CreateCycle {
                 .origins
                 .into_iter()
                 .enumerate()
-                .map(|(index, origin)| v1::ExecutionDetail {
+                .map(|(index, origin)| client::ExecutionDetail {
                     origin: Some(origin),
                     cycle_id: name.clone(),
-                    summary: Some(v1::ExecutionSummary {
+                    summary: Some(client::ExecutionSummary {
                         execution_id: format!("{name}/{index}"),
                         ..Default::default()
                     }),
@@ -236,7 +237,7 @@ impl tonic::server::UnaryService<v1::CyclesCreateRequest> for CreateCycle {
                     revisions: Vec::new(),
                 },
             });
-            Ok(Response::new(v1::CyclesCreateResponse {
+            Ok(Response::new(client::CyclesCreateResponse {
                 cycle: Some(cycle),
                 receipt: Some(host::Receipt {
                     request_id: request.request_id,
@@ -249,10 +250,10 @@ impl tonic::server::UnaryService<v1::CyclesCreateRequest> for CreateCycle {
     }
 }
 
-impl tonic::server::UnaryService<v1::ExecutionsListRequest> for ListExecutions {
-    type Response = v1::ExecutionsListResponse;
+impl tonic::server::UnaryService<client::ExecutionsListRequest> for ListExecutions {
+    type Response = client::ExecutionsListResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<v1::ExecutionsListRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<client::ExecutionsListRequest>) -> Self::Future {
         let state = self.0.clone();
         Box::pin(async move {
             let request = request.into_inner();
@@ -273,7 +274,7 @@ impl tonic::server::UnaryService<v1::ExecutionsListRequest> for ListExecutions {
             let executions = cycle.executions.iter().skip(offset).take(1).cloned().collect::<Vec<_>>();
             let next_page_token =
                 if offset + executions.len() < cycle.executions.len() { (offset + executions.len()).to_string() } else { String::new() };
-            Ok(Response::new(v1::ExecutionsListResponse {
+            Ok(Response::new(client::ExecutionsListResponse {
                 executions,
                 resolved_at: Some(cycle.at.clone()),
                 next_page_token,
@@ -286,19 +287,19 @@ impl tonic::server::UnaryService<v1::ExecutionsListRequest> for ListExecutions {
 /* === Public Functions === */
 
 pub fn contract() -> DiscoveredContract {
-    let descriptor = v1::backend::OverviewGetRequest::default().descriptor();
+    let descriptor = client::backend::OverviewGetRequest::default().descriptor();
     let descriptors = prost_types::FileDescriptorSet {
         file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
     }
     .encode_to_vec();
     let protobuf = host::Protobuf {
         descriptors,
-        request: "dokime.v1.backend.OverviewGetRequest".into(),
-        response: "dokime.v1.backend.OverviewGetResponse".into(),
+        request: "dokime.client.v1.backend.OverviewGetRequest".into(),
+        response: "dokime.client.v1.backend.OverviewGetResponse".into(),
         input: None,
         output: None,
     };
-    let id = "dokime.v1.backend.Overview/Get";
+    let id = "dokime.client.v1.backend.Overview/Get";
     DiscoveredContract {
         id: id.into(),
         visibility: host::Visibility::Public as i32,
@@ -306,7 +307,7 @@ pub fn contract() -> DiscoveredContract {
         protobuf: Some(protobuf),
         grpc: Some(host::Grpc {
             managed: false,
-            package: "dokime.v1.backend".into(),
+            package: "dokime.client.v1.backend".into(),
             service: "Overview".into(),
             method: "Get".into(),
         }),
@@ -323,9 +324,9 @@ fn authorize<T>(request: &Request<T>) -> Result<(), Status> {
     Ok(())
 }
 
-fn overview() -> v1::backend::OverviewGetResponse {
-    v1::backend::OverviewGetResponse {
-        overview: Some(v1::RuntimeShellSnapshot {
+fn overview() -> client::backend::OverviewGetResponse {
+    client::backend::OverviewGetResponse {
+        overview: Some(client::backend::RuntimeShellSnapshot {
             session_id: "bench".into(),
             hub_metadata: Some(v1::Metadata {
                 description: "x".repeat(4096),
