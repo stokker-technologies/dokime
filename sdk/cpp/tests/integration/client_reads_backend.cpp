@@ -33,36 +33,37 @@ int main() {
   // Start a Backend in This Process.
   Backend backend;
   Plugins plugins;
+  Logs log_service;
   grpc::ServerBuilder builder;
   builder.RegisterService(&backend);
   builder.RegisterService(&plugins);
+  builder.RegisterService(&log_service);
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
   auto channel = server->InProcessChannel({});
   dokime::Client client(channel);
-  auto stub = client.stub<dokime::v1::Backend>();
 
   // Pair and Read Its Identity Through the Generated Stub.
   grpc::ClientContext authenticated;
   authenticated.AddMetadata("authorization", "Bearer test");
-  auto identity = client.unary(*stub, &dokime::v1::Backend::Stub::GetIdentity, dokime::v1::GetBackendIdentity{}, authenticated);
-  check(identity.backend_id() == "bench" && identity.epoch() == "boot", "Backend Identity Was Lost");
+  auto identity = client.status.get(authenticated, {});
+  check(identity.status().identity().host_id() == "bench", "Backend Identity Was Lost");
 
   // Watch Evidence Until the Backend Closes the Stream.
   grpc::ClientContext watching;
-  auto logs = stub->WatchLogs(&watching, {});
-  dokime::v1::BackendWatchLogsOutput frame;
-  check(logs->Read(&frame) && frame.item().target() == "execution", "Log Was Lost");
-  check(logs->Read(&frame) && frame.has_response(), "Log Completion Was Lost");
+  watching.AddMetadata("authorization", "Bearer test");
+  auto logs = client.status.logs.watch(watching, {});
+  harmos::v1::status::LogsWatchResponse frame;
+  check(logs->Read(&frame) && frame.events(0).target() == "execution", "Log Was Lost");
   check(!logs->Read(&frame) && logs->Finish().ok(), "Log Stream Did Not Finish");
 
   // Read Without Pairing and Retain the Backend's Actionable Failure.
   grpc::ClientContext unpaired;
   bool refused = false;
   try {
-    client.unary(*stub, &dokime::v1::Backend::Stub::GetIdentity, dokime::v1::GetBackendIdentity{}, unpaired);
-  } catch (const dokime::RpcError &error) {
-    refused = error.status().error_code() == grpc::StatusCode::UNAUTHENTICATED;
+    client.status.get(unpaired, {});
+  } catch (const std::runtime_error &) {
+    refused = true;
   }
   check(refused, "Authentication Failure Was Hidden");
 

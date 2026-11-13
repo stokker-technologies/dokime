@@ -54,6 +54,7 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
     // Connect with Explicit Consumer-Owned Bounds.
     let server = FakeServer::start().await?;
     let settings = ClientSettings {
+        transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(1024) },
         message_bytes: NonZeroUsize::new(1_048_576).unwrap(),
         retained_bytes: NonZeroUsize::new(16 * 1_048_576).unwrap(),
         input_items: NonZeroUsize::new(8).unwrap(),
@@ -71,11 +72,6 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
     let page = client
         .catalog(CatalogEntriesListRequest {
             kind: CatalogKind::Operations as i32,
-            page: Some(harmos_protocol::v1::PageRequest {
-                page_size: 8,
-                max_bytes: 65_536,
-                page_token: String::new(),
-            }),
             ..Default::default()
         })
         .await?
@@ -111,16 +107,15 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
     contract.fingerprint[0] ^= 1;
     assert!(client.method::<v1::GetBackendHealth, v1::BackendHealth>(contract).is_err());
 
-    // Enforce the Consumer's Response Bound Before Decoding the Reply.
+    // Refuse a Message Ceiling That Cannot Carry a Bounded Transfer.
     let bounded = Client::from_channel(
         server.channel.clone(),
         ClientSettings {
             message_bytes: NonZeroUsize::new(1).unwrap(),
             ..settings
         },
-    )?
-    .authorization("Bearer story".parse()?);
-    assert!(bounded.call(&health, v1::GetBackendHealth {}).await.is_err());
+    );
+    assert!(bounded.is_err());
 
     // Release the Connection and Stop the Owned In-Process Server.
     drop(bounded);

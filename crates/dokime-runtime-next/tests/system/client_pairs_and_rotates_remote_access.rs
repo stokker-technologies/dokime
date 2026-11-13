@@ -55,6 +55,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let limits = dokime::client::ClientSettings {
+            transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(1024) },
             retained_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             input_items: std::num::NonZeroUsize::new(8).unwrap(),
@@ -234,11 +235,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             .access
             .pairings
             .list(tonic::Request::new(access::PairingsListRequest {
-                page: Some(harmos_protocol::v1::PageRequest {
-                    page_size: 8,
-                    max_bytes: 4096,
-                    page_token: String::new(),
-                }),
                 at: None,
             }))
             .await?

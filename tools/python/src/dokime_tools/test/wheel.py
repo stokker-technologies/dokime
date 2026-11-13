@@ -50,7 +50,6 @@ def main() -> None:
     if len(wheels) != 1:
         raise ValueError("build:python must export exactly one Python wheel")
     environment = dict(os.environ)
-    environment["HARMOS_AUDIENCE"] = "host"
     environment["DOKIME_TEST_HOST"] = str(
         paths.output(root, "build", options.profile) / "fixtures/host" / ("dokime-host-next.exe" if os.name == "nt" else "dokime-host-next")
     )

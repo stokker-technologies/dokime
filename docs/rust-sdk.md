@@ -3,7 +3,7 @@
 The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
 Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
 plugins and clients compile no host. It uses Harmos at
-`26010c03516060deb5f70d17af3fbf0e49d9fbe2`.
+`81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
 The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
 context, data contracts, streams and the separate `client` namespace.
 

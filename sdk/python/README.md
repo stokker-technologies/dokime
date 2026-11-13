@@ -2,7 +2,7 @@
 
 `dokime` is one pure Python package for remote plugin authoring and async gRPC
 clients. It builds on the Harmos Python SDK at revision
-`26010c03516060deb5f70d17af3fbf0e49d9fbe2`, serves `harmos.plugin.v1.Instance`, and exchanges
+`81d32d3bc9ab3e2121746923712ec9508cee3ec7`, serves `harmos.plugin.v1.Instance`, and exchanges
 generated `dokime.v1` messages. Python never starts Dokime.
 
 ## Install
@@ -11,16 +11,12 @@ Use Python 3.13 or newer. Build this candidate and install its portable wheel:
 
 ```sh
 mise run build -- --language python
-HARMOS_AUDIENCE=host uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
+uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
 ```
 
-The wheel installs `grpcio`, `protobuf`, and the exact-revision `harmos-plugin`
+The wheel installs `grpcio`, `protobuf`, and the exact-revision `harmos-sdk`
 dependency. Building the SDK uses `grpcio-tools`; it requires no Rust or native
 Dokime compiler. Registry publication is a separate release action.
-Select the library's `host` audience because this package supplies both plugin and
-client APIs. Disable the install cache so a previously built plugin-only dependency
-cannot replace the host wheel. In PowerShell, set `$env:HARMOS_AUDIENCE = "host"`
-before running `uv add --no-cache`.
 
 ## Author a Remote Plugin
 
@@ -60,7 +56,7 @@ Its own test drives a complete execution through the prepared product host and c
 ```sh
 dokime new bench --lang python
 cd bench
-HARMOS_AUDIENCE=host uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
+uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
 mise run test
 mise run serve
 ```

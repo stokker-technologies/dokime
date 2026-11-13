@@ -103,7 +103,6 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         client.health.list().await?;
         let catalog = client.catalog_entries.list(tonic::Request::new(harmos_protocol::v1::CatalogEntriesListRequest {
             kind: harmos_protocol::v1::CatalogKind::Operations as i32,
-            page: Some(harmos_protocol::v1::PageRequest { page_size: 1000, max_bytes: 4 * 1024 * 1024, page_token: String::new() }),
             ..Default::default()
         })).await?.into_inner();
         assert!(catalog.operations.iter().any(|operation| operation.contract.as_ref().is_some_and(|contract| contract.id == "harmos.v1.Status/Get")));

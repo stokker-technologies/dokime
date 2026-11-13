@@ -73,6 +73,8 @@ Final full validation is separate from source completion.
 
 ## Pin Adoption Inventory
 
+- [x] P4 Adopt the owner-selected single-SDK library revision in every language, remove audience selectors, refresh protocol inputs, and adapt transfer/read settings and whole library lists. Rust/Python/C# SDK journeys and the host system target pass on Windows; native C++ and final combined proof are separate.
+
 - [x] P1 Adopt the converged sibling revision in every Git consumer, vendor its complete proto source tree, and regenerate Rust with an independent protocol generator. Adapt carrier, policy, visibility and clock consumers in the new host, Rust SDK, CLI and all language fixtures; retain old-loop compilation mechanically. This slice owns Cargo manifests/locks, proto/harmos, protocol generator/tooling, affected host/operations/storage consumers, SDK sources/tests and current guides.
 - [ ] P2 Prove the pin with every new-host system story, new CLI system stories, fixture producers, protocol drift, SDK checks, format/language/repository checks, Tests compilation and canonical locked offline metadata. Record remaining native Linux proof explicitly.
 

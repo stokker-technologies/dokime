@@ -102,7 +102,6 @@ def main() -> None:
             str(directory),
             "-DCMAKE_BUILD_TYPE=Debug",
             "-DDOKIME_BUILD_CONFORMANCE=ON",
-            "-DHARMOS_AUDIENCE=Host",
         ]
         if args.fresh:
             command += ["--fresh"]

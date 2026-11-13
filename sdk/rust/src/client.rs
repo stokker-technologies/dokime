@@ -18,6 +18,7 @@ mod host;
 pub use host::{Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates};
 
 pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
+pub use harmos_protocol::storage::StorageTransferSettings;
 pub use harmos_protocol::v1;
 pub use harmos_protocol::v1::{
     CatalogEntriesListRequest, CatalogEntriesListResponse, CatalogKind, DiscoveredContract, DiscoveredOperation, PageRequest,
