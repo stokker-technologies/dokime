@@ -308,8 +308,7 @@ failure revokes the pairing it just created; stdout contains only its ID and pat
 All remote commands accept `--remote operator.dokime-remote`, or read
 `DOKIME_REMOTE` when no explicit endpoint is supplied. The six-field JSON v1 format
 is `version`, `endpoints`, `backend_identifier`, `label`, `ca_certificate_pem` and
-`access_key`, bounded to 1 MiB. This candidate uses the task's `.dokime-remote`
-contract. Keep the file private. Endpoints are attempted in order; pinned TLS and
+`access_key`, bounded to 1 MiB. This candidate reads `.dokime-remote` files directly. Keep the file private. Endpoints are attempted in order; pinned TLS and
 backend identity must both pass before any command runs. No local credential or
 profile is created. Use the host's Access pairing deletion operation to revoke it.
 

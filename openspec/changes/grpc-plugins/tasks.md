@@ -496,8 +496,8 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 
 ### Host Requests
 
-- `Plugins.Watch` for the product-owned plugin inventory: request `{plugin_id, after_revision}`; event `{plugin_id, revision, state, reason}` ending on host shutdown. `plugin dev` needs unexpected-exit notification; the current local `PluginProcess` exposes start/describe/close but no wait handle, and the library plugin inventory is not composed with product entries.
-- `Plugins.ExportProtocol`: request `{plugin_id}`; response `{files: [{path, source}]}` for the plugin's authoritative `.proto` source closure. `proto export --plugin ID --out PATH` needs source files; current descriptions expose descriptor sets, not `.proto` sources. Product-wide embedded export already works.
+- `Plugins.Watch` for the product-owned plugin inventory: the existing library request `{name, at}` and response `{resolved_at, snapshot | change | resync_required}`, ending on host shutdown. `plugin dev` needs unexpected-exit notification; the current local `PluginProcess` exposes start/describe/close but no wait handle, and the library plugin inventory is not composed with product entries.
+- `Plugins.Protocol.Get`: request `{name}`; response `{files: [{path, source}]}` for the plugin's authoritative `.proto` source closure. `proto export --plugin ID --out PATH` needs source files; current descriptions expose descriptor sets, not `.proto` sources. Product-wide embedded export already works.
 - `Invocations.Invoke`: request `{operation, fingerprint, payload}`; response `{payload}`. The SDK declares this generic service, but this head returns `UNIMPLEMENTED`; Public unary operations with admitted gRPC mappings already work through `operation call`, while Public contracts without a mapping await this host route.
 
 ## Remaining Source Policy Proof
