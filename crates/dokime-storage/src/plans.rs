@@ -40,7 +40,7 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl Store {
-    pub fn registration(&self, key: &str, plan: &[u8]) -> Result<Option<v1::PreviewSelectionReply>> {
+    pub fn registration(&self, key: &str, plan: &[u8]) -> Result<Option<v1::CasesCreateResponse>> {
         let existing: Option<(Vec<u8>, Vec<u8>)> = self
             .lock()?
             .query_row("SELECT plan,payload FROM registrations WHERE key=?1", [key], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -51,12 +51,12 @@ impl Store {
         if previous != plan {
             return Err(Error::Invalid("Register Selection: Reuse the Key with Its Original Plan or Choose a New Key".into()));
         }
-        Ok(Some(v1::PreviewSelectionReply::decode(payload.as_slice())?))
+        Ok(Some(v1::CasesCreateResponse::decode(payload.as_slice())?))
     }
 
     pub fn register_cases(
-        &self, key: Option<&str>, plan: &[u8], cycle: &str, mut reply: v1::PreviewSelectionReply, max_reply_bytes: usize,
-    ) -> Result<v1::PreviewSelectionReply> {
+        &self, key: Option<&str>, plan: &[u8], cycle: &str, mut reply: v1::CasesCreateResponse, max_reply_bytes: usize,
+    ) -> Result<v1::CasesCreateResponse> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         if let Some(key) = key {
@@ -67,7 +67,7 @@ impl Store {
                 if previous != plan {
                     return Err(Error::Invalid("Register Selection: Choose a New Key for the Changed Plan".into()));
                 }
-                return Ok(v1::PreviewSelectionReply::decode(payload.as_slice())?);
+                return Ok(v1::CasesCreateResponse::decode(payload.as_slice())?);
             }
         }
         transaction.execute("INSERT INTO registrations(key,plan,payload) VALUES (?1,?2,X'')", params![key, plan])?;

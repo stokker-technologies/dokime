@@ -190,6 +190,7 @@ impl Store {
         )?;
         let _ = squares;
         Ok(dokime_protocol::context::EvidenceStatisticsResponse {
+            resolved_at: None,
             count: count as u64,
             min: min.unwrap(),
             max: max.unwrap(),

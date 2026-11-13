@@ -43,7 +43,7 @@ pub struct ContentEntry {
     pub metadata: Vec<u8>,
     pub length: u64,
     pub sha256: String,
-    pub phase: v1::ExecutionFilePhase,
+    pub phase: v1::ExecutionFileState,
     pub artifact: bool,
 }
 
@@ -488,8 +488,8 @@ impl ContentEntry {
         let mut metadata = v1::ExecutionFileMetadata::decode(self.metadata.as_slice())?;
         metadata.size_bytes = self.length;
         metadata.state = match self.phase {
-            v1::ExecutionFilePhase::Producing => v1::ExecutionFileState::Streaming,
-            v1::ExecutionFilePhase::Finished => v1::ExecutionFileState::Finalized,
+            v1::ExecutionFileState::Streaming => v1::ExecutionFileState::Streaming,
+            v1::ExecutionFileState::Finalized => v1::ExecutionFileState::Finalized,
             _ => v1::ExecutionFileState::Interrupted,
         } as i32;
         Ok(metadata)
@@ -533,15 +533,18 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
         payload,
         ..Default::default()
     };
-    connection.execute("INSERT INTO evidence VALUES(?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
+    connection.execute(
+        "INSERT INTO evidence(execution,position,payload) VALUES(?1,?2,?3)",
+        params![execution, evidence.position as i64, evidence.encode_to_vec()],
+    )?;
     Ok(())
 }
 
 fn entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContentEntry> {
     let phase = match row.get::<_, i32>(6)? {
-        1 => v1::ExecutionFilePhase::Producing,
-        2 => v1::ExecutionFilePhase::Finished,
-        _ => v1::ExecutionFilePhase::Abandoned,
+        1 => v1::ExecutionFileState::Streaming,
+        2 => v1::ExecutionFileState::Finalized,
+        _ => v1::ExecutionFileState::Interrupted,
     };
     Ok(ContentEntry {
         identifier: row.get(0)?,

@@ -40,7 +40,7 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl Store {
-    pub fn create_note(&self, receipt: v1::NoteReceipt) -> Result<v1::NoteReceipt> {
+    pub fn create_note(&self, receipt: v1::evidence::NotesCreateResponse) -> Result<v1::evidence::NotesCreateResponse> {
         let note = receipt.note.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Body".into()))?;
         let scope = note.scope.as_ref().ok_or_else(|| Error::Invalid("Create Note: Select Its Owner".into()))?;
         let mut connection = self.lock()?;
@@ -48,9 +48,8 @@ impl Store {
         let existing: Option<Vec<u8>> =
             transaction.query_row("SELECT receipt FROM notes WHERE id=?1", [&note.note_id], |row| row.get(0)).optional()?;
         if let Some(bytes) = existing {
-            let existing = v1::NoteReceipt::decode(bytes.as_slice())?;
-            if existing.owner != receipt.owner
-                || existing.note.as_ref().is_none_or(|existing| {
+            let existing = v1::evidence::NotesCreateResponse::decode(bytes.as_slice())?;
+            if existing.note.as_ref().is_none_or(|existing| {
                     existing.scope != note.scope || existing.author != note.author || existing.message != note.message
                 })
             {

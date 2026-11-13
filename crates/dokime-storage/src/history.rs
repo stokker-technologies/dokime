@@ -104,7 +104,15 @@ impl Store {
         transaction.execute("DELETE FROM bindings WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM executions WHERE id=?1", [execution])?;
         transaction.execute("INSERT INTO deletions VALUES (?1,?2,?3)", params![request, execution, seal])?;
+        // A Global Evidence Cut Cannot Silently Lose a Deleted History.
+        transaction.execute("DELETE FROM evidence_reads", [])?;
+        let history = harmos_protocol::v1::History {
+            store: self.identity.to_string(),
+            epoch: uuid::Uuid::now_v7().to_string(),
+        };
+        transaction.execute("UPDATE administration SET payload=?1 WHERE id='evidence-read-history'", [history.encode_to_vec()])?;
         transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
 }

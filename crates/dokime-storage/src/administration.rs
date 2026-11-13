@@ -90,25 +90,25 @@ impl Store {
         Ok(true)
     }
     pub fn update_preferences(
-        &self, update: dokime_protocol::v1::UpdateSettings, initial: &dokime_protocol::v1::SettingsSnapshot,
-    ) -> Result<dokime_protocol::v1::SettingsSnapshot> {
+        &self, update: dokime_protocol::v1::SettingsSetRequest, initial: &dokime_protocol::v1::SettingsGetResponse,
+    ) -> Result<dokime_protocol::v1::SettingsGetResponse> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let bytes: Option<Vec<u8>> =
             transaction.query_row("SELECT payload FROM administration WHERE id='preferences'", [], |row| row.get(0)).optional()?;
         let current = bytes
-            .map(|bytes| dokime_protocol::v1::SettingsSnapshot::decode(bytes.as_slice()))
+            .map(|bytes| dokime_protocol::v1::SettingsGetResponse::decode(bytes.as_slice()))
             .transpose()?
             .unwrap_or_else(|| initial.clone());
         if current.revision != update.expected_revision {
             return Err(Error::Conflict("Save Settings: Refresh Settings After Another Client's Edit".into()));
         }
-        let snapshot = dokime_protocol::v1::SettingsSnapshot {
-            revision: current
-                .revision
-                .checked_add(1)
-                .ok_or_else(|| Error::Invalid("Save Settings: Revision Exhausted; Back Up and Choose a Fresh Root".into()))?,
-            settings: update.settings,
+        let revision = u64::from_be_bytes(current.revision.as_slice().try_into().map_err(|_| Error::Incompatible("Settings Revision".into()))?);
+        let snapshot = dokime_protocol::v1::SettingsGetResponse {
+            revision: revision.checked_add(1)
+                .ok_or_else(|| Error::Invalid("Save Settings: Revision Exhausted; Back Up and Choose a Fresh Root".into()))?.to_be_bytes().to_vec(),
+            value: update.value,
+            resolved_at: None,
         };
         transaction.execute(
             "INSERT INTO administration VALUES ('preferences',?1) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",

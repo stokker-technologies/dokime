@@ -112,6 +112,7 @@ impl Store {
                     "cycles",
                     "deletions",
                     "evidence",
+                    "evidence_reads",
                     "executions",
                     "notes",
                     "plot_preferences",
@@ -135,7 +136,8 @@ impl Store {
                 CREATE TABLE administration(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE INDEX executions_cycle ON executions(cycle,id);
-                CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
+                CREATE TABLE evidence(sequence INTEGER PRIMARY KEY AUTOINCREMENT, execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, UNIQUE(execution,position));
+                CREATE TABLE evidence_reads(position INTEGER PRIMARY KEY);
                 CREATE TABLE attempts(execution TEXT NOT NULL REFERENCES executions(id), step TEXT NOT NULL, operation TEXT NOT NULL, attempt INTEGER NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,step,operation,attempt,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
@@ -180,6 +182,24 @@ impl Store {
             identity
         };
         uuid::Uuid::parse_str(&identity).map_err(|_| Error::Incompatible(root.display().to_string()))?;
+        let evidence_history: Option<Vec<u8>> =
+            connection.query_row("SELECT payload FROM administration WHERE id='evidence-read-history'", [], |row| row.get(0)).optional()?;
+        if let Some(history) = evidence_history {
+            let history = harmos_protocol::v1::History::decode(history.as_slice())?;
+            if history.store != identity || uuid::Uuid::parse_str(&history.epoch).is_err() {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
+        } else {
+            let populated: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM evidence)", [], |row| row.get(0))?;
+            if populated {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
+            let history = harmos_protocol::v1::History {
+                store: identity.clone(),
+                epoch: uuid::Uuid::now_v7().to_string(),
+            };
+            connection.execute("INSERT INTO administration VALUES('evidence-read-history',?1)", [history.encode_to_vec()])?;
+        }
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
@@ -311,8 +331,10 @@ impl Store {
         let transaction = connection.transaction()?;
         require_open(&transaction, execution)?;
         evidence.position = next_position(&transaction, execution)?;
-        transaction
-            .execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
+        transaction.execute(
+            "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
+            params![execution, evidence.position as i64, evidence.encode_to_vec()],
+        )?;
         if evidence.kind == "attempt:start" {
             transaction.execute(
                 "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
