@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -51,28 +51,38 @@ pub struct ContentEntry {
 pub struct ArchivedContent {
     #[prost(string, tag = "1")]
     pub identifier: String,
+
     #[prost(string, tag = "2")]
     pub path: String,
+
     #[prost(bool, tag = "3")]
     pub artifact: bool,
+
     #[prost(bytes = "vec", tag = "4")]
     pub metadata: Vec<u8>,
+
     #[prost(uint64, tag = "5")]
     pub length: u64,
+
     #[prost(string, tag = "6")]
     pub sha256: String,
+
     #[prost(int32, tag = "7")]
     pub phase: i32,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct ArchivedContentChunk {
     #[prost(string, tag = "1")]
     pub identifier: String,
+
     #[prost(uint64, tag = "2")]
     pub offset: u64,
+
     #[prost(bytes = "vec", tag = "3")]
     pub payload: Vec<u8>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CycleArchive {
     #[prost(message, repeated, tag = "1")]
@@ -498,6 +508,7 @@ fn write_field(output: &mut impl std::io::Write, tag: u32, bytes: &[u8]) -> Resu
     output.write_all(bytes)?;
     Ok(())
 }
+
 fn require_open(connection: &rusqlite::Connection, execution: &str) -> Result<()> {
     let state: i32 = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
     if state != 0 {
@@ -505,6 +516,7 @@ fn require_open(connection: &rusqlite::Connection, execution: &str) -> Result<()
     }
     Ok(())
 }
+
 fn content_digest(connection: &rusqlite::Connection, identifier: &str) -> Result<String> {
     let mut hash = Sha256::new();
     let mut statement = connection.prepare("SELECT payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
@@ -513,6 +525,7 @@ fn content_digest(connection: &rusqlite::Connection, identifier: &str) -> Result
     }
     Ok(hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
 }
+
 fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
     let evidence = crate::Evidence {
         position: next_position(connection, execution)?,
@@ -523,6 +536,7 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
     connection.execute("INSERT INTO evidence VALUES(?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
     Ok(())
 }
+
 fn entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContentEntry> {
     let phase = match row.get::<_, i32>(6)? {
         1 => v1::ExecutionFilePhase::Producing,

@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,6 +14,8 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
@@ -52,6 +54,7 @@ pub enum Upload {
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
     super::declaration::<v1::PluginsInstallRequest, v1::PluginInstallation>(ID, settings.mutation_timeout)
 }
+
 pub async fn handle(
     context: &Context, mut input: impl Stream<Item = std::result::Result<Upload, tonic::Status>> + Unpin,
 ) -> Result<v1::PluginInstallation> {

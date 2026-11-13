@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -40,27 +40,36 @@ pub(super) struct Store {
     host_id: String,
     commit: Mutex<()>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 struct Snapshot {
     #[prost(uint64, tag = "1")]
     revision: u64,
+
     #[prost(uint64, tag = "2")]
     listener_revision: u64,
+
     #[prost(message, optional, tag = "3")]
     listener: Option<harmos_protocol::v1::access::ListenerValue>,
+
     #[prost(string, tag = "4")]
     certificate_pem: String,
+
     #[prost(string, tag = "5")]
     key_slot: String,
+
     #[prost(message, repeated, tag = "6")]
     pairings: Vec<SavedPairing>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 struct SavedPairing {
     #[prost(string, tag = "1")]
     id: String,
+
     #[prost(string, tag = "2")]
     label: String,
+
     #[prost(bytes = "vec", tag = "3")]
     credential_sha256: Vec<u8>,
 }
@@ -79,6 +88,7 @@ impl Store {
         keyring::Entry::new(SERVICE, &format!("{}:{slot}", self.host_id))
     }
 }
+
 impl CredentialStore for Store {
     fn load(&self) -> Pending<'_, Option<Credentials>> {
         Box::pin(async move {

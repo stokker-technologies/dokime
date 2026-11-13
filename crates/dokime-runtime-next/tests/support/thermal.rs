@@ -1,8 +1,44 @@
+/* ***
+ *
+ * dokime-rust-workspace
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
 // SPDX-License-Identifier: Apache-2.0
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use prost::Message;
+
+// Local Imports
 use dokime_protocol::v1;
 use dokime_storage::ExecutionSnapshot;
-use prost::Message;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
 
 /// Compare every shared evidence field, excluding only per-run identity and receipt time.
 pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
@@ -89,3 +125,7 @@ pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
         assert_eq!(decoded.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
     }
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

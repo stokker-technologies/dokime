@@ -1160,3 +1160,9 @@ skeleton/grouping findings and environmental unit journeys. Generated protocol
 files retain their generator and drift proof. The mandatory root contributing
 entry and the project instruction to keep guides in docs/ need one consistent
 owner; the maintained contributing guide currently remains in docs/.
+
+The canonical formatter refuses the thermal Python suite because its schema
+constants depend on a preceding factory function. Preserve that execution order
+until the source policy supports dependent module declarations. The protocol
+generator also has no domain error type: adding an unused error module only to
+satisfy the checker would create a placeholder rather than a required contract.
