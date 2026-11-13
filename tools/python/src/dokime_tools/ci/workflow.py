@@ -175,9 +175,8 @@ def main(arguments: list[str] | None = None) -> int:
     elif operation == "sign-product":
         sign_product(options.profile)
     elif operation == "bindings":
-        from . import tasks
-
         from ..test.archive import install_wheels
+        from . import tasks
 
         install_wheels(Path.cwd(), options.profile)
         return tasks.main(["check", "--bindings", "--profile", options.profile])
