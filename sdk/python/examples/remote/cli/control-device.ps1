@@ -15,16 +15,16 @@ $Connection = @('--remote', $PAIRING_FILE)
 dokime operation list @Connection
 
 # Read the Manual Device Before Changing Power.
-dokime operation call obc.device.read --json '{}' --output 'before.json' @Connection
+dokime operation call example.device.read --json '{}' --output 'before.json' @Connection
 
 # Enable the Manual Device.
-dokime operation call obc.device.set_power --json '{"enabled":true}' --output 'power-on.json' @Connection
+dokime operation call example.device.set_power --json '{"enabled":true}' --output 'power-on.json' @Connection
 
 # Read Back the Powered State: 230 V RMS.
-dokime operation call obc.device.read --json '{}' --output 'running.json' @Connection
+dokime operation call example.device.read --json '{}' --output 'running.json' @Connection
 
 # Disable the Manual Device.
-dokime operation call obc.device.set_power --json '{"enabled":false}' --output 'power-off.json' @Connection
+dokime operation call example.device.set_power --json '{"enabled":false}' --output 'power-off.json' @Connection
 
 # Read Back the Powered-Off State: Zero Volts.
-dokime operation call obc.device.read --json '{}' --output 'after.json' @Connection
+dokime operation call example.device.read --json '{}' --output 'after.json' @Connection

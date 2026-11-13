@@ -26,7 +26,7 @@ from harmos.v1 import types_pb2 as wire
 from ._context import HOST_OPERATIONS, Context
 
 # Local Imports
-from .authoring import Record, Suite, Template
+from .authoring import Case, Record, Suite, Template
 from .v1 import message, message_type
 from .values import decode
 
@@ -46,7 +46,7 @@ __all__ = ["Endpoint", "Plugin", "serve"]
 @dataclass
 class _Session:
     instance: object
-    case: Any
+    case: Case
     origin: bytes
 
 
@@ -61,7 +61,7 @@ class Plugin:
         requires: Sequence[harmos.Operation] | None = None,
         sections: Sequence[Message] = (),
         operations: object | None = None,
-    ):
+    ) -> None:
         self.identifier = identifier
         self.version = version
         self.suites = tuple(_suite(item) for item in suites)
@@ -76,7 +76,7 @@ class Plugin:
             ("record", [item.identifier for item in self.records]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
-                raise ValueError(f"Duplicate or empty {name} identifier")
+                raise ValueError(f"Build Plugin: Duplicate or Empty {name} Identifier")
         methods = {}
         if operations is not None:
             for cls in reversed(type(operations).__mro__):
@@ -91,7 +91,8 @@ class Plugin:
             if "initialize" in template._methods:
                 methods[f"initialize_{index}"] = self._execution(template, "initialize")
             methods[f"cleanup_{index}"] = self._execution(template, "cleanup")
-            for kind, definitions in (("step", template.steps), ("criterion", template.criteria)):
+            lifecycle: Sequence[tuple[str, Sequence[Any]]] = (("step", template.steps), ("criterion", template.criteria))
+            for kind, definitions in lifecycle:
                 for position, definition in enumerate(definitions):
                     methods[f"{kind}_{index}_{position}"] = self._execution(
                         template, kind, definition.handler, getattr(definition, "retries", 0)
@@ -118,7 +119,7 @@ class Plugin:
             )
         self._plugin = harmos.Plugin(adapter, id=identifier, version=version, requires=self.requires, sections=[*sections, *contributions])
 
-    def catalog(self):
+    def catalog(self) -> wire.Catalog:
         catalog = self._plugin.catalog()
         # Record Payload Types Are Referenced By Name In The Product Section.
         from harmos.contracts import message_types
@@ -145,15 +146,7 @@ class Plugin:
 
     async def start(self, address: str = "127.0.0.1:7001") -> "Endpoint":
         # Harmos Owns Transport, Fingerprints, Cancellation And Stream Backpressure.
-        owner = self
-
-        class ServingPlugin(harmos.Plugin):
-            def catalog(self):
-                return owner.catalog()
-
-        transport = ServingPlugin(
-            self._plugin.instance, id=self.identifier, version=self.version, requires=self.requires, sections=self._plugin.sections
-        )
+        transport = _ServingPlugin(self)
         endpoint = await transport.start(address)
         return Endpoint(endpoint, self)
 
@@ -165,22 +158,32 @@ class Plugin:
                 if error.value.code != "scope_required":
                     raise
             else:
-                raise ValueError("Materialization requires no execution scope")
+                raise ValueError("Materialize Test Case: Execution Scope Must Be Empty")
             if request.template != template.identifier:
-                raise ValueError("Materialization requires its template and no execution scope")
-            return template.build({key: decode(value) for key, value in request.parameters.items()}).message
+                raise ValueError("Materialize Test Case: Supply the Bound Template Without an Execution Scope")
+            return message(
+                "dokime.plugin.v1.TestCasesMaterializeResponse",
+                test_case=template.build({key: decode(value) for key, value in request.parameters.items()}).message,
+            )
 
         return harmos.operation(
             f"{template.identifier}.materialize",
-            request=message_type("MaterializeRequest"),
-            response=message_type("TestCase"),
+            request=message_type("dokime.plugin.v1.TestCasesMaterializeRequest"),
+            response=message_type("dokime.plugin.v1.TestCasesMaterializeResponse"),
             visibility=wire.VISIBILITY_PROTECTED,
         )(execute)
 
     def _execution(self, template: Template, kind: str, handler=None, retries: int = 0):
+        family = {
+            "step": "StepsExecute",
+            "criterion": "CriteriaEvaluate",
+            "initialize": "ExecutionsInitialize",
+            "cleanup": "ExecutionsCleanup",
+        }[kind]
+
         async def execute(adapter, transport, request):
             if not request.execution or transport.scope() != request.execution:
-                raise ValueError("Execution and Harmos scope must agree")
+                raise ValueError(f"{kind.title()} Execution: Execution and Harmos Scope Must Agree")
             origin = request.origin
             if (
                 origin.WhichOneof("kind") != "plugin_run"
@@ -188,21 +191,25 @@ class Plugin:
                 or origin.plugin_run.template != template.identifier
                 or origin.plugin_run.test_case != request.test_case
             ):
-                raise ValueError("Execution origin and frozen test case must agree")
+                raise ValueError(f"{kind.title()} Execution: Origin and Frozen Test Case Must Agree")
             key = (template.identifier, request.execution)
             session = self._sessions.get(key)
             if session is None:
                 parameters = {name: decode(value) for name, value in request.test_case.parameters.items()}
                 case = template.build(parameters)
                 if case.message != request.test_case:
-                    raise ValueError("Frozen test case does not match materialization")
+                    raise ValueError(f"{kind.title()} Execution: Frozen Test Case Does Not Match Materialization")
                 session = _Session(template.instance(), case, origin.SerializeToString(deterministic=True))
                 self._sessions[key] = session
                 self._ready.setdefault(key, asyncio.Event()).set()
             if session.case.message != request.test_case or session.origin != origin.SerializeToString(deterministic=True):
-                raise ValueError("Execution definition changed")
+                raise ValueError(f"{kind.title()} Execution: Frozen Definition Changed")
             context = Context(
-                transport, {name: decode(value) for name, value in request.test_case.parameters.items()}, self.requires, self.records
+                transport,
+                {name: decode(value) for name, value in request.test_case.parameters.items()},
+                self.requires,
+                self.records,
+                termination=request.termination if kind == "cleanup" else None,
             )
             function = handler or template._methods.get(kind)
             arguments = {}
@@ -210,16 +217,16 @@ class Plugin:
                 identity = getattr(request, kind)
                 function, arguments = session.case.bindings[kind, identity]
                 if function is not handler:
-                    raise ValueError("Execution item belongs to another operation")
+                    raise ValueError(f"{kind.title()} Execution: Item Belongs to Another Operation")
             try:
                 result = function(session.instance, context, **arguments) if function is not None else None
                 if inspect.isawaitable(result):
                     result = await result
                 if kind == "criterion":
                     if not isinstance(result, bool):
-                        raise TypeError("A criterion must return bool")
-                    return message("CriterionResponse", passed=result)
-                return message(f"{kind.title()}Response")
+                        raise TypeError("Evaluate Criterion: Handler Must Return bool")
+                    return message("dokime.plugin.v1.CriteriaEvaluateResponse", passed=result)
+                return message(f"dokime.plugin.v1.{family}Response")
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -231,8 +238,8 @@ class Plugin:
         )
         return harmos.operation(
             operation,
-            request=message_type(f"{kind.title()}Request"),
-            response=message_type(f"{kind.title()}Response"),
+            request=message_type(f"dokime.plugin.v1.{family}Request"),
+            response=message_type(f"dokime.plugin.v1.{family}Response"),
             visibility=wire.VISIBILITY_PROTECTED,
             policy=policy,
             replay_safe=bool(retries),
@@ -281,8 +288,19 @@ class Plugin:
         return harmos.on_stop(release)
 
 
+class _ServingPlugin(harmos.Plugin):
+    def __init__(self, owner: Plugin) -> None:
+        self._owner = owner
+        super().__init__(
+            owner._plugin.instance, id=owner.identifier, version=owner.version, requires=owner.requires, sections=owner._plugin.sections
+        )
+
+    def catalog(self) -> wire.Catalog:
+        return self._owner.catalog()
+
+
 class Endpoint:
-    def __init__(self, transport, plugin: Plugin):
+    def __init__(self, transport: Any, plugin: Plugin) -> None:
         self._transport = transport
         self.plugin = plugin
         self.url = f"http://{transport.address}"

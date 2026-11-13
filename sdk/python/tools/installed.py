@@ -39,7 +39,7 @@ def main():
     if len(wheels) != 1:
         raise ValueError("Build exactly one SDK wheel first")
     subprocess.run(
-        ["uv", "pip", "install", "--python", sys.executable, "--reinstall", "--no-cache", str(wheels[0])],
+        ["uv", "pip", "install", "--python", sys.executable, "--reinstall-package", "dokime-sdk", str(wheels[0])],
         check=True,
         creationflags=spawn_flags(),
     )

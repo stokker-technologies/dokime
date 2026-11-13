@@ -33,7 +33,10 @@ class Thermal:
 
     @dokime.step("Hold", identifier="hold")
     async def hold(self, ctx):
-        answer = await ctx.operation(message("dokime.context.v1.PromptsCreateRequest", prompt="door", prompt_type="thermal.door"))
+        question = next(operation for operation in HOST_OPERATIONS if operation.id == "dokime.plugin.host.v1.Prompts/Create")
+        answer = await ctx.operation(question)(
+            message("dokime.plugin.host.v1.PromptsCreateRequest", prompt="door", prompt_type="thermal.door")
+        )
         await ctx.record("thermal.door", Door(closed=answer.action == "yes" and answer.accepted))
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
@@ -63,7 +66,7 @@ def plugin():
         ],
     )
     prompt = message(
-        "PromptCatalog",
+        "PromptDefinitions",
         prompts=[
             message(
                 "Prompt",
@@ -75,13 +78,13 @@ def plugin():
         ],
     )
     needed = {
-        "dokime.context.v1.Prompts/Create",
-        "dokime.context.v1.evidence.Records/Append",
-        "dokime.context.v1.evidence.Records/List",
-        "dokime.context.v1.Evidence/Statistics",
-        "dokime.context.v1.executions.Progress/Get",
-        "dokime.context.v1.executions.Progress/Set",
-        "dokime.context.v1.evidence.Logs/Append",
+        "dokime.plugin.host.v1.Prompts/Create",
+        "dokime.plugin.host.v1.evidence.Records/Append",
+        "dokime.plugin.host.v1.evidence.Records/List",
+        "dokime.plugin.host.v1.Evidence/Statistics",
+        "dokime.plugin.host.v1.executions.Progress/Get",
+        "dokime.plugin.host.v1.executions.Progress/Set",
+        "dokime.plugin.host.v1.evidence.Logs/Append",
         "harmos.context.v1.Time/Sleep",
     }
     return dokime.Plugin(

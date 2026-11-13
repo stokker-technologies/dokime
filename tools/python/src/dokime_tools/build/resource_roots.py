@@ -64,23 +64,23 @@ def table(descriptors: FileDescriptorSet, snake) -> list[dict]:
                     raise ValueError(f"Client Resource Collision: {'.'.join(path)}")
                 leaves.add(leaf)
                 methods.append(
-                    dict(
-                        owner=parts[0],
-                        face=face,
-                        version=parts[version],
-                        parents=parts[version + 1 :],
-                        service=service.name,
-                        method=method.name,
-                        package=file.package,
-                        path=path,
-                        request=method.input_type.lstrip("."),
-                        response=method.output_type.lstrip("."),
-                        request_csharp=csharp_types[method.input_type],
-                        response_csharp=csharp_types[method.output_type],
-                        client_streaming=method.client_streaming,
-                        server_streaming=method.server_streaming,
-                        file=file.name,
-                    )
+                    {
+                        "owner": parts[0],
+                        "face": face,
+                        "version": parts[version],
+                        "parents": parts[version + 1 :],
+                        "service": service.name,
+                        "method": method.name,
+                        "package": file.package,
+                        "path": path,
+                        "request": method.input_type.lstrip("."),
+                        "response": method.output_type.lstrip("."),
+                        "request_csharp": csharp_types[method.input_type],
+                        "response_csharp": csharp_types[method.output_type],
+                        "client_streaming": method.client_streaming,
+                        "server_streaming": method.server_streaming,
+                        "file": file.name,
+                    }
                 )
     for leaf in leaves:
         if any(leaf[:length] in leaves for length in range(2, len(leaf))):

@@ -18,6 +18,7 @@ from uuid import uuid4
 # Third Party Imports
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
+from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import GET_TIME, SLEEP, Operation
 from harmos.v1 import types_pb2 as wire
 
@@ -38,95 +39,121 @@ HOST_OPERATIONS = tuple(
     Operation(identifier, message_type(request), message_type(response), wire.VISIBILITY_PUBLIC)
     for identifier, request, response in (
         (
-            "dokime.context.v1.evidence.Records/Append",
-            "dokime.context.v1.evidence.RecordsAppendRequest",
-            "dokime.context.v1.evidence.RecordsAppendResponse",
+            "dokime.plugin.host.v1.evidence.Records/Append",
+            "dokime.plugin.host.v1.evidence.RecordsAppendRequest",
+            "dokime.plugin.host.v1.evidence.RecordsAppendResponse",
         ),
         (
-            "dokime.context.v1.evidence.Records/List",
-            "dokime.context.v1.evidence.RecordsListRequest",
-            "dokime.context.v1.evidence.RecordsListResponse",
+            "dokime.plugin.host.v1.evidence.Records/List",
+            "dokime.plugin.host.v1.evidence.RecordsListRequest",
+            "dokime.plugin.host.v1.evidence.RecordsListResponse",
         ),
         (
-            "dokime.context.v1.Evidence/Statistics",
-            "dokime.context.v1.EvidenceStatisticsRequest",
-            "dokime.context.v1.EvidenceStatisticsResponse",
+            "dokime.plugin.host.v1.Evidence/Statistics",
+            "dokime.plugin.host.v1.EvidenceStatisticsRequest",
+            "dokime.plugin.host.v1.EvidenceStatisticsResponse",
         ),
         (
-            "dokime.context.v1.executions.Progress/Get",
-            "dokime.context.v1.executions.ProgressGetRequest",
-            "dokime.context.v1.executions.ProgressGetResponse",
+            "dokime.plugin.host.v1.executions.Progress/Get",
+            "dokime.plugin.host.v1.executions.ProgressGetRequest",
+            "dokime.plugin.host.v1.executions.ProgressGetResponse",
         ),
         (
-            "dokime.context.v1.executions.Progress/Set",
-            "dokime.context.v1.executions.ProgressSetRequest",
-            "dokime.context.v1.executions.ProgressSetResponse",
+            "dokime.plugin.host.v1.executions.Progress/Set",
+            "dokime.plugin.host.v1.executions.ProgressSetRequest",
+            "dokime.plugin.host.v1.executions.ProgressSetResponse",
         ),
         (
-            "dokime.context.v1.evidence.Logs/Append",
-            "dokime.context.v1.evidence.LogsAppendRequest",
-            "dokime.context.v1.evidence.LogsAppendResponse",
+            "dokime.plugin.host.v1.evidence.Logs/Append",
+            "dokime.plugin.host.v1.evidence.LogsAppendRequest",
+            "dokime.plugin.host.v1.evidence.LogsAppendResponse",
         ),
-        ("dokime.settings.read", "ReadSettings", "SavedSettings"),
-        ("dokime.secrets.read", "ReadSecret", "Secret"),
-        ("dokime.context.v1.Prompts/Create", "dokime.context.v1.PromptsCreateRequest", "dokime.context.v1.PromptsCreateResponse"),
+        ("dokime.settings.read", "dokime.plugin.host.v1.ReadSettings", "dokime.plugin.host.v1.SavedSettings"),
+        ("dokime.secrets.read", "dokime.plugin.host.v1.ReadSecret", "dokime.plugin.host.v1.Secret"),
         (
-            "dokime.context.v1.evidence.Traceability/Get",
-            "dokime.context.v1.evidence.TraceabilityGetRequest",
-            "dokime.context.v1.evidence.TraceabilityGetResponse",
-        ),
-        (
-            "dokime.context.v1.evidence.Traceability/Set",
-            "dokime.context.v1.evidence.TraceabilitySetRequest",
-            "dokime.context.v1.evidence.TraceabilitySetResponse",
+            "dokime.plugin.host.v1.Prompts/Create",
+            "dokime.plugin.host.v1.PromptsCreateRequest",
+            "dokime.plugin.host.v1.PromptsCreateResponse",
         ),
         (
-            "dokime.context.v1.Documents/AppendParts",
-            "dokime.context.v1.DocumentsAppendPartsRequest",
-            "dokime.context.v1.DocumentsAppendPartsResponse",
-        ),
-        ("dokime.execution.artifact", "PublishArtifact", "ArtifactReceipt"),
-        ("dokime.context.v1.Files/Capture", "dokime.context.v1.FilesCaptureRequest", "dokime.context.v1.FilesCaptureResponse"),
-        (
-            "dokime.context.v1.files.Captures/Start",
-            "dokime.context.v1.files.CapturesStartRequest",
-            "dokime.context.v1.files.CapturesStartResponse",
+            "dokime.plugin.host.v1.evidence.Traceability/Get",
+            "dokime.plugin.host.v1.evidence.TraceabilityGetRequest",
+            "dokime.plugin.host.v1.evidence.TraceabilityGetResponse",
         ),
         (
-            "dokime.context.v1.files.Captures/Stop",
-            "dokime.context.v1.files.CapturesStopRequest",
-            "dokime.context.v1.files.CapturesStopResponse",
+            "dokime.plugin.host.v1.evidence.Traceability/Set",
+            "dokime.plugin.host.v1.evidence.TraceabilitySetRequest",
+            "dokime.plugin.host.v1.evidence.TraceabilitySetResponse",
         ),
         (
-            "dokime.context.v1.Backend/Environment",
-            "dokime.context.v1.BackendEnvironmentRequest",
-            "dokime.context.v1.BackendEnvironmentResponse",
+            "dokime.plugin.host.v1.Documents/AppendParts",
+            "dokime.plugin.host.v1.DocumentsAppendPartsRequest",
+            "dokime.plugin.host.v1.DocumentsAppendPartsResponse",
         ),
-        ("dokime.execution.effect.prepare", "PrepareEffect", "Ticket"),
-        ("dokime.execution.effect.applied", "ConfirmEffect", "ConfirmEffectResponse"),
+        ("dokime.execution.artifact", "dokime.plugin.host.v1.content.PublishArtifact", "dokime.plugin.host.v1.content.ArtifactReceipt"),
+        ("dokime.plugin.host.v1.Files/Capture", "dokime.plugin.host.v1.FilesCaptureRequest", "dokime.plugin.host.v1.FilesCaptureResponse"),
+        (
+            "dokime.plugin.host.v1.files.Captures/Start",
+            "dokime.plugin.host.v1.files.CapturesStartRequest",
+            "dokime.plugin.host.v1.files.CapturesStartResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Captures/Stop",
+            "dokime.plugin.host.v1.files.CapturesStopRequest",
+            "dokime.plugin.host.v1.files.CapturesStopResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.Backend/Environment",
+            "dokime.plugin.host.v1.BackendEnvironmentRequest",
+            "dokime.plugin.host.v1.BackendEnvironmentResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.Effects/Create",
+            "dokime.plugin.host.v1.EffectsCreateRequest",
+            "dokime.plugin.host.v1.EffectsCreateResponse",
+        ),
+        ("dokime.plugin.host.v1.Effects/Get", "dokime.plugin.host.v1.EffectsGetRequest", "dokime.plugin.host.v1.EffectsGetResponse"),
+        ("dokime.plugin.host.v1.Effects/Set", "dokime.plugin.host.v1.EffectsSetRequest", "dokime.plugin.host.v1.EffectsSetResponse"),
+        (
+            "dokime.plugin.host.v1.content.Artifacts/Create",
+            "dokime.plugin.host.v1.content.ArtifactsCreateRequest",
+            "dokime.plugin.host.v1.content.ArtifactsCreateResponse",
+        ),
     )
 ) + (GET_TIME, SLEEP)
 
 # === Types === #
 
+
 # === Classes === #
 
 
 class Context:
-    def __init__(self, transport, parameters: dict[str, Any], operations: Sequence[Operation], records: Sequence[Record] = ()):
+    def __init__(
+        self,
+        transport: Any,
+        parameters: dict[str, Any],
+        operations: Sequence[Operation],
+        records: Sequence[Record] = (),
+        *,
+        termination: int | None = None,
+    ) -> None:
         self._transport = transport
         self.parameters = parameters
         self.execution = transport.scope()
         self.attempt = transport.attempt
+        self.termination = termination
         self._operations = tuple(operations)
         self._records = {item.identifier: item for item in records}
 
-    async def operation(self, request: Message, *, operation: Operation | None = None, policy=None) -> Any:
+    def operation[Q: Message, R: Message](self, operation: Operation[Q, R]) -> "BoundOperation[Q, R]":
+        return BoundOperation(self._transport, operation)
+
+    async def _call(self, request: Message) -> Any:
         candidates = [item for item in self._operations if item.request.DESCRIPTOR.full_name == request.DESCRIPTOR.full_name]
-        if operation is None and len(candidates) != 1:
-            raise ValueError(f"Name the declared operation for {request.DESCRIPTOR.full_name}")
-        selected = operation if operation is not None else candidates[0]
-        return await self._transport.call(selected, request, policy=policy)
+        if len(candidates) != 1:
+            raise ValueError(f"Call Host Operation: Name the declared operation for {request.DESCRIPTOR.full_name}")
+        return await self.operation(candidates[0])(request)
 
     async def sleep(self, duration: float | Duration) -> None:
         if not isinstance(duration, Duration):
@@ -134,7 +161,7 @@ class Context:
             duration = Duration(seconds=milliseconds // 1000, nanos=(milliseconds % 1000) * 1_000_000)
         await self._transport.sleep(duration)
 
-    async def now(self):
+    async def now(self) -> Timestamp:
         return await self._transport.now()
 
     async def cancelled(self) -> str:
@@ -144,45 +171,53 @@ class Context:
         definition = message("Prompt", metadata={"identifier": "question", "label": text}, message=text)
         for index, choice in enumerate(choices or ("OK",)):
             definition.actions.add(identifier=str(index), label=choice)
-        response = await self.operation(message("dokime.context.v1.PromptsCreateRequest", prompt="question", definition=definition))
+        response = await self._call(message("dokime.plugin.host.v1.PromptsCreateRequest", prompt="question", definition=definition))
         if not response.accepted:
-            raise ValueError("Operator answer was not accepted")
+            raise ValueError("Create Prompt: Operator Answer Was Not Accepted")
         actions = {action.identifier: action.label for action in definition.actions}
         return actions.get(response.action, response.action)
 
-    async def record(self, kind: str, payload: Message | None = None, **fields: Any):
+    async def record(self, kind: str, payload: Message | None = None, **fields: Any) -> Any:
         definition = self._records.get(kind)
         if definition is None:
-            raise ValueError(f"Undeclared record kind: {kind}")
+            raise ValueError(f"Append Record: Undeclared Record Kind {kind}")
         row = payload if payload is not None else definition.row(**fields)
         if not isinstance(row, definition.row):
-            raise TypeError(f"Invalid record payload: {kind}")
-        return await self.operation(
-            message("dokime.context.v1.evidence.RecordsAppendRequest", execution=self.execution, kind=kind, payload=row.SerializeToString())
+            raise TypeError(f"Append Record: Invalid Payload for {kind}")
+        return await self._call(
+            message(
+                "dokime.plugin.host.v1.evidence.RecordsAppendRequest",
+                execution=self.execution,
+                kind=kind,
+                payload=row.SerializeToString(),
+                request_id=str(uuid4()),
+            )
         )
 
     def records(self, kind: str, *, step: str = "") -> "RecordsQuery":
         if kind not in self._records:
-            raise ValueError(f"Undeclared record kind: {kind}")
+            raise ValueError(f"Read Records: Undeclared Record Kind {kind}")
         return RecordsQuery(self, self._records[kind], step)
 
-    async def statistics(self, stream: str, field: str | None = None, *, step: str = ""):
-        return await self.operation(
-            message("dokime.context.v1.EvidenceStatisticsRequest", execution=self.execution, stream=stream, field=field or "", step=step)
+    async def statistics(self, stream: str, field: str | None = None, *, step: str = "") -> Any:
+        return await self._call(
+            message(
+                "dokime.plugin.host.v1.EvidenceStatisticsRequest", execution=self.execution, stream=stream, field=field or "", step=step
+            )
         )
 
     async def secret(self, identifier: str) -> bytes:
-        return (await self.operation(message("ReadSecret", identifier=identifier))).value
+        return (await self._call(message("dokime.plugin.host.v1.ReadSecret", identifier=identifier))).value
 
     async def settings(self) -> dict[str, Any]:
-        response = await self.operation(message("ReadSettings"))
+        response = await self._call(message("dokime.plugin.host.v1.ReadSettings"))
         return {key: decode(value) for key, value in response.values.items()}
 
     async def progress(self, completed: int, total: int, *, label: str = "") -> None:
-        current = await self.operation(message("dokime.context.v1.executions.ProgressGetRequest", name=self.execution))
-        await self.operation(
+        current = await self._call(message("dokime.plugin.host.v1.executions.ProgressGetRequest", name=self.execution))
+        await self._call(
             message(
-                "dokime.context.v1.executions.ProgressSetRequest",
+                "dokime.plugin.host.v1.executions.ProgressSetRequest",
                 name=self.execution,
                 value={"completed": completed, "total": total, "label": label},
                 expected_revision=current.revision,
@@ -191,8 +226,14 @@ class Context:
         )
 
     async def log(self, text: str, *, severity: int = 2) -> None:
-        await self.operation(
-            message("dokime.context.v1.evidence.LogsAppendRequest", execution=self.execution, message=text, severity=severity)
+        await self._call(
+            message(
+                "dokime.plugin.host.v1.evidence.LogsAppendRequest",
+                execution=self.execution,
+                message=text,
+                severity=severity,
+                request_id=str(uuid4()),
+            )
         )
 
     async def traceability(self, identifier: str, value: Any, *, label: str = "", source: str = "", unit: str = "") -> None:
@@ -203,10 +244,10 @@ class Context:
             source=source,
             unit=unit,
         )
-        current = await self.operation(message("dokime.context.v1.evidence.TraceabilityGetRequest", name=self.execution, entry=identifier))
-        await self.operation(
+        current = await self._call(message("dokime.plugin.host.v1.evidence.TraceabilityGetRequest", name=self.execution, entry=identifier))
+        await self._call(
             message(
-                "dokime.context.v1.evidence.TraceabilitySetRequest",
+                "dokime.plugin.host.v1.evidence.TraceabilitySetRequest",
                 name=self.execution,
                 entry=identifier,
                 value=entry,
@@ -218,65 +259,98 @@ class Context:
     async def document(self, document: str, part: Message, *, section: str = "") -> None:
         field = {"dokime.v1.Section": "subsection", "dokime.v1.Card": "card"}.get(part.DESCRIPTOR.full_name)
         if field is None:
-            raise TypeError("Document parts must be Section or Card messages")
-        await self.operation(
+            raise TypeError("Append Document Parts: Supply a Section or Card Message")
+        await self._call(
             message(
-                "dokime.context.v1.DocumentsAppendPartsRequest",
+                "dokime.plugin.host.v1.DocumentsAppendPartsRequest",
                 execution=self.execution,
                 document=document,
                 section=section,
+                request_id=str(uuid4()),
                 **{field: part},
             )
         )
 
-    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", replace: bool = False):
+    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", replace: bool = False) -> Any:
         from uuid import uuid4
 
-        return await self.operation(
-            message("PublishArtifact", transfer_id=str(uuid4()), name=name, mime=mime, data=data, last=True, replace=replace)
+        return await self._call(
+            message(
+                "dokime.plugin.host.v1.content.PublishArtifact",
+                transfer_id=str(uuid4()),
+                name=name,
+                mime=mime,
+                data=data,
+                last=True,
+                replace=replace,
+            )
         )
 
-    async def copy_files(self, source: Message, output: str):
-        return await self.operation(message("dokime.context.v1.FilesCaptureRequest", source=source, output=output))
+    async def copy_files(self, source: Message, output: str) -> Any:
+        return await self._call(message("dokime.plugin.host.v1.FilesCaptureRequest", source=source, output=output))
 
-    async def start_capture(self, source: Message, output: str, mode: Message):
-        return await self.operation(message("dokime.context.v1.files.CapturesStartRequest", source=source, output=output, mode=mode))
+    async def start_capture(self, source: Message, output: str, mode: Message) -> Any:
+        return await self._call(message("dokime.plugin.host.v1.files.CapturesStartRequest", source=source, output=output, mode=mode))
 
-    async def stop_capture(self, capture_id: int):
-        return await self.operation(message("dokime.context.v1.files.CapturesStopRequest", capture_id=capture_id))
+    async def stop_capture(self, capture_id: int) -> Any:
+        return await self._call(message("dokime.plugin.host.v1.files.CapturesStopRequest", capture_id=capture_id))
 
-    async def environment(self):
-        return await self.operation(message("dokime.context.v1.BackendEnvironmentRequest"))
+    async def environment(self) -> Any:
+        return await self._call(message("dokime.plugin.host.v1.BackendEnvironmentRequest"))
 
-    async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = ""):
-        return await self.operation(
+    async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = "") -> Any:
+        return await self._call(
             message(
-                "PrepareEffect",
+                "dokime.plugin.host.v1.EffectsCreateRequest",
                 resource=resource,
                 inverse_operation=inverse_operation,
                 inverse=inverse.SerializeToString(),
                 description=description,
+                request_id=str(uuid4()),
             )
         )
 
-    async def confirm_effect(self, ticket: str, *, at: str = "", restored: bool = False):
-        return await self.operation(message("ConfirmEffect", ticket=ticket, at=at, restored=restored))
+    async def confirm_effect(self, ticket: str, *, at: Timestamp | None = None, restored: bool = False) -> Any:
+        current = await self._call(message("dokime.plugin.host.v1.EffectsGetRequest", name=ticket))
+        value = message("dokime.plugin.host.v1.EffectWritable", restored=restored)
+        if at is not None:
+            value.applied_at.CopyFrom(at)
+        return await self._call(
+            message(
+                "dokime.plugin.host.v1.EffectsSetRequest",
+                name=ticket,
+                value=value,
+                expected_revision=current.revision,
+                request_id=str(uuid4()),
+            )
+        )
+
+
+class BoundOperation[RequestT: Message, ResponseT: Message]:
+    __type_params__: tuple[Any, ...]
+
+    def __init__(self, transport: Any, operation: Operation[RequestT, ResponseT]) -> None:
+        self._transport = transport
+        self._operation = operation
+
+    async def __call__(self, request: RequestT, *, policy: wire.OperationPolicy | None = None) -> ResponseT:
+        return await self._transport.call(self._operation, request, policy=policy)
 
 
 class RecordsQuery:
-    def __init__(self, context: Context, definition: Record, step: str):
+    def __init__(self, context: Context, definition: Record, step: str) -> None:
         self._context = context
         self._definition = definition
         self._step = step
 
-    async def read(self, *, limit: int = 0):
-        return await self._context.operation(
+    async def read(self, *, limit: int = 0) -> Any:
+        return await self._context._call(
             message(
-                "dokime.context.v1.evidence.RecordsListRequest",
+                "dokime.plugin.host.v1.evidence.RecordsListRequest",
                 execution=self._context.execution,
                 kind=self._definition.identifier,
                 step=self._step,
-                limit=limit,
+                page={"page_size": limit},
             )
         )
 

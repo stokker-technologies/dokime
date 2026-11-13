@@ -9,7 +9,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 $PAIRING_FILE = '../lab.pair'
 
 # Case and Execution Parameters
-$TEMPLATE = 'obc.checks.pulse'
+$TEMPLATE = 'example.checks.pulse'
 $CYCLE_LABEL = 'Remote Confirmation Demonstration'
 $ANSWER = 'yes'
 $WAIT_S = 60

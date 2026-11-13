@@ -9,15 +9,15 @@ $PSNativeCommandUseErrorActionPreference = $true
 $PAIRING_FILE = '../lab.pair'
 
 # Case and Execution Parameters
-$TEMPLATE = 'obc.checks.pulse'
+$TEMPLATE = 'example.checks.pulse'
 $CYCLE_LABEL = 'Remote Pulse Demonstration'
 $SAMPLE_COUNT = 8
 $EXECUTION_COUNT = 2
 $WAIT_S = 60
 
 # Observation Filters
-$RECORD_TYPES = 'obc.run.*'
-$STREAMS = 'obc.pulse'
+$RECORD_TYPES = 'example.run.*'
+$STREAMS = 'example.pulse'
 
 # Evidence Files
 $OUTPUT_DIRECTORY = 'test-evidence'

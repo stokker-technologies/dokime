@@ -15,23 +15,30 @@ import asyncio
 import hashlib
 import json
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
-from functools import partial
-from importlib.resources import files
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 # Third Party Imports
 import grpc
+
+# Local Imports
+from _dokime_resources import (
+    CyclesResource,
+    ExecutionsResource,
+    PluginsResource,
+    PromptsResource,
+    ReportsResource,
+    Resource,
+    SuitesResource,
+)
 from google.protobuf import descriptor_pool, message_factory
 from google.protobuf.descriptor import MethodDescriptor
 from google.protobuf.message import Message
-from harmos.client import Client as LibraryClient
 
-# Local Imports
 from .v1 import descriptors, message, services
 from .values import encode
 
@@ -52,21 +59,23 @@ class MissingServiceError(RuntimeError):
     """The Authoritative Protocol Sources Do Not Declare This Client Method."""
 
 
-class Client:
-    def __init__(self, channel: grpc.aio.Channel, *, metadata: tuple = ()):
+class Client(Resource):
+    plugins: "Plugins"
+    suites: "Suites"
+    cycles: "Cycles"
+    executions: "Executions"
+    prompts: "Prompts"
+    reports: "Reports"
+
+    def __init__(self, channel: grpc.aio.Channel, *, metadata: tuple[tuple[str, str], ...] = ()) -> None:
         self.channel = channel
         self.metadata = metadata
         self.closed = False
-        resource_channel = SimpleNamespace(
-            unary_unary=lambda *args, **kwargs: partial(channel.unary_unary(*args, **kwargs), metadata=self.metadata),
-            unary_stream=lambda *args, **kwargs: partial(channel.unary_stream(*args, **kwargs), metadata=self.metadata),
-        )
-        product_table = json.loads(files("dokime").joinpath("resources.json").read_text(encoding="utf-8"))
-        self._library = LibraryClient(resource_channel, product_table)
+        super().__init__(self)
         self.stubs = {name: stub(channel) for name, stub in services().items()}
-        self._methods = []
+        self._methods: list[MethodDescriptor] = []
         for definition in descriptors().file:
-            if definition.package != "dokime.v1" and not definition.package.startswith("dokime.v1."):
+            if not definition.package.startswith("dokime.client.v1"):
                 continue
             for service in definition.service:
                 selected = descriptor_pool.Default().FindServiceByName(f"{definition.package}.{service.name}")
@@ -81,10 +90,7 @@ class Client:
         self.samples = Samples(self)
         self.reports = Reports(self)
 
-    def __getattr__(self, name: str):
-        return getattr(self._library, name)
-
-    def call(self, request, *, method: MethodDescriptor | None = None, timeout: float | None = None):
+    def call(self, request: Any, *, method: MethodDescriptor | None = None, timeout: float | None = None) -> Any:
         if self.closed:
             raise RuntimeError("Dokime client is closed")
         if method is None:
@@ -93,7 +99,7 @@ class Client:
             candidates = [item for item in self._methods if item.input_type.full_name == request.DESCRIPTOR.full_name]
             if len(candidates) != 1:
                 raise MissingServiceError(
-                    f"Expected one service method for {request.DESCRIPTOR.full_name}; found {len(candidates)} in proto/dokime/v1"
+                    f"Expected one service method for {request.DESCRIPTOR.full_name}; found {len(candidates)} in proto/dokime/client/v1"
                 )
             method = candidates[0]
         if not method.client_streaming and request.DESCRIPTOR.full_name != method.input_type.full_name:
@@ -114,53 +120,76 @@ class Client:
         await self.channel.close()
 
 
-class Plugins:
-    def __init__(self, client: Client):
-        self._client = client
+class Plugins(PluginsResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-    async def add(self, url: str):
-        return await self._client.call(message("AddRemotePlugin", url=url))
+    async def add(self, request: Any, *, timeout: float | None = None) -> Any:
+        if isinstance(request, Message):
+            return await self._client.call(request, timeout=timeout)
+        url = request
+        return await self._client.call(message("dokime.client.v1.AddRemotePlugin", url=url))
 
-    async def list(self):
-        return await self._client.call(message("ListPlugins"))
+    async def list(self, request: Any = None, *, timeout: float | None = None) -> Any:
+        if request is not None:
+            return await super().list(request, timeout=timeout)
+        return await self._client.call(message("dokime.client.v1.ListPlugins"), timeout=timeout)
 
-    async def remove(self, entry: str) -> None:
-        await self._client.call(message("RemovePlugin", entry=entry))
+    async def remove(self, request: Any, *, timeout: float | None = None) -> Any:
+        if isinstance(request, Message):
+            return await self._client.call(request, timeout=timeout)
+        entry = request
+        await self._client.call(message("dokime.client.v1.RemovePlugin", entry=entry))
 
 
-class Suites:
-    def __init__(self, client: Client):
-        self._client = client
+class Suites(SuitesResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-    async def list(self):
-        return (await self._client.call(message("CatalogListSuitesRequest"))).suites
+    async def list(self, request: Any = None, *, timeout: float | None = None) -> Any:
+        if request is not None:
+            return await super().list(request, timeout=timeout)
+        return (await super().list(message("dokime.client.v1.SuitesListRequest"), timeout=timeout)).values
 
-    async def get(self, identifier: str):
-        return await self._client.call(message("CatalogGetSuiteRequest", suite_id=identifier))
+    async def get(self, request: Any, *, timeout: float | None = None) -> Any:
+        if not isinstance(request, str):
+            return await super().get(request, timeout=timeout)
+        identifier = request
+        return (await self._client.call(message("dokime.client.v1.SuitesGetRequest", name=identifier))).value
 
 
 class Templates:
-    def __init__(self, client: Client):
+    def __init__(self, client: Client) -> None:
         self._client = client
 
-    async def materialize(self, suite: str, template: str, parameters: Mapping[str, Sequence[Any]]):
-        selection = message("RegisteredSelection", suite_id=suite, template_id=template)
+    async def materialize(self, suite: str, template: str, parameters: Mapping[str, Sequence[Any]]) -> tuple[Any, ...]:
+        selection = message("dokime.client.v1.RegisteredSelection", suite_id=suite, template_id=template)
         for key, values in parameters.items():
             entry = selection.parameters.add(key=key)
             entry.value.values.extend(encode(value) for value in values)
-        result = await self._client.call(message("PlanningMaterializeTemplateRequest", selection=selection))
+        result = await self._client.call(
+            message("dokime.client.v1.CasesCreateRequest", plan={"selections": [selection]}, request_id=str(uuid4()))
+        )
         return tuple(result.cases)
 
 
-class Cycles:
-    def __init__(self, client: Client):
-        self._client = client
+class Cycles(CyclesResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-    async def start(self, cases):
+    async def start(self, cases: Sequence[Any]) -> "Cycle":
         result = await self._client.call(
-            message("ExecutionCreateCycleRequest", origins=[case.origin for case in cases], continue_automatically=True)
+            message(
+                "dokime.client.v1.CyclesCreateRequest",
+                origins=[case.origin for case in cases],
+                continue_automatically=True,
+                request_id=str(uuid4()),
+            )
         )
-        return Cycle(self._client, result.cycle_id, tuple(result.execution_ids))
+        executions = await self._client.call(
+            message("dokime.client.v1.ExecutionsListRequest", filter={"cycle_ids": [result.cycle.cycle_id]})
+        )
+        return Cycle(self._client, result.cycle.cycle_id, tuple(item.summary.execution_id for item in executions.executions))
 
 
 @dataclass(frozen=True)
@@ -169,11 +198,11 @@ class Cycle:
     identifier: str
     executions: tuple[str, ...]
 
-    async def watch(self):
+    async def watch(self) -> AsyncIterator[Any]:
         for identifier in self.executions:
             terminal = False
-            async for frame in self.client._library.executions.progress.watch(
-                message("dokime.v1.executions.ProgressWatchRequest", name=identifier)
+            async for frame in self.client.executions.progress.watch(
+                message("dokime.client.v1.executions.ProgressWatchRequest", name=identifier)
             ):
                 if terminal:
                     raise RuntimeError("Watch Cycle: Progress After Settlement")
@@ -183,77 +212,89 @@ class Cycle:
                 raise RuntimeError("Watch Cycle: Missing Finished Progress")
 
 
-class Executions:
-    def __init__(self, client: Client):
-        self._client = client
+class Executions(ExecutionsResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-    def __getattr__(self, name):
-        return getattr(self._client._library.executions, name)
+    async def get(self, request: Any, *, timeout: float | None = None) -> Any:
+        if not isinstance(request, str):
+            return await super().get(request, timeout=timeout)
+        identifier = request
+        return (await self._client.call(message("dokime.client.v1.ExecutionsGetRequest", name=identifier))).execution
 
-    async def get(self, identifier: str):
-        return await self._client.call(message("ExecutionGetExecutionRequest", execution_id=identifier))
+    async def list(self, request: Any = None, *, timeout: float | None = None) -> Any:
+        if request is not None:
+            return await super().list(request, timeout=timeout)
+        return (await super().list(message("dokime.client.v1.ExecutionsListRequest"), timeout=timeout)).executions
 
-    async def list(self):
-        return (await self._client.call(message("QueryListExecutionsRequest"))).rows
 
+class Prompts(PromptsResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-class Prompts:
-    def __init__(self, client: Client):
-        self._client = client
+    async def pending(self, execution: str) -> Sequence[Any]:
+        return (await self._client.call(message("dokime.client.v1.PromptsListRequest", execution_id=execution, pending_only=True))).prompts
 
-    async def pending(self, execution: str):
-        return (await self._client.call(message("PromptsListPendingRequest", execution_id=execution))).prompts
+    async def get(self, request: Any, *, timeout: float | None = None) -> Any:
+        if not isinstance(request, str):
+            return await super().get(request, timeout=timeout)
+        identifier = request
+        return (await self._client.call(message("dokime.client.v1.PromptsGetRequest", name=identifier))).prompt
 
-    async def get(self, identifier: str):
-        return (await self._client.call(message("PromptsGetPromptRequest", prompt_id=identifier))).prompt
-
-    async def respond(self, identifier: str, action: str, *, accepted: bool):
-        await self._client.call(message("PromptsRespondRequest", prompt_id=identifier, action=action, accepted=accepted))
+    async def respond(self, identifier: str, action: str, *, accepted: bool) -> None:
+        await self._client.call(
+            message(
+                "dokime.client.v1.prompts.AnswersCreateRequest",
+                parent=identifier,
+                action=action,
+                accepted=accepted,
+                request_id=str(uuid4()),
+            )
+        )
 
 
 class Records:
-    def __init__(self, client: Client):
+    def __init__(self, client: Client) -> None:
         self._client = client
 
-    async def list(self, execution: str):
-        return await self._client.call(message("EvidenceListRecordsRequest", selection={"scope": {"execution_id": execution}}))
+    async def list(self, execution: str) -> Any:
+        return await self._client.call(message("dokime.client.v1.evidence.RecordsListRequest", scope={"execution": execution}))
 
 
 class Samples:
-    def __init__(self, client: Client):
+    def __init__(self, client: Client) -> None:
         self._client = client
 
-    async def list(self, execution: str):
-        return await self._client.call(message("TelemetryListSamplesRequest", scope={"execution_id": execution}))
+    async def list(self, execution: str) -> Any:
+        return await self._client.call(message("dokime.client.v1.evidence.SamplesListRequest", scope={"execution_id": execution}))
 
 
-class Reports:
-    def __init__(self, client: Client):
-        self._client = client
+class Reports(ReportsResource):
+    def __init__(self, client: Client) -> None:
+        super().__init__(client)
 
-    async def download(self, execution: str) -> bytes:
+    async def download(self, execution: str, *, document: str = "") -> bytes:
+        report = await self._client.call(
+            message(
+                "dokime.client.v1.ReportsCreateRequest", subject={"execution": execution}, document_id=document, request_id=str(uuid4())
+            )
+        )
+        from harmos.v1.storage_pb2 import StorageGetFileBytesRequest
+
         data = bytearray()
-        completion = None
-        terminal = False
-        async for frame in self._client.call(message("ReportsDownloadExecutionReportRequest", execution_id=execution)):
-            if terminal:
-                raise RuntimeError("Download Report: Frame After Terminal Response")
-            if frame.WhichOneof("value") == "response":
-                terminal = True
-                continue
-            kind = frame.item.payload.WhichOneof("kind")
-            if kind == "chunk":
-                chunk = frame.item.payload.chunk
-                if chunk.offset != len(data):
-                    raise RuntimeError("Download Report: Noncontiguous Chunk")
-                data.extend(chunk.data)
-            elif kind == "complete":
-                completion = frame.item.payload.complete
-        if not terminal or completion is None:
-            raise RuntimeError("Download Report: Missing Completion")
-        if completion.size_bytes != len(data) or completion.sha256 != hashlib.sha256(data).hexdigest():
-            raise RuntimeError("Download Report: Digest or Size Mismatch")
-        return bytes(data)
+        while True:
+            page = await self._client.storage.get_file_bytes(StorageGetFileBytesRequest(file=report.file, offset=len(data)))
+            if page.total_length != report.file.length or page.sha256 != report.file.sha256:
+                raise RuntimeError("Download Report: File Identity Changed")
+            if page.total_length < len(data) + len(page.data):
+                raise RuntimeError("Download Report: Invalid File Length")
+            data.extend(page.data)
+            if len(data) == page.total_length:
+                if hashlib.sha256(data).digest() != page.sha256:
+                    raise RuntimeError("Download Report: Digest Mismatch")
+                return bytes(data)
+            if not page.data:
+                raise RuntimeError("Download Report: Empty File Page")
 
 
 # === Public Functions === #

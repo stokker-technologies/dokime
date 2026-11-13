@@ -12,7 +12,7 @@
 
 # Standard Library Imports
 import inspect
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from types import FunctionType
 from typing import Any
@@ -100,7 +100,7 @@ class Template:
     files: Sequence[Message] = ()
     _methods: dict[str, Any] = field(init=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._methods = {}
         for cls in reversed(self.instance.__mro__):
             self._methods.update(vars(cls))
@@ -115,7 +115,7 @@ class Template:
         )
 
     def operation(self, handler: FunctionType, kind: str) -> str:
-        definitions = self.steps if kind == "step" else self.criteria
+        definitions: Sequence[Step | Criterion] = self.steps if kind == "step" else self.criteria
         position = next(index for index, item in enumerate(definitions) if item.handler is handler)
         return f"{self.identifier}.{kind}.{position}"
 
@@ -139,13 +139,14 @@ class Template:
         if custom is not None:
             result = custom(self.instance, case, parameters)
             if inspect.isawaitable(result):
-                result.close()
+                if inspect.iscoroutine(result):
+                    result.close()
                 raise TypeError("Materialize must be synchronous and pure")
             return case
         for value in self.steps:
             case.step(value.label, value.handler, identifier=value.identifier)
-        for value in self.criteria:
-            case.criterion(value.label, value.handler, identifier=value.identifier)
+        for criterion in self.criteria:
+            case.criterion(criterion.label, criterion.handler, identifier=criterion.identifier)
         return case
 
 
@@ -164,7 +165,7 @@ class Suite:
 
 
 class Case:
-    def __init__(self, template: Template, parameters: dict[str, Any]):
+    def __init__(self, template: Template, parameters: dict[str, Any]) -> None:
         self.template = template
         self.message = message(
             "TestCase",
@@ -199,51 +200,53 @@ class Case:
 # === Public Functions === #
 
 
-def step(label: str, *, identifier: str = "", retries: int = 0, repeatable: bool = False):
+def step(label: str, *, identifier: str = "", retries: int = 0, repeatable: bool = False) -> Callable[[Any], Any]:
     if retries < 0:
         raise ValueError("Retries must be nonnegative")
 
-    def decorate(handler):
+    def decorate(handler: Any) -> Any:
         handler.__dokime_step__ = Step(label, handler, identifier, retries, repeatable)
         return handler
 
     return decorate
 
 
-def criterion(label: str, *, identifier: str = ""):
-    def decorate(handler):
+def criterion(label: str, *, identifier: str = "") -> Callable[[Any], Any]:
+    def decorate(handler: Any) -> Any:
         handler.__dokime_criterion__ = Criterion(label, handler, identifier)
         return handler
 
     return decorate
 
 
-def materialize(handler):
+def materialize(handler: Any) -> Any:
     handler.__dokime_materialize__ = True
     return handler
 
 
-def observer(*, interval_ms: int = 1000, interval_setting: str = ""):
+def observer(*, interval_ms: int = 1000, interval_setting: str = "") -> Callable[[Any], Any]:
     if interval_ms <= 0:
         raise ValueError("Observer interval must be positive")
 
-    def decorate(handler):
+    def decorate(handler: Any) -> Any:
         handler.__dokime_observer__ = (interval_ms, interval_setting)
         return handler
 
     return decorate
 
 
-def stream(label: str, *, identifier: str, row: type[Message] = DoubleValue):
-    def decorate(handler):
+def stream(label: str, *, identifier: str, row: type[Message] = DoubleValue) -> Callable[[Any], Any]:
+    def decorate(handler: Any) -> Any:
         handler.__dokime_stream__ = Stream(identifier, row, label)
         return handler
 
     return decorate
 
 
-def suite(identifier: str, *, label: str = "", parameters: Sequence[Message] = (), documents: Sequence[Document] = ()):
-    def decorate(instance):
+def suite(
+    identifier: str, *, label: str = "", parameters: Sequence[Message] = (), documents: Sequence[Document] = ()
+) -> Callable[[Any], Any]:
+    def decorate(instance: Any) -> Any:
         template = Template(identifier, instance, label, parameters=parameters, documents=documents)
         instance.__dokime_suite__ = Suite(identifier, (template,), label)
         return instance
