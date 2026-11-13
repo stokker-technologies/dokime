@@ -20,6 +20,7 @@ export type RuntimeInstalledPluginRecord = {
   plugin_id: string;
   owner:
     | { kind: "host" }
+    | { kind: "remote"; url: string }
     | { kind: "embedded"; generation: string }
     | {
         kind: "bundle";
@@ -57,5 +58,7 @@ export type InstalledPluginDetail = RuntimeInstalledPluginRecord & PluginRuntime
 /* === Constants === */
 
 export const RUNTIME_LABELS: Record<InstalledPluginRuntimeKind, string> = {
-  code: "Code-defined",
+  code: "Code-Defined",
+  managed: "Managed",
+  remote: "Remote",
 };

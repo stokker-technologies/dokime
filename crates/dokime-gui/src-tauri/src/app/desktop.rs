@@ -605,7 +605,7 @@ fn apply_dialog_filter(
         DesktopSaveKind::HtmlReport => dialog.add_filter("HTML Report", &["html"]),
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
-        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["zip"]),
+        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["tar"]),
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON Document", &["json"]),
         DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
@@ -615,7 +615,7 @@ fn apply_dialog_filter(
 fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
     match kind {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
-        DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
+        DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".tar"),
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
         DesktopSaveKind::SecretArchive => ExtensionPolicy::Append(".b64"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,

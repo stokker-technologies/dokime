@@ -13,10 +13,11 @@
 
 /* === Imports === */
 
-import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
+import type { ApplicationSettings, SettingsScope } from "@generated/application-settings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { preferencesCommands } from "@/lib/desktop/settings";
+import { withNativeListener, saveNativeListenerPreferences, type ScopedPreferencesSnapshot } from "@/lib/api/native-remote";
 import { useUiStore } from "@/stores/ui-store";
 
 // Standard Library Imports
@@ -43,7 +44,10 @@ export function usePreferences(scope: SettingsScope) {
   const session = useNativeSessionOptional();
   return useQuery({
     queryKey: preferencesKey(scope, session?.identity.generation),
-    queryFn: () => preferencesCommands.desktopSettingsRead(scope),
+    queryFn: async () => {
+      const snapshot = await preferencesCommands.desktopSettingsRead(scope);
+      return scope === "backend" && session ? withNativeListener(session.identity, snapshot) : snapshot;
+    },
     retry: false,
   });
 }
@@ -52,8 +56,11 @@ export function useSavePreferences(scope: SettingsScope) {
   const session = useNativeSessionOptional();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ previous, settings }: { previous: SettingsSnapshot; settings: ApplicationSettings }) =>
-      preferencesCommands.desktopSettingsUpdate(scope, { expected_revision: previous.revision, settings }),
+    mutationFn: ({ previous, settings }: { previous: ScopedPreferencesSnapshot; settings: ApplicationSettings }) => {
+      if (scope === "backend" && session && JSON.stringify(previous.settings.listener) !== JSON.stringify(settings.listener))
+        return saveNativeListenerPreferences(session.identity, previous, settings);
+      return preferencesCommands.desktopSettingsUpdate(scope, { expected_revision: previous.revision, settings });
+    },
     onSuccess: (snapshot) => {
       client.setQueryData(preferencesKey(scope, session?.identity.generation), snapshot);
       if (scope === "local") {

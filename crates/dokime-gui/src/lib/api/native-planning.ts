@@ -53,7 +53,7 @@ import type {
   TestExecution,
   TestTemplateMetadata,
 } from "@/lib/types";
-import { fetchNativeSuite, fetchNativeSuites } from "./native-catalog";
+import { fetchNativeSuite, fetchNativeSuites } from "@/lib/host/catalog";
 import {
   durationSeconds,
   mapBounded,

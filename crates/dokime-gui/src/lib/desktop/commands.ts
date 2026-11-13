@@ -76,7 +76,7 @@ export const commands = {
   /**
    * Write a verified diagnostics bundle into the operator's Downloads folder;
    * resolves with the saved path. The `document` kind must be
-   * `diagnostics_bundle` and its filename must already name a `.zip`.
+   * `diagnostics_bundle` and its filename must already name a `.tar`.
    */
   desktopSaveDiagnosticsBundle: (generation: string, document: DesktopSaveDocument) =>
     invoke<string>("desktop_save_diagnostics_bundle", { generation, document }),

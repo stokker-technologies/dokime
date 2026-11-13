@@ -625,3 +625,87 @@ async fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(),
     healthy.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
+    use library::status;
+    use sha2::{Digest, Sha256};
+    let root = tempfile::tempdir()?;
+    let mut owner = Connection::new(settings())?;
+    let session = owner.start(root.path()).await?;
+    let journal = owner.server.as_ref().unwrap().status();
+    journal.record_trace(status::Event {
+        level: "INFO".into(),
+        fields: [("execution_id".into(), "desktop-run".into())].into(),
+        ..Default::default()
+    })?;
+    let snapshot: status::TraceEventsListResponse = session
+        .unary(
+            "/harmos.v1.status.TraceEvents/List",
+            status::TraceEventsListRequest {
+                page: Some(library::PageRequest {
+                    page_size: 10,
+                    max_bytes: 65536,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(snapshot.events.len(), 1);
+    assert_eq!(snapshot.events[0].fields.get("execution_id").unwrap(), "desktop-run");
+    let mut watch = session
+        .watch_raw(
+            "/harmos.v1.status.TraceEvents/Watch",
+            &status::TraceEventsWatchRequest {
+                at: snapshot.resolved_at.clone(),
+                max_bytes: 65536,
+                max_events: 10,
+            }
+            .encode_to_vec(),
+        )
+        .await?;
+    let first = watch.next().await.ok_or("Watch Trace: Missing Opening")??;
+    let first = status::TraceEventsWatchResponse::decode(first.as_slice())?;
+    assert_eq!(first.resolved_at, snapshot.resolved_at);
+    journal.record_trace(status::Event {
+        level: "WARN".into(),
+        ..Default::default()
+    })?;
+    let live = watch.next().await.ok_or("Watch Trace: Missing New Event")??;
+    let live = status::TraceEventsWatchResponse::decode(live.as_slice())?;
+    assert_eq!(live.events.len(), 1);
+    assert!(live.resolved_at.unwrap().sequence > snapshot.resolved_at.unwrap().sequence);
+    let mut name = String::new();
+    let mut bytes = Vec::new();
+    let mut digest = Vec::new();
+    loop {
+        let part: status::DiagnosticsGetResponse = session
+            .unary(
+                "/harmos.v1.status.Diagnostics/Get",
+                status::DiagnosticsGetRequest {
+                    name: name.clone(),
+                    offset: bytes.len() as u64,
+                    max_bytes: 1024,
+                },
+            )
+            .await?;
+        if name.is_empty() {
+            name = part.name.clone();
+            digest = part.sha256.clone();
+        }
+        assert_eq!(part.name, name);
+        assert_eq!(part.sha256, digest);
+        bytes.extend(part.data);
+        if bytes.len() as u64 == part.total_length {
+            break;
+        }
+    }
+    assert_eq!(Sha256::digest(&bytes).as_slice(), digest);
+    owner.close().await?;
+    assert!(session.cancellation().is_cancelled());
+    while let Some(frame) = watch.next().await {
+        frame?;
+    }
+    Ok(())
+}

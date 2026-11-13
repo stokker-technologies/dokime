@@ -86,7 +86,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
       : undefined,
   }));
   // Changes apply in the running backend; re-read the list until each one has.
-  usePluginRestartRefresh(entries.find((entry) => entry.restart !== "idle")?.restart);
+  usePluginRestartRefresh(entries.find((entry) => entry.restart !== undefined && entry.restart !== "idle")?.restart);
 
   /* A plugin's settings page is its contributed section. The frame keys those
      by installed plugin, and an artifact names the installation it came

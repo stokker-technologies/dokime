@@ -7,95 +7,57 @@
  * ***
  */
 
-/* The support archive, as bytes and a name.
- *
- * `Backend.CollectDiagnostics` streams one zip the operator sends to the
- * developers: a header frame naming the file, chunk frames carrying it at
- * declared offsets, and a completion frame stating the size, exactly as
- * `Reports.DownloadCycleReport` does. This adapter returns the assembled bytes
- * and the suggested filename and nothing else — no view model, so the
- * Diagnostics section decides what to do with them.
- */
+/* Bounded Diagnostics Ranges From the Library Status Owner. */
 
-/* === Local Imports === */
-
-import { NativeApiUnsupportedError } from "@/lib/api/native-values";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import { NATIVE_DOCUMENT_BYTES } from "./native-document-delivery";
 
-/* === Types === */
-
-export type DiagnosticsBundle = {
-  /** The name the backend suggests for the archive; never a backend path. */
-  filename: string;
-  bytes: Uint8Array;
-};
-
-/* === Public Functions === */
-
-/** Whether this client can ask the backend for a support archive at all. */
+const RANGE_BYTES = 262_144n;
+export type DiagnosticsBundle = { filename: string; bytes: Uint8Array };
 export function diagnosticsBundleSupported(): boolean {
-  return typeof rpc.backendCollectDiagnostics === "function";
+  return true;
 }
 
 export async function collectDiagnosticsBundle(session: SessionIdentity): Promise<DiagnosticsBundle> {
-  if (!diagnosticsBundleSupported()) {
-    throw new NativeApiUnsupportedError("Collect diagnostics", "Backend.CollectDiagnostics (not available on this backend)");
-  }
-  const reader = await rpc.backendCollectDiagnostics(session, {});
-  let filename = "";
-  let expectedOffset = 0n;
-  let complete = false;
+  let name = "";
+  let offset = 0n;
+  let length: bigint | undefined;
+  let digest: Uint8Array | undefined;
   const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  try {
-    for await (const frame of reader) {
-      if (complete) throw new Error("Backend.CollectDiagnostics continued after completion.");
-      const payload = frame.payload?.HarmosVariant;
-      if (!payload) throw new Error("Backend.CollectDiagnostics delivered no payload.");
-      switch (payload.case) {
-        case "Header": {
-          const header = payload.value.field0;
-          if (!header) throw new Error("Backend.CollectDiagnostics delivered no header.");
-          filename = header.filename;
-          break;
-        }
-        case "Chunk": {
-          const chunk = payload.value.field0;
-          if (!chunk) throw new Error("Backend.CollectDiagnostics delivered no chunk.");
-          // The offsets are declared, so a gap or a replay is a corrupt
-          // archive rather than something to stitch over.
-          if (chunk.offset !== expectedOffset) {
-            throw new Error(`Backend.CollectDiagnostics delivered chunk ${chunk.offset} where ${expectedOffset} was due.`);
-          }
-          chunks.push(chunk.data);
-          total += chunk.data.byteLength;
-          expectedOffset += BigInt(chunk.data.byteLength);
-          break;
-        }
-        case "Complete":
-          if (payload.value.field0?.sizeBytes !== BigInt(total)) {
-            throw new Error("Backend.CollectDiagnostics delivered an incomplete archive.");
-          }
-          complete = true;
-          break;
-        default:
-          break;
-      }
+  do {
+    if (!session.isCurrent()) throw new Error("Collect Diagnostics: Owning Connection Changed");
+    const range = await rpc.statusDiagnosticsGet(session, { name, offset, maxBytes: RANGE_BYTES });
+    if (!session.isCurrent()) throw new Error("Collect Diagnostics: Owning Connection Changed");
+    if (!/^[0-9a-f]{64}$/.test(range.name) || range.sha256.byteLength !== 32)
+      throw new Error("Collect Diagnostics: Invalid Archive Identity");
+    if (length === undefined) {
+      name = range.name;
+      length = range.totalLength;
+      digest = range.sha256;
+      if (length > BigInt(NATIVE_DOCUMENT_BYTES)) throw new Error("Collect Diagnostics: Archive Exceeds Native Save Budget");
+    } else if (name !== range.name || length !== range.totalLength || digest?.some((byte, index) => byte !== range.sha256[index])) {
+      throw new Error("Collect Diagnostics: Archive Changed During Transfer; Collect It Again");
     }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-
-  if (!complete) throw new Error("Backend.CollectDiagnostics ended before the archive was whole.");
-  if (!filename) throw new Error("Backend.CollectDiagnostics named no file.");
-
-  const bytes = new Uint8Array(total);
+    if (
+      BigInt(range.data.byteLength) > RANGE_BYTES ||
+      offset + BigInt(range.data.byteLength) > length ||
+      (!range.data.byteLength && offset < length)
+    ) {
+      throw new Error("Collect Diagnostics: Incomplete or Invalid Archive Range");
+    }
+    chunks.push(range.data);
+    offset += BigInt(range.data.byteLength);
+  } while (offset < length);
+  const bytes = new Uint8Array(Number(length));
   let written = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, written);
     written += chunk.byteLength;
   }
-  return { bytes, filename };
+  const actual = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  if (!digest || actual.some((byte, index) => byte !== digest[index]))
+    throw new Error("Collect Diagnostics: Archive Digest Verification Failed");
+  if (!session.isCurrent()) throw new Error("Collect Diagnostics: Owning Connection Changed");
+  return { filename: `diagnostics-${name}.tar`, bytes };
 }

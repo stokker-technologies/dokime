@@ -13,6 +13,8 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { PluginInstallationState } from "@host/dokime/v1/client_types_pb.js";
+import { PluginState } from "@host/dokime/v1/plugins_pb.js";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
@@ -48,9 +50,8 @@ function installation(installId: string) {
     installId,
     sha256: "a".repeat(64),
     installedAt: { seconds: 1_760_000_000n, nanos: 0 },
-    state: { HarmosVariant: { case: "Installed", value: {} } },
-    active: false,
-    restart: { HarmosVariant: { case: "Restarting", value: {} } },
+    state: PluginInstallationState.INSTALLED,
+    plugin: { entry: installId, state: PluginState.STARTING },
   };
 }
 
@@ -78,7 +79,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: fixture.invoke,
 }));
 
-vi.mock("@/lib/rpc/generated/client", () => ({
+vi.mock("@/lib/host/client", () => ({
   pluginsGetInstallation: fixture.getInstallation,
   pluginsListInstallations: fixture.listInstallations,
   pluginsListAdmittedPlugins: fixture.listAdmitted,
@@ -175,30 +176,11 @@ test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
 });
 
-test("Failed Plugin Settings Retain Owner and Secret", async () => {
+test("Failed Plugin Settings Retain Current Reason Owner and Secret", async () => {
   const failed = {
     ...installation("install-1"),
-    restart: { HarmosVariant: { case: "Idle", value: {} } },
-    bootFailed: true,
     metadata: { identity: { name: "Example Plugin", version: "1.0.0", description: "" }, owners: ["example"], sizeBytes: 1n },
-    lastBoot: {
-      at: { seconds: 1_760_000_001n, nanos: 0 },
-      result: {
-        HarmosVariant: {
-          case: "Error",
-          value: {
-            field0: {
-              pluginId: "example",
-              pluginName: "Example Plugin",
-              message: "fixture",
-              code: "10001",
-              missingSecret: "api_token",
-              carrier: new Uint8Array(),
-            },
-          },
-        },
-      },
-    },
+    plugin: { entry: "install-1", state: PluginState.FAILED, reason: "Restore Its Required Secret" },
   };
   fixture.listAdmitted.mockResolvedValue({ plugins: [] });
   fixture.listInstallations.mockResolvedValue({ installations: [failed] });
@@ -207,17 +189,13 @@ test("Failed Plugin Settings Retain Owner and Secret", async () => {
     secrets: [{ identifier: "api_token", available: false }],
     values: {},
     discovered: {},
-    restart: { HarmosVariant: { case: "Idle", value: {} } },
   });
   fixture.getInstallation.mockResolvedValueOnce(failed);
   const projected = await getNativePlugin(session, "install-1");
   assert.equal(projected.boot_failed, true);
-  assert.equal(projected.last_boot?.state, "failed");
-  if (projected.last_boot?.state !== "failed") throw new Error("expected failed boot");
-  assert.equal(projected.last_boot.failure.code, "10001");
-  assert.equal(projected.last_boot.failure.missing_secret, "api_token");
+  assert.equal(projected.error, "Restore Its Required Secret");
+  assert.equal(projected.last_boot, null);
   const detail = await getInstalledPluginDetail(session, "example");
-  assert.equal(detail?.label, "Example Plugin");
   assert.equal(detail?.status, "failed");
   assert.equal(detail?.plugin_id, "example");
   assert.equal(detail?.owner?.kind, "bundle");

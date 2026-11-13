@@ -32,7 +32,7 @@ import { commitListener, type ListenerChange, type ListenerStatus, listenerRunni
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { toast } from "@/lib/notifications";
-import * as rpc from "@/lib/rpc/generated/client";
+import { readNativeListener, updateNativeListener, regenerateNativeCertificate } from "@/lib/api/native-remote";
 
 /* === Re-Exports === */
 
@@ -45,7 +45,7 @@ import * as rpc from "@/lib/rpc/generated/client";
 export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
   const session = useNativeSessionOptional();
   const [preferencesPending, setPreferencesPending] = useState(false);
-  const canManage = session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ReadListener") ?? false;
+  const canManage = session?.snapshot.connection.backend?.methods.includes("/harmos.v1.access.Listener/Get") ?? false;
   if (!isTauriDesktop() || !session || !canManage) {
     return (
       <SettingsCard title="Remote Access">
@@ -80,7 +80,7 @@ function ConnectedRemoteSection({
   advanced: boolean;
 }) {
   const queryKey = ["settings", "remote-listener", session.identity.generation];
-  const query = useQuery({ queryKey, queryFn: () => rpc.remoteReadListener(session.identity, {}), retry: false });
+  const query = useQuery({ queryKey, queryFn: () => readNativeListener(session.identity), retry: false });
   if (query.isPending) {
     return (
       <SettingsCard title="Remote Access">
@@ -148,7 +148,7 @@ function ListenerControls({
       const next = await commitListener({
         status,
         change,
-        send: async (request) => publish(await rpc.remoteUpdateListener(session.identity, { settings: request })),
+        send: async (request) => publish(await updateNativeListener(session.identity, status, request)),
         fail: (description, error) => fail("Remote Access Change Failed", description, error),
       });
       return next !== status;
@@ -199,7 +199,7 @@ function ListenerControls({
               onClick={() =>
                 void run(async () => {
                   try {
-                    publish(await rpc.remoteRegenerateCertificate(session.identity, { certificateNames: settings.certificateNames }));
+                    publish(await regenerateNativeCertificate(session.identity));
                   } catch (error) {
                     fail("Certificate Generation Failed", failureOf(error, "Settings Operation Failed").message, error);
                   }
@@ -213,7 +213,7 @@ function ListenerControls({
       )}
       <SettingsCard
         title="Remote Access Files"
-        description="Anyone with the file has full control. Exporting again replaces the key for every client; transfer the replacement privately."
+        description="Anyone with the file has full control. Keep pairing files private; each export creates a separate client credential."
       >
         <div className="grid gap-3 p-4">
           <p className="text-sm text-muted-foreground">

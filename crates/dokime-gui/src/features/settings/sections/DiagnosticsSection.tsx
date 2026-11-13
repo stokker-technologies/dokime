@@ -63,7 +63,7 @@ export function DiagnosticsSection() {
  * The support archive, as an action rather than a path.
  *
  * What the operator does with this row is send the archive to the developers,
- * so the row hands them the archive: one button that pulls the zip and saves
+ * so the row hands them the archive: one button that pulls the archive and saves
  * it, and a toast that offers the folder it landed in. Where the backend
  * happened to build it is not their problem.
  *

@@ -736,3 +736,114 @@ test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", a
   const receipt = await createNativeNote(session, "execution-epoch", "Measured", { test_cycle_id: "cycle", test_execution_id: "run" });
   assert.equal(receipt.result?.publication, "confirmed");
 });
+
+test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
+  const { fetchNativeSettingsFrame, getNativePluginSettings, updateNativePluginSettings } = await import("@/lib/api/native-settings");
+  const { SettingsCardState } = await import("@host/dokime/v1/client_types_pb.js");
+  const settings = {
+    settings: {
+      settings: [{ metadata: { identifier: "power", label: "Power" }, kind: { case: "boolean", value: { defaultValue: false } } }],
+    },
+    values: { values: { power: jsonToNativeValue(true) } },
+  };
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path.endsWith("/GetSettings"))
+      return {
+        sections: [{ sectionId: "entry", owner: { kind: { case: "installedPluginId", value: "entry" } } }],
+        cards: [
+          { cardId: "state", state: SettingsCardState.READY, body: { blocks: [{ kind: { kind: { case: "text", value: "Ready" } } }] } },
+        ],
+      };
+    if (path.endsWith("/UpdatePluginSettings")) assert.equal(nativeValueToJson(request.values.values.power), false);
+    else assert.ok(path.endsWith("/GetPluginSettings"));
+    return settings;
+  });
+  const frame = await fetchNativeSettingsFrame(session);
+  assert.equal(frame.sections[0].owner.kind, "installed_plugin");
+  assert.equal(frame.cards[0].state, "ready");
+  assert.equal(frame.cards[0].body.blocks[0].type, "text");
+  const projected = await getNativePluginSettings(session, "entry");
+  assert.equal(projected.values.power, true);
+  assert.equal(projected.settings.contributions[0].kind, "boolean");
+  assert.equal(projected.restart, undefined);
+  await updateNativePluginSettings(session, "entry", { power: false });
+});
+
+test("Diagnostics Read Stable Ranges and Verify the Whole Archive", async () => {
+  const { collectDiagnosticsBundle } = await import("@/lib/api/native-diagnostics");
+  const bytes = new Uint8Array(262_145).fill(13);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const name = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  let corrupt = false;
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/harmos.v1.status.Diagnostics/Get");
+    assert.equal(request.name, request.offset === 0n ? "" : name);
+    const data = bytes.slice(Number(request.offset), Number(request.offset + request.maxBytes));
+    if (corrupt) data[0] ^= 1;
+    return { name, totalLength: BigInt(bytes.length), sha256: digest, data };
+  });
+  const bundle = await collectDiagnosticsBundle(session);
+  assert.deepEqual(bundle.bytes, bytes);
+  assert.ok(bundle.filename.endsWith(".tar"));
+  corrupt = true;
+  await assert.rejects(collectDiagnosticsBundle(session), /Digest/);
+});
+
+test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async () => {
+  const { openTraceStream, NativeTraceHistoryExpired } = await import("@/lib/api/native-logs");
+  const at = { history: { store: "trace", epoch: "retained" }, sequence: 2n };
+  fixture.extra.mockImplementation(async (path) => {
+    assert.equal(path, "/harmos.v1.status.TraceEvents/List");
+    return {
+      resolvedAt: at,
+      events: [
+        { sequence: 1n, level: "INFO", fields: { execution_id: "run", cycle_id: "cycle" } },
+        { sequence: 2n, level: "ERROR", fields: { execution_id: "other", cycle_id: "cycle" } },
+      ],
+    };
+  });
+  const cancelled = vi.fn(async () => {});
+  fixture.stream.mockImplementation(async (path, _input, output, _identity, request) => {
+    assert.equal(path, "/harmos.v1.status.TraceEvents/Watch");
+    assert.deepEqual(request.at, create((await import("@host/harmos/v1/types_pb.js")).PositionSchema, at));
+    return {
+      cancel: cancelled,
+      async *[Symbol.asyncIterator]() {
+        yield create(output, {
+          resolvedAt: { ...at, sequence: 3n },
+          events: [{ sequence: 3n, level: "WARN", fields: { execution_id: "run", cycle_id: "cycle" } }],
+        });
+        throw new Error("history gap: resynchronize with List");
+      },
+    };
+  });
+  const stream = await openTraceStream(session, { cycleId: "cycle", executionId: "run", minLevel: "info", afterSequence: 0n });
+  const pages = stream[Symbol.asyncIterator]();
+  const first = await pages.next();
+  assert.equal(first.value.records.length, 1);
+  const live = await pages.next();
+  assert.equal(live.value.records[0].level, "warning");
+  await assert.rejects(pages.next(), NativeTraceHistoryExpired);
+  assert.equal(cancelled.mock.calls.length, 1);
+});
+
+test("Remote Listener Saves with Its Own Revision and Rotates Certificates", async () => {
+  const { readNativeListener, updateNativeListener, regenerateNativeCertificate } = await import("@/lib/api/native-remote");
+  const revision = new Uint8Array([17]);
+  const value = { enabled: false, endpoint: "127.0.0.1:0", certificateNames: ["localhost"] };
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path.endsWith("Listener/Set")) {
+      assert.deepEqual(request.expectedRevision, revision);
+      assert.equal(request.value.enabled, true);
+      return { value: request.value, revision: new Uint8Array([18]), boundEndpoint: "127.0.0.1:4321" };
+    }
+    if (path.endsWith("Certificates/Create")) return { certificatePem: "rotated" };
+    assert.ok(path.endsWith("Listener/Get"));
+    return { value, revision };
+  });
+  const current = await readNativeListener(session);
+  const saved = await updateNativeListener(session, current, { ...current.settings, enabled: true });
+  assert.equal(saved.listeningAddress, "127.0.0.1:4321");
+  await assert.rejects(updateNativeListener(session, current, { ...current.settings, tlsEnabled: false }));
+  assert.equal((await regenerateNativeCertificate(session)).certificatePem, "rotated");
+});
