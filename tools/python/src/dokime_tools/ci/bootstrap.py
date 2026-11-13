@@ -183,7 +183,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False, creden
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
     selected = CREDENTIAL_STORE_PACKAGES if credential_store else GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
-    packages = (*selected, *(DESKTOP_PACKAGES if desktop else ()))
+    packages = tuple(_release_name(package) for package in (*selected, *(DESKTOP_PACKAGES if desktop else ())))
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")
         return
@@ -365,6 +365,14 @@ def _driver_version(driver: Path) -> str:
     )
     version = re.search(r"\b\d+\.\d+\.\d+\.\d+\b", output)
     return version.group() if version else ""
+
+
+def _release_name(package: str) -> str:
+    """Ubuntu Releases Before 24.04 Name Libraries Without The 64-Bit time_t Suffix."""
+    release = platform.freedesktop_os_release()
+    if package.endswith("t64") and release.get("ID") == "ubuntu" and release.get("VERSION_ID", "") < "24.04":
+        return package.removesuffix("t64")
+    return package
 
 
 def _package_installed(name: str) -> bool:

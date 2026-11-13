@@ -417,7 +417,10 @@ flag "--profile <profile>" default="dev"
 flag "--prepared"
 flag "--select <select>"
 '''
-run = '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}'''
+run = [
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}''',
+]
 
 [tasks."bench:rust:system"]
 hide = true

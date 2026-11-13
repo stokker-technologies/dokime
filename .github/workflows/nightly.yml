@@ -185,7 +185,7 @@ jobs:
           minutes: 120
           work: Rust / Acceptance
           command: test -- --language rust --layer acceptance
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --credential-session"]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
@@ -213,7 +213,7 @@ jobs:
           minutes: 120
           work: TypeScript / Unit
           command: test -- --language typescript --layer unit
-          bootstrap: '[]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --credential-session"]'
           archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
@@ -234,7 +234,7 @@ jobs:
           minutes: 120
           work: TypeScript / Integration
           command: test -- --language typescript --layer integration
-          bootstrap: '[]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --credential-session"]'
           archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
@@ -269,7 +269,7 @@ jobs:
           minutes: 120
           work: Rust / Integration
           command: test -- --language rust --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --credential-session"]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
@@ -297,7 +297,7 @@ jobs:
           minutes: 120
           work: Rust / Unit
           command: test -- --language rust --layer unit
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --credential-session"]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
