@@ -376,7 +376,9 @@ impl DesktopSession {
             .await;
             match preferences {
                 Ok(preferences) => self.0.connection.set_preferences(preferences),
-                Err(Error::BackendRunning { .. }) => {}
+                Err(error) if matches!(&ownership, BackendOwnership::Attached) => {
+                    tracing::warn!(?error, "Read Local Preferences Failed During Attachment; Keeping Current Client Limits");
+                }
                 Err(error) => return Err(error),
             }
         }

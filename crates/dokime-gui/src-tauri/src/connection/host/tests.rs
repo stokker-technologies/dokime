@@ -528,3 +528,33 @@ async fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Resul
     third.shutdown().await.map_err(|error| format!("{error:?}"))?;
     Ok(())
 }
+
+#[tokio::test]
+async fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+    use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
+    let healthy_root = tempfile::tempdir()?;
+    let mut healthy = Connection::new(settings())?;
+    let session = healthy.start(healthy_root.path()).await?;
+    let incompatible = tempfile::tempdir()?;
+    let database = incompatible.path().join("execution.sqlite3");
+    let original = b"an incompatible database preserved for recovery";
+    std::fs::write(&database, original)?;
+    let desktop = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(incompatible.path().to_path_buf()));
+    let attached = desktop
+        .select(BackendSelection::Attach {
+            request: ConnectRequest {
+                target: ConnectionTarget::Local { endpoint: session.endpoint().to_owned() },
+                expected_backend_id: None,
+            },
+        })
+        .await
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(attached.ownership, BackendOwnership::Attached);
+    assert_eq!(std::fs::read(&database)?, original);
+    desktop.shutdown().await.map_err(|error| format!("{error:?}"))?;
+    let status: library::StatusGetResponse = session.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await?;
+    assert!(status.status.and_then(|value| value.identity).is_some());
+    healthy.close().await?;
+    Ok(())
+}
