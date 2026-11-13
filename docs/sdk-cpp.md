@@ -162,3 +162,9 @@ See [Execution Host](execution-host.md) for prerequisites and focused runs.
 roots over its channel, such as `client.access.listener.get(request)`.
 The pinned library root currently creates its own gRPC client context; authenticated
 root calls need the metadata/cancellation capability recorded in Library Requests.
+
+If CMake reports a cached generator/platform mismatch, rerun the existing configure
+task with --fresh to refresh its configuration while retaining compiled outputs:
+
+    mise -C sdk/cpp run configure -- --fresh --fetch-dependencies
+

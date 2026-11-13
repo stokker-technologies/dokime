@@ -63,12 +63,19 @@ pub struct Host {
 
 impl Host {
     pub fn open(root: &Path, settings: HostSettings) -> Result<Self> {
-        std::fs::create_dir_all(root)?;
-        let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
+        let root_error = |source| Error::RootIo { path: root.to_path_buf(), source };
+        std::fs::create_dir_all(root).map_err(root_error)?;
+        let lease = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(root.join("local.lock"))
+            .map_err(root_error)?;
         match lease.try_lock() {
             Ok(()) => (),
             Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
-            Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
+            Err(std::fs::TryLockError::Error(error)) => return Err(root_error(error)),
         }
         let root_lease = Arc::new(lease);
         let store = Store::open(root)?;
