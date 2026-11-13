@@ -1,7 +1,8 @@
 syntax = "proto3";
 package dokime.context.v1;
 option csharp_namespace = "Dokime.Protocol.Context.V1";
-import "dokime/v1/documents.proto";
+import "dokime/v1/document_types.proto";
+import "harmos/v1/types.proto";
 
 // Public child-call declarations, carried by Instance.Invoke.
 
@@ -11,6 +12,7 @@ message DocumentsAppendPartsRequest {
   // Append to the named section. An empty section selects the document root.
   string section = 3;
   oneof part { .dokime.v1.Section subsection = 4; .dokime.v1.Card card = 5; }
+  string request_id = 20;
 }
 
-message DocumentsAppendPartsResponse {}
+message DocumentsAppendPartsResponse { .harmos.v1.Receipt receipt = 1; }

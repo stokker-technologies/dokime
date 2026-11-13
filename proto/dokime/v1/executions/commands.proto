@@ -1,0 +1,30 @@
+syntax = "proto3";
+package dokime.v1.executions;
+option csharp_namespace = "Dokime.Protocol.V1.Executions";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message CommandsGetRequest { string name = 1; string parent = 2; .harmos.v1.Position at = 90; }
+
+message CommandsGetResponse { .dokime.v1.ExecutionCommandReceipt command = 1; .harmos.v1.Position resolved_at = 90; }
+
+message CommandsCreateRequest {
+  string parent = 1;
+  string request_id = 2;
+  string command_id = 3;
+  .dokime.v1.ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+}
+
+message CommandsCreateResponse { .dokime.v1.ExecutionCommandReceipt command = 1; .harmos.v1.Receipt receipt = 2; }
+
+service Commands {
+  // Public. Identity: dokime.v1.executions.Commands/Get
+  rpc Get(CommandsGetRequest) returns (CommandsGetResponse);
+  // Public. Identity: dokime.v1.executions.Commands/Create
+  rpc Create(CommandsCreateRequest) returns (CommandsCreateResponse);
+}

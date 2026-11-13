@@ -1,7 +1,7 @@
 syntax = "proto3";
 package dokime.v1;
-import "dokime/v1/values.proto";
 import "dokime/v1/execution.proto";
+import "dokime/v1/values.proto";
 
 // Shared prompt, traceability, file-capture and effect payloads.
 message PromptCatalog { repeated Prompt prompts = 1; }
@@ -99,7 +99,13 @@ message EvidenceCondition {
 }
 message EvidenceConditions { repeated EvidenceCondition conditions = 1; }
 message RecordMatch { string kind = 1; map<string, Value> fields = 2; }
-message StreamMatch { string stream = 1; string field = 2; StreamMatchOperator operator = 3; Value target = 4; optional double tolerance = 5; }
+message StreamMatch {
+  string stream = 1;
+  string field = 2;
+  StreamMatchOperator operator = 3;
+  Value target = 4;
+  optional double tolerance = 5;
+}
 enum StreamMatchOperator {
   STREAM_MATCH_OPERATOR_UNSPECIFIED = 0;
   STREAM_MATCH_OPERATOR_EXISTS = 1;
@@ -112,7 +118,6 @@ enum StreamMatchOperator {
 }
 
 message TraceabilityEntry { Metadata metadata = 1; Value value = 2; string source = 3; string unit = 4; }
-
 
 // One acknowledged chunk per call. Sequence starts at zero; last commits the
 // artifact. This is not a stream. The host checks repeated name and media type.
@@ -127,9 +132,6 @@ message PublishArtifact {
   bool replace = 8;
 }
 message ArtifactReceipt { string artifact = 1; uint64 size_bytes = 2; bool sealed = 3; }
-
-
-
 
 message FileSource {
   oneof kind { FileLocation file = 1; FileSelection tree = 2; FileSelection newest = 3; }
@@ -157,10 +159,3 @@ enum CaptureGapReason {
   CAPTURE_GAP_REASON_VANISHED = 3;
   CAPTURE_GAP_REASON_RESUME_UNSUPPORTED = 4;
 }
-
-
-message PrepareEffect { string resource = 1; string inverse_operation = 2; bytes inverse = 3; string description = 4; }
-message Ticket { string id = 1; }
-message ConfirmEffect { string ticket = 1; string at = 2; bool restored = 3; }
-message ConfirmEffectResponse {}
-message EffectResult { string at = 1; }

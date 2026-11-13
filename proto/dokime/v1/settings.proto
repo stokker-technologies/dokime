@@ -1,0 +1,32 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message SettingsGetRequest {  .harmos.v1.ReadCut at = 90; }
+
+message SettingsGetResponse { .dokime.v1.ApplicationSettings value = 1; bytes revision = 2;  .harmos.v1.ReadCut resolved_at = 90; }
+
+message SettingsSetRequest {  .dokime.v1.ApplicationSettings value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message SettingsSetResponse { .dokime.v1.ApplicationSettings value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message SettingsSchemaRequest { .harmos.v1.ReadCut at = 1; }
+
+message SettingsSchemaResponse { .dokime.v1.SettingsFrame schema = 1; .harmos.v1.ReadCut resolved_at = 2; }
+
+service Settings {
+  // Public. Identity: dokime.v1.Settings/Get
+  rpc Get(SettingsGetRequest) returns (SettingsGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(SettingsSetRequest) returns (SettingsSetResponse);
+  // Public. Identity: dokime.v1.Settings/Schema
+  rpc Schema(SettingsSchemaRequest) returns (SettingsSchemaResponse);
+}

@@ -10,10 +10,15 @@ pub struct LogsAppendRequest {
     pub message: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "4")]
     pub at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag = "20")]
+    pub request_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct LogsAppendResponse {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct LogsAppendResponse {
+    #[prost(message, optional, tag = "1")]
+    pub receipt: ::core::option::Option<::harmos_protocol::v1::Receipt>,
+}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordsAppendRequest {
@@ -27,14 +32,18 @@ pub struct RecordsAppendRequest {
     pub payload: ::prost::alloc::vec::Vec<u8>,
     /// When the plugin produced it; the host adds its arrival time.
     #[prost(message, optional, tag = "4")]
-    pub at: ::core::option::Option<::prost_types::Timestamp>,
+    pub source_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag = "5")]
+    pub request_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordsAppendResponse {
     /// Position of the record among the execution's records of this kind.
     #[prost(uint64, tag = "1")]
     pub ordinal: u64,
+    #[prost(message, optional, tag = "2")]
+    pub receipt: ::core::option::Option<::harmos_protocol::v1::Receipt>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -46,9 +55,10 @@ pub struct RecordsListRequest {
     /// Limit to the time range of one step; empty for the whole execution.
     #[prost(string, tag = "3")]
     pub step: ::prost::alloc::string::String,
-    /// 0 returns only count and last.
-    #[prost(uint32, tag = "4")]
-    pub limit: u32,
+    #[prost(message, optional, tag = "4")]
+    pub page: ::core::option::Option<::harmos_protocol::v1::PageRequest>,
+    #[prost(message, optional, tag = "5")]
+    pub at: ::core::option::Option<::harmos_protocol::v1::Position>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -57,9 +67,13 @@ pub struct RecordsListResponse {
     pub count: u64,
     #[prost(message, optional, tag = "2")]
     pub last: ::core::option::Option<super::super::super::v1::Record>,
-    /// The most recent records, oldest first, up to the requested limit.
+    /// Stable ordering with exclusive continuation at the returned durable position.
     #[prost(message, repeated, tag = "3")]
     pub records: ::prost::alloc::vec::Vec<super::super::super::v1::Record>,
+    #[prost(message, optional, tag = "4")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::Position>,
+    #[prost(string, tag = "5")]
+    pub next_page_token: ::prost::alloc::string::String,
 }
 /// Public invocation child calls; no independent client service.
 /// Each named entry is one independently revisioned whole writable value.

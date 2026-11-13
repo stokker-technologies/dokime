@@ -1,8 +1,8 @@
 syntax = "proto3";
 package dokime.context.v1;
 option csharp_namespace = "Dokime.Protocol.Context.V1";
-import "dokime/v1/values.proto";
 import "dokime/v1/host.proto";
+import "dokime/v1/values.proto";
 import "google/protobuf/timestamp.proto";
 
 // Public child-call declarations, carried by Instance.Invoke.

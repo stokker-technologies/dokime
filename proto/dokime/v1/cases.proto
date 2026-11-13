@@ -1,0 +1,55 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message CasesCreateRequest { .dokime.v1.SelectionPlan plan = 1; bool validate_only = 2; string request_id = 3; }
+
+message CasesCreateResponse { repeated .dokime.v1.PlannedCase cases = 1; .harmos.v1.Receipt receipt = 2; }
+
+message CasesGetRequest { string name = 1; string parent = 2; .harmos.v1.ReadCut at = 90; }
+
+message CasesGetResponse { .dokime.v1.CaseDetail value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CasesListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message CasesListResponse { repeated .dokime.v1.CaseSummary cases = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CasesWatchRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message CasesWatchResponse {
+  repeated .dokime.v1.CaseSummary cases = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message CasesDeleteRequest { string name = 1; string parent = 2; string request_id = 3; }
+
+message CasesDeleteResponse { .harmos.v1.Receipt receipt = 1; }
+
+message CasesParametersRequest { string name = 1; string parent = 2; .harmos.v1.ReadCut at = 90; }
+
+message CasesParametersResponse { repeated .dokime.v1.CaseParameter parameters = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Cases {
+  // Public. Materialize selections and preserve ordered expansion and rerun notices.
+  // validate_only previews without registration; otherwise admit the whole plan atomically.
+  rpc Create(CasesCreateRequest) returns (CasesCreateResponse);
+  // Public. Identity: dokime.v1.Cases/Get
+  rpc Get(CasesGetRequest) returns (CasesGetResponse);
+  // Public. Identity: dokime.v1.Cases/List
+  rpc List(CasesListRequest) returns (CasesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(CasesWatchRequest) returns (stream CasesWatchResponse);
+  // Public. Identity: dokime.v1.Cases/Delete
+  rpc Delete(CasesDeleteRequest) returns (CasesDeleteResponse);
+  // Public. Identity: dokime.v1.Cases/Parameters
+  rpc Parameters(CasesParametersRequest) returns (CasesParametersResponse);
+}

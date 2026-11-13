@@ -180,115 +180,86 @@ fn typed_plot_builders_produce_canonical_document_messages() {
 }
 
 #[test]
-fn client_service_managed_envelopes() {
-    use dokime_protocol::v1::*;
-    use prost::Message;
-    use prost_reflect::{DynamicMessage, Kind, ReflectMessage};
-
-    // Discover Each Ordinary Method And Its Managed Counterpart.
+fn descriptors_separate_faces_and_use_resource_wrappers() {
+    // Discover the Complete Product Service Surface.
     let pool = dokime_protocol::descriptor_pool();
-    let services = pool.services().filter(|service| service.package_name() == "dokime.v1").collect::<Vec<_>>();
-    assert!(!services.is_empty());
-    for service in services {
-        for method in service.methods().filter(|method| !method.name().starts_with("Run")) {
-            let managed = service.methods().find(|candidate| candidate.name() == format!("Run{}", method.name())).unwrap();
-            assert!(managed.is_client_streaming() && managed.is_server_streaming());
-            assert_eq!(
-                managed.input().get_field_by_name("request").unwrap().kind(),
-                Kind::Message(if method.is_client_streaming() {
-                    let Kind::Message(request) = method.input().get_field_by_name("request").unwrap().kind() else {
-                        panic!("request message")
-                    };
-                    request
-                } else {
-                    method.input()
-                })
-            );
-            let primary = method.output();
-            let response =
-                if method.is_server_streaming() { primary.get_field_by_name("response").unwrap().kind() } else { Kind::Message(primary) };
-            assert_eq!(managed.output().get_field_by_name("response").unwrap().kind(), response);
+    let mut methods = Vec::new();
+    for service in pool.services().filter(|service| service.package_name().starts_with("dokime.")) {
+        assert!(service.package_name().starts_with("dokime.v1"));
+        for method in service.methods() {
+            assert!(!method.name().starts_with("Run"));
+            if service.parent_file().name().contains("/client_pending_") {
+                continue;
+            }
+            assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
+            assert_eq!(method.output().name(), format!("{}{}Response", service.name(), method.name()));
+            assert!(!method.is_client_streaming());
+            assert_eq!(method.is_server_streaming(), method.name() == "Watch");
+            if matches!(
+                method.name(),
+                "Get" | "List" | "Watch" | "Parameters" | "Steps" | "Schema" | "Analyses" | "Appearance" | "Statistics" | "Archive"
+            ) {
+                assert!(method.input().get_field_by_name("at").unwrap().supports_presence());
+                assert!(method.output().get_field_by_name("resolved_at").is_some());
+            }
+            if method.name() == "Set" {
+                let get = service.methods().find(|candidate| candidate.name() == "Get").unwrap();
+                assert_eq!(
+                    get.output().get_field_by_name("value").unwrap().kind(),
+                    method.input().get_field_by_name("value").unwrap().kind()
+                );
+                assert!(get.output().get_field_by_name("revision").is_some());
+                assert!(method.input().get_field_by_name("expected_revision").is_some());
+                assert!(method.input().get_field_by_name("request_id").is_some());
+                assert!(method.output().get_field_by_name("receipt").is_some());
+            }
+            methods.push(method);
         }
     }
-
-    // Open A Health Call Using Its Generated Request And Authoritative Descriptor.
-    let service = pool.get_service_by_name("dokime.v1.Backend").unwrap();
-    let method = service.methods().find(|method| method.name() == "RunGetHealth").unwrap();
-    let opening = BackendGetHealthRunInput {
-        value: Some(backend_get_health_run_input::Value::Request(GetBackendHealth {})),
-    };
-    let bytes = opening.encode_to_vec();
-    let opening = DynamicMessage::decode(method.input(), bytes.as_slice()).unwrap();
-    assert_eq!(opening.get_field_by_name("request").unwrap().as_message().unwrap().descriptor(), GetBackendHealth {}.descriptor());
-    let health = BackendHealth {
-        backend_id: "bench".into(),
-        epoch: "boot".into(),
-        readiness: BackendReadiness::Ready as i32,
-        ..Default::default()
-    };
-    let reply = BackendGetHealthRunOutput {
-        value: Some(backend_get_health_run_output::Value::Response(health.clone())),
-    };
-    let bytes = reply.encode_to_vec();
-    let reply = DynamicMessage::decode(method.output(), bytes.as_slice()).unwrap();
-    assert_eq!(reply.get_field_by_name("response").unwrap().as_message().unwrap().transcode_to::<BackendHealth>().unwrap(), health);
-
-    // Read The Same Stream Item And Settlement Through Both Generated Envelopes.
-    let log = LogFrame {
-        level: LogLevel::Info as i32,
-        target: "instrument".into(),
-        message: "Connected".into(),
-        ..Default::default()
-    };
-    let item = BackendWatchLogsOutput {
-        value: Some(backend_watch_logs_output::Value::Item(log.clone())),
-    };
-    let decoded = BackendWatchLogsRunOutput::decode(item.encode_to_vec().as_slice()).unwrap();
-    assert_eq!(decoded.value, Some(backend_watch_logs_run_output::Value::Item(log)));
-    let completed = BackendWatchLogsRunOutput {
-        value: Some(backend_watch_logs_run_output::Value::Response(BackendWatchLogsCompletion {})),
-    };
-    let decoded = BackendWatchLogsOutput::decode(completed.encode_to_vec().as_slice()).unwrap();
-    assert_eq!(decoded.value, Some(backend_watch_logs_output::Value::Response(BackendWatchLogsCompletion {})));
-
-    // Preserve Explicit Cancellation Without Turning It Into Another Request.
-    let cancelled = BackendGetHealthRunInput {
-        value: Some(backend_get_health_run_input::Value::Cancel(BackendGetHealthCancellation {})),
-    };
-    let decoded = BackendGetHealthRunInput::decode(cancelled.encode_to_vec().as_slice()).unwrap();
-    assert!(matches!(decoded.value, Some(backend_get_health_run_input::Value::Cancel(_))));
+    assert!(!methods.is_empty());
+    // Plugin and Context Payloads Are Carried, Never Independent RPC Services.
+    for message in pool
+        .all_messages()
+        .filter(|message| message.package_name().starts_with("dokime.context.") || message.package_name().starts_with("dokime.plugin."))
+    {
+        assert_eq!(message.parent_file().services().count(), 0);
+    }
 }
 
 #[test]
-fn reflected_client_story_retains_materialized_origins_and_outcomes() {
+fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
     use dokime_protocol::v1::*;
     use prost::Message;
     use prost_reflect::{DynamicMessage, ReflectMessage};
 
-    // Reflect the Public Materialization Request Against Its Service Descriptor.
-    let request = PlanningMaterializeTemplateRequest {
-        selection: Some(RegisteredSelection {
-            suite_id: "measurement".into(),
-            template_id: "measurement.sample".into(),
-            parameters: vec![RegisteredSelectionParametersEntry {
-                key: "limits".into(),
-                value: Some(SelectionValues {
-                    values: vec![Value {
-                        kind: Some(value::Kind::Integer(i64::MAX)),
-                    }],
-                }),
+    // Reflect Plan Admission Against the Final Resource Service.
+    let request = CasesCreateRequest {
+        plan: Some(SelectionPlan {
+            selections: vec![RegisteredSelection {
+                suite_id: "measurement".into(),
+                template_id: "measurement.sample".into(),
+                parameters: vec![RegisteredSelectionParametersEntry {
+                    key: "limits".into(),
+                    value: Some(SelectionValues {
+                        values: vec![Value {
+                            kind: Some(value::Kind::Integer(i64::MAX)),
+                        }],
+                    }),
+                }],
+                ..Default::default()
             }],
             ..Default::default()
         }),
+        request_id: "plan-request".into(),
+        ..Default::default()
     };
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Planning").unwrap();
-    let method = service.methods().find(|method| method.name() == "MaterializeTemplate").unwrap();
-    assert!(!method.is_client_streaming() && !method.is_server_streaming());
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Cases").unwrap();
+    let method = service.methods().find(|method| method.name() == "Create").unwrap();
     assert_eq!(method.input(), request.descriptor());
     let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
-    assert_eq!(reflected.transcode_to::<PlanningMaterializeTemplateRequest>().unwrap(), request);
+    assert_eq!(reflected.transcode_to::<CasesCreateRequest>().unwrap(), request);
 
-    // Carry the Frozen Case Through Planning and the Execution Read Model.
+    // Round-Trip a Frozen Case Through the Final Response Wrapper.
     let origin = Origin {
         kind: Some(origin::Kind::PluginRun(PluginRun {
             plugin: "measurement".into(),
@@ -301,7 +272,7 @@ fn reflected_client_story_retains_materialized_origins_and_outcomes() {
             started_at: Some(prost_types::Timestamp { seconds: 1_700_000_000, nanos: 17 }),
         })),
     };
-    let planned = PreviewSelectionReply {
+    let planned = CasesCreateResponse {
         cases: vec![PlannedCase {
             case_id: "case".into(),
             origin: Some(origin.clone()),
@@ -309,71 +280,65 @@ fn reflected_client_story_retains_materialized_origins_and_outcomes() {
         }],
         ..Default::default()
     };
-    let planned = PreviewSelectionReply::decode(planned.encode_to_vec().as_slice()).unwrap();
-    let execution = ExecutionDetail {
-        origin: planned.cases[0].origin.clone(),
-        outcome: Some(ExecutionOutcome {
-            attribution: Some(execution_outcome::Attribution::Evaluated(EvaluatedOutcome {
-                status: ResultStatus::Passed as i32,
-                reason: "criterion".into(),
-            })),
+    let planned = CasesCreateResponse::decode(planned.encode_to_vec().as_slice()).unwrap();
+    let response = ExecutionsGetResponse {
+        execution: Some(ExecutionDetail {
+            origin: planned.cases[0].origin.clone(),
+            outcome: Some(ExecutionOutcome {
+                attribution: Some(execution_outcome::Attribution::Evaluated(EvaluatedOutcome {
+                    status: ResultStatus::Passed as i32,
+                    reason: "criterion".into(),
+                })),
+            }),
+            ..Default::default()
         }),
         ..Default::default()
     };
-    let execution_service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Execution").unwrap();
-    let method = execution_service.methods().find(|method| method.name() == "GetExecution").unwrap();
-    let reflected = DynamicMessage::decode(method.output(), execution.encode_to_vec().as_slice()).unwrap();
-    let decoded = reflected.transcode_to::<ExecutionDetail>().unwrap();
-    assert_eq!(decoded, execution);
-    assert_eq!(decoded.origin, Some(origin));
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Executions").unwrap();
+    let method = service.methods().find(|method| method.name() == "Get").unwrap();
+    let reflected = DynamicMessage::decode(method.output(), response.encode_to_vec().as_slice()).unwrap();
+    let decoded = reflected.transcode_to::<ExecutionsGetResponse>().unwrap();
+    assert_eq!(decoded, response);
+    assert_eq!(decoded.execution.unwrap().origin, Some(origin));
 }
 
 #[test]
-fn client_transfer_routes_preserve_input_finish_cancel_and_final_response() {
-    use dokime_protocol::v1::*;
+fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
+    use dokime_protocol::{plugin, v1};
+    use harmos_protocol::v1::{Catalog, OperationContract, OperationPolicy, Visibility};
     use prost::Message;
     use prost_reflect::ReflectMessage;
 
-    // Inspect the Upload and Its Cancellable Duplex Companion.
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Plugins").unwrap();
-    let upload = service.methods().find(|method| method.name() == "Install").unwrap();
-    let run = service.methods().find(|method| method.name() == "RunInstall").unwrap();
-    assert!(upload.is_client_streaming() && !upload.is_server_streaming());
-    assert!(run.is_client_streaming() && run.is_server_streaming());
-
-    // Round-Trip the Distinct Ordered Control and Data Frames.
-    let frames = [
-        plugins_install_run_input::Value::Request(PluginsInstallRequest {}),
-        plugins_install_run_input::Value::Item(InstallPluginFrame {
-            frame: Some(InstallPluginFrameFrame {
-                kind: Some(install_plugin_frame_frame::Kind::Header(InstallPluginHeader { size_bytes: 3, sha256: "digest".into() })),
-            }),
-        }),
-        plugins_install_run_input::Value::Item(InstallPluginFrame {
-            frame: Some(InstallPluginFrameFrame {
-                kind: Some(install_plugin_frame_frame::Kind::Chunk(InstallPluginChunk { offset: 0, data: vec![0, 1, 2] })),
-            }),
-        }),
-        plugins_install_run_input::Value::Finish(ClientEmpty {}),
-        plugins_install_run_input::Value::Cancel(ClientEmpty {}),
-    ];
-    for value in frames {
-        let frame = PluginsInstallRunInput { value: Some(value) };
-        assert_eq!(run.input(), frame.descriptor());
-        assert_eq!(PluginsInstallRunInput::decode(frame.encode_to_vec().as_slice()).unwrap(), frame);
-    }
-    let terminal = PluginsInstallRunOutput {
-        value: Some(plugins_install_run_output::Value::Response(PluginInstallation {
-            install_id: "installation".into(),
-            plugin: Some(Plugin {
-                entry: "entry".into(),
-                placement: Some(plugin::Placement::Managed(ManagedPlugin { bundle: "bundle".into() })),
-                state: PluginState::Starting as i32,
+    // Independent Dotted Bindings Share One Typed Step Payload Family.
+    let mut catalog = Catalog::default();
+    for (id, seconds) in [("measurement.sample.step.0", 2), ("measurement.sample.step.1", 9)] {
+        catalog.operations.push(OperationContract {
+            id: id.into(),
+            request: plugin::StepsExecuteRequest::default().descriptor().full_name().into(),
+            response: plugin::StepsExecuteResponse::default().descriptor().full_name().into(),
+            visibility: Visibility::Protected as i32,
+            policy: Some(OperationPolicy {
+                timeout: Some(prost_types::Duration { seconds, nanos: 0 }),
                 ..Default::default()
             }),
             ..Default::default()
-        })),
+        });
+    }
+    let case = v1::TestCase {
+        steps: catalog
+            .operations
+            .iter()
+            .map(|operation| v1::Step {
+                operation: operation.id.clone(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
     };
-    assert_eq!(run.output(), terminal.descriptor());
-    assert_eq!(PluginsInstallRunOutput::decode(terminal.encode_to_vec().as_slice()).unwrap(), terminal);
+    let restored = Catalog::decode(catalog.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(restored, catalog);
+    assert_ne!(restored.operations[0].id, restored.operations[1].id);
+    assert_ne!(restored.operations[0].policy, restored.operations[1].policy);
+    assert_eq!(restored.operations[0].request, restored.operations[1].request);
+    assert_eq!(case.steps[1].operation, restored.operations[1].id);
 }

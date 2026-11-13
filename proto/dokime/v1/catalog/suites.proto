@@ -1,0 +1,24 @@
+syntax = "proto3";
+package dokime.v1.catalog;
+option csharp_namespace = "Dokime.Protocol.V1.Catalog";
+import "dokime/v1/catalog_types.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message SuitesGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.v1.ReadCut at = 90; }
+
+message SuitesGetResponse { .dokime.v1.Suite value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message SuitesListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message SuitesListResponse { repeated .dokime.v1.Suite values = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Suites {
+  // Public. Identity: dokime.v1.catalog.Suites/Get
+  rpc Get(SuitesGetRequest) returns (SuitesGetResponse);
+  // Public. Identity: dokime.v1.catalog.Suites/List
+  rpc List(SuitesListRequest) returns (SuitesListResponse);
+}

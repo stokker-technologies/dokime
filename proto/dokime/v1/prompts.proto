@@ -1,0 +1,56 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message PromptsGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message PromptsGetResponse { .dokime.v1.PromptView prompt = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+// pending_only returns the complete bounded active set: page controls are refused
+// and next_page_token is empty. Retained prompt history uses bounded pages.
+message PromptsListRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message PromptsListResponse {
+  repeated .dokime.v1.PromptView prompts = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message PromptsWatchRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message PromptsWatchResponse {
+  repeated .dokime.v1.PromptView prompts = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Prompts {
+  // Public. Identity: dokime.v1.Prompts/Get
+  rpc Get(PromptsGetRequest) returns (PromptsGetResponse);
+  // Public. Identity: dokime.v1.Prompts/List
+  rpc List(PromptsListRequest) returns (PromptsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(PromptsWatchRequest) returns (stream PromptsWatchResponse);
+}

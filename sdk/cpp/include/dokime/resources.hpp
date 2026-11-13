@@ -5,6 +5,10 @@
 #include <stdexcept>
 #pragma push_macro("AdvanceProjection")
 #undef AdvanceProjection
+#pragma push_macro("Analyses")
+#undef Analyses
+#pragma push_macro("Appearance")
+#undef Appearance
 #pragma push_macro("AppendFileBytes")
 #undef AppendFileBytes
 #pragma push_macro("AppendObjectRevisions")
@@ -13,6 +17,8 @@
 #undef AppendRecords
 #pragma push_macro("AppendSamples")
 #undef AppendSamples
+#pragma push_macro("Archive")
+#undef Archive
 #pragma push_macro("Cancel")
 #undef Cancel
 #pragma push_macro("Capabilities")
@@ -33,6 +39,8 @@
 #undef DeleteFileProduction
 #pragma push_macro("DeleteSnapshot")
 #undef DeleteSnapshot
+#pragma push_macro("Export")
+#undef Export
 #pragma push_macro("Get")
 #undef Get
 #pragma push_macro("GetFileBytes")
@@ -49,6 +57,8 @@
 #undef GetProjectionDefinition
 #pragma push_macro("GetProjectionStatus")
 #undef GetProjectionStatus
+#pragma push_macro("Import")
+#undef Import
 #pragma push_macro("Invoke")
 #undef Invoke
 #pragma push_macro("List")
@@ -63,10 +73,18 @@
 #undef ListProjectionRows
 #pragma push_macro("ListRows")
 #undef ListRows
+#pragma push_macro("Parameters")
+#undef Parameters
+#pragma push_macro("Publish")
+#undef Publish
 #pragma push_macro("PublishFileProduction")
 #undef PublishFileProduction
 #pragma push_macro("Restart")
 #undef Restart
+#pragma push_macro("Schema")
+#undef Schema
+#pragma push_macro("Seal")
+#undef Seal
 #pragma push_macro("Set")
 #undef Set
 #pragma push_macro("SetIndexDefinition")
@@ -77,6 +95,14 @@
 #undef SetProjectionDefinition
 #pragma push_macro("Sleep")
 #undef Sleep
+#pragma push_macro("Start")
+#undef Start
+#pragma push_macro("Statistics")
+#undef Statistics
+#pragma push_macro("Steps")
+#undef Steps
+#pragma push_macro("Stop")
+#undef Stop
 #pragma push_macro("Watch")
 #undef Watch
 #pragma push_macro("WatchDirectoryEntries")
@@ -87,8 +113,38 @@
 #undef WatchFileProduction
 #pragma push_macro("WatchRows")
 #undef WatchRows
+#include "dokime/v1/aggregates.grpc.pb.h"
+#include "dokime/v1/backend.grpc.pb.h"
+#include "dokime/v1/backend/overview.grpc.pb.h"
+#include "dokime/v1/cases.grpc.pb.h"
+#include "dokime/v1/catalog.grpc.pb.h"
+#include "dokime/v1/catalog/prompt_definitions.grpc.pb.h"
+#include "dokime/v1/catalog/record_schemas.grpc.pb.h"
+#include "dokime/v1/catalog/stream_schemas.grpc.pb.h"
+#include "dokime/v1/catalog/suites.grpc.pb.h"
+#include "dokime/v1/content/artifacts.grpc.pb.h"
+#include "dokime/v1/content/execution_files.grpc.pb.h"
+#include "dokime/v1/cycles.grpc.pb.h"
+#include "dokime/v1/documents.grpc.pb.h"
+#include "dokime/v1/evidence.grpc.pb.h"
+#include "dokime/v1/evidence/health_events.grpc.pb.h"
+#include "dokime/v1/evidence/notes.grpc.pb.h"
+#include "dokime/v1/evidence/records.grpc.pb.h"
+#include "dokime/v1/evidence/samples.grpc.pb.h"
 #include "dokime/v1/evidence/traceability.grpc.pb.h"
+#include "dokime/v1/executions.grpc.pb.h"
+#include "dokime/v1/executions/commands.grpc.pb.h"
 #include "dokime/v1/executions/progress.grpc.pb.h"
+#include "dokime/v1/media/captures.grpc.pb.h"
+#include "dokime/v1/plots/settings.grpc.pb.h"
+#include "dokime/v1/plots/snapshots.grpc.pb.h"
+#include "dokime/v1/plugins/settings.grpc.pb.h"
+#include "dokime/v1/prompts.grpc.pb.h"
+#include "dokime/v1/prompts/answers.grpc.pb.h"
+#include "dokime/v1/reports.grpc.pb.h"
+#include "dokime/v1/secrets.grpc.pb.h"
+#include "dokime/v1/settings.grpc.pb.h"
+#include "dokime/v1/storage/sources.grpc.pb.h"
 #include "harmos/v1/access/certificates.grpc.pb.h"
 #include "harmos/v1/access/listener.grpc.pb.h"
 #include "harmos/v1/access/pairings.grpc.pb.h"
@@ -159,6 +215,239 @@ struct AccessPairingsResource {
     return response;
   }
 };
+struct BackendOverviewResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit BackendOverviewResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::backend::OverviewGetResponse get(grpc::ClientContext &context, const ::dokime::v1::backend::OverviewGetRequest &request) {
+    ::dokime::v1::backend::OverviewGetResponse response;
+    const auto status = ::dokime::v1::backend::Overview::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::backend::OverviewWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::backend::OverviewWatchRequest &request) {
+    return ::dokime::v1::backend::Overview::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct CatalogPromptDefinitionsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CatalogPromptDefinitionsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::catalog::PromptDefinitionsGetResponse get(grpc::ClientContext &context,
+                                                          const ::dokime::v1::catalog::PromptDefinitionsGetRequest &request) {
+    ::dokime::v1::catalog::PromptDefinitionsGetResponse response;
+    const auto status = ::dokime::v1::catalog::PromptDefinitions::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::catalog::PromptDefinitionsListResponse list(grpc::ClientContext &context,
+                                                            const ::dokime::v1::catalog::PromptDefinitionsListRequest &request) {
+    ::dokime::v1::catalog::PromptDefinitionsListResponse response;
+    const auto status = ::dokime::v1::catalog::PromptDefinitions::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+};
+struct CatalogRecordSchemasResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CatalogRecordSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::catalog::RecordSchemasGetResponse get(grpc::ClientContext &context,
+                                                      const ::dokime::v1::catalog::RecordSchemasGetRequest &request) {
+    ::dokime::v1::catalog::RecordSchemasGetResponse response;
+    const auto status = ::dokime::v1::catalog::RecordSchemas::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::catalog::RecordSchemasListResponse list(grpc::ClientContext &context,
+                                                        const ::dokime::v1::catalog::RecordSchemasListRequest &request) {
+    ::dokime::v1::catalog::RecordSchemasListResponse response;
+    const auto status = ::dokime::v1::catalog::RecordSchemas::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+};
+struct CatalogStreamSchemasResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CatalogStreamSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::catalog::StreamSchemasGetResponse get(grpc::ClientContext &context,
+                                                      const ::dokime::v1::catalog::StreamSchemasGetRequest &request) {
+    ::dokime::v1::catalog::StreamSchemasGetResponse response;
+    const auto status = ::dokime::v1::catalog::StreamSchemas::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::catalog::StreamSchemasListResponse list(grpc::ClientContext &context,
+                                                        const ::dokime::v1::catalog::StreamSchemasListRequest &request) {
+    ::dokime::v1::catalog::StreamSchemasListResponse response;
+    const auto status = ::dokime::v1::catalog::StreamSchemas::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+};
+struct CatalogSuitesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CatalogSuitesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::catalog::SuitesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::catalog::SuitesGetRequest &request) {
+    ::dokime::v1::catalog::SuitesGetResponse response;
+    const auto status = ::dokime::v1::catalog::Suites::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::catalog::SuitesListResponse list(grpc::ClientContext &context, const ::dokime::v1::catalog::SuitesListRequest &request) {
+    ::dokime::v1::catalog::SuitesListResponse response;
+    const auto status = ::dokime::v1::catalog::Suites::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+};
+struct ContentArtifactsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit ContentArtifactsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::content::ArtifactsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::content::ArtifactsGetRequest &request) {
+    ::dokime::v1::content::ArtifactsGetResponse response;
+    const auto status = ::dokime::v1::content::Artifacts::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::content::ArtifactsCreateResponse create(grpc::ClientContext &context,
+                                                        const ::dokime::v1::content::ArtifactsCreateRequest &request) {
+    ::dokime::v1::content::ArtifactsCreateResponse response;
+    const auto status = ::dokime::v1::content::Artifacts::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::content::ArtifactsListResponse list(grpc::ClientContext &context,
+                                                    const ::dokime::v1::content::ArtifactsListRequest &request) {
+    ::dokime::v1::content::ArtifactsListResponse response;
+    const auto status = ::dokime::v1::content::Artifacts::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::content::ArtifactsWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::content::ArtifactsWatchRequest &request) {
+    return ::dokime::v1::content::Artifacts::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct ContentExecutionFilesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit ContentExecutionFilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::content::ExecutionFilesGetResponse get(grpc::ClientContext &context,
+                                                       const ::dokime::v1::content::ExecutionFilesGetRequest &request) {
+    ::dokime::v1::content::ExecutionFilesGetResponse response;
+    const auto status = ::dokime::v1::content::ExecutionFiles::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::content::ExecutionFilesListResponse list(grpc::ClientContext &context,
+                                                         const ::dokime::v1::content::ExecutionFilesListRequest &request) {
+    ::dokime::v1::content::ExecutionFilesListResponse response;
+    const auto status = ::dokime::v1::content::ExecutionFiles::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::content::ExecutionFilesWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::content::ExecutionFilesWatchRequest &request) {
+    return ::dokime::v1::content::ExecutionFiles::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct EvidenceHealthEventsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit EvidenceHealthEventsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::evidence::HealthEventsListResponse list(grpc::ClientContext &context,
+                                                        const ::dokime::v1::evidence::HealthEventsListRequest &request) {
+    ::dokime::v1::evidence::HealthEventsListResponse response;
+    const auto status = ::dokime::v1::evidence::HealthEvents::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::evidence::HealthEventsWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::evidence::HealthEventsWatchRequest &request) {
+    return ::dokime::v1::evidence::HealthEvents::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct EvidenceNotesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit EvidenceNotesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::evidence::NotesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::evidence::NotesGetRequest &request) {
+    ::dokime::v1::evidence::NotesGetResponse response;
+    const auto status = ::dokime::v1::evidence::Notes::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::evidence::NotesSetResponse set(grpc::ClientContext &context, const ::dokime::v1::evidence::NotesSetRequest &request) {
+    ::dokime::v1::evidence::NotesSetResponse response;
+    const auto status = ::dokime::v1::evidence::Notes::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::evidence::NotesListResponse list(grpc::ClientContext &context, const ::dokime::v1::evidence::NotesListRequest &request) {
+    ::dokime::v1::evidence::NotesListResponse response;
+    const auto status = ::dokime::v1::evidence::Notes::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::evidence::NotesWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::evidence::NotesWatchRequest &request) {
+    return ::dokime::v1::evidence::Notes::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::evidence::NotesCreateResponse create(grpc::ClientContext &context,
+                                                     const ::dokime::v1::evidence::NotesCreateRequest &request) {
+    ::dokime::v1::evidence::NotesCreateResponse response;
+    const auto status = ::dokime::v1::evidence::Notes::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+};
+struct EvidenceRecordsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit EvidenceRecordsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::evidence::RecordsListResponse list(grpc::ClientContext &context,
+                                                   const ::dokime::v1::evidence::RecordsListRequest &request) {
+    ::dokime::v1::evidence::RecordsListResponse response;
+    const auto status = ::dokime::v1::evidence::Records::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::evidence::RecordsWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::evidence::RecordsWatchRequest &request) {
+    return ::dokime::v1::evidence::Records::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct EvidenceSamplesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit EvidenceSamplesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::evidence::SamplesListResponse list(grpc::ClientContext &context,
+                                                   const ::dokime::v1::evidence::SamplesListRequest &request) {
+    ::dokime::v1::evidence::SamplesListResponse response;
+    const auto status = ::dokime::v1::evidence::Samples::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::evidence::SamplesWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::evidence::SamplesWatchRequest &request) {
+    return ::dokime::v1::evidence::Samples::NewStub(channel)->Watch(&context, request);
+  }
+};
 struct EvidenceTraceabilityResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit EvidenceTraceabilityResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
@@ -175,6 +464,26 @@ struct EvidenceTraceabilityResource {
     return ::dokime::v1::evidence::Traceability::NewStub(channel)->Watch(&context, request);
   }
 };
+struct ExecutionsCommandsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit ExecutionsCommandsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::executions::CommandsGetResponse get(grpc::ClientContext &context,
+                                                    const ::dokime::v1::executions::CommandsGetRequest &request) {
+    ::dokime::v1::executions::CommandsGetResponse response;
+    const auto status = ::dokime::v1::executions::Commands::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::executions::CommandsCreateResponse create(grpc::ClientContext &context,
+                                                          const ::dokime::v1::executions::CommandsCreateRequest &request) {
+    ::dokime::v1::executions::CommandsCreateResponse response;
+    const auto status = ::dokime::v1::executions::Commands::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+};
 struct ExecutionsProgressResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit ExecutionsProgressResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
@@ -189,6 +498,99 @@ struct ExecutionsProgressResource {
   std::unique_ptr<grpc::ClientReader<::dokime::v1::executions::ProgressWatchResponse>>
   watch(grpc::ClientContext &context, const ::dokime::v1::executions::ProgressWatchRequest &request) {
     return ::dokime::v1::executions::Progress::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct MediaCapturesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit MediaCapturesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::media::CapturesCreateResponse create(grpc::ClientContext &context,
+                                                     const ::dokime::v1::media::CapturesCreateRequest &request) {
+    ::dokime::v1::media::CapturesCreateResponse response;
+    const auto status = ::dokime::v1::media::Captures::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::media::CapturesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::media::CapturesGetRequest &request) {
+    ::dokime::v1::media::CapturesGetResponse response;
+    const auto status = ::dokime::v1::media::Captures::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::media::CapturesWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::media::CapturesWatchRequest &request) {
+    return ::dokime::v1::media::Captures::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::media::CapturesStopResponse stop(grpc::ClientContext &context, const ::dokime::v1::media::CapturesStopRequest &request) {
+    ::dokime::v1::media::CapturesStopResponse response;
+    const auto status = ::dokime::v1::media::Captures::NewStub(channel)->Stop(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Stop: ") + status.error_message());
+    return response;
+  }
+};
+struct PlotsSettingsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit PlotsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::plots::SettingsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::plots::SettingsGetRequest &request) {
+    ::dokime::v1::plots::SettingsGetResponse response;
+    const auto status = ::dokime::v1::plots::Settings::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::plots::SettingsSetResponse set(grpc::ClientContext &context, const ::dokime::v1::plots::SettingsSetRequest &request) {
+    ::dokime::v1::plots::SettingsSetResponse response;
+    const auto status = ::dokime::v1::plots::Settings::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+};
+struct PlotsSnapshotsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit PlotsSnapshotsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::plots::SnapshotsListResponse list(grpc::ClientContext &context, const ::dokime::v1::plots::SnapshotsListRequest &request) {
+    ::dokime::v1::plots::SnapshotsListResponse response;
+    const auto status = ::dokime::v1::plots::Snapshots::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::plots::SnapshotsWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::v1::plots::SnapshotsWatchRequest &request) {
+    return ::dokime::v1::plots::Snapshots::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct PluginsSettingsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit PluginsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::plugins::SettingsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::plugins::SettingsGetRequest &request) {
+    ::dokime::v1::plugins::SettingsGetResponse response;
+    const auto status = ::dokime::v1::plugins::Settings::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::plugins::SettingsSetResponse set(grpc::ClientContext &context, const ::dokime::v1::plugins::SettingsSetRequest &request) {
+    ::dokime::v1::plugins::SettingsSetResponse response;
+    const auto status = ::dokime::v1::plugins::Settings::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+};
+struct PromptsAnswersResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit PromptsAnswersResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::prompts::AnswersCreateResponse create(grpc::ClientContext &context,
+                                                      const ::dokime::v1::prompts::AnswersCreateRequest &request) {
+    ::dokime::v1::prompts::AnswersCreateResponse response;
+    const auto status = ::dokime::v1::prompts::Answers::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
   }
 };
 struct StatusDiagnosticsResource {
@@ -234,11 +636,111 @@ struct StatusTraceEventsResource {
     return ::harmos::v1::status::TraceEvents::NewStub(channel)->Watch(&context, request);
   }
 };
+struct StorageSourcesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit StorageSourcesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::storage::SourcesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::storage::SourcesGetRequest &request) {
+    ::dokime::v1::storage::SourcesGetResponse response;
+    const auto status = ::dokime::v1::storage::Sources::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::storage::SourcesSetResponse set(grpc::ClientContext &context, const ::dokime::v1::storage::SourcesSetRequest &request) {
+    ::dokime::v1::storage::SourcesSetResponse response;
+    const auto status = ::dokime::v1::storage::Sources::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+};
 struct AccessResource {
   AccessCertificatesResource certificates;
   AccessListenerResource listener;
   AccessPairingsResource pairings;
   explicit AccessResource(std::shared_ptr<grpc::Channel> channel) : certificates(channel), listener(channel), pairings(channel) {}
+};
+struct AggregatesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit AggregatesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::AggregatesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::AggregatesGetRequest &request) {
+    ::dokime::v1::AggregatesGetResponse response;
+    const auto status = ::dokime::v1::Aggregates::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+};
+struct BackendResource {
+  std::shared_ptr<grpc::Channel> channel;
+  BackendOverviewResource overview;
+  explicit BackendResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), overview(channel) {}
+  ::dokime::v1::BackendAppearanceResponse appearance(grpc::ClientContext &context, const ::dokime::v1::BackendAppearanceRequest &request) {
+    ::dokime::v1::BackendAppearanceResponse response;
+    const auto status = ::dokime::v1::Backend::NewStub(channel)->Appearance(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Appearance: ") + status.error_message());
+    return response;
+  }
+};
+struct CasesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CasesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::CasesCreateResponse create(grpc::ClientContext &context, const ::dokime::v1::CasesCreateRequest &request) {
+    ::dokime::v1::CasesCreateResponse response;
+    const auto status = ::dokime::v1::Cases::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CasesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::CasesGetRequest &request) {
+    ::dokime::v1::CasesGetResponse response;
+    const auto status = ::dokime::v1::Cases::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CasesListResponse list(grpc::ClientContext &context, const ::dokime::v1::CasesListRequest &request) {
+    ::dokime::v1::CasesListResponse response;
+    const auto status = ::dokime::v1::Cases::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::CasesWatchResponse>> watch(grpc::ClientContext &context,
+                                                                              const ::dokime::v1::CasesWatchRequest &request) {
+    return ::dokime::v1::Cases::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::CasesDeleteResponse delete_(grpc::ClientContext &context, const ::dokime::v1::CasesDeleteRequest &request) {
+    ::dokime::v1::CasesDeleteResponse response;
+    const auto status = ::dokime::v1::Cases::NewStub(channel)->Delete(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Delete: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CasesParametersResponse parameters(grpc::ClientContext &context, const ::dokime::v1::CasesParametersRequest &request) {
+    ::dokime::v1::CasesParametersResponse response;
+    const auto status = ::dokime::v1::Cases::NewStub(channel)->Parameters(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Parameters: ") + status.error_message());
+    return response;
+  }
+};
+struct CatalogResource {
+  std::shared_ptr<grpc::Channel> channel;
+  CatalogPromptDefinitionsResource prompt_definitions;
+  CatalogRecordSchemasResource record_schemas;
+  CatalogStreamSchemasResource stream_schemas;
+  CatalogSuitesResource suites;
+  explicit CatalogResource(std::shared_ptr<grpc::Channel> channel)
+      : channel(channel), prompt_definitions(channel), record_schemas(channel), stream_schemas(channel), suites(channel) {}
+  ::dokime::v1::CatalogAnalysesResponse analyses(grpc::ClientContext &context, const ::dokime::v1::CatalogAnalysesRequest &request) {
+    ::dokime::v1::CatalogAnalysesResponse response;
+    const auto status = ::dokime::v1::Catalog::NewStub(channel)->Analyses(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Analyses: ") + status.error_message());
+    return response;
+  }
 };
 struct CatalogEntriesResource {
   std::shared_ptr<grpc::Channel> channel;
@@ -251,13 +753,174 @@ struct CatalogEntriesResource {
     return response;
   }
 };
+struct ContentResource {
+  ContentArtifactsResource artifacts;
+  ContentExecutionFilesResource execution_files;
+  explicit ContentResource(std::shared_ptr<grpc::Channel> channel) : artifacts(channel), execution_files(channel) {}
+};
+struct CyclesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit CyclesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::CyclesGetResponse get(grpc::ClientContext &context, const ::dokime::v1::CyclesGetRequest &request) {
+    ::dokime::v1::CyclesGetResponse response;
+    const auto status = ::dokime::v1::Cycles::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CyclesSetResponse set(grpc::ClientContext &context, const ::dokime::v1::CyclesSetRequest &request) {
+    ::dokime::v1::CyclesSetResponse response;
+    const auto status = ::dokime::v1::Cycles::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CyclesListResponse list(grpc::ClientContext &context, const ::dokime::v1::CyclesListRequest &request) {
+    ::dokime::v1::CyclesListResponse response;
+    const auto status = ::dokime::v1::Cycles::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::CyclesWatchResponse>> watch(grpc::ClientContext &context,
+                                                                               const ::dokime::v1::CyclesWatchRequest &request) {
+    return ::dokime::v1::Cycles::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::CyclesCreateResponse create(grpc::ClientContext &context, const ::dokime::v1::CyclesCreateRequest &request) {
+    ::dokime::v1::CyclesCreateResponse response;
+    const auto status = ::dokime::v1::Cycles::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::CyclesSealResponse seal(grpc::ClientContext &context, const ::dokime::v1::CyclesSealRequest &request) {
+    ::dokime::v1::CyclesSealResponse response;
+    const auto status = ::dokime::v1::Cycles::NewStub(channel)->Seal(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Seal: ") + status.error_message());
+    return response;
+  }
+};
+struct DocumentsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit DocumentsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::DocumentsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::DocumentsGetRequest &request) {
+    ::dokime::v1::DocumentsGetResponse response;
+    const auto status = ::dokime::v1::Documents::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::DocumentsWatchResponse>> watch(grpc::ClientContext &context,
+                                                                                  const ::dokime::v1::DocumentsWatchRequest &request) {
+    return ::dokime::v1::Documents::NewStub(channel)->Watch(&context, request);
+  }
+};
 struct EvidenceResource {
+  std::shared_ptr<grpc::Channel> channel;
+  EvidenceHealthEventsResource health_events;
+  EvidenceNotesResource notes;
+  EvidenceRecordsResource records;
+  EvidenceSamplesResource samples;
   EvidenceTraceabilityResource traceability;
-  explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel) : traceability(channel) {}
+  explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel)
+      : channel(channel), health_events(channel), notes(channel), records(channel), samples(channel), traceability(channel) {}
+  ::dokime::v1::EvidenceStatisticsResponse statistics(grpc::ClientContext &context,
+                                                      const ::dokime::v1::EvidenceStatisticsRequest &request) {
+    ::dokime::v1::EvidenceStatisticsResponse response;
+    const auto status = ::dokime::v1::Evidence::NewStub(channel)->Statistics(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Statistics: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::EvidenceArchiveResponse archive(grpc::ClientContext &context, const ::dokime::v1::EvidenceArchiveRequest &request) {
+    ::dokime::v1::EvidenceArchiveResponse response;
+    const auto status = ::dokime::v1::Evidence::NewStub(channel)->Archive(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Archive: ") + status.error_message());
+    return response;
+  }
 };
 struct ExecutionsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  ExecutionsCommandsResource commands;
   ExecutionsProgressResource progress;
-  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel) : progress(channel) {}
+  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), commands(channel), progress(channel) {}
+  ::dokime::v1::ExecutionsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::ExecutionsGetRequest &request) {
+    ::dokime::v1::ExecutionsGetResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsSetResponse set(grpc::ClientContext &context, const ::dokime::v1::ExecutionsSetRequest &request) {
+    ::dokime::v1::ExecutionsSetResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsListResponse list(grpc::ClientContext &context, const ::dokime::v1::ExecutionsListRequest &request) {
+    ::dokime::v1::ExecutionsListResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::ExecutionsWatchResponse>> watch(grpc::ClientContext &context,
+                                                                                   const ::dokime::v1::ExecutionsWatchRequest &request) {
+    return ::dokime::v1::Executions::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::ExecutionsCreateResponse create(grpc::ClientContext &context, const ::dokime::v1::ExecutionsCreateRequest &request) {
+    ::dokime::v1::ExecutionsCreateResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsStartResponse start(grpc::ClientContext &context, const ::dokime::v1::ExecutionsStartRequest &request) {
+    ::dokime::v1::ExecutionsStartResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Start(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Start: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsStopResponse stop(grpc::ClientContext &context, const ::dokime::v1::ExecutionsStopRequest &request) {
+    ::dokime::v1::ExecutionsStopResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Stop(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Stop: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsCancelResponse cancel(grpc::ClientContext &context, const ::dokime::v1::ExecutionsCancelRequest &request) {
+    ::dokime::v1::ExecutionsCancelResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Cancel(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Cancel: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsDeleteResponse delete_(grpc::ClientContext &context, const ::dokime::v1::ExecutionsDeleteRequest &request) {
+    ::dokime::v1::ExecutionsDeleteResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Delete(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Delete: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsParametersResponse parameters(grpc::ClientContext &context,
+                                                        const ::dokime::v1::ExecutionsParametersRequest &request) {
+    ::dokime::v1::ExecutionsParametersResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Parameters(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Parameters: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ExecutionsStepsResponse steps(grpc::ClientContext &context, const ::dokime::v1::ExecutionsStepsRequest &request) {
+    ::dokime::v1::ExecutionsStepsResponse response;
+    const auto status = ::dokime::v1::Executions::NewStub(channel)->Steps(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Steps: ") + status.error_message());
+    return response;
+  }
 };
 struct InvocationsResource {
   std::shared_ptr<grpc::Channel> channel;
@@ -288,9 +951,19 @@ struct InvocationsResource {
     return ::harmos::v1::Invocations::NewStub(channel)->Watch(&context, request);
   }
 };
+struct MediaResource {
+  MediaCapturesResource captures;
+  explicit MediaResource(std::shared_ptr<grpc::Channel> channel) : captures(channel) {}
+};
+struct PlotsResource {
+  PlotsSettingsResource settings;
+  PlotsSnapshotsResource snapshots;
+  explicit PlotsResource(std::shared_ptr<grpc::Channel> channel) : settings(channel), snapshots(channel) {}
+};
 struct PluginsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PluginsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  PluginsSettingsResource settings;
+  explicit PluginsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), settings(channel) {}
   ::harmos::v1::PluginsGetResponse get(grpc::ClientContext &context, const ::harmos::v1::PluginsGetRequest &request) {
     ::harmos::v1::PluginsGetResponse response;
     const auto status = ::harmos::v1::Plugins::NewStub(channel)->Get(&context, request, &response);
@@ -338,6 +1011,129 @@ struct PluginsResource {
     return response;
   }
 };
+struct PromptsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  PromptsAnswersResource answers;
+  explicit PromptsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), answers(channel) {}
+  ::dokime::v1::PromptsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::PromptsGetRequest &request) {
+    ::dokime::v1::PromptsGetResponse response;
+    const auto status = ::dokime::v1::Prompts::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::PromptsListResponse list(grpc::ClientContext &context, const ::dokime::v1::PromptsListRequest &request) {
+    ::dokime::v1::PromptsListResponse response;
+    const auto status = ::dokime::v1::Prompts::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::PromptsWatchResponse>> watch(grpc::ClientContext &context,
+                                                                                const ::dokime::v1::PromptsWatchRequest &request) {
+    return ::dokime::v1::Prompts::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct ReportsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit ReportsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::ReportsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::ReportsGetRequest &request) {
+    ::dokime::v1::ReportsGetResponse response;
+    const auto status = ::dokime::v1::Reports::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ReportsCreateResponse create(grpc::ClientContext &context, const ::dokime::v1::ReportsCreateRequest &request) {
+    ::dokime::v1::ReportsCreateResponse response;
+    const auto status = ::dokime::v1::Reports::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::ReportsPublishResponse publish(grpc::ClientContext &context, const ::dokime::v1::ReportsPublishRequest &request) {
+    ::dokime::v1::ReportsPublishResponse response;
+    const auto status = ::dokime::v1::Reports::NewStub(channel)->Publish(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Publish: ") + status.error_message());
+    return response;
+  }
+};
+struct SecretsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit SecretsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::SecretsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::SecretsGetRequest &request) {
+    ::dokime::v1::SecretsGetResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SecretsSetResponse set(grpc::ClientContext &context, const ::dokime::v1::SecretsSetRequest &request) {
+    ::dokime::v1::SecretsSetResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SecretsListResponse list(grpc::ClientContext &context, const ::dokime::v1::SecretsListRequest &request) {
+    ::dokime::v1::SecretsListResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->List(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("List: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::v1::SecretsWatchResponse>> watch(grpc::ClientContext &context,
+                                                                                const ::dokime::v1::SecretsWatchRequest &request) {
+    return ::dokime::v1::Secrets::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::v1::SecretsDeleteResponse delete_(grpc::ClientContext &context, const ::dokime::v1::SecretsDeleteRequest &request) {
+    ::dokime::v1::SecretsDeleteResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->Delete(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Delete: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SecretsExportResponse export_(grpc::ClientContext &context, const ::dokime::v1::SecretsExportRequest &request) {
+    ::dokime::v1::SecretsExportResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->Export(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Export: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SecretsImportResponse import(grpc::ClientContext &context, const ::dokime::v1::SecretsImportRequest &request) {
+    ::dokime::v1::SecretsImportResponse response;
+    const auto status = ::dokime::v1::Secrets::NewStub(channel)->Import(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Import: ") + status.error_message());
+    return response;
+  }
+};
+struct SettingsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit SettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::v1::SettingsGetResponse get(grpc::ClientContext &context, const ::dokime::v1::SettingsGetRequest &request) {
+    ::dokime::v1::SettingsGetResponse response;
+    const auto status = ::dokime::v1::Settings::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SettingsSetResponse set(grpc::ClientContext &context, const ::dokime::v1::SettingsSetRequest &request) {
+    ::dokime::v1::SettingsSetResponse response;
+    const auto status = ::dokime::v1::Settings::NewStub(channel)->Set(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Set: ") + status.error_message());
+    return response;
+  }
+  ::dokime::v1::SettingsSchemaResponse schema(grpc::ClientContext &context, const ::dokime::v1::SettingsSchemaRequest &request) {
+    ::dokime::v1::SettingsSchemaResponse response;
+    const auto status = ::dokime::v1::Settings::NewStub(channel)->Schema(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Schema: ") + status.error_message());
+    return response;
+  }
+};
 struct StatusResource {
   std::shared_ptr<grpc::Channel> channel;
   StatusDiagnosticsResource diagnostics;
@@ -359,7 +1155,8 @@ struct StatusResource {
 };
 struct StorageResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StorageResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  StorageSourcesResource sources;
+  explicit StorageResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), sources(channel) {}
   ::harmos::v1::StorageCreateFileProductionResponse
   create_file_production(grpc::ClientContext &context, const ::harmos::v1::StorageCreateFileProductionRequest &request) {
     ::harmos::v1::StorageCreateFileProductionResponse response;
@@ -618,17 +1415,32 @@ struct TimeResource {
 };
 struct Client {
   AccessResource access;
+  AggregatesResource aggregates;
+  BackendResource backend;
+  CasesResource cases;
+  CatalogResource catalog;
   CatalogEntriesResource catalog_entries;
+  ContentResource content;
+  CyclesResource cycles;
+  DocumentsResource documents;
   EvidenceResource evidence;
   ExecutionsResource executions;
   InvocationsResource invocations;
+  MediaResource media;
+  PlotsResource plots;
   PluginsResource plugins;
+  PromptsResource prompts;
+  ReportsResource reports;
+  SecretsResource secrets;
+  SettingsResource settings;
   StatusResource status;
   StorageResource storage;
   TimeResource time;
   explicit Client(std::shared_ptr<grpc::Channel> channel)
-      : access(channel), catalog_entries(channel), evidence(channel), executions(channel), invocations(channel), plugins(channel),
-        status(channel), storage(channel), time(channel) {}
+      : access(channel), aggregates(channel), backend(channel), cases(channel), catalog(channel), catalog_entries(channel),
+        content(channel), cycles(channel), documents(channel), evidence(channel), executions(channel), invocations(channel), media(channel),
+        plots(channel), plugins(channel), prompts(channel), reports(channel), secrets(channel), settings(channel), status(channel),
+        storage(channel), time(channel) {}
 };
 } // namespace dokime::resources
 #pragma pop_macro("WatchRows")
@@ -636,13 +1448,21 @@ struct Client {
 #pragma pop_macro("WatchFileBytes")
 #pragma pop_macro("WatchDirectoryEntries")
 #pragma pop_macro("Watch")
+#pragma pop_macro("Stop")
+#pragma pop_macro("Steps")
+#pragma pop_macro("Statistics")
+#pragma pop_macro("Start")
 #pragma pop_macro("Sleep")
 #pragma pop_macro("SetProjectionDefinition")
 #pragma pop_macro("SetObject")
 #pragma pop_macro("SetIndexDefinition")
 #pragma pop_macro("Set")
+#pragma pop_macro("Seal")
+#pragma pop_macro("Schema")
 #pragma pop_macro("Restart")
 #pragma pop_macro("PublishFileProduction")
+#pragma pop_macro("Publish")
+#pragma pop_macro("Parameters")
 #pragma pop_macro("ListRows")
 #pragma pop_macro("ListProjectionRows")
 #pragma pop_macro("ListIndexEntries")
@@ -650,6 +1470,7 @@ struct Client {
 #pragma pop_macro("ListColumnRows")
 #pragma pop_macro("List")
 #pragma pop_macro("Invoke")
+#pragma pop_macro("Import")
 #pragma pop_macro("GetProjectionStatus")
 #pragma pop_macro("GetProjectionDefinition")
 #pragma pop_macro("GetObject")
@@ -658,6 +1479,7 @@ struct Client {
 #pragma pop_macro("GetFileHash")
 #pragma pop_macro("GetFileBytes")
 #pragma pop_macro("Get")
+#pragma pop_macro("Export")
 #pragma pop_macro("DeleteSnapshot")
 #pragma pop_macro("DeleteFileProduction")
 #pragma pop_macro("Delete")
@@ -668,8 +1490,11 @@ struct Client {
 #pragma pop_macro("CaptureFile")
 #pragma pop_macro("Capabilities")
 #pragma pop_macro("Cancel")
+#pragma pop_macro("Archive")
 #pragma pop_macro("AppendSamples")
 #pragma pop_macro("AppendRecords")
 #pragma pop_macro("AppendObjectRevisions")
 #pragma pop_macro("AppendFileBytes")
+#pragma pop_macro("Appearance")
+#pragma pop_macro("Analyses")
 #pragma pop_macro("AdvanceProjection")

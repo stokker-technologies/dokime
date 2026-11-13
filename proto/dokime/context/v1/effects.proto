@@ -1,0 +1,22 @@
+syntax = "proto3";
+package dokime.context.v1;
+option csharp_namespace = "Dokime.Protocol.Context.V1";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+// Public child calls on Instance.Invoke; no independent gRPC service.
+// Create durably prepares the inverse before any physical write. Repeated
+// prepares preserve the earliest inverse per scope/resource and get distinct tickets.
+// Set confirms the whole application state; neither call performs physical writes.
+message EffectWritable { google.protobuf.Timestamp applied_at = 1; bool restored = 2; }
+message EffectsCreateRequest {
+  string resource = 1;
+  string inverse_operation = 2;
+  bytes inverse = 3;
+  string description = 4;
+  string request_id = 5;
+}
+message EffectsCreateResponse { string name = 1; EffectWritable value = 2; bytes revision = 3; .harmos.v1.Receipt receipt = 4; }
+message EffectsGetRequest { string name = 1; .harmos.v1.Position at = 2; }
+message EffectsGetResponse { EffectWritable value = 1; bytes revision = 2; .harmos.v1.Position resolved_at = 3; }
+message EffectsSetRequest { string name = 1; EffectWritable value = 2; bytes expected_revision = 3; string request_id = 4; }
+message EffectsSetResponse { EffectWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }

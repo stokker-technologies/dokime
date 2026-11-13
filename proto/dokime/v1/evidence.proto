@@ -1,0 +1,35 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/execution.proto";
+import "dokime/v1/resources.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message EvidenceStatisticsRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  string stream = 2;
+  repeated uint32 versions = 3;
+  .dokime.v1.Window between = 4;
+  repeated .dokime.v1.Output outputs = 5;
+  string field = 6;
+  string step = 7;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message EvidenceStatisticsResponse { .dokime.v1.Statistics statistics = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message EvidenceArchiveRequest { .dokime.v1.EvidenceSubject subject = 1; .harmos.v1.ReadCut at = 90; }
+
+message EvidenceArchiveResponse { .harmos.storage.v1.FileReference file = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Evidence {
+  // Public. Identity: dokime.v1.Evidence/Statistics
+  rpc Statistics(EvidenceStatisticsRequest) returns (EvidenceStatisticsResponse);
+  // Public. Resolve a fixed evidence archive; read bytes through library Storage.GetFileBytes.
+  rpc Archive(EvidenceArchiveRequest) returns (EvidenceArchiveResponse);
+}

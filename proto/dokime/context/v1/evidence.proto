@@ -1,6 +1,7 @@
 syntax = "proto3";
 package dokime.context.v1;
 option csharp_namespace = "Dokime.Protocol.Context.V1";
+import "harmos/v1/types.proto";
 
 // Public child-call declarations carried by Instance.Invoke; no client service.
 
@@ -11,6 +12,7 @@ message EvidenceStatisticsRequest {
   string field = 3;
   // Limit to the time range of one step; empty for the whole execution.
   string step = 4;
+  .harmos.v1.Position at = 5;
 }
 
 message EvidenceStatisticsResponse {
@@ -25,4 +27,5 @@ message EvidenceStatisticsResponse {
   double p99 = 9;
   double first = 10;
   double last = 11;
+  .harmos.v1.Position resolved_at = 12;
 }

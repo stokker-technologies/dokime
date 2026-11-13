@@ -1,0 +1,25 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message AggregatesGetRequest {
+  .dokime.v1.QuerySource source = 1;
+  repeated .dokime.v1.QueryFilter filters = 2;
+  repeated string group_by = 3;
+  repeated .dokime.v1.QueryAggregate aggregates = 4;
+  uint32 limit = 5;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message AggregatesGetResponse { .dokime.v1.AggregateReply value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Aggregates {
+  // Public. Identity: dokime.v1.Aggregates/Get
+  rpc Get(AggregatesGetRequest) returns (AggregatesGetResponse);
+}

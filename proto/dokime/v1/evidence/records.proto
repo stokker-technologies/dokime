@@ -1,0 +1,54 @@
+syntax = "proto3";
+package dokime.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.V1.Evidence";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message RecordsListRequest {
+  .dokime.v1.RecordScope scope = 1;
+  string record_type = 2;
+  repeated uint32 versions = 3;
+  .dokime.v1.Window between = 4;
+  string step = 5;
+  .dokime.v1.CapturedRecordSelection selection = 6;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message RecordsListResponse {
+  repeated .dokime.v1.CapturedRecord records = 1;
+  .dokime.v1.Schema schema = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message RecordsWatchRequest {
+  .dokime.v1.RecordScope scope = 1;
+  string record_type = 2;
+  repeated uint32 versions = 3;
+  .dokime.v1.Window between = 4;
+  string step = 5;
+  .dokime.v1.CapturedRecordSelection selection = 6;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message RecordsWatchResponse {
+  repeated .dokime.v1.CapturedRecord records = 1;
+  .dokime.v1.Schema schema = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Records {
+  // Public. Identity: dokime.v1.evidence.Records/List
+  rpc List(RecordsListRequest) returns (RecordsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(RecordsWatchRequest) returns (stream RecordsWatchResponse);
+}

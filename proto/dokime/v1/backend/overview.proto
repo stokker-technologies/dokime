@@ -1,0 +1,30 @@
+syntax = "proto3";
+package dokime.v1.backend;
+option csharp_namespace = "Dokime.Protocol.V1.Backend";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message OverviewGetRequest {  .harmos.v1.ReadCut at = 90; }
+
+message OverviewGetResponse { .dokime.v1.RuntimeShellSnapshot overview = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message OverviewWatchRequest {  .harmos.v1.ReadCut at = 90; }
+
+message OverviewWatchResponse {
+  .dokime.v1.RuntimeShellSnapshot overview = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Overview {
+  // Public. Identity: dokime.v1.backend.Overview/Get
+  rpc Get(OverviewGetRequest) returns (OverviewGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(OverviewWatchRequest) returns (stream OverviewWatchResponse);
+}

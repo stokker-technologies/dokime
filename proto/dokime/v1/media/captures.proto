@@ -1,0 +1,68 @@
+syntax = "proto3";
+package dokime.v1.media;
+option csharp_namespace = "Dokime.Protocol.V1.Media";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+enum CaptureKind {
+  CAPTURE_KIND_UNSPECIFIED = 0;
+  CAPTURE_KIND_AUDIO = 1;
+  CAPTURE_KIND_CAMERA = 2;
+  CAPTURE_KIND_PHOTO = 3;
+  CAPTURE_KIND_SCREEN = 4;
+  CAPTURE_KIND_SCREENSHOT = 5;
+}
+message Capture {
+  string name = 1;
+  CaptureKind kind = 2;
+  .dokime.v1.RecordingProgress progress = 3;
+  .dokime.v1.ArtifactMetadata artifact = 4;
+  bool finished = 5;
+  .harmos.v1.Failure failure = 6;
+}
+
+message CapturesCreateRequest {
+  .dokime.v1.ArtifactScope scope = 1;
+  CaptureKind kind = 2;
+  optional uint32 input = 3;
+  optional uint32 camera = 4;
+  optional uint32 display = 5;
+  .dokime.v1.RecordingAudio audio = 6;
+  optional uint32 maximum_seconds = 7;
+  string request_id = 8;
+}
+
+message CapturesCreateResponse { Capture capture = 1; .harmos.v1.Receipt receipt = 2; }
+
+message CapturesGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message CapturesGetResponse { Capture capture = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message CapturesWatchRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message CapturesWatchResponse {
+  Capture capture = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message CapturesStopRequest { string name = 1; string request_id = 2; }
+
+message CapturesStopResponse { Capture capture = 1; .harmos.v1.Receipt receipt = 2; }
+
+service Captures {
+  // Public. Admit the selected capture lifecycle; unsupported kinds fail explicitly.
+  rpc Create(CapturesCreateRequest) returns (CapturesCreateResponse);
+  // Public. Identity: dokime.v1.media.Captures/Get
+  rpc Get(CapturesGetRequest) returns (CapturesGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(CapturesWatchRequest) returns (stream CapturesWatchResponse);
+  // Public. Finish capture at a safe boundary and retain its result.
+  rpc Stop(CapturesStopRequest) returns (CapturesStopResponse);
+}

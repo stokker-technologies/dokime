@@ -1,7 +1,7 @@
 syntax = "proto3";
 package dokime.v1.evidence;
 option csharp_namespace = "Dokime.Protocol.V1.Evidence";
-import "dokime/v1/client_types.proto";
+import "dokime/v1/resources.proto";
 import "harmos/v1/types.proto";
 
 message TraceabilityGetRequest {

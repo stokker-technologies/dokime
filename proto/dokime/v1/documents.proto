@@ -1,204 +1,50 @@
 syntax = "proto3";
 package dokime.v1;
-import "dokime/v1/values.proto";
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
 
-message Document { Metadata metadata = 1; repeated Section sections = 2; }
-message Section {
-  Metadata metadata = 1;
-  repeated Card cards = 2;
-  repeated Section sections = 3;
-  SectionRepeat repeat = 4;
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message DocumentsGetRequest {
+  .dokime.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  bool structure_only = 3;
+  repeated string card_ids = 4;
+  string page_token = 5;
+  uint64 max_bytes = 6;
+  .harmos.v1.ReadCut at = 90;
 }
-message SectionRepeat { DataExpression value = 1; string label_template = 2; DataExpression order_by = 3; }
-message Card {
-  Metadata metadata = 1;
-  oneof body {
-    string markdown = 2;
-    Plot plot = 3;
-    Table table = 4;
-    EvidenceCard evidence = 5;
-    Summary summary = 6;
-  }
-  CardLayout layout = 7;
-  repeated DocumentFilter filters = 8;
+
+message DocumentsGetResponse {
+  repeated .dokime.v1.DocumentFrame frames = 1;
+  string next_page_token = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
 }
-message CardLayout { uint32 columns = 1; uint32 rows = 2; sint32 order = 3; }
-message Table { repeated TableRow rows = 1; }
-message TableRow { map<string, Value> cells = 1; }
-message Summary { repeated SummaryTile tiles = 1; }
-message SummaryTile { Metadata metadata = 1; DataExpression value = 2; string unit = 3; }
-enum EvidenceCard {
-  EVIDENCE_CARD_UNSPECIFIED = 0;
-  EVIDENCE_CARD_STEPS = 1;
-  EVIDENCE_CARD_CRITERIA = 2;
-  EVIDENCE_CARD_TRACEABILITY = 3;
-  EVIDENCE_CARD_NOTES = 4;
-  EVIDENCE_CARD_RECORDS = 5;
-  EVIDENCE_CARD_ARTIFACTS = 6;
-  EVIDENCE_CARD_MEDIA = 7;
-  EVIDENCE_CARD_HEALTH = 8;
-  EVIDENCE_CARD_STREAM_CONTEXT = 9;
+
+message DocumentsWatchRequest {
+  .dokime.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  bool structure_only = 3;
+  repeated string card_ids = 4;
+  string page_token = 5;
+  uint64 max_bytes = 6;
+  .harmos.v1.ReadCut at = 90;
 }
-// Expression operands are messages, never source text. References are validated
-// against the catalog on connection, before any document is evaluated.
-message DataExpression {
-  string label = 1;
-  oneof kind {
-    FieldReference stream = 2;
-    FieldReference record = 3;
-    string parameter = 4;
-    string dimension = 5;
-    string artifact = 6;
-    AggregateExpression aggregate = 7;
-    TransformExpression transform = 8;
-    Value literal = 9;
-  }
+
+message DocumentsWatchResponse {
+  repeated .dokime.v1.DocumentFrame frames = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
 }
-message FieldReference { string identifier = 1; string field = 2; }
-message AggregateExpression {
-  DataExpression input = 1;
-  Aggregate kind = 2;
-  // Inclusive 0..100; used only for PERCENTILE.
-  double percentile = 3;
-}
-enum Aggregate {
-  AGGREGATE_UNSPECIFIED = 0;
-  AGGREGATE_COUNT = 1;
-  AGGREGATE_SUM = 2;
-  AGGREGATE_MIN = 3;
-  AGGREGATE_MAX = 4;
-  AGGREGATE_MEAN = 5;
-  AGGREGATE_STDDEV = 6;
-  AGGREGATE_MEDIAN = 7;
-  AGGREGATE_PERCENTILE = 8;
-  AGGREGATE_FIRST = 9;
-  AGGREGATE_LAST = 10;
-  AGGREGATE_RMS = 11;
-}
-message TransformExpression {
-  DataExpression input = 1;
-  oneof kind {
-    string detail = 2;
-    string time_between = 3;
-    bool per_case = 4;
-    double scale = 5;
-    double offset = 6;
-  }
-}
-message DocumentFilter { DataExpression expression = 1; FilterOperator operator = 2; Value value = 3; }
-enum FilterOperator {
-  FILTER_OPERATOR_UNSPECIFIED = 0;
-  FILTER_OPERATOR_EQ = 1;
-  FILTER_OPERATOR_NE = 2;
-  FILTER_OPERATOR_GT = 3;
-  FILTER_OPERATOR_GE = 4;
-  FILTER_OPERATOR_LT = 5;
-  FILTER_OPERATOR_LE = 6;
-  FILTER_OPERATOR_CONTAINS = 7;
-  FILTER_OPERATOR_EXISTS = 8;
-}
-message Plot {
-  Metadata metadata = 1;
-  PlotKind kind = 2;
-  DataExpression x = 3;
-  repeated DataExpression y = 4;
-  DataExpression z = 5;
-  DataExpression series_by = 6;
-  repeated DocumentFilter filters = 7;
-  string unit = 8;
-  repeated string marker_records = 9;
-  optional uint32 histogram_bins = 10;
-  optional double sample_rate_hz = 11;
-  optional uint32 display_points = 12;
-  repeated ReferenceLine reference_lines = 13;
-  repeated ReferenceBand reference_bands = 14;
-  optional BarArrangement arrangement = 15;
-  bool pareto = 16;
-  optional double hole = 17;
-  optional XyInterval interval = 18;
-  optional Reduction reduction = 19;
-  ContourRender render = 20;
-  GridChart grid = 21;
-  PlotStyle style = 22;
-  AxisScale x_scale = 23;
-  AxisScale y_scale = 24;
-}
-enum PlotStyle {
-  PLOT_STYLE_UNSPECIFIED = 0;
-  PLOT_STYLE_LINE = 1;
-  PLOT_STYLE_POINTS = 2;
-  PLOT_STYLE_LINE_POINTS = 3;
-  PLOT_STYLE_STEP = 4;
-}
-enum AxisScale {
-  AXIS_SCALE_UNSPECIFIED = 0;
-  AXIS_SCALE_LINEAR = 1;
-  AXIS_SCALE_LOG = 2;
-}
-enum Reduction {
-  REDUCTION_UNSPECIFIED = 0;
-  REDUCTION_MEAN = 1;
-  REDUCTION_MIN = 2;
-  REDUCTION_MAX = 3;
-}
-enum ContourRender {
-  CONTOUR_RENDER_UNSPECIFIED = 0;
-  CONTOUR_RENDER_CELLS = 1;
-  CONTOUR_RENDER_BANDS = 2;
-}
-enum BarArrangement {
-  BAR_ARRANGEMENT_UNSPECIFIED = 0;
-  BAR_ARRANGEMENT_GROUPED = 1;
-  BAR_ARRANGEMENT_STACKED = 2;
-}
-enum XyInterval {
-  XY_INTERVAL_UNSPECIFIED = 0;
-  XY_INTERVAL_SIGMA = 1;
-}
-message GridAxisEntry {
-  string key = 1;
-  string label = 2;
-  sint32 order = 3;
-  optional string group = 4;
-}
-message GridHighlight {
-  DataExpression row = 1;
-  DataExpression column = 2;
-  string label = 3;
-}
-message GridChart {
-  DataExpression row = 1;
-  DataExpression column = 2;
-  DataExpression frame = 3;
-  repeated GridAxisEntry rows = 4;
-  repeated GridAxisEntry columns = 5;
-  repeated GridHighlight highlights = 6;
-  string summary_label = 7;
-}
-message ReferenceLine { DataExpression value = 1; string label = 2; string color = 3; }
-message ReferenceBand {
-  DataExpression min = 1;
-  DataExpression max = 2;
-  string label = 3;
-  string color = 4;
-  DataExpression center = 5;
-  DataExpression tolerance = 6;
-}
-enum PlotKind {
-  reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
-  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",
-      "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP",
-      "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
-      "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
-  PLOT_KIND_UNSPECIFIED = 0;
-  PLOT_KIND_TIME_SERIES = 1;
-  PLOT_KIND_BAR = 2;
-  PLOT_KIND_PIE = 5;
-  PLOT_KIND_XY = 8;
-  PLOT_KIND_TRAJECTORY = 10;
-  PLOT_KIND_FREQUENCY_SERIES = 14;
-  PLOT_KIND_HISTOGRAM = 15;
-  PLOT_KIND_CONTOUR = 18;
-  PLOT_KIND_GRID_CHART = 19;
-  PLOT_KIND_BOX_PLOT = 20;
+
+service Documents {
+  // Public. Identity: dokime.v1.Documents/Get
+  rpc Get(DocumentsGetRequest) returns (DocumentsGetResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(DocumentsWatchRequest) returns (stream DocumentsWatchResponse);
 }

@@ -1,0 +1,57 @@
+syntax = "proto3";
+package dokime.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.V1.Evidence";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message NoteWritable { string message = 1; }
+
+message NotesGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message NotesGetResponse {
+  NoteWritable value = 1;
+  bytes revision = 2;
+  .dokime.v1.OperatorNote note = 3;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message NotesSetRequest { string name = 1; NoteWritable value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message NotesSetResponse { NoteWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message NotesListRequest { .dokime.v1.AnnotationSelection selection = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message NotesListResponse { repeated .dokime.v1.OperatorNote notes = 1; .harmos.v1.ReadCut resolved_at = 90; string next_page_token = 91; }
+
+message NotesWatchRequest { .dokime.v1.AnnotationSelection selection = 1; .harmos.v1.ReadCut at = 90; .harmos.v1.PageRequest page = 91; }
+
+message NotesWatchResponse {
+  repeated .dokime.v1.OperatorNote notes = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message NotesCreateRequest { .dokime.v1.AnnotationOwner owner = 1; NoteWritable value = 2; string request_id = 3; }
+
+message NotesCreateResponse { .dokime.v1.OperatorNote note = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+service Notes {
+  // Public. Identity: dokime.v1.evidence.Notes/Get
+  rpc Get(NotesGetRequest) returns (NotesGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(NotesSetRequest) returns (NotesSetResponse);
+  // Public. Identity: dokime.v1.evidence.Notes/List
+  rpc List(NotesListRequest) returns (NotesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(NotesWatchRequest) returns (stream NotesWatchResponse);
+  // Public. Identity: dokime.v1.evidence.Notes/Create
+  rpc Create(NotesCreateRequest) returns (NotesCreateResponse);
+}

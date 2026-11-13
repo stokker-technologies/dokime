@@ -1,8 +1,8 @@
 syntax = "proto3";
 package dokime.v1;
 
+
 // dokime.appearance.get_appearance: GetAppearance -> AppearanceSnapshot.
-message GetAppearance {}
 
 message AppearanceSnapshot {
   string app_name = 1;

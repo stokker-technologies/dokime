@@ -1,0 +1,19 @@
+syntax = "proto3";
+package dokime.v1;
+import "dokime/v1/appearance.proto";
+import "dokime/v1/resources.proto";
+// Awaiting Direct Library Composition; Ordinary Contracts Stay Unchanged.
+message ContentDownloadAppearanceAssetRequest {
+  AppearanceAssetReference reference = 1;
+}
+
+message ContentDownloadAppearanceAssetOutput {
+  oneof value {
+    AppearanceAssetFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+service Content {
+  rpc DownloadAppearanceAsset (.dokime.v1.ContentDownloadAppearanceAssetRequest)
+      returns (stream .dokime.v1.ContentDownloadAppearanceAssetOutput);
+}

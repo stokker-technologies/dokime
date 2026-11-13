@@ -1,0 +1,42 @@
+syntax = "proto3";
+package dokime.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.V1.Evidence";
+import "dokime/v1/resources.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+
+message HealthEventsListRequest {
+  .dokime.v1.AnnotationSelection selection = 1;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message HealthEventsListResponse {
+  repeated .dokime.v1.HealthItem events = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message HealthEventsWatchRequest {
+  .dokime.v1.AnnotationSelection selection = 1;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message HealthEventsWatchResponse {
+  repeated .dokime.v1.HealthItem events = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service HealthEvents {
+  // Public. Identity: dokime.v1.evidence.HealthEvents/List
+  rpc List(HealthEventsListRequest) returns (HealthEventsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(HealthEventsWatchRequest) returns (stream HealthEventsWatchResponse);
+}

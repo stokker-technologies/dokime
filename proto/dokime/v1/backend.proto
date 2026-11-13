@@ -1,160 +1,18 @@
 syntax = "proto3";
 package dokime.v1;
-import "google/protobuf/timestamp.proto";
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/appearance.proto";
+import "harmos/v1/types.proto";
 
-// Host-native client operations retain their existing dokime.v1.Backend paths.
-message GetBackendIdentity {}
-message GetBackendHealth {}
-message GetBackendAvailability {}
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
 
-message BackendIdentity {
-  // Stable installation identity; epoch changes at every runtime boot.
-  string backend_id = 1;
-  string epoch = 2;
-  ApiIdentity api = 3;
-  string product_version = 4;
-  optional string source_revision = 5;
-  optional string channel = 6;
-  optional string sdk_revision = 7;
-  google.protobuf.Timestamp started_at = 8;
-  string display_name = 9;
-  string target = 10;
+message BackendAppearanceRequest { .harmos.v1.ReadCut at = 1; }
+
+message BackendAppearanceResponse { .dokime.v1.AppearanceSnapshot appearance = 1; .harmos.v1.ReadCut resolved_at = 2; }
+
+service Backend {
+  // Public. Identity: dokime.v1.Backend/Appearance
+  rpc Appearance(BackendAppearanceRequest) returns (BackendAppearanceResponse);
 }
-
-message ApiIdentity {
-  string package = 1;
-  string version = 2;
-  bytes descriptor_sha256 = 3;
-}
-
-message BackendHealth {
-  string backend_id = 1;
-  string epoch = 2;
-  BackendReadiness readiness = 3;
-  google.protobuf.Timestamp observed_at = 4;
-  string message = 5;
-}
-
-enum BackendReadiness {
-  BACKEND_READINESS_UNSPECIFIED = 0;
-  BACKEND_READINESS_STARTING = 1;
-  BACKEND_READINESS_READY = 2;
-  BACKEND_READINESS_DEGRADED = 3;
-  BACKEND_READINESS_STOPPING = 4;
-}
-
-message BackendAvailability {
-  string backend_id = 1;
-  string epoch = 2;
-  // Full gRPC method names available to this authenticated caller.
-  repeated string methods = 3;
-  BackendLimits limits = 4;
-}
-
-message BackendLimits {
-  uint64 max_request_bytes = 1;
-  uint64 max_response_bytes = 2;
-  optional uint64 max_content_bytes = 3;
-  optional uint64 max_evidence_bytes = 4;
-  optional uint32 max_chunk_bytes = 5;
-  optional uint32 max_page_items = 6;
-  optional uint32 max_stream_buffer_items = 7;
-}
-
-message WatchBackendLogs {
-  // Unspecified means TRACE. Replay is bounded by the callee's policy.
-  LogLevel min_level = 1;
-  uint32 replay_lines = 2;
-}
-
-message LogFrame {
-  google.protobuf.Timestamp time = 1;
-  // Unspecified denotes a keepalive and carries no log record.
-  LogLevel level = 2;
-  string target = 3;
-  string message = 4;
-  // Secret-looking fields contain a redaction marker instead of their values.
-  map<string, string> fields = 5;
-  uint64 dropped = 6;
-}
-
-enum LogLevel {
-  LOG_LEVEL_UNSPECIFIED = 0;
-  LOG_LEVEL_TRACE = 1;
-  LOG_LEVEL_DEBUG = 2;
-  LOG_LEVEL_INFO = 3;
-  LOG_LEVEL_WARN = 4;
-  LOG_LEVEL_ERROR = 5;
-}
-
-message WatchBackendTrace {
-  // Required with a nonzero after_sequence; identifies the prior process.
-  optional string epoch = 1;
-  TraceScope scope = 2;
-  LogLevel min_level = 3;
-  uint64 after_sequence = 4;
-  uint32 max_events = 5;
-  uint32 max_bytes = 6;
-  bool follow = 7;
-}
-
-message TraceScope {
-  oneof kind {
-    InstanceTraceScope instance = 1;
-    string cycle = 2;
-    string execution = 3;
-  }
-}
-message InstanceTraceScope {}
-
-message TraceBatch {
-  string epoch = 1;
-  repeated TraceEvent events = 2;
-  // Cumulative eviction count for this scope, including filtered levels.
-  uint64 dropped = 3;
-  // Includes scanned events excluded by min_level; pass this when resuming.
-  uint64 next_sequence = 4;
-}
-
-message TraceEvent {
-  uint64 sequence = 1;
-  google.protobuf.Timestamp time = 2;
-  LogLevel level = 3;
-  string target = 4;
-  string message = 5;
-  optional string plugin_id = 6;
-  optional string cycle_id = 7;
-  optional string execution_id = 8;
-  map<string, string> fields = 9;
-}
-
-message CollectBackendDiagnostics { optional uint64 max_log_tail_bytes = 1; }
-
-// Header, contiguous chunks and completion, followed by successful RPC status.
-// The bytes are accepted only after that completion and status agree.
-message DiagnosticsBundleFrame {
-  oneof payload {
-    DiagnosticsBundleHeader header = 1;
-    DiagnosticsBundleChunk chunk = 2;
-    DiagnosticsBundleCompletion complete = 3;
-  }
-}
-
-message DiagnosticsBundleHeader {
-  // Suggested basename, never a path in the backend's storage root.
-  string filename = 1;
-  string content_type = 2;
-  google.protobuf.Timestamp generated_at = 3;
-  optional uint64 total_size_bytes = 4;
-  repeated DiagnosticsBundleEntry entries = 5;
-}
-
-message DiagnosticsBundleEntry {
-  string path = 1;
-  uint64 size_bytes = 2;
-  bool present = 3;
-  optional string note = 4;
-}
-
-message DiagnosticsBundleChunk { uint64 offset = 1; bytes data = 2; }
-message DiagnosticsBundleCompletion { uint64 size_bytes = 1; string sha256 = 2; }

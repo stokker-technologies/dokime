@@ -20,7 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::v1::{CleanupRequest, CriterionRequest, InitializeRequest, Origin, PluginRun, StepRequest, TestCase, origin};
+use crate::dokime::plugin::v1::{CriteriaEvaluateRequest, ExecutionsCleanupRequest, ExecutionsInitializeRequest, StepsExecuteRequest};
+use crate::v1::{Origin, PluginRun, TestCase, origin};
 
 /* === Constants === */
 
@@ -53,28 +54,28 @@ impl PluginRun {
     }
 }
 
-impl InitializeRequest {
+impl ExecutionsInitializeRequest {
     /// Validate the execution scope and agreement with the frozen origin.
     pub fn validate_origin(&self) -> Result<&PluginRun, String> {
         validate_call(&self.execution, self.test_case.as_ref(), self.origin.as_ref())
     }
 }
 
-impl StepRequest {
+impl StepsExecuteRequest {
     /// Validate the execution scope and agreement with the frozen origin.
     pub fn validate_origin(&self) -> Result<&PluginRun, String> {
         validate_call(&self.execution, self.test_case.as_ref(), self.origin.as_ref())
     }
 }
 
-impl CriterionRequest {
+impl CriteriaEvaluateRequest {
     /// Validate the execution scope and agreement with the frozen origin.
     pub fn validate_origin(&self) -> Result<&PluginRun, String> {
         validate_call(&self.execution, self.test_case.as_ref(), self.origin.as_ref())
     }
 }
 
-impl CleanupRequest {
+impl ExecutionsCleanupRequest {
     /// Validate the execution scope and agreement with the frozen origin.
     pub fn validate_origin(&self) -> Result<&PluginRun, String> {
         validate_call(&self.execution, self.test_case.as_ref(), self.origin.as_ref())
