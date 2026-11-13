@@ -162,7 +162,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Why:** One predictable contract avoids aliases, field-mask machinery and lost updates.
    **Where:** [grammar and mapping](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
    [grammar requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md).
-   **Proof:** No proof yet for final declarations/revision/replay behavior; A7.
+   **Proof:** Bounded product declaration/plan/pending lists return whole sets;
+   `client_browses_catalog` checks schemas and whole catalog reads across restart.
+   No proof yet for final declarations/revision/replay behavior; A7.
    **Status:** locked direction (`operation-grammar`).
 
 9. **Position-Resolved Reads.** Optional `at` selects a previously returned compatible

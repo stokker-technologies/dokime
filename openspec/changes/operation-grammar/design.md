@@ -17,8 +17,7 @@ The read-only product and library research reports supplied for this change are
 inputs, not contracts. Current product protocols are in `proto/dokime/v1/`;
 the new host and handlers are in `crates/dokime-runtime-next/` and
 `crates/dokime-operations-next/`. The existing loop and desktop still coexist
-with them. `grpc-plugins/design.md` owns that eventual atomic cutover. This
-proposal adds no implementation, compatibility layer or lifecycle activation.
+with them. `grpc-plugins/design.md` owns that eventual atomic cutover. The owner authorizes implementation under the combined grpc-plugins marker.
 
 ## Goals and Boundaries
 

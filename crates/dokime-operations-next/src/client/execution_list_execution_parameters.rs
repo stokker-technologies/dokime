@@ -54,24 +54,10 @@ pub async fn handle(
             Ok(v1::ExecutionParameterSet::Outputs) => true,
             _ => return Err(Error::Invalid("List Execution Parameters: Select Inputs or Outputs".into())),
         };
-        let selection = v1::ParameterCursorSelection {
-            kind: Some(if output {
-                v1::parameter_cursor_selection::Kind::ExecutionOutputsId(request.execution_id)
-            } else {
-                v1::parameter_cursor_selection::Kind::ExecutionInputsId(request.execution_id)
-            }),
-        };
         let empty = std::collections::HashMap::new();
         let parameters =
             if output { &empty } else { &super::execution_state::case(snapshot.execution.origin.as_ref().unwrap())?.parameters };
-        let (parameters, next_after_name, cursor) = super::execution_state::parameters(
-            context,
-            parameters,
-            request.limit,
-            &request.after_name,
-            request.cursor.as_ref(),
-            selection,
-        )?;
+        let parameters = super::execution_state::parameters(parameters);
         let parameters = parameters
             .into_iter()
             .map(|parameter| v1::MaterializedParameter {
@@ -83,8 +69,6 @@ pub async fn handle(
             .collect();
         Ok(v1::ListMaterializedParametersReply {
             parameters,
-            next_after_name,
-            cursor: Some(cursor),
         })
     })
     .await

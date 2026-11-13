@@ -48,7 +48,7 @@ Final full validation is separate from source completion.
 ## Owner Amendments of 2026-11-13
 
 - [x] 0.A Record paging eligibility, one SDK package per language, unary transfers with 4 MiB default chunks and 8 MiB messages, and accepted threshold-free durable lag with no accepted-data snapshot in proposal/design/requirements/architecture; amended by the owner on 2026-11-13.
-- [ ] 0.B Implement whole-set responses for product-owned bounded lists using design.md's per-set reasoning; keep unbounded evidence/history paged and position-resolved.
+- [x] 0.B Implement whole-set responses for product-owned bounded lists using design.md's per-set reasoning; keep unbounded evidence/history paged and position-resolved.
 - [ ] 0.C Migrate all product SDK distributions, installers, generators, fixtures and guides to one package per language; remove audience-specific builds after the library revision supplies the single harmos-sdk.
 
 ## Architecture Proof Obligations

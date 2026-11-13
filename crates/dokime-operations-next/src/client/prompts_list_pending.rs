@@ -78,22 +78,7 @@ pub async fn handle(context: &Context, request: v1::PromptsListPendingRequest) -
             });
         }
         prompts.sort_by(|left, right| left.prompt_id.cmp(&right.prompt_id));
-        let selection = format!("prompts.pending/{:?}/{:?}", request.cycle_id, request.execution_id);
-        let cursor = super::paging::cursor(context, selection, prompts.iter().map(super::paging::bytes));
-        let (prompts, next_after_prompt_id) = super::paging::page(
-            prompts,
-            request.limit,
-            &request.after_prompt_id,
-            request.cursor.as_ref(),
-            &cursor,
-            context.settings.page_items,
-            |prompt| &prompt.prompt_id,
-        )?;
-        Ok(v1::ListPendingPromptsReply {
-            prompts,
-            next_after_prompt_id,
-            cursor: Some(cursor),
-        })
+        Ok(v1::ListPendingPromptsReply { prompts })
     })
     .await
 }

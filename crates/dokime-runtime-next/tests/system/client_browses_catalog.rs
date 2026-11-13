@@ -57,15 +57,10 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
         let mut catalog = v1::catalog_client::CatalogClient::connect(process.url.clone()).await?;
-        plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
+        let entry = plugins.add(v1::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
 
         // Read Suites, Templates, Record Contracts and Stream Rows
-        let suites = catalog.list_suites(v1::CatalogListSuitesRequest { limit: 1, ..Default::default() }).await?.into_inner();
-        assert!(suites.cursor.is_some());
-        assert_eq!(
-            catalog.list_suites(v1::CatalogListSuitesRequest { limit: u32::MAX, ..Default::default() }).await.unwrap_err().code(),
-            tonic::Code::InvalidArgument
-        );
+        let suites = catalog.list_suites(v1::CatalogListSuitesRequest {}).await?.into_inner();
         let suite = catalog
             .get_suite(v1::CatalogGetSuiteRequest {
                 suite_id: suites.suites[0].suite_id.clone(),
@@ -74,7 +69,7 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             .into_inner();
         assert!(!suite.templates.is_empty());
         let records =
-            catalog.list_record_schemas(v1::CatalogListRecordSchemasRequest { limit: 1, ..Default::default() }).await?.into_inner();
+            catalog.list_record_schemas(v1::CatalogListRecordSchemasRequest {}).await?.into_inner();
         let record = catalog
             .get_record_schema(v1::CatalogGetRecordSchemaRequest {
                 record_type: records.schemas[0].record_type.clone(),
@@ -83,7 +78,7 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             .into_inner();
         assert!(!record.fields.is_empty());
         let streams =
-            catalog.list_telemetry_schemas(v1::CatalogListTelemetrySchemasRequest { limit: 1, ..Default::default() }).await?.into_inner();
+            catalog.list_telemetry_schemas(v1::CatalogListTelemetrySchemasRequest {}).await?.into_inner();
         let stream = catalog
             .get_telemetry_schema(v1::CatalogGetTelemetrySchemaRequest {
                 stream: streams.schemas[0].stream.clone(),
@@ -93,13 +88,14 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
         assert!(!stream.columns.is_empty());
         assert!(catalog.get_suite(v1::CatalogGetSuiteRequest { suite_id: "missing".into() }).await.is_err());
 
-        // A Cursor from Another Boot Cannot Continue This Catalog
-        let old_cursor = suites.cursor;
+        // The Complete Catalog Remains Readable After Restart
         process.close().await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut catalog = v1::catalog_client::CatalogClient::connect(process.url.clone()).await?;
-        assert!(catalog.list_suites(v1::CatalogListSuitesRequest { cursor: old_cursor, ..Default::default() }).await.is_err());
+        let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
+        plugins.reload(v1::PluginsReloadRequest { plugin_id: entry.description.map(|description| description.id), ..Default::default() }).await?;
+        assert_eq!(catalog.list_suites(v1::CatalogListSuitesRequest {}).await?.into_inner(), suites);
         process.close().await?;
         plugin.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())

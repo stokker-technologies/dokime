@@ -111,22 +111,16 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         let pending = prompts
             .list_pending(v1::PromptsListPendingRequest {
                 execution_id: Some(execution.clone()),
-                limit: 1,
                 ..Default::default()
             })
             .await?
             .into_inner();
         assert_eq!(pending.prompts.len(), 1);
         let prompt_id = pending.prompts[0].prompt_id.clone();
-        let stale = prompts
-            .list_pending(v1::PromptsListPendingRequest {
-                execution_id: Some("another".into()),
-                cursor: pending.cursor.clone(),
-                ..Default::default()
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(stale.code(), tonic::Code::FailedPrecondition);
+        let other = prompts.list_pending(v1::PromptsListPendingRequest {
+            execution_id: Some("another".into()), ..Default::default()
+        }).await?.into_inner();
+        assert!(other.prompts.is_empty());
 
         // Reject an Unknown Action Without Settling the Question
         let invalid = prompts

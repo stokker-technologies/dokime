@@ -24,7 +24,6 @@ use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 use prost::Message;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind};
-use sha2::{Digest, Sha256};
 
 /* === Constants === */
 
@@ -35,7 +34,6 @@ use sha2::{Digest, Sha256};
 /* === Structs === */
 
 pub(super) struct Inventory {
-    pub cursor: v1::Cursor,
     pub suites: Vec<(String, v1::Suite)>,
     pub records: Vec<v1::RecordSchema>,
     pub streams: Vec<v1::TelemetrySchema>,
@@ -51,11 +49,9 @@ impl Inventory {
     pub async fn read(context: &Context) -> Result<Self> {
         context.host.refresh_plugin_states().await?;
         let plugins = context.host.plugins()?;
-        let mut digest = Sha256::new();
         let mut records = std::collections::BTreeMap::new();
         let mut streams = std::collections::BTreeMap::new();
         for plugin in plugins.iter().filter(|plugin| plugin.state == v1::PluginState::Ready as i32) {
-            digest.update(plugin.encode_to_vec());
             let catalog = plugin
                 .description
                 .as_ref()
@@ -124,24 +120,13 @@ impl Inventory {
                 }
             }
         }
-        let hash: [u8; 32] = digest.finalize().into();
         Ok(Self {
-            cursor: v1::Cursor {
-                epoch: context.host.identity().epoch,
-                stream: "catalog".into(),
-                position: u64::from_le_bytes(hash[..8].try_into().unwrap()),
-            },
             suites: context.host.suites()?,
             records: records.into_values().collect(),
             streams: streams.into_values().collect(),
         })
     }
-    pub fn check(&self, given: Option<&v1::Cursor>) -> Result<()> {
-        if given.is_some_and(|given| given != &self.cursor) {
-            return Err(Error::Stale("Catalog Changed: Restart Listing with a Fresh Cursor".into()));
-        }
-        Ok(())
-    }
+
 }
 
 /* === Public Functions === */

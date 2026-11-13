@@ -41,9 +41,7 @@ message PromptsGetPromptRunOutput {
 }
 
 message PromptsListDefinitionsRequest {
-  uint32 limit = 1;
-  string after_prompt_type = 2;
-  Cursor cursor = 3;
+
 }
 
 message PromptsListDefinitionsRunInput {
@@ -61,9 +59,6 @@ message PromptsListDefinitionsRunOutput {
 }
 
 message PromptsListPendingRequest {
-  uint32 limit = 1;
-  string after_prompt_id = 2;
-  Cursor cursor = 3;
   optional string cycle_id = 4;
   optional string execution_id = 5;
 }
@@ -115,17 +110,11 @@ service Prompts {
   rpc GetPrompt (.dokime.v1.PromptsGetPromptRequest) returns (.dokime.v1.PromptView);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunGetPrompt (stream .dokime.v1.PromptsGetPromptRunInput) returns (stream .dokime.v1.PromptsGetPromptRunOutput);
-  // Public. dokime.prompts.list_definitions. Follow the returned continuation with unchanged filters/order and its
-  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-  // cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-  // Subsequent pages require the same runtime epoch/revision and selection.
+  // Public. dokime.prompts.list_definitions. Returns the complete bounded set in stable order.
   rpc ListDefinitions (.dokime.v1.PromptsListDefinitionsRequest) returns (.dokime.v1.ListPromptDefinitionsReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListDefinitions (stream .dokime.v1.PromptsListDefinitionsRunInput) returns (stream .dokime.v1.PromptsListDefinitionsRunOutput);
-  // Public. dokime.prompts.list_pending. Follow the returned continuation with unchanged filters/order and its
-  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-  // cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-  // Subsequent pages require the same runtime epoch/revision and selection.
+  // Public. dokime.prompts.list_pending. Returns the complete bounded set in stable order.
   rpc ListPending (.dokime.v1.PromptsListPendingRequest) returns (.dokime.v1.ListPendingPromptsReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListPending (stream .dokime.v1.PromptsListPendingRunInput) returns (stream .dokime.v1.PromptsListPendingRunOutput);

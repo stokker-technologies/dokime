@@ -7932,10 +7932,6 @@ pub struct ListArtifactsReply {
 pub struct ListCaseParametersReply {
     #[prost(message, repeated, tag = "1")]
     pub parameters: ::prost::alloc::vec::Vec<CaseParameter>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_name: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<ParameterCursor>,
 }
 /// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
@@ -7943,10 +7939,6 @@ pub struct ListCaseParametersReply {
 pub struct ListCasesReply {
     #[prost(message, repeated, tag = "1")]
     pub cases: ::prost::alloc::vec::Vec<CaseSummary>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_case_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
@@ -7976,10 +7968,6 @@ pub struct ListExecutionFilesReply {
 pub struct ListExecutionStepsReply {
     #[prost(message, repeated, tag = "1")]
     pub steps: ::prost::alloc::vec::Vec<ExecutionStep>,
-    #[prost(message, optional, tag = "2")]
-    pub next_cursor: ::core::option::Option<StepPageCursor>,
-    #[prost(message, optional, tag = "3")]
-    pub observed_cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
@@ -8009,10 +7997,6 @@ pub struct ListHealthResponse {
 pub struct ListMaterializedParametersReply {
     #[prost(message, repeated, tag = "1")]
     pub parameters: ::prost::alloc::vec::Vec<MaterializedParameter>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_name: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<ParameterCursor>,
 }
 /// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
@@ -8031,10 +8015,6 @@ pub struct ListNotesResponse {
 pub struct ListPendingPromptsReply {
     #[prost(message, repeated, tag = "1")]
     pub prompts: ::prost::alloc::vec::Vec<PendingPromptIdentity>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_prompt_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
@@ -8042,10 +8022,6 @@ pub struct ListPendingPromptsReply {
 pub struct ListPromptDefinitionsReply {
     #[prost(message, repeated, tag = "1")]
     pub definitions: ::prost::alloc::vec::Vec<PromptDefinitionIdentity>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_prompt_type: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
@@ -8053,10 +8029,6 @@ pub struct ListPromptDefinitionsReply {
 pub struct ListRecordSchemasReply {
     #[prost(message, repeated, tag = "1")]
     pub schemas: ::prost::alloc::vec::Vec<RecordSchemaIdentity>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_record_type: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-operations/src/telemetry/list_samples.rs
 #[allow(clippy::all)]
@@ -8091,10 +8063,6 @@ pub struct ListSamples {
 pub struct ListSuitesReply {
     #[prost(message, repeated, tag = "1")]
     pub suites: ::prost::alloc::vec::Vec<SuiteIdentity>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_suite_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 #[allow(clippy::all)]
@@ -8111,10 +8079,6 @@ pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {
 pub struct ListTelemetrySchemasReply {
     #[prost(message, repeated, tag = "1")]
     pub schemas: ::prost::alloc::vec::Vec<TelemetrySchemaIdentity>,
-    #[prost(string, optional, tag = "2")]
-    pub next_after_stream: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 /// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
@@ -12776,17 +12740,10 @@ pub mod catalog_get_telemetry_schema_run_output {
     }
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct CatalogListRecordSchemasRequest {
-    #[prost(uint32, tag = "1")]
-    pub limit: u32,
-    #[prost(string, tag = "2")]
-    pub after_record_type: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
-}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CatalogListRecordSchemasRequest {}
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CatalogListRecordSchemasRunInput {
     #[prost(oneof = "catalog_list_record_schemas_run_input::Value", tags = "1, 3, 4")]
     pub value: ::core::option::Option<catalog_list_record_schemas_run_input::Value>,
@@ -12794,7 +12751,7 @@ pub struct CatalogListRecordSchemasRunInput {
 /// Nested message and enum types in `CatalogListRecordSchemasRunInput`.
 pub mod catalog_list_record_schemas_run_input {
     #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
         Request(super::CatalogListRecordSchemasRequest),
@@ -12820,17 +12777,10 @@ pub mod catalog_list_record_schemas_run_output {
     }
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct CatalogListSuitesRequest {
-    #[prost(uint32, tag = "1")]
-    pub limit: u32,
-    #[prost(string, tag = "2")]
-    pub after_suite_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
-}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CatalogListSuitesRequest {}
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CatalogListSuitesRunInput {
     #[prost(oneof = "catalog_list_suites_run_input::Value", tags = "1, 3, 4")]
     pub value: ::core::option::Option<catalog_list_suites_run_input::Value>,
@@ -12838,7 +12788,7 @@ pub struct CatalogListSuitesRunInput {
 /// Nested message and enum types in `CatalogListSuitesRunInput`.
 pub mod catalog_list_suites_run_input {
     #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
         Request(super::CatalogListSuitesRequest),
@@ -12864,17 +12814,10 @@ pub mod catalog_list_suites_run_output {
     }
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct CatalogListTelemetrySchemasRequest {
-    #[prost(uint32, tag = "1")]
-    pub limit: u32,
-    #[prost(string, tag = "2")]
-    pub after_stream: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
-}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CatalogListTelemetrySchemasRequest {}
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CatalogListTelemetrySchemasRunInput {
     #[prost(oneof = "catalog_list_telemetry_schemas_run_input::Value", tags = "1, 3, 4")]
     pub value: ::core::option::Option<catalog_list_telemetry_schemas_run_input::Value>,
@@ -12882,7 +12825,7 @@ pub struct CatalogListTelemetrySchemasRunInput {
 /// Nested message and enum types in `CatalogListTelemetrySchemasRunInput`.
 pub mod catalog_list_telemetry_schemas_run_input {
     #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
         Request(super::CatalogListTelemetrySchemasRequest),
@@ -13155,11 +13098,7 @@ pub mod catalog_client {
                 .insert(GrpcMethod::new("dokime.v1.Catalog", "RunGetTelemetrySchema"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.catalog.list_record_schemas. Follow the returned continuation with unchanged filters/order and
-        /// its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-        /// exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-        /// epoch/revision; restart pagination when it expires.
+        /// Public. dokime.catalog.list_record_schemas. Returns the complete bounded set in stable order.
         pub async fn list_record_schemas(
             &mut self,
             request: impl tonic::IntoRequest<super::CatalogListRecordSchemasRequest>,
@@ -13213,10 +13152,7 @@ pub mod catalog_client {
                 .insert(GrpcMethod::new("dokime.v1.Catalog", "RunListRecordSchemas"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.catalog.list_suites. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Pages are ordered by registered suite ID. A changed cursor requires restarting
-        /// pagination; pages are not pinned across runtime changes.
+        /// Public. dokime.catalog.list_suites. Returns the complete bounded set in stable order.
         pub async fn list_suites(
             &mut self,
             request: impl tonic::IntoRequest<super::CatalogListSuitesRequest>,
@@ -13268,11 +13204,7 @@ pub mod catalog_client {
                 .insert(GrpcMethod::new("dokime.v1.Catalog", "RunListSuites"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.catalog.list_telemetry_schemas. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-        /// exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-        /// epoch/revision; restart pagination when it expires.
+        /// Public. dokime.catalog.list_telemetry_schemas. Returns the complete bounded set in stable order.
         pub async fn list_telemetry_schemas(
             &mut self,
             request: impl tonic::IntoRequest<super::CatalogListTelemetrySchemasRequest>,
@@ -13414,11 +13346,7 @@ pub mod catalog_server {
             tonic::Response<Self::RunGetTelemetrySchemaStream>,
             tonic::Status,
         >;
-        /// Public. dokime.catalog.list_record_schemas. Follow the returned continuation with unchanged filters/order and
-        /// its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-        /// exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-        /// epoch/revision; restart pagination when it expires.
+        /// Public. dokime.catalog.list_record_schemas. Returns the complete bounded set in stable order.
         async fn list_record_schemas(
             &self,
             request: tonic::Request<super::CatalogListRecordSchemasRequest>,
@@ -13445,10 +13373,7 @@ pub mod catalog_server {
             tonic::Response<Self::RunListRecordSchemasStream>,
             tonic::Status,
         >;
-        /// Public. dokime.catalog.list_suites. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Pages are ordered by registered suite ID. A changed cursor requires restarting
-        /// pagination; pages are not pinned across runtime changes.
+        /// Public. dokime.catalog.list_suites. Returns the complete bounded set in stable order.
         async fn list_suites(
             &self,
             request: tonic::Request<super::CatalogListSuitesRequest>,
@@ -13470,11 +13395,7 @@ pub mod catalog_server {
             tonic::Response<Self::RunListSuitesStream>,
             tonic::Status,
         >;
-        /// Public. dokime.catalog.list_telemetry_schemas. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-        /// exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-        /// epoch/revision; restart pagination when it expires.
+        /// Public. dokime.catalog.list_telemetry_schemas. Returns the complete bounded set in stable order.
         async fn list_telemetry_schemas(
             &self,
             request: tonic::Request<super::CatalogListTelemetrySchemasRequest>,
@@ -18667,12 +18588,6 @@ pub struct ExecutionListCaseParametersRequest {
     pub cycle_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub case_id: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "3")]
-    pub limit: u32,
-    #[prost(string, tag = "4")]
-    pub after_name: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "5")]
-    pub cursor: ::core::option::Option<ParameterCursor>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -18713,12 +18628,6 @@ pub mod execution_list_case_parameters_run_output {
 pub struct ExecutionListCasesRequest {
     #[prost(string, tag = "1")]
     pub cycle_id: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "2")]
-    pub limit: u32,
-    #[prost(string, tag = "3")]
-    pub after_case_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "4")]
-    pub cursor: ::core::option::Option<Cursor>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -18809,12 +18718,6 @@ pub struct ExecutionListExecutionParametersRequest {
     pub execution_id: ::prost::alloc::string::String,
     #[prost(enumeration = "ExecutionParameterSet", tag = "2")]
     pub set: i32,
-    #[prost(uint32, tag = "3")]
-    pub limit: u32,
-    #[prost(string, tag = "4")]
-    pub after_name: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "5")]
-    pub cursor: ::core::option::Option<ParameterCursor>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -18862,10 +18765,6 @@ pub mod execution_list_execution_parameters_run_output {
 pub struct ExecutionListExecutionStepsRequest {
     #[prost(string, tag = "1")]
     pub execution_id: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "2")]
-    pub limit: u32,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<StepPageCursor>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -20090,9 +19989,7 @@ pub mod execution_client {
                 );
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.execution.list_case_parameters. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_case_parameters. Returns the complete bounded set in stable order.
         pub async fn list_case_parameters(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecutionListCaseParametersRequest>,
@@ -20146,9 +20043,7 @@ pub mod execution_client {
                 .insert(GrpcMethod::new("dokime.v1.Execution", "RunListCaseParameters"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.execution.list_cases. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution.
+        /// Public. dokime.execution.list_cases. Returns the complete bounded set in stable order.
         pub async fn list_cases(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecutionListCasesRequest>,
@@ -20255,9 +20150,7 @@ pub mod execution_client {
                 .insert(GrpcMethod::new("dokime.v1.Execution", "RunListCycles"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.execution.list_execution_parameters. Follow the returned continuation with unchanged
-        /// filters/order and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo
-        /// committed mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_execution_parameters. Returns the complete bounded set in stable order.
         pub async fn list_execution_parameters(
             &mut self,
             request: impl tonic::IntoRequest<
@@ -20317,9 +20210,7 @@ pub mod execution_client {
                 );
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.execution.list_execution_steps. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_execution_steps. Returns the complete bounded set in stable order.
         pub async fn list_execution_steps(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecutionListExecutionStepsRequest>,
@@ -21412,9 +21303,7 @@ pub mod execution_server {
             tonic::Response<Self::RunGetExecutionCommandStream>,
             tonic::Status,
         >;
-        /// Public. dokime.execution.list_case_parameters. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_case_parameters. Returns the complete bounded set in stable order.
         async fn list_case_parameters(
             &self,
             request: tonic::Request<super::ExecutionListCaseParametersRequest>,
@@ -21441,9 +21330,7 @@ pub mod execution_server {
             tonic::Response<Self::RunListCaseParametersStream>,
             tonic::Status,
         >;
-        /// Public. dokime.execution.list_cases. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution.
+        /// Public. dokime.execution.list_cases. Returns the complete bounded set in stable order.
         async fn list_cases(
             &self,
             request: tonic::Request<super::ExecutionListCasesRequest>,
@@ -21491,9 +21378,7 @@ pub mod execution_server {
             tonic::Response<Self::RunListCyclesStream>,
             tonic::Status,
         >;
-        /// Public. dokime.execution.list_execution_parameters. Follow the returned continuation with unchanged
-        /// filters/order and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo
-        /// committed mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_execution_parameters. Returns the complete bounded set in stable order.
         async fn list_execution_parameters(
             &self,
             request: tonic::Request<super::ExecutionListExecutionParametersRequest>,
@@ -21520,9 +21405,7 @@ pub mod execution_server {
             tonic::Response<Self::RunListExecutionParametersStream>,
             tonic::Status,
         >;
-        /// Public. dokime.execution.list_execution_steps. Follow the returned continuation with unchanged filters/order
-        /// and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-        /// mutations or cancel an admitted execution.
+        /// Public. dokime.execution.list_execution_steps. Returns the complete bounded set in stable order.
         async fn list_execution_steps(
             &self,
             request: tonic::Request<super::ExecutionListExecutionStepsRequest>,
@@ -35490,17 +35373,10 @@ pub mod prompts_get_prompt_run_output {
     }
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct PromptsListDefinitionsRequest {
-    #[prost(uint32, tag = "1")]
-    pub limit: u32,
-    #[prost(string, tag = "2")]
-    pub after_prompt_type: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
-}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PromptsListDefinitionsRequest {}
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PromptsListDefinitionsRunInput {
     #[prost(oneof = "prompts_list_definitions_run_input::Value", tags = "1, 3, 4")]
     pub value: ::core::option::Option<prompts_list_definitions_run_input::Value>,
@@ -35508,7 +35384,7 @@ pub struct PromptsListDefinitionsRunInput {
 /// Nested message and enum types in `PromptsListDefinitionsRunInput`.
 pub mod prompts_list_definitions_run_input {
     #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
         Request(super::PromptsListDefinitionsRequest),
@@ -35536,12 +35412,6 @@ pub mod prompts_list_definitions_run_output {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PromptsListPendingRequest {
-    #[prost(uint32, tag = "1")]
-    pub limit: u32,
-    #[prost(string, tag = "2")]
-    pub after_prompt_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub cursor: ::core::option::Option<Cursor>,
     #[prost(string, optional, tag = "4")]
     pub cycle_id: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "5")]
@@ -35822,10 +35692,7 @@ pub mod prompts_client {
                 .insert(GrpcMethod::new("dokime.v1.Prompts", "RunGetPrompt"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.prompts.list_definitions. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-        /// Subsequent pages require the same runtime epoch/revision and selection.
+        /// Public. dokime.prompts.list_definitions. Returns the complete bounded set in stable order.
         pub async fn list_definitions(
             &mut self,
             request: impl tonic::IntoRequest<super::PromptsListDefinitionsRequest>,
@@ -35879,10 +35746,7 @@ pub mod prompts_client {
                 .insert(GrpcMethod::new("dokime.v1.Prompts", "RunListDefinitions"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.prompts.list_pending. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-        /// Subsequent pages require the same runtime epoch/revision and selection.
+        /// Public. dokime.prompts.list_pending. Returns the complete bounded set in stable order.
         pub async fn list_pending(
             &mut self,
             request: impl tonic::IntoRequest<super::PromptsListPendingRequest>,
@@ -36051,10 +35915,7 @@ pub mod prompts_server {
             tonic::Response<Self::RunGetPromptStream>,
             tonic::Status,
         >;
-        /// Public. dokime.prompts.list_definitions. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-        /// Subsequent pages require the same runtime epoch/revision and selection.
+        /// Public. dokime.prompts.list_definitions. Returns the complete bounded set in stable order.
         async fn list_definitions(
             &self,
             request: tonic::Request<super::PromptsListDefinitionsRequest>,
@@ -36081,10 +35942,7 @@ pub mod prompts_server {
             tonic::Response<Self::RunListDefinitionsStream>,
             tonic::Status,
         >;
-        /// Public. dokime.prompts.list_pending. Follow the returned continuation with unchanged filters/order and its
-        /// captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-        /// cancel an admitted execution. Current definitions are ordered by prompt type; pending requests by prompt ID.
-        /// Subsequent pages require the same runtime epoch/revision and selection.
+        /// Public. dokime.prompts.list_pending. Returns the complete bounded set in stable order.
         async fn list_pending(
             &self,
             request: tonic::Request<super::PromptsListPendingRequest>,

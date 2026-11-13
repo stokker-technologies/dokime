@@ -59,9 +59,7 @@ message CatalogGetTelemetrySchemaRunOutput {
 }
 
 message CatalogListRecordSchemasRequest {
-  uint32 limit = 1;
-  string after_record_type = 2;
-  Cursor cursor = 3;
+
 }
 
 message CatalogListRecordSchemasRunInput {
@@ -79,9 +77,7 @@ message CatalogListRecordSchemasRunOutput {
 }
 
 message CatalogListSuitesRequest {
-  uint32 limit = 1;
-  string after_suite_id = 2;
-  Cursor cursor = 3;
+
 }
 
 message CatalogListSuitesRunInput {
@@ -99,9 +95,7 @@ message CatalogListSuitesRunOutput {
 }
 
 message CatalogListTelemetrySchemasRequest {
-  uint32 limit = 1;
-  string after_stream = 2;
-  Cursor cursor = 3;
+
 }
 
 message CatalogListTelemetrySchemasRunInput {
@@ -135,27 +129,16 @@ service Catalog {
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunGetTelemetrySchema (stream .dokime.v1.CatalogGetTelemetrySchemaRunInput)
       returns (stream .dokime.v1.CatalogGetTelemetrySchemaRunOutput);
-  // Public. dokime.catalog.list_record_schemas. Follow the returned continuation with unchanged filters/order and
-  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-  // mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-  // exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-  // epoch/revision; restart pagination when it expires.
+  // Public. dokime.catalog.list_record_schemas. Returns the complete bounded set in stable order.
   rpc ListRecordSchemas (.dokime.v1.CatalogListRecordSchemasRequest) returns (.dokime.v1.ListRecordSchemasReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListRecordSchemas (stream .dokime.v1.CatalogListRecordSchemasRunInput)
       returns (stream .dokime.v1.CatalogListRecordSchemasRunOutput);
-  // Public. dokime.catalog.list_suites. Follow the returned continuation with unchanged filters/order and its
-  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-  // cancel an admitted execution. Pages are ordered by registered suite ID. A changed cursor requires restarting
-  // pagination; pages are not pinned across runtime changes.
+  // Public. dokime.catalog.list_suites. Returns the complete bounded set in stable order.
   rpc ListSuites (.dokime.v1.CatalogListSuitesRequest) returns (.dokime.v1.ListSuitesReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListSuites (stream .dokime.v1.CatalogListSuitesRunInput) returns (stream .dokime.v1.CatalogListSuitesRunOutput);
-  // Public. dokime.catalog.list_telemetry_schemas. Follow the returned continuation with unchanged filters/order
-  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-  // mutations or cancel an admitted execution. Current admitted schemas, ordered by type/stream ID. These catalogs
-  // exclude retired definitions retained only for immutable historical evidence. A cursor belongs to one runtime
-  // epoch/revision; restart pagination when it expires.
+  // Public. dokime.catalog.list_telemetry_schemas. Returns the complete bounded set in stable order.
   rpc ListTelemetrySchemas (.dokime.v1.CatalogListTelemetrySchemasRequest) returns (.dokime.v1.ListTelemetrySchemasReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListTelemetrySchemas (stream .dokime.v1.CatalogListTelemetrySchemasRunInput)

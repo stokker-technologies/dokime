@@ -162,9 +162,6 @@ message ExecutionGetExecutionCommandRunOutput {
 message ExecutionListCaseParametersRequest {
   string cycle_id = 1;
   string case_id = 2;
-  uint32 limit = 3;
-  string after_name = 4;
-  ParameterCursor cursor = 5;
 }
 
 message ExecutionListCaseParametersRunInput {
@@ -183,9 +180,6 @@ message ExecutionListCaseParametersRunOutput {
 
 message ExecutionListCasesRequest {
   string cycle_id = 1;
-  uint32 limit = 2;
-  string after_case_id = 3;
-  Cursor cursor = 4;
 }
 
 message ExecutionListCasesRunInput {
@@ -227,9 +221,6 @@ message ExecutionListCyclesRunOutput {
 message ExecutionListExecutionParametersRequest {
   string execution_id = 1;
   ExecutionParameterSet set = 2;
-  uint32 limit = 3;
-  string after_name = 4;
-  ParameterCursor cursor = 5;
 }
 
 message ExecutionListExecutionParametersRunInput {
@@ -248,8 +239,6 @@ message ExecutionListExecutionParametersRunOutput {
 
 message ExecutionListExecutionStepsRequest {
   string execution_id = 1;
-  uint32 limit = 2;
-  StepPageCursor cursor = 3;
 }
 
 message ExecutionListExecutionStepsRunInput {
@@ -613,16 +602,12 @@ service Execution {
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunGetExecutionCommand (stream .dokime.v1.ExecutionGetExecutionCommandRunInput)
       returns (stream .dokime.v1.ExecutionGetExecutionCommandRunOutput);
-  // Public. dokime.execution.list_case_parameters. Follow the returned continuation with unchanged filters/order
-  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-  // mutations or cancel an admitted execution.
+  // Public. dokime.execution.list_case_parameters. Returns the complete bounded set in stable order.
   rpc ListCaseParameters (.dokime.v1.ExecutionListCaseParametersRequest) returns (.dokime.v1.ListCaseParametersReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListCaseParameters (stream .dokime.v1.ExecutionListCaseParametersRunInput)
       returns (stream .dokime.v1.ExecutionListCaseParametersRunOutput);
-  // Public. dokime.execution.list_cases. Follow the returned continuation with unchanged filters/order and its
-  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
-  // cancel an admitted execution.
+  // Public. dokime.execution.list_cases. Returns the complete bounded set in stable order.
   rpc ListCases (.dokime.v1.ExecutionListCasesRequest) returns (.dokime.v1.ListCasesReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListCases (stream .dokime.v1.ExecutionListCasesRunInput) returns (stream .dokime.v1.ExecutionListCasesRunOutput);
@@ -634,16 +619,12 @@ service Execution {
   rpc ListCycles (.dokime.v1.ExecutionListCyclesRequest) returns (.dokime.v1.ListCyclesReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListCycles (stream .dokime.v1.ExecutionListCyclesRunInput) returns (stream .dokime.v1.ExecutionListCyclesRunOutput);
-  // Public. dokime.execution.list_execution_parameters. Follow the returned continuation with unchanged
-  // filters/order and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo
-  // committed mutations or cancel an admitted execution.
+  // Public. dokime.execution.list_execution_parameters. Returns the complete bounded set in stable order.
   rpc ListExecutionParameters (.dokime.v1.ExecutionListExecutionParametersRequest) returns (.dokime.v1.ListMaterializedParametersReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListExecutionParameters (stream .dokime.v1.ExecutionListExecutionParametersRunInput)
       returns (stream .dokime.v1.ExecutionListExecutionParametersRunOutput);
-  // Public. dokime.execution.list_execution_steps. Follow the returned continuation with unchanged filters/order
-  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
-  // mutations or cancel an admitted execution.
+  // Public. dokime.execution.list_execution_steps. Returns the complete bounded set in stable order.
   rpc ListExecutionSteps (.dokime.v1.ExecutionListExecutionStepsRequest) returns (.dokime.v1.ListExecutionStepsReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListExecutionSteps (stream .dokime.v1.ExecutionListExecutionStepsRunInput)

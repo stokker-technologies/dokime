@@ -18,10 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Result, client::Context};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -49,23 +48,8 @@ pub async fn handle(context: &Context, request: v1::ExecutionListExecutionStepsR
     super::complete(ID, context.settings.read_timeout, async {
         let snapshot = super::execution_state::evidence(context, &request.execution_id)?;
         let case = super::execution_state::case(snapshot.execution.origin.as_ref().unwrap())?;
-        let cursor =
-            super::paging::cursor(context, format!("steps/{}", request.execution_id), snapshot.evidence.iter().map(Message::encode_to_vec));
-        if request.cursor.as_ref().is_some_and(|supplied| {
-            supplied.execution_id != request.execution_id
-                || supplied.revision.as_ref() != Some(&cursor)
-                || supplied.kind != v1::StepPageKind::Steps as i32
-                || !supplied.step_id.is_empty()
-        }) {
-            return Err(Error::Precondition("List Steps: Restart Paging for the Selected Execution".into()));
-        }
-        let start = request.cursor.as_ref().map_or(0, |cursor| cursor.next_ordinal as usize);
-        if start > case.steps.len() {
-            return Err(Error::Invalid("List Steps: Restart Paging Within the Frozen Step List".into()));
-        }
-        let limit = super::projection::limit(request.limit, context.settings.page_items);
         let mut steps = Vec::new();
-        for (index, step) in case.steps.iter().enumerate().skip(start).take(limit) {
+        for (index, step) in case.steps.iter().enumerate() {
             let identifier = step.metadata.as_ref().unwrap().identifier.clone();
             let evidence: Vec<_> = snapshot.evidence.iter().filter(|entry| entry.step == identifier).collect();
             let started_at =
@@ -89,19 +73,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionListExecutionStepsR
                 ..Default::default()
             });
         }
-        let next = start + steps.len();
-        let next_cursor = (next < case.steps.len()).then(|| v1::StepPageCursor {
-            revision: Some(cursor.clone()),
-            execution_id: request.execution_id,
-            kind: v1::StepPageKind::Steps as i32,
-            next_ordinal: next as u64,
-            ..Default::default()
-        });
-        Ok(v1::ListExecutionStepsReply {
-            steps,
-            next_cursor,
-            observed_cursor: Some(cursor),
-        })
+        Ok(v1::ListExecutionStepsReply { steps })
     })
     .await
 }

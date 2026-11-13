@@ -62,10 +62,10 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         let cycle = execution.create_cycle(v1::ExecutionCreateCycleRequest { metadata: Some(v1::Metadata { label: "Operator Cycle".into(), ..Default::default() }), ..Default::default() }).await?.into_inner();
         let cases = v1::planning_client::PlanningClient::new(channel.clone()).register_selection(v1::PlanningRegisterSelectionRequest { idempotency_key: "lifecycle-plan".into(), plan: Some(v1::SelectionPlan { cycle_id: cycle.cycle_id.clone(), selections: vec![v1::RegisteredSelection { suite_id: "thermal".into(), template_id: "thermal.cycle".into(), ..Default::default() }], ..Default::default() }) }).await?.into_inner().cases;
         let case_id = cases[0].case_id.clone();
-        let listed = execution.list_cases(v1::ExecutionListCasesRequest { cycle_id: cycle.cycle_id.clone(), ..Default::default() }).await?.into_inner();
+        let listed = execution.list_cases(v1::ExecutionListCasesRequest { cycle_id: cycle.cycle_id.clone() }).await?.into_inner();
         assert_eq!(listed.cases.len(), 1);
         assert_eq!(execution.get_case(v1::ExecutionGetCaseRequest { cycle_id: cycle.cycle_id.clone(), case_id: case_id.clone() }).await?.into_inner().parameter_count, 1);
-        assert_eq!(execution.list_case_parameters(v1::ExecutionListCaseParametersRequest { cycle_id: cycle.cycle_id.clone(), case_id: case_id.clone(), ..Default::default() }).await?.into_inner().parameters[0].name, "limit");
+        assert_eq!(execution.list_case_parameters(v1::ExecutionListCaseParametersRequest { cycle_id: cycle.cycle_id.clone(), case_id: case_id.clone() }).await?.into_inner().parameters[0].name, "limit");
 
         // Append an Explicit Execution and Inspect Its Start Capability
         let identifier = "019a0000-0000-7000-8000-000000000001".to_owned();
@@ -114,9 +114,9 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         // Inspect the Sealed Run and Its Parameters and Ordered Steps
         let detail = execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: identifier.clone() }).await?.into_inner();
         assert_eq!(detail.summary.unwrap().state, v1::ExecutionState::Sealed as i32);
-        let steps = execution.list_execution_steps(v1::ExecutionListExecutionStepsRequest { execution_id: identifier.clone(), ..Default::default() }).await?.into_inner();
+        let steps = execution.list_execution_steps(v1::ExecutionListExecutionStepsRequest { execution_id: identifier.clone() }).await?.into_inner();
         assert_eq!(steps.steps.iter().map(|step| step.step_id.as_str()).collect::<Vec<_>>(), vec!["ramp", "hold"]);
-        assert_eq!(execution.list_execution_parameters(v1::ExecutionListExecutionParametersRequest { execution_id: identifier.clone(), set: v1::ExecutionParameterSet::Inputs as i32, ..Default::default() }).await?.into_inner().parameters.len(), 1);
+        assert_eq!(execution.list_execution_parameters(v1::ExecutionListExecutionParametersRequest { execution_id: identifier.clone(), set: v1::ExecutionParameterSet::Inputs as i32 }).await?.into_inner().parameters.len(), 1);
         assert_eq!(execution.list_executions(v1::ExecutionListExecutionsRequest { cycle_id: cycle.cycle_id.clone(), ..Default::default() }).await?.into_inner().executions.len(), 1);
 
         // Rename and Archive Without Changing the Execution Seal
