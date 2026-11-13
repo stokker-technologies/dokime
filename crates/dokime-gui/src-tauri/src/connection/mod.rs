@@ -11,6 +11,7 @@
 
 mod contract;
 mod errors;
+pub mod host;
 pub mod registry;
 mod transport;
 

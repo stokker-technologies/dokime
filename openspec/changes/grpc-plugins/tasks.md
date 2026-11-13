@@ -445,3 +445,37 @@ Source inventory: the local integration merge; shared host routes/state, operati
 - [x] Register every data service through the shared authenticated route composer, join Query execution presentation, and retain the pinned Harmos generic scope and client settings contracts.
 - [x] Extend the CLI journey with a served report read and cover remote data routes under bearer authentication.
 - [x] Pass final Windows format, Rust/Python/repository/supply checks, host fixture build, every host story twice without skips, CLI stories, protocol drift, complete Tests artifact build and committed locked/offline metadata. The final complete host runs use `NEXTEST_TEST_THREADS=4`; default parallelism previously exceeded the managed installation operation deadline. Deadlines and project test configuration remain unchanged. The Tests producer also passes its compile contracts. Native Linux and hosted validation remain with integration; no push is authorized.
+
+
+## Desktop Host Cutover
+
+Source inventory: `crates/dokime-gui/**`, `docs/gui.md`, desktop sections of
+`docs/product-guide.md` and `docs/tooling.md`, and desktop story selection in
+tooling. One connection module owns new-host embedding, readiness, shutdown,
+remote TLS/pairing and generation cancellation; the SDK root serves native calls.
+The frontend data adapter owns shape changes. Existing components retain their
+presentation. No old-loop fallback or dual-host switch is part of this cutover.
+Additive host operations, if required, are listed here with their handler/story;
+existing host services, proto and generated Rust protocol remain with their owner.
+
+- [x] Map every frontend native command/event to the served host operation or a missing operation in `docs/gui.md`.
+- [ ] Close Start and Connect with embedded lifecycle, SDK readiness, pinned pairing and joined shutdown/restart proof.
+  - [x] Implement the native SDK connection owner and descriptor-derived dispatch; prove embedded readiness, attach/detach ownership, restart identity, incompatible-root preservation, bounded Watch delivery and joined shutdown, and pinned pairing with certificate rotation.
+  - [ ] Switch the Tauri command bridge and frontend adapters to this owner, remove the superseded session/client path and pass the native WebView Start and Connect journey.
+- [ ] Close Catalog and Suites through the new host and preserve parameter/template presentation.
+- [ ] Close Execution with live progress, observations, prompts and gap resynchronization.
+- [ ] Close live and saved Evidence, Telemetry and Plots.
+- [ ] Close Documents and Reports with verified native export.
+- [ ] Close History browsing and saved execution details.
+- [ ] Close Settings, Secrets and Appearance with revision conflicts and scope preserved.
+- [ ] Close Plugins install/list/remove and restart availability.
+- [ ] Close Remote Access pairing, connection and certificate rotation.
+- [ ] Close Status, Health and Diagnostics through the library services.
+- [ ] Remove all old-loop references from GUI code, manifests, tests, benches and tooling; retain old crates for integration.
+- [ ] Run format, Rust/TypeScript/repository checks, frontend stories, host fixtures, both desktop story lanes, startup proof and clean committed-head locked offline metadata. Record actual failures and remaining proof.
+
+## Host Requests
+
+- [ ] Serve `Media.Screenshot(MediaScreenshotRequest { scope }) -> ArtifactMetadata`, `Media.Photo(MediaPhotoRequest { scope, input }) -> ArtifactMetadata` and `Media.AudioRecording(MediaAudioRecordingRequest { scope, input, maximum_seconds }) -> Watch<RecordingFrame>` on the new host. `MediaCaptureControls` uses these for Screenshot, Photo and Record Audio in an execution's media card. The current handlers return UNIMPLEMENTED and the host has no capture owner. Keep those controls visibly disabled during the desktop cutover; do not capture on the desktop as a replacement for host capture.
+- [ ] Serve appearance content through the library transfer owner's content-source registration, preserving `AppearanceAssetReference { plugin_id, asset_id, sha256 }` and returned metadata, byte ranges and verified completion. `src/lib/rpc/appearance.ts` needs the bytes for connected-host logos; the current `Content.DownloadAppearanceAsset` handler returns UNIMPLEMENTED. The owning storage content-source Library Request must be resolved before enabling provider asset delivery; native installer appearance remains independent.
+- [ ] Add host-owned exclusive storage-root admission to `services::serve` / `Host::open`, returning a typed occupied-root error with its path before opening the evidence database or recovering executions. The new `Store::open` has no process lease, whereas Start Local Backend and Back Up and Reset must refuse another host's root. Put the lease in the host/storage owner and prove two native hosts plus release/reopen; a desktop-only lock would leave CLI and other hosts able to corrupt the same root. Keep destructive recovery unavailable until this contract is served.

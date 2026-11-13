@@ -45,6 +45,9 @@ testing = []
 # Local
 dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 dokime-server = { workspace = true }
+dokime-sdk = { package = "dokime", path = "../../../sdk/rust" }
+dokime-runtime-next = { workspace = true }
+dokime-protocol = { workspace = true }
 
 # Git
 
@@ -68,6 +71,8 @@ zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization
 base64 = { workspace = true }
+prost = { workspace = true }
+prost-reflect = { workspace = true }
 image = { workspace = true, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

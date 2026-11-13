@@ -164,6 +164,18 @@ The desktop GUI owns its web tooling under `crates/dokime-gui/`: Biome, the
 pnpm lock and the RPC generator in its `tools/`. Rust
 performance workloads live under the owning crate's `benches/`.
 
+The new desktop host connection has focused native journeys independent of the
+WebView stories. Regenerate its typed SDK dispatch after host contract changes:
+
+```sh
+mise -C crates/dokime-gui run generate:host
+mise run test -- --package dokime-gui --target lib --story connection::host::tests
+mise run check -- --language rust --package dokime-gui
+```
+
+These native journeys establish connection ownership and transport behavior;
+they do not establish that the desktop's WebView consumers have moved to that host.
+
 Desktop development process trees are owned by the task-built `cargo-dokime`
 executable with the application's validated packaging settings. `mise run dev`
 selects that executable from its existing Cargo compiler record. The unchanged

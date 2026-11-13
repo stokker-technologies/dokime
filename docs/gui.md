@@ -13,6 +13,188 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Host Connection
+
+The desktop has one native connection owner. The WebView sends generation-fenced
+commands and receives bounded Tauri channel frames; it never opens a host socket.
+The table records the new host operations available for the desktop data layer.
+The existing shell still uses its portable projection until the cutover is closed;
+an available operation does not establish a migrated or proven screen.
+
+`src-tauri/src/connection/host.rs` owns the new SDK connection: embedded startup,
+readiness through `Status.Get`, pinned remote pairing, connection cancellation,
+and joined Watch/host shutdown. Its native journeys cover attach/detach,
+restart identity, incompatible-root preservation, certificate rotation and live
+SDK delivery. The Tauri command bridge and view adapters still require cutover.
+
+### Native Commands and Events
+
+| Native Command or Event | New Host Operation or Native Responsibility |
+| --- | --- |
+| `desktop_session_launch`, `desktop_build` | Native launch arguments and desktop build identity |
+| `desktop_session_select`, `desktop_session_disconnect`, `desktop_session_status` | Connection lifecycle; `Status.Get` establishes readiness and host identity |
+| `desktop_backends_list`, `desktop_backend_import_pairing`, `desktop_backend_remove`, `desktop_backend_use` | Native saved pairing files and connection selection |
+| `desktop_pairing_create` | `Access.Listener.Get`, `Access.Listener.Set`, `Access.Pairings.Create` |
+| `desktop_firewall` | `Access.Listener.Get` plus native firewall registration |
+| `desktop_settings_read`, `desktop_settings_update` | `Settings.ReadApplicationSettings`, `Settings.UpdateApplicationSettings` |
+| `rpc` | Unary operation from the operation table below |
+| `rpc_stream_open`, `rpc_stream_send`, `rpc_stream_finish`, `rpc_stream_cancel`, `rpc_stream_ack` | SDK Watch/transfer lifetime, bounded native delivery and cancellation |
+| `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | `Content.UploadArtifact` |
+| `desktop_artifact_deliver` | `Content.DownloadArtifact`, `Content.DownloadExecutionFile`, `Content.DownloadEvidence`, `Reports.DownloadCycleReport`, `Reports.DownloadExecutionReport` |
+| `desktop_media_prepare`, `desktop_media_release` | `Content.DownloadArtifact` / `Content.DownloadExecutionFile` plus native preview cache |
+| `desktop_plugin_install_file`, `desktop_plugin_release_install` | `Plugins.Install` |
+| `desktop_plugin_release_check` | Native verified release feed; host identity from `Status.Get` |
+| `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
+| `desktop_parameters_read`, `desktop_parameters_write` | Native remembered parameter selections |
+| `desktop_open_backend_log`, `desktop_open_path`, `desktop_open_target`, `desktop_set_title` | Native window, log and opener actions |
+| `desktop_reset_local_storage`, `desktop_storage_backup_destination`, `desktop_backup_reset_local_storage` | Explicit native backup/reset; incompatible roots are never reset at startup |
+| `desktop_restart` | Join the owned host and watches before restarting the shell |
+| `desktop_updates_status`, `desktop_updates_configure`, `desktop_updates_check`, `desktop_updates_install` | Native desktop updater |
+| `desktop://session-status` | Native connection generation, ownership and startup state |
+| `desktop://remote-imported`, `desktop://remote-import-failed` | Native pairing import outcome |
+| `desktop://stopping` | Native orderly shutdown |
+| Tauri RPC stream channel | `Observation.WatchExecutionProgress`, `Observation.WatchRuntime`, `Evidence.WatchRecords`, `Telemetry.WatchSamples`, `Plots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
+| Tauri install-progress channel | `Plugins.Install` transfer progress |
+
+### Data Operations
+
+Method names below are the currently served contract. Resource grammar changes
+are confined to the native connection and frontend adapter, leaving components
+on their view models. `missing` identifies a host refusal, never an old-host fallback.
+
+| Frontend Operation | New Host Operation |
+| --- | --- |
+| `/dokime.v1.Appearance/GetAppearance` | `Appearance.GetAppearance` |
+| `/dokime.v1.Backend/CollectDiagnostics` | `Status.Diagnostics.Get` |
+| `/dokime.v1.Backend/GetAvailability` | `Status.Get` |
+| `/dokime.v1.Backend/GetHealth` | `Status.Get` |
+| `/dokime.v1.Backend/GetIdentity` | `Status.Get` |
+| `/dokime.v1.Backend/WatchLogs` | `Status.Logs.Watch` |
+| `/dokime.v1.Backend/WatchTrace` | `Status.TraceEvents.Watch` |
+| `/dokime.v1.Catalog/GetRecordSchema` | `Catalog.GetRecordSchema` |
+| `/dokime.v1.Catalog/GetSuite` | `Catalog.GetSuite` |
+| `/dokime.v1.Catalog/GetTelemetrySchema` | `Catalog.GetTelemetrySchema` |
+| `/dokime.v1.Catalog/ListRecordSchemas` | `Catalog.ListRecordSchemas` |
+| `/dokime.v1.Catalog/ListSuites` | `Catalog.ListSuites` |
+| `/dokime.v1.Catalog/ListTelemetrySchemas` | `Catalog.ListTelemetrySchemas` |
+| `/dokime.v1.Content/DownloadAppearanceAsset` | `missing` |
+| `/dokime.v1.Content/DownloadArtifact` | `Content.DownloadArtifact` |
+| `/dokime.v1.Content/DownloadEvidence` | `Content.DownloadEvidence` |
+| `/dokime.v1.Content/DownloadExecutionFile` | `Content.DownloadExecutionFile` |
+| `/dokime.v1.Content/FollowExecutionFile` | `Content.FollowExecutionFile` |
+| `/dokime.v1.Content/ListArtifacts` | `Content.ListArtifacts` |
+| `/dokime.v1.Content/ListExecutionFiles` | `Content.ListExecutionFiles` |
+| `/dokime.v1.Content/ReadExecutionFile` | `Content.ReadExecutionFile` |
+| `/dokime.v1.Content/UploadArtifact` | `Content.UploadArtifact` |
+| `/dokime.v1.Documents/CaptureCurrentDocument` | `Documents.CaptureCurrentDocument` |
+| `/dokime.v1.Documents/UpdatePlotSettings` | `Documents.UpdatePlotSettings` |
+| `/dokime.v1.Evidence/GetCapturedRecordSchema` | `Evidence.GetCapturedRecordSchema` |
+| `/dokime.v1.Evidence/ListRecords` | `Evidence.ListRecords` |
+| `/dokime.v1.Evidence/WatchRecords` | `Evidence.WatchRecords` |
+| `/dokime.v1.Execution/AppendExecutions` | `Execution.AppendExecutions` |
+| `/dokime.v1.Execution/CancelExecution` | `Execution.CancelExecution` |
+| `/dokime.v1.Execution/CreateCycle` | `Execution.CreateCycle` |
+| `/dokime.v1.Execution/DeleteCase` | `Execution.DeleteCase` |
+| `/dokime.v1.Execution/GetCase` | `Execution.GetCase` |
+| `/dokime.v1.Execution/GetCycle` | `Execution.GetCycle` |
+| `/dokime.v1.Execution/GetExecution` | `Execution.GetExecution` |
+| `/dokime.v1.Execution/GetExecutionCommand` | `Execution.GetExecutionCommand` |
+| `/dokime.v1.Execution/ListCaseParameters` | `Execution.ListCaseParameters` |
+| `/dokime.v1.Execution/ListCases` | `Execution.ListCases` |
+| `/dokime.v1.Execution/ListCycles` | `Execution.ListCycles` |
+| `/dokime.v1.Execution/ListExecutionParameters` | `Execution.ListExecutionParameters` |
+| `/dokime.v1.Execution/ListExecutionSteps` | `Execution.ListExecutionSteps` |
+| `/dokime.v1.Execution/ListExecutions` | `Execution.ListExecutions` |
+| `/dokime.v1.Execution/PauseCycle` | `Execution.PauseCycle` |
+| `/dokime.v1.Execution/PauseExecution` | `Execution.PauseExecution` |
+| `/dokime.v1.Execution/RenameCycle` | `Execution.RenameCycle` |
+| `/dokime.v1.Execution/RenameExecution` | `Execution.RenameExecution` |
+| `/dokime.v1.Execution/RerunCycle` | `Execution.RerunCycle` |
+| `/dokime.v1.Execution/ResumeCycle` | `Execution.ResumeCycle` |
+| `/dokime.v1.Execution/ResumeExecution` | `Execution.ResumeExecution` |
+| `/dokime.v1.Execution/SealCycle` | `Execution.SealCycle` |
+| `/dokime.v1.Execution/SetCycleArchived` | `Execution.SetCycleArchived` |
+| `/dokime.v1.Execution/SetExecutionArchived` | `Execution.SetExecutionArchived` |
+| `/dokime.v1.Execution/StartExecution` | `Execution.StartExecution` |
+| `/dokime.v1.Execution/StopExecution` | `Execution.StopExecution` |
+| `/dokime.v1.Execution/SubmitExecutionCommand` | `Execution.SubmitExecutionCommand` |
+| `/dokime.v1.Execution/UpdateCyclePolicy` | `Execution.UpdateCyclePolicy` |
+| `/dokime.v1.Health/ListHealth` | `Health.ListHealth` |
+| `/dokime.v1.History/BrowseCycles` | `History.BrowseCycles` |
+| `/dokime.v1.History/BrowseExecutions` | `History.BrowseExecutions` |
+| `/dokime.v1.History/DeleteExecution` | `History.DeleteExecution` |
+| `/dokime.v1.History/DownloadCheckpointArtifact` | `History.DownloadCheckpointArtifact` |
+| `/dokime.v1.History/GetCheckpointContext` | `History.GetCheckpointContext` |
+| `/dokime.v1.History/GetCheckpointDocument` | `History.GetCheckpointDocument` |
+| `/dokime.v1.History/GetCheckpointEvidence` | `History.GetCheckpointEvidence` |
+| `/dokime.v1.History/GetExecutionCheckpoint` | `History.GetExecutionCheckpoint` |
+| `/dokime.v1.History/ListCheckpointRecords` | `History.ListCheckpointRecords` |
+| `/dokime.v1.History/ListCheckpointTelemetry` | `History.ListCheckpointTelemetry` |
+| `/dokime.v1.History/ReadCheckpointOutput` | `History.ReadCheckpointOutput` |
+| `/dokime.v1.Media/AudioRecording` | `missing` |
+| `/dokime.v1.Media/CameraRecording` | `missing` |
+| `/dokime.v1.Media/Photo` | `missing` |
+| `/dokime.v1.Media/ScreenRecording` | `missing` |
+| `/dokime.v1.Media/Screenshot` | `missing` |
+| `/dokime.v1.Notes/CreateNote` | `Notes.CreateNote` |
+| `/dokime.v1.Notes/EditNote` | `Notes.EditNote` |
+| `/dokime.v1.Notes/ListNotes` | `Notes.ListNotes` |
+| `/dokime.v1.Observation/GetRuntimeShell` | `Observation.GetRuntimeShell` |
+| `/dokime.v1.Observation/GetTraceability` | `Observation.GetTraceability` |
+| `/dokime.v1.Observation/WatchExecutionProgress` | `Observation.WatchExecutionProgress` |
+| `/dokime.v1.Observation/WatchRuntime` | `Observation.WatchRuntime` |
+| `/dokime.v1.Planning/MaterializeTemplate` | `Planning.MaterializeTemplate` |
+| `/dokime.v1.Planning/PreviewSelection` | `Planning.PreviewSelection` |
+| `/dokime.v1.Planning/RegisterSelection` | `Planning.RegisterSelection` |
+| `/dokime.v1.Plots/ListAnalyses` | `Plots.ListAnalyses` |
+| `/dokime.v1.Plots/QuerySnapshots` | `Plots.QuerySnapshots` |
+| `/dokime.v1.Plots/Watch` | `Plots.Watch` |
+| `/dokime.v1.Plugins/GetInstallation` | `Plugins.GetInstallation` |
+| `/dokime.v1.Plugins/Install` | `Plugins.Install` |
+| `/dokime.v1.Plugins/ListAdmittedPlugins` | `Plugins.ListAdmittedPlugins` |
+| `/dokime.v1.Plugins/ListInstallations` | `Plugins.ListInstallations` |
+| `/dokime.v1.Plugins/Reload` | `Plugins.Reload` |
+| `/dokime.v1.Plugins/Remove` | `Plugins.Remove` |
+| `/dokime.v1.Plugins/SetEnabled` | `Plugins.SetEnabled` |
+| `/dokime.v1.Prompts/GetDefinition` | `Prompts.GetDefinition` |
+| `/dokime.v1.Prompts/GetPrompt` | `Prompts.GetPrompt` |
+| `/dokime.v1.Prompts/ListDefinitions` | `Prompts.ListDefinitions` |
+| `/dokime.v1.Prompts/ListPending` | `Prompts.ListPending` |
+| `/dokime.v1.Prompts/Respond` | `Prompts.Respond` |
+| `/dokime.v1.Query/Aggregate` | `missing` |
+| `/dokime.v1.Query/AggregateSamples` | `missing` |
+| `/dokime.v1.Query/ListCycles` | `missing` |
+| `/dokime.v1.Query/ListExecutions` | `Query.ListExecutions` |
+| `/dokime.v1.Query/ListRecords` | `missing` |
+| `/dokime.v1.Query/ListSamples` | `missing` |
+| `/dokime.v1.Remote/CreatePairing` | `Access.Pairings.Create` |
+| `/dokime.v1.Remote/ReadListener` | `Access.Listener.Get` |
+| `/dokime.v1.Remote/RegenerateCertificate` | `Access.Certificates.Create` |
+| `/dokime.v1.Remote/UpdateListener` | `Access.Listener.Set` |
+| `/dokime.v1.Reports/DownloadCycleReport` | `Reports.DownloadCycleReport` |
+| `/dokime.v1.Reports/DownloadExecutionReport` | `Reports.DownloadExecutionReport` |
+| `/dokime.v1.Reports/MaterializeReport` | `Reports.MaterializeReport` |
+| `/dokime.v1.Runtime/GetHealth` | `Status.Get` |
+| `/dokime.v1.Runtime/GetIdentity` | `Status.Get` |
+| `/dokime.v1.Secrets/Export` | `Secrets.Export` |
+| `/dokime.v1.Secrets/Import` | `Secrets.Import` |
+| `/dokime.v1.Secrets/List` | `Secrets.List` |
+| `/dokime.v1.Secrets/Lookup` | `Secrets.Lookup` |
+| `/dokime.v1.Secrets/Preview` | `Secrets.Preview` |
+| `/dokime.v1.Secrets/Put` | `Secrets.Put` |
+| `/dokime.v1.Secrets/Remove` | `Secrets.Remove` |
+| `/dokime.v1.Settings/GetPluginSettings` | `Settings.GetPluginSettings` |
+| `/dokime.v1.Settings/GetSettings` | `Settings.GetSettings` |
+| `/dokime.v1.Settings/ListStorageSources` | `Settings.ListStorageSources` |
+| `/dokime.v1.Settings/ReadApplicationSettings` | `Settings.ReadApplicationSettings` |
+| `/dokime.v1.Settings/ReorderStorageSources` | `Settings.ReorderStorageSources` |
+| `/dokime.v1.Settings/SetStorageSourceEnabled` | `Settings.SetStorageSourceEnabled` |
+| `/dokime.v1.Settings/UpdateApplicationSettings` | `Settings.UpdateApplicationSettings` |
+| `/dokime.v1.Settings/UpdatePluginSettings` | `Settings.UpdatePluginSettings` |
+| `/dokime.v1.Telemetry/ListSamples` | `Telemetry.ListSamples` |
+| `/dokime.v1.Telemetry/WatchSamples` | `Telemetry.WatchSamples` |
+| `/harmos.host.v1.Host/Catalog` | `CatalogEntries.List` |
+
 ## About and Build Versions
 
 Settings › About shows **Desktop Version** from the native `desktop_build` command

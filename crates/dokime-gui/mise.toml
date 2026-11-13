@@ -16,6 +16,11 @@
 
 # === Generate === #
 
+[tasks."generate:host"]
+hide = true
+description = "Generate Desktop Execution Host Dispatch"
+run = "node tools/host-bindings.mjs"
+
 [tasks."generate:report"]
 hide = true
 description = "Generate the Embedded Report"
