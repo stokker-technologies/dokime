@@ -50,7 +50,8 @@ GUI_PACKAGES = (
     "file",
     GUI_MARKER_PACKAGE,
     "libgtk-3-dev",
-    "libayatana-appindicator3-1",
+    # The Tauri Debian Bundler Locates The Tray Library Through pkg-config.
+    "libayatana-appindicator3-dev",
     "libsoup-3.0-dev",
     "libjavascriptcoregtk-4.1-dev",
     "librsvg2-dev",
