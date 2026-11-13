@@ -40,6 +40,11 @@ before migrating any desktop consumer. Remove superseded generic implementations
 as their consumers move to composition; retain no compatibility aliases or wrappers.
 Final full validation is separate from source completion.
 
+## Current Host Admission Slice
+
+- [x] H1 Acquire an exclusive local.lock lease before the evidence database opens, preserve it across cloned owners and active execution workers, return a typed occupied-root error naming the path, and prove refusal/reopen without resetting data. Inventory: runtime-next host/execution manager/error, storage root recognition, storage_root_admission story, architecture/execution-host guides; no desktop edits.
+- [ ] P3 Migrate Python plugin-driving SDK and starter stories to a running product host and the client root, using prepared host bytes and isolated Linux credentials; remove InstanceStub imports and their superseded mechanical host harness.
+
 ## Owner Amendments of 2026-11-13
 
 - [x] 0.A Record paging eligibility, one SDK package per language, unary transfers with 4 MiB default chunks and 8 MiB messages, and accepted threshold-free durable lag with no accepted-data snapshot in proposal/design/requirements/architecture; amended by the owner on 2026-11-13.

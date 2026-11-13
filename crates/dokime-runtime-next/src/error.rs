@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Open Evidence Root: {0} is occupied by another host; stop that host or choose a different root")]
+    OccupiedRoot(std::path::PathBuf),
+
     #[error(transparent)]
     Library(#[from] harmos_runtime::Error),
 

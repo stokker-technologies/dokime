@@ -207,13 +207,19 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 12. **Refuse Incompatible Roots.** Refuse incompatible persistent state with backup
     and explicit fresh-root/reset guidance; never silently delete, reset or migrate
     development data. The new store checks its database identity/layout at baseline v1.
+    The host first takes an exclusive local.lock lease and returns a typed
+    OccupiedRoot error naming the path before opening SQLite if another host owns it.
+    Host clones and execution workers retain the lease through their lifetime.
     **Why:** A development schema break is allowed; destroying existing evidence is not.
     **Where:** [Store::open](../crates/dokime-storage/src/store.rs),
     [Incompatible error](../crates/dokime-storage/src/error.rs),
     [current compatibility requirement](../openspec/specs/data-shape-identity/spec.md).
     **Proof:** `client_collects_backend_diagnostics` in
     [client_collects_backend_diagnostics.rs](../crates/dokime-runtime-next/tests/system/client_collects_backend_diagnostics.rs)
-    refuses a populated foreign root and preserves its bytes. The older
+    refuses a populated foreign root and preserves its bytes.
+    `hosts_refuse_occupied_roots_before_opening_evidence` in
+    [storage_root_admission.rs](../crates/dokime-runtime-next/tests/system/storage_root_admission.rs)
+    proves external-lock refusal before database creation, cloned ownership and reopening. The older
     [format.rs](../crates/dokime-runtime/src/storage/format.rs) refuses unreadable
     built-in state, not obsolete evidence-digest markers. **Status:** landed.
 

@@ -75,7 +75,8 @@ impl Store {
         std::fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
         let exists = database.exists();
-        if !exists && std::fs::read_dir(root)?.next().is_some() {
+        let occupied = std::fs::read_dir(root)?.collect::<std::io::Result<Vec<_>>>()?.iter().any(|entry| entry.file_name() != "local.lock");
+        if !exists && occupied {
             return Err(Error::Incompatible(root.display().to_string()));
         }
         let connection = Connection::open(&database)?;
