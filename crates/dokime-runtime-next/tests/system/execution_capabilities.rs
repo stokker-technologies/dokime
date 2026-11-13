@@ -49,7 +49,7 @@ use prost::Message;
 async fn execution_capabilities() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Inspect and Cancel an Active Plugin Run
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let origin = host.materialize(&entry, "execution.capture", super::support::parameters(29.0, 0, true)).await?;

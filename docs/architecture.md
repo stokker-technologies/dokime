@@ -152,6 +152,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    `client_collects_backend_diagnostics` proves health events, redaction and ranged
    archives; `client_reads_runtime` proves status observation and stable restart identity.
    **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
+   Explicit root disposal removes access and secret credentials through their
+   product owners after the root lease is released, while ordinary shutdown keeps
+   them for restart. `credentials_leave_with_discarded_roots` proves named access
+   credentials are unreadable after normal and failed Windows story teardown.
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects

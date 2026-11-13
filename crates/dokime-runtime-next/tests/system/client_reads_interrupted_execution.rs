@@ -48,8 +48,8 @@ use dokime_runtime_next::PluginProcess;
 async fn client_reads_interrupted_execution() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start an Execution in the Real Host and Wait for Its Prompt
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;

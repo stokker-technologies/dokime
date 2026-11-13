@@ -48,7 +48,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         use harmos_protocol::v1::access;
 
         // Export a Pairing File and Connect Through Its Pinned Certificate
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let storage = root.path().join("storage");
         let credentials = super::support::CredentialStore::start(root.path()).await?;
         let process =

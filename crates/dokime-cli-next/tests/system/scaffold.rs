@@ -42,7 +42,7 @@
 #[tokio::test]
 async fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::HANG_GUARD, async {
-        let directory = tempfile::tempdir()?;
+        let directory = super::credentials::tempdir()?;
         for (language, folder, file) in [
             ("rust", "sdk/rust/starter", "src/main.rs"),
             ("python", "sdk/python/examples/starter", "suite.py"),

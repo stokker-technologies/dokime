@@ -141,7 +141,7 @@ pub mod telemetry_watch_samples;
 
 /* === Re-Exports === */
 
-pub use secrets_store::register_redactions;
+pub use secrets_store::{register_redactions, remove_root_secrets};
 
 /* === Imports === */
 

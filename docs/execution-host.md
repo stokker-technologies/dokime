@@ -89,6 +89,11 @@ certificate. Listener settings no longer belong to product application preferenc
 Dokime implements the library CredentialStore with atomic revision checks in product
 storage and private keys in the OS credential store. The library is the sole writer.
 Linux host-process stories retain one isolated credential-store session across restart.
+Windows stories remove their root's protected access and secret slots before deleting
+temporary storage, including during failure unwinding. Explicit root disposal uses
+`services::remove_credentials(root)` after stopping the host; it retains evidence
+and refuses an occupied root. The host executable exposes the same operation as
+`--storage PATH --remove-credentials`. Ordinary shutdown preserves credentials for restart.
 
 Plugins, Catalog, Settings, Secrets, Appearance and evidence Health
 serve every declared method, including their Run transports. Plugin installation

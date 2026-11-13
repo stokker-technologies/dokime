@@ -116,6 +116,25 @@ impl Drop for Server {
 
 /* === Public Functions === */
 
+/// Remove Protected Values Before Explicitly Discarding a Storage Root.
+/// The Host Must Be Stopped; Evidence and the Root Itself Are Retained.
+pub fn remove_credentials(root: &Path) -> Result<()> {
+    if !root.join("backend-id").is_file() {
+        return Ok(());
+    }
+    let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.join("local.lock"))?;
+    match lease.try_lock() {
+        Ok(()) => {}
+        Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),
+        Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+    }
+    let host_id = std::fs::read_to_string(root.join("backend-id"))?;
+    let storage = dokime_storage::Store::open(root)?;
+    dokime_operations_next::client::remove_root_secrets(&storage)?;
+    access_credentials::Store::new(storage, host_id).remove()?;
+    Ok(())
+}
+
 pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSettings, settings: ClientSettings) -> Result<Server> {
     if !endpoint.ip().is_loopback() {
         return Err(Error::Invalid("Use the Authenticated Remote Listener for Non-Loopback Access".into()));

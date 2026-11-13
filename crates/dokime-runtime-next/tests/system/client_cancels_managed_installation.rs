@@ -51,8 +51,8 @@ async fn client_cancels_managed_installation() -> Result<(), Box<dyn std::error:
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let executable = std::fs::read(super::support::content_fixture()?)?;
         let bytes = super::support::bundles::bundle(&executable, "1.0.0")?;
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let mut environment = credentials.environment.clone();
         environment.push(("DOKIME_PENDING_INSTALL", listener.local_addr()?.to_string().into()));

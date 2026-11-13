@@ -49,7 +49,7 @@ async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
         // Run the Rust Reference and Each SDK Placement with the Same Controlled Inputs
         let mut reference = None;
         for placement in [None].into_iter().chain([false].into_iter().map(Some)) {
-            let root = tempfile::tempdir()?;
+            let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings())?;
             let mut python = None;
             let entry = match placement {

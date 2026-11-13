@@ -48,7 +48,7 @@ use std::num::NonZeroUsize;
 async fn documents_and_reports() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Seal Evidence and Take a Fixed Snapshot
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let document = host.catalog(&entry)?.suites[0].templates[0].documents[0].clone();

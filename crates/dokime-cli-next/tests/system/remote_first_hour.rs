@@ -48,7 +48,7 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
     tokio::time::timeout(super::HANG_GUARD, async {
         for language in ["rust", "python"] {
             // Generate the SDK's Starter and Start the New Host
-            let directory = tempfile::tempdir()?;
+            let directory = super::credentials::tempdir()?;
             let project = directory.path().join(language);
             super::run(&["new", project.to_str().unwrap(), "--lang", language]).await?;
             let storage = directory.path().join("storage");

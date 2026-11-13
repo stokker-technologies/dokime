@@ -47,7 +47,7 @@ use dokime_storage::ExecutionState;
 async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Add the Shared Suite as a Managed Plugin
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let parameters = HashMap::from([(

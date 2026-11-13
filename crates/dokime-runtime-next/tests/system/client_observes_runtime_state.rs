@@ -48,8 +48,8 @@ use dokime_runtime_next::PluginProcess;
 async fn client_observes_runtime_state() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Observe the Initial State Before Adding a Plugin
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;

@@ -48,7 +48,7 @@ use prost::Message;
 async fn execution_isolation() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start Three Executions Before Releasing Any Measurement
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;

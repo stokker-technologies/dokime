@@ -48,8 +48,8 @@ use dokime_storage::{Execution, Sample, Store};
 async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retain Exact Sample Bytes and Frozen Numeric Descriptors
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let catalog = harmos_protocol::v1::Catalog {

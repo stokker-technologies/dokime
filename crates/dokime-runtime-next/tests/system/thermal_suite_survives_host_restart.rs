@@ -47,7 +47,7 @@ use dokime_storage::{ExecutionState, OutcomeCounts};
 async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare a Fresh Evidence Root and the Shared SDK Plugin
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let executable = super::support::thermal_fixture()?;
         let settings = super::support::settings();
         let mut remote = PluginProcess::start(&executable, true, &settings.placement).await?;

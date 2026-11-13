@@ -43,11 +43,33 @@ pub struct CredentialStore {
     _home: tempfile::TempDir,
 }
 
+pub struct Root(Option<tempfile::TempDir>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Root {
+    pub fn path(&self) -> &Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for Root {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Err(error) = remove_credentials(self.path()) {
+            let retained = self.0.take().unwrap().keep();
+            if std::thread::panicking() {
+                eprintln!("Remove Story Credentials: {error}; Retained Root: {}", retained.display());
+            } else {
+                panic!("Remove Story Credentials: {error}; Retained Root: {}", retained.display());
+            }
+        }
+    }
+}
 
 impl CredentialStore {
     pub async fn start(root: &Path) -> Result<Self, Box<dyn std::error::Error>> {
@@ -159,6 +181,29 @@ impl Drop for CredentialStore {
 
 /* === Public Functions === */
 
+pub fn tempdir() -> std::io::Result<Root> {
+    tempfile::tempdir().map(|root| Root(Some(root)))
+}
+
 /* === Private Functions === */
+
+#[cfg(windows)]
+fn remove_credentials(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if root.join("backend-id").is_file() {
+        // A Dropped Child Has Been Killed; Await Release Before Discarding Its Root.
+        let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.join("local.lock"))?;
+        lease.lock()?;
+        drop(lease);
+        dokime_runtime_next::services::remove_credentials(root)?;
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            remove_credentials(&entry.path())?;
+        }
+    }
+    Ok(())
+}
 
 /* === Tests === */

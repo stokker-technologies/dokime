@@ -40,6 +40,7 @@ class Host:
         self.children = []
         self.client = None
         self.process = None
+        self.binary = None
         self.environment = dict(os.environ)
         self.flags = 0x08000000 if os.name == "nt" else 0
 
@@ -115,6 +116,7 @@ class Host:
                 binary = str(repository / "target/debug" / name)
         if binary is None or not Path(binary).is_file():
             raise RuntimeError("Start SDK Host: Build Host Fixtures or Set DOKIME_TEST_HOST To the Prepared Host Binary")
+        host.binary = binary
         host.process = await asyncio.create_subprocess_exec(
             binary,
             "--endpoint",
@@ -148,6 +150,17 @@ class Host:
                 if result != 0:
                     raise RuntimeError(f"Close SDK Host: Host Exited With {result}")
         finally:
+            if self.binary is not None:
+                cleanup = await asyncio.create_subprocess_exec(
+                    self.binary,
+                    "--storage",
+                    str(Path(self.root.name) / "evidence"),
+                    "--remove-credentials",
+                    env=self.environment,
+                    creationflags=self.flags,
+                )
+                if await cleanup.wait() != 0:
+                    raise RuntimeError("Remove SDK Host Credentials: Product Cleanup Failed")
             for child in reversed(self.children):
                 if child.returncode is None:
                     child.kill()

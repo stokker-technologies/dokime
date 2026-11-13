@@ -88,8 +88,8 @@ impl HostProcess {
 async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host Process and the Shared Thermal Plugin
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let executable = super::support::thermal_fixture()?;

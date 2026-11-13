@@ -87,6 +87,17 @@ impl Store {
     fn key(&self, slot: &str) -> Result<keyring::Entry, keyring::Error> {
         keyring::Entry::new(SERVICE, &format!("{}:{slot}", self.host_id))
     }
+
+    pub(super) fn remove(&self) -> crate::Result<()> {
+        if let Some(value) = self.storage.administration::<Snapshot>("access")? {
+            match self.key(&value.key_slot).and_then(|key| key.delete_credential()) {
+                Ok(()) | Err(keyring::Error::NoEntry) => {}
+                Err(error) => return Err(crate::Error::Invalid(format!("Remove Root Access Credential: {error}"))),
+            }
+            self.storage.delete_administration("access")?;
+        }
+        Ok(())
+    }
 }
 
 impl CredentialStore for Store {

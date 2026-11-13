@@ -47,8 +47,8 @@ async fn client_reads_appearance() -> Result<(), Box<dyn std::error::Error>> {
         use dokime::v1;
 
         // Open the Desktop Appearance on a Fresh Host
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;

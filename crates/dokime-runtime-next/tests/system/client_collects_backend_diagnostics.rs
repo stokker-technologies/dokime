@@ -49,8 +49,8 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         use harmos_protocol::v1 as library;
 
         // Read Host Identity and Subscribe Before a Component Appears
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
@@ -216,7 +216,7 @@ async fn client_collects_backend_diagnostics() -> Result<(), Box<dyn std::error:
         plugin.close().await?;
 
         // Refuse an Incompatible Root While Preserving Every Existing Byte
-        let incompatible = tempfile::tempdir()?;
+        let incompatible = super::support::tempdir()?;
         std::fs::write(incompatible.path().join("existing-data"), b"preserve")?;
         let output = tokio::process::Command::from(dokime_runtime_next::process::command(super::support::host_fixture()?))
             .args(["--endpoint", "127.0.0.1:0", "--storage"])

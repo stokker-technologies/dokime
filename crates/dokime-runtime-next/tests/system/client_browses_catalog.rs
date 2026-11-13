@@ -47,8 +47,8 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
         use dokime::v1;
 
         // Start a Real Host and Admit the Shared Plugin
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let mut plugin =
             dokime_runtime_next::PluginProcess::start(&super::support::thermal_fixture()?, true, &super::support::settings().placement)

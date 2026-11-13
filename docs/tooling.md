@@ -49,7 +49,9 @@ Rust starter built through its own mise task. Stories never compile plugins.
 workstation source/dependency caches; do not put them in project configuration.
 Python consumes the built pure wheel and the pinned library SDK. Linux stories
 own an isolated session bus/keyring for credential storage; install `dbus` and
-`gnome-keyring`. Windows uses its operating system credential store.
+`gnome-keyring`. Windows uses its operating system credential store and removes
+every disposable root's protected slots through the product removal operation
+before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 

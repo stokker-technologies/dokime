@@ -45,7 +45,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::HANG_GUARD, async {
         // Create a Rust Project From the Embedded SDK Starter
-        let directory = tempfile::tempdir()?;
+        let directory = super::credentials::tempdir()?;
         let project = directory.path().join("first-rust");
         super::run(&["new", project.to_str().unwrap(), "--lang", "rust"]).await?;
         let built_project = super::fixtures().join("rust");

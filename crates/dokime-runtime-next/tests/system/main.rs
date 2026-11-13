@@ -40,6 +40,8 @@ mod client_renders_fixed_documents;
 mod client_runs_thermal_suite_over_grpc;
 mod client_transfers_execution_content;
 mod cpp_plugin_matches_rust_thermal_evidence;
+#[cfg(windows)]
+mod credentials_leave_with_discarded_roots;
 mod csharp_plugin_matches_rust_thermal_evidence;
 mod documents_and_reports;
 mod execution_capabilities;
