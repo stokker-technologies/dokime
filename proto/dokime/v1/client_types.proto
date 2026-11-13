@@ -1035,7 +1035,7 @@ enum ExecutionAvailability {
   EXECUTION_AVAILABILITY_UNCHECKPOINTED = 4;
 }
 
-// Source: crates/dokime-operations/src/execution/append_executions.rs
+// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
 message ExecutionBinding {
   string execution_id = 1;
   string case_id = 2;
@@ -1805,7 +1805,7 @@ message ListRecordSchemasReply {
   repeated RecordSchemaIdentity schemas = 1;
 }
 
-// Source: crates/dokime-operations/src/telemetry/list_samples.rs
+// Source: crates/dokime-operations-next/src/client/telemetry_list_samples.rs
 message ListSamples {
   repeated string streams = 1;
   uint32 limit = 2;

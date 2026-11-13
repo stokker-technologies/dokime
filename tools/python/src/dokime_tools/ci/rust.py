@@ -14,6 +14,7 @@
 # Standard Library Imports
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -51,5 +52,14 @@ if __name__ == "__main__":
     members = set(document["workspace_members"])
     directories = sorted({Path(package["manifest_path"]).parent for package in document["packages"] if package["id"] in members})
     roots = [directory for directory in directories if not any(parent in directories for parent in directory.parents)]
-    result = subprocess.run(["cargo-machete", "--skip-target-dir", *map(str, roots)], cwd=root, creationflags=spawn_flags())
+    result = subprocess.run(
+        ["cargo-machete", "--skip-target-dir", *map(str, roots)],
+        check=False,
+        cwd=root,
+        creationflags=spawn_flags(),
+        capture_output=True,
+        text=True,
+    )
+    print(result.stdout, end="")
+    print(result.stderr, end="", file=sys.stderr)
     raise SystemExit(result.returncode)

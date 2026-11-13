@@ -489,3 +489,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Restore desktop/installer organization, licensing, signature and update journeys with native packaging.
   - [ ] Retain client-disconnection and partial-capture interruption tasks from removal section 5.3.
 - [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.
+
+## Remaining Source Policy Proof
+
+- [ ] Resolve project-wide native desktop dependency/source findings when its host switch restores workspace ownership; do not restore deleted loop dependencies to make the dormant manifest parse.
+- [ ] Reconcile generated protocol source auditing with generator ownership; keep the protocol drift stories and never hand-format generated bindings.
+- [ ] Repair remaining authored source skeleton/grouping findings in the host, storage, SDK and examples.
+- [ ] Move the managed-install cancellation and stored-report filesystem journeys out of unit scope while preserving their behavior; managed cancellation must compile and run on every supported host platform.
+- [ ] Reconcile the checker-required root contributing entry with the project-owned guide under docs/.
+- [ ] Reconcile maintained plot task lists with source policy without losing their benchmark requirements or retained evidence.

@@ -286,7 +286,6 @@ matrix proof remain separate from local Windows runs.
 
 | Owner | Adoption Work |
 | --- | --- |
-| Workspace/host | Retire or relocate the existing `crates/dokime` facade identity and point the workspace `dokime` dependency to `sdk/rust`; keep host helpers under runtime/operations/storage. Add canonical SDK build/test selection to owned tooling. |
 | CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime-next`. |
 | Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
 | Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |

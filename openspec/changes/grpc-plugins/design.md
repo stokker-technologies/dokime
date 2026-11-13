@@ -688,7 +688,6 @@ harmos-storage <--- harmos-operations <--- harmos-runtime
 
 dokime-storage ---> Harmos storage interface
 dokime-runtime ---> harmos-runtime
-dokime-tracing                        small development support
 ```
 
 The Dokime host direction is protocol → storage → operations → runtime → CLI
@@ -704,7 +703,6 @@ transport libraries and authoring derives do not introduce host dependencies.
 | `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, effects, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
 | `dokime-storage` | Both `crates/dokime-runtime/src/storage/` and `src/runtime/storage/` merge here after wave 5, through the Harmos storage interface. Persisted shapes belong here; lifecycle decisions remain in runtime. The `storage-interface` change owns capabilities, exceptions, cycle cuts and benchmark proof. |
 | `dokime-cli`, `dokime-gui` | Product commands and desktop composition respectively. The CLI embeds the runtime library, not its binary or a server facade. |
-| `dokime-tracing` | Small shared development subscriber and trace-export support; remains independent. |
 
 `dokime-domain` dissolves: definitions become protocol messages, host rules move
 to their operations, and persisted shapes move to storage. Before storage
@@ -1149,3 +1147,16 @@ The combined data/execution/administration host uses one v1 storage table invent
 Duplicate note mutation identities retain ALREADY_EXISTS; optimistic administration revision conflicts retain ABORTED. The storage errors distinguish these meanings before transport projection. History deletion removes chunked content, derived data indexes, plot preferences and execution notes atomically with the sealed execution.
 
 Plot analysis dispatch resolves the ready provider by its frozen Description.id; the administration entry UUID identifies placement and is never passed to the native invocation registry.
+
+## Open Questions
+
+The deletion candidate builds without the native desktop. The project-wide source
+checker still reads that dormant manifest and reports its references to deleted
+workspace dependencies. Its restoration task owns the native cutover; restoring
+old dependencies here would violate the owner's deletion decision.
+
+Source-policy proof also remains open for generated protobuf auditing, authored
+skeleton/grouping findings and environmental unit journeys. Generated protocol
+files retain their generator and drift proof. The mandatory root contributing
+entry and the project instruction to keep guides in docs/ need one consistent
+owner; the maintained contributing guide currently remains in docs/.

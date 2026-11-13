@@ -6703,7 +6703,7 @@ pub mod evidence_subject {
         Cycle(::prost::alloc::string::String),
     }
 }
-/// Source: crates/dokime-operations/src/execution/append_executions.rs
+/// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionBinding {
@@ -7842,7 +7842,7 @@ pub struct ListRecordSchemasReply {
     #[prost(message, repeated, tag = "1")]
     pub schemas: ::prost::alloc::vec::Vec<RecordSchemaIdentity>,
 }
-/// Source: crates/dokime-operations/src/telemetry/list_samples.rs
+/// Source: crates/dokime-operations-next/src/client/telemetry_list_samples.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListSamples {
