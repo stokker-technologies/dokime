@@ -48,7 +48,7 @@ public:
     frame.mutable_request()->set_payload(harmos::detail::encode(request));
     call->Write(frame);
     call->WritesDone();
-    harmos::plugin::v1::InstanceFrame output;
+    harmos::plugin::v1::InstanceInvokeResponse output;
     std::string payload;
     while (call->Read(&output)) {
       if (output.response().has_failure())

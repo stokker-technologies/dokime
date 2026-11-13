@@ -239,6 +239,10 @@ mise -C sdk/rust run sdk:test
 mise -C sdk/rust run sdk:tree
 ```
 
+The current pin refuses template-local bindings at generic reference-host
+admission; the exact request is tracked under
+[Library Requests](../openspec/changes/operation-grammar/tasks.md#library-requests).
+
 The external consumer in `sdk/rust/tests/consumer` owns the focused test targets and
 all test-only reference-host dependencies. Its child-process fixture reuses the
 existing standalone `crates/dokime-domain/src/process/` constructor by source path
