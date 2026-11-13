@@ -471,7 +471,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 - [ ] Complete command-line parity after host support is available.
   - [x] `operation list`: discover admitted operations; `operator_discovers_operations` compares the whole host catalog.
   - [x] `operation show`: inspect identity, visibility, policy and shapes; `operator_inspects_contract`.
-  - [ ] `operation call`: invoke typed operations through the generic client.
+  - [x] `operation call`: invoke typed Public unary operations through the generic client; `operator_calls_operation`.
   - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
   - [ ] `gui`: launch the native desktop.
   - [ ] `version`: report detailed JSON/source/channel metadata.

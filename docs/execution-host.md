@@ -279,6 +279,12 @@ half. Build with `mise run build -- --package dokime-cli-next`.
 admitted operation catalog, including owner, generation and contract. It has no
 paging flags. `operation show ID --json` inspects the same contract, including
 visibility, policy, protobuf descriptors and readable request/response field shapes.
+`operation call ID --json '{}'` validates a unary Public request using its admitted
+descriptors and calls its admitted gRPC mapping through the SDK generic transport,
+then prints the typed JSON response. Use `--input-file
+request.json` for file input. Stream contracts require the typed streaming client;
+refusals name the requested operation. Policies run on the host; the CLI adds no
+mutation retries.
 
 ```sh
 dokime-next new first-plugin --lang rust

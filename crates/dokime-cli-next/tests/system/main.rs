@@ -14,6 +14,7 @@
 #[path = "../../../dokime-runtime-next/tests/support/credentials.rs"]
 mod credentials;
 mod first_hour;
+mod operator_calls_operation;
 mod operator_discovers_operations;
 mod operator_inspects_contract;
 mod remote_first_hour;
