@@ -88,7 +88,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             tonic::Code::Unauthenticated
         );
         let mut request = tonic::Request::new(harmos_protocol::v1::StatusGetRequest {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         let identity = backend.status.get(request).await?.into_inner().status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, std::fs::read_to_string(storage.join("backend-id"))?);
 
@@ -99,18 +99,18 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             tonic::Code::Unauthenticated,
         );
         let mut request = tonic::Request::new(v1::SettingsReadApplicationSettingsRequest {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert!(settings.read_application_settings(request).await?.into_inner().settings.is_some());
         let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
         assert_eq!(plugins.list(v1::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut request = tonic::Request::new(v1::ListPlugins {});
-        request.metadata_mut().insert("authorization", format!("Bearer {}", &first.credential).parse()?);
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert!(plugins.list(request).await?.into_inner().plugins.is_empty());
         drop(settings);
         drop(plugins);
 
         // Execution Services Use the Same Authenticated Route Composer
-        let key = format!("Bearer {}", &first.credential);
+        let key = format!("Bearer {}", first.credential);
         let mut executions = v1::execution_client::ExecutionClient::new(channel.clone());
         assert_eq!(
             executions.create_cycle(v1::ExecutionCreateCycleRequest::default()).await.unwrap_err().code(),
@@ -259,7 +259,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         old.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert_eq!(backend.status.get(old).await.unwrap_err().code(), tonic::Code::Unauthenticated);
         let mut current = tonic::Request::new(harmos_protocol::v1::StatusGetRequest {});
-        current.metadata_mut().insert("authorization", format!("Bearer {}", &second.credential).parse()?);
+        current.metadata_mut().insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(backend.status.get(current).await?.into_inner().status.unwrap().identity.unwrap().host_id, identity.host_id);
         drop(backend);
         drop(channel);
