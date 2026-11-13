@@ -73,8 +73,10 @@ Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode
 The storage root retains a backend identity; each process has a new boot epoch.
 Before opening the evidence database, the host takes the root's exclusive
 `local.lock` lease. An occupied root returns `Error::OccupiedRoot` with its path;
-stop its owner or choose another root. Cloned host handles and execution workers
-retain the lease until they are dropped after shutdown. A stale lock file after
+stop its owner or choose another root. Shutdown releases the lease once owned work
+has settled, so the same process can reopen the root; a handle that remains refuses
+new plugins and cycles. A host dropped without shutdown releases the lease with its
+last handle and its execution workers. A stale lock file after
 a crash is harmless: the operating system releases the lock, and no data is reset.
 The bootstrap listener accepts loopback addresses. The library's Access.Listener.Get/Set
 owns the separate authenticated TLS listener. Enable it with the revision from Get,

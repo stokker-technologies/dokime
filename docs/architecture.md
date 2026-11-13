@@ -209,7 +209,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     development data. The new store checks its database identity/layout at baseline v1.
     The host first takes an exclusive local.lock lease and returns a typed
     OccupiedRoot error naming the path before opening SQLite if another host owns it.
-    Host clones and execution workers retain the lease through their lifetime.
+    Shutdown releases the lease once owned work has settled; a host dropped without
+    shutdown releases it with its last handle and its execution workers.
     **Why:** A development schema break is allowed; destroying existing evidence is not.
     **Where:** [Store::open](../crates/dokime-storage/src/store.rs),
     [Incompatible error](../crates/dokime-storage/src/error.rs),
