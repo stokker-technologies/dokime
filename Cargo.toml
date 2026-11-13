@@ -10,46 +10,23 @@
 
 [workspace]
 members = [
-  "crates/dokime",
-  "crates/dokime-tracing",
-  "crates/dokime-cli",
   "crates/dokime-cli-next",
   "crates/dokime-protocol",
   "crates/dokime-storage",
   "crates/dokime-operations-next",
   "crates/dokime-runtime-next",
-  "crates/dokime-runtime",
-  "crates/dokime-client",
-  "crates/dokime-domain",
-  "crates/dokime-operations",
-  "crates/cargo-dokime",
   "crates/dokime-packaging",
-  "crates/dokime-gui/src-tauri",
-  "plugins/sidecars/host",
-  "crates/dokime-macros",
-  "crates/dokime-server",
-  "plugins/sidecars/obc",
-  "plugins/sidecars/obc/runtime",
   "sdk/rust",
   "tools/protocol",
 ]
 default-members = [
-  "crates/dokime",
-  "crates/dokime-tracing",
-  "crates/dokime-cli",
+  "crates/dokime-cli-next",
+  "crates/dokime-runtime-next",
+  "crates/dokime-storage",
+  "crates/dokime-operations-next",
+  "sdk/rust",
   "crates/dokime-protocol",
-  "crates/dokime-runtime",
-  "crates/dokime-client",
-  "crates/dokime-domain",
-  "crates/dokime-operations",
-  "crates/cargo-dokime",
   "crates/dokime-packaging",
-  "crates/dokime-gui/src-tauri",
-  "plugins/sidecars/host",
-  "crates/dokime-macros",
-  "crates/dokime-server",
-  "plugins/sidecars/obc",
-  "plugins/sidecars/obc/runtime",
 ]
 resolver = "2"
 
@@ -68,19 +45,11 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
-dokime = { package = "dokime-facade", version = "0.1.5", path = "crates/dokime" }
-dokime-client = { version = "0.1.5", path = "crates/dokime-client" }
-dokime-domain = { version = "0.1.5", path = "crates/dokime-domain" }
-dokime-macros = { version = "0.1.5", path = "crates/dokime-macros" }
 dokime-operations-next = { version = "0.1.5", path = "crates/dokime-operations-next" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
-dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime", default-features = false }
 dokime-runtime-next = { version = "0.1.5", path = "crates/dokime-runtime-next" }
-dokime-server = { version = "0.1.5", path = "crates/dokime-server" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
-dokime-tracing = { version = "0.1.5", path = "crates/dokime-tracing" }
-plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
 harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "26010c03516060deb5f70d17af3fbf0e49d9fbe2" }

@@ -445,3 +445,33 @@ Source inventory: the local integration merge; shared host routes/state, operati
 - [x] Register every data service through the shared authenticated route composer, join Query execution presentation, and retain the pinned Harmos generic scope and client settings contracts.
 - [x] Extend the CLI journey with a served report read and cover remote data routes under bearer authentication.
 - [x] Pass final Windows format, Rust/Python/repository/supply checks, host fixture build, every host story twice without skips, CLI stories, protocol drift, complete Tests artifact build and committed locked/offline metadata. The final complete host runs use `NEXTEST_TEST_THREADS=4`; default parallelism previously exceeded the managed installation operation deadline. Deadlines and project test configuration remain unchanged. The Tests producer also passes its compile contracts. Native Linux and hosted validation remain with integration; no push is authorized.
+
+## Old Loop Deletion and Grammar Continuation
+
+Source inventory: root Cargo manifests/lock and mise tasks; the ten retired loop
+crates, packaging, both sidecars; project-owned tooling, workflows and configuration;
+maintained guides and SDK examples; product protocol, operations, storage, host,
+SDKs and starters for the subsequent grammar slices. Desktop source is excluded.
+The owner authorizes deletion before the desktop and face cutovers (2026-11-13).
+All work remains local on feat/grpc-plugins under the existing implementing marker.
+
+- [ ] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
+- [ ] Retain current bundle production/inspection without facade dependencies.
+- [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
+- [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+- [ ] Restore the desktop to the workspace when its switch merges.
+  - [ ] Restore crates/dokime-gui/src-tauri workspace and default membership.
+  - [ ] Restore native desktop Product build, embedded resources and generated-settings checks.
+  - [ ] Restore native Rust desktop and TypeScript system stories on PR and Nightly, and desktop benchmarks.
+  - [ ] Restore desktop distribution/installer packaging, signing and release assets.
+- [ ] Complete command-line parity after host support is available.
+  - [ ] Operation discovery and typed invocation (operation list/describe/call).
+  - [ ] Doctor storage diagnosis and machine diagnostics.
+  - [ ] GUI launch.
+  - [ ] Detailed version JSON/source/channel reporting.
+  - [ ] Pairing-file connection and access pairing export.
+  - [ ] Installer packaging.
+  - [ ] Plugin development supervision and plugin-specific protocol export.
+  - [ ] Saved execution evidence archive/file downloads and full planning preview/registration.
+- [ ] Record promised old-loop journeys without new-host coverage as explicit remaining stories.
+- [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.

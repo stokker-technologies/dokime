@@ -13,10 +13,6 @@ step_timeout_seconds = 900
 [conventions.rust]
 generated = ["crates/dokime-protocol/src/v1.rs", "crates/dokime-protocol/src/reflection.rs", "crates/dokime-protocol/src/sources.rs"]
 
-[conventions.rust.source_roots]
-# Validate the authored source that this compile-only crate renders and includes.
-dokime-starter-check = "crates/cargo-dokime/templates"
-
 [skeletons]
 # Audit Native Sources And Cargo/CI Policy Skeletons.
 include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", ".stkr/project.toml"]
@@ -26,9 +22,6 @@ exclude = ["crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 [barrels]
 # Deliberate Public Import Surfaces: Authoring, Criterion Evidence And GUI Test Ports.
 exclude = [
-  "crates/dokime-runtime/src/prelude.rs",
-  "crates/dokime-runtime/src/plugin/sidecar.rs",
-  "crates/dokime-runtime/src/evidence.rs",
   "crates/dokime-gui/src-tauri/src/testing.rs",
 ]
 

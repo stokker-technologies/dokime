@@ -31,6 +31,7 @@ path = "src/main.rs"
 [dependencies]
 # Local
 dokime = { version = "0.1.5", path = "../../sdk/rust" }
+dokime-packaging = { workspace = true }
 dokime-protocol = { workspace = true }
 dokime-runtime-next = { workspace = true }
 
