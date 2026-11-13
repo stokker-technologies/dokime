@@ -21,6 +21,7 @@ mod plugin;
 mod proto;
 mod server;
 mod status;
+mod version;
 
 /* === Re-Exports === */
 
@@ -66,6 +67,7 @@ pub(crate) enum Command {
     Execution(execution::Command),
 
     Status(status::Args),
+    Version(version::Args),
 
     #[command(subcommand)]
     Operation(operation::Command),
@@ -87,6 +89,7 @@ impl Command {
             Self::Cycle(command) => command.action(),
             Self::Execution(command) => command.action(),
             Self::Status(_) => "Read Host Status",
+            Self::Version(_) => "Read Build Version",
             Self::Operation(command) => command.action(),
         }
     }
@@ -105,6 +108,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Cycle(command) => cycle::run(command, endpoint, settings).await,
         Command::Execution(command) => execution::run(command, endpoint, settings).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
+        Command::Version(args) => version::run(args),
         Command::Operation(command) => operation::run(command, endpoint, settings).await,
     }
 }

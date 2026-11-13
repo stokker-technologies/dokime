@@ -17,6 +17,7 @@ mod first_hour;
 mod operator_calls_operation;
 mod operator_discovers_operations;
 mod operator_inspects_contract;
+mod operator_identifies_build;
 mod remote_first_hour;
 mod scaffold;
 

@@ -286,6 +286,12 @@ request.json` for file input. Stream contracts require the typed streaming clien
 refusals name the requested operation. Policies run on the host; the CLI adds no
 mutation retries.
 
+`dokime-next version --json` reports the compiled package version, source revision
+(with `-dirty` for tracked local edits), publication channel, OS and architecture.
+Local builds have a null channel; release and Nightly publishers identify theirs
+from the build environment. Source archives without Git or CI revision metadata
+report a null revision.
+
 ```sh
 dokime-next new first-plugin --lang rust
 dokime-next new remote-plugin --lang python

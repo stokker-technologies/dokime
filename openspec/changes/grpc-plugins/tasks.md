@@ -474,7 +474,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] `operation call`: invoke typed Public unary operations through the generic client; `operator_calls_operation`.
   - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
   - [ ] `gui`: launch the native desktop.
-  - [ ] `version`: report detailed JSON/source/channel metadata.
+  - [x] `version`: report compiled JSON/source/channel metadata; `operator_identifies_build`.
   - [ ] Pairing-file connection and access pairing export.
   - [ ] Installer packaging.
   - [ ] Plugin development supervision and plugin-specific protocol export.
