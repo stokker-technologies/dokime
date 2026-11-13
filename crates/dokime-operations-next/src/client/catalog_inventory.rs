@@ -126,7 +126,6 @@ impl Inventory {
             streams: streams.into_values().collect(),
         })
     }
-
 }
 
 /* === Public Functions === */

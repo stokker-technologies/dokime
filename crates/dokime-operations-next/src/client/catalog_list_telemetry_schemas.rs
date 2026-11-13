@@ -48,7 +48,15 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, _request: v1::CatalogListTelemetrySchemasRequest) -> Result<v1::ListTelemetrySchemasReply> {
     super::complete(ID, context.settings.read_timeout, async {
         let inventory = super::catalog_inventory::Inventory::read(context).await?;
-        let schemas = inventory.streams.into_iter().map(|item| v1::TelemetrySchemaIdentity { stream: item.stream, schema_version: item.schema_version, metadata: item.metadata }).collect();
+        let schemas = inventory
+            .streams
+            .into_iter()
+            .map(|item| v1::TelemetrySchemaIdentity {
+                stream: item.stream,
+                schema_version: item.schema_version,
+                metadata: item.metadata,
+            })
+            .collect();
         Ok(v1::ListTelemetrySchemasReply { schemas })
     })
     .await

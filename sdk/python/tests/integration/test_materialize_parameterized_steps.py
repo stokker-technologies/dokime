@@ -38,7 +38,8 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         instances = []
 
         @dokime.suite(
-            "example.channels", label="Channels",
+            "example.channels",
+            label="Channels",
             parameters=[message("Parameter", metadata={"identifier": "channels", "label": "Channels"}, type=7, element_type=2)],
         )
         class Channels:
@@ -59,9 +60,13 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 if channel == 2 and ctx.attempt == 1:
                     from harmos.v1 import types_pb2 as wire
 
-                    raise dokime.Failure(wire.Failure(
-                        classification=wire.CLASSIFICATION_TRANSIENT, code="retry_measurement", message="Retry measurement",
-                    ))
+                    raise dokime.Failure(
+                        wire.Failure(
+                            classification=wire.CLASSIFICATION_TRANSIENT,
+                            code="retry_measurement",
+                            message="Retry measurement",
+                        )
+                    )
                 self.channels.append(channel)
 
             @dokime.criterion("All Channels")

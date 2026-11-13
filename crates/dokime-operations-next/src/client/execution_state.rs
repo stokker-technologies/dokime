@@ -273,9 +273,13 @@ pub(super) fn planned(context: &Context, cycle: &str, case: &str) -> Result<v1::
     })
 }
 pub(super) fn parameters(parameters: &std::collections::HashMap<String, v1::Value>) -> Vec<v1::CaseParameter> {
-    let mut rows: Vec<_> = parameters.iter().map(|(name, value)| v1::CaseParameter {
-        name: name.clone(), value: Some(value.clone()),
-    }).collect();
+    let mut rows: Vec<_> = parameters
+        .iter()
+        .map(|(name, value)| v1::CaseParameter {
+            name: name.clone(),
+            value: Some(value.clone()),
+        })
+        .collect();
     rows.sort_by(|left, right| left.name.cmp(&right.name));
     rows
 }

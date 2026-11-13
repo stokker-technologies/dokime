@@ -57,9 +57,7 @@ pub async fn handle(context: &Context, _request: v1::PromptsListDefinitionsReque
                 }
             })
             .collect();
-        Ok(v1::ListPromptDefinitionsReply {
-            definitions,
-        })
+        Ok(v1::ListPromptDefinitionsReply { definitions })
     })
     .await
 }

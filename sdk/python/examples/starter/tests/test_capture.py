@@ -15,11 +15,12 @@ import unittest
 
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import BoolValue
-import dokime
 
 # Local Imports
 from host import Host
 from suite import plugin
+
+import dokime
 
 # Type Checking Imports
 
@@ -56,9 +57,9 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
                 await host.client.prompts.respond(asked.prompt_id, asked.definition.actions[0].identifier, accepted=True)
         execution = await host.client.executions.get(cycle.executions[0])
         self.assertEqual(
-                execution.outcome.evaluated.status,
-                execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
-            )
+            execution.outcome.evaluated.status,
+            execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
+        )
 
         # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
         records = await host.client.records.list(cycle.executions[0])

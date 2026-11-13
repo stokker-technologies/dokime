@@ -67,9 +67,7 @@ pub async fn handle(
                 ..Default::default()
             })
             .collect();
-        Ok(v1::ListMaterializedParametersReply {
-            parameters,
-        })
+        Ok(v1::ListMaterializedParametersReply { parameters })
     })
     .await
 }

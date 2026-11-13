@@ -68,8 +68,7 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             .await?
             .into_inner();
         assert!(!suite.templates.is_empty());
-        let records =
-            catalog.list_record_schemas(v1::CatalogListRecordSchemasRequest {}).await?.into_inner();
+        let records = catalog.list_record_schemas(v1::CatalogListRecordSchemasRequest {}).await?.into_inner();
         let record = catalog
             .get_record_schema(v1::CatalogGetRecordSchemaRequest {
                 record_type: records.schemas[0].record_type.clone(),
@@ -77,8 +76,7 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             .await?
             .into_inner();
         assert!(!record.fields.is_empty());
-        let streams =
-            catalog.list_telemetry_schemas(v1::CatalogListTelemetrySchemasRequest {}).await?.into_inner();
+        let streams = catalog.list_telemetry_schemas(v1::CatalogListTelemetrySchemasRequest {}).await?.into_inner();
         let stream = catalog
             .get_telemetry_schema(v1::CatalogGetTelemetrySchemaRequest {
                 stream: streams.schemas[0].stream.clone(),
@@ -94,7 +92,12 @@ async fn client_browses_catalog() -> Result<(), Box<dyn std::error::Error>> {
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let mut catalog = v1::catalog_client::CatalogClient::connect(process.url.clone()).await?;
         let mut plugins = v1::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        plugins.reload(v1::PluginsReloadRequest { plugin_id: entry.description.map(|description| description.id), ..Default::default() }).await?;
+        plugins
+            .reload(v1::PluginsReloadRequest {
+                plugin_id: entry.description.map(|description| description.id),
+                ..Default::default()
+            })
+            .await?;
         assert_eq!(catalog.list_suites(v1::CatalogListSuitesRequest {}).await?.into_inner(), suites);
         process.close().await?;
         plugin.close().await?;

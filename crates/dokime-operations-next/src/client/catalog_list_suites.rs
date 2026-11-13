@@ -48,10 +48,18 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, _request: v1::CatalogListSuitesRequest) -> Result<v1::ListSuitesReply> {
     super::complete(ID, context.settings.read_timeout, async {
         let inventory = super::catalog_inventory::Inventory::read(context).await?;
-        let suites = inventory.suites.into_iter().filter_map(|(source, suite)| {
-            let metadata = suite.metadata?;
-            Some(v1::SuiteIdentity { suite_id: metadata.identifier.clone(), source, metadata: Some(metadata) })
-        }).collect();
+        let suites = inventory
+            .suites
+            .into_iter()
+            .filter_map(|(source, suite)| {
+                let metadata = suite.metadata?;
+                Some(v1::SuiteIdentity {
+                    suite_id: metadata.identifier.clone(),
+                    source,
+                    metadata: Some(metadata),
+                })
+            })
+            .collect();
         Ok(v1::ListSuitesReply { suites })
     })
     .await

@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Exclusive Evidence Root Admission
 
 /* === Modules === */
@@ -22,7 +21,6 @@
 
 // Local Imports
 use dokime_runtime_next::{Error, Host};
-
 
 /* === Constants === */
 
@@ -70,4 +68,3 @@ async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box
     host.shutdown().await?;
     Ok(())
 }
-

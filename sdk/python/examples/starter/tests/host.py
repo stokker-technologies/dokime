@@ -53,8 +53,12 @@ class Host:
             home.mkdir(mode=0o700)
             host.environment.update({key: str(home) for key in ("HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR")})
             bus = await asyncio.create_subprocess_exec(
-                "dbus-daemon", "--session", "--nofork", "--print-address=1",
-                env=host.environment, stdout=asyncio.subprocess.PIPE,
+                "dbus-daemon",
+                "--session",
+                "--nofork",
+                "--print-address=1",
+                env=host.environment,
+                stdout=asyncio.subprocess.PIPE,
             )
             host.children.append(bus)
             address = (await bus.stdout.readline()).decode().strip()
@@ -62,8 +66,15 @@ class Host:
                 raise RuntimeError("Start SDK Credential Store: dbus-daemon Exited Before Announcing Its Address")
             host.environment["DBUS_SESSION_BUS_ADDRESS"] = address
             keyring = await asyncio.create_subprocess_exec(
-                "gnome-keyring-daemon", "--foreground", "--components=secrets", "--unlock", "--control-directory", str(home),
-                env=host.environment, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
+                "gnome-keyring-daemon",
+                "--foreground",
+                "--components=secrets",
+                "--unlock",
+                "--control-directory",
+                str(home),
+                env=host.environment,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
             )
             host.children.append(keyring)
             keyring.stdin.write(b"sdk-story-keyring-password")
@@ -73,9 +84,15 @@ class Host:
                 if bus.returncode is not None or keyring.returncode is not None:
                     raise RuntimeError("Start SDK Credential Store: An Owned Daemon Exited")
                 check = await asyncio.create_subprocess_exec(
-                    "dbus-send", "--session", "--print-reply", "--dest=org.freedesktop.DBus", "/org/freedesktop/DBus",
-                    "org.freedesktop.DBus.NameHasOwner", "string:org.freedesktop.secrets",
-                    env=host.environment, stdout=asyncio.subprocess.PIPE,
+                    "dbus-send",
+                    "--session",
+                    "--print-reply",
+                    "--dest=org.freedesktop.DBus",
+                    "/org/freedesktop/DBus",
+                    "org.freedesktop.DBus.NameHasOwner",
+                    "string:org.freedesktop.secrets",
+                    env=host.environment,
+                    stdout=asyncio.subprocess.PIPE,
                 )
                 output, _ = await check.communicate()
                 if check.returncode == 0 and b"boolean true" in output:
@@ -95,8 +112,16 @@ class Host:
         if binary is None or not Path(binary).is_file():
             raise RuntimeError("Start SDK Host: Build Host Fixtures or Set DOKIME_TEST_HOST To the Prepared Host Binary")
         host.process = await asyncio.create_subprocess_exec(
-            binary, "--endpoint", "127.0.0.1:0", "--storage", str(Path(host.root.name) / "evidence"), "--controlled-clock",
-            env=host.environment, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, creationflags=host.flags,
+            binary,
+            "--endpoint",
+            "127.0.0.1:0",
+            "--storage",
+            str(Path(host.root.name) / "evidence"),
+            "--controlled-clock",
+            env=host.environment,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            creationflags=host.flags,
         )
         url = (await host.process.stdout.readline()).decode().strip()
         if not url.startswith("http://127.0.0.1:"):

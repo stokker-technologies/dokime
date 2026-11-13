@@ -51,7 +51,9 @@ def main() -> None:
         raise ValueError("build:python must export exactly one Python wheel")
     environment = dict(os.environ)
     environment["HARMOS_AUDIENCE"] = "host"
-    environment["DOKIME_TEST_HOST"] = str(paths.output(root, "build", options.profile) / "fixtures/host" / ("dokime-host-next.exe" if os.name == "nt" else "dokime-host-next"))
+    environment["DOKIME_TEST_HOST"] = str(
+        paths.output(root, "build", options.profile) / "fixtures/host" / ("dokime-host-next.exe" if os.name == "nt" else "dokime-host-next")
+    )
     environment.pop("PYTHONPATH", None)
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     environment.pop("VIRTUAL_ENV", None)
