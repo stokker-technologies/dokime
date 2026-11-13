@@ -19,6 +19,7 @@ mod operator_discovers_operations;
 mod operator_diagnoses_storage;
 mod operator_inspects_contract;
 mod operator_identifies_build;
+mod operator_pairs_with_host;
 mod remote_first_hour;
 mod scaffold;
 

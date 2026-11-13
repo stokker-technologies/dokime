@@ -112,7 +112,8 @@ impl Command {
 
 pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::Client::from_channel(channel, settings.client())?;
+    let mut client = dokime::Client::from_channel(channel, settings.client())?;
+    if let Some(pairing) = &settings.pairing { client = client.authorization(pairing.authorization()?); }
     match command {
         Command::Call { operation, json, input_file } => {
             let discovered = find(&client, &operation).await?;
@@ -146,7 +147,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
             }
             let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method).parse()
                 .map_err(|error| format!("{operation}: Invalid gRPC Mapping: {error}"))?;
-            let reply: WireMessage = client.transport_handle().unary(path, tonic::Request::new(WireMessage(request.encode_to_vec())), response.clone())
+            let reply: WireMessage = client.transport_handle().unary(path, settings.request(WireMessage(request.encode_to_vec())), response.clone())
                 .await?.into_inner();
             if reply.0.len() > settings.retained_bytes.get() {
                 return Err(crate::error::Error::Capacity(format!("{operation}: Response Exceeds retained_bytes")));

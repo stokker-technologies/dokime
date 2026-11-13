@@ -281,8 +281,7 @@ paging flags. `operation show ID --json` inspects the same contract, including
 visibility, policy, protobuf descriptors and readable request/response field shapes.
 `operation call ID --json '{}'` validates a unary Public request using its admitted
 descriptors and calls its admitted gRPC mapping through the SDK generic transport,
-then prints the typed JSON response. Use `--input-file
-request.json` for file input. Stream contracts require the typed streaming client;
+then prints the typed JSON response. Use `--input-file request.json` for file input. Stream contracts require the typed streaming client;
 refusals name the requested operation. Policies run on the host; the CLI adds no
 mutation retries.
 
@@ -299,6 +298,25 @@ from a bounded copy of its SQLite files under the root lease. Stop the host firs
 The original root is never opened for recovery or changed; missing roots are not
 created. `retained_bytes` bounds the database copy. Incompatible roots produce a
 failed report and backup/fresh-root or explicit-reset guidance.
+
+Export access with `dokime-next --endpoint URL access pairing export --label Operator
+--out operator.dokime-remote --json`. It enables the host's saved TLS listener if
+needed, creates an independent Access pairing, and atomically writes a new secret
+file. Existing destinations are refused before creating a pairing. Publication
+failure revokes the pairing it just created; stdout contains only its ID and path.
+
+All remote commands accept `--remote operator.dokime-remote`, or read
+`DOKIME_REMOTE` when no explicit endpoint is supplied. The six-field JSON v1 format
+is `version`, `endpoints`, `backend_identifier`, `label`, `ca_certificate_pem` and
+`access_key`, bounded to 1 MiB. This candidate uses the task's `.dokime-remote`
+contract. Keep the file private. Endpoints are attempted in order; pinned TLS and
+backend identity must both pass before any command runs. No local credential or
+profile is created. Use the host's Access pairing deletion operation to revoke it.
+
+`plugin dev` serves an owned built process and closes it on stdin EOF or Ctrl+C.
+Detecting an unexpected exit and plugin-specific `.proto` source export await the
+host/API requests listed in the parity checklist; embedded product export remains
+`proto export --out proto`.
 
 ```sh
 dokime-next new first-plugin --lang rust

@@ -473,11 +473,11 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] `operation show`: inspect identity, visibility, policy and shapes; `operator_inspects_contract`.
   - [x] `operation call`: invoke typed Public unary operations through the generic client; `operator_calls_operation`.
   - [x] `doctor storage`: probe scratch storage and validate a bounded frozen database copy; `operator_diagnoses_storage` proves original-byte preservation.
-  - [ ] `gui`: launch the native desktop.
+  - [ ] `gui`: waits for the desktop to return to the workspace.
   - [x] `version`: report compiled JSON/source/channel metadata; `operator_identifies_build`.
-  - [ ] Pairing-file connection and access pairing export.
-  - [ ] Installer packaging.
-  - [ ] Plugin development supervision and plugin-specific protocol export.
+  - [x] Pairing-file connection and access pairing export; `operator_pairs_with_host` proves pinned TLS, backend identity, product reads and revocation.
+  - [ ] Installer packaging: waits for desktop packaging restoration.
+  - [ ] Plugin development supervision and plugin-specific protocol export: waits for exit notification and source export described under Host Requests.
   - [ ] `execution export`: download a saved evidence archive and files.
   - [ ] `execution run`: drive interactive commands.
   - [x] `plan preview`: validate canonical protobuf JSON selection requests without registration.
@@ -493,6 +493,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [ ] Restore desktop/installer organization, licensing, signature and update journeys with native packaging.
   - [ ] Retain client-disconnection and partial-capture interruption tasks from removal section 5.3.
 - [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.
+
+### Host Requests
+
+- `Plugins.Watch` for the product-owned plugin inventory: request `{plugin_id, after_revision}`; event `{plugin_id, revision, state, reason}` ending on host shutdown. `plugin dev` needs unexpected-exit notification; the current local `PluginProcess` exposes start/describe/close but no wait handle, and the library plugin inventory is not composed with product entries.
+- `Plugins.ExportProtocol`: request `{plugin_id}`; response `{files: [{path, source}]}` for the plugin's authoritative `.proto` source closure. `proto export --plugin ID --out PATH` needs source files; current descriptions expose descriptor sets, not `.proto` sources. Product-wide embedded export already works.
+- `Invocations.Invoke`: request `{operation, fingerprint, payload}`; response `{payload}`. The SDK declares this generic service, but this head returns `UNIMPLEMENTED`; Public unary operations with admitted gRPC mappings already work through `operation call`, while Public contracts without a mapping await this host route.
 
 ## Remaining Source Policy Proof
 

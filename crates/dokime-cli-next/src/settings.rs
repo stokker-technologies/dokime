@@ -44,6 +44,12 @@ use dokime_runtime_next::{
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct Settings {
     pub endpoint: Option<String>,
+
+    #[serde(skip)]
+    pub remote: Option<PathBuf>,
+
+    #[serde(skip)]
+    pub pairing: Option<crate::commands::pairing::File>,
     pub storage: Option<PathBuf>,
     pub connect_timeout_s: u64,
     pub read_timeout_s: u64,
@@ -68,6 +74,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             endpoint: None,
+            remote: None,
+            pairing: None,
             storage: None,
             connect_timeout_s: 30,
             read_timeout_s: 30,
@@ -136,9 +144,28 @@ impl Settings {
             input_bytes: self.message_bytes,
         }
     }
+    pub fn request<T>(&self, value: T) -> tonic::Request<T> {
+        let mut request = tonic::Request::new(value);
+        if let Some(pairing) = &self.pairing {
+            request.metadata_mut().insert("authorization", pairing.authorization().expect("Validated Pairing Key"));
+        }
+        request
+    }
+    pub fn interceptor(&self) -> impl tonic::service::Interceptor + Clone + use<> {
+        let authorization = self.pairing.as_ref().map(|pairing| pairing.authorization().expect("Validated Pairing Key"));
+        move |mut request: tonic::Request<()>| {
+            if let Some(authorization) = &authorization {
+                request.metadata_mut().insert("authorization", authorization.clone());
+            }
+            Ok(request)
+        }
+    }
     pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<tonic::transport::Channel> {
+        if let Some(pairing) = &self.pairing {
+            return pairing.channel(self, streaming).await;
+        }
         let endpoint =
-            endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --endpoint http://HOST:PORT or Configure endpoint".into()))?;
+            endpoint.ok_or_else(|| crate::error::Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into()))?;
         let timeout = if streaming { self.watch_timeout_s } else { self.mutation_timeout_s.max(self.read_timeout_s) };
         let channel = tonic::transport::Endpoint::from_shared(endpoint)?
             .connect_timeout(Duration::from_secs(self.connect_timeout_s))

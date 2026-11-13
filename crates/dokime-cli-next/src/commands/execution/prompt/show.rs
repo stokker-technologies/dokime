@@ -47,8 +47,8 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::client::HostClient::new(channel, settings.client())?;
-    let value = client.prompts.get(args.prompt).await?;
+    let mut client = dokime::v1::prompts_client::PromptsClient::with_interceptor(channel, settings.interceptor());
+    let value = client.get_prompt(dokime::v1::PromptsGetPromptRequest { prompt_id: args.prompt }).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

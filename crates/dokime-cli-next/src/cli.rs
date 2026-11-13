@@ -38,6 +38,9 @@ pub(crate) struct Cli {
     #[arg(long, global = true, help = "Host URL for Remote Commands, or HOST:PORT for Hosting")]
     pub endpoint: Option<String>,
 
+    #[arg(long, global = true, conflicts_with = "endpoint", help = "Portable .dokime-remote Pairing File")]
+    pub remote: Option<PathBuf>,
+
     #[arg(long, global = true, help = "TOML Configuration File")]
     pub config: Option<PathBuf>,
 

@@ -69,7 +69,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
 
     // Let the Host Own Validation and Registration
     let channel = settings.channel(endpoint, false).await?;
-    let reply = v1::planning_client::PlanningClient::new(channel).preview_selection(request).await?.into_inner();
+    let reply = v1::planning_client::PlanningClient::with_interceptor(channel, settings.interceptor()).preview_selection(request).await?.into_inner();
     if let Some(path) = args.out {
         let bytes = reply.encode_to_vec();
         if bytes.len() > settings.retained_bytes.get() {

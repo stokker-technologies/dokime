@@ -17,6 +17,7 @@ mod doctor;
 mod execution;
 mod new;
 mod operation;
+pub(crate) mod pairing;
 mod plan;
 mod plugin;
 mod proto;
@@ -70,6 +71,9 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Doctor(doctor::Command),
 
+    #[command(subcommand)]
+    Access(pairing::Command),
+
     Status(status::Args),
     Version(version::Args),
 
@@ -93,6 +97,7 @@ impl Command {
             Self::Cycle(command) => command.action(),
             Self::Execution(command) => command.action(),
             Self::Doctor(_) => "Diagnose Storage",
+            Self::Access(_) => "Export Access Pairing",
             Self::Status(_) => "Read Host Status",
             Self::Version(_) => "Read Build Version",
             Self::Operation(command) => command.action(),
@@ -102,7 +107,10 @@ impl Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: crate::settings::Settings) -> crate::Result<()> {
+    if !matches!(command, Command::New(_) | Command::Server(_) | Command::Doctor(_) | Command::Version(_) | Command::Proto(_)) {
+        settings.pairing = settings.remote.as_deref().map(pairing::File::read).transpose()?;
+    }
     match command {
         Command::New(args) => new::run(args).await,
         Command::Server(args) => server::run(args, endpoint, settings).await,
@@ -112,6 +120,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Plan(command) => plan::run(command, endpoint, settings).await,
         Command::Cycle(command) => cycle::run(command, endpoint, settings).await,
         Command::Execution(command) => execution::run(command, endpoint, settings).await,
+        Command::Access(command) => pairing::run(command, endpoint, settings).await,
         Command::Doctor(command) => doctor::run(command, settings).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
         Command::Version(args) => version::run(args),
