@@ -145,22 +145,6 @@ A capture that ends early SHALL publish a warning record of type `dokime.files.c
 - **WHEN** a running capture exceeds a limit and nothing stops it
 - **THEN** the execution's evidence holds a failure record with the reason, and what the capture held seals
 
-### Requirement: FTP Behind a Feature
-
-The FTP implementation and its dependencies SHALL compile only with the `ftp` feature, which `native` SHALL NOT include and shipped server, desktop and CLI builds SHALL enable. The wire shape SHALL NOT depend on the feature. A build without the feature SHALL refuse an FTP location with the `UNSUPPORTED` code. With the feature, FTP sources SHALL keep their landed trust, secret-store, password-refusal and resume behavior.
-
-#### Scenario: Plugin Sidecar Builds Without FTP
-- **WHEN** a plugin depends only on `dokime/plugin-sidecar`
-- **THEN** its dependency graph excludes `suppaftp`, and its operation contracts equal those of a host built with `ftp`
-
-#### Scenario: FTP Refused Without the Feature
-- **WHEN** a request names an FTP location on a build without `ftp`
-- **THEN** it is refused with `UNSUPPORTED` before any connection
-
-#### Scenario: Shipped Host Reads FTP
-- **WHEN** a step requests an FTP source from a shipped host
-- **THEN** the source opens under the landed trust and secret-store rules
-
 ### Requirement: Capture Limits Come From Configuration
 
 Requests SHALL NOT carry file limits, byte limits or a `Stream` poll interval. Those values and the capture capacity SHALL come from typed configuration with one default each. Exceeding a limit SHALL fail explicitly and retain captured evidence.
