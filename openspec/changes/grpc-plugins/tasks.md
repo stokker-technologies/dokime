@@ -496,7 +496,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 
 ## Remaining Source Policy Proof
 
-- [x] Remove disposable Windows root credentials through product-owned access/secret removal, wire host/CLI/Python SDK/starter failure teardown, and prove named credentials are unreadable after normal and failed story disposal. Inventory: storage administration, operations secret owner, runtime access/composition/host executable, shared story root support and consumers, Python host support, architecture/execution-host/tooling guides. Normal shutdown retains restart credentials.
+- [x] Remove disposable Windows root credentials through product-owned access/secret removal, wire host/CLI/Python SDK/starter failure teardown, and prove named credentials are unreadable after normal and failed story disposal. Inventory: storage administration, operations secret owner, runtime access/composition/host executable, shared story root support and consumers, Python host support, architecture/execution-host/tooling guides. Normal shutdown retains restart credentials. Each owner journals native slot ownership before writes and retains cleanup intents for staged, active and retired credentials; the disposal journey also removes publication pointers before failed teardown and includes nested and storage-only roots.
 
 - [ ] Resolve project-wide native desktop dependency/source findings when its host switch restores workspace ownership; do not restore deleted loop dependencies to make the dormant manifest parse.
 - [ ] Reconcile generated protocol source auditing with generator ownership; keep the protocol drift stories and never hand-format generated bindings.

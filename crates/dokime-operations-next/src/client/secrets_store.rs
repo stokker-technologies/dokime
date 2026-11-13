@@ -62,6 +62,14 @@ struct Slot {
     slot: String,
 }
 
+#[derive(Clone, PartialEq, Message)]
+struct KeySlots {
+    #[prost(string, tag = "1")]
+    host_id: String,
+    #[prost(string, repeated, tag = "2")]
+    slots: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
@@ -110,13 +118,21 @@ pub(super) enum Reply {
 
 pub fn remove_root_secrets(store: &dokime_storage::Store) -> Result<()> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
-    for slot in &catalog.entries {
-        let entry = keyring::Entry::new(SERVICE, &format!("{}:{}", catalog.host_id, slot.slot)).map_err(|_| unavailable())?;
+    let journal: KeySlots = store.administration("secret-key-slots")?.unwrap_or_default();
+    let accounts: BTreeSet<_> = catalog
+        .entries
+        .iter()
+        .map(|slot| format!("{}:{}", catalog.host_id, slot.slot))
+        .chain(journal.slots.iter().map(|slot| format!("{}:{slot}", journal.host_id)))
+        .collect();
+    for account in accounts {
+        let entry = keyring::Entry::new(SERVICE, &account).map_err(|_| unavailable())?;
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(_) => return Err(unavailable()),
         }
     }
+    store.delete_administration("secret-key-slots")?;
     store.delete_administration("secrets")?;
     Ok(())
 }
@@ -228,6 +244,8 @@ fn lookup(context: &Context, catalog: &Catalog, id: &str) -> Result<Zeroizing<St
     Ok(result)
 }
 fn snapshot(context: &Context, catalog: &Catalog, cleanup_pending: bool) -> Result<v1::SecretSnapshot> {
+    let journal: KeySlots = context.host.store().administration("secret-key-slots")?.unwrap_or_default();
+    let cleanup_pending = cleanup_pending || journal.slots.iter().any(|slot| !catalog.entries.iter().any(|entry| &entry.slot == slot));
     let plugins = context.host.plugins()?;
     let mut uses: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for plugin in plugins {
@@ -461,6 +479,19 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
     }
     next.generation =
         previous.generation.checked_add(1).ok_or_else(|| invalid("Back Up Secret Storage Before Resetting an Exhausted Generation"))?;
+    // Own Every Native Slot Durably Before Writing Any Protected Value.
+    let mut journal: KeySlots = store.administration("secret-key-slots")?.unwrap_or_default();
+    if (!journal.host_id.is_empty() && journal.host_id != next.host_id)
+        || (!previous.host_id.is_empty() && previous.host_id != next.host_id)
+    {
+        return Err(invalid("Restore the Original Backend Identity Before Changing Secrets"));
+    }
+    journal.host_id = next.host_id.clone();
+    journal.slots.extend(previous.entries.iter().map(|slot| slot.slot.clone()));
+    journal.slots.extend(staged.iter().map(|(slot, _)| slot.clone()));
+    journal.slots.sort();
+    journal.slots.dedup();
+    store.save_administration("secret-key-slots", &journal)?;
     for (slot, secret) in &staged {
         let written = entry(context, slot)?.set_password(secret);
         let confirmed = written.is_ok()
@@ -480,11 +511,20 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
         return Err(Error::Conflict("Secret Storage: Refresh the Secret Catalog Before Saving This Change".into()));
     }
     let mut cleanup_pending = false;
-    for slot in previous.entries {
-        if next.entries.iter().any(|next| next.slot == slot.slot) {
-            continue;
+    journal.slots.retain(|slot| {
+        if next.entries.iter().any(|next| &next.slot == slot) {
+            return true;
         }
-        cleanup_pending |= !matches!(entry(context, &slot.slot)?.delete_credential(), Ok(()) | Err(keyring::Error::NoEntry));
+        let removed = keyring::Entry::new(SERVICE, &format!("{}:{slot}", journal.host_id)).and_then(|entry| entry.delete_credential());
+        if matches!(removed, Ok(()) | Err(keyring::Error::NoEntry)) {
+            return false;
+        }
+        cleanup_pending = true;
+        true
+    });
+    if let Err(error) = store.save_administration("secret-key-slots", &journal) {
+        cleanup_pending = true;
+        tracing::warn!(%error, "Record Secret Credential Cleanup: Retained Its Earlier Write Intents");
     }
     Ok(Reply::Snapshot(snapshot(context, &next, cleanup_pending)?))
 }

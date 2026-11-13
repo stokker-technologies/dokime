@@ -123,7 +123,7 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     if !root.join("backend-id").is_file() {
         return Ok(());
     }
-    let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.join("local.lock"))?;
+    let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
     match lease.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),

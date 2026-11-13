@@ -74,6 +74,12 @@ struct SavedPairing {
     credential_sha256: Vec<u8>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+struct KeySlots {
+    #[prost(string, repeated, tag = "1")]
+    slots: Vec<String>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -89,12 +95,32 @@ impl Store {
     }
 
     pub(super) fn remove(&self) -> crate::Result<()> {
-        if let Some(value) = self.storage.administration::<Snapshot>("access")? {
-            match self.key(&value.key_slot).and_then(|key| key.delete_credential()) {
+        self.remove_keys(None)?;
+        self.storage.delete_administration("access")?;
+        Ok(())
+    }
+
+    fn remove_keys(&self, retained: Option<&str>) -> crate::Result<()> {
+        let mut slots = self.storage.administration::<KeySlots>("access-key-slots")?.unwrap_or_default();
+        if let Some(value) = self.storage.administration::<Snapshot>("access")?
+            && !slots.slots.contains(&value.key_slot)
+        {
+            slots.slots.push(value.key_slot);
+        }
+        for slot in &slots.slots {
+            if retained == Some(slot.as_str()) {
+                continue;
+            }
+            match self.key(slot).and_then(|key| key.delete_credential()) {
                 Ok(()) | Err(keyring::Error::NoEntry) => {}
                 Err(error) => return Err(crate::Error::Invalid(format!("Remove Root Access Credential: {error}"))),
             }
-            self.storage.delete_administration("access")?;
+        }
+        slots.slots.retain(|slot| retained == Some(slot.as_str()));
+        if slots.slots.is_empty() {
+            self.storage.delete_administration("access-key-slots")?;
+        } else {
+            self.storage.save_administration("access-key-slots", &slots)?;
         }
         Ok(())
     }
@@ -134,6 +160,15 @@ impl CredentialStore for Store {
             let key_slot = uuid::Uuid::now_v7().to_string();
             let key = self.key(&key_slot)?;
             let private_key = Zeroizing::new(value.private_key_pem);
+            // Persist Ownership Before Crossing Into the Native Credential Store.
+            let mut slots = self.storage.administration::<KeySlots>("access-key-slots")?.unwrap_or_default();
+            if let Some(previous) = &previous
+                && !slots.slots.contains(&previous.key_slot)
+            {
+                slots.slots.push(previous.key_slot.clone());
+            }
+            slots.slots.push(key_slot.clone());
+            self.storage.save_administration("access-key-slots", &slots)?;
             key.set_password(&private_key)?;
             let snapshot = Snapshot {
                 revision: value.revision,
@@ -154,18 +189,19 @@ impl CredentialStore for Store {
             match self.storage.compare_administration("access", previous.as_ref(), &snapshot) {
                 Ok(true) => {}
                 outcome => {
-                    let _ = key.delete_credential();
+                    if let Err(error) = key.delete_credential()
+                        && !matches!(error, keyring::Error::NoEntry)
+                    {
+                        tracing::warn!(%error, "Remove Unpublished Access Key: Retained Its Cleanup Intent");
+                    }
                     return match outcome {
                         Err(error) => Err(error.into()),
                         _ => Err(std::io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into()),
                     };
                 }
             }
-            if let Some(previous) = previous {
-                // The Saved Pointer Owns Publication; an Unreferenced Old Key Cannot Restore Access.
-                if let Err(error) = self.key(&previous.key_slot).and_then(|key| key.delete_credential()) {
-                    tracing::warn!(%error, "Remove Retired Access Key: Credential Store Cleanup Failed");
-                }
+            if let Err(error) = self.remove_keys(Some(&snapshot.key_slot)) {
+                tracing::warn!(%error, "Remove Retired Access Key: Retained Its Cleanup Intent");
             }
             Ok(())
         })

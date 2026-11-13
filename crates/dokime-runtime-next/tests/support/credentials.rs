@@ -191,11 +191,10 @@ pub fn tempdir() -> std::io::Result<Root> {
 fn remove_credentials(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if root.join("backend-id").is_file() {
         // A Dropped Child Has Been Killed; Await Release Before Discarding Its Root.
-        let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.join("local.lock"))?;
+        let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
         lease.lock()?;
         drop(lease);
         dokime_runtime_next::services::remove_credentials(root)?;
-        return Ok(());
     }
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
