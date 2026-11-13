@@ -251,6 +251,51 @@ impl Entry {
 
 /* === Public Functions === */
 
+// Materialize a Case Against Its Admitted Catalog
+pub(crate) async fn materialize(
+    entry: std::sync::Arc<Entry>, template: &str, parameters: std::collections::HashMap<String, v1::Value>, settings: &crate::HostSettings,
+) -> Result<v1::Origin> {
+    let definition = entry.template(template)?;
+    let dispatch = crate::dispatch::Dispatch {
+        entry: entry.clone(),
+        resources: None,
+        cancellation: tokio_util::sync::CancellationToken::new(),
+        settings: settings.placement.clone(),
+        clock: settings.clock.clone(),
+    };
+    let test_case: v1::TestCase = dispatch
+        .invoke(
+            &definition.materialize,
+            v1::MaterializeRequest {
+                template: template.into(),
+                parameters: parameters.clone(),
+            },
+        )
+        .await?;
+    if test_case.parameters != parameters {
+        return Err(Error::Invalid("Materialize Without Changing the Resolved Parameter Set".into()));
+    }
+    let catalog = entry.description.catalog.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?;
+    for operation in
+        test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
+    {
+        if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == h::Visibility::Private as i32) {
+            return Err(Error::Invalid(format!("Declare the Materialized Operation {operation} as Private")));
+        }
+    }
+    let run = v1::PluginRun {
+        test_case: Some(test_case),
+        plugin: entry.description.id.clone(),
+        template: template.into(),
+        digest: catalog.digest.clone(),
+        started_at: entry.description.started_at,
+    };
+    run.validate().map_err(Error::Invalid)?;
+    Ok(v1::Origin {
+        kind: Some(v1::origin::Kind::PluginRun(run)),
+    })
+}
+
 pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<h::Description> {
     let mut client = connect(endpoint, settings).await?;
     let response = client

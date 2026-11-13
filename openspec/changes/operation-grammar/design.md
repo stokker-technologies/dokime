@@ -461,11 +461,15 @@ contributed to Status use registration, not duplicate identity/health services.
 
 | Product Owner | Responsibility and Service Routing |
 | --- | --- |
-| Execution manager | Queueing, lifecycle, retries, Stop/Cancel, recovery; Executions, Cases and Cycles operations call it where lifecycle is involved. Decide whether cycles belong here or in a small cycle manager at the split, using the simplest complete option. |
+| Execution manager | Queueing, lifecycle, retries, Stop/Cancel, recovery; Executions, Cases and Cycles operations call it where lifecycle is involved. Cycles group this manager's tasks; no separate cycle scheduler is needed. |
 | Prompt manager | Pending operator questions; Prompts operations. |
 | Report manager | Atomic publication; Reports.Publish. Rendering is a pure function with no manager. |
 | Capture manager, only if recordings remain | Media.Captures recording lifecycle; preserve currently supported capture behavior and explicit unsupported-kind refusals. |
 | Storage operations, no manager | Evidence, Catalog, notes, Aggregates, Plots and Documents; product settings/secrets and metadata operations also use storage unless an existing live owner is involved. |
+
+Split decision (2026-11-13): cycles belong to the execution manager because they
+only group its execution tasks; the additive host has no live recordings, so no
+capture manager is introduced (existing Media refusals remain).
 
 Split `crates/dokime-runtime-next/src/host.rs::Host/Inner` and
 `services/state.rs::State` along those owners. Composition assembles handles;
@@ -1201,9 +1205,8 @@ header is stale. Generated availability is not proof of application consumption.
 ## Open Questions During Implementation
 
 Settings/secrets ownership and all four hierarchical client roots are locked,
-not open questions. Cycle-manager ownership is intentionally chosen at the manager
-split by the simplest complete option; whether a capture manager is needed follows
-whether recordings remain. The following protocol questions remain open.
+not open questions. The manager split keeps cycles with execution; the additive
+host has no live recordings and adds no capture manager. The following protocol questions remain open.
 Settle each when its implementation is reached;
 they do not block the rest of the locked work. Snippets and counts do not settle
 these contracts or claim implementation.

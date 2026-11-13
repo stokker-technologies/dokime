@@ -20,14 +20,15 @@ use std::sync::Arc;
 
 // Third Party Imports
 use prost::Message;
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::{
-    Error, Host, Result,
+    Error, Result,
     dispatch::Dispatch,
-    host::{Active, lock},
+    execution_manager::{Active, ExecutionManager},
+    host::lock,
     plugin::Entry,
     streams::ExecutionTime,
 };
@@ -46,7 +47,7 @@ use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 pub struct Cycle {
     pub identifier: String,
     pub executions: Vec<String>,
-    task: JoinHandle<Result<CycleResult>>,
+    result: tokio::sync::oneshot::Receiver<Result<CycleResult>>,
 }
 #[derive(Debug)]
 pub struct CycleResult {
@@ -55,7 +56,7 @@ pub struct CycleResult {
     pub counts: OutcomeCounts,
 }
 struct ActiveRun {
-    host: Host,
+    host: ExecutionManager,
     execution: String,
 }
 
@@ -79,7 +80,7 @@ pub enum RunState {
 
 impl Cycle {
     pub async fn wait(self) -> Result<CycleResult> {
-        self.task.await?
+        self.result.await.map_err(|_| Error::Invalid("Wait for Cycle: Inspect the Failed Execution Task".into()))?
     }
 }
 impl Drop for ActiveRun {
@@ -88,14 +89,13 @@ impl Drop for ActiveRun {
             active.remove(&self.execution);
         }
         self.host.inner.prompts.clear(&self.execution);
-        self.host.inner.idle.notify_waiters();
         self.host.signal_change();
     }
 }
 
 /* === Public Functions === */
 
-pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle> {
+pub(crate) async fn start(host: ExecutionManager, origins: Vec<v1::Origin>) -> Result<Cycle> {
     if origins.is_empty() {
         return Err(Error::Invalid("Materialize at Least One Test Case Before Starting a Cycle".into()));
     }
@@ -125,6 +125,7 @@ pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle>
             ..Default::default()
         })
         .collect();
+    host.register_cycle(&identifier)?;
     host.inner.store.create_executions(&admitted)?;
     let executions = admitted.iter().map(|execution| execution.identifier.clone()).collect();
     {
@@ -140,14 +141,10 @@ pub(crate) async fn start(host: Host, origins: Vec<v1::Origin>) -> Result<Cycle>
             );
         }
     }
-    Ok(launch(host, identifier, executions, prepared))
+    launch(host, identifier, executions, prepared)
 }
 
-pub(crate) async fn start_existing(host: Host, execution: &str) -> Result<Cycle> {
-    start_existing_mode(host, execution, v1::ExecutionMode::Automatic).await
-}
-
-pub(crate) async fn start_existing_mode(host: Host, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
+pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
     if cut.state != dokime_storage::ExecutionState::Open || cut.frontier != 0 {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
@@ -163,6 +160,7 @@ pub(crate) async fn start_existing_mode(host: Host, execution: &str, mode: v1::E
     {
         return Err(Error::Invalid("Start Execution: Rematerialize the Changed Plugin Catalog into New Execution Evidence".into()));
     }
+    host.register_cycle(&cut.execution.cycle)?;
     {
         let mut active = lock(&host.inner.active)?;
         if active.contains_key(execution) {
@@ -181,57 +179,116 @@ pub(crate) async fn start_existing_mode(host: Host, execution: &str, mode: v1::E
             },
         );
     }
-    Ok(launch(host, cut.execution.cycle, vec![execution.into()], vec![(execution.into(), origin, entry)]))
+    launch(host, cut.execution.cycle, vec![execution.into()], vec![(execution.into(), origin, entry)])
 }
 
 /* === Private Functions === */
 
-fn launch(host: Host, identifier: String, executions: Vec<String>, prepared: Vec<(String, v1::Origin, Arc<Entry>)>) -> Cycle {
-    let task = tokio::spawn(async move {
-        let mut workers = JoinSet::new();
-        for (index, (execution, origin, entry)) in prepared.into_iter().enumerate() {
-            let host = host.clone();
-            workers.spawn(async move {
-                let result = drive(host.clone(), execution.clone(), origin, entry).await;
-                if result.is_err() {
-                    let cut = host.inner.store.cut(&execution)?;
-                    if cut.state == dokime_storage::ExecutionState::Open {
-                        host.inner.store.close_streams(&execution)?;
-                        host.inner.store.close(
-                            &execution,
-                            v1::Termination::Interrupted,
-                            v1::ExecutionOutcome {
-                                attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
-                                    termination: v1::Termination::Interrupted as i32,
-                                    reason: "Execution Infrastructure Failed; Inspect the Host Diagnostic".into(),
-                                })),
-                            },
-                        )?;
-                        host.inner.store.seal(&execution)?;
+fn launch(
+    host: ExecutionManager, identifier: String, executions: Vec<String>, prepared: Vec<(String, v1::Origin, Arc<Entry>)>,
+) -> Result<Cycle> {
+    host.track(&executions)?;
+    let (send, result) = tokio::sync::oneshot::channel();
+    let owner = host.clone();
+    let observed = executions.clone();
+    owner.spawn(async move {
+        let result = async {
+            let mut workers = JoinSet::new();
+            for (index, (execution, origin, entry)) in prepared.into_iter().enumerate() {
+                let host = host.clone();
+                workers.spawn(async move {
+                    let result = drive(host.clone(), execution.clone(), origin, entry).await;
+                    if result.is_err() {
+                        let cut = host.inner.store.cut(&execution)?;
+                        if cut.state == dokime_storage::ExecutionState::Open {
+                            host.inner.store.close_streams(&execution)?;
+                            host.inner.store.close(
+                                &execution,
+                                v1::Termination::Interrupted,
+                                v1::ExecutionOutcome {
+                                    attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
+                                        termination: v1::Termination::Interrupted as i32,
+                                        reason: "Execution Infrastructure Failed; Inspect the Host Diagnostic".into(),
+                                    })),
+                                },
+                            )?;
+                            host.inner.store.seal(&execution)?;
+                        }
+                    }
+                    host.finish_progress(&execution, result.as_ref().err().map(ToString::to_string))?;
+                    Ok::<_, Error>((index, result))
+                });
+            }
+            let mut finished = Vec::new();
+            let mut failure = None;
+            while let Some(result) = workers.join_next().await {
+                match result {
+                    Ok(Ok((index, result))) => match result {
+                        Ok(result) => finished.push((index, result)),
+                        Err(error) => {
+                            failure.get_or_insert(error);
+                        }
+                    },
+                    Ok(Err(error)) => {
+                        failure.get_or_insert(error);
+                    }
+                    Err(error) => {
+                        failure.get_or_insert(Error::Join(error));
                     }
                 }
-                Ok::<_, Error>((index, result))
-            });
+            }
+            if let Some(error) = failure {
+                return Err(error);
+            }
+            finished.sort_by_key(|(index, _)| *index);
+            let mut snapshots = Vec::new();
+            let mut states = Vec::new();
+            for (_, (snapshot, execution_states)) in finished {
+                snapshots.push(snapshot);
+                states.extend(execution_states);
+            }
+            let counts = OutcomeCounts::from_outcomes(snapshots.iter().filter_map(|snapshot| snapshot.execution.outcome.as_ref()));
+            Ok(CycleResult { executions: snapshots, states, counts })
         }
-        let mut finished = Vec::new();
-        while let Some(result) = workers.join_next().await {
-            let (index, result) = result??;
-            finished.push((index, result?));
+        .await;
+        // Settle Every Admitted Execution Even If a Worker Failed to Join
+        let mut result = result;
+        for execution in observed {
+            let settled = (|| -> Result<()> {
+                let cut = host.inner.store.cut(&execution)?;
+                if cut.state == dokime_storage::ExecutionState::Open {
+                    host.inner.store.close_streams(&execution)?;
+                    host.inner.store.close(
+                        &execution,
+                        v1::Termination::Interrupted,
+                        v1::ExecutionOutcome {
+                            attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
+                                termination: v1::Termination::Interrupted as i32,
+                                reason: "Execution Worker Failed; Inspect the Host Diagnostic".into(),
+                            })),
+                        },
+                    )?;
+                }
+                if host.inner.store.cut(&execution)?.state == dokime_storage::ExecutionState::Closed {
+                    host.inner.store.seal(&execution)?;
+                }
+                Ok(())
+            })();
+            if let Err(error) = settled {
+                result = Err(error);
+            }
+            if let Err(error) = host.finish_progress(&execution, result.as_ref().err().map(ToString::to_string)) {
+                result = Err(error);
+            }
         }
-        finished.sort_by_key(|(index, _)| *index);
-        let mut snapshots = Vec::new();
-        let mut states = Vec::new();
-        for (_, (snapshot, execution_states)) in finished {
-            snapshots.push(snapshot);
-            states.extend(execution_states);
-        }
-        let counts = OutcomeCounts::from_outcomes(snapshots.iter().filter_map(|snapshot| snapshot.execution.outcome.as_ref()));
-        Ok(CycleResult { executions: snapshots, states, counts })
-    });
-    Cycle { identifier, executions, task }
+        let _ = send.send(result);
+    })?;
+    Ok(Cycle { identifier, executions, result })
 }
 
-async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Entry>) -> Result<(ExecutionSnapshot, Vec<RunState>)> {
+async fn drive(
+    host: ExecutionManager, execution: String, origin: v1::Origin, entry: Arc<Entry>,
+) -> Result<(ExecutionSnapshot, Vec<RunState>)> {
     let mut states = Vec::new();
     let _active = ActiveRun {
         host: host.clone(),

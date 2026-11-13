@@ -41,10 +41,10 @@ use dokime_protocol::v1;
 
 impl State {
     pub(super) fn saved_installations(&self) -> Result<v1::InstallationPage> {
-        Ok(self.host.inner.store.administration("plugin-installations")?.unwrap_or_default())
+        Ok(self.host.store.administration("plugin-installations")?.unwrap_or_default())
     }
     pub(super) fn managed_executables(&self) -> Result<v1::MapValue> {
-        Ok(self.host.inner.store.administration("managed-executables")?.unwrap_or_default())
+        Ok(self.host.store.administration("managed-executables")?.unwrap_or_default())
     }
     pub(super) fn managed_executable(&self, identifier: &str) -> Result<std::path::PathBuf> {
         let values = self.managed_executables()?;
@@ -177,7 +177,7 @@ impl State {
             ..Default::default()
         };
         installations.installations.push(installation);
-        self.host.inner.store.save_plugin_administration(&entries, &installations, &executables)?;
+        self.host.store.save_plugin_administration(&entries, &installations, &executables)?;
         self.host.signal_change();
         if let Some(previous) = &previous {
             let previous_entry = self.saved_entries()?.plugins.into_iter().find(|entry| entry.entry == previous.install_id);
@@ -208,7 +208,7 @@ impl State {
                     current.state = v1::PluginInstallationState::RemovalPending as i32;
                     current.error = Some(connected.reason.clone());
                 }
-                self.host.inner.store.save_administration("plugin-installations", &installations)?;
+                self.host.store.save_administration("plugin-installations", &installations)?;
             }
         } else if let Some(previous) = previous {
             // Replace the Entry Without Removing Frozen Execution Evidence or Saved Settings.
@@ -244,7 +244,7 @@ impl State {
         }
         installation.state = if enabled { v1::PluginInstallationState::Installed } else { v1::PluginInstallationState::Disabled } as i32;
         let entry = entry.clone();
-        self.host.inner.store.save_plugin_administration(&entries, &installations, &self.managed_executables()?)?;
+        self.host.store.save_plugin_administration(&entries, &installations, &self.managed_executables()?)?;
         self.host.signal_change();
         if enabled {
             let _ = self.connect_entry(entry).await?;
@@ -270,7 +270,7 @@ impl State {
             self.host.detach_plugin(&description.id).await.map_err(convert)?;
         }
         installation.state = v1::PluginInstallationState::RemovalPending as i32;
-        self.host.inner.store.save_administration("plugin-installations", &installations)?;
+        self.host.store.save_administration("plugin-installations", &installations)?;
         let folder = self.root.join("plugins").canonicalize().map_err(crate::Error::from).map_err(convert)?;
         let target = folder.join(identifier);
         if target.exists() {
@@ -293,14 +293,14 @@ impl State {
                 .iter()
                 .any(|entry| entry.entry != identifier && entry.description.as_ref().is_some_and(|other| other.id == description.id))
             {
-                self.host.inner.store.remove_plugin(&description.id)?;
+                self.host.store.remove_plugin(&description.id)?;
             }
         }
         entries.plugins.retain(|entry| entry.entry != identifier);
         installations.installations.retain(|installation| installation.install_id != identifier);
         let mut executables = self.managed_executables()?;
         executables.values.remove(identifier);
-        self.host.inner.store.save_plugin_administration(&entries, &installations, &executables)?;
+        self.host.store.save_plugin_administration(&entries, &installations, &executables)?;
         self.host.signal_change();
         Ok(())
     }
@@ -319,12 +319,7 @@ fn convert(error: crate::Error) -> Error {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
-    use std::{
-        collections::HashMap,
-        num::NonZeroUsize,
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     #[tokio::test]
     async fn cancelled_install_reaps_process_and_removes_bundle() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -389,21 +384,18 @@ mod tests {
             ..Default::default()
         };
         let temporary_report_limit = settings.max_cases;
-        let remote =
-            super::super::remote_access::Control::new(host.inner.store.clone(), identity.clone(), settings, administration.clone())?;
+        let remote = super::super::remote_access::Control::new(host.store.clone(), identity.clone(), settings, administration.clone())?;
         let state = State {
             host,
             administration,
             remote,
             root: storage.clone(),
             identity,
-            progress: Mutex::new(HashMap::new()),
             diagnostics: super::super::Diagnostics::new(clock, NonZeroUsize::new(100).unwrap(), placement.message_bytes),
             render_settings: crate::RenderSettings {
                 page_size: NonZeroUsize::new(100).unwrap(),
                 display_points: NonZeroUsize::new(100).unwrap(),
             },
-            temporary_reports: Mutex::new(std::collections::BTreeMap::new()),
             temporary_report_limit,
         };
 

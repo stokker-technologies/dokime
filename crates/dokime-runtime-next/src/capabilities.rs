@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Cycle, Error, Host, Result, host::lock};
+use crate::{Result, execution_manager::ExecutionManager, host::lock};
 use dokime_protocol::v1;
 use dokime_storage::ExecutionState;
 
@@ -47,44 +47,20 @@ pub struct ExecutionCapabilities {
 
 /* === Implementations === */
 
-impl Host {
+impl ExecutionManager {
     pub fn capabilities(&self, execution: &str) -> Result<ExecutionCapabilities> {
         let cut = self.inner.store.cut(execution)?;
         let plugin_run =
             matches!(cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(v1::origin::Kind::PluginRun(_)));
-        let active = lock(&self.inner.active)?.contains_key(execution);
+        let active = self.is_active(execution)?;
+        let running = lock(&self.inner.active)?.get(execution).map(|active| active.control.is_running()).transpose()?.unwrap_or(false);
         Ok(ExecutionCapabilities {
             start: plugin_run && cut.state == ExecutionState::Open && cut.frontier == 0 && !active,
             rerun: plugin_run && cut.state == ExecutionState::Sealed && !active,
-            cancel: plugin_run && active,
+            cancel: plugin_run && running,
             inspect: true,
             export: cut.state == ExecutionState::Sealed,
         })
-    }
-    pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
-        if !self.capabilities(execution)?.start {
-            return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence".into()));
-        }
-        crate::execution::start_existing(self.clone(), execution).await
-    }
-    pub async fn rerun(&self, execution: &str) -> Result<Cycle> {
-        if !self.capabilities(execution)?.rerun {
-            return Err(Error::Invalid("Rerun Execution: Select a Sealed PluginRun Execution".into()));
-        }
-        let origin = self
-            .inner
-            .store
-            .cut(execution)?
-            .execution
-            .origin
-            .ok_or_else(|| Error::Invalid("Rerun Execution: Supply Its Frozen Origin".into()))?;
-        self.start_cycle(vec![origin]).await
-    }
-    pub fn export_execution(&self, execution: &str) -> Result<Vec<u8>> {
-        if !self.capabilities(execution)?.export {
-            return Err(Error::Invalid("Export Execution: Seal the Execution Before Exporting Evidence".into()));
-        }
-        Ok(self.inner.store.export(execution)?)
     }
 }
 

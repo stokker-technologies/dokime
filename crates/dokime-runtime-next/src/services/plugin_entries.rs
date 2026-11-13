@@ -38,17 +38,17 @@ use dokime_protocol::v1;
 
 impl State {
     pub(super) fn saved_entries(&self) -> Result<v1::PluginEntries> {
-        Ok(self.host.inner.store.administration("plugin-entries")?.unwrap_or_default())
+        Ok(self.host.store.administration("plugin-entries")?.unwrap_or_default())
     }
     pub(super) fn save_entries(&self, entries: &v1::PluginEntries) -> Result<()> {
-        self.host.inner.store.save_administration("plugin-entries", entries)?;
+        self.host.store.save_administration("plugin-entries", entries)?;
         self.host.signal_change();
         Ok(())
     }
     pub(super) async fn connect_entry(&self, mut entry: v1::Plugin) -> Result<v1::Plugin> {
         let managed = matches!(entry.placement, Some(v1::plugin::Placement::Managed(_)));
-        let mut placement = self.host.inner.settings.placement.clone();
-        let preferences: Option<v1::SettingsSnapshot> = self.host.inner.store.administration("preferences")?;
+        let mut placement = self.host.settings.placement.clone();
+        let preferences: Option<v1::SettingsSnapshot> = self.host.store.administration("preferences")?;
         let preferences =
             preferences.unwrap_or_else(dokime_operations_next::client::settings_read_application_settings::initial_preferences);
         if let Some(plugins) = preferences.settings.and_then(|settings| settings.plugins) {
@@ -135,7 +135,7 @@ impl State {
                 }
                 None => continue,
             };
-            let settings = &self.host.inner.settings.placement;
+            let settings = &self.host.settings.placement;
             let probe = async {
                 let endpoint = tonic::transport::Endpoint::from_shared(endpoint)
                     .map_err(|_| crate::Error::Invalid("Reload the Plugin with a Valid Endpoint".into()))?
@@ -175,7 +175,7 @@ impl State {
     }
     pub(super) fn list_entries(&self) -> Result<Vec<v1::Plugin>> {
         let mut entries = self.saved_entries()?.plugins;
-        let live = crate::host::lock(&self.host.inner.plugins).map_err(convert)?.clone();
+        let live = crate::host::lock(&self.host.plugins).map_err(convert)?.clone();
         let installations = self.saved_installations()?;
         for entry in &mut entries {
             if installations.installations.iter().any(|installation| {
@@ -233,7 +233,7 @@ impl State {
         }
         if let Some(description) = &entry.description {
             self.host.detach_plugin(&description.id).await.map_err(convert)?;
-            self.host.inner.store.remove_plugin(&description.id)?;
+            self.host.store.remove_plugin(&description.id)?;
         }
         entries.plugins.retain(|entry| entry.entry != identifier);
         self.save_entries(&entries)?;

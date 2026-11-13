@@ -52,11 +52,7 @@ pub use dokime_operations_next::client::ClientSettings;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    net::SocketAddr,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
 use tokio::{net::TcpListener, task::JoinHandle};
@@ -188,7 +184,7 @@ pub async fn serve_with_diagnostics(
         ..Default::default()
     };
     let administration = Arc::new(tokio::sync::Mutex::new(()));
-    let remote = remote_access::Control::new(host.inner.store.clone(), identity.clone(), settings.clone(), administration.clone())?;
+    let remote = remote_access::Control::new(host.store.clone(), identity.clone(), settings.clone(), administration.clone())?;
     let state = state::State {
         administration: administration.clone(),
         remote: remote.clone(),
@@ -200,8 +196,6 @@ pub async fn serve_with_diagnostics(
             display_points: std::num::NonZeroUsize::new(settings.page_items).unwrap(),
         },
         identity,
-        progress: Mutex::new(std::collections::HashMap::new()),
-        temporary_reports: Mutex::new(std::collections::BTreeMap::new()),
         temporary_report_limit: settings.max_cases,
     };
     let close_timeout = settings.mutation_timeout;

@@ -52,9 +52,9 @@ pub struct RenderSettings {
 
 pub struct RenderedDocument {
     output: NamedTempFile,
-    execution: String,
-    execution_seal: Vec<u8>,
-    document: v1::Document,
+    pub(crate) execution: String,
+    pub(crate) execution_seal: Vec<u8>,
+    pub(crate) document: v1::Document,
 }
 
 /* === Enums === */
@@ -83,8 +83,101 @@ impl RenderedDocument {
     }
 }
 impl Host {
+    pub(crate) fn render_report(
+        &self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>, identity: &v1::BackendIdentity,
+        render_settings: crate::RenderSettings,
+    ) -> dokime_operations_next::Result<(std::fs::File, v1::ReportMetadata)> {
+        use std::io::{Seek, Write};
+        let (store, _read_cancellation) = self.store.read_session()?;
+        let (execution, cycle) = match subject.kind.as_ref() {
+            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
+            Some(v1::report_subject::Kind::Cycle(id)) => (None, id.clone()),
+            None => return Err(dokime_operations_next::Error::Invalid("Render Report: Select an Execution or Cycle".into())),
+        };
+        let mut snapshots = Vec::new();
+        let mut after = String::new();
+        loop {
+            let page = store.cycle_execution_page(&cycle, &after, render_settings.page_size)?;
+            if page.is_empty() {
+                break;
+            }
+            for id in page {
+                after = id.clone();
+                if execution.is_some_and(|selected| selected != id) {
+                    continue;
+                }
+                let cut = store.metadata(&id)?;
+                if cut.execution.cycle != cycle {
+                    continue;
+                }
+                let scope = v1::DocumentScope {
+                    cycle_id: cycle.clone(),
+                    execution_id: id,
+                };
+                let (document, mut cut) = self
+                    .current_document_in(&store, &scope, "")
+                    .map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+                if let Some(at) = at {
+                    let history = v1::StoreHistory {
+                        store: identity.backend_id.clone(),
+                        epoch: scope.execution_id.clone(),
+                    };
+                    if execution.is_none() || at.history.as_ref() != Some(&history) || at.sequence > cut.frontier {
+                        return Err(dokime_operations_next::Error::Invalid(
+                            "Render Report: Refresh the Execution's Fixed Evidence Cursor".into(),
+                        ));
+                    }
+                    cut.frontier = at.sequence;
+                }
+                snapshots.push((
+                    document,
+                    self.snapshot_in(store.clone(), cut).map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?,
+                ));
+            }
+        }
+        if snapshots.is_empty() {
+            return Err(dokime_operations_next::Error::Invalid("Render Report: Select an Existing Execution or Cycle".into()));
+        }
+        let file = if snapshots.len() == 1 {
+            let (document, snapshot) = snapshots.remove(0);
+            self.render_document(&snapshot, document, render_settings)
+                .map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?
+                .into_file()
+        } else {
+            let mut output = tempfile::tempfile().map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+            output
+                .write_all(b"<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Cycle Report</title><body>")
+                .map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+            for (document, snapshot) in snapshots {
+                let rendered = self
+                    .render_document(&snapshot, document, render_settings)
+                    .map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+                let mut file = rendered.into_file();
+                // Each Execution Is an Independent Embedded HTML Document.
+                let mut bytes = String::new();
+                use std::io::Read;
+                file.read_to_string(&mut bytes).map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+                let body = bytes.split_once("<body>").map_or(bytes.as_str(), |(_, body)| body).trim_end_matches("</body></html>");
+                output.write_all(b"<article>").map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+                output.write_all(body.as_bytes()).map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+                output.write_all(b"</article>").map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+            }
+            output.write_all(b"</body></html>").map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+            output.rewind().map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
+            output
+        };
+        let metadata = v1::ReportMetadata {
+            test_cycle_id: cycle,
+            test_execution_id: execution.map(str::to_owned),
+            identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
+            origin: v1::ReportOrigin::Current as i32,
+            ..Default::default()
+        };
+        Ok((file, metadata))
+    }
+
     pub fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)> {
-        self.current_document_in(&self.inner.store, scope, identifier)
+        self.current_document_in(&self.store, scope, identifier)
     }
     pub(crate) fn current_document_in(
         &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
@@ -183,11 +276,11 @@ impl Host {
     }
 
     pub fn snapshot(&self, execution: &str) -> Result<FixedSnapshot> {
-        let cut = self.inner.store.cut(execution)?;
+        let cut = self.store.cut(execution)?;
         self.snapshot_cut(cut)
     }
     pub fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
-        let (store, guard) = self.inner.store.read_session()?;
+        let (store, guard) = self.store.read_session()?;
         let mut snapshot = self.snapshot_in(store, cut)?;
         snapshot._read_cancellation = Some(guard);
         Ok(snapshot)
@@ -252,10 +345,10 @@ impl Host {
         })
     }
     pub fn publish_report(&self, output: &RenderedDocument) -> Result<Report> {
-        Ok(self.inner.store.publish_report(&output.execution, &output.execution_seal, output.document.clone(), output.html()?)?)
+        self.reports.publish(output)
     }
     pub fn reports(&self, execution: &str) -> Result<Vec<Report>> {
-        Ok(self.inner.store.reports(execution)?)
+        Ok(self.store.reports(execution)?)
     }
 }
 

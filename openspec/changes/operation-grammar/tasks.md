@@ -6,10 +6,10 @@ Naming rule amended by the owner on 2026-11-12: bare verbs on the service's reso
 Separation by audience locked by the owner on 2026-11-12
 Three visibility levels locked by the owner on 2026-11-12
 
-This is the future implementation inventory, not authorization to implement.
-All boxes remain open in this documentation delivery. The additional owner
-decisions, including audience separation, are LOCKED on 2026-11-12. The remaining
-questions in design.md are settled when their owning work is reached, without blocking independent work.
+The checkboxes record implementation under the combined `grpc-plugins` marker.
+The additional owner decisions, including audience separation, are LOCKED on
+2026-11-12. The remaining questions in design.md are settled when their owning
+work is reached, without blocking independent work.
 No specification lifecycle activation is part of this task.
 
 Source inventory: client `proto/dokime/v1/`, plugin `proto/dokime/plugin/v1/`,
@@ -22,6 +22,14 @@ SDK/GUI guides. The sibling library owns its managers, generic services, languag
 SDKs and conformance work in its own change; tasks below explicitly identify
 those dependencies, not permission to implement them in this repository.
 Refine file ownership during implementation without dropping mapped capabilities.
+
+Task 3.4 inventory: `crates/dokime-runtime-next/src/` execution, prompt and report
+owners, composition and existing operation consumers; its `tests/system/` lifecycle
+stories and Linux managed-install state fixture; `docs/execution-host.md`,
+`docs/architecture.md`, and this change's design/tasks. Existing public names,
+protocol layout, library pin and old host crates stay outside this slice.
+Acceptance is A5 lifecycle/shutdown proof plus every existing new-host system story,
+fixture build, format, Rust/repository checks and locked offline metadata.
 
 Dependency order is sections 0 through 7. Package layout/file moves and face
 generation filters come first; every later declaration and consumer depends
@@ -37,7 +45,7 @@ Final full validation is separate from source completion.
 - [ ] A2 Guard **Three Faces** with deterministic host/client/plugin audience isolation and descriptor-generation stories, including host-only Instance and no client context access.
 - [ ] A3 Guard **Unary Operations and Deliberate Streams** with descriptor and cancellation-settlement stories: one operation result, sample/Watch carriers retained and no automatic Run twins.
 - [ ] A4 Guard **Opaque Invocation Scope** with a non-product opaque scope round-trip and cross-provider inheritance/refusal story; verify scope grants no authority and no payload changes it.
-- [ ] A5 Guard **Managers Own Live Orchestration** with lifecycle/shutdown stories for each live owner and direct storage-only operations; review dependency/ownership boundaries without prose assertions.
+- [x] A5 Guard **Managers Own Live Orchestration** with lifecycle/shutdown stories for each live owner and direct storage-only operations; review dependency/ownership boundaries without prose assertions.
 - [ ] A6 Guard **Library Machinery and Product Policy** with an independent generic client calling composed product-host library services and a host-supplied settings/secret resolver; prove no duplicate service declaration or protocol-only generic implementation.
 - [ ] A7 Guard **Resource Operation Grammar** with generated-contract/descriptor checks plus whole-value stale revision and ordered Append replay stories; do not assert authored prose.
 - [ ] A8 Guard **Position-Resolved Reads** with controlled durable-frontier, pinned-page, seal and Watch-gap stories; keep 250 ms p95 durable-lag proof in the Nightly benchmark under 1.9, never a clock assertion in a correctness test.
@@ -83,7 +91,7 @@ Final full validation is separate from source completion.
 - [ ] 3.1 Compose and serve client library Plugins, Access/Listener, Storage, Status/Logs/TraceEvents, CatalogEntries, Invocations and Time directly on the product endpoint; keep context and plugin protocol unavailable to client credentials. Register product version/component-health facts through the narrow library registration; keep only product appearance, overview and environment reads in Backend. Preserve product authorization policy and storage definitions; verify direct library-client calls against the product host with no redeclaration or forwarding wrapper.
 - [ ] 3.2 Migrate product consumers to library connection, invocation dispatch, stream handling, process launch and plugin entry management, then delete their product copies, requirements, fixtures and configuration in the same slices. Verify managed/remote admission, publication and cleanup through library managers, never the protocol crate alone.
 - [ ] 3.3 Migrate listener/pairing/certificate, upload handling and generic host-status consumers to the composed services, then delete product implementations and duplicate status DTOs/handlers as callers move. Retain product storage schemas, settings/secrets stores, archives, OS credential-store integration and UI declarations. Verify direct service routing, policy and failure propagation.
-- [ ] 3.4 Split Host/Inner and shared services/state.rs::State into execution, prompt and report managers; add a capture manager only if recordings remain. Decide execution-versus-small-cycle manager ownership at this split by the simplest complete option. Move queueing, execution lifecycle/retries, Stop/Cancel and recovery to the execution owner, pending questions to prompt, atomic publication to report; keep rendering pure. Keep each service method thin through one operation file calling a manager or storage. Evidence, Catalog, notes, Aggregates, Plots and Documents remain storage operations with no manager; verify focused lifecycle/publication/recovery stories and tree compilation after each slice.
+- [x] 3.4 Split Host/Inner and shared services/state.rs::State into execution, prompt and report managers; add a capture manager only if recordings remain. Decide execution-versus-small-cycle manager ownership at this split by the simplest complete option. Move queueing, execution lifecycle/retries, Stop/Cancel and recovery to the execution owner, pending questions to prompt, atomic publication to report; keep rendering pure. Keep each service method thin through one operation file calling a manager or storage. Evidence, Catalog, notes, Aggregates, Plots and Documents remain storage operations with no manager; verify focused lifecycle/publication/recovery stories and tree compilation after each slice.
 
 ## 4. Product Semantics and Plugin Operations
 

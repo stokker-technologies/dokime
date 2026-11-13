@@ -23,7 +23,7 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::{Error, Host, Result, host::lock};
+use crate::{Error, Result, execution_manager::ExecutionManager, host::lock};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -59,6 +59,18 @@ pub(crate) struct RunControl {
 /* === Implementations === */
 
 impl RunControl {
+    pub(crate) fn is_running(&self) -> Result<bool> {
+        let state = lock(&self.state)?;
+        Ok(!state.phase.is_empty() && state.phase != "queued")
+    }
+    pub(crate) fn cancel(&self, cancellation: &CancellationToken) -> Result<()> {
+        let state = lock(&self.state)?;
+        if state.phase.is_empty() || state.phase == "queued" {
+            return Err(Error::Invalid("Cancel Execution: Wait Until the Queued Execution Is Running".into()));
+        }
+        cancellation.cancel();
+        Ok(())
+    }
     pub(crate) fn interactive() -> Self {
         Self {
             state: Mutex::new(State { interactive: true, ..Default::default() }),
@@ -120,7 +132,7 @@ impl RunControl {
     }
 }
 
-impl Host {
+impl ExecutionManager {
     pub(crate) fn run_phase(&self, execution: &str) -> Result<String> {
         let active = lock(&self.inner.active)?;
         let Some(active) = active.get(execution) else {
@@ -152,9 +164,9 @@ impl Host {
             request_id: control.as_ref().map(|_| execution.into()),
             paused,
             stop_requested: stopping,
-            can_pause: capabilities.cancel && !paused && !stopping,
-            can_resume: capabilities.cancel && paused && !stopping,
-            can_stop: capabilities.cancel && !stopping,
+            can_pause: control.is_some() && !paused && !stopping,
+            can_resume: control.is_some() && paused && !stopping,
+            can_stop: control.is_some() && !stopping,
             mode: if control.as_ref().is_some_and(|state| state.interactive) {
                 v1::ExecutionMode::Interactive
             } else {
@@ -186,9 +198,6 @@ impl Host {
         active.control.changed.notify_waiters();
         self.signal_change();
         Ok(())
-    }
-    pub async fn start_execution_mode(&self, execution: &str, mode: v1::ExecutionMode) -> Result<crate::Cycle> {
-        crate::execution::start_existing_mode(self.clone(), execution, mode).await
     }
     pub fn submit_execution_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
         if request.request_id != request.execution_id || request.command_id.trim().is_empty() {

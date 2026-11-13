@@ -7,6 +7,35 @@ one declaration and handler per supported host operation. `dokime-storage` owns
 SQLite execution evidence and Arrow IPC sample batches. These crates have no
 normal dependency on the old domain, runtime, server, client or facade.
 
+## Live Ownership
+
+`Host` composes storage, the execution manager, the prompt manager and the report
+manager; its former `Inner` is gone. Service `State` is a composition adapter and
+owns no execution/progress tasks, pending questions or temporary report files.
+
+The execution manager owns cycle admission, queued/running state, invocation
+sequencing and retries through operation policies, Stop/Cancel, restart recovery,
+and progress. Cycles group its tasks rather than adding a scheduler. Dropping a
+cycle observer leaves admitted work running. Shutdown refuses new admission,
+cancels active work and joins every execution and progress task before returning.
+Cancel refuses queued work; Stop lets the current invocation reach its safe boundary.
+
+The prompt manager owns question waiters and answers, including durable client
+answers. Execution settlement clears its question; shutdown settles waiters and
+closes question admission. The report manager owns atomic publication and bounded
+temporary report retention. Shutdown releases retained files and closes publication.
+Rendering remains a pure storage read into temporary output, and never publishes.
+Evidence, Catalog, notes, Aggregates, Plots and Documents have no manager. Media
+still explicitly refuses its unsupported operations; this host has no live recording
+owner requiring a capture manager.
+
+Guard **A5 — Managers Own Live Orchestration** is exercised by
+`execution_shutdown_joins_runs_after_observer_loss`,
+`prompts_settle_answers_and_shutdown_waiters` and
+`reports_publish_atomically_and_close_admission` in
+`crates/dokime-runtime-next/tests/system/manager_lifecycles.rs`.
+Existing restart, retry, report, evidence and client stories retain their contracts.
+
 ## Run the Thermal Stories
 
 Build the existing shared SDK plugin, then run either story by its full name:

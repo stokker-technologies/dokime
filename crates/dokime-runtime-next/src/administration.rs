@@ -47,7 +47,7 @@ impl Host {
                 );
             }
         }
-        for existing in lock(&self.inner.plugins)?.values() {
+        for existing in lock(&self.plugins)?.values() {
             if existing.description.id == candidate.description.id {
                 continue;
             }
@@ -80,13 +80,13 @@ impl Host {
         Ok(())
     }
     pub async fn detach_plugin(&self, identifier: &str) -> Result<()> {
-        if lock(&self.inner.active)?.values().any(|active| active.plugin == identifier) {
+        if self.executions.uses_plugin(identifier)? {
             return Err(Error::Invalid("Cancel the Plugin's Active Executions and Wait for Cleanup Before Changing Its Entry".into()));
         }
-        let entry = lock(&self.inner.plugins)?.get(identifier).cloned();
+        let entry = lock(&self.plugins)?.get(identifier).cloned();
         if let Some(entry) = entry {
             let closed = if let Some(mut process) = entry.process.lock().await.take() { process.close().await } else { Ok(()) };
-            lock(&self.inner.plugins)?.remove(identifier);
+            lock(&self.plugins)?.remove(identifier);
             closed?;
         }
         Ok(())

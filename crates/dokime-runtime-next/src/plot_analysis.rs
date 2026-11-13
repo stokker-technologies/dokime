@@ -44,8 +44,8 @@ impl Host {
             entry: self.entry(plugin)?,
             resources: None,
             cancellation: CancellationToken::new(),
-            settings: self.inner.settings.placement.clone(),
-            clock: self.inner.settings.clock.clone(),
+            settings: self.settings.placement.clone(),
+            clock: self.settings.clock.clone(),
         };
         dispatch.invoke(operation, request).await
     }

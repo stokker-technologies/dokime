@@ -121,12 +121,22 @@ inside that pinned dependency revision; other paths resolve in this repository.
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
    **Why:** One owner must join work and settle shutdown; storage reads and pure
-   rendering need no invented manager. Cycle ownership remains a deliberate split-time choice.
+   rendering need no invented manager. Cycles group execution-manager tasks and
+   do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
    [current Host](../crates/dokime-runtime-next/src/host.rs),
-   [shared State](../crates/dokime-runtime-next/src/services/state.rs).
-   **Proof:** No proof yet for the manager split; A5. Existing library manager types
-   do not prove their target service coverage. **Status:** locked direction (`operation-grammar`).
+   [composition State](../crates/dokime-runtime-next/src/services/state.rs),
+   [execution manager](../crates/dokime-runtime-next/src/execution_manager.rs),
+   [prompt manager](../crates/dokime-runtime-next/src/prompts.rs) and
+   [report manager](../crates/dokime-runtime-next/src/reports.rs).
+   **Proof:** A5: `execution_shutdown_joins_runs_after_observer_loss`,
+   `prompts_settle_answers_and_shutdown_waiters` and
+   `reports_publish_atomically_and_close_admission` in
+   [manager_lifecycles.rs](../crates/dokime-runtime-next/tests/system/manager_lifecycles.rs)
+   exercise observer loss, joined cleanup, queued Cancel refusal, Stop boundaries,
+   answers, shutdown and publication across restart. **Status:** landed for the
+   additive host's product managers; generic library service composition remains
+   locked direction under invariant 7. Media has no live recording owner here.
 
 7. **Library Machinery and Product Policy.** Compose library services directly,
    without redeclaring or forwarding them and without rebuilding generic machinery
@@ -286,7 +296,7 @@ inside that pinned dependency revision; other paths resolve in this repository.
     **Proof:** `documents_and_reports` in
     [documents_and_reports.rs](../crates/dokime-runtime-next/tests/system/documents_and_reports.rs)
     checks page-size equivalence, failed-render nonpublication, explicit publish and restart.
-    **Status:** landed in the additive host; report-manager ownership is still direction (6).
+    **Status:** landed in the additive host, including report-manager ownership (6), guarded by A5.
 
 20. **Earliest External Inverse Survives.** Durably prepare an owner-qualified inverse
     before external writes; retain the earliest inverse per scope/resource while each
