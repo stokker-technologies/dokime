@@ -15,8 +15,12 @@
  * phase and progress; several collapse to a count named after the one that
  * has run longest. With nothing running, the last settled operation shows
  * until the backend retires it, and nothing shows once it has. The module
- * imports nothing at runtime, so a node test can load it directly.
+ * maps the canonical host operation status at this presentation boundary.
  */
+
+/* === External Imports === */
+
+import { OperationStatus } from "@host/dokime/v1/client_types_pb.js";
 
 /* === Types === */
 
@@ -45,7 +49,7 @@ export type OperationFrame = {
   phase: string;
   fraction?: number;
   startedAt?: { seconds: bigint | number; nanos: number };
-  status?: { HarmosVariant: { case: string | undefined } };
+  status?: OperationStatus;
   failure?: string;
 };
 
@@ -60,7 +64,7 @@ export function operationsFromFrame(frames: readonly OperationFrame[] | undefine
     label: frame.label,
     phase: frame.phase,
     startedAtMs: frame.startedAt ? Number(frame.startedAt.seconds) * 1_000 + Math.floor(frame.startedAt.nanos / 1_000_000) : null,
-    status: statusOf(frame.status?.HarmosVariant.case),
+    status: statusOf(frame.status),
   }));
 }
 
@@ -110,11 +114,11 @@ function fractionOf(value: number | undefined): number | null {
   return Math.min(1, Math.max(0, value));
 }
 
-function statusOf(member: string | undefined): BackendOperationStatus {
+function statusOf(member: OperationStatus | undefined): BackendOperationStatus {
   switch (member) {
-    case "Finished":
+    case OperationStatus.FINISHED:
       return "finished";
-    case "Failed":
+    case OperationStatus.FAILED:
       return "failed";
     default:
       return "running";

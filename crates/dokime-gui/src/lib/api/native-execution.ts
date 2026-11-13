@@ -14,28 +14,19 @@
 /* === Local Imports === */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
+import { ExecutionMode, ExecutionParameterSet, ExecutionState, ReportState } from "@host/dokime/v1/client_types_pb.js";
+import { metadataJson, nativeValueToJson } from "@/lib/host/values";
 
 type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
 type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
 type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionListExecutionSteps>>["steps"][number]>;
 type StepCriterion = ExecutionStep["criteria"][number];
-type ParameterCursor = Parameters<typeof rpc.executionListExecutionParameters>[1]["cursor"];
-type ExecutionParameterSet = Parameters<typeof rpc.executionListExecutionParameters>[1]["set"];
-type StepPageCursor = Wire<Parameters<typeof rpc.executionListExecutionSteps>[1]["cursor"]>;
 type Value = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionListExecutionParameters>>["parameters"][number]>["value"]>;
-type WirePluginIdentity = NonNullable<ExecutionDetail["admittedPlugin"]>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RerunNotices } from "@/stores/rerun-notice-store";
-import type {
-  ExecutionPluginIdentity,
-  StartTestCycleResponse,
-  StepExecutionRecord,
-  TestCase,
-  TestCyclePlan,
-  TestExecution,
-} from "@/lib/types";
+import type { StartTestCycleResponse, StepExecutionRecord, TestCase, TestCyclePlan, TestExecution } from "@/lib/types";
 import {
   ensureNativeStartAccepted,
   fetchNativeTestCyclePlan,
@@ -47,17 +38,7 @@ import {
   type NativeStartAdmission,
   projectExecutionStatus,
 } from "./native-planning";
-import {
-  mapBounded,
-  metadataJson,
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  nativeValueToJson,
-  nowIso,
-  safeNumber,
-  timestampIso,
-} from "./native-values";
+import { mapBounded, nowIso, safeNumber, timestampIso } from "./native-values";
 
 export async function fetchNativeTestCycleDetail(
   session: SessionIdentity,
@@ -120,7 +101,7 @@ export async function startNativeTestExecution(session: SessionIdentity, executi
   return ensureNativeStartAccepted(
     await rpc.executionStartExecution(session, {
       executionId,
-      mode: { HarmosVariant: { case: "Automatic", value: {} } },
+      mode: ExecutionMode.AUTOMATIC,
     }),
   );
 }
@@ -214,12 +195,8 @@ export async function appendNativeCaseAttempt(session: SessionIdentity, cycleId:
 
 async function loadNativeExecution(session: SessionIdentity, executionId: string): Promise<NativeExecution> {
   const detail = await rpc.executionGetExecution(session, { executionId });
-  const inputs = await listExecutionParameters(session, executionId, {
-    HarmosVariant: { case: "Inputs", value: {} },
-  });
-  const outputs = await listExecutionParameters(session, executionId, {
-    HarmosVariant: { case: "Outputs", value: {} },
-  });
+  const inputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.INPUTS);
+  const outputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.OUTPUTS);
   const steps = await listExecutionSteps(session, executionId);
   return { detail, inputs, outputs, steps: steps.map((step) => ({ step, criteria: step.criteria })) };
 }
@@ -240,7 +217,7 @@ function mapNativeExecution(
   const item = detail.summary;
   if (!item) throw new Error(`Execution ${detail.cycleId} has no summary.`);
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
-  const templateId = detail.admittedTemplateId ?? testCase?.template_id ?? "";
+  const templateId = detail.admittedTemplate?.identifier ?? testCase?.template_id ?? "";
   const fallback = timestampIso(summary.updatedAt) ?? nowIso();
   const startedAt = timestampIso(detail.startedAt);
   return {
@@ -249,27 +226,27 @@ function mapNativeExecution(
           requestId: detail.controls.requestId,
           paused: detail.controls.paused,
           stopRequested: detail.controls.stopRequested,
+          canStart: detail.controls.canStart,
+          canRerun: detail.controls.canRerun,
+          canCancel: detail.controls.canCancel,
+          canInspect: detail.controls.canInspect,
+          canExport: detail.controls.canExport,
           canPause: detail.controls.canPause,
           canResume: detail.controls.canResume,
           canStop: detail.controls.canStop,
           mode:
-            detail.controls.mode?.HarmosVariant.case === "Automatic"
+            detail.controls.mode === ExecutionMode.AUTOMATIC
               ? "automatic"
-              : detail.controls.mode?.HarmosVariant.case === "Interactive"
+              : detail.controls.mode === ExecutionMode.INTERACTIVE
                 ? "interactive"
                 : null,
         }
       : null,
     archived: item.archived,
-    sealed: item.sealed,
+    sealed: item.state === ExecutionState.SEALED,
     report: detail.report
       ? {
-          state:
-            detail.report.state?.HarmosVariant.case === "Ready"
-              ? "ready"
-              : detail.report.state?.HarmosVariant.case === "Failed"
-                ? "failed"
-                : "pending",
+          state: detail.report.state === ReportState.READY ? "ready" : detail.report.state === ReportState.FAILED ? "failed" : "pending",
           failure: detail.report.failure ?? null,
         }
       : null,
@@ -279,13 +256,8 @@ function mapNativeExecution(
     case_id: item.caseId,
     template_id: templateId,
     attempt_index: safeNumber(item.ordinal, "execution ordinal"),
-    invalidation: detail.invalidation
-      ? {
-          previous: mapPluginIdentity(detail.invalidation.previous),
-          current: detail.invalidation.current ? mapPluginIdentity(detail.invalidation.current) : null,
-        }
-      : null,
-    status: projectExecutionStatus(item.status, startedAt, item.sealed),
+    invalidation: null,
+    status: projectExecutionStatus(item.state, detail.outcome ?? item.outcome, detail.controls, detail.liveState),
     started_at: startedAt,
     finished_at: timestampIso(detail.finishedAt),
     parameters: Object.fromEntries(
@@ -295,7 +267,7 @@ function mapNativeExecution(
       }),
     ),
     metadata: {
-      ...(detail.result ? { result: detail.result } : {}),
+      ...(detail.outcome ? { outcome: detail.outcome.attribution.case, reason: detail.outcome.attribution.value?.reason ?? "" } : {}),
     },
     steps: native.steps.flatMap(({ step, criteria }) => [
       mapStepRecord(step, criteria, detail, fallback),
@@ -314,7 +286,7 @@ function mapStepRecord(step: ExecutionStep, _criteria: StepCriterion[], detail: 
     test_cycle_id: detail.cycleId,
     queue_item_id: detail.summary?.caseId ?? "",
     case_id: detail.summary?.caseId ?? "",
-    template_id: detail.admittedTemplateId ?? "",
+    template_id: detail.admittedTemplate?.identifier ?? "",
     step_id: step.stepId,
     method_name: step.metadata?.identifier || step.stepId,
     order: safeNumber(step.ordinal, "step ordinal"),
@@ -350,7 +322,7 @@ function mapCriterionRecord(criterion: StepCriterion, detail: ExecutionDetail, s
     test_cycle_id: detail.cycleId,
     queue_item_id: detail.summary?.caseId ?? "",
     case_id: detail.summary?.caseId ?? "",
-    template_id: detail.admittedTemplateId ?? "",
+    template_id: detail.admittedTemplate?.identifier ?? "",
     step_id: criterion.criterionId,
     method_name: criterion.metadata?.identifier || criterion.criterionId,
     order: safeNumber(step.ordinal, "step ordinal") * 100 + safeNumber(criterion.ordinal, "criterion ordinal"),
@@ -370,43 +342,11 @@ function mapCriterionRecord(criterion: StepCriterion, detail: ExecutionDetail, s
 }
 
 async function listExecutionParameters(session: SessionIdentity, executionId: string, set: ExecutionParameterSet) {
-  const result: { name: string; value?: Value }[] = [];
-  let afterName = "";
-  let cursor: ParameterCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListExecutionParameters(session, {
-      executionId,
-      set,
-      limit: NATIVE_PAGE_SIZE,
-      afterName,
-      cursor,
-    });
-    result.push(...reply.parameters);
-    const next = reply.nextAfterName;
-    if (!next) return result;
-    if (next === afterName) throw new NativeApiLimitError("Execution.ListExecutionParameters", `cursor did not advance at ${next}`);
-    afterName = next;
-    cursor = reply.cursor;
-  }
-  throw new NativeApiLimitError("Execution.ListExecutionParameters", `more than ${NATIVE_MAX_PAGES} pages`);
+  return (await rpc.executionListExecutionParameters(session, { executionId, set })).parameters;
 }
 
 async function listExecutionSteps(session: SessionIdentity, executionId: string) {
-  const result: ExecutionStep[] = [];
-  let cursor: StepPageCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListExecutionSteps(session, {
-      executionId,
-      limit: NATIVE_PAGE_SIZE,
-      cursor,
-    });
-    result.push(...reply.steps);
-    if (!reply.nextCursor) return result;
-    if (stepCursorKey(reply.nextCursor) === stepCursorKey(cursor))
-      throw new NativeApiLimitError("Execution.ListExecutionSteps", "cursor did not advance");
-    cursor = reply.nextCursor;
-  }
-  throw new NativeApiLimitError("Execution.ListExecutionSteps", `more than ${NATIVE_MAX_PAGES} pages`);
+  return (await rpc.executionListExecutionSteps(session, { executionId })).steps;
 }
 
 async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {
@@ -420,29 +360,4 @@ async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: st
   const cycle = await rpc.executionGetCycle(session, { cycleId });
   const executions = await mapBounded(summaries, (item) => loadNativeExecution(session, item.executionId));
   return executions.map((execution) => mapNativeExecution(execution, mappedCases, cycle));
-}
-
-function stepCursorKey(cursor: StepPageCursor): string {
-  if (!cursor) return "";
-  return `${cursor.executionId}:${cursor.stepId}:${cursor.kind?.HarmosVariant?.case ?? ""}:${cursor.nextOrdinal}`;
-}
-
-function mapPluginIdentity(value: WirePluginIdentity | undefined): ExecutionPluginIdentity {
-  if (!value) throw new Error("Execution invalidation has no previous provider identity.");
-  const implementation = value.implementation?.HarmosVariant;
-  if (implementation?.case === "ContentDigest") {
-    return {
-      source: value.source,
-      version: value.version,
-      implementation: { kind: "bundle", content_digest: implementation.value.field0 },
-    };
-  }
-  if (implementation?.case === "Generation") {
-    return {
-      source: value.source,
-      version: value.version,
-      implementation: { kind: "embedded", generation: implementation.value.field0 },
-    };
-  }
-  throw new Error("Execution provider identity has no implementation.");
 }

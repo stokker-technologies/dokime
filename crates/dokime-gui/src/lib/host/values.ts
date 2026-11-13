@@ -11,13 +11,15 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/dokime/v1/client_types_pb.js";
 import { ValueType, type Metadata, type Value } from "@host/dokime/v1/values_pb.js";
 
 /* === Local Imports === */
 
-import { NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
+import { assertIntegerRange, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
+import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { JsonObject } from "@/lib/types";
+import type { JsonObject, RecordScope } from "@/lib/types";
 
 /* === Constants === */
 
@@ -27,6 +29,63 @@ const VALUE_DEPTH = 64;
 
 export function nativeValueToJson(value?: Wire<Value>): unknown {
   return readValue(value, 0);
+}
+
+export function nativeValuesToJson(values: Record<string, Wire<Value>> = {}): JsonObject {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nativeValueToJson(value)]));
+}
+
+export function jsonToNativeValue(value: unknown): Wire<Value> {
+  return writeValue(value, 0, new Set());
+}
+
+function writeValue(value: unknown, depth: number, containers: Set<object>): Wire<Value> {
+  if (depth > VALUE_DEPTH) throw new Error("Write Host Value: Nesting Exceeds the View Budget");
+  if (value === null) return { kind: { case: "null", value: {} } };
+  if (typeof value === "boolean") return { kind: { case: "boolean", value } };
+  if (typeof value === "string") return { kind: { case: "text", value } };
+  if (typeof value === "object" && value !== null && "__dokime_native_integer__" in value && value.__dokime_native_integer__ === true) {
+    if (!("decimal" in value) || typeof value.decimal !== "string") throw new Error("Write Host Value: Invalid Integer Text");
+    const unsigned = "unsigned" in value && value.unsigned === true;
+    value = new NativeIntegerValue(BigInt(value.decimal), unsigned);
+  }
+  if (value instanceof NativeIntegerValue) {
+    const integer = BigInt(value.decimal);
+    assertIntegerRange(integer, value.unsigned);
+    return { kind: value.unsigned ? { case: "unsignedInteger", value: integer } : { case: "integer", value: integer } };
+  }
+  if (typeof value === "object" && value !== null && "__dokime_native_number__" in value && value.__dokime_native_number__ === true) {
+    const number = NativeNumberValue.prototype.valueOf.call(value);
+    return { kind: { case: "number", value: number } };
+  }
+  if (typeof value === "bigint") {
+    const unsigned = value >= 1n << 63n;
+    assertIntegerRange(value, unsigned);
+    return { kind: unsigned ? { case: "unsignedInteger", value } : { case: "integer", value } };
+  }
+  if (typeof value === "number") {
+    if (!Number.isInteger(value) || Object.is(value, -0)) return { kind: { case: "number", value } };
+    if (!Number.isSafeInteger(value)) throw new Error("Write Host Value: Supply Exact Integer Text for Large Integers");
+    const integer = BigInt(value);
+    assertIntegerRange(integer);
+    return { kind: { case: "integer", value: integer } };
+  }
+  if (value instanceof Uint8Array) return { kind: { case: "data", value } };
+  if (isDatetimeValue(value)) {
+    const milliseconds = Date.parse(value.$datetime);
+    if (!Number.isFinite(milliseconds)) throw new Error("Write Host Value: Invalid Timestamp");
+    const match = /\.(\d{1,9})Z$/.exec(value.$datetime);
+    const nanos = match ? Number(match[1].padEnd(9, "0")) : (((milliseconds % 1000) + 1000) % 1000) * 1000000;
+    return { kind: { case: "datetime", value: { seconds: BigInt(Math.floor(milliseconds / 1000)), nanos } } };
+  }
+  if (Array.isArray(value)) {
+    if (containers.has(value)) throw new Error("Write Host Value: Lists Cannot Contain Cycles");
+    containers.add(value);
+    const values = value.map((item) => writeValue(item, depth + 1, containers));
+    containers.delete(value);
+    return { kind: { case: "list", value: { values } } };
+  }
+  throw new Error("Write Host Value: Use Scalars or Lists; Named Values Belong to Their Owning Map");
 }
 
 function readValue(value: Wire<Value> | undefined, depth: number): unknown {
@@ -95,4 +154,44 @@ export function valueTypeName(type: ValueType): string {
     default:
       return "unknown";
   }
+}
+
+export function nativeEvidenceScope(scope?: RecordScope | null): Wire<EvidenceScope> | undefined {
+  if (!scope) return undefined;
+  const origin = scope.origin;
+  return {
+    sessionId: scope.session_id ?? undefined,
+    cycleId: scope.test_cycle_id ?? undefined,
+    caseId: scope.test_case_id ?? undefined,
+    executionId: scope.test_execution_id ?? undefined,
+    stepId: scope.step_id ?? undefined,
+    criterionId: scope.criterion_id ?? undefined,
+    templateId: scope.template_id ?? undefined,
+    suiteId: scope.suite_id ?? undefined,
+    origin: origin
+      ? {
+          kind: {
+            kind: origin.kind === "step_attempt" ? { case: "stepAttemptId", value: origin.attemptId } : { case: origin.kind, value: true },
+          },
+        }
+      : undefined,
+  };
+}
+
+export function recordScopeFromNative(scope?: Wire<EvidenceScope>): RecordScope | null {
+  if (!scope) return null;
+  const origin = scope.origin?.kind?.kind;
+  return {
+    session_id: scope.sessionId ?? null,
+    test_cycle_id: scope.cycleId ?? null,
+    test_case_id: scope.caseId ?? null,
+    test_execution_id: scope.executionId ?? null,
+    step_id: scope.stepId ?? null,
+    criterion_id: scope.criterionId ?? null,
+    template_id: scope.templateId ?? null,
+    suite_id: scope.suiteId ?? null,
+    ...(origin?.case
+      ? { origin: origin.case === "stepAttemptId" ? { kind: "step_attempt", attemptId: origin.value } : { kind: origin.case } }
+      : {}),
+  };
 }

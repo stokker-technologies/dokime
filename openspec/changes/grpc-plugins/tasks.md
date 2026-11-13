@@ -469,8 +469,9 @@ existing host services, proto and generated Rust protocol remain with their owne
   - [ ] Pass the native WebView Library journey with the replacement driver.
 - [ ] Close Execution with live progress, observations, prompts and gap resynchronization.
   - [x] Drive the shared thermal fixture through the desktop SDK adapter: admit its catalog, materialize a frozen case, run it through a watched prompt, answer it and observe terminal completion.
+  - [x] Switch the WebView planning, execution detail/control, runtime/progress observation and prompt adapters to canonical host calls. Preserve recursive exact values and selection order, register cases with a cycle-scoped idempotency key, project attributed outcomes independently of live state, and gate run actions by host capabilities. Thirteen focused lifecycle stories pass, including binary request/reply round-trips and generation-owned Watch cancellation; six focused operation-status stories pass. Full WebView execution proof remains open with the shared evidence/document adapters and driver.
 - [ ] Close live and saved Evidence, Telemetry and Plots.
-  - [x] Read captured record payloads and telemetry from the sealed thermal execution through the desktop SDK adapter. Plot and WebView evidence consumers remain open.
+  - [x] Read captured record payloads and telemetry from the sealed thermal execution through the desktop SDK adapter. Switch the WebView live-record tail and Watch adapter to canonical cursors and per-execution frozen descriptors; prove exact unsigned/double fields, changed schemas of the same record type and generation-owned stream cancellation. Plot, telemetry and checkpoint consumers remain open.
 - [ ] Close Documents and Reports with verified native export.
   - [x] Read the thermal execution report through the desktop SDK Watch transport and verify ordered chunks, completion size, digest and terminal response. Native verified delivery now uses the SDK stream and is exercised against thermal report bytes; picker/WebView and document consumers remain open.
 - [ ] Close History browsing and saved execution details.

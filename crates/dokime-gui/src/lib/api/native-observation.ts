@@ -13,7 +13,9 @@
 
 import { defaultBrand } from "@/lib/brand";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
+import { CycleStatus, ResultStatus, type EvidenceScope as HostEvidenceScope } from "@host/dokime/v1/client_types_pb.js";
+import { nativeValueToJson, nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame> ? Frame : never
 >;
@@ -21,17 +23,7 @@ export type RuntimeStateFrame = Wire<
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
-import {
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  nativeEvidenceScope,
-  nativeValueToJson,
-  nowIso,
-  recordScopeFromNative,
-  safeNumber,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, nowIso, safeNumber, timestampIso } from "./native-values";
 
 const GUI_SMALL_PAGE_ITEMS = 100;
 
@@ -43,8 +35,7 @@ type ExecutionProgressFrame = Wire<
 >;
 type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
 type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
-type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
-type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
+type EvidenceScope = Wire<HostEvidenceScope>;
 
 /* === Runtime shell === */
 
@@ -287,7 +278,8 @@ function sameNativeScope(left: EvidenceScope | undefined, right: EvidenceScope |
     (left.stepId ?? null) === (right.stepId ?? null) &&
     (left.criterionId ?? null) === (right.criterionId ?? null) &&
     (left.templateId ?? null) === (right.templateId ?? null) &&
-    (left.suiteId ?? null) === (right.suiteId ?? null)
+    (left.suiteId ?? null) === (right.suiteId ?? null) &&
+    JSON.stringify(left.origin?.kind?.kind) === JSON.stringify(right.origin?.kind?.kind)
   );
 }
 
@@ -388,18 +380,18 @@ export async function openNativeExecutionProgressStream(
 /* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
-  switch (status?.HarmosVariant.case) {
-    case "Running":
+  switch (status) {
+    case CycleStatus.RUNNING:
       return "running";
-    case "Paused":
+    case CycleStatus.PAUSED:
       return "paused";
-    case "Stopping":
+    case CycleStatus.STOPPING:
       return "stopping";
-    case "Completed":
+    case CycleStatus.COMPLETED:
       return "completed";
-    case "Failed":
+    case CycleStatus.FAILED:
       return "failed";
-    case "Stopped":
+    case CycleStatus.STOPPED:
       return "stopped";
     default:
       return "idle";
@@ -407,7 +399,7 @@ function mapRunStatus(status?: CycleStatus): RunStatus {
 }
 
 function isTerminalCycle(status: CycleStatus): boolean {
-  return ["Completed", "Failed", "Blocked", "Stopped"].includes(status?.HarmosVariant.case ?? "");
+  return [CycleStatus.COMPLETED, CycleStatus.FAILED, CycleStatus.BLOCKED, CycleStatus.STOPPED].includes(status);
 }
 
 function mapResult(
@@ -416,14 +408,14 @@ function mapResult(
 ): ExecutionResultSummary {
   return {
     outcome:
-      result.status?.HarmosVariant.case === "Passed"
+      result.status === ResultStatus.PASSED
         ? "completed"
-        : result.status?.HarmosVariant.case === "Failed"
+        : result.status === ResultStatus.FAILED
           ? "failed"
-          : result.status?.HarmosVariant.case === "Blocked"
+          : result.status === ResultStatus.BLOCKED
             ? "unknown"
             : "unknown",
-    headline: result.status?.HarmosVariant.case === "Passed" ? "passed" : "failed",
+    headline: result.status === ResultStatus.PASSED ? "passed" : "failed",
     warnings: [],
     evidence: [
       {

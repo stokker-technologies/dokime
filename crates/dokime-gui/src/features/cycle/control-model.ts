@@ -96,11 +96,15 @@ export type CycleControlInput = {
 export function executionControlState(input: ExecutionControlInput): ExecutionControlState {
   const { controls, progress, status } = input;
   if (isUnstartedExecution(status)) {
+    const actions: ExecutionAction[] = [
+      ...(controls?.canStart ? ["Start" as const] : []),
+      ...(controls?.canCancel ? ["Cancel" as const] : []),
+    ];
     return status === "created"
-      ? { actions: ["Start", "Cancel"], detail: null, line: "Queued · waits for the execution lane", phase: "queued" }
-      : { actions: ["Start", "Cancel"], detail: null, line: "Not started · waits for Start", phase: "unstarted" };
+      ? { actions, detail: null, line: "Queued · waits for the execution lane", phase: "queued" }
+      : { actions, detail: null, line: "Not started · waits for Start", phase: "unstarted" };
   }
-  if (isTerminalExecutionStatus(status) && (!controls || input.report?.state === "failed" || input.report?.state === "ready")) {
+  if (isTerminalExecutionStatus(status)) {
     if (input.pluginAvailable === false) {
       return {
         actions: [],
@@ -111,13 +115,13 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
       };
     }
     return {
-      actions: ["Re-Run"],
+      actions: controls?.canRerun ? ["Re-Run"] : [],
       detail: input.report?.state === "failed" ? input.report.failure : null,
       line: `Ended · ${executionStatusLabel(status)}${input.report?.state === "failed" ? " · Report Failed" : ""}`,
       phase: "ended",
     };
   }
-  if (status === "finalizing" || isTerminalExecutionStatus(status)) {
+  if (status === "finalizing") {
     return { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" };
   }
   if (input.stopping || controls?.stopRequested) {

@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { test } from "vitest";
+import { OperationStatus } from "@host/dokime/v1/client_types_pb.js";
 
 // Local Imports
 import { startupDiagnostics } from "@/app/native-session/errors";
@@ -56,7 +57,7 @@ function frame(
     operationId: id,
     phase,
     startedAt: { nanos: 0, seconds: BigInt(seconds) },
-    status: { HarmosVariant: { case: status } },
+    status: status === "Finished" ? OperationStatus.FINISHED : status === "Failed" ? OperationStatus.FAILED : OperationStatus.RUNNING,
   };
 }
 

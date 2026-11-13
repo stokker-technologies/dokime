@@ -17,6 +17,18 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
+import { ExecutionMode, PromptKind, ExecutionState, ResultStatus, LiveExecutionState } from "@host/dokime/v1/client_types_pb.js";
+import { create, createFileRegistry, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { PromptFieldKind, StreamMatchOperator } from "@host/dokime/v1/host_pb.js";
+import { FileDescriptorSetSchema, FieldDescriptorProto_Type } from "@bufbuild/protobuf/wkt";
+import { RecordContractsSchema } from "@host/dokime/v1/catalog_pb.js";
+import { fetchNativeRecordTail, openNativeRecordStream } from "@/lib/api/native-evidence";
+import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { previewNativeTestCycle, projectExecutionStatus } from "@/lib/api/native-planning";
+import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
+import { openNativeRuntimeStream, openNativeExecutionProgressStream } from "@/lib/api/native-observation";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
+import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
 
 // Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";
@@ -35,6 +47,9 @@ import {
 /* === Constants === */
 
 const fixture = vi.hoisted(() => ({
+  unary: vi.fn(),
+  stream: vi.fn(),
+  extra: vi.fn(),
   append: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
@@ -55,23 +70,32 @@ const session = { generation: "lifecycle", isCurrent: () => true };
 /* === Private Functions === */
 
 function accepted() {
-  return { outcome: { HarmosVariant: { case: "Accepted", value: { field0: { commandId: "execution", jobId: null } } } } };
+  return { outcome: { kind: { case: "accepted", value: { commandId: "execution", jobId: null } } } };
 }
 
 /* === Entry Point === */
 
-vi.mock("@/lib/rpc/generated/client", () => ({
-  executionAppendExecutions: fixture.append,
-  executionStartExecution: fixture.start,
-  executionStopExecution: fixture.stop,
-  executionSealCycle: fixture.seal,
-  executionGetExecution: fixture.detail,
-  executionListExecutionParameters: fixture.parameters,
-  executionListExecutionSteps: fixture.steps,
-}));
+vi.mock("@/lib/rpc/transport", () => ({ unary: fixture.unary, openStream: fixture.stream }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.extra.mockReset();
+  fixture.stream.mockReset();
+  fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
+    const decoded = fromBinary(input, toBinary(input, create(input, request)));
+    const operations: Record<string, typeof fixture.append> = {
+      "/dokime.v1.Execution/AppendExecutions": fixture.append,
+      "/dokime.v1.Execution/StartExecution": fixture.start,
+      "/dokime.v1.Execution/StopExecution": fixture.stop,
+      "/dokime.v1.Execution/SealCycle": fixture.seal,
+      "/dokime.v1.Execution/GetExecution": fixture.detail,
+      "/dokime.v1.Execution/ListExecutionParameters": fixture.parameters,
+      "/dokime.v1.Execution/ListExecutionSteps": fixture.steps,
+    };
+    const operation = operations[path];
+    const reply = operation ? await operation(identity, request) : await fixture.extra(path, decoded);
+    return fromBinary(output, toBinary(output, create(output, reply)));
+  });
 });
 
 test("Execution Detail Uses Embedded Criteria", async () => {
@@ -112,7 +136,7 @@ test("Start Reuses Identity", async () => {
   fixture.start.mockResolvedValue(accepted());
   await startNativeTestExecution(session, "execution");
   await startNativeTestExecution(session, "execution");
-  const request = { executionId: "execution", mode: { HarmosVariant: { case: "Automatic", value: {} } } };
+  const request = { executionId: "execution", mode: ExecutionMode.AUTOMATIC };
   assert.deepEqual(fixture.start.mock.calls, [
     [session, request],
     [session, request],
@@ -122,14 +146,12 @@ test("Start Reuses Identity", async () => {
 test("Start Admission Refusal", async () => {
   fixture.start.mockResolvedValue({
     outcome: {
-      HarmosVariant: {
-        case: "Rejected",
+      kind: {
+        case: "rejected",
         value: {
-          field0: {
-            code: "cycle_sealed",
-            message: "Cycle Is Sealed",
-            issues: [{ path: "execution_id", message: "Admission Closed" }],
-          },
+          code: "cycle_sealed",
+          message: "Cycle Is Sealed",
+          issues: [{ path: "execution_id", message: "Admission Closed" }],
         },
       },
     },
@@ -251,4 +273,292 @@ test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
     for (const unsubscribe of release) unsubscribe();
     client.clear();
   }
+});
+
+test("Planning Preserves Selection Order and Exact Recursive Parameters", async () => {
+  const requests: Record<string, unknown>[] = [];
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path === "/dokime.v1.Catalog/ListSuites") return { suites: [{ suiteId: "fixture", source: "fixture" }] };
+    if (path === "/dokime.v1.Catalog/GetSuite")
+      return {
+        metadata: { identifier: "fixture", label: "Fixture" },
+        templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }],
+      };
+    assert.equal(path, "/dokime.v1.Planning/PreviewSelection");
+    requests.push(request);
+    return {
+      cases: [
+        {
+          caseId: "one",
+          suiteId: "fixture",
+          templateId: "fixture.run",
+          ordinal: 0n,
+          origin: { kind: { case: "pluginRun", value: { testCase: { parameters: { count: jsonToNativeValue(18446744073709551615n) } } } } },
+        },
+        { caseId: "two", suiteId: "fixture", templateId: "fixture.run", ordinal: 1n },
+      ],
+    };
+  });
+  const selection = {
+    suite_id: "fixture",
+    template_id: "fixture.run",
+    parameters: { count: [18446744073709551615n], samples: [[1, new NativeNumberValue(-0)]] },
+    files: { calibration: null },
+  };
+  const preview = await previewNativeTestCycle(session, { cycle_id: "cycle", parameters: {}, selections: [selection, selection] });
+  assert.deepEqual(
+    preview.cases.map((item) => item.case_id),
+    ["one", "two"],
+  );
+  assert.equal(String(preview.cases[0].parameters.count), "18446744073709551615");
+  const request = requests[0] as {
+    plan: {
+      cycleId: string;
+      selections: {
+        files: { value: { kind: { kind: { case: string } } } }[];
+        parameters: { key: string; value: { values: Parameters<typeof nativeValueToJson>[0][] } }[];
+      }[];
+    };
+  };
+  assert.equal(request.plan.cycleId, "cycle");
+  assert.equal(request.plan.selections.length, 2);
+  assert.deepEqual(request.plan.selections[0], request.plan.selections[1]);
+  assert.equal(request.plan.selections[0].files[0].value.kind.kind.case, "clear");
+  const sampleParameter = request.plan.selections[0].parameters.find((item) => item.key === "samples");
+  assert.ok(sampleParameter);
+  const samples = nativeValueToJson(sampleParameter.value.values[0]) as unknown[];
+  assert.equal(samples[0], 1);
+  assert.ok(Object.is(Number(samples[1]), -0));
+});
+
+test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async () => {
+  const replies: unknown[] = [];
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path === "/dokime.v1.Prompts/ListPending") {
+      assert.equal(request.cycleId, "cycle");
+      return { prompts: [{ promptId: "prompt" }] };
+    }
+    if (path === "/dokime.v1.Prompts/GetPrompt")
+      return {
+        prompt: {
+          promptId: "prompt",
+          kind: PromptKind.FORM,
+          createdAt: { seconds: 7n },
+          scope: { cycleId: "cycle", executionId: "execution" },
+          definition: {
+            metadata: { identifier: "fixture.answer", label: "Answer" },
+            level: Severity.WARNING,
+            template: "fixture.run",
+            fields: [
+              {
+                metadata: { identifier: "count", label: "Count" },
+                kind: PromptFieldKind.INTEGER,
+                defaultValue: jsonToNativeValue(18446744073709551615n),
+              },
+            ],
+            actions: [{ identifier: "confirm", label: "Confirm", requiresCondition: true }],
+            condition: {
+              kind: {
+                case: "all",
+                value: {
+                  conditions: [
+                    { kind: { case: "stream", value: { stream: "temperature", field: "value", operator: StreamMatchOperator.EXISTS } } },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      };
+    assert.equal(path, "/dokime.v1.Prompts/Respond");
+    replies.push(request);
+    assert.equal(request.values.values.count.kind.case, "unsignedInteger");
+    assert.equal(request.values.values.count.kind.value, 18446744073709551615n);
+    assert.equal(request.action, "confirm");
+    assert.equal(request.accepted, true);
+    return { commandId: "answer", promptId: "prompt", committedRevision: 9007199254740993n, acceptedAt: { seconds: 8n } };
+  });
+  const [prompt] = await fetchNativePendingPrompts(session, { cycleId: "cycle" });
+  assert.equal(prompt.kind, "form");
+  assert.equal(prompt.level, "warning");
+  assert.equal(prompt.fields[0].kind, "int");
+  assert.equal(prompt.actions[0].id, "confirm");
+  assert.equal(prompt.scope?.test_execution_id, "execution");
+  assert.equal(prompt.verification?.condition.kind, "host");
+  const receipt = await respondNativePrompt(session, prompt.correlation_id, "confirm", { count: prompt.fields[0].default });
+  assert.equal(receipt.result?.committed_revision, "9007199254740993");
+  assert.equal(replies.length, 1);
+});
+
+test("Watch Resynchronization and Cancellation Stay with Their Generation", async () => {
+  const canceled = vi.fn(async () => {});
+  const owned: (() => void)[] = [];
+  const release = vi.fn();
+  const observation = {
+    ...session,
+    own: (dispose: () => void) => {
+      owned.push(dispose);
+      return release;
+    },
+  };
+  fixture.stream.mockImplementation(async (path, input, output, identity, request, envelope) => {
+    assert.equal(identity, observation);
+    assert.ok(envelope.typeName.endsWith("Output"));
+    const decoded = fromBinary(input, toBinary(input, create(input, request)));
+    const frame = path.endsWith("WatchRuntime")
+      ? { resynchronized: true, cursor: { epoch: "host", stream: "runtime", position: 9n } }
+      : { resynchronized: true, revision: 10n, cleared: true };
+    if (path.endsWith("WatchExecutionProgress")) {
+      assert.ok("testExecutionId" in decoded);
+      assert.equal(decoded.testExecutionId, "execution");
+    }
+    return {
+      cancel: canceled,
+      async *[Symbol.asyncIterator]() {
+        yield fromBinary(output, toBinary(output, create(output, frame)));
+      },
+    };
+  });
+  const runtime = await openNativeRuntimeStream(observation);
+  for await (const frame of runtime) {
+    assert.equal(frame.resynchronized, true);
+    assert.equal(frame.cursor?.position, 9n);
+    break;
+  }
+  assert.equal(canceled.mock.calls.length, 1);
+  assert.equal(release.mock.calls.length, 1);
+  const progress = await openNativeExecutionProgressStream(observation, "execution");
+  const frames = [];
+  for await (const frame of progress) frames.push(frame);
+  assert.equal(frames[0].cleared, true);
+  assert.equal(release.mock.calls.length, 2);
+  await progress.cancel();
+  for (const dispose of owned) dispose();
+  assert.equal(canceled.mock.calls.length, 1);
+});
+
+test("Imported and Unevaluated Outcomes Never Gain Run Capabilities", () => {
+  assert.equal(
+    projectExecutionStatus(ExecutionState.CLOSED, {
+      attribution: { case: "declared", value: { status: ResultStatus.PASSED, reason: "", importer: "fixture" } },
+    }),
+    "passed",
+  );
+  assert.equal(projectExecutionStatus(ExecutionState.OPEN, undefined, undefined, LiveExecutionState.CLEANING_UP), "finalizing");
+  const state = executionControlState({ status: "planned", controls: null, progress: null, promptWaiting: false, stopping: false });
+  assert.deepEqual(state.actions, []);
+  assert.deepEqual(
+    executionControlState({ status: "passed", controls: null, progress: null, promptWaiting: false, stopping: false }).actions,
+    [],
+  );
+  assert.throws(() => projectExecutionStatus(ExecutionState.SEALED), /Outcome Attribution/);
+  const values: unknown[] = [];
+  values.push(values);
+  assert.throws(() => jsonToNativeValue(values), /Cycles/);
+  const exact = new NativeIntegerValue(18446744073709551615n, true);
+  assert.equal(String(nativeValueToJson(jsonToNativeValue(JSON.parse(JSON.stringify(exact))))), exact.decimal);
+});
+
+test("Live and Saved Records Decode with Each Execution's Frozen Descriptor", async () => {
+  const unsigned = create(FileDescriptorSetSchema, {
+    file: [
+      {
+        name: "reading.proto",
+        package: "fixture",
+        syntax: "proto3",
+        messageType: [
+          {
+            name: "Reading",
+            field: [
+              { name: "count", number: 1, type: FieldDescriptorProto_Type.UINT64 },
+              { name: "voltage", number: 2, type: FieldDescriptorProto_Type.DOUBLE },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const text = create(FileDescriptorSetSchema, {
+    file: [
+      {
+        name: "reading.proto",
+        package: "fixture",
+        syntax: "proto3",
+        messageType: [{ name: "Reading", field: [{ name: "count", number: 1, type: FieldDescriptorProto_Type.STRING }] }],
+      },
+    ],
+  });
+  const unsignedType = createFileRegistry(unsigned).getMessage("fixture.Reading");
+  const textType = createFileRegistry(text).getMessage("fixture.Reading");
+  assert.ok(unsignedType);
+  assert.ok(textType);
+  const contracts = toBinary(
+    RecordContractsSchema,
+    create(RecordContractsSchema, { records: [{ metadata: { identifier: "fixture.reading" }, message: "fixture.Reading" }] }),
+  );
+  const cursor = { epoch: "host", stream: "records", position: 3n };
+  const records = [
+    {
+      recordId: "unsigned:1",
+      sequence: 1n,
+      timestamp: { seconds: 1n },
+      recordType: "fixture.reading",
+      severity: Severity.INFO,
+      scope: { executionId: "unsigned", cycleId: "cycle", origin: { kind: { kind: { case: "stepAttemptId", value: "attempt" } } } },
+      payload: toBinary(unsignedType, create(unsignedType, { count: 18446744073709551615n, voltage: -0 })),
+    },
+    {
+      recordId: "text:2",
+      sequence: 2n,
+      timestamp: { seconds: 2n },
+      recordType: "fixture.reading",
+      severity: Severity.INFO,
+      scope: { executionId: "text", cycleId: "cycle" },
+      payload: toBinary(textType, create(textType, { count: "changed-schema" })),
+    },
+  ];
+  fixture.detail.mockImplementation(async (_identity, request) => ({
+    schemas: {
+      catalog: {
+        types: request.executionId === "unsigned" ? unsigned : text,
+        sections: [{ type: "dokime.v1.RecordContracts", payload: contracts }],
+      },
+    },
+  }));
+  fixture.extra.mockImplementation(async (path) => {
+    assert.equal(path, "/dokime.v1.Evidence/ListRecords");
+    return { records, scanned: cursor, through: cursor, replayComplete: true };
+  });
+  const tail = await fetchNativeRecordTail(session, { test_cycle_id: "cycle" });
+  assert.equal(String(tail.records[0].details.count), "18446744073709551615");
+  assert.ok(Object.is(Number(tail.records[0].details.voltage), -0));
+  assert.equal(tail.records[0].scope?.origin?.kind, "step_attempt");
+  assert.equal(tail.records[1].details.count, "changed-schema");
+  const cancel = vi.fn(async () => {});
+  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
+    assert.equal(path, "/dokime.v1.Evidence/WatchRecords");
+    const decoded = fromBinary(input, toBinary(input, create(input, request)));
+    assert.ok("after" in decoded);
+    assert.deepEqual(decoded.after, { $typeName: "dokime.v1.Cursor", ...cursor });
+    return {
+      cancel,
+      async *[Symbol.asyncIterator]() {
+        yield create(output, {
+          records: [records[0]],
+          scanned: { ...cursor, position: 4n },
+          through: { ...cursor, position: 4n },
+          replayComplete: true,
+        });
+      },
+    };
+  });
+  const release = vi.fn();
+  const stream = await openNativeRecordStream({ ...session, own: () => release }, { test_cycle_id: "cycle" }, tail.cursor);
+  for await (const page of stream) {
+    assert.equal(page.cursor?.position, 4n);
+    assert.equal(String(page.records[0].details.count), "18446744073709551615");
+    break;
+  }
+  assert.equal(cancel.mock.calls.length, 1);
+  assert.equal(release.mock.calls.length, 1);
 });

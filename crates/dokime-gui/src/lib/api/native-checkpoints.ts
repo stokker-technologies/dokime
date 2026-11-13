@@ -53,7 +53,7 @@ import type {
   ExecutionCheckpoint,
   SavedCycleSummary,
 } from "@/lib/types/view-contracts";
-import { mapCyclePhase } from "./native-planning";
+
 import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 
 const GUI_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
@@ -795,4 +795,36 @@ export function nativeRecordText(record: CapturedRecord): {
 
 function severityLabel(value: Severity | undefined): string {
   return value?.HarmosVariant.case?.toLowerCase() ?? "unspecified";
+}
+
+function mapCyclePhase(phase: { HarmosVariant: { case?: string } } | undefined): "active" | "sealing" | "sealed" | "seal_failed" {
+  switch (phase?.HarmosVariant.case) {
+    case "Sealing":
+      return "sealing";
+    case "Sealed":
+      return "sealed";
+    case "SealFailed":
+      return "seal_failed";
+    case "Active":
+      return "active";
+    default:
+      throw new Error("Read Checkpoint: Missing Cycle Phase");
+  }
+}
+
+export function checkpointStepStatus(status: { HarmosVariant: { case?: string } } | undefined): string {
+  switch (status?.HarmosVariant.case) {
+    case "Running":
+      return "running";
+    case "Passed":
+      return "passed";
+    case "Failed":
+      return "failed";
+    case "Skipped":
+      return "skipped";
+    case "Cancelled":
+      return "stopped";
+    default:
+      return "pending";
+  }
 }

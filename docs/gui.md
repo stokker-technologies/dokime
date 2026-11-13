@@ -24,7 +24,11 @@ protobuf bytes through it. An attached host is never shut down by the desktop.
 
 `src/lib/host/` owns canonical frontend projections. The running shell uses its
 host identity, catalog, scoped client/application preferences and appearance
-projections, together with secret catalog and transfer. Listener values in the
+projections, together with secret catalog and transfer. Planning, execution detail/control,
+runtime/progress Watch, prompt and live-record adapters also use canonical host messages. Case
+registration uses one cycle-scoped `RegisterSelection` request; execution status
+projects durable state, attributed outcome and optional live controls separately.
+Run buttons use the host capabilities, including the absence of controls on imports. Listener values in the
 preferences view come from Access; application preference saves never write that
 separately revisioned resource. Missing host logo content is reported independently
 of native installer appearance. Native plugin installation, pairing export, firewall
@@ -32,9 +36,8 @@ registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 
-The execution/planning, observation/prompt, evidence/telemetry/plot,
-document/report/history, plugin inventory/settings and diagnostics view
-adapters still import the old generated message projections. They require
+The telemetry/plot, document/report/history, plugin inventory/settings
+and diagnostics view adapters still import the old generated message projections. They require
 canonical request construction and view projections before those screens can
 claim new-host support. In particular, old tagged state unions, flat Value nodes,
 paged cursors and artifact origins do not represent the new contracts. Native
@@ -46,9 +49,9 @@ replacement before either desktop lane can certify this cutover.
 
 | Journey | Required Replacement |
 | --- | --- |
-| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` still construct tagged unions and cursor requests. Use canonical numeric lifecycle enums, separate execution state/outcome/live controls, recursive values and Watch envelopes; resynchronize from a fresh snapshot on gaps. |
-| Evidence, Telemetry and Plots | `native-evidence.ts`, `native-plots.ts`, `native-aggregate.ts` and `native-checkpoints.ts` still use flat values, old evidence origins and paged read projections. Project canonical origin/scope, captured record payloads, sample values and plot frames together. |
-| Documents and Reports | `native-documents.ts`, `native-content.ts` and `native-reports.ts` still use old document/render bindings and report origins. Native verified delivery already consumes canonical frames; its WebView selectors and document projections remain. |
+| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` now use canonical messages, numeric lifecycle enums, separate state/outcome/live controls, recursive values and Watch envelopes. The existing runtime consumer reconnects without a cursor and refreshes snapshots on resynchronization. Binary adapter stories pass; the WebView journey still needs the replacement driver and the evidence/document adapters that share its page. |
+| Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's frozen descriptor/record catalog, preserves exact scalar values and evidence origins, and follows canonical RecordPage cursors. `native-plots.ts`, `native-aggregate.ts` and `native-checkpoints.ts` still use flat values, old evidence origins and paged read projections; canonical sample values, plot frames and checkpoint evidence remain to move. |
+| Documents and Reports | `native-documents.ts` and `native-content.ts` still use old document/render bindings and content origins. Report open/save already uses canonical verified native delivery; the document projections and content selectors on its WebView page remain. |
 | History | The saved execution path shares the execution/evidence adapters above; replace those projections before history can read the same durable evidence as the SDK story. |
 | Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` still expect old settings blocks, plugin owners, boot results and installation paging. Canonical plugin entries carry placement, current state and description. File installation already streams canonical SDK frames. |
 | Remote Access | Native pairing export, pinned connection and certificate rotation use the SDK. The settings cards and WebView remote/ownership drivers still expect old listener and identity projections. |
@@ -75,7 +78,7 @@ replacement before either desktop lane can certify this cutover.
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
 | `desktop_parameters_read`, `desktop_parameters_write` | Native remembered parameter selections |
 | `desktop_open_backend_log`, `desktop_open_path`, `desktop_open_target`, `desktop_set_title` | Native window, log and opener actions |
-| `desktop_reset_local_storage`, `desktop_storage_backup_destination`, `desktop_backup_reset_local_storage` | Explicit native backup/reset; incompatible roots are never reset at startup |
+| `desktop_reset_local_storage`, `desktop_storage_backup_destination`, `desktop_backup_reset_local_storage` | Missing host-owned preserving recovery; native commands refuse before stopping or changing storage |
 | `desktop_restart` | Join the owned host and watches before restarting the shell |
 | `desktop_updates_status`, `desktop_updates_configure`, `desktop_updates_check`, `desktop_updates_install` | Native desktop updater |
 | `desktop://session-status` | Native connection generation, ownership and startup state |

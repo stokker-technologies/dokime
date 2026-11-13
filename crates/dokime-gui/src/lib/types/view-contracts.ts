@@ -336,6 +336,7 @@ export type PluginMetadata = {
 export type PluginState = "installed" | "disabled" | "removal_pending";
 
 export type RecordScope = {
+  origin?: { kind: "default" | "initialization" | "cleanup" } | { kind: "step_attempt"; attemptId: string };
   session_id?: SessionId | null;
   test_cycle_id?: TestCycleId | null;
   test_case_id?: CaseId | null;

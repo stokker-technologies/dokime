@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
-import { mapStepStatus } from "@/lib/api/native-planning";
+import { checkpointStepStatus } from "@/lib/api/native-checkpoints";
 import { openNativeReport } from "@/lib/api/native-reports";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
@@ -312,7 +312,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         (execution.steps ?? []).map((step) => (
           <div className="flex justify-between gap-3 border-t py-2 text-sm" key={step.stepId}>
             <span>{step.metadata?.label ?? step.stepId}</span>
-            <Badge variant="outline">{mapStepStatus(step.status)}</Badge>
+            <Badge variant="outline">{checkpointStepStatus(step.status)}</Badge>
           </div>
         ))
       ) : (

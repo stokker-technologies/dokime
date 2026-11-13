@@ -14,7 +14,9 @@ per-execution deletion are not available.
 The development desktop embeds the execution host or attaches through a pinned
 pairing file. Host identity, Library catalog, local/backend application preferences,
 native bundle installation, pairing export, secret catalog/transfer and verified native downloads use that
-connection. Execution and saved-data screen adapters are still being converted;
+connection. Planning, execution controls, progress observation and prompt answers
+also use the new host; their complete WebView journey still awaits saved-data
+adapter conversion and the replacement system driver. Saved-data screens are still being converted;
 see [Host Connection](gui.md#host-connection) for the current boundary.
 
 Host media capture and provider logo delivery are unavailable and show their
