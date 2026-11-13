@@ -407,7 +407,8 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   };
   fixture.stream.mockImplementation(async (path, input, output, identity, request, envelope) => {
     assert.equal(identity, observation);
-    assert.ok(envelope.typeName.endsWith("Output"));
+    if (path.endsWith("WatchRuntime")) assert.ok(envelope.typeName.endsWith("Output"));
+    else assert.equal(envelope, undefined);
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const frame = path.endsWith("WatchRuntime")
       ? { resynchronized: true, cursor: { epoch: "host", stream: "runtime", position: 9n } }

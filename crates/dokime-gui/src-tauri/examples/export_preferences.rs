@@ -82,7 +82,7 @@ async fn export_at(directory: &std::path::Path, root: &std::path::Path) -> Resul
             tls_enabled: true,
             authentication_enabled: true,
         });
-        std::fs::create_dir_all(&directory)?;
+        std::fs::create_dir_all(directory)?;
         std::fs::write(directory.join("defaults.bin"), snapshot.encode_to_vec())?;
         Ok::<_, Box<dyn std::error::Error>>(())
     }

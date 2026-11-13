@@ -243,6 +243,8 @@ test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async 
 test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
+    if (command === "desktop_session_status")
+      return { ...connected(), connection: { ...connected().connection, phase: "disconnected", backend: null } };
     if (command === "desktop_backends_list") return { profiles: [] };
     throw new Error(`Unexpected Command: ${command}`);
   });
@@ -251,8 +253,9 @@ test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command]) => command),
-    ["desktop_session_launch"],
+    ["desktop_session_launch", "desktop_session_status"],
   );
+  assert.equal(fixture.select.mock.calls.length, 0);
   cleanup();
 });
 

@@ -48,7 +48,7 @@ because this contract does not supply them. The operation grammar table in
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
 use canonical host messages. SDK and binary adapter stories prove their boundaries;
-full WebView journey proof remains open. Native method availability comes from the
+the WebView drives the same adapters. Native method availability comes from the
 SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
 catalog currently omits those bindings, so storage source changes remain disabled
 with a visible reason and a Host Request.
@@ -57,7 +57,8 @@ Desktop system startup uses `dokime-next server --endpoint ... --storage ...`
 helper uses canonical host schemas and the descriptor fence, including numeric
 enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
-verified native delivery. Their complete WebView proof remains open.
+verified native delivery. Connections exercises two native owners; Execution
+visits the library, live execution, reports/history, settings and appearance.
 The thermal fixture does not publish a report automatically. Stories explicitly
 publish a selected evidence document before requiring a sealed download; a render
 without publication correctly retains the host's Current origin.
@@ -87,18 +88,18 @@ focused native desktop commands must also pass `--features testing`.
 | Plugin Check for Updates | The connected host does not publish its typed build target. File installation remains available. |
 | Storage Source Priority and Enablement | Product RPC bindings are absent from operation discovery. |
 
-### Remaining Journey Adapters
+### Journey Coverage
 
-| Journey | Required Replacement |
+| Journey | Current Contract |
 | --- | --- |
-| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` now use canonical messages, numeric lifecycle enums, separate state/outcome/live controls, recursive values and Watch envelopes. The existing runtime consumer reconnects without a cursor and refreshes snapshots on resynchronization. Binary adapter stories pass; the WebView journey still needs the replacement driver and missing system-driver artifacts that share its page. |
+| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` use canonical messages, numeric lifecycle enums, separate state/outcome/live controls and recursive values. The runtime consumer refreshes snapshots on resynchronization; execution progress projects the named resource. The WebView creates registered cases, starts the SDK thermal execution, answers its prompt and observes its sealed outcome. |
 | Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's frozen descriptor/record catalog, preserves exact scalar values and evidence origins, and follows canonical RecordPage cursors. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the checkpoint document's frozen catalog. |
-| Documents and Reports | `native-documents.ts` now assembles canonical bounded frames and preserves completion, card commits, recursive expressions and the product epoch. Execution defaults use the host's empty selector and retain its returned document identity. `native-content.ts` uses canonical artifact/file frames and verified completion; report open/save uses verified native delivery. Full WebView export proof still needs the replacement driver. |
-| History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and product epochs. Binary stories prove attributed browse results and checkpoint log decoding; full WebView browsing still awaits the replacement driver. |
-| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. Unserved boot/restart/applied-field facts stay absent. File installation streams SDK frames. Seven native-install frontend stories pass. Full WebView plugin proof remains open. |
-| Remote Access | Pairing export, pinned connection and certificate rotation use the SDK. `native-remote.ts` projects Access listener state and owns its opaque revision. Remote preferences commit through `Access.Listener.Set`; application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. Full remote/ownership WebView proof remains open. |
+| Documents and Reports | `native-documents.ts` preserves frame order, identity, completion and card commits. Live document capture currently fails with the precise host ordering error above. Verified published report export remains available: both native owners save the same sealed HTML and reopen its frozen evidence in the owned browser. |
+| History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and product epochs. The Execution WebView visits History and reopens the saved execution after a full page reload; live document capture retains the same host limitation. |
+| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. The WebView displays the admitted thermal plugin; native stories verify file installation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
+| Remote Access | The Connections WebView proves native pairing export/import, independent profiles, shared execution and evidence, revocation, identity refusal, occupied storage and certificate rotation/recovery. `native-remote.ts` owns the listener's opaque revision. Application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
-| Dependency Removal | Native paths/distribution identity, build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native test support uses the current host, generated protobufs and prepared SDK bundles. The benchmark fixture publishes through an SDK stream and uses the current host's client operations. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. WebView journey expectations still require migration. |
+| Dependency Removal | Native paths/distribution identity, local build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native stories, WebView drivers and the SDK stream benchmark use only the current host. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. |
 
 ### Native Commands and Events
 
