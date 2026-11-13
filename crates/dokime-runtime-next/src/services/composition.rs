@@ -96,9 +96,11 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<harmos_run
 }
 
 pub(super) fn transport(settings: &ClientSettings) -> harmos_runtime::grpc::Settings {
-    let mut transport = harmos_runtime::grpc::Settings::default();
-    transport.request_timeout = settings.watch_timeout;
-    transport.shutdown_timeout = settings.mutation_timeout;
+    let mut transport = harmos_runtime::grpc::Settings {
+        request_timeout: settings.watch_timeout,
+        shutdown_timeout: settings.mutation_timeout,
+        ..Default::default()
+    };
     transport.operations.opening_timeout = settings.read_timeout;
     transport.operations.decode.message_bytes = NonZeroUsize::new(settings.message_bytes).unwrap();
     transport.operations.encode.message_bytes = NonZeroUsize::new(settings.message_bytes).unwrap();
