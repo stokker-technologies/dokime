@@ -13,6 +13,7 @@
 
 mod append;
 mod create;
+mod report;
 mod rerun;
 mod seal;
 
@@ -38,6 +39,7 @@ mod seal;
 
 #[derive(clap::Subcommand)]
 pub(crate) enum Command {
+    Report(report::Args),
     Create(create::Args),
     Append(append::Args),
     Seal(seal::Args),
@@ -51,6 +53,7 @@ pub(crate) enum Command {
 impl Command {
     pub(crate) fn action(&self) -> &'static str {
         match self {
+            Self::Report(_) => "Fetch Cycle Report",
             Self::Create(_) => "Start Cycle",
             Self::Append(_) => "Append Executions",
             Self::Seal(_) => "Seal Cycle",
@@ -63,6 +66,7 @@ impl Command {
 
 pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     match command {
+        Command::Report(args) => report::run(args, endpoint, settings).await,
         Command::Create(args) => create::run(args, endpoint, settings).await,
         Command::Append(args) => append::run(args, endpoint, settings).await,
         Command::Seal(args) => seal::run(args, endpoint, settings).await,

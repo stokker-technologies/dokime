@@ -14,7 +14,7 @@
 # Standard Library Imports
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import configuration, frontend
+from dokime_tools.build import configuration
 from dokime_tools.prepare import generated
 
 # Type Checking Imports
@@ -32,13 +32,9 @@ from dokime_tools.prepare import generated
 
 def build(profile: str) -> list[str]:
     """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
-    messages = configuration.messages(profile)
-    if not messages.is_file():
-        raise ValueError(f"missing Product compiler messages {messages}; run `mise run build -- --language rust` first")
-    generated.generate(messages, check=True)
+    generated.prepare()
     generated.stage(profile)
-    built = frontend.build(profile)
-    files = [path for path in built.rglob("*") if path.is_file()]
+    files = [path for path in (configuration.ROOT / "target/generated/typescript").rglob("*") if path.is_file()]
     return configuration.relative(files)
 
 

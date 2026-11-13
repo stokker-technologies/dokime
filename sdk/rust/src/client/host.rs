@@ -260,6 +260,14 @@ impl Progress {
     }
 }
 impl Reports {
+    pub async fn download_cycle(&self, cycle: impl Into<String>) -> Result<tonic::Streaming<v1::ReportsDownloadCycleReportOutput>, Status> {
+        let request = v1::ReportsDownloadCycleReportRequest {
+            cycle_id: cycle.into(),
+            identifier: String::new(),
+        };
+        Ok(v1::reports_client::ReportsClient::new(self.0.clone()).download_cycle_report(request).await?.into_inner())
+    }
+
     pub async fn download(
         &self, execution: impl Into<String>,
     ) -> Result<tonic::Streaming<v1::ReportsDownloadExecutionReportOutput>, Status> {

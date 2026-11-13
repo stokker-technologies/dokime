@@ -11,8 +11,8 @@ tests and design, or from the owner.
 **Landed** means verified in the named tree and proof, not that proof was rerun for
 this documentation edit. **Locked direction** names an agreed change whose complete
 contract is not implemented. Partial evidence does not establish the whole invariant.
-The additive execution host and old runtime currently coexist. Paths distinguish
-those owners; a proof for one is not proof for the other.
+The execution host owns current behavior. Removed implementations do not establish
+proof for this tree; missing journeys remain explicit obligations.
 
 The [Operation Grammar](../openspec/changes/operation-grammar/design.md) owns the
 locked mappings and requirement deltas. Its three-level decision supersedes earlier
@@ -151,7 +151,6 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Backend/Runtime services and product collection machinery are removed.
    `client_collects_backend_diagnostics` proves health events, redaction and ranged
    archives; `client_reads_runtime` proves status observation and stable restart identity.
-   The old loop retains its shared protocol until atomic cutover.
    **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
@@ -200,8 +199,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     flush cadence and configured durability/synchronization are never interchangeable.
     **Why:** Merging similar APIs can silently remove consistency, bounded work or crash guarantees.
     **Where:** [storage requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-distinct-storage-guarantees),
-    [current storage](../crates/dokime-storage/src/store.rs),
-    [existing storage backend](../crates/dokime-runtime/src/storage/sqlite).
+    [current storage](../crates/dokime-storage/src/store.rs).
     **Proof:** No proof yet for the combined storage contract; A10.
     **Status:** locked direction (`operation-grammar`); storage-interface retains its
     own implementation work and is not activated by this document.
@@ -221,9 +219,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     refuses a populated foreign root and preserves its bytes.
     `hosts_refuse_occupied_roots_before_opening_evidence` in
     [storage_root_admission.rs](../crates/dokime-runtime-next/tests/system/storage_root_admission.rs)
-    proves external-lock refusal before database creation, cloned ownership and reopening. The older
-    [format.rs](../crates/dokime-runtime/src/storage/format.rs) refuses unreadable
-    built-in state, not obsolete evidence-digest markers. **Status:** landed.
+    proves external-lock refusal before database creation, cloned ownership and reopening. **Status:** landed.
 
 13. **Callee-Owned Policies and Configured Limits.** Deadlines, delays and retries
     come from operation policy/configuration; an override changes one call only.
@@ -250,7 +246,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [workspace](../Cargo.toml), [SDK manifest](../sdk/rust/Cargo.toml),
     [runtime manifest](../crates/dokime-runtime-next/Cargo.toml).
     **Proof:** No proof yet for the complete migrated tree; A12. New crate manifests
-    follow the direction; old crates and consumers remain.
+    follow the direction; the native desktop remains outside workspace membership.
     **Status:** locked direction (`grpc-plugins`, `operation-grammar`).
 
 15. **Generic Library and Consistent SDK Concepts.** Library protocol, SDKs and
@@ -276,8 +272,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     **Where:** [agreed test redesign](../openspec/changes/test-stories/design.md),
     [guard requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-deterministic-behavioral-proof),
     [existing stories](../crates/dokime-runtime-next/tests/system).
-    **Proof:** No proof yet for the complete test migration; A14. Existing legacy tests
-    still need the agreed redesign. Do not add tests that quote this document.
+    **Proof:** No proof yet for the complete test migration; A14. Retained stories
+    still need the agreed invariant coverage. Do not add tests that quote this document.
     **Status:** locked direction (`test-stories`, `operation-grammar`).
 
 17. **Execution Evidence Outlives Live Runs.** Execution is an open/closed/sealed
@@ -324,14 +320,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     recovered runs/plugins become available; a failed inverse refuses startup and stays pending.
     **Why:** Repeated writes must restore the original physical state, not an intermediate one;
     confirmation ownership and evidence still describe every call.
-    **Where:** [effect transactions](../crates/dokime-runtime/src/transactions/effects.rs),
-    [restoration](../crates/dokime-runtime/src/runtime/effects.rs),
-    [startup ordering](../crates/dokime-runtime/src/runtime/plugins.rs),
-    [requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration).
-    **Proof:** `effect_lifecycle`, `effect_resource_order` and `effect_recovery` in
-    [effects.rs](../crates/dokime-runtime/tests/integration/domains/effects.rs).
-    **Status:** landed in the old runtime; preserve it when completing the additive
-    host's context Effects implementation, which does not yet provide this guard.
+    **Where:** [effect restoration requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration).
+    **Proof:** No proof yet in the current host; completing Effects must preserve
+    earliest-inverse retention, confirmation ownership, reverse restoration order
+    and startup refusal on failed inverses. See the replacement-journey task.
+    **Status:** locked direction; context Effects remains unimplemented.
 
 21. **Captured Shapes Preserve Evidence.** Schema-derived stream/record identities
     are equality identities, not authored versions; saved evidence retains the
@@ -339,12 +332,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     changes do not invalidate the product root.
     **Why:** Updating acquisition code must not erase or reinterpret historical evidence.
     **Where:** [shape requirements](../openspec/specs/data-shape-identity/spec.md),
-    [telemetry contracts](../crates/dokime-runtime/src/runtime/storage/telemetry.rs).
-    **Proof:** `stream_revisions_decode_on_one_root` in
-    [stream_revisions_decode_on_one_root.rs](../crates/dokime-runtime/tests/integration/runtime/storage/telemetry/stream_revisions_decode_on_one_root.rs)
-    proves stream evolution; the complete record/removal contract has **No proof yet**;
-    A15 must close that gap across the new host too. **Status:** locked direction
-    (`operation-grammar`) for the complete invariant; stream retention is landed in the old runtime.
+    [frozen schemas](../crates/dokime-storage/src/execution.rs).
+    **Proof:** No complete proof yet for stream/record evolution and removal
+    across the current host; A15 retains that obligation. **Status:** locked direction.
 
 22. **Failure and Gap Honesty.** Preserve structured classification, action and causes;
     unavailable cuts, missing evidence and watch gaps are explicit failures or resync,

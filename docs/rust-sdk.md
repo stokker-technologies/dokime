@@ -237,7 +237,7 @@ admission; the exact request is tracked under
 
 The external consumer in `sdk/rust/tests/consumer` owns the focused test targets and
 all test-only reference-host dependencies. Its child-process fixture reuses the
-existing standalone `crates/dokime-domain/src/process/` constructor by source path
+existing standalone `crates/dokime-runtime-next/src/process/` constructor by source path
 to retain the repository's console-window policy without depending on that crate.
 It compiles the SDK from its actual path and builds the sample plugin. Its standalone lock isolates SDK proof from the
 concurrent host/facade cutover; `.prepare` refreshes that consumer's dependency lock
@@ -287,10 +287,9 @@ matrix proof remain separate from local Windows runs.
 | Owner | Adoption Work |
 | --- | --- |
 | Workspace/host | Retire or relocate the existing `crates/dokime` facade identity and point the workspace `dokime` dependency to `sdk/rust`; keep host helpers under runtime/operations/storage. Add canonical SDK build/test selection to owned tooling. |
-| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime`. |
+| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime-next`. |
 | Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
 | Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |
-| Old `dokime-client` | Migrate pairing/Target, discovery, cycle/execution handles, paging/follow and transfers to generated-message consumers as their protocol contracts land; delete its raw/native transport and the crate after consumers move. |
 
 These migrations belong to the host/consumer owner. The Rust SDK adds no host-enabling
 features and leaves those existing crates and plugins untouched.

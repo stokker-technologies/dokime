@@ -14,7 +14,6 @@
 import io
 import json
 import os
-import runpy
 import socket
 import sys
 import tempfile
@@ -47,15 +46,6 @@ class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.runners = [run]
-        templates = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools"
-        namespace = runpy.run_path(str(templates / "build/storage.py.tmpl"), run_name="dokime_tools.build.template_storage")
-        storage = ModuleType(namespace["__name__"])
-        storage.__dict__.update(namespace)
-        with patch.dict(sys.modules, {"dokime_tools.build.storage": storage}):
-            namespace = runpy.run_path(str(templates / "test/run.py.tmpl"), run_name=f"{run.__package__}.template_runner")
-        module = ModuleType(namespace["__name__"])
-        module.__dict__.update(namespace)
-        cls.runners.append(module)
 
     def test_benchmark_baseline_refresh_and_comparison(self):
         with tempfile.TemporaryDirectory() as temporary:

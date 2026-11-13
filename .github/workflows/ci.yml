@@ -93,14 +93,14 @@ jobs:
           work: Python / Wheel
           command: test -- --language python --wheel
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Wheel
           command: test -- --language python --wheel
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -114,14 +114,14 @@ jobs:
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -132,22 +132,6 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
           work: Rust / Integration
           command: test -- --language rust --layer integration
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
@@ -165,30 +149,30 @@ jobs:
           work: Rust / System
           command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System
           command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
-            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence) or test(cpp_plugin_matches_rust_thermal_evidence))"
+          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
+            or test(cpp_plugin_matches_rust_thermal_evidence))"
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-product-python-{profile}-any.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence) or test(cpp_plugin_matches_rust_thermal_evidence))"
+          command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
+            or test(cpp_plugin_matches_rust_thermal_evidence))"
           bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-product-python-{profile}-any.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
@@ -203,38 +187,6 @@ jobs:
           command: test -- --language rust --layer unit
           bootstrap: '[]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / System / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: TypeScript / System / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / System / Connections
-          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: TypeScript / System / Connections
-          command: test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
-          bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
-            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
   package:
     name: Package
     uses: ./.github/workflows/validate-package.yml
@@ -341,11 +293,9 @@ jobs:
       id: setup
     - name: Execution Host Coverage
       shell: python
-      run: |
-        import os
-        from pathlib import Path
-        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
-            summary.write("Execution host: the Rust and Python stories run on Linux and Windows. C# and C++ equivalence stories run in Nightly.\n")
+      run: "import os\nfrom pathlib import Path\nwith Path(os.environ[\"GITHUB_STEP_SUMMARY\"]).open(\"a\", encoding=\"utf-8\") as summary:\n\
+        \    summary.write(\"Execution host: the Rust and Python stories run on Linux and Windows. C# and C++ equivalence stories run in Nightly.\\\
+        n\")\n"
     - run: mise run ci:required --
       env:
         RESULTS: ${{ toJSON(needs) }}

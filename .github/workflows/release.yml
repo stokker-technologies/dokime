@@ -189,7 +189,6 @@ jobs:
     name: Release / Publish
     uses: ./.github/workflows/publish.yml
     needs:
-    - package_signing_windows_rust
     - validated
     if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -227,7 +226,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: 'true'
         REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows"]'
-        REVIEW_BUILDS: '["build-cli-PROFILE-windows","build-generator-PROFILE-windows","build-gui-PROFILE-windows","build-packaging-PROFILE-windows","build-plugins-PROFILE-windows"]'
+        REVIEW_BUILDS: '["build-cli-PROFILE-windows","build-packaging-PROFILE-windows"]'
         REVIEW_REQUIRED: 'true'
     permissions:
       contents: read
@@ -253,7 +252,6 @@ jobs:
     needs:
     - publish
     - validated
-    - package_signing_windows_rust
     if: (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     permissions:
       contents: read
@@ -265,197 +263,3 @@ jobs:
       build-run: ${{ needs.validated.outputs.review_run }}
       build-sha: ${{ needs.validated.outputs.review_sha }}
       build-version: ${{ needs.validated.outputs.review_version }}
-  sign_product:
-    name: Sign / Product (Windows)
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    needs:
-    - validated
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        cache-backend: ''
-        cache-mode: ''
-        bootstrap: '[]'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-generator-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-release-rust-${{ matrix.platform }}
-        path: target/ci
-        run-id: ${{ needs.validated.outputs.review_run }}
-        github-token: ${{ github.token }}
-    - run: mise run ci:sign-product -- --profile release
-      id: sign
-    - name: Sign Exported Executables with Azure Artifact Signing
-      if: steps.sign.outputs.provider == 'azure'
-      uses: Azure/artifact-signing-action@29de24bf030cfee71b1ad0207ab4d69e74514a42
-      with:
-        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-        endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-        signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-        certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
-        files-folder: target/build/release/windows-x86_64/bin
-        files-folder-filter: exe
-        file-digest: SHA256
-        timestamp-rfc3161: http://timestamp.acs.microsoft.com
-        timestamp-digest: SHA256
-        exclude-azure-cli-credential: 'true'
-        cache-dependencies: 'false'
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: signed-product-windows
-        path: target/build/
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-    environment: release
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
-      PROFILE: release
-      CI_TRANSPORT: 'true'
-      RELEASE_TARGET_SHA: ''
-      GH_TOKEN: ${{ github.token }}
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      DOKIME_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-      DOKIME_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-      DOKIME_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
-      DOKIME_SIGNING_PFX: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
-      DOKIME_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref, 'refs/tags/v') &&
-      needs.validated.outputs.stable_release == 'true')
-    permissions:
-      contents: read
-      actions: read
-  package_signing_windows_rust:
-    name: Package / Rust / Signing (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    needs:
-    - sign_product
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        cache-backend: ''
-        cache-mode: ''
-        bootstrap: '[]'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: signed-product-windows
-        path: target/build
-    - run: mise run ci:sign-windows -- --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: package-${{ env.PROFILE }}-rust-${{ matrix.platform }}
-        path: target/ci/package-${{ env.PROFILE }}-rust-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
-        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
-        steps.setup.outputs.mise-path != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
-        steps.setup.outputs.pnpm-path != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
-        steps.setup.outputs.uv-path != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    environment: release
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
-      PROFILE: release
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: '[{"archive":"target/ci/package-${{ (startsWith(github.ref, ''refs/tags/v'') || startsWith(github.head_ref, ''release/v''))
-        && ''release'' || ''dev'' }}-rust-${{ matrix.platform }}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
-      RELEASE_TARGET_SHA: ''
-      GH_TOKEN: ${{ github.token }}
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      DOKIME_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-      DOKIME_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-      DOKIME_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
-      DOKIME_SIGNING_PFX: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
-      DOKIME_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: read
-      actions: read

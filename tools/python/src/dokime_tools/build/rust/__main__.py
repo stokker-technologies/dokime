@@ -17,8 +17,7 @@ import sys
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, outputs, paths
-from dokime_tools.package import plugins
+from dokime_tools.build import cargo, configuration, outputs, paths
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -28,7 +27,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 # === Constants === #
 
 ROOT = configuration.ROOT
-EXECUTABLES = ("dokime", "cargo-dokime")
+EXECUTABLES = ("dokime-next", "dokime-host-next")
 
 # === Types === #
 
@@ -38,18 +37,11 @@ EXECUTABLES = ("dokime", "cargo-dokime")
 
 
 def build(profile: str) -> list[str]:
-    """Build Shipping Native Bytes Before Compiling The Frontend-Embedding Desktop."""
+    """Build Shipping Native Host And Command-Line Bytes."""
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
-    arguments = ["--locked", "--workspace", "--profile", profile, *configuration.features(profile)]
-    # The desktop embeds the frontend at compile time. Building it here against a placeholder keeps one
-    # feature resolution for both steps, so the desktop step recompiles only dokime-gui.
-    dist = frontend.WEB_ROOT / "dist"
-    if not dist.is_dir():
-        dist.mkdir(parents=True)
-        (dist / "index.html").write_text("", encoding="utf-8")
-
+    arguments = ["--locked", "--workspace", "--profile", profile]
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     pending = messages.with_name("compiler.pending.json")
     with pending.open("w", encoding="utf-8") as written:
@@ -69,8 +61,6 @@ def build(profile: str) -> list[str]:
     for path in outputs.executables(messages, EXECUTABLES).values():
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
-    tool = binaries / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
-    staged += plugins.prepare(ROOT, messages, profile, tool=tool, output=output / "plugins")
     cargo.record_target(ROOT, messages, profile)
     return configuration.relative(staged)
 

@@ -56,32 +56,8 @@ jobs:
       if: success()
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-generator-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-generator-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-gui-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
         name: build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci/build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
@@ -132,9 +108,9 @@ jobs:
           runner: ubuntu-22.04
           minutes: 120
           inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-generator-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/cargo-dokime"]},{"archive":"target/ci/build-gui-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-gui"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product","target/build/{profile}/{target}/web"]},{"archive":"target/ci/build-plugins-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/plugins"]}]'
+          outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-next"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime.exe"]},{"archive":"target/ci/build-clients-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-generator-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/cargo-dokime.exe"]},{"archive":"target/ci/build-gui-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-gui.exe"]},{"archive":"target/ci/build-packaging-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/product","target/build/{profile}/{target}/web"]},{"archive":"target/ci/build-plugins-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/plugins"]}]'
+          outputs: '[{"archive":"target/ci/build-cli-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-next.exe"]},{"archive":"target/ci/build-clients-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-packaging-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'

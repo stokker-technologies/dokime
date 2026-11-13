@@ -5248,14 +5248,12 @@ pub struct MapValue {
     #[prost(map = "string, message", tag = "1")]
     pub values: ::std::collections::HashMap<::prost::alloc::string::String, Value>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AbsoluteTimeFormat {
     #[prost(string, tag = "1")]
     pub pattern: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Admission {
@@ -5268,14 +5266,12 @@ pub struct Admission {
     #[prost(message, optional, tag = "4")]
     pub accepted_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AdmittedPlugin {
     #[prost(message, optional, tag = "1")]
     pub plugin: ::core::option::Option<Plugin>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 /// Continue plugin identifier ordering within one process epoch and admission revision. Availability changes can
 /// invalidate pagination.
 #[allow(clippy::all)]
@@ -5288,7 +5284,6 @@ pub struct AdmittedPluginCursor {
     #[prost(string, tag = "3")]
     pub after_plugin_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AdmittedPluginPage {
@@ -5303,7 +5298,6 @@ pub struct AdmittedPluginPage {
     #[prost(uint64, tag = "5")]
     pub revision: u64,
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 /// Columns are group-by fields in request order followed by aggregate aliases in request order; every row follows
 /// that order. complete=false means additional groups exceeded the effective result limit.
 #[allow(clippy::all)]
@@ -5316,7 +5310,6 @@ pub struct AggregateReply {
     #[prost(bool, tag = "3")]
     pub complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 /// Unary analysis operations use the analysis metadata identifier as their operation ID.
 /// Input is one bounded raw scalar series; output must match every declared output.
 #[allow(clippy::all)]
@@ -5357,7 +5350,6 @@ pub struct AnalysisComputation {
     #[prost(message, repeated, tag = "4")]
     pub series: ::prost::alloc::vec::Vec<AnalysisSeries>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisEvidence {
@@ -5378,7 +5370,6 @@ pub struct AnalysisEvidence {
     #[prost(string, tag = "8")]
     pub x_key: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisSelection {
@@ -5389,7 +5380,6 @@ pub struct AnalysisSelection {
     #[prost(message, optional, tag = "3")]
     pub parameters: ::core::option::Option<MapValue>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisSeries {
@@ -5408,7 +5398,6 @@ pub struct AnalysisSeries {
     #[prost(message, repeated, tag = "7")]
     pub outputs: ::prost::alloc::vec::Vec<AnalysisValues>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisValues {
@@ -5425,14 +5414,12 @@ pub struct AnalysisValues {
     #[prost(uint32, repeated, tag = "6")]
     pub display_indices: ::prost::alloc::vec::Vec<u32>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AnnotationOwner {
     #[prost(message, optional, tag = "1")]
     pub owner: ::core::option::Option<AnnotationOwnerOwner>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AnnotationOwnerOwner {
@@ -5452,7 +5439,6 @@ pub mod annotation_owner_owner {
         Execution(super::ExecutionNoteOwner),
     }
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AnnotationSelection {
@@ -5461,14 +5447,12 @@ pub struct AnnotationSelection {
     #[prost(bool, tag = "2")]
     pub include_context: bool,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AppearanceAssetFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<AppearanceAssetFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AppearanceAssetFramePayload {
@@ -5488,7 +5472,6 @@ pub mod appearance_asset_frame_payload {
         Complete(super::ArtifactCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AppendCasesReply {
@@ -5497,7 +5480,6 @@ pub struct AppendCasesReply {
     #[prost(string, repeated, tag = "2")]
     pub execution_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApplicationAppearance {
@@ -5508,7 +5490,6 @@ pub struct ApplicationAppearance {
     #[prost(enumeration = "Density", tag = "3")]
     pub density: i32,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApplicationSettings {
@@ -5525,14 +5506,12 @@ pub struct ApplicationSettings {
     #[prost(message, optional, tag = "6")]
     pub plugins: ::core::option::Option<PluginPreferences>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArchiveReply {
     #[prost(bool, tag = "1")]
     pub archived: bool,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactChunk {
@@ -5541,7 +5520,6 @@ pub struct ArtifactChunk {
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactCompletion {
@@ -5550,7 +5528,6 @@ pub struct ArtifactCompletion {
     #[prost(string, tag = "2")]
     pub sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactCursor {
@@ -5559,14 +5536,12 @@ pub struct ArtifactCursor {
     #[prost(bytes = "vec", tag = "2")]
     pub metadata_sha256: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<ArtifactFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactFramePayload {
@@ -5586,7 +5561,6 @@ pub mod artifact_frame_payload {
         Complete(super::ArtifactCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactMetadata {
@@ -5611,7 +5585,6 @@ pub struct ArtifactMetadata {
     #[prost(string, optional, tag = "10")]
     pub error: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ArtifactScope {
@@ -5622,7 +5595,6 @@ pub struct ArtifactScope {
     #[prost(string, optional, tag = "3")]
     pub execution_id: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct BootstrapPaths {
@@ -5635,7 +5607,6 @@ pub struct BootstrapPaths {
     #[prost(string, tag = "4")]
     pub logs: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/query/reduction.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Bucket {
@@ -5656,7 +5627,6 @@ pub struct Bucket {
     #[prost(message, repeated, tag = "8")]
     pub fields: ::prost::alloc::vec::Vec<BucketValue>,
 }
-/// Source: crates/dokime-domain/src/model/query/reduction.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct BucketRequest {
@@ -5665,7 +5635,6 @@ pub struct BucketRequest {
     #[prost(enumeration = "Aggregate", tag = "2")]
     pub aggregate: i32,
 }
-/// Source: crates/dokime-domain/src/model/query/reduction.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BucketValue {
@@ -5680,14 +5649,12 @@ pub struct BucketValue {
     #[prost(enumeration = "Aggregate", tag = "5")]
     pub reducer: i32,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CachedRefresh {
     #[prost(uint64, tag = "1")]
     pub max_age_ms: u64,
 }
-/// Source: crates/dokime-domain/src/model/evidence/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CapturedErrorCause {
@@ -5698,7 +5665,6 @@ pub struct CapturedErrorCause {
     #[prost(string, optional, tag = "3")]
     pub source: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/evidence/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CapturedRecord {
@@ -5736,7 +5702,6 @@ pub struct CapturedRecord {
     #[prost(message, optional, tag = "15")]
     pub received_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/evidence/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CapturedRecordError {
@@ -5757,7 +5722,6 @@ pub struct CapturedRecordError {
     #[prost(string, optional, tag = "8")]
     pub diagnostics: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/evidence/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CapturedRecordSelection {
@@ -5770,7 +5734,6 @@ pub struct CapturedRecordSelection {
     #[prost(enumeration = "Severity", repeated, tag = "4")]
     pub severities: ::prost::alloc::vec::Vec<i32>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CaseActions {
@@ -5779,7 +5742,6 @@ pub struct CaseActions {
     #[prost(string, repeated, tag = "2")]
     pub unavailable_reasons: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaseDetail {
@@ -5794,7 +5756,6 @@ pub struct CaseDetail {
     #[prost(message, optional, tag = "5")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaseParameter {
@@ -5803,7 +5764,6 @@ pub struct CaseParameter {
     #[prost(message, optional, tag = "2")]
     pub value: ::core::option::Option<Value>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CaseSummary {
@@ -5830,7 +5790,6 @@ pub struct CaseSummary {
     #[prost(message, optional, tag = "11")]
     pub latest_execution_outcome: ::core::option::Option<ExecutionOutcome>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointContext {
@@ -5857,7 +5816,6 @@ pub struct CheckpointContext {
     #[prost(message, optional, tag = "11")]
     pub appearance: ::core::option::Option<AppearanceSnapshot>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointDocument {
@@ -5868,7 +5826,6 @@ pub struct CheckpointDocument {
     #[prost(bool, tag = "3")]
     pub acquisition_finished: bool,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointEvidence {
@@ -5883,7 +5840,6 @@ pub struct CheckpointEvidence {
     #[prost(message, repeated, tag = "5")]
     pub telemetry_tables: ::prost::alloc::vec::Vec<CheckpointTelemetryTable>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CheckpointFileWindow {
@@ -5892,7 +5848,6 @@ pub struct CheckpointFileWindow {
     #[prost(message, optional, tag = "2")]
     pub content: ::core::option::Option<ExecutionFileWindow>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointRecordPage {
@@ -5907,7 +5862,6 @@ pub struct CheckpointRecordPage {
     #[prost(bool, tag = "5")]
     pub issues_truncated: bool,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointTelemetryPage {
@@ -5924,7 +5878,6 @@ pub struct CheckpointTelemetryPage {
     #[prost(bool, tag = "6")]
     pub issues_truncated: bool,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointTelemetryTable {
@@ -5933,7 +5886,6 @@ pub struct CheckpointTelemetryTable {
     #[prost(message, optional, tag = "2")]
     pub schema: ::core::option::Option<TelemetrySchema>,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ClientPreferences {
@@ -5942,7 +5894,6 @@ pub struct ClientPreferences {
     #[prost(uint64, tag = "2")]
     pub request_timeout_ms: u64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ContourGrid {
@@ -5959,14 +5910,12 @@ pub struct ContourGrid {
     #[prost(bool, repeated, tag = "6")]
     pub valid: ::prost::alloc::vec::Vec<bool>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ControlReply {
     #[prost(message, optional, tag = "1")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CreateCycleReply {
@@ -5977,14 +5926,12 @@ pub struct CreateCycleReply {
     #[prost(message, optional, tag = "2")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/remote.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CreatedPairing {
     #[prost(message, optional, tag = "1")]
     pub pairing: ::core::option::Option<PairingFile>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire_cursor.rs
 /// A process/stream-qualified observation position. Page continuations keep the exact captured revision; watches
 /// may accept an earlier position in the same epoch. A future position or a different epoch/stream requires
 /// explicit resynchronization.
@@ -5998,7 +5945,6 @@ pub struct Cursor {
     #[prost(uint64, tag = "3")]
     pub position: u64,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CycleBrowsePage {
@@ -6009,7 +5955,6 @@ pub struct CycleBrowsePage {
     #[prost(uint64, optional, tag = "3")]
     pub next_after_sequence: ::core::option::Option<u64>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CycleFilter {
@@ -6024,7 +5969,6 @@ pub struct CycleFilter {
     #[prost(enumeration = "ArchiveScope", optional, tag = "5")]
     pub archive: ::core::option::Option<i32>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CycleOrder {
@@ -6033,7 +5977,6 @@ pub struct CycleOrder {
     #[prost(bool, tag = "2")]
     pub descending: bool,
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CyclePage {
@@ -6050,7 +5993,6 @@ pub struct CyclePage {
     #[prost(bool, tag = "6")]
     pub complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/query/selection.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CycleScope {
@@ -6059,7 +6001,6 @@ pub struct CycleScope {
     #[prost(string, optional, tag = "2")]
     pub execution_id: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/query/selection.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CycleSelection {
@@ -6074,7 +6015,6 @@ pub struct CycleSelection {
     #[prost(enumeration = "CycleStatus", repeated, tag = "5")]
     pub statuses: ::prost::alloc::vec::Vec<i32>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CycleSummary {
@@ -6115,7 +6055,6 @@ pub struct CycleSummary {
     #[prost(string, optional, tag = "18")]
     pub rerun_of: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DeleteExecutionResponse {
@@ -6126,7 +6065,6 @@ pub struct DeleteExecutionResponse {
     #[prost(bool, tag = "3")]
     pub local_complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/identity/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Diagnostic {
@@ -6141,7 +6079,6 @@ pub struct Diagnostic {
     #[prost(string, tag = "5")]
     pub backtrace: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentBinding {
@@ -6152,7 +6089,6 @@ pub struct DocumentBinding {
     #[prost(message, optional, tag = "3")]
     pub result: ::core::option::Option<DocumentBindingResult>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentBindingResult {
@@ -6176,7 +6112,6 @@ pub mod document_binding_result {
         Failure(super::DocumentCardFailure),
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentCard {
@@ -6187,7 +6122,6 @@ pub struct DocumentCard {
     #[prost(message, optional, tag = "3")]
     pub body: ::core::option::Option<DocumentCardBody>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentCardBody {
@@ -6209,7 +6143,6 @@ pub mod document_card_body {
         Owner(super::DocumentOwnerReference),
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentCardBudget {
@@ -6222,7 +6155,6 @@ pub struct DocumentCardBudget {
     #[prost(string, tag = "4")]
     pub card_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentCardFailure {
@@ -6233,7 +6165,6 @@ pub struct DocumentCardFailure {
     #[prost(message, optional, tag = "3")]
     pub budget: ::core::option::Option<DocumentCardBudget>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentCompletion {
@@ -6252,7 +6183,6 @@ pub struct DocumentCompletion {
     #[prost(bool, tag = "7")]
     pub partial: bool,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentEvidenceCut {
@@ -6263,14 +6193,12 @@ pub struct DocumentEvidenceCut {
     #[prost(bool, tag = "3")]
     pub cacheable: bool,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentFrame {
     #[prost(message, optional, tag = "1")]
     pub frame: ::core::option::Option<DocumentFrameFrame>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentFrameFrame {
@@ -6329,7 +6257,6 @@ pub mod document_frame_frame {
         Page(super::DocumentPage),
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentFrontiers {
@@ -6344,7 +6271,6 @@ pub struct DocumentFrontiers {
     #[prost(message, optional, tag = "5")]
     pub evidence: ::core::option::Option<DocumentTelemetryCut>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentHeader {
@@ -6357,7 +6283,6 @@ pub struct DocumentHeader {
     #[prost(message, optional, tag = "4")]
     pub frontiers: ::core::option::Option<DocumentFrontiers>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentLayoutNode {
@@ -6368,7 +6293,6 @@ pub struct DocumentLayoutNode {
     #[prost(message, optional, tag = "3")]
     pub node: ::core::option::Option<DocumentLayoutNodeNode>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentLayoutNodeNode {
@@ -6386,7 +6310,6 @@ pub mod document_layout_node_node {
         Placement(super::DocumentPlacement),
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentOwnerReference {
@@ -6397,7 +6320,6 @@ pub struct DocumentOwnerReference {
     #[prost(message, optional, tag = "3")]
     pub plot: ::core::option::Option<DocumentPlotDefinition>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentPage {
@@ -6406,7 +6328,6 @@ pub struct DocumentPage {
     #[prost(string, optional, tag = "2")]
     pub next: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentPlacement {
@@ -6423,7 +6344,6 @@ pub struct DocumentPlacement {
     #[prost(enumeration = "DocumentRail", tag = "6")]
     pub rail: i32,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentPlotDefinition {
@@ -6436,7 +6356,6 @@ pub struct DocumentPlotDefinition {
     #[prost(message, optional, tag = "4")]
     pub z_expression: ::core::option::Option<DataExpression>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentRepeat {
@@ -6451,7 +6370,6 @@ pub struct DocumentRepeat {
     #[prost(message, repeated, tag = "5")]
     pub filters: ::prost::alloc::vec::Vec<PlotFilter>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentRepeatInstance {
@@ -6466,7 +6384,6 @@ pub struct DocumentRepeatInstance {
     #[prost(message, optional, tag = "5")]
     pub filter: ::core::option::Option<PlotFilter>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentRepeatSelection {
@@ -6477,7 +6394,6 @@ pub struct DocumentRepeatSelection {
     #[prost(bool, tag = "3")]
     pub pending: bool,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentScope {
@@ -6486,7 +6402,6 @@ pub struct DocumentScope {
     #[prost(string, tag = "2")]
     pub execution_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSection {
@@ -6497,7 +6412,6 @@ pub struct DocumentSection {
     #[prost(message, optional, tag = "3")]
     pub repeat: ::core::option::Option<DocumentRepeat>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSectionIdentity {
@@ -6508,7 +6422,6 @@ pub struct DocumentSectionIdentity {
     #[prost(string, optional, tag = "3")]
     pub unavailable: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentSpan {
@@ -6523,14 +6436,12 @@ pub struct DocumentSpan {
     #[prost(uint32, optional, tag = "5")]
     pub xl: ::core::option::Option<u32>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentSummary {
     #[prost(uint64, tag = "1")]
     pub group_count: u64,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSummaryCondition {
@@ -6541,7 +6452,6 @@ pub struct DocumentSummaryCondition {
     #[prost(enumeration = "DocumentSummaryState", tag = "3")]
     pub state: i32,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSummaryGroup {
@@ -6554,7 +6464,6 @@ pub struct DocumentSummaryGroup {
     #[prost(uint64, tag = "4")]
     pub tile_count: u64,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSummaryGroupDefinition {
@@ -6567,7 +6476,6 @@ pub struct DocumentSummaryGroupDefinition {
     #[prost(uint64, tag = "4")]
     pub tile_count: u64,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSummaryTile {
@@ -6594,7 +6502,6 @@ pub struct DocumentSummaryTile {
     #[prost(string, optional, tag = "11")]
     pub unavailable: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentSummaryTileDefinition {
@@ -6621,14 +6528,12 @@ pub struct DocumentSummaryTileDefinition {
     #[prost(message, repeated, tag = "11")]
     pub conditions: ::prost::alloc::vec::Vec<DocumentSummaryCondition>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentTable {
     #[prost(uint64, tag = "1")]
     pub row_count: u64,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DocumentTableRow {
@@ -6639,7 +6544,6 @@ pub struct DocumentTableRow {
     #[prost(message, optional, tag = "3")]
     pub values: ::core::option::Option<TableRow>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentTelemetryCut {
@@ -6650,7 +6554,6 @@ pub struct DocumentTelemetryCut {
     #[prost(uint64, tag = "3")]
     pub position: u64,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DocumentWarning {
@@ -6659,28 +6562,24 @@ pub struct DocumentWarning {
     #[prost(string, tag = "2")]
     pub message: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EditNoteResponse {
     #[prost(message, optional, tag = "1")]
     pub note: ::core::option::Option<OperatorNote>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ElapsedFormat {
     #[prost(enumeration = "ElapsedUnit", tag = "1")]
     pub unit: i32,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EngineeringFormat {
     #[prost(uint32, tag = "1")]
     pub significant_digits: u32,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceCounts {
@@ -6699,14 +6598,12 @@ pub struct EvidenceCounts {
     #[prost(uint64, tag = "7")]
     pub notes: u64,
 }
-/// Source: crates/dokime-domain/src/model/exports.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceExportFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<EvidenceExportPayload>,
 }
-/// Source: crates/dokime-domain/src/model/exports.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceExportMetadata {
@@ -6721,7 +6618,6 @@ pub struct EvidenceExportMetadata {
     #[prost(string, tag = "5")]
     pub sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/exports.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceExportPayload {
@@ -6741,14 +6637,12 @@ pub mod evidence_export_payload {
         Complete(super::ArtifactCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/identity/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceOrigin {
     #[prost(message, optional, tag = "1")]
     pub kind: ::core::option::Option<EvidenceOriginKind>,
 }
-/// Source: crates/dokime-domain/src/model/identity/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceOriginKind {
@@ -6770,7 +6664,6 @@ pub mod evidence_origin_kind {
         Cleanup(bool),
     }
 }
-/// Source: crates/dokime-domain/src/model/identity/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceScope {
@@ -6793,7 +6686,6 @@ pub struct EvidenceScope {
     #[prost(message, optional, tag = "9")]
     pub origin: ::core::option::Option<EvidenceOrigin>,
 }
-/// Source: crates/dokime-domain/src/model/exports.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EvidenceSubject {
@@ -6820,7 +6712,6 @@ pub struct ExecutionBinding {
     #[prost(string, tag = "2")]
     pub case_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 /// Counts cover the whole filtered cycle selection, not just the current page. Headline result folds evaluated
 /// outcomes only; declared_count and not_evaluated_count remain separate.
 #[allow(clippy::all)]
@@ -6861,7 +6752,6 @@ pub struct ExecutionBrowseCycle {
     #[prost(uint64, tag = "17")]
     pub not_evaluated_count: u64,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionBrowseEntry {
@@ -6874,7 +6764,6 @@ pub struct ExecutionBrowseEntry {
     #[prost(bool, tag = "4")]
     pub archived: bool,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionBrowsePage {
@@ -6897,7 +6786,6 @@ pub struct ExecutionBrowsePage {
     #[prost(message, repeated, tag = "8")]
     pub cycles: ::prost::alloc::vec::Vec<ExecutionBrowseCycle>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire_checkpoint.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionCheckpoint {
@@ -6910,7 +6798,6 @@ pub struct ExecutionCheckpoint {
     #[prost(message, optional, tag = "4")]
     pub evidence_through: ::core::option::Option<StorageCursor>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionCommandReceipt {
@@ -6935,7 +6822,6 @@ pub struct ExecutionCommandReceipt {
     #[prost(string, optional, tag = "10")]
     pub detail: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionControls {
@@ -6964,7 +6850,6 @@ pub struct ExecutionControls {
     #[prost(bool, tag = "12")]
     pub can_export: bool,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 /// Evidence identity, origin, outcome, schemas and capabilities are independent of optional live manager state.
 /// Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
 /// capability.
@@ -7024,14 +6909,12 @@ pub struct ExecutionDetail {
     #[prost(enumeration = "LiveExecutionState", optional, tag = "17")]
     pub live_state: ::core::option::Option<i32>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileDownloadFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<ExecutionFileDownloadFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileDownloadFramePayload {
@@ -7051,7 +6934,6 @@ pub mod execution_file_download_frame_payload {
         Complete(super::ArtifactCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileDownloadMetadata {
@@ -7066,14 +6948,12 @@ pub struct ExecutionFileDownloadMetadata {
     #[prost(uint64, tag = "5")]
     pub observed_size_bytes: u64,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileFollowFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<ExecutionFileFollowFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileFollowFramePayload {
@@ -7093,7 +6973,6 @@ pub mod execution_file_follow_frame_payload {
         Terminal(super::ExecutionFileFollowTerminal),
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileFollowMetadata {
@@ -7110,7 +6989,6 @@ pub struct ExecutionFileFollowMetadata {
     #[prost(uint64, tag = "6")]
     pub offset: u64,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileFollowTerminal {
@@ -7121,7 +6999,6 @@ pub struct ExecutionFileFollowTerminal {
     #[prost(message, optional, tag = "3")]
     pub sealed: ::core::option::Option<ExecutionFileSeal>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileIdentity {
@@ -7134,7 +7011,6 @@ pub struct ExecutionFileIdentity {
     #[prost(string, tag = "4")]
     pub relative_path: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileMetadata {
@@ -7151,7 +7027,6 @@ pub struct ExecutionFileMetadata {
     #[prost(message, optional, tag = "6")]
     pub created_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileSeal {
@@ -7164,7 +7039,6 @@ pub struct ExecutionFileSeal {
     #[prost(string, tag = "4")]
     pub sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFileWindow {
@@ -7183,7 +7057,6 @@ pub struct ExecutionFileWindow {
     #[prost(bytes = "vec", tag = "7")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFilesCursor {
@@ -7194,7 +7067,6 @@ pub struct ExecutionFilesCursor {
     #[prost(bytes = "vec", tag = "3")]
     pub metadata_sha256: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionFilter {
@@ -7213,7 +7085,6 @@ pub struct ExecutionFilter {
     #[prost(enumeration = "ArchiveScope", optional, tag = "7")]
     pub archive: ::core::option::Option<i32>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionNoteOwner {
@@ -7222,7 +7093,6 @@ pub struct ExecutionNoteOwner {
     #[prost(string, tag = "2")]
     pub execution_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionOrder {
@@ -7231,7 +7101,6 @@ pub struct ExecutionOrder {
     #[prost(bool, tag = "2")]
     pub descending: bool,
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionPage {
@@ -7251,7 +7120,6 @@ pub struct ExecutionPage {
     #[prost(bool, tag = "6")]
     pub complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionProgress {
@@ -7270,7 +7138,6 @@ pub struct ExecutionProgress {
     #[prost(uint64, optional, tag = "7")]
     pub remaining_ms: ::core::option::Option<u64>,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionProgressFrame {
@@ -7283,7 +7150,6 @@ pub struct ExecutionProgressFrame {
     #[prost(bool, tag = "4")]
     pub cleared: bool,
 }
-/// Source: crates/dokime-domain/src/model/query/selection.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionSelection {
@@ -7298,7 +7164,6 @@ pub struct ExecutionSelection {
     #[prost(enumeration = "ArchiveScope", optional, tag = "5")]
     pub archive: ::core::option::Option<i32>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionStep {
@@ -7323,7 +7188,6 @@ pub struct ExecutionStep {
     #[prost(message, repeated, tag = "10")]
     pub criteria: ::prost::alloc::vec::Vec<StepCriterion>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionSummary {
@@ -7342,7 +7206,6 @@ pub struct ExecutionSummary {
     #[prost(message, optional, tag = "6")]
     pub outcome: ::core::option::Option<ExecutionOutcome>,
 }
-/// Source: crates/dokime-domain/src/model/query/schema.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Field {
@@ -7385,14 +7248,12 @@ pub struct FileReference {
     #[prost(bytes = "vec", tag = "4")]
     pub sha256: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FixedFormat {
     #[prost(uint32, tag = "1")]
     pub decimals: u32,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GridCell {
@@ -7403,7 +7264,6 @@ pub struct GridCell {
     #[prost(string, tag = "3")]
     pub label: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GridDefinition {
@@ -7422,7 +7282,6 @@ pub struct GridDefinition {
     #[prost(string, tag = "7")]
     pub summary_label: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GridFrame {
@@ -7435,7 +7294,6 @@ pub struct GridFrame {
     #[prost(message, repeated, tag = "4")]
     pub highlights: ::prost::alloc::vec::Vec<GridCell>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GridFrames {
@@ -7448,7 +7306,6 @@ pub struct GridFrames {
     #[prost(string, tag = "4")]
     pub summary_label: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HealthItem {
@@ -7465,7 +7322,6 @@ pub struct HealthItem {
     #[prost(message, optional, tag = "6")]
     pub observed_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalCycle {
@@ -7488,7 +7344,6 @@ pub struct HistoricalCycle {
     #[prost(message, optional, tag = "9")]
     pub result: ::core::option::Option<ResultSummary>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalCycleContext {
@@ -7497,7 +7352,6 @@ pub struct HistoricalCycleContext {
     #[prost(string, repeated, tag = "2")]
     pub execution_order: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalDocument {
@@ -7510,7 +7364,6 @@ pub struct HistoricalDocument {
     #[prost(message, repeated, tag = "4")]
     pub table_rows: ::prost::alloc::vec::Vec<DocumentTableRow>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalDocumentCard {
@@ -7521,7 +7374,6 @@ pub struct HistoricalDocumentCard {
     #[prost(message, optional, tag = "3")]
     pub body: ::core::option::Option<HistoricalDocumentCardBody>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalDocumentCardBody {
@@ -7545,7 +7397,6 @@ pub mod historical_document_card_body {
         Owner(super::DocumentOwnerReference),
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalDocumentFilter {
@@ -7556,7 +7407,6 @@ pub struct HistoricalDocumentFilter {
     #[prost(message, optional, tag = "3")]
     pub value: ::core::option::Option<Value>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalExecutionCycle {
@@ -7565,7 +7415,6 @@ pub struct HistoricalExecutionCycle {
     #[prost(message, optional, tag = "2")]
     pub metadata: ::core::option::Option<Metadata>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalExecutionDocument {
@@ -7574,7 +7423,6 @@ pub struct HistoricalExecutionDocument {
     #[prost(message, optional, tag = "2")]
     pub execution: ::core::option::Option<HistoricalTestExecution>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalExecutionMetadata {
@@ -7601,7 +7449,6 @@ pub struct HistoricalExecutionMetadata {
     #[prost(message, optional, tag = "11")]
     pub outcome: ::core::option::Option<ExecutionOutcome>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalStep {
@@ -7620,7 +7467,6 @@ pub struct HistoricalStep {
     #[prost(message, repeated, tag = "7")]
     pub criteria: ::prost::alloc::vec::Vec<StepCriterion>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HistoricalStepAttempt {
@@ -7637,7 +7483,6 @@ pub struct HistoricalStepAttempt {
     #[prost(message, optional, tag = "6")]
     pub detail: ::core::option::Option<Diagnostic>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalSummaryCondition {
@@ -7648,7 +7493,6 @@ pub struct HistoricalSummaryCondition {
     #[prost(enumeration = "DocumentSummaryState", tag = "3")]
     pub state: i32,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalSummaryGroup {
@@ -7657,7 +7501,6 @@ pub struct HistoricalSummaryGroup {
     #[prost(message, repeated, tag = "2")]
     pub tiles: ::prost::alloc::vec::Vec<HistoricalSummaryTile>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalSummaryTile {
@@ -7678,14 +7521,12 @@ pub struct HistoricalSummaryTile {
     #[prost(message, repeated, tag = "8")]
     pub conditions: ::prost::alloc::vec::Vec<HistoricalSummaryCondition>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoricalTelemetrySummary {
     #[prost(message, repeated, tag = "1")]
     pub groups: ::prost::alloc::vec::Vec<HistoricalSummaryGroup>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 /// Immutable evidence at the selected checkpoint. The frozen origin replaces native plugin/case snapshots.
 /// Attempt evidence is interpreted through the TestCase in PluginRun; imports have no fabricated case or
 /// criteria.
@@ -7741,7 +7582,6 @@ pub struct HistoricalTestExecution {
     #[prost(string, optional, tag = "24")]
     pub host_version: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HistoryIssue {
@@ -7752,14 +7592,12 @@ pub struct HistoryIssue {
     #[prost(string, tag = "3")]
     pub message: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HostCardBlock {
     #[prost(message, optional, tag = "1")]
     pub kind: ::core::option::Option<HostCardBlockKind>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HostCardBlockKind {
@@ -7781,14 +7619,12 @@ pub mod host_card_block_kind {
         Metrics(super::HostCardMetrics),
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HostCardBody {
     #[prost(message, repeated, tag = "1")]
     pub blocks: ::prost::alloc::vec::Vec<HostCardBlock>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostCardKeyValue {
@@ -7799,14 +7635,12 @@ pub struct HostCardKeyValue {
     #[prost(string, optional, tag = "3")]
     pub detail: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HostCardKeyValueList {
     #[prost(message, repeated, tag = "1")]
     pub items: ::prost::alloc::vec::Vec<HostCardKeyValue>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostCardMetric {
@@ -7819,14 +7653,12 @@ pub struct HostCardMetric {
     #[prost(string, optional, tag = "4")]
     pub trend: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HostCardMetrics {
     #[prost(message, repeated, tag = "1")]
     pub items: ::prost::alloc::vec::Vec<HostCardMetric>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostCardStatus {
@@ -7837,7 +7669,6 @@ pub struct HostCardStatus {
     #[prost(string, optional, tag = "3")]
     pub detail: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InstallPluginChunk {
@@ -7846,7 +7677,6 @@ pub struct InstallPluginChunk {
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 /// Header first, then contiguous nonempty chunks bounded by the advertised message size. EOF/finish must match
 /// the declared size and SHA-256. On uncertain acknowledgement, reconcile the manifest by digest before retrying.
 #[allow(clippy::all)]
@@ -7855,7 +7685,6 @@ pub struct InstallPluginFrame {
     #[prost(message, optional, tag = "1")]
     pub frame: ::core::option::Option<InstallPluginFrameFrame>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InstallPluginFrameFrame {
@@ -7873,7 +7702,6 @@ pub mod install_plugin_frame_frame {
         Chunk(super::InstallPluginChunk),
     }
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InstallPluginHeader {
@@ -7882,7 +7710,6 @@ pub struct InstallPluginHeader {
     #[prost(string, tag = "2")]
     pub sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 /// Continue the installation UUID ordering against this exact manifest digest. A changed manifest invalidates the
 /// page sequence; start again without a cursor.
 #[allow(clippy::all)]
@@ -7893,7 +7720,6 @@ pub struct InstallationCursor {
     #[prost(string, tag = "2")]
     pub after_install_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InstallationPage {
@@ -7906,7 +7732,6 @@ pub struct InstallationPage {
     #[prost(string, tag = "4")]
     pub manifest_sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListAnalysesReply {
@@ -7915,7 +7740,6 @@ pub struct ListAnalysesReply {
     #[prost(string, optional, tag = "2")]
     pub next_after_id: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListArtifactsReply {
@@ -7926,21 +7750,18 @@ pub struct ListArtifactsReply {
     #[prost(message, optional, tag = "3")]
     pub cursor: ::core::option::Option<ArtifactCursor>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListCaseParametersReply {
     #[prost(message, repeated, tag = "1")]
     pub parameters: ::prost::alloc::vec::Vec<CaseParameter>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListCasesReply {
     #[prost(message, repeated, tag = "1")]
     pub cases: ::prost::alloc::vec::Vec<CaseSummary>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListCyclesReply {
@@ -7951,7 +7772,6 @@ pub struct ListCyclesReply {
     #[prost(message, optional, tag = "3")]
     pub cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListExecutionFilesReply {
@@ -7962,14 +7782,12 @@ pub struct ListExecutionFilesReply {
     #[prost(message, optional, tag = "3")]
     pub cursor: ::core::option::Option<ExecutionFilesCursor>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListExecutionStepsReply {
     #[prost(message, repeated, tag = "1")]
     pub steps: ::prost::alloc::vec::Vec<ExecutionStep>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListExecutionsReply {
@@ -7980,7 +7798,6 @@ pub struct ListExecutionsReply {
     #[prost(message, optional, tag = "3")]
     pub cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListHealthResponse {
@@ -7991,14 +7808,12 @@ pub struct ListHealthResponse {
     #[prost(string, tag = "3")]
     pub next_after_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListMaterializedParametersReply {
     #[prost(message, repeated, tag = "1")]
     pub parameters: ::prost::alloc::vec::Vec<MaterializedParameter>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListNotesResponse {
@@ -8009,21 +7824,18 @@ pub struct ListNotesResponse {
     #[prost(string, tag = "3")]
     pub next_after_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListPendingPromptsReply {
     #[prost(message, repeated, tag = "1")]
     pub prompts: ::prost::alloc::vec::Vec<PendingPromptIdentity>,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListPromptDefinitionsReply {
     #[prost(message, repeated, tag = "1")]
     pub definitions: ::prost::alloc::vec::Vec<PromptDefinitionIdentity>,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListRecordSchemasReply {
@@ -8057,14 +7869,12 @@ pub struct ListSamples {
     #[prost(bool, tag = "10")]
     pub latest: bool,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListSuitesReply {
     #[prost(message, repeated, tag = "1")]
     pub suites: ::prost::alloc::vec::Vec<SuiteIdentity>,
 }
-/// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {
@@ -8073,18 +7883,15 @@ pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {
     #[prost(uint64, tag = "2")]
     pub value: u64,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListTelemetrySchemasReply {
     #[prost(message, repeated, tag = "1")]
     pub schemas: ::prost::alloc::vec::Vec<TelemetrySchemaIdentity>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ManualRefresh {}
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MaterializedParameter {
@@ -8101,14 +7908,12 @@ pub struct MaterializedParameter {
     #[prost(message, optional, tag = "6")]
     pub unit: ::core::option::Option<MeasurementUnit>,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MaterializedReport {
     #[prost(message, optional, tag = "1")]
     pub report: ::core::option::Option<FileReference>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MeasurementUnit {
@@ -8119,21 +7924,18 @@ pub struct MeasurementUnit {
     #[prost(string, tag = "3")]
     pub symbol: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MutationContext {
     #[prost(string, optional, tag = "1")]
     pub correlation_id: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NormalFormat {
     #[prost(uint32, optional, tag = "1")]
     pub max_fraction_digits: ::core::option::Option<u32>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NoteReceipt {
@@ -8152,18 +7954,15 @@ pub struct NoteReceipt {
     #[prost(string, repeated, tag = "7")]
     pub unconfirmed_targets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct NullableNumber {
     #[prost(double, optional, tag = "1")]
     pub value: ::core::option::Option<f64>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OnDemandRefresh {}
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OperationProgress {
@@ -8186,7 +7985,6 @@ pub struct OperationProgress {
     #[prost(string, optional, tag = "9")]
     pub failure: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OperatorNote {
@@ -8201,7 +7999,6 @@ pub struct OperatorNote {
     #[prost(message, optional, tag = "5")]
     pub created_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/process/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Output {
@@ -8219,7 +8016,6 @@ pub mod output {
         Artifact(::prost::alloc::string::String),
     }
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PageLimits {
@@ -8228,7 +8024,6 @@ pub struct PageLimits {
     #[prost(uint64, tag = "2")]
     pub bytes: u64,
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PageRequest {
@@ -8239,7 +8034,6 @@ pub struct PageRequest {
     #[prost(string, optional, tag = "3")]
     pub after: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/remote.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PairingFile {
@@ -8256,7 +8050,6 @@ pub struct PairingFile {
     #[prost(string, optional, tag = "6")]
     pub access_key: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ParameterCursor {
@@ -8265,7 +8058,6 @@ pub struct ParameterCursor {
     #[prost(message, optional, tag = "2")]
     pub selection: ::core::option::Option<ParameterCursorSelection>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ParameterCursorSelection {
@@ -8285,7 +8077,6 @@ pub mod parameter_cursor_selection {
         PlannedCase(super::PlannedCaseParameters),
     }
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PendingPromptIdentity {
@@ -8298,7 +8089,6 @@ pub struct PendingPromptIdentity {
     #[prost(message, optional, tag = "4")]
     pub created_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 /// A materialized case with its frozen provider origin. Identity/digest/process time come from the captured
 /// catalog; the TestCase contains resolved parameters, steps, criteria and stream identifiers. Materialize again
 /// if the catalog digest changes before execution.
@@ -8320,7 +8110,6 @@ pub struct PlannedCase {
     #[prost(message, optional, tag = "7")]
     pub origin: ::core::option::Option<Origin>,
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlannedCaseNoteOwner {
@@ -8329,7 +8118,6 @@ pub struct PlannedCaseNoteOwner {
     #[prost(string, tag = "2")]
     pub case_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlannedCaseParameters {
@@ -8338,21 +8126,18 @@ pub struct PlannedCaseParameters {
     #[prost(string, tag = "2")]
     pub case_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotAnalysis {
     #[prost(message, optional, tag = "1")]
     pub result: ::core::option::Option<PlotAnalysisResult>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlotAnalysisError {
     #[prost(string, tag = "1")]
     pub message: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotAnalysisResult {
@@ -8378,7 +8163,6 @@ pub mod plot_analysis_result {
         Error(super::PlotAnalysisError),
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotBoxSummary {
@@ -8405,7 +8189,6 @@ pub struct PlotBoxSummary {
     #[prost(string, tag = "11")]
     pub label: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotBoxSummaryAnalysis {
@@ -8414,7 +8197,6 @@ pub struct PlotBoxSummaryAnalysis {
     #[prost(uint64, tag = "2")]
     pub total: u64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotColumn {
@@ -8427,7 +8209,6 @@ pub struct PlotColumn {
     #[prost(message, repeated, tag = "4")]
     pub z: ::prost::alloc::vec::Vec<NullableNumber>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotDomain {
@@ -8436,7 +8217,6 @@ pub struct PlotDomain {
     #[prost(double, tag = "2")]
     pub max: f64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotEnvelope {
@@ -8455,7 +8235,6 @@ pub struct PlotEnvelope {
     #[prost(string, repeated, tag = "7")]
     pub warnings: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotFftOptions {
@@ -8474,7 +8253,6 @@ pub struct PlotFftOptions {
     #[prost(double, optional, tag = "7")]
     pub max_frequency_hz: ::core::option::Option<f64>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotFilter {
@@ -8485,7 +8263,6 @@ pub struct PlotFilter {
     #[prost(message, optional, tag = "3")]
     pub value: ::core::option::Option<Value>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotFrame {
@@ -8504,14 +8281,12 @@ pub struct PlotFrame {
     #[prost(string, tag = "7")]
     pub signature: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotHistogramAnalysis {
     #[prost(message, repeated, tag = "1")]
     pub series: ::prost::alloc::vec::Vec<PlotHistogramSeries>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotHistogramBin {
@@ -8522,7 +8297,6 @@ pub struct PlotHistogramBin {
     #[prost(uint64, tag = "3")]
     pub count: u64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlotHistogramOptions {
@@ -8531,7 +8305,6 @@ pub struct PlotHistogramOptions {
     #[prost(string, optional, tag = "2")]
     pub unit: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotHistogramSeries {
@@ -8544,7 +8317,6 @@ pub struct PlotHistogramSeries {
     #[prost(message, optional, tag = "4")]
     pub statistics: ::core::option::Option<PlotHistogramStatistics>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotHistogramStatistics {
@@ -8561,7 +8333,6 @@ pub struct PlotHistogramStatistics {
     #[prost(double, tag = "6")]
     pub max: f64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotIntervalOptions {
@@ -8572,7 +8343,6 @@ pub struct PlotIntervalOptions {
     #[prost(bool, tag = "3")]
     pub clip_to_observed: bool,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotMarker {
@@ -8585,7 +8355,6 @@ pub struct PlotMarker {
     #[prost(string, tag = "4")]
     pub color: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotPayload {
@@ -8628,7 +8397,6 @@ pub struct PlotPayload {
     #[prost(double, repeated, tag = "19")]
     pub replaced_buckets: ::prost::alloc::vec::Vec<f64>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotPayloadDiagnostics {
@@ -8651,7 +8419,6 @@ pub struct PlotPayloadDiagnostics {
     #[prost(double, optional, tag = "6")]
     pub window_s: ::core::option::Option<f64>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotPresentation {
@@ -8678,7 +8445,6 @@ pub struct PlotPresentation {
     #[prost(double, optional, tag = "11")]
     pub scale: ::core::option::Option<f64>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotReferenceBand {
@@ -8695,7 +8461,6 @@ pub struct PlotReferenceBand {
     #[prost(message, optional, tag = "6")]
     pub tolerance: ::core::option::Option<PlotReferenceValue>,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotReferenceLine {
@@ -8706,7 +8471,6 @@ pub struct PlotReferenceLine {
     #[prost(string, tag = "3")]
     pub color: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotReferenceValue {
@@ -8715,7 +8479,6 @@ pub struct PlotReferenceValue {
     #[prost(message, optional, tag = "2")]
     pub expression: ::core::option::Option<DataExpression>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotRequest {
@@ -8799,7 +8562,6 @@ pub struct PlotRequest {
     #[prost(message, optional, tag = "39")]
     pub at: ::core::option::Option<StorageCursor>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlotSeries {
@@ -8816,7 +8578,6 @@ pub struct PlotSeries {
     #[prost(message, optional, tag = "6")]
     pub format: ::core::option::Option<ValueFormat>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotSeriesSummary {
@@ -8839,7 +8600,6 @@ pub struct PlotSeriesSummary {
     #[prost(message, optional, tag = "9")]
     pub window: ::core::option::Option<PlotWindow>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotSigmaBin {
@@ -8854,14 +8614,12 @@ pub struct PlotSigmaBin {
     #[prost(double, tag = "5")]
     pub upper: f64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotSigmaIntervalAnalysis {
     #[prost(message, repeated, tag = "1")]
     pub series: ::prost::alloc::vec::Vec<PlotSigmaSeries>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotSigmaSeries {
@@ -8872,21 +8630,18 @@ pub struct PlotSigmaSeries {
     #[prost(uint64, tag = "3")]
     pub raw_points: u64,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotSnapshotsReply {
     #[prost(message, repeated, tag = "1")]
     pub envelopes: ::prost::alloc::vec::Vec<PlotEnvelope>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotStreamFrame {
     #[prost(message, repeated, tag = "1")]
     pub updates: ::prost::alloc::vec::Vec<PlotStreamUpdate>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotStreamUpdate {
@@ -8895,7 +8650,6 @@ pub struct PlotStreamUpdate {
     #[prost(message, optional, tag = "2")]
     pub envelope: ::core::option::Option<PlotEnvelope>,
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotWindow {
@@ -8904,7 +8658,6 @@ pub struct PlotWindow {
     #[prost(double, tag = "2")]
     pub to: f64,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PluginIdentity {
@@ -8915,7 +8668,6 @@ pub struct PluginIdentity {
     #[prost(string, tag = "3")]
     pub description: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 /// Installed bundle metadata plus its managed entry. Connection/process availability is Plugin.state;
 /// installation state describes bundle management, not whether a plugin is connected.
 #[allow(clippy::all)]
@@ -8936,7 +8688,6 @@ pub struct PluginInstallation {
     #[prost(message, optional, tag = "7")]
     pub plugin: ::core::option::Option<Plugin>,
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PluginMetadata {
@@ -8947,7 +8698,6 @@ pub struct PluginMetadata {
     #[prost(uint64, tag = "3")]
     pub size_bytes: u64,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PluginPreferences {
@@ -8956,7 +8706,6 @@ pub struct PluginPreferences {
     #[prost(uint32, tag = "2")]
     pub stop_timeout_s: u32,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 /// Saved and discovered settings by identifier. There is no injected applied snapshot or unapplied comparison.
 /// Reads expose no secret values.
 #[allow(clippy::all)]
@@ -8971,7 +8720,6 @@ pub struct PluginRuntimeSettings {
     #[prost(message, optional, tag = "4")]
     pub discovered: ::core::option::Option<MapValue>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PreviewSelectionReply {
@@ -8980,7 +8728,6 @@ pub struct PreviewSelectionReply {
     #[prost(message, optional, tag = "2")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PromptDefinitionIdentity {
@@ -8989,7 +8736,6 @@ pub struct PromptDefinitionIdentity {
     #[prost(string, tag = "2")]
     pub title: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PromptInstance {
@@ -9006,7 +8752,6 @@ pub struct PromptInstance {
     #[prost(message, optional, tag = "6")]
     pub created_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PromptResponse {
@@ -9023,7 +8768,6 @@ pub struct PromptResponse {
     #[prost(bool, tag = "6")]
     pub accepted: bool,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PromptResponseReceipt {
@@ -9038,7 +8782,6 @@ pub struct PromptResponseReceipt {
     #[prost(message, optional, tag = "5")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PromptView {
@@ -9049,7 +8792,6 @@ pub struct PromptView {
     #[prost(message, optional, tag = "3")]
     pub observed_cursor: ::core::option::Option<Cursor>,
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 /// The aggregate vocabulary is shared with document expressions. Percentile requires a rank in the inclusive
 /// range 0..100. Aliases are unique and distinct from group-by columns. Count without a column counts rows; null
 /// inputs are skipped for other aggregates.
@@ -9065,7 +8807,6 @@ pub struct QueryAggregate {
     #[prost(double, optional, tag = "4")]
     pub percentile: ::core::option::Option<f64>,
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFilter {
@@ -9076,14 +8817,12 @@ pub struct QueryFilter {
     #[prost(message, repeated, tag = "3")]
     pub values: ::prost::alloc::vec::Vec<Value>,
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryRow {
     #[prost(message, repeated, tag = "1")]
     pub values: ::prost::alloc::vec::Vec<Value>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordDisplay {
@@ -9092,7 +8831,6 @@ pub struct RecordDisplay {
     #[prost(enumeration = "RecordTone", tag = "2")]
     pub tone: i32,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecordField {
@@ -9113,7 +8851,6 @@ pub struct RecordField {
     #[prost(message, optional, tag = "8")]
     pub format: ::core::option::Option<ValueFormat>,
 }
-/// Source: crates/dokime-domain/src/model/evidence/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecordPage {
@@ -9128,7 +8865,6 @@ pub struct RecordPage {
     #[prost(uint64, tag = "5")]
     pub retained_after: u64,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecordSchema {
@@ -9153,7 +8889,6 @@ pub struct RecordSchema {
     #[prost(message, optional, tag = "10")]
     pub display: ::core::option::Option<RecordDisplay>,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecordSchemaIdentity {
@@ -9164,7 +8899,6 @@ pub struct RecordSchemaIdentity {
     #[prost(message, optional, tag = "3")]
     pub metadata: ::core::option::Option<Metadata>,
 }
-/// Source: crates/dokime-domain/src/model/query/selection.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordScope {
@@ -9182,7 +8916,6 @@ pub mod record_scope {
         Cycle(super::CycleScope),
     }
 }
-/// Source: crates/dokime-domain/src/model/media/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordingAudio {
@@ -9191,14 +8924,12 @@ pub struct RecordingAudio {
     #[prost(bool, tag = "2")]
     pub system: bool,
 }
-/// Source: crates/dokime-domain/src/model/media/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordingFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<RecordingFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/media/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordingFramePayload {
@@ -9216,7 +8947,6 @@ pub mod recording_frame_payload {
         Completed(super::ArtifactMetadata),
     }
 }
-/// Source: crates/dokime-domain/src/model/media/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RecordingProgress {
@@ -9225,7 +8955,6 @@ pub struct RecordingProgress {
     #[prost(uint64, tag = "2")]
     pub size_bytes: u64,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 /// Exact registered suite/template identifiers. Parameter dimensions expand deterministically in selection order.
 /// A multiple-valued parameter receives its selected values as one list rather than an expansion dimension. File
 /// values are opaque plugin strings; they grant no client filesystem authority.
@@ -9241,7 +8970,6 @@ pub struct RegisteredSelection {
     #[prost(message, repeated, tag = "4")]
     pub files: ::prost::alloc::vec::Vec<RegisteredSelectionFilesEntry>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RegisteredSelectionFilesEntry {
@@ -9250,7 +8978,6 @@ pub struct RegisteredSelectionFilesEntry {
     #[prost(message, optional, tag = "2")]
     pub value: ::core::option::Option<SelectedFile>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisteredSelectionParametersEntry {
@@ -9259,7 +8986,6 @@ pub struct RegisteredSelectionParametersEntry {
     #[prost(message, optional, tag = "2")]
     pub value: ::core::option::Option<SelectionValues>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Rejection {
@@ -9270,7 +8996,6 @@ pub struct Rejection {
     #[prost(message, repeated, tag = "3")]
     pub issues: ::prost::alloc::vec::Vec<ValidationIssue>,
 }
-/// Source: crates/dokime-domain/src/model/remote.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RemoteEndpoint {
@@ -9279,7 +9004,6 @@ pub struct RemoteEndpoint {
     #[prost(string, optional, tag = "2")]
     pub adapter_name: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/remote.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RemoteListenerSettings {
@@ -9294,7 +9018,6 @@ pub struct RemoteListenerSettings {
     #[prost(string, repeated, tag = "5")]
     pub certificate_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/remote.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemoteListenerStatus {
@@ -9311,14 +9034,12 @@ pub struct RemoteListenerStatus {
     #[prost(message, repeated, tag = "6")]
     pub endpoints: ::prost::alloc::vec::Vec<RemoteEndpoint>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RenameReply {
     #[prost(string, tag = "1")]
     pub label: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportDefaults {
@@ -9333,7 +9054,6 @@ pub struct ReportDefaults {
     #[prost(enumeration = "Downsample", tag = "5")]
     pub plot_downsample: i32,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportHtmlChunk {
@@ -9342,7 +9062,6 @@ pub struct ReportHtmlChunk {
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportHtmlCompletion {
@@ -9351,7 +9070,6 @@ pub struct ReportHtmlCompletion {
     #[prost(string, tag = "2")]
     pub sha256: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 /// Report metadata first, then contiguous chunks in offset order, then completion. Verify size and SHA-256 and
 /// require a successful final RPC response/status before accepting the bytes.
 #[allow(clippy::all)]
@@ -9360,7 +9078,6 @@ pub struct ReportHtmlFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<ReportHtmlFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReportHtmlFramePayload {
@@ -9380,7 +9097,6 @@ pub mod report_html_frame_payload {
         Complete(super::ReportHtmlCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReportMetadata {
@@ -9399,7 +9115,6 @@ pub struct ReportMetadata {
     #[prost(string, repeated, tag = "7")]
     pub warnings: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportStatus {
@@ -9408,7 +9123,6 @@ pub struct ReportStatus {
     #[prost(string, optional, tag = "2")]
     pub failure: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportSubject {
@@ -9426,7 +9140,6 @@ pub mod report_subject {
         Cycle(::prost::alloc::string::String),
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RerunCaseNotice {
@@ -9437,7 +9150,6 @@ pub struct RerunCaseNotice {
     #[prost(string, tag = "3")]
     pub reason: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RerunCycleReply {
@@ -9450,7 +9162,6 @@ pub struct RerunCycleReply {
     #[prost(message, repeated, tag = "4")]
     pub dropped_parameters: ::prost::alloc::vec::Vec<RerunCaseNotice>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ResultSummary {
@@ -9469,7 +9180,6 @@ pub struct ResultSummary {
     #[prost(uint32, tag = "7")]
     pub not_evaluated: u32,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RuntimeShellSnapshot {
@@ -9492,7 +9202,6 @@ pub struct RuntimeShellSnapshot {
     #[prost(string, optional, tag = "9")]
     pub next_after_cycle_id: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RuntimeStateFrame {
@@ -9507,7 +9216,6 @@ pub struct RuntimeStateFrame {
     #[prost(message, repeated, tag = "5")]
     pub operations: ::prost::alloc::vec::Vec<OperationProgress>,
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SamplePage {
@@ -9524,7 +9232,6 @@ pub struct SamplePage {
     #[prost(bool, tag = "6")]
     pub complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/query/page.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SampleRow {
@@ -9542,7 +9249,6 @@ pub mod sample_row {
         Bucket(super::Bucket),
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SavedCycleSummary {
@@ -9561,7 +9267,6 @@ pub struct SavedCycleSummary {
     #[prost(bool, tag = "7")]
     pub archived: bool,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SavedRecord {
@@ -9570,7 +9275,6 @@ pub struct SavedRecord {
     #[prost(message, optional, tag = "2")]
     pub record: ::core::option::Option<CapturedRecord>,
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SavedTelemetrySample {
@@ -9581,7 +9285,6 @@ pub struct SavedTelemetrySample {
     #[prost(message, optional, tag = "3")]
     pub sample: ::core::option::Option<TelemetrySample>,
 }
-/// Source: crates/dokime-domain/src/model/query/schema.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Schema {
@@ -9592,21 +9295,18 @@ pub struct Schema {
     #[prost(message, repeated, tag = "3")]
     pub fields: ::prost::alloc::vec::Vec<Field>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ScientificFormat {
     #[prost(uint32, tag = "1")]
     pub significant_digits: u32,
 }
-/// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretArchive {
     #[prost(bytes = "vec", tag = "1")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretAvailability {
@@ -9615,7 +9315,6 @@ pub struct SecretAvailability {
     #[prost(bool, tag = "2")]
     pub available: bool,
 }
-/// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretImportChoice {
@@ -9624,7 +9323,6 @@ pub struct SecretImportChoice {
     #[prost(enumeration = "SecretImportAction", tag = "2")]
     pub action: i32,
 }
-/// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SecretImportEntry {
@@ -9633,7 +9331,6 @@ pub struct SecretImportEntry {
     #[prost(bool, tag = "2")]
     pub exists: bool,
 }
-/// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SecretImportPreview {
@@ -9646,14 +9343,12 @@ pub struct SecretImportPreview {
     #[prost(message, repeated, tag = "4")]
     pub entries: ::prost::alloc::vec::Vec<SecretImportEntry>,
 }
-/// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretLookupValue {
     #[prost(string, optional, tag = "1")]
     pub value: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SecretSnapshot {
@@ -9668,7 +9363,6 @@ pub struct SecretSnapshot {
     #[prost(bool, tag = "5")]
     pub cleanup_pending: bool,
 }
-/// Source: crates/dokime-domain/src/model/secrets/catalog.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SecretSummary {
@@ -9677,14 +9371,12 @@ pub struct SecretSummary {
     #[prost(string, repeated, tag = "2")]
     pub known_uses: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SelectedFile {
     #[prost(message, optional, tag = "1")]
     pub kind: ::core::option::Option<SelectedFileKind>,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SelectedFileKind {
@@ -9702,7 +9394,6 @@ pub mod selected_file_kind {
         Clear(super::Null),
     }
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 /// Selections and case_ids are mutually exclusive. Preserve order and duplicate selections. At most 256
 /// selections and 1000 expanded cases; max_cases zero uses that case cap. A cycle_id continues that cycle's label
 /// numbering.
@@ -9718,14 +9409,12 @@ pub struct SelectionPlan {
     #[prost(string, tag = "4")]
     pub cycle_id: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/planning/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SelectionValues {
     #[prost(message, repeated, tag = "1")]
     pub values: ::prost::alloc::vec::Vec<Value>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SettingsCard {
@@ -9748,14 +9437,12 @@ pub struct SettingsCard {
     #[prost(int32, tag = "9")]
     pub order: i32,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SettingsCardRefreshPolicy {
     #[prost(message, optional, tag = "1")]
     pub policy: ::core::option::Option<SettingsCardRefreshPolicyPolicy>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SettingsCardRefreshPolicyPolicy {
@@ -9775,7 +9462,6 @@ pub mod settings_card_refresh_policy_policy {
         OnDemand(super::OnDemandRefresh),
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SettingsFrame {
@@ -9786,7 +9472,6 @@ pub struct SettingsFrame {
     #[prost(message, repeated, tag = "3")]
     pub cards: ::prost::alloc::vec::Vec<SettingsCard>,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SettingsSection {
@@ -9801,7 +9486,6 @@ pub struct SettingsSection {
     #[prost(int32, tag = "5")]
     pub order: i32,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SettingsSectionOwner {
@@ -9819,7 +9503,6 @@ pub mod settings_section_owner {
         InstalledPluginId(::prost::alloc::string::String),
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SettingsSnapshot {
@@ -9828,14 +9511,12 @@ pub struct SettingsSnapshot {
     #[prost(message, optional, tag = "2")]
     pub settings: ::core::option::Option<ApplicationSettings>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SiPrefixFormat {
     #[prost(uint32, tag = "1")]
     pub significant_digits: u32,
 }
-/// Source: crates/dokime-domain/src/model/query/snapshot.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Snapshot {
@@ -9846,7 +9527,6 @@ pub struct Snapshot {
     #[prost(message, optional, tag = "3")]
     pub expires_at: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Source: crates/dokime-domain/src/model/query/snapshot.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SnapshotRef {
@@ -9864,7 +9544,6 @@ pub mod snapshot_ref {
         Checkpoint(super::ExecutionCheckpoint),
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StartExecutionOutcome {
@@ -9882,7 +9561,6 @@ pub mod start_execution_outcome {
         Rejected(super::Rejection),
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 /// Admission or resolution of an existing start identity, never execution completion. Read the execution and
 /// watch its state after acceptance; cancelling the start call alone does not cancel admitted work.
 #[allow(clippy::all)]
@@ -9891,7 +9569,6 @@ pub struct StartExecutionReply {
     #[prost(message, optional, tag = "1")]
     pub outcome: ::core::option::Option<StartExecutionOutcome>,
 }
-/// Source: crates/dokime-domain/src/model/query/reduction.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct StatisticValue {
@@ -9909,7 +9586,6 @@ pub mod statistic_value {
         Number(f64),
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StepCriterion {
@@ -9926,7 +9602,6 @@ pub struct StepCriterion {
     #[prost(uint64, tag = "6")]
     pub ordinal: u64,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StepMeasurement {
@@ -9939,7 +9614,6 @@ pub struct StepMeasurement {
     #[prost(uint64, tag = "4")]
     pub ordinal: u64,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct StepPageCursor {
@@ -9963,7 +9637,6 @@ pub struct StorageCursor {
     #[prost(uint64, tag = "2")]
     pub sequence: u64,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct StorageSource {
@@ -9976,7 +9649,6 @@ pub struct StorageSource {
     #[prost(bool, tag = "4")]
     pub enabled: bool,
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StorageSources {
@@ -9992,7 +9664,6 @@ pub struct StoreHistory {
     #[prost(string, tag = "2")]
     pub epoch: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SuiteIdentity {
@@ -10003,7 +9674,6 @@ pub struct SuiteIdentity {
     #[prost(message, optional, tag = "3")]
     pub metadata: ::core::option::Option<Metadata>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetryColumn {
@@ -10026,14 +9696,12 @@ pub struct TelemetryColumn {
     #[prost(message, optional, tag = "9")]
     pub format: ::core::option::Option<ValueFormat>,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TelemetryPreferences {
     #[prost(uint64, tag = "1")]
     pub interval_ms: u64,
 }
-/// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetrySample {
@@ -10063,7 +9731,6 @@ pub struct TelemetrySample {
     #[prost(message, optional, tag = "11")]
     pub metadata: ::core::option::Option<MapValue>,
 }
-/// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetrySamplesReply {
@@ -10076,7 +9743,6 @@ pub struct TelemetrySamplesReply {
     #[prost(bool, tag = "3")]
     pub complete: bool,
 }
-/// Source: crates/dokime-domain/src/model/telemetry/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TelemetrySamplesReplyThroughStreamCursorsEntry {
@@ -10085,7 +9751,6 @@ pub struct TelemetrySamplesReplyThroughStreamCursorsEntry {
     #[prost(uint64, tag = "2")]
     pub value: u64,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetrySchema {
@@ -10114,7 +9779,6 @@ pub struct TelemetrySchema {
     #[prost(bool, tag = "12")]
     pub foreign: bool,
 }
-/// Source: crates/dokime-domain/src/model/catalog/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TelemetrySchemaIdentity {
@@ -10125,7 +9789,6 @@ pub struct TelemetrySchemaIdentity {
     #[prost(message, optional, tag = "3")]
     pub metadata: ::core::option::Option<Metadata>,
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TraceabilityPage {
@@ -10142,7 +9805,6 @@ pub struct TraceabilityPage {
     #[prost(string, tag = "6")]
     pub host_traceability_fingerprint: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-domain/src/model/identity/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TraceabilitySnapshot {
@@ -10157,7 +9819,6 @@ pub struct TraceabilitySnapshot {
     #[prost(message, optional, tag = "5")]
     pub metadata: ::core::option::Option<Metadata>,
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UpdateSettings {
@@ -10166,14 +9827,12 @@ pub struct UpdateSettings {
     #[prost(message, optional, tag = "2")]
     pub settings: ::core::option::Option<ApplicationSettings>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadArtifactFrame {
     #[prost(message, optional, tag = "1")]
     pub payload: ::core::option::Option<UploadArtifactFramePayload>,
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadArtifactFramePayload {
@@ -10193,7 +9852,6 @@ pub mod upload_artifact_frame_payload {
         Complete(super::ArtifactCompletion),
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadArtifactHeader {
@@ -10208,7 +9866,6 @@ pub struct UploadArtifactHeader {
     #[prost(string, optional, tag = "5")]
     pub sha256: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ValidationIssue {
@@ -10219,14 +9876,12 @@ pub struct ValidationIssue {
     #[prost(string, optional, tag = "3")]
     pub expected: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ValueFormat {
     #[prost(message, optional, tag = "1")]
     pub kind: ::core::option::Option<ValueFormatKind>,
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ValueFormatKind {
@@ -10256,7 +9911,6 @@ pub mod value_format_kind {
         ElapsedSinceCycle(super::ElapsedFormat),
     }
 }
-/// Source: crates/dokime-domain/src/model/query/selection.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Window {
@@ -10347,7 +10001,6 @@ impl LiveExecutionState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10381,7 +10034,6 @@ impl ArchiveScope {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10418,7 +10070,6 @@ impl ArtifactState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10473,7 +10124,6 @@ impl CaseStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10513,7 +10163,6 @@ impl CriterionStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10547,7 +10196,6 @@ impl CycleOrderKey {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/result.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10584,7 +10232,6 @@ impl CyclePhase {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10633,7 +10280,6 @@ impl CycleStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10667,7 +10313,6 @@ impl Density {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10731,7 +10376,6 @@ impl DocumentCardKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10765,7 +10409,6 @@ impl DocumentDensity {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10799,7 +10442,6 @@ impl DocumentRail {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10845,7 +10487,6 @@ impl DocumentSummaryFormat {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10879,7 +10520,6 @@ impl DocumentSummaryPresentation {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10907,7 +10547,6 @@ impl DocumentSummaryStat {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10944,7 +10583,6 @@ impl DocumentSummaryState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/document/definition.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -10981,7 +10619,6 @@ impl Downsample {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11015,7 +10652,6 @@ impl ElapsedUnit {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11052,7 +10688,6 @@ impl EvidenceSection {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11089,7 +10724,6 @@ impl ExecutionAvailability {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11129,7 +10763,6 @@ impl ExecutionBrowseLifecycle {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11163,7 +10796,6 @@ impl ExecutionCommandAction {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11209,7 +10841,6 @@ impl ExecutionCommandPhase {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11246,7 +10877,6 @@ impl ExecutionFileKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11280,7 +10910,6 @@ impl ExecutionFilePhase {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/content/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11314,7 +10943,6 @@ impl ExecutionFileState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11345,7 +10973,6 @@ impl ExecutionMode {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11379,7 +11006,6 @@ impl ExecutionOrderKey {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11410,7 +11036,6 @@ impl ExecutionParameterSet {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11441,7 +11066,6 @@ impl FftDetrend {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11472,7 +11096,6 @@ impl FftWindow {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/query/schema.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11527,7 +11150,6 @@ impl FieldType {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11564,7 +11186,6 @@ impl FrequencyLevelUnit {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11604,7 +11225,6 @@ impl HostCardTone {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11641,7 +11261,6 @@ impl LineStyle {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/notes/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11675,7 +11294,6 @@ impl NotePublication {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/observation/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11709,7 +11327,6 @@ impl OperationStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11761,7 +11378,6 @@ impl ParameterSource {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/documents/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11792,7 +11408,6 @@ impl PlotAxisKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11823,7 +11438,6 @@ impl PlotCartesianMode {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11863,7 +11477,6 @@ impl PlotStreamKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/plugins/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11897,7 +11510,6 @@ impl PluginInstallationState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/prompts/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11937,7 +11549,6 @@ impl PromptKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -11986,7 +11597,6 @@ impl QueryFilterOperator {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/query/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12026,7 +11636,6 @@ impl QuerySource {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12123,7 +11732,6 @@ impl RecordIcon {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12169,7 +11777,6 @@ impl RecordTone {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12200,7 +11807,6 @@ impl ReportOrigin {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/reports/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12234,7 +11840,6 @@ impl ReportState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12274,7 +11879,6 @@ impl ResultStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/secrets/transfer.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12305,7 +11909,6 @@ impl SecretImportAction {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12348,7 +11951,6 @@ impl SettingsCardState {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12379,7 +11981,6 @@ impl StepPageKind {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/execution/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12422,7 +12023,6 @@ impl StepStatus {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/history/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12459,7 +12059,6 @@ impl StepTermination {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12502,7 +12101,6 @@ impl TelemetryRole {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/settings/application.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12536,7 +12134,6 @@ impl ThemeMode {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -12588,7 +12185,6 @@ impl UnitFamily {
         }
     }
 }
-/// Source: crates/dokime-domain/src/model/definition/wire.rs
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

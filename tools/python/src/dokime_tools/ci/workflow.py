@@ -73,8 +73,6 @@ def main(arguments: list[str] | None = None) -> int:
             "review",
             "required",
             "mirror",
-            "sign-windows",
-            "sign-product",
             "release-prepare",
             "release-tag",
             "release-verify",
@@ -170,10 +168,6 @@ def main(arguments: list[str] | None = None) -> int:
                 check=True,
                 creationflags=spawn_flags(),
             )
-    elif operation == "sign-windows":
-        sign_windows(options.profile)
-    elif operation == "sign-product":
-        sign_product(options.profile)
     elif operation == "bindings":
         from ..test.archive import install_wheels
         from . import tasks
@@ -213,71 +207,6 @@ def main(arguments: list[str] | None = None) -> int:
         return run.main(args)
     transport.send(options.profile)
     return 0
-
-
-def sign_product(profile: str) -> None:
-    """Select Credentials And Sign PFX Products Before The Azure Provider Step."""
-    if os.name != "nt":
-        raise ValueError("Windows signing requires Windows")
-    for name in ("TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"):
-        if not os.environ.get(name, "").strip():
-            raise ValueError(f"missing required package signing secret: {name}")
-    command = ["pwsh", "-NoProfile", "-NonInteractive", "-File", "crates/dokime-packaging/src/installer/authenticode.ps1"]
-    provider = subprocess.check_output([*command, "-Operation", "Select"], text=True, creationflags=spawn_flags()).strip()
-    if provider not in ("azure", "pfx", "none"):
-        raise ValueError("unknown signing provider")
-    binaries = Path(f"target/build/{profile}/windows-x86_64/bin")
-    if not all((binaries / name).is_file() for name in ("dokime.exe", "cargo-dokime.exe")):
-        raise ValueError("matching product binaries are required")
-    if provider == "pfx":
-        for executable in sorted(binaries.glob("*.exe")):
-            subprocess.run([*command, "-Operation", "Sign", "-Path", str(executable)], check=True, creationflags=spawn_flags())
-    with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-        output.write(f"provider={provider}\n")
-
-
-def sign_windows(profile: str) -> None:
-    """Verify Signed Product Bytes Before Installer And Updater Signing."""
-    if os.name != "nt":
-        raise ValueError("Windows signing requires Windows")
-    for name in ("TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"):
-        if not os.environ.get(name, "").strip():
-            raise ValueError(f"missing required package signing secret: {name}")
-    command = ["pwsh", "-NoProfile", "-NonInteractive", "-File", "crates/dokime-packaging/src/installer/authenticode.ps1"]
-    provider = subprocess.check_output([*command, "-Operation", "Select"], text=True, creationflags=spawn_flags()).strip()
-    os.environ["DOKIME_AUTHENTICODE_PROVIDER"] = provider
-    if provider == "azure":
-        # The Installer Uses The Same Pinned Official Module As The Provider Action.
-        subprocess.run(
-            [
-                "pwsh",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Install-Module ArtifactSigning -RequiredVersion 0.1.20 -Scope CurrentUser -Force -Repository PSGallery",
-            ],
-            check=True,
-            creationflags=spawn_flags(),
-        )
-    binaries = Path(f"target/build/{profile}/windows-x86_64/bin")
-    if not all((binaries / name).is_file() for name in ("dokime.exe", "cargo-dokime.exe")):
-        raise ValueError("matching product binaries are required")
-    if provider != "none":
-        for executable in sorted(binaries.glob("*.exe")):
-            subprocess.run([*command, "-Operation", "Verify", "-Path", str(executable)], check=True, creationflags=spawn_flags())
-        from ..package.distribution import export
-
-        export(Path.cwd(), profile)
-    from . import tasks
-
-    outputs = os.environ.pop("CI_OUTPUTS", None)
-    try:
-        status = tasks.main(["package", "--language", "rust", "--profile", profile])
-    finally:
-        if outputs is not None:
-            os.environ["CI_OUTPUTS"] = outputs
-    if status:
-        raise RuntimeError("signed Windows packaging failed")
 
 
 # === Private Functions === #

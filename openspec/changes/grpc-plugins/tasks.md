@@ -456,22 +456,35 @@ The owner authorizes deletion before the desktop and face cutovers (2026-11-13).
 All work remains local on feat/grpc-plugins under the existing implementing marker.
 
 - [ ] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
-- [ ] Retain current bundle production/inspection without facade dependencies.
+- [x] Retain current bundle production/inspection without facade dependencies.
 - [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
 - [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
 - [ ] Restore the desktop to the workspace when its switch merges.
   - [ ] Restore crates/dokime-gui/src-tauri workspace and default membership.
-  - [ ] Restore native desktop Product build, embedded resources and generated-settings checks.
+  - [ ] Restore native desktop Product build, embedded resources and generated-settings checks, including tests/unit/settings/preferences.test.ts and its native default exporter.
   - [ ] Restore native Rust desktop and TypeScript system stories on PR and Nightly, and desktop benchmarks.
   - [ ] Restore desktop distribution/installer packaging, signing and release assets.
 - [ ] Complete command-line parity after host support is available.
-  - [ ] Operation discovery and typed invocation (operation list/describe/call).
-  - [ ] Doctor storage diagnosis and machine diagnostics.
-  - [ ] GUI launch.
-  - [ ] Detailed version JSON/source/channel reporting.
+  - [ ] `operation list`: discover admitted operations.
+  - [ ] `operation show`: inspect an operation contract.
+  - [ ] `operation call`: invoke typed operations through the generic client.
+  - [ ] `doctor storage`: diagnose scratch storage without resetting existing roots.
+  - [ ] `gui`: launch the native desktop.
+  - [ ] `version`: report detailed JSON/source/channel metadata.
   - [ ] Pairing-file connection and access pairing export.
   - [ ] Installer packaging.
   - [ ] Plugin development supervision and plugin-specific protocol export.
-  - [ ] Saved execution evidence archive/file downloads and full planning preview/registration.
-- [ ] Record promised old-loop journeys without new-host coverage as explicit remaining stories.
+  - [ ] `execution export`: download a saved evidence archive and files.
+  - [ ] `execution run`: drive interactive commands.
+  - [ ] `plan preview`: validate a complete selection without registration.
+  - [ ] `plan register`: register an idempotent complete selection.
+  - [x] `cycle report`: download and verify a cycle report without publication; refuse overwriting an existing file.
+- [x] Record promised old-loop journeys without new-host coverage as explicit remaining stories.
+  - [ ] Prove earliest inverse retention, owner-qualified confirmations, reverse restore order and failed startup restoration through new-host Effects.
+  - [ ] Prove stream/record schema evolution and plugin removal retain decoding on one root.
+  - [ ] Prove bounded complete queries, pinned cuts and explicit watch gaps through the final grammar.
+  - [ ] Prove typed cross-plugin invocation, cancellation propagation and client authorization through the composed registry.
+  - [ ] Restore SDK-authored host telemetry/controls and device simulation journeys with the two sidecar re-authoring tasks.
+  - [ ] Restore desktop/installer organization, licensing, signature and update journeys with native packaging.
+  - [ ] Retain client-disconnection and partial-capture interruption tasks from removal section 5.3.
 - [ ] Complete the owner's focused checks, host/CLI/four SDK stories and Tests build on the committed head.

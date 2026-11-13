@@ -2,10 +2,10 @@
 
 ## Resuming
 
-Owner decision (2026-11-12): build the new execution host beside the old loop,
-then prove the shared thermal suite end to end. A later atomic cutover switches
-CLI and desktop and deletes the old loop, crates and tests. This changes order,
-not the clean replacement contract; no compatibility layer is introduced.
+Owner decision (2026-11-13): delete the old execution loop before splitting the
+protocol faces. The current CLI/SDKs use the execution host. The desktop switch
+proceeds in its own worktree; native workspace/CI/package restoration is tracked
+together in tasks.md. No compatibility layer or retained old crate is introduced.
 The `feat/gp-host-new` worktree owns new storage, operations and runtime crates,
 additive workspace membership, their guide and this change. It returns local commits.
 

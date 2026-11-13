@@ -64,8 +64,6 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
         if archive_directory is not None:
             arguments += ["--archive-directory", str(archive_directory)]
         extra = ["--test-threads", str(workers)]
-        if category == "integration":
-            extra += ["-E", "not binary_id(dokime-macros::compile)"]
     elif language == "python":
         arguments += ["--project", "sdk/python"]
         if category == "integration":
@@ -82,6 +80,7 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
                 "./node_modules/vitest/vitest.mjs",
                 "run",
                 f"tests/{category}",
+                *(["--exclude", "tests/unit/settings/preferences.test.ts"] if category == "unit" else []),
                 "--reporter=default",
                 "--reporter=junit",
                 "--outputFile.junit={junit}",

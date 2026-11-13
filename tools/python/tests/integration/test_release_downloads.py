@@ -25,7 +25,6 @@ from unittest import mock
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.build import wheel
-from dokime_tools.package import installer
 from dokime_tools.package import run as package_run
 from dokime_tools.release import layout, registry, reports, run
 
@@ -36,12 +35,12 @@ from dokime_tools.release import layout, registry, reports, run
 # === Constants === #
 
 SETTINGS = {"product": "dokime", "provider": "github", "repository": "example/dokime"}
-EXECUTABLES = {"dokime-cli": "cli", "cargo-dokime": "cargo-dokime"}
+EXECUTABLES = {"dokime-cli": "cli", "companion-tool": "companion-tool"}
 EXPECTED = {
     "CHANGELOG.md": ("changelog", "any", "any", "md"),
     "SHA256SUMS": ("checksums", "any", "any", "txt"),
-    "cargo-dokime-0.1.3-x86_64-pc-windows-msvc.zip": ("cargo-dokime", "windows", "x86_64", "zip"),
-    "cargo-dokime-0.1.3-x86_64-unknown-linux-gnu.tar.gz": ("cargo-dokime", "linux", "x86_64", "tar.gz"),
+    "companion-tool-0.1.3-x86_64-pc-windows-msvc.zip": ("companion-tool", "windows", "x86_64", "zip"),
+    "companion-tool-0.1.3-x86_64-unknown-linux-gnu.tar.gz": ("companion-tool", "linux", "x86_64", "tar.gz"),
     "dokime-0.1.3-1.x86_64.rpm": ("installer", "linux", "x86_64", "rpm"),
     "dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe": ("installer", "windows", "x86_64", "exe"),
     "dokime-cli-0.1.3-x86_64-pc-windows-msvc.zip": ("cli", "windows", "x86_64", "zip"),
@@ -212,7 +211,7 @@ class StageTests(unittest.TestCase):
                     {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
                 ]
                 settings = {**SETTINGS, "targets": ["windows-x86_64"]}
-                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
+                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime-next"}]}}
                 with (
                     mock.patch.object(run.sbom, "shell", side_effect=shell),
                     mock.patch.object(run.sbom, "workspace", return_value=[]),
@@ -222,7 +221,7 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
                     mock.patch.object(run.packages, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
+                        run.packages, "definitions", return_value=[{"command": "dokime-next", "binary": binary, "output": "cli.zip"}]
                     ),
                     mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),
@@ -368,28 +367,6 @@ class PythonPackagingTests(unittest.TestCase):
                     [f"target/package/dev/any/python/{name}" for name in ("dokime-0.1.3-py3-none-any.whl", "dokime-0.1.3.tar.gz")],
                 )
                 self.assertEqual("--dry-run" in command, dry_run)
-
-
-class SignedIndexTests(unittest.TestCase):
-    def test_published_signature_verification_reads_release_index_only(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            setup = root / "dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe"
-            setup.write_bytes(b"signed installer")
-            index = {
-                "version": "0.1.3",
-                "platforms": {installer.UPDATER_TARGET: {"url": "https://example.test/" + setup.name, "signature": "signature"}},
-                "downloads": {},
-                "plugins": {"format_version": 2, "plugins": []},
-            }
-            policy.write_json(root / "release.json", index)
-            with mock.patch.object(installer, "check"), mock.patch.object(installer, "verify_signature") as verify:
-                installer.check_package(root, dist=root, profile="dev", expected="0.1.3", require_signed=True, published=True)
-                verify.assert_called_once_with(root, setup, "signature")
-                (root / "release.json").unlink()
-                policy.write_json(root / "latest.json", index)
-                with self.assertRaises(FileNotFoundError):
-                    installer.check_package(root, dist=root, profile="dev", expected="0.1.3", require_signed=True, published=True)
 
 
 class NightlyReportTests(unittest.TestCase):

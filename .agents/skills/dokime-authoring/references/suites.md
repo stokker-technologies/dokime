@@ -1,101 +1,11 @@
-# Dokime Suite
+# Suites
 
-Read [Architecture](../../../../docs/architecture.md) for invariants and locked
-visibility/routing. The native macros below describe the existing runtime surface,
-not the final gRPC SDK contract.
+Materialization resolves a template's parameters into a case without side effects.
+The host initializes execution-local resources, orders steps and criteria, handles
+policy retries/cancellation and runs required cleanup. Samples, records and prompts
+retain scoped evidence; evaluated and declared outcomes stay distinct.
 
-## Suite Authoring
-
-Declare suites with `#[dokime::suite]` and templates with `#[dokime::template]`. A suite owns its template collection; each template owns its parameters and lifecycle state.
-
-Name template identifiers `<suite>.<segment>`, with lowercase segments matching `[a-z][a-z0-9_]*`. Labels use Title Case and tags use lowercase. Name capability catalogs `Required`, `Subscriptions`, `Streams` and `Prompts`.
-
-```rust
-#[dokime::template(
-    id = "soak.hold",
-    label = "Hold Temperature",
-    parameters = Parameters,
-    requires = Required,
-    subscribes = Subscriptions,
-    streams = Streams,
-    prompts = Prompts,
-)]
-```
-
-A template declares operation requirements without naming a plugin. Its serving plugin provides or requires those contracts. Declare each prompt, record and stream once; catalogs refer to the declared types.
-
-## Operation Invocation
-
-Use `ctx.operation(request).await?` in initialize, steps, criteria, observers and
-cleanup. Declare ordinary calls in `requires`; existing built-in exemptions need
-no entry. The shared Harmos Invocation returns Response on await and a scoped
-instance from `.start().await?`. Read the response through Deref, or use
-`into_owned()` to move its value. `.retry(settings.retry)` overrides the macro's
-callee-owned default for one call. Retry choices come from configuration and must
-not be literals in templates; enabled overrides require declared replay safety.
-Attempts remain in evidence and deadlines remain bounded by the operation policy.
-Templates have no `.lane()` option or separate `ctx.host()` route.
-
-## Lifecycle
-
-Use the vocabulary in this order: initialize, steps, criteria, observers, cleanup, document. Observers run concurrently with steps; this vocabulary order does not serialize them after criteria.
-
-| Stage | Capabilities |
-| --- | --- |
-| initialize | Log, artifact grant, document additions; yields template state and shared handles. |
-| steps | Log, prompt, listen, publish, stream, artifact grant, document additions and traceability edits. |
-| criteria | Log and captured evidence for decisions; no prompt, listen, publish, artifact grant or document mutation. |
-| observers | Log, publish, stream, artifact grant, document additions; read shared handles only, never template state. |
-| cleanup | Log, artifact grant, document additions; termination reason and shared handles for restoration. |
-| document | Declared sections, cards and plots over captured evidence. |
-
-Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
-
-## File Capture
-
-Use `ctx.artifacts().import(path, name)` to keep one local file as it stands, and `CopyFiles` to copy a tree, the newest file of a folder or an FTP source once.
-
-`StartCapture` returns once its baseline is taken, so start the producer after it. `StreamCapture` follows appended bytes and offers lines to matchers and markers; `MirrorCapture` keeps whole files, checked once per interval, with the interval from settings or parameters. `StopCapture` is an ordinary request that returns what sealed, and a repeat returns the same outcome. The execution owns the capture: another step may stop it, and one nothing stops seals when the execution ends.
-
-`FileSource::file` must exist at the start and `FileSource::newest` must match at the start; `FileSource::tree` over an accessible empty directory starts at once and captures later files from byte zero. Depth follows the rules. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access. Requests carry no limits: file and byte limits come from configuration.
-
-## Layout
-
-Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
-
-## Document Identity
-
-```rust
-let mut document = Document::new("Hold at Temperature");
-document.id("hold"); // Optional Stable Key Across Label Edits
-```
-
-Document identifiers derive from labels through the same normalization as
-traceability and sections. Validation refuses invalid or empty derived identifiers
-and colliding document keys in one registry, naming the labels and directing the
-author to set `.id(...)`. Each template declares one document; the runtime owns
-its internal `default` execution view and merges authored content into it.
-
-Python uses `document = dokime.Document("Hold at Temperature")` and the optional
-`document.id("hold")`, passed as `document=document` to `@dokime.template`.
-
-## Step Traceability
-
-Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
-
-```rust
-let mut section = TraceabilitySection::new("Device Under Test");
-let serial_number = TraceabilityRow::text("Serial Number", &identity.serial_number);
-section.row(serial_number);
-ctx.traceability().section(section);
-```
-
-Constructors derive IDs from labels with document normalization, for example
-`Serial Number` becomes `serial.number`. A variable and its response field share
-one name; the traceability ID is independent. Set `section.id("dut");` or
-`TraceabilityRow::text("Serial Number", value).id("serial_number")` when edits
-must keep their identity across label changes.
-
-A section identifier replaces the complete section; a row identifier replaces a row within an existing section. Replacing preserves order and unrelated sections/rows. Add a section before its rows. Missing sections, duplicate row identifiers and host-derived section names are refused and logged without changing captured content. Repeated edits in one delivery apply in order, with the last edit winning. The execution index, buffered evidence delivery, durable transactions and report projections follow the document path; do not introduce an alternate publisher or storage mechanism.
-
-Only steps mutate traceability. Criteria read captured evidence; initialize, observers and cleanup have no mutation handle. Live GUI and newly captured reports show current saved values; sealed reports and Python checkpoint reads preserve captured values. Storage remains v1 and existing roots are never silently deleted or reset.
+Use the [Rust SDK Guide](../../../../docs/rust-sdk.md) or the other SDK's own guide
+for current builders and signatures. The [Execution Host Guide](../../../../docs/execution-host.md)
+owns current serving behavior; [Architecture](../../../../docs/architecture.md)
+and the locked operation grammar own invariants and remaining proof obligations.

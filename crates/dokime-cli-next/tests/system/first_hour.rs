@@ -102,6 +102,15 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await?;
         assert!(!std::fs::read(&report)?.is_empty());
 
+        // Download the Completed Cycle Without Publishing a Report
+        let report = directory.path().join("cycle.html");
+        let cycle_id = cycle["cycle_id"].as_str().ok_or("Start Cycle: Missing Cycle")?;
+        super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", report.to_str().unwrap()]).await?;
+        let html = std::fs::read_to_string(&report)?;
+        assert!(html.contains("<html"));
+        assert!(super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", report.to_str().unwrap()]).await.is_err());
+        assert_eq!(std::fs::read_to_string(&report)?, html);
+
         // Remove the Rust Entry Before Attaching the Same Example Identity Remotely
         super::run(&["--endpoint", &endpoint, "plugin", "remove", entry]).await?;
 

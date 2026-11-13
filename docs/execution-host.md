@@ -1,11 +1,10 @@
 # New Execution Host
 
-The independent host is built beside the current command-line and desktop host.
+The execution host serves the command-line tool and SDK clients.
 `dokime-runtime-next` composes plugin entries, scoped unary lifecycle dispatch,
 controlled orchestration time and cycle execution. `dokime-operations-next` owns
 one declaration and handler per supported host operation. `dokime-storage` owns
-SQLite execution evidence and Arrow IPC sample batches. These crates have no
-normal dependency on the old domain, runtime, server, client or facade.
+SQLite execution evidence and Arrow IPC sample batches. The SDK depends only on product protocol and the library SDK.
 
 ## Live Ownership
 
@@ -265,7 +264,7 @@ policies retain their own deadlines.
 
 ## Command-Line Candidate
 
-`crates/dokime-cli-next` builds `dokime-next`, beside the old installed tool.
+`crates/dokime-cli-next` builds the current `dokime-next` tool.
 Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
 half. Build with `mise run build -- --package dokime-cli-next`.
 
@@ -368,9 +367,8 @@ mise run test -- --package dokime-cli-next --target system
 The fixture producer uses `dokime-next new`, builds that exact generated Rust
 project through its mise task against the local SDK candidate, and exports its
 sources/executable with Tests. Stories compare generated source bytes and never
-compile plugins. Tests Build includes this producer. `dokime installer package`,
-old tool removal, installed binary naming and desktop migration remain cutover
-work; installer packaging stays with the old tool until then.
+compile plugins. Tests Build includes this producer.
+Installed binary renaming and desktop integration remain on the combined restoration checklist. Installer packaging is not selected in this candidate.
 
 ## Compare Every SDK
 
@@ -537,13 +535,11 @@ series plus typed parameters and returns its declared `AnalysisValues`.
 | Storage Documents | `plot_preferences`, `save_plot_preferences`, `document_value`, `document_value_filtered`, `document_distinct` |
 | Storage Queries | `read_session`, `cycle_execution_page`, `cycle_is_sealed`, `plot_selection`, `plot_group_values`, `select_plot_group`, `sigma_window`, `contour_scaled_window`, `sampled_time_series_window` |
 
-## Cutover
+## Desktop Integration
 
-CLI and desktop still use the old host. The integration cutover must migrate
-those consumers, delete the superseded loop, crates and tests, and rename the
-`-next` crates. The console-free process constructor is copied from `dokime-domain/src/process/`
-into the new runtime. Delete its old owner at cutover; no old crate is imported.
-The dispatcher uses the published `harmos.v1.Request.scope` field directly;
-it does not call the old Harmos runtime's scope-losing invocation API and needs
-no local path override. The native-runtime scoped-call adoption remains with
-its owning cutover.
+The desktop native package is temporarily excluded from Cargo membership while
+its independent host switch is completed. Restore workspace/default membership,
+native Product builds, generated settings checks, hosted native/system stories,
+benchmarks, distribution/installer packaging and signing together using the task
+in `openspec/changes/grpc-plugins/tasks.md`. The frontend source remains present.
+
