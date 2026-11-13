@@ -19,6 +19,7 @@
 use std::{
     convert::Infallible,
     pin::Pin,
+    sync::{Arc, Mutex},
     task::{Context, Poll},
 };
 
@@ -55,11 +56,21 @@ pub struct FakeServer {
 }
 
 #[derive(Clone)]
-struct Rpc<const DISCOVERY: bool>;
+struct Rpc<const RESOURCE: u8>(Arc<Mutex<Option<CreatedCycle>>>);
+
+struct CreatedCycle {
+    name: String,
+    executions: Vec<v1::ExecutionDetail>,
+    at: host::ReadCut,
+}
+
+struct CreateCycle(Arc<Mutex<Option<CreatedCycle>>>);
+
+struct ListExecutions(Arc<Mutex<Option<CreatedCycle>>>);
 
 struct Discover;
 
-struct Health;
+struct Overview;
 
 struct Watch;
 
@@ -74,13 +85,16 @@ impl FakeServer {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
         let (stop, stopped) = oneshot::channel();
+        let cycle = Arc::new(Mutex::new(None));
         let task = tokio::spawn(
-            tonic::transport::Server::builder().add_service(Rpc::<true>).add_service(Rpc::<false>).serve_with_incoming_shutdown(
-                tokio_stream::wrappers::TcpListenerStream::new(listener),
-                async {
+            tonic::transport::Server::builder()
+                .add_service(Rpc::<0>(cycle.clone()))
+                .add_service(Rpc::<1>(cycle.clone()))
+                .add_service(Rpc::<2>(cycle.clone()))
+                .add_service(Rpc::<3>(cycle))
+                .serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener), async {
                     let _ = stopped.await;
-                },
-            ),
+                }),
         );
         let channel = tonic::transport::Endpoint::from_shared(format!("http://{address}"))?.connect().await?;
         Ok(Self { channel, stop, task })
@@ -92,11 +106,16 @@ impl FakeServer {
     }
 }
 
-impl<const D: bool> NamedService for Rpc<D> {
-    const NAME: &'static str = if D { "harmos.v1.CatalogEntries" } else { "dokime.v1.Backend" };
+impl<const R: u8> NamedService for Rpc<R> {
+    const NAME: &'static str = match R {
+        0 => "harmos.v1.CatalogEntries",
+        1 => "dokime.v1.backend.Overview",
+        2 => "dokime.v1.Cycles",
+        _ => "dokime.v1.Executions",
+    };
 }
 
-impl<const D: bool, B: Body + Send + 'static> Service<http::Request<B>> for Rpc<D>
+impl<const R: u8, B: Body + Send + 'static> Service<http::Request<B>> for Rpc<R>
 where
     B::Error: Into<StdError> + Send,
 {
@@ -108,14 +127,21 @@ where
     }
     fn call(&mut self, request: http::Request<B>) -> Self::Future {
         let path = request.uri().path().to_owned();
+        let cycle = self.0.clone();
         Box::pin(async move {
-            if D {
+            if R == 2 {
+                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(CreateCycle(cycle), request).await);
+            }
+            if R == 3 {
+                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(ListExecutions(cycle), request).await);
+            }
+            if R == 0 {
                 return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Discover, request).await);
             }
-            if path == "/dokime.v1.Backend/RunWatchLogs" {
-                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).streaming(Watch, request).await);
+            if path == "/dokime.v1.backend.Overview/Watch" {
+                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).server_streaming(Watch, request).await);
             }
-            Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Health, request).await)
+            Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Overview, request).await)
         })
     }
 }
@@ -126,7 +152,7 @@ impl tonic::server::UnaryService<host::CatalogEntriesListRequest> for Discover {
     fn call(&mut self, request: Request<host::CatalogEntriesListRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
-            let operations = [contract(false), contract(true)]
+            let operations = [contract()]
                 .into_iter()
                 .map(|contract| DiscoveredOperation {
                     owner: "host".into(),
@@ -140,73 +166,149 @@ impl tonic::server::UnaryService<host::CatalogEntriesListRequest> for Discover {
     }
 }
 
-impl tonic::server::UnaryService<v1::GetBackendHealth> for Health {
-    type Response = v1::BackendHealth;
+impl tonic::server::UnaryService<v1::backend::OverviewGetRequest> for Overview {
+    type Response = v1::backend::OverviewGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<v1::GetBackendHealth>) -> Self::Future {
+    fn call(&mut self, request: Request<v1::backend::OverviewGetRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
-            Ok(Response::new(health()))
+            Ok(Response::new(overview()))
         })
     }
 }
 
-impl tonic::server::StreamingService<v1::BackendWatchLogsRunInput> for Watch {
-    type Response = v1::BackendWatchLogsRunOutput;
+impl tonic::server::ServerStreamingService<v1::backend::OverviewWatchRequest> for Watch {
+    type Response = v1::backend::OverviewWatchResponse;
     type ResponseStream = Pin<Box<dyn futures_util::Stream<Item = Result<Self::Response, Status>> + Send>>;
     type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
-    fn call(&mut self, request: Request<tonic::Streaming<v1::BackendWatchLogsRunInput>>) -> Self::Future {
+    fn call(&mut self, request: Request<v1::backend::OverviewWatchRequest>) -> Self::Future {
         Box::pin(async move {
             authorize(&request)?;
-            let first = request.into_inner().message().await?.ok_or_else(|| Status::invalid_argument("Missing Opening"))?;
-            if !matches!(first.value, Some(v1::backend_watch_logs_run_input::Value::Request(_))) {
-                return Err(Status::invalid_argument("Missing Request"));
+            let output: Self::ResponseStream = Box::pin(tokio_stream::iter([Ok(v1::backend::OverviewWatchResponse {
+                overview: overview().overview,
+                opening: true,
+                ..Default::default()
+            })]));
+            Ok(Response::new(output))
+        })
+    }
+}
+
+impl tonic::server::UnaryService<v1::CyclesCreateRequest> for CreateCycle {
+    type Response = v1::CyclesCreateResponse;
+    type Future = BoxFuture<Response<Self::Response>, Status>;
+    fn call(&mut self, request: Request<v1::CyclesCreateRequest>) -> Self::Future {
+        let state = self.0.clone();
+        Box::pin(async move {
+            let request = request.into_inner();
+            if request.request_id.is_empty() || !request.continue_automatically {
+                return Err(Status::invalid_argument("Create Cycle: Supply Its Identity and Automatic Admission"));
             }
-            let frame = v1::LogFrame {
-                time: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
-                level: v1::LogLevel::Info as i32,
-                target: "sdk.story".into(),
+            let name = request.request_id.clone();
+            let position = host::Position {
+                history: Some(host::History { store: "sdk".into(), epoch: name.clone() }),
+                sequence: 1,
+            };
+            let executions = request
+                .origins
+                .into_iter()
+                .enumerate()
+                .map(|(index, origin)| v1::ExecutionDetail {
+                    origin: Some(origin),
+                    cycle_id: name.clone(),
+                    summary: Some(v1::ExecutionSummary {
+                        execution_id: format!("{name}/{index}"),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            let cycle = v1::CycleSummary {
+                cycle_id: name.clone(),
+                execution_count: executions.len() as u64,
                 ..Default::default()
             };
-            let output: Self::ResponseStream = Box::pin(tokio_stream::iter([
-                Ok(v1::BackendWatchLogsRunOutput {
-                    value: Some(v1::backend_watch_logs_run_output::Value::Item(frame)),
+            *state.lock().unwrap() = Some(CreatedCycle {
+                name,
+                executions,
+                at: host::ReadCut {
+                    positions: vec![position.clone()],
+                    revisions: Vec::new(),
+                },
+            });
+            Ok(Response::new(v1::CyclesCreateResponse {
+                cycle: Some(cycle),
+                receipt: Some(host::Receipt {
+                    request_id: request.request_id,
+                    durable_at: Some(position),
+                    ..Default::default()
                 }),
-                Ok(v1::BackendWatchLogsRunOutput {
-                    value: Some(v1::backend_watch_logs_run_output::Value::Response(v1::BackendWatchLogsCompletion {})),
-                }),
-            ]));
-            Ok(Response::new(output))
+                ..Default::default()
+            }))
+        })
+    }
+}
+
+impl tonic::server::UnaryService<v1::ExecutionsListRequest> for ListExecutions {
+    type Response = v1::ExecutionsListResponse;
+    type Future = BoxFuture<Response<Self::Response>, Status>;
+    fn call(&mut self, request: Request<v1::ExecutionsListRequest>) -> Self::Future {
+        let state = self.0.clone();
+        Box::pin(async move {
+            let request = request.into_inner();
+            let state = state.lock().unwrap();
+            let cycle = state.as_ref().ok_or_else(|| Status::not_found("List Executions: Create a Cycle First"))?;
+            if request.parent != cycle.name || request.at.as_ref() != Some(&cycle.at) {
+                return Err(Status::invalid_argument("List Executions: Retain the Created Cycle and Its Durable Cut"));
+            }
+            let offset = request
+                .page
+                .as_ref()
+                .map(|page| page.page_token.as_str())
+                .filter(|token| !token.is_empty())
+                .map(str::parse::<usize>)
+                .transpose()
+                .map_err(|_| Status::invalid_argument("List Executions: Invalid Continuation"))?
+                .unwrap_or(0);
+            let executions = cycle.executions.iter().skip(offset).take(1).cloned().collect::<Vec<_>>();
+            let next_page_token =
+                if offset + executions.len() < cycle.executions.len() { (offset + executions.len()).to_string() } else { String::new() };
+            Ok(Response::new(v1::ExecutionsListResponse {
+                executions,
+                resolved_at: Some(cycle.at.clone()),
+                next_page_token,
+                ..Default::default()
+            }))
         })
     }
 }
 
 /* === Public Functions === */
 
-pub fn contract(stream: bool) -> DiscoveredContract {
-    let descriptor = v1::GetBackendHealth::default().descriptor();
+pub fn contract() -> DiscoveredContract {
+    let descriptor = v1::backend::OverviewGetRequest::default().descriptor();
     let descriptors = prost_types::FileDescriptorSet {
         file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
     }
     .encode_to_vec();
     let protobuf = host::Protobuf {
         descriptors,
-        request: if stream { "dokime.v1.WatchBackendLogs" } else { "dokime.v1.GetBackendHealth" }.into(),
-        response: if stream { "dokime.v1.BackendWatchLogsCompletion" } else { "dokime.v1.BackendHealth" }.into(),
+        request: "dokime.v1.backend.OverviewGetRequest".into(),
+        response: "dokime.v1.backend.OverviewGetResponse".into(),
         input: None,
-        output: stream.then(|| "dokime.v1.LogFrame".into()),
+        output: None,
     };
-    let id = if stream { "dokime.backend.watch_logs" } else { "dokime.backend.get_health" };
+    let id = "dokime.v1.backend.Overview/Get";
     DiscoveredContract {
         id: id.into(),
         visibility: host::Visibility::Public as i32,
         fingerprint: harmos_protocol::schema::host_fingerprint(id, &protobuf).unwrap(),
         protobuf: Some(protobuf),
         grpc: Some(host::Grpc {
-            managed: stream,
-            package: "dokime.v1".into(),
-            service: "Backend".into(),
-            method: if stream { "RunWatchLogs" } else { "GetHealth" }.into(),
+            managed: false,
+            package: "dokime.v1.backend".into(),
+            service: "Overview".into(),
+            method: "Get".into(),
         }),
         ..Default::default()
     }
@@ -221,13 +323,17 @@ fn authorize<T>(request: &Request<T>) -> Result<(), Status> {
     Ok(())
 }
 
-fn health() -> v1::BackendHealth {
-    v1::BackendHealth {
-        backend_id: "bench".into(),
-        epoch: "boot".into(),
-        readiness: v1::BackendReadiness::Ready as i32,
-        observed_at: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
-        message: "x".repeat(4096),
+fn overview() -> v1::backend::OverviewGetResponse {
+    v1::backend::OverviewGetResponse {
+        overview: Some(v1::RuntimeShellSnapshot {
+            session_id: "bench".into(),
+            hub_metadata: Some(v1::Metadata {
+                description: "x".repeat(4096),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        resolved_at: None,
     }
 }
 

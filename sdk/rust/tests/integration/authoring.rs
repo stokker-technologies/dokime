@@ -81,6 +81,23 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         3
     );
 
+    // Each Lifecycle Binding Retains Its Own Protected Identity and Plugin-Face Payloads.
+    for (id, request, response) in [
+        ("thermal.cycle.materialize", "TestCasesMaterializeRequest", "TestCasesMaterializeResponse"),
+        ("thermal.cycle.initialize", "ExecutionsInitializeRequest", "ExecutionsInitializeResponse"),
+        ("thermal.cycle.step.0", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.cycle.step.1", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.cycle.criterion.0", "CriteriaEvaluateRequest", "CriteriaEvaluateResponse"),
+        ("thermal.cycle.cleanup", "ExecutionsCleanupRequest", "ExecutionsCleanupResponse"),
+    ] {
+        let operation = catalog.operations.iter().find(|operation| operation.id == id).ok_or("Missing Lifecycle Binding")?;
+        assert_eq!(operation.visibility, h::Visibility::Protected as i32);
+        assert_eq!(operation.request, format!("dokime.plugin.v1.{request}"));
+        assert_eq!(operation.response, format!("dokime.plugin.v1.{response}"));
+        assert!(pool.get_message_by_name(&operation.request).is_some());
+        assert!(pool.get_message_by_name(&operation.response).is_some());
+    }
+
     // Only the Step Authored With Retries Advertises Replay Safety.
     assert!(catalog.operations.iter().find(|operation| operation.id == "thermal.cycle.step.0").unwrap().replay_safe);
     assert!(!catalog.operations.iter().find(|operation| operation.id == "thermal.cycle.step.1").unwrap().replay_safe);
@@ -95,12 +112,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         },
     )]
     .into();
-    let request = v1::MaterializeRequest {
+    let request = dokime::protocol::plugin::v1::TestCasesMaterializeRequest {
         template: "thermal.cycle".into(),
         parameters,
     };
     let payload = runtime.operations.call_encoded(&template.materialize, request.encode_to_vec()).await?;
-    let case = v1::TestCase::decode(payload.as_slice())?;
+    let case = dokime::protocol::plugin::v1::TestCasesMaterializeResponse::decode(payload.as_slice())?
+        .test_case
+        .ok_or("Missing Materialized Test Case")?;
     assert_eq!(case.steps.iter().map(|step| step.metadata.as_ref().unwrap().identifier.as_str()).collect::<Vec<_>>(), ["ramp", "hold"]);
     assert_eq!(case.streams, ["thermal.temperature"]);
     assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "within_limit");
@@ -121,7 +140,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         .invoke(
             template.initialize.as_deref().ok_or("Missing Initialize")?,
             "execution_a",
-            v1::InitializeRequest {
+            dokime::protocol::plugin::v1::ExecutionsInitializeRequest {
                 execution: "execution_a".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
@@ -131,15 +150,15 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let log = initialize.child().await?;
     assert_eq!(log.operation, "dokime.context.v1.evidence.Logs/Append");
     assert_eq!(dokime::protocol::context::v1::evidence::LogsAppendRequest::decode(log.payload.as_slice())?.execution, "execution_a");
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    initialize.finish::<v1::InitializeResponse>().await?;
+    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
 
     // Run the First Step and Observe Its Acknowledged Progress Call.
     let mut ramp = process
         .invoke(
             &case.steps[0].operation,
             "execution_a",
-            v1::StepRequest {
+            dokime::protocol::plugin::v1::StepsExecuteRequest {
                 execution: "execution_a".into(),
                 step: "ramp".into(),
                 test_case: Some(case.clone()),
@@ -148,18 +167,28 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let get = ramp.child().await?;
-    ramp.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
+    ramp.reply(
+        get.call,
+        dokime::protocol::context::v1::executions::ProgressGetResponse {
+            revision: vec![0; 8],
+            ..Default::default()
+        },
+    )
+    .await?;
     let progress = ramp.child().await?;
-    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed, 1);
+    assert_eq!(
+        dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
+        1
+    );
     ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
-    ramp.finish::<v1::StepResponse>().await?;
+    ramp.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Answer the Operator Prompt and Acknowledge the Record Before the Step Continues.
     let mut hold = process
         .invoke(
             &case.steps[1].operation,
             "execution_a",
-            v1::StepRequest {
+            dokime::protocol::plugin::v1::StepsExecuteRequest {
                 execution: "execution_a".into(),
                 step: "hold".into(),
                 test_case: Some(case.clone()),
@@ -185,7 +214,8 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let record = (record.call, dokime::protocol::context::v1::evidence::RecordsAppendRequest::decode(record.payload.as_slice())?);
     assert_eq!(record.1.execution, "execution_a");
     assert!(Door::decode(record.1.payload.as_slice())?.closed);
-    hold.reply(record.0, dokime::protocol::context::v1::evidence::RecordsAppendResponse { ordinal: 1 }).await?;
+    assert!(!record.1.request_id.is_empty());
+    hold.reply(record.0, dokime::protocol::context::v1::evidence::RecordsAppendResponse { ordinal: 1, receipt: None }).await?;
 
     // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
@@ -223,18 +253,28 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     // Finish the Wait by Protocol Event and Acknowledge the Step's Final Progress.
     hold.reply(sleep.call, harmos_protocol::context::TimeSleepResponse {}).await?;
     let get = hold.child().await?;
-    hold.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
+    hold.reply(
+        get.call,
+        dokime::protocol::context::v1::executions::ProgressGetResponse {
+            revision: vec![0; 8],
+            ..Default::default()
+        },
+    )
+    .await?;
     let progress = hold.child().await?;
-    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed, 2);
+    assert_eq!(
+        dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed,
+        2
+    );
     hold.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
-    hold.finish::<v1::StepResponse>().await?;
+    hold.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Evaluate Captured Evidence Through Host Statistics and Bounded Record Reads.
     let mut criterion = process
         .invoke(
             &case.criteria[0].operation,
             "execution_a",
-            v1::CriterionRequest {
+            dokime::protocol::plugin::v1::CriteriaEvaluateRequest {
                 execution: "execution_a".into(),
                 criterion: "within_limit".into(),
                 test_case: Some(case.clone()),
@@ -259,7 +299,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(dokime::protocol::context::v1::evidence::RecordsListRequest::decode(records.payload.as_slice())?.limit, 0);
+    assert_eq!(dokime::protocol::context::v1::evidence::RecordsListRequest::decode(records.payload.as_slice())?.page.unwrap().page_size, 0);
     criterion
         .reply(
             records.call,
@@ -272,17 +312,18 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
                     at: Some(at),
                 }),
                 records: Vec::new(),
+                ..Default::default()
             },
         )
         .await?;
-    assert!(criterion.finish::<v1::CriterionResponse>().await?.passed);
+    assert!(criterion.finish::<dokime::protocol::plugin::v1::CriteriaEvaluateResponse>().await?.passed);
 
     // Cleanup Completes Before the Execution Store Is Released.
     let mut cleanup = process
         .invoke(
             template.cleanup.as_deref().ok_or("Missing Cleanup")?,
             "execution_a",
-            v1::CleanupRequest {
+            dokime::protocol::plugin::v1::ExecutionsCleanupRequest {
                 execution: "execution_a".into(),
                 termination: v1::Termination::Completed as i32,
                 test_case: Some(case),
@@ -291,8 +332,8 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    cleanup.finish::<v1::CleanupResponse>().await?;
+    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     process.stop(true).await?;
     Ok(())
 }

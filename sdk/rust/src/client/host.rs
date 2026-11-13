@@ -135,7 +135,10 @@ impl Suites {
         Ok(self.0.catalog.suites.list(tonic::Request::new(request)).await?.into_inner())
     }
     pub async fn get(&self, identifier: impl Into<String>) -> Result<v1::catalog::SuitesGetResponse, Status> {
-        let request = v1::catalog::SuitesGetRequest { name: identifier.into(), ..Default::default() };
+        let request = v1::catalog::SuitesGetRequest {
+            name: identifier.into(),
+            ..Default::default()
+        };
         Ok(self.0.catalog.suites.get(tonic::Request::new(request)).await?.into_inner())
     }
 }
@@ -153,15 +156,27 @@ impl Executions {
 
 impl Prompts {
     pub async fn pending(&self, execution: impl Into<String>) -> Result<v1::PromptsListResponse, Status> {
-        let request = v1::PromptsListRequest { execution_id: Some(execution.into()), pending_only: true, ..Default::default() };
+        let request = v1::PromptsListRequest {
+            execution_id: Some(execution.into()),
+            pending_only: true,
+            ..Default::default()
+        };
         Ok(self.0.prompts.list(tonic::Request::new(request)).await?.into_inner())
     }
     pub async fn get(&self, identifier: impl Into<String>) -> Result<v1::PromptsGetResponse, Status> {
         let request = v1::PromptsGetRequest { name: identifier.into(), at: None };
         Ok(self.0.prompts.get(tonic::Request::new(request)).await?.into_inner())
     }
-    pub async fn respond(&self, identifier: impl Into<String>, action: impl Into<String>, accepted: bool) -> Result<v1::prompts::AnswersCreateResponse, Status> {
-        let request = v1::prompts::AnswersCreateRequest { parent: identifier.into(), action: action.into(), accepted, request_id: uuid::Uuid::now_v7().to_string(), ..Default::default() };
+    pub async fn respond(
+        &self, identifier: impl Into<String>, action: impl Into<String>, accepted: bool,
+    ) -> Result<v1::prompts::AnswersCreateResponse, Status> {
+        let request = v1::prompts::AnswersCreateRequest {
+            parent: identifier.into(),
+            action: action.into(),
+            accepted,
+            request_id: uuid::Uuid::now_v7().to_string(),
+            ..Default::default()
+        };
         Ok(self.0.prompts.answers.create(tonic::Request::new(request)).await?.into_inner())
     }
 }
@@ -169,7 +184,13 @@ impl Prompts {
 impl Records {
     pub async fn list(&self, execution: impl Into<String>) -> Result<v1::evidence::RecordsListResponse, Status> {
         let request = v1::evidence::RecordsListRequest {
-            selection: Some(v1::CapturedRecordSelection { scope: Some(v1::EvidenceScope { execution_id: Some(execution.into()), ..Default::default() }), ..Default::default() }),
+            selection: Some(v1::CapturedRecordSelection {
+                scope: Some(v1::EvidenceScope {
+                    execution_id: Some(execution.into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             ..Default::default()
         };
         Ok(self.0.evidence.records.list(tonic::Request::new(request)).await?.into_inner())
@@ -178,7 +199,13 @@ impl Records {
 
 impl Samples {
     pub async fn list(&self, execution: impl Into<String>) -> Result<v1::evidence::SamplesListResponse, Status> {
-        let request = v1::evidence::SamplesListRequest { scope: Some(v1::EvidenceScope { execution_id: Some(execution.into()), ..Default::default() }), ..Default::default() };
+        let request = v1::evidence::SamplesListRequest {
+            scope: Some(v1::EvidenceScope {
+                execution_id: Some(execution.into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
         Ok(self.0.evidence.samples.list(tonic::Request::new(request)).await?.into_inner())
     }
 }
@@ -195,19 +222,22 @@ impl Templates {
         &self, suite: impl Into<String>, template: impl Into<String>, parameters: std::collections::HashMap<String, Vec<v1::Value>>,
     ) -> Result<Vec<v1::PlannedCase>, Status> {
         let selection = v1::RegisteredSelection {
-                suite_id: suite.into(),
-                template_id: template.into(),
-                parameters: parameters
-                    .into_iter()
-                    .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
-                        key,
-                        value: Some(v1::SelectionValues { values }),
-                    })
-                    .collect(),
-                ..Default::default()
-            };
+            suite_id: suite.into(),
+            template_id: template.into(),
+            parameters: parameters
+                .into_iter()
+                .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
+                    key,
+                    value: Some(v1::SelectionValues { values }),
+                })
+                .collect(),
+            ..Default::default()
+        };
         let request = v1::CasesCreateRequest {
-            plan: Some(v1::SelectionPlan { selections: vec![selection], ..Default::default() }),
+            plan: Some(v1::SelectionPlan {
+                selections: vec![selection],
+                ..Default::default()
+            }),
             request_id: uuid::Uuid::now_v7().to_string(),
             validate_only: false,
         };
@@ -229,19 +259,39 @@ impl Cycles {
         };
         let value = self.0.cycles.create(tonic::Request::new(request)).await?.into_inner();
         let cycle = value.cycle.ok_or_else(|| Status::data_loss("Start Cycle: Missing Cycle"))?;
+        let durable_at = value
+            .receipt
+            .and_then(|receipt| receipt.durable_at)
+            .ok_or_else(|| Status::data_loss("Start Cycle: Missing Durable Receipt"))?;
         let mut executions = Vec::new();
-        let mut request = v1::ExecutionsListRequest { parent: cycle.cycle_id.clone(), ..Default::default() };
+        let mut request = v1::ExecutionsListRequest {
+            parent: cycle.cycle_id.clone(),
+            at: Some(harmos_protocol::v1::ReadCut {
+                positions: vec![durable_at],
+                revisions: Vec::new(),
+            }),
+            ..Default::default()
+        };
         loop {
             let page = self.0.executions.list(tonic::Request::new(request.clone())).await?.into_inner();
             for execution in page.executions {
                 let summary = execution.summary.ok_or_else(|| Status::data_loss("Start Cycle: Missing Execution Summary"))?;
                 executions.push(summary.execution_id);
             }
-            if page.next_page_token.is_empty() { break; }
+            if page.next_page_token.is_empty() {
+                break;
+            }
             request.at = page.resolved_at;
-            request.page = Some(harmos_protocol::v1::PageRequest { page_token: page.next_page_token, ..Default::default() });
+            request.page = Some(harmos_protocol::v1::PageRequest {
+                page_token: page.next_page_token,
+                ..Default::default()
+            });
         }
-        Ok(Cycle { client: self.0.clone(), identifier: cycle.cycle_id, executions })
+        Ok(Cycle {
+            client: self.0.clone(),
+            identifier: cycle.cycle_id,
+            executions,
+        })
     }
 }
 
@@ -264,8 +314,7 @@ impl Progress {
                     return Ok(None);
                 };
                 let request = v1::executions::ProgressWatchRequest { name: identifier, at: None };
-                self.stream =
-                    Some(self.client.executions.progress.watch(tonic::Request::new(request)).await?);
+                self.stream = Some(self.client.executions.progress.watch(tonic::Request::new(request)).await?);
                 self.terminal = false;
             }
             let Some(frame) = self.stream.as_mut().unwrap().next().await? else {

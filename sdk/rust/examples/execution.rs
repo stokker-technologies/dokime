@@ -121,7 +121,7 @@ fn main() -> Result<()> {
 
 async fn initialize(ctx: &Context) -> Result<()> {
     // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host(dokime::protocol::context::v1::BackendEnvironmentRequest {}).await?;
+    let environment = ctx.host(dokime::protocol::context::v1::BackendEnvironmentRequest { at: None }).await?;
     if environment.backend_pid == 0 || environment.in_step {
         return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
     }
