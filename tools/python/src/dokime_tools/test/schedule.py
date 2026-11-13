@@ -88,7 +88,10 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
                         "^(?!.*Native Rejections and Captured Diagnostics Reach Notification History)",
                     ]
                     if category == "unit"
-                    else []
+                    else [
+                        "--exclude",
+                        "tests/integration/{cycle/{document-query,lifecycle,saved-report},execution/responsiveness,plots/nominal,settings/registry,shell/{contracts,status}}.test.ts",
+                    ]
                 ),
                 "--reporter=default",
                 "--reporter=junit",

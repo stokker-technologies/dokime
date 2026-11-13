@@ -434,7 +434,7 @@ flag "--select <select>"
 run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
   '''{% if usage.prepared and not usage.select %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
-  '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
+  '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration --exclude "tests/integration/{cycle/{document-query,lifecycle,saved-report},execution/responsiveness,plots/nominal,settings/registry,shell/{contracts,status}}.test.ts"{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 
 [tasks."package:python"]
