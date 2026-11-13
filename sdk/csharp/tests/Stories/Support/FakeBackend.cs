@@ -37,6 +37,7 @@ public class FakeBackend : Harmos.V1.Status.StatusBase
     app.MapGrpcService<FakeBackend>();
     app.MapGrpcService<FakeLogs>();
     app.MapGrpcService<FakePlugins>();
+    app.MapGrpcService<FakeCases>();
     await app.StartAsync();
     var handler = app.GetTestServer().CreateHandler();
     return (app, handler);
@@ -81,5 +82,21 @@ public sealed class FakePlugins : Plugins.PluginsBase
     var reply = new PluginEntries();
     reply.Plugins.AddRange(entries.Values.OrderBy(entry => entry.Entry).Select(entry => entry.Clone()));
     return Task.FromResult(reply);
+  }
+}
+
+public sealed class FakeCases : Dokime.Protocol.V1.Cases.CasesBase
+{
+  public override Task<Dokime.Protocol.V1.CasesGetResponse> Get(Dokime.Protocol.V1.CasesGetRequest request, ServerCallContext context)
+  {
+    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
+      throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Case: Supply Credentials"));
+    if (string.IsNullOrWhiteSpace(request.Name))
+      throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
+    return Task.FromResult(new Dokime.Protocol.V1.CasesGetResponse
+    {
+      Value = new CaseDetail { Summary = new CaseSummary { CaseId = request.Name, Status = CaseStatus.Planned } },
+      ResolvedAt = request.At?.Clone()
+    });
   }
 }

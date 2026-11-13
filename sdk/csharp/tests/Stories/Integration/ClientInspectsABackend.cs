@@ -40,6 +40,20 @@ public sealed class ClientInspectsABackend
     Assert.Equal(new[] { "INFO", "ERROR" }, frames.SelectMany(frame => frame.Events).Select(item => item.Level));
     Assert.Equal(StatusCode.OK, logs.GetStatus().StatusCode);
 
+    // Read a Product Resource Through the Regenerated Root and Preserve Its Cut.
+    var cut = new Harmos.V1.ReadCut
+    {
+      Positions = { new Harmos.V1.Position { History = new Harmos.V1.History { Store = "cases", Epoch = "epoch" }, Sequence = 7 } }
+    };
+    using var getCase = client.Cases.Get(new Dokime.Protocol.V1.CasesGetRequest { Name = "case-a", At = cut }, new CallOptions(headers));
+    var planned = await getCase.ResponseAsync;
+    Assert.Equal("case-a", planned.Value.Summary.CaseId);
+    Assert.Equal(CaseStatus.Planned, planned.Value.Summary.Status);
+    Assert.Equal(cut, planned.ResolvedAt);
+    using var missingCase = client.Cases.Get(new Dokime.Protocol.V1.CasesGetRequest(), new CallOptions(headers));
+    var missing = await Assert.ThrowsAsync<RpcException>(() => missingCase.ResponseAsync);
+    Assert.Equal(StatusCode.InvalidArgument, missing.StatusCode);
+
     // Add a Remote Entry and Read It Back Through the Generated Plugin Client.
     using var add = plugins.AddAsync(new AddRemotePlugin { Url = "http://127.0.0.1:7001" }, headers);
     var added = await add.ResponseAsync;

@@ -23,13 +23,14 @@ public static class Host
   public static Operation<global::Dokime.Protocol.Context.V1.Evidence.TraceabilityGetRequest, global::Dokime.Protocol.Context.V1.Evidence.TraceabilityGetResponse> TraceabilityGet { get; } = new("dokime.context.v1.evidence.Traceability/Get", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.Evidence.TraceabilitySetRequest, global::Dokime.Protocol.Context.V1.Evidence.TraceabilitySetResponse> TraceabilitySet { get; } = new("dokime.context.v1.evidence.Traceability/Set", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.DocumentsAppendPartsRequest, global::Dokime.Protocol.Context.V1.DocumentsAppendPartsResponse> Document { get; } = new("dokime.context.v1.Documents/AppendParts", Visibility.Public);
-  public static Operation<PublishArtifact, ArtifactReceipt> Artifact { get; } = new("dokime.execution.artifact", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.Content.ArtifactsCreateRequest, global::Dokime.Protocol.Context.V1.Content.ArtifactsCreateResponse> Artifact { get; } = new("dokime.context.v1.content.Artifacts/Create", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.FilesCaptureRequest, global::Dokime.Protocol.Context.V1.FilesCaptureResponse> CopyFiles { get; } = new("dokime.context.v1.Files/Capture", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.Files.CapturesStartRequest, global::Dokime.Protocol.Context.V1.Files.CapturesStartResponse> StartCapture { get; } = new("dokime.context.v1.files.Captures/Start", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.Files.CapturesStopRequest, global::Dokime.Protocol.Context.V1.Files.CapturesStopResponse> StopCapture { get; } = new("dokime.context.v1.files.Captures/Stop", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.BackendEnvironmentRequest, global::Dokime.Protocol.Context.V1.BackendEnvironmentResponse> Environment { get; } = new("dokime.context.v1.Backend/Environment", Visibility.Public);
-  public static Operation<PrepareEffect, Ticket> PrepareEffect { get; } = new("dokime.execution.effect.prepare", Visibility.Public);
-  public static Operation<ConfirmEffect, ConfirmEffectResponse> ConfirmEffect { get; } = new("dokime.execution.effect.applied", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.EffectsCreateRequest, global::Dokime.Protocol.Context.V1.EffectsCreateResponse> EffectsCreate { get; } = new("dokime.context.v1.Effects/Create", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.EffectsGetRequest, global::Dokime.Protocol.Context.V1.EffectsGetResponse> EffectsGet { get; } = new("dokime.context.v1.Effects/Get", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.EffectsSetRequest, global::Dokime.Protocol.Context.V1.EffectsSetResponse> EffectsSet { get; } = new("dokime.context.v1.Effects/Set", Visibility.Public);
 }
 
 /// <summary>One unary plugin call or observer tick. Owned resources live until cleanup.</summary>
@@ -59,10 +60,10 @@ public sealed class Context
   public Task<Timestamp> NowAsync() => Transport.NowAsync();
   public Task<global::Dokime.Protocol.Context.V1.PromptsCreateResponse> PromptAsync(V1.Prompt prompt) => OperationAsync(Host.Prompt,
       new global::Dokime.Protocol.Context.V1.PromptsCreateRequest { Prompt = prompt.Metadata.Identifier, PromptType = prompt.Metadata.Identifier, Definition = prompt.Clone() });
-  public Task<global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendResponse> RecordAsync<T>(Record<T> record, T value, Timestamp? at = null) where T : IMessage<T>, new()
-      => OperationAsync(Host.Record, new global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendRequest { Execution = Execution, Kind = record.Identifier, Payload = value.ToByteString(), At = at?.Clone() });
-  public Task<global::Dokime.Protocol.Context.V1.Evidence.RecordsListResponse> RecordsAsync(string kind, string step = "", uint limit = 0)
-      => OperationAsync(Host.Records, new global::Dokime.Protocol.Context.V1.Evidence.RecordsListRequest { Execution = Execution, Kind = kind, Step = step, Limit = limit });
+  public Task<global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendResponse> RecordAsync<T>(Record<T> record, T value, Timestamp? sourceAt = null, string? requestId = null) where T : IMessage<T>, new()
+      => OperationAsync(Host.Record, new global::Dokime.Protocol.Context.V1.Evidence.RecordsAppendRequest { Execution = Execution, Kind = record.Identifier, Payload = value.ToByteString(), SourceAt = sourceAt?.Clone(), RequestId = requestId ?? Guid.NewGuid().ToString() });
+  public Task<global::Dokime.Protocol.Context.V1.Evidence.RecordsListResponse> RecordsAsync(string kind, string step = "", PageRequest? page = null, Position? at = null)
+      => OperationAsync(Host.Records, new global::Dokime.Protocol.Context.V1.Evidence.RecordsListRequest { Execution = Execution, Kind = kind, Step = step, Page = page?.Clone(), At = at?.Clone() });
   public Task<global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse> StatisticsAsync(string stream, string field = "", string step = "")
       => OperationAsync(Host.Statistics, new global::Dokime.Protocol.Context.V1.EvidenceStatisticsRequest { Execution = Execution, Stream = stream, Field = field, Step = step });
   public Task<SavedSettings> SettingsAsync() => OperationAsync(Host.Settings, new ReadSettings());
@@ -78,6 +79,6 @@ public sealed class Context
       RequestId = Guid.NewGuid().ToString()
     });
   }
-  public Task<global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse> LogAsync(Severity severity, string message)
-      => OperationAsync(Host.Log, new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest { Execution = Execution, Severity = severity, Message = message });
+  public Task<global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse> LogAsync(Severity severity, string message, string? requestId = null)
+      => OperationAsync(Host.Log, new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest { Execution = Execution, Severity = severity, Message = message, RequestId = requestId ?? Guid.NewGuid().ToString() });
 }

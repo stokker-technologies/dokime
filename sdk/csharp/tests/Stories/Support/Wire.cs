@@ -22,7 +22,9 @@ internal sealed class Wire(CallInvoker calls)
   internal async Task<T> InvokeAsync<T>(InstanceGetResponse description, string operation, IMessage request, string scope = "",
       Func<ChildRequest, ByteString>? child = null) where T : IMessage<T>, new()
   {
-    _ = description.Catalog.Operations.Single(item => item.Id == operation);
+    var contract = description.Catalog.Operations.Single(item => item.Id == operation);
+    if (contract.Request != request.Descriptor.FullName || contract.Response != new T().Descriptor.FullName)
+      throw new InvalidOperationException($"Invoke {operation}: Payload Types Differ from the Frozen Contract");
     using var call = calls.AsyncDuplexStreamingCall(Method<InstanceInvokeRequest, InstanceInvokeResponse>(MethodType.DuplexStreaming, "harmos.plugin.v1.Instance", "Invoke"), null, new CallOptions());
     await call.RequestStream.WriteAsync(new InstanceInvokeRequest
     {
