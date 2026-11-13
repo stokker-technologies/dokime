@@ -159,7 +159,6 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         assert!(host.start_cycle(vec![invalid]).await.is_err());
         assert_eq!(host.executions()?, before);
         host.shutdown().await?;
-        drop(host);
 
         // Read Mixed Attributions and Counts Through the Client Services Once the Root Is Released
         let process =

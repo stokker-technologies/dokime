@@ -53,18 +53,27 @@ async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box
     assert!(!root.path().join("execution.sqlite3").exists());
     drop(lease);
 
-    // Keep The Lease While Any Host Owner Remains
+    // Keep The Lease While A Running Host Owns The Root
     let host = Host::open(root.path(), super::support::settings())?;
     let retained = host.clone();
     assert!(matches!(Host::open(root.path(), super::support::settings()), Err(Error::OccupiedRoot(path)) if path == root.path()));
-    host.shutdown().await?;
-    drop(host);
-    assert!(matches!(Host::open(root.path(), super::support::settings()), Err(Error::OccupiedRoot(_))));
-    drop(retained);
 
-    // Reopen The Same Evidence After All Owners Have Settled
+    // Release The Root At Shutdown Although A Handle Remains, And Refuse New Work Through It
+    host.shutdown().await?;
+    let reopened = Host::open(root.path(), super::support::settings())?;
+    assert!(reopened.executions()?.is_empty());
+    assert!(retained.add_remote("http://127.0.0.1:1").await.is_err());
+    assert!(retained.start_cycle(Vec::new()).await.is_err());
+    reopened.shutdown().await?;
+
+    // Release The Root With Its Last Owner When A Host Is Dropped Without Shutdown
+    drop((host, retained, reopened));
+    let abandoned = Host::open(root.path(), super::support::settings())?;
+    let second = abandoned.clone();
+    drop(abandoned);
+    assert!(matches!(Host::open(root.path(), super::support::settings()), Err(Error::OccupiedRoot(_))));
+    drop(second);
     let host = Host::open(root.path(), super::support::settings())?;
-    assert!(host.executions()?.is_empty());
     host.shutdown().await?;
     Ok(())
 }

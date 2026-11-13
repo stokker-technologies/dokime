@@ -36,6 +36,9 @@ use dokime_storage::{ExecutionSnapshot, Store};
 
 /* === Type Aliases === */
 
+/// The Exclusive Lease on a Storage Root, Released at Shutdown or With Its Last Owner.
+pub(crate) type RootLease = Arc<Mutex<Option<std::fs::File>>>;
+
 /* === Structs === */
 
 #[derive(Clone)]
@@ -52,7 +55,7 @@ pub struct Host {
     pub(crate) prompts: Arc<crate::prompts::PromptManager>,
     pub(crate) reports: crate::reports::ReportManager,
     changed: tokio::sync::watch::Sender<u64>,
-    _root_lease: Arc<std::fs::File>,
+    root_lease: RootLease,
 }
 
 /* === Enums === */
@@ -77,7 +80,7 @@ impl Host {
             Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
             Err(std::fs::TryLockError::Error(error)) => return Err(root_error(error)),
         }
-        let root_lease = Arc::new(lease);
+        let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
         let store = Store::open(root)?;
         let changed = tokio::sync::watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
@@ -99,28 +102,38 @@ impl Host {
             prompts,
             reports,
             changed,
-            _root_lease: root_lease,
+            root_lease,
         })
     }
     pub async fn add_remote(&self, endpoint: &str) -> Result<String> {
+        self.admit("Add Plugin")?;
         let entry = Entry::admit(endpoint, None, &self.settings.placement).await?;
         self.insert(entry)
     }
     pub async fn add_managed(&self, executable: &Path) -> Result<String> {
+        self.admit("Add Plugin")?;
         let process = PluginProcess::start(executable, false, &self.settings.placement).await?;
         let endpoint = process.endpoint().to_owned();
         let entry = Entry::admit(&endpoint, Some(process), &self.settings.placement).await?;
         self.insert(entry)
     }
     pub async fn add_remote_configured(&self, endpoint: &str, placement: &PlacementSettings) -> Result<String> {
+        self.admit("Add Plugin")?;
         let entry = Entry::admit(endpoint, None, placement).await?;
         self.insert(entry)
     }
     pub async fn add_managed_configured(&self, executable: &Path, placement: &PlacementSettings) -> Result<String> {
+        self.admit("Add Plugin")?;
         let process = PluginProcess::start(executable, false, placement).await?;
         let endpoint = process.endpoint().to_owned();
         let entry = Entry::admit(&endpoint, Some(process), placement).await?;
         self.insert(entry)
+    }
+    fn admit(&self, action: &str) -> Result<()> {
+        if self.is_shutting_down() {
+            return Err(Error::Invalid(format!("{action}: Reconnect to a Running Host")));
+        }
+        Ok(())
     }
     fn insert(&self, entry: Entry) -> Result<String> {
         self.validate_plugin_admission(&entry)?;
@@ -287,6 +300,8 @@ impl Host {
             }
             lock(&self.plugins)?.remove(&identifier);
         }
+        // Release the Root Once Owned Work Has Settled, Whatever Handles Remain
+        lock(&self.root_lease)?.take();
         result
     }
 }
