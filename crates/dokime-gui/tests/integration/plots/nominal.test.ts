@@ -12,6 +12,8 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
+import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/documents_pb.js";
+import { LineStyle } from "@host/dokime/v1/client_types_pb.js";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -1324,8 +1326,11 @@ test("XY Styles Reach the Native Request", () => {
     assert.equal(request.plotType, "xy");
     assert.equal(request.style, style);
     const native = toNativePlotRequest(request);
-    assert.equal(native.plotType?.HarmosVariant.case, "Xy");
-    assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
+    assert.equal(native.plotType, PlotKind.XY);
+    assert.equal(
+      native.style,
+      { line: LineStyle.LINE, points: LineStyle.POINTS, line_points: LineStyle.LINE_POINTS, step: LineStyle.STEP }[style],
+    );
     const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]) });
     assert.equal(spec.style, style);
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
@@ -2181,8 +2186,8 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
       summary_label: "Readings",
     },
   });
-  assert.equal(request.reduction?.HarmosVariant.case, "Max");
-  assert.equal(request.grid?.frame?.source?.HarmosVariant.case, "Telemetry");
+  assert.equal(request.reduction, Reduction.MAX);
+  assert.equal(request.grid?.frame?.kind.case, "stream");
   assert.equal(request.grid?.rows[0].key, "sensor");
 });
 
@@ -2199,13 +2204,15 @@ test("Numeric Expression Maps Preserve Their Wire Order", () => {
       ],
     },
   });
-  const maps = request.zExpression?.transforms.map((transform) => transform.kind?.HarmosVariant);
-  const scale = maps?.[0];
-  const offset = maps?.[1];
-  assert.ok(scale?.case === "Scale");
-  assert.ok(offset?.case === "Offset");
-  assert.equal(scale.value.field0?.value, 2);
-  assert.equal(offset.value.field0?.value, -1);
+  const outer = request.zExpression?.kind;
+  assert.ok(outer?.case === "transform");
+  assert.equal(outer.value.kind.case, "offset");
+  assert.equal(outer.value.kind.value, -1);
+  const inner = outer.value.input?.kind;
+  assert.ok(inner?.case === "transform");
+  assert.equal(inner.value.kind.case, "scale");
+  assert.equal(inner.value.kind.value, 2);
+  assert.equal(inner.value.input?.kind.case, "stream");
 });
 
 test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
@@ -2276,8 +2283,8 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
   assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
   const request = toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "xy", xyInterval: "sigma" });
-  assert.equal(request.plotType?.HarmosVariant.case, "Xy");
-  assert.equal(request.xyInterval?.HarmosVariant.case, "Sigma");
+  assert.equal(request.plotType, PlotKind.XY);
+  assert.equal(request.xyInterval, XyInterval.SIGMA);
   assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
 });
 

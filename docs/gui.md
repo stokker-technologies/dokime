@@ -28,7 +28,10 @@ projections, together with secret catalog and transfer. Planning, execution deta
 runtime/progress Watch, prompt and live-record adapters also use canonical host messages. Case
 registration uses one cycle-scoped `RegisterSelection` request; execution status
 projects durable state, attributed outcome and optional live controls separately.
-Run buttons use the host capabilities, including the absence of controls on imports. Listener values in the
+Run buttons use the host capabilities, including the absence of controls on imports.
+Telemetry plots, incremental document frames and content read/follow/upload adapters
+also consume canonical messages. The connection reads the product process epoch
+from its client; library status history is a separate resource identity. Listener values in the
 preferences view come from Access; application preference saves never write that
 separately revisioned resource. Missing host logo content is reported independently
 of native installer appearance. Native plugin installation, pairing export, firewall
@@ -36,8 +39,8 @@ registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 
-The telemetry/plot, document/report/history, plugin inventory/settings
-and diagnostics view adapters still import the old generated message projections. They require
+The immutable checkpoint/history, plugin inventory/settings and diagnostics view
+adapters still import the old generated message projections. They require
 canonical request construction and view projections before those screens can
 claim new-host support. In particular, old tagged state unions, flat Value nodes,
 paged cursors and artifact origins do not represent the new contracts. Native
@@ -49,11 +52,11 @@ replacement before either desktop lane can certify this cutover.
 
 | Journey | Required Replacement |
 | --- | --- |
-| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` now use canonical messages, numeric lifecycle enums, separate state/outcome/live controls, recursive values and Watch envelopes. The existing runtime consumer reconnects without a cursor and refreshes snapshots on resynchronization. Binary adapter stories pass; the WebView journey still needs the replacement driver and the evidence/document adapters that share its page. |
-| Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's frozen descriptor/record catalog, preserves exact scalar values and evidence origins, and follows canonical RecordPage cursors. `native-plots.ts`, `native-aggregate.ts` and `native-checkpoints.ts` still use flat values, old evidence origins and paged read projections; canonical sample values, plot frames and checkpoint evidence remain to move. |
-| Documents and Reports | `native-documents.ts` and `native-content.ts` still use old document/render bindings and content origins. Report open/save already uses canonical verified native delivery; the document projections and content selectors on its WebView page remain. |
-| History | The saved execution path shares the execution/evidence adapters above; replace those projections before history can read the same durable evidence as the SDK story. |
-| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` still expect old settings blocks, plugin owners, boot results and installation paging. Canonical plugin entries carry placement, current state and description. File installation already streams canonical SDK frames. |
+| Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` now use canonical messages, numeric lifecycle enums, separate state/outcome/live controls, recursive values and Watch envelopes. The existing runtime consumer reconnects without a cursor and refreshes snapshots on resynchronization. Binary adapter stories pass; the WebView journey still needs the replacement driver and settings adapters and missing system-driver artifacts that share its page. |
+| Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's frozen descriptor/record catalog, preserves exact scalar values and evidence origins, and follows canonical RecordPage cursors. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the checkpoint document's frozen catalog. |
+| Documents and Reports | `native-documents.ts` now assembles canonical bounded frames and preserves completion, card commits, recursive expressions and the product epoch. Execution defaults use the host's empty selector and retain its returned document identity. `native-content.ts` uses canonical artifact/file frames and verified completion; report open/save uses verified native delivery. Full WebView export proof still needs the replacement driver. |
+| History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and product epochs. Binary stories prove attributed browse results and checkpoint log decoding; full WebView browsing still awaits the replacement driver. |
+| Plugin Settings and Inventory | `native-storage-settings.ts` uses the SDK root. `native-settings.ts` and `native-plugins.ts` still expect old settings blocks, plugin owners, boot results and installation paging. Canonical plugin entries carry placement, current state and description. File installation already streams canonical SDK frames. |
 | Remote Access | Native pairing export, pinned connection and certificate rotation use the SDK. The settings cards and WebView remote/ownership drivers still expect old listener and identity projections. |
 | Status, Health and Diagnostics | `native-diagnostics.ts`, `native-logs.ts` and the settings blocks still call removed Backend/Runtime paths. Route them through the pinned library Status services and transfer owner. |
 | Dependency Removal | The manifest still uses the facade for native paths, installed appearance, build identity, release metadata and tracing; native tests, benches and the old protocol generator still import old server/runtime contracts. Replace those consumers before removing the facade and server dev dependencies. |

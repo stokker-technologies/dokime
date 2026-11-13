@@ -63,6 +63,7 @@ pub struct Session {
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
     identity: dokime_sdk::client::v1::StatusGetResponse,
+    product_epoch: String,
     cancellation: CancellationToken,
     watches: Arc<tokio::sync::Mutex<tokio::task::JoinSet<()>>>,
     stream_buffer: usize,
@@ -219,6 +220,10 @@ impl Session {
         &self.identity
     }
 
+    pub(crate) fn product_epoch(&self) -> &str {
+        &self.product_epoch
+    }
+
     pub fn cancellation(&self) -> CancellationToken {
         self.cancellation.clone()
     }
@@ -336,6 +341,7 @@ impl Session {
             pairing,
             endpoint: endpoint.to_owned(),
             identity: Default::default(),
+            product_epoch: String::new(),
             cancellation: CancellationToken::new(),
             watches: Arc::new(tokio::sync::Mutex::new(tokio::task::JoinSet::new())),
             stream_buffer: settings.client.input_items.get(),
@@ -356,6 +362,10 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
+        let cycles: dokime_sdk::v1::ListCyclesReply = session
+            .unary("/dokime.v1.Execution/ListCycles", dokime_sdk::v1::ExecutionListCyclesRequest { limit: 1, ..Default::default() })
+            .await?;
+        session.product_epoch = cycles.cursor.filter(|cursor| !cursor.epoch.is_empty()).ok_or(Error::IncompleteIdentity)?.epoch;
         Ok(session)
     }
 }

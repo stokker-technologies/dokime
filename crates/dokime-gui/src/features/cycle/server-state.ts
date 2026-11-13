@@ -510,7 +510,7 @@ function useDocumentCards({
   const held = capturedDocuments.get(JSON.stringify(queryKey));
   const candidates = (document?.cards ?? []).flatMap((card) => {
     const source = held?.current.bindings.has(card.card_id) ? held.current : held?.completed;
-    if (source?.bindings.get(card.card_id)?.result?.HarmosVariant.case !== "Pending") return [];
+    if (source?.bindings.get(card.card_id)?.result?.kind.case !== "pending") return [];
     const key = [...cardKey, "cards", card.card_id, nativeDocumentCardKey(source, card.card_id)];
     return [{ id: card.card_id, key, page: source.page?.current }];
   });

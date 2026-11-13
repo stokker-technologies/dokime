@@ -21,9 +21,9 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { Row3Schema as WatchFrameSchema } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
+import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind, PlotCartesianMode } from "@host/dokime/v1/client_types_pb.js";
 import { mapNativePlotStreamFrame } from "@/lib/api/native-plots";
-import { jsonToNativeValue } from "@/lib/api/native-values";
+import { jsonToNativeValue } from "@/lib/host/values";
 
 /* === Re-Exports === */
 
@@ -43,7 +43,7 @@ test("Aligned Columns Decode With One Shared Time Array and No Point Copies", ()
   const wire = create(WatchFrameSchema, {
     updates: [
       {
-        kind: { HarmosVariant: { case: "Snapshot", value: {} } },
+        kind: PlotStreamKind.SNAPSHOT,
         envelope: {
           plotId: "signal",
           epoch: "epoch",
@@ -58,7 +58,7 @@ test("Aligned Columns Decode With One Shared Time Array and No Point Copies", ()
               { key: "b", label: "B" },
             ],
             frame: {
-              mode: { HarmosVariant: { case: "Aligned", value: {} } },
+              mode: PlotCartesianMode.ALIGNED,
               time: [1, 2, 3],
               series: [{ y: [{ value: 2 }, {}, { value: 4 }] }, { y: [{}, { value: 8 }, {}] }],
               pointCount: 3n,
@@ -83,7 +83,7 @@ test("Cartesian Columns Reject Mismatched Lengths and Nonfinite Coordinates", ()
     const wire = create(WatchFrameSchema, {
       updates: [
         {
-          kind: { HarmosVariant: { case: "Snapshot", value: {} } },
+          kind: PlotStreamKind.SNAPSHOT,
           envelope: {
             plotId: "signal",
             epoch: "epoch",
@@ -94,7 +94,7 @@ test("Cartesian Columns Reject Mismatched Lengths and Nonfinite Coordinates", ()
               xKey: "timestamp",
               series: [{ key: "a", label: "A" }],
               frame: {
-                mode: { HarmosVariant: { case: "Aligned", value: {} } },
+                mode: PlotCartesianMode.ALIGNED,
                 time,
                 series: [{ y: [{ value: 2 }, {}] }],
               },
@@ -113,7 +113,7 @@ test("Independent Columns Preserve Categorical Axes and Z Values", () => {
   const wire = create(WatchFrameSchema, {
     updates: [
       {
-        kind: { HarmosVariant: { case: "Snapshot", value: {} } },
+        kind: PlotStreamKind.SNAPSHOT,
         envelope: {
           plotId: "categories",
           epoch: "epoch",

@@ -42,8 +42,8 @@ pub struct Fixture {
 }
 
 pub struct Published {
-    runtime: Runtime,
-    server: Server,
+    owner: dokime_gui::native_session::DesktopSession,
+    endpoint: String,
 }
 
 /* === Enums === */
@@ -105,20 +105,20 @@ impl Fixture {
 
 impl Published {
     pub async fn start(root: &Path) -> Self {
-        let config = dokime::config::Config::local(root);
-        let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-        let runtime = dokime::app::launch_with(config, vec![prepared_runtime.composition()]).await.unwrap();
-        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
-        Self { runtime, server }
+        let owner = dokime_gui::native_session::DesktopSession::with_local_backend(
+            ConnectionSession::default(),
+            dokime_gui::native_session::backend::Backend::new(root.to_owned()),
+        );
+        let endpoint = owner.select(BackendSelection::OwnedLocal).await.unwrap().connection.endpoint.unwrap();
+        Self { owner, endpoint }
     }
 
     pub fn endpoint(&self) -> String {
-        self.server.local_endpoint()
+        self.endpoint.clone()
     }
 
-    pub async fn shutdown(mut self) {
-        self.server.shutdown().await.unwrap();
-        self.runtime.shutdown().await.unwrap();
+    pub async fn shutdown(self) {
+        self.owner.shutdown().await.unwrap();
     }
 }
 

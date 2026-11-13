@@ -84,7 +84,7 @@ function structure() {
   const view = documentView("default", { identifier: "default", label: "Fixture" }, cards, {
     nodes: cards.map((item) => ({ type: "card" as const, card_id: item.card_id, layout: item.layout })),
   });
-  return { view, bindings: new Map(cards.map((item) => [item.card_id, { result: { HarmosVariant: { case: "Pending" } } }])) };
+  return { view, bindings: new Map(cards.map((item) => [item.card_id, { result: { kind: { case: "pending" } } }])) };
 }
 
 // A Refresh Reaches The Fast Card While The Slow Card Keeps Its Original Request.
@@ -198,7 +198,7 @@ test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
       const capture = {
         view,
         page: { current: later ? "fixture.second" : "fixture.first", next: later ? undefined : "fixture.second" },
-        bindings: new Map([[id, { result: { HarmosVariant: { case: "Pending" } } }]]),
+        bindings: new Map([[id, { result: { kind: { case: "pending" } } }]]),
       };
       (publish as ((value: unknown) => void) | undefined)?.(capture);
       return capture;

@@ -62,10 +62,9 @@ pub(crate) fn backend(session: &super::host::Session) -> BackendSnapshot {
     let ready = session.identity();
     let status = ready.status.as_ref().expect("ready host status");
     let identity = status.identity.as_ref().expect("ready host identity");
-    let history = ready.resolved_at.as_ref().and_then(|position| position.history.as_ref()).expect("ready host history");
     BackendSnapshot {
         backend_id: identity.host_id.clone(),
-        epoch: history.epoch.clone(),
+        epoch: session.product_epoch().to_owned(),
         display_name: identity.application_name.clone(),
         product_version: identity.application_version.clone(),
         source_revision: None,

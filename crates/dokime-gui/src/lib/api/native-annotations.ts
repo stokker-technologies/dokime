@@ -13,19 +13,14 @@
 
 /* === Local Imports === */
 
+import { NotePublication as Publication } from "@host/dokime/v1/client_types_pb.js";
+import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { recordScopeFromNative } from "@/lib/host/values";
 import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
+import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, HealthItem, OperatorNote, RecordScope } from "@/lib/types";
-import {
-  mapNativeSeverity,
-  NATIVE_MAX_PAGES,
-  NATIVE_SMALL_PAGE_SIZE,
-  NativeApiLimitError,
-  nowIso,
-  recordScopeFromNative,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, timestampIso } from "./native-values";
 
 /* === Types === */
 
@@ -144,7 +139,14 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
   if (!createdAt) throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
   return {
     health_id: item.healthItemId,
-    level: mapNativeSeverity(item.severity),
+    level:
+      item.severity === Severity.ERROR
+        ? "error"
+        : item.severity === Severity.WARNING
+          ? "warning"
+          : item.severity === Severity.DEBUG
+            ? "debug"
+            : "info",
     title: item.message,
     message: item.detail ?? null,
     details: {},
@@ -154,12 +156,12 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
 }
 
 function notePublicationName(value: NotePublication): string {
-  switch (value?.HarmosVariant.case) {
-    case "NoExistingDatasets":
+  switch (value) {
+    case Publication.NO_EXISTING_DATASETS:
       return "no_existing_datasets";
-    case "Confirmed":
+    case Publication.CONFIRMED:
       return "confirmed";
-    case "Unconfirmed":
+    case Publication.UNCONFIRMED:
       return "unconfirmed";
     default:
       return "unspecified";
@@ -172,22 +174,12 @@ export function annotationOwner(scope?: RecordScope | null): AnnotationOwner {
     throw new Error("Native notes require a cycle-scoped owner.");
   }
   if (scope.test_execution_id) {
-    return {
-      owner: {
-        HarmosVariant: {
-          case: "Execution",
-          value: { field0: { cycleId, executionId: scope.test_execution_id } },
-        },
-      },
-    };
+    return { owner: { kind: { case: "execution", value: { cycleId, executionId: scope.test_execution_id } } } };
   }
-  const caseId = scope.test_case_id;
-  if (caseId) {
-    return {
-      owner: { HarmosVariant: { case: "PlannedCase", value: { field0: { cycleId, caseId } } } },
-    };
+  if (scope.test_case_id) {
+    return { owner: { kind: { case: "plannedCase", value: { cycleId, caseId: scope.test_case_id } } } };
   }
-  return { owner: { HarmosVariant: { case: "CycleId", value: { field0: cycleId } } } };
+  return { owner: { kind: { case: "cycleId", value: cycleId } } };
 }
 
 function annotationSelection(scope: RecordScope): AnnotationSelection {

@@ -333,6 +333,21 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
         upload.push(v1::UploadArtifactFrame { payload: Some(v1::UploadArtifactFramePayload { kind: Some(v1::upload_artifact_frame_payload::Kind::Complete(v1::ArtifactCompletion { size_bytes: attachment.len() as u64, sha256: attachment_digest.clone() })) }) });
         let artifact = session.upload_artifact(tokio_stream::iter(upload)).await?;
 
+        // Subscribe to the Execution Plot Before Answering the Live Prompt
+        let plot_request = v1::PlotRequest {
+            plot_id: Some("temperature".into()), stream: "thermal.temperature".into(), y_keys: vec!["celsius".into()],
+            scope: Some(v1::EvidenceScope { execution_id: Some(execution.clone()), ..Default::default() }),
+            technique: v1::Downsample::Raw as i32, max_points: Some(128), ..Default::default()
+        };
+        let request = v1::PlotsWatchRequest { requests: vec![plot_request.clone()] }.encode_to_vec();
+        let mut plots = session.watch_raw("/dokime.v1.Plots/Watch", &request).await?;
+        let opening = plots.next().await.ok_or("Watch Desktop Plot: Missing Opening Snapshot")??;
+        let opening = v1::PlotsWatchOutput::decode(opening.as_slice())?;
+        let Some(v1::plots_watch_output::Value::Item(opening)) = opening.value else { return Err("Watch Desktop Plot: Missing Opening Item".into()); };
+        assert_eq!(opening.updates.len(), 1);
+        assert_eq!(opening.updates[0].kind, v1::PlotStreamKind::Snapshot as i32);
+        assert_eq!(opening.updates[0].envelope.as_ref().unwrap().plot_id, "temperature");
+
         let request = v1::PromptsRespondRequest { prompt_id: prompt.prompt_id.clone(), action: "yes".into(), accepted: true, ..Default::default() }.encode_to_vec();
         session.call_raw("/dokime.v1.Prompts/Respond", &request).await?;
         let mut terminal = false;
@@ -365,6 +380,58 @@ async fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), B
         let response = session.call_raw("/dokime.v1.Telemetry/ListSamples", &request).await?;
         let samples = v1::TelemetrySamplesReply::decode(response.as_slice())?;
         assert!(samples.samples.iter().any(|sample| !sample.payload.is_empty()));
+
+        // Settle the Live Plot and Read the Same Saved Sample Set
+        let mut plot_terminal = false;
+        let mut plotted = false;
+        while let Some(frame) = plots.next().await {
+            let frame = v1::PlotsWatchOutput::decode(frame?.as_slice())?;
+            match frame.value {
+                Some(v1::plots_watch_output::Value::Item(frame)) if !plot_terminal => {
+                    for update in frame.updates {
+                        assert_eq!(update.kind, v1::PlotStreamKind::Snapshot as i32);
+                        let payload = update.envelope.and_then(|envelope| envelope.payload).ok_or("Watch Desktop Plot: Missing Payload")?;
+                        plotted |= payload.series.iter().any(|series| series.raw_points > 0);
+                    }
+                }
+                Some(v1::plots_watch_output::Value::Response(_)) if !plot_terminal => plot_terminal = true,
+                _ => return Err("Watch Desktop Plot: Invalid Terminal Sequence".into()),
+            }
+        }
+        assert!(plot_terminal && plotted);
+        let request = v1::PlotsQuerySnapshotsRequest { requests: vec![plot_request] }.encode_to_vec();
+        let response = session.call_raw("/dokime.v1.Plots/QuerySnapshots", &request).await?;
+        let saved = v1::PlotSnapshotsReply::decode(response.as_slice())?;
+        let saved = saved.envelopes.first().and_then(|envelope| envelope.payload.as_ref()).ok_or("Read Desktop Plot: Missing Saved Payload")?;
+        assert!(saved.series.iter().any(|series| series.raw_points == samples.samples.len() as u64));
+
+        // Capture the Canonical Default Document with Its Product Process Epoch
+        let request = v1::DocumentsCaptureCurrentDocumentRequest {
+            scope: Some(v1::DocumentScope { cycle_id: cycle.cycle_id.clone(), execution_id: execution.clone() }),
+            ..Default::default()
+        }.encode_to_vec();
+        let mut document = session.watch_raw("/dokime.v1.Documents/CaptureCurrentDocument", &request).await?;
+        let mut document_header = false;
+        let mut document_complete = false;
+        let mut document_terminal = false;
+        while let Some(frame) = document.next().await {
+            let frame = v1::DocumentsCaptureCurrentDocumentOutput::decode(frame?.as_slice())?;
+            match frame.value {
+                Some(v1::documents_capture_current_document_output::Value::Item(frame)) if !document_terminal => match frame.frame.and_then(|frame| frame.kind) {
+                    Some(v1::document_frame_frame::Kind::Header(header)) => {
+                        assert!(!document_header);
+                        assert_eq!(header.document_id, "execution");
+                        assert_eq!(header.frontiers.as_ref().unwrap().process_epoch, session.product_epoch());
+                        document_header = true;
+                    }
+                    Some(v1::document_frame_frame::Kind::Completion(_)) => document_complete = true,
+                    _ => {}
+                },
+                Some(v1::documents_capture_current_document_output::Value::Response(_)) if !document_terminal => document_terminal = true,
+                _ => return Err("Read Desktop Document: Invalid Terminal Sequence".into()),
+            }
+        }
+        assert!(document_header && document_complete && document_terminal);
 
         // Read the Report Through SDK Delivery and Verify Every Byte Against Its Completion
         let request = v1::ReportsDownloadExecutionReportRequest { execution_id: execution.clone() }.encode_to_vec();

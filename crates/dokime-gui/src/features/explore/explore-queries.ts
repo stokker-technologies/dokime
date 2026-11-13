@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { ArchiveScope, ExecutionOrderKey } from "@host/dokime/v1/client_types_pb.js";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/context";
@@ -51,9 +52,9 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
         statuses: [],
         templateIds: [],
         cycleIds: [],
-        archive: { HarmosVariant: { case: archive, value: {} } },
+        archive: archive === "All" ? ArchiveScope.ALL : archive === "Archived" ? ArchiveScope.ARCHIVED : ArchiveScope.UNARCHIVED,
       },
-      order: { key: { HarmosVariant: { case: "StartedAt", value: {} } }, descending: true },
+      order: { key: ExecutionOrderKey.STARTED_AT, descending: true },
     }),
     [archive, needle],
   );
@@ -70,7 +71,7 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
       fetchNativeCyclePage(session.identity, pageParam, signal, {
         text: needle,
         statuses: [],
-        archive: { HarmosVariant: { case: archive, value: {} } },
+        archive: archive === "All" ? ArchiveScope.ALL : archive === "Archived" ? ArchiveScope.ARCHIVED : ArchiveScope.UNARCHIVED,
       }),
     getNextPageParam: (page) => page.next ?? undefined,
   });

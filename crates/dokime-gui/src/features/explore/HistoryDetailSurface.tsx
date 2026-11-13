@@ -292,7 +292,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Recorded Status</dt>
-          <dd>{executionStatusLabel(execution.status)}</dd>
+          <dd>{executionStatusLabel(execution.status, execution.outcome, execution.startedAt !== undefined)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Acquisition</dt>

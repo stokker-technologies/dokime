@@ -21,7 +21,7 @@ import { create } from "@bufbuild/protobuf";
 import { test } from "vitest";
 
 // Local Imports
-import * as wire from "@generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
+import { DocumentFrameSchema } from "@host/dokime/v1/client_types_pb.js";
 import { assembleDocument, type CompletedDocument, mapNativeDocument, nativeDocumentCardKey } from "@/lib/api/native-documents";
 
 /* === Re-Exports === */
@@ -41,15 +41,15 @@ const cut = { store: "fixture.store", epoch: "fixture.history", position: 7n };
 /* === Private Functions === */
 
 function frame(kind: string, payload: unknown) {
-  return create(wire.Row3Schema, { frame: { HarmosVariant: { case: kind, value: { field0: payload } } } } as never);
+  return create(DocumentFrameSchema, { frame: { kind: { case: kind, value: payload } } } as never);
 }
 
 function binding(id: string, ready = false) {
-  return frame("Binding", {
+  return frame("binding", {
     sourceId: id,
     metadata: { identifier: id, label: "Fixture" },
     result: {
-      HarmosVariant: { case: ready ? "Summary" : "Pending", value: { field0: ready ? { groupCount: 1n } : true } },
+      kind: ready ? { case: "summary", value: { groupCount: 1n } } : { case: "pending", value: true },
     },
   });
 }
@@ -60,7 +60,7 @@ function counts(length: number, partial: boolean) {
 
 function initial(partial = false) {
   const frames = [
-    frame("Header", {
+    frame("header", {
       documentId: expected.documentId,
       metadata: { identifier: "default", label: "Fixture" },
       scope,
@@ -68,43 +68,41 @@ function initial(partial = false) {
     }),
   ];
   for (const [ordinal, id] of ["fast", "slow"].entries()) {
+    frames.push(frame("layoutNode", { ordinal: BigInt(ordinal), node: { kind: { case: "placement", value: { cardId: id } } } }));
     frames.push(
-      frame("LayoutNode", { ordinal: BigInt(ordinal), node: { HarmosVariant: { case: "Placement", value: { field0: { cardId: id } } } } }),
-    );
-    frames.push(
-      frame("Card", {
+      frame("card", {
         metadata: { identifier: id, label: "Fixture" },
         filters: [],
-        body: { HarmosVariant: { case: "Summary", value: { field0: { groupCount: 1n } } } },
+        body: { kind: { case: "summary", value: { groupCount: 1n } } },
       }),
     );
     frames.push(
-      frame("GroupDefinition", { cardId: id, ordinal: 0n, metadata: { identifier: `${id}.group`, label: "Fixture" }, tileCount: 2n }),
+      frame("groupDefinition", { cardId: id, ordinal: 0n, metadata: { identifier: `${id}.group`, label: "Fixture" }, tileCount: 2n }),
     );
     for (let tile = 0; tile < 2; tile++)
       frames.push(
-        frame("TileDefinition", {
+        frame("tileDefinition", {
           cardId: id,
           groupOrdinal: 0n,
           ordinal: BigInt(tile),
           metadata: { identifier: `${id}.tile.${tile}`, label: "Fixture" },
-          value: { source: { HarmosVariant: { case: "Parameter", value: { field0: { name: "fixture.value" } } } }, transforms: [] },
+          value: { kind: { case: "parameter", value: "fixture.value" } },
         }),
       );
     frames.push(binding(id));
   }
-  frames.push(frame("StructureComplete", counts(frames.length + 1, partial)));
-  frames.push(frame("EvidenceCut", { cut, telemetry: true, cacheable: false }));
+  frames.push(frame("structureComplete", counts(frames.length + 1, partial)));
+  frames.push(frame("evidenceCut", { cut, telemetry: true, cacheable: false }));
   return frames;
 }
 
 function tile(ordinal: number) {
-  return frame("SummaryTile", {
+  return frame("summaryTile", {
     cardId: "fast",
     groupOrdinal: 0n,
     ordinal: BigInt(ordinal),
     metadata: { identifier: `fast.tile.${ordinal}`, label: "Fixture" },
-    value: { nodes: [{ kind: { HarmosVariant: { case: "Integer", value: { field0: BigInt(ordinal + 1) } } } }] },
+    value: { kind: { case: "integer", value: BigInt(ordinal + 1) } },
   });
 }
 
@@ -117,12 +115,12 @@ test("Completed Cards Survive an Interrupted Sibling", async () => {
   async function* frames() {
     yield* initial();
     yield binding("fast", true);
-    yield frame("SummaryGroup", { cardId: "fast", ordinal: 0n, metadata: { identifier: "fast.group", label: "Fixture" }, tileCount: 2n });
+    yield frame("summaryGroup", { cardId: "fast", ordinal: 0n, metadata: { identifier: "fast.group", label: "Fixture" }, tileCount: 2n });
     yield tile(0);
-    assert.equal(updates.at(-1)?.bindings.get("fast")?.result?.HarmosVariant.case, "Pending");
+    assert.equal(updates.at(-1)?.bindings.get("fast")?.result?.kind.case, "pending");
     yield tile(1);
-    yield frame("CardComplete", "fast");
-    assert.equal(updates.at(-1)?.bindings.get("fast")?.result?.HarmosVariant.case, "Summary");
+    yield frame("cardComplete", "fast");
+    assert.equal(updates.at(-1)?.bindings.get("fast")?.result?.kind.case, "summary");
     throw new Error("fixture.interrupted");
   }
   await assert.rejects(
@@ -133,8 +131,8 @@ test("Completed Cards Survive an Interrupted Sibling", async () => {
       (capture) => updates.push(capture),
     ),
   );
-  assert.equal(updates[0]?.bindings.get("fast")?.result?.HarmosVariant.case, "Pending");
-  assert.equal(updates.at(-1)?.bindings.get("slow")?.result?.HarmosVariant.case, "Pending");
+  assert.equal(updates[0]?.bindings.get("fast")?.result?.kind.case, "pending");
+  assert.equal(updates.at(-1)?.bindings.get("slow")?.result?.kind.case, "pending");
   const last = updates.at(-1);
   assert.ok(last);
   const mapped = mapNativeDocument(last);
@@ -146,7 +144,7 @@ test("Completed Cards Survive an Interrupted Sibling", async () => {
 
 test("Structure Projection and Binding Identity", async () => {
   const frames = initial(true);
-  frames.push(frame("Completion", counts(frames.length + 1, true)));
+  frames.push(frame("completion", counts(frames.length + 1, true)));
   const capture = await assembleDocument(iterable(frames), { ...expected, structureOnly: true }, () => true);
   assert.equal(capture.complete, true);
   assert.ok(mapNativeDocument(capture).cards.every((card) => card.loading));
@@ -166,9 +164,9 @@ test("Structure Projection and Binding Identity", async () => {
 test("Page Tokens Preserve Binding Identity", async () => {
   const frames = initial(true);
   const page = { current: "fixture.first", next: "fixture.second" };
-  frames.push(frame("Page", page));
-  frames.push(frame("ExpansionComplete", false));
-  frames.push(frame("Completion", counts(frames.length + 1, true)));
+  frames.push(frame("page", page));
+  frames.push(frame("expansionComplete", false));
+  frames.push(frame("completion", counts(frames.length + 1, true)));
   const captured = await assembleDocument(iterable(frames), { ...expected, structureOnly: true }, () => true);
   assert.deepEqual(captured.page, page);
   const following = { ...captured, page: { current: page.next } };
@@ -180,29 +178,27 @@ test("A Budget Failure Keeps the Completed Sibling", async () => {
   const frames = initial();
   frames.push(
     binding("fast", true),
-    frame("SummaryGroup", { cardId: "fast", ordinal: 0n, metadata: { identifier: "fast.group", label: "Fixture" }, tileCount: 2n }),
+    frame("summaryGroup", { cardId: "fast", ordinal: 0n, metadata: { identifier: "fast.group", label: "Fixture" }, tileCount: 2n }),
     tile(0),
     tile(1),
-    frame("CardComplete", "fast"),
-    frame("Binding", {
+    frame("cardComplete", "fast"),
+    frame("binding", {
       sourceId: "slow",
       metadata: { identifier: "slow", label: "Fixture" },
       result: {
-        HarmosVariant: {
-          case: "Failure",
+        kind: {
+          case: "failure",
           value: {
-            field0: {
-              code: budget.name,
-              message: `${budget.name}: ${budget.reached} > ${budget.limit}, ${budget.cardId}`,
-              budget,
-            },
+            code: budget.name,
+            message: `${budget.name}: ${budget.reached} > ${budget.limit}, ${budget.cardId}`,
+            budget,
           },
         },
       },
     }),
-    frame("CardComplete", "slow"),
+    frame("cardComplete", "slow"),
   );
-  frames.push(frame("Completion", counts(frames.length + 1, false)));
+  frames.push(frame("completion", counts(frames.length + 1, false)));
   const capture = await assembleDocument(iterable(frames), expected, () => true);
   const mapped = mapNativeDocument(capture);
   assert.deepEqual(

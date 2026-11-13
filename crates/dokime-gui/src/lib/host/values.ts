@@ -11,7 +11,11 @@
 
 /* === External Imports === */
 
-import type { EvidenceScope } from "@host/dokime/v1/client_types_pb.js";
+import {
+  ElapsedUnit as HostElapsedUnit,
+  type ValueFormat as HostValueFormat,
+  type EvidenceScope,
+} from "@host/dokime/v1/client_types_pb.js";
 import { ValueType, type Metadata, type Value } from "@host/dokime/v1/values_pb.js";
 
 /* === Local Imports === */
@@ -19,7 +23,7 @@ import { ValueType, type Metadata, type Value } from "@host/dokime/v1/values_pb.
 import { assertIntegerRange, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { JsonObject, RecordScope } from "@/lib/types";
+import type { JsonObject, RecordScope, ValueFormat, ElapsedUnit } from "@/lib/types";
 
 /* === Constants === */
 
@@ -194,4 +198,32 @@ export function recordScopeFromNative(scope?: Wire<EvidenceScope>): RecordScope 
       ? { origin: origin.case === "stepAttemptId" ? { kind: "step_attempt", attemptId: origin.value } : { kind: origin.case } }
       : {}),
   };
+}
+
+export function mapNativeValueFormat(format?: Wire<HostValueFormat>): ValueFormat | null {
+  const kind = format?.kind?.kind;
+  switch (kind?.case) {
+    case "normal":
+      return { kind: "normal", max_fraction_digits: kind.value.maxFractionDigits ?? null };
+    case "fixed":
+      return { kind: "fixed", decimals: kind.value.decimals };
+    case "scientific":
+      return { kind: "scientific", significant_digits: kind.value.significantDigits };
+    case "engineering":
+      return { kind: "engineering", significant_digits: kind.value.significantDigits };
+    case "siPrefix":
+      return { kind: "si_prefix", significant_digits: kind.value.significantDigits };
+    case "absoluteTime":
+      return { kind: "absolute_time", pattern: kind.value.pattern };
+    case "elapsedSinceRun":
+      return { kind: "elapsed_since_run", unit: elapsedUnit(kind.value.unit) };
+    case "elapsedSinceCycle":
+      return { kind: "elapsed_since_cycle", unit: elapsedUnit(kind.value.unit) };
+    default:
+      return null;
+  }
+}
+
+function elapsedUnit(unit: HostElapsedUnit): ElapsedUnit {
+  return unit === HostElapsedUnit.MILLISECONDS ? "milliseconds" : unit === HostElapsedUnit.MINUTES ? "minutes" : "seconds";
 }

@@ -215,18 +215,7 @@ async function decodeRecords(
         const execution = await rpc.executionGetExecution(session, { executionId });
         const catalog = execution.schemas?.catalog;
         if (!catalog?.types) throw new Error("Read Record: Missing Frozen Descriptors; Restore This Execution's Catalog");
-        const registry = createFileRegistry(create(FileDescriptorSetSchema, catalog.types));
-        const messages = new Map<string, DescMessage>();
-        for (const section of catalog.sections) {
-          if (section.type !== "dokime.v1.RecordContracts") continue;
-          for (const contract of fromBinary(RecordContractsSchema, section.payload).records) {
-            const identifier = contract.metadata?.identifier;
-            const message = registry.getMessage(contract.message);
-            if (!identifier || !message || messages.has(identifier)) throw new Error("Read Record: Invalid Frozen Contract Identity");
-            messages.set(identifier, message);
-          }
-        }
-        return { messages };
+        return frozenRecords(catalog);
       })();
       catalogs.set(executionId, pending);
     }
@@ -271,4 +260,36 @@ function recordValue(value: unknown, scalar: ScalarType | undefined, depth: numb
   }
   if (typeof value === "number" && (scalar === ScalarType.DOUBLE || scalar === ScalarType.FLOAT)) return new NativeNumberValue(value);
   return value;
+}
+
+function frozenRecords(
+  catalog: NonNullable<NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>["schemas"]>["catalog"]>,
+): FrozenRecords {
+  if (!catalog.types) throw new Error("Read Record: Missing Frozen Descriptors; Restore This Execution's Catalog");
+  const registry = createFileRegistry(create(FileDescriptorSetSchema, catalog.types));
+  const messages = new Map<string, DescMessage>();
+  for (const section of catalog.sections) {
+    if (section.type !== "dokime.v1.RecordContracts") continue;
+    for (const contract of fromBinary(RecordContractsSchema, section.payload).records) {
+      const identifier = contract.metadata?.identifier;
+      const message = registry.getMessage(contract.message);
+      if (!identifier || !message || messages.has(identifier)) throw new Error("Read Record: Invalid Frozen Contract Identity");
+      messages.set(identifier, message);
+    }
+  }
+  return { messages };
+}
+
+/** Decode Immutable Evidence Only With Its Captured Schemas. */
+export function decodeFrozenRecords(records: CapturedRecord[], catalog?: Parameters<typeof frozenRecords>[0]): HubRecord[] {
+  const schemas = catalog ? frozenRecords(catalog) : undefined;
+  return records.map((record) => {
+    if (record.recordType === "dokime.log") {
+      const log = fromBinary(WriteLogSchema, record.payload);
+      return mapNativeRecord(record, { message: log.message, severity: log.severity });
+    }
+    const message = schemas?.messages.get(record.recordType);
+    if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
+    return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
+  });
 }

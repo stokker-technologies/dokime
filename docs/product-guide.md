@@ -15,7 +15,8 @@ The development desktop embeds the execution host or attaches through a pinned
 pairing file. Host identity, Library catalog, local/backend application preferences,
 native bundle installation, pairing export, secret catalog/transfer and verified native downloads use that
 connection. Planning, execution controls, progress observation and prompt answers
-also use the new host; their complete WebView journey still awaits saved-data
+and live records, telemetry plots, documents and content transfer also use the new host;
+their complete WebView journey still awaits immutable-history
 adapter conversion and the replacement system driver. Saved-data screens are still being converted;
 see [Host Connection](gui.md#host-connection) for the current boundary.
 

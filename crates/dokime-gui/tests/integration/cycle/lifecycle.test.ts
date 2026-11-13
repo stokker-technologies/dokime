@@ -21,6 +21,10 @@ import { ExecutionMode, PromptKind, ExecutionState, ResultStatus, LiveExecutionS
 import { create, createFileRegistry, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { PromptFieldKind, StreamMatchOperator } from "@host/dokime/v1/host_pb.js";
 import { FileDescriptorSetSchema, FieldDescriptorProto_Type } from "@bufbuild/protobuf/wkt";
+import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
+import { fetchNativeDocument } from "@/lib/api/native-documents";
+import { sha256Hex } from "@/lib/api/native-values";
+import { ArtifactState } from "@host/dokime/v1/client_types_pb.js";
 import { RecordContractsSchema } from "@host/dokime/v1/catalog_pb.js";
 import { fetchNativeRecordTail, openNativeRecordStream } from "@/lib/api/native-evidence";
 import { Severity } from "@host/dokime/v1/execution_pb.js";
@@ -561,4 +565,174 @@ test("Live and Saved Records Decode with Each Execution's Frozen Descriptor", as
   }
   assert.equal(cancel.mock.calls.length, 1);
   assert.equal(release.mock.calls.length, 1);
+});
+
+test("Artifact Bytes Require Canonical Metadata Contiguous Chunks and Verified Completion", async () => {
+  const data = new TextEncoder().encode("verified-content");
+  const digest = await sha256Hex(data);
+  let gap = false;
+  const canceled = vi.fn(async () => {});
+  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
+    assert.equal(path, "/dokime.v1.Content/DownloadArtifact");
+    const decoded = fromBinary(input, toBinary(input, create(input, request)));
+    assert.ok("artifactId" in decoded);
+    assert.equal(decoded.artifactId, "attachment");
+    return {
+      cancel: canceled,
+      async *[Symbol.asyncIterator]() {
+        yield create(output, {
+          payload: {
+            kind: {
+              case: "metadata",
+              value: {
+                artifactId: "attachment",
+                filename: "reading.txt",
+                sizeBytes: BigInt(data.length),
+                sha256: digest,
+                state: ArtifactState.COMPLETE,
+              },
+            },
+          },
+        });
+        yield create(output, { payload: { kind: { case: "chunk", value: { offset: gap ? 1n : 0n, data } } } });
+        yield create(output, { payload: { kind: { case: "complete", value: { sizeBytes: BigInt(data.length), sha256: digest } } } });
+      },
+    };
+  });
+  const release = vi.fn();
+  const owned = { ...session, own: () => release };
+  assert.deepEqual(await fetchNativeArtifactBytes(owned, "attachment"), data);
+  gap = true;
+  await assert.rejects(fetchNativeArtifactBytes(owned, "attachment"));
+  assert.equal(canceled.mock.calls.length, 2);
+  assert.equal(release.mock.calls.length, 2);
+});
+
+test("Default Execution Documents Keep the Host's Selected Identity and Epoch", async () => {
+  const canceled = vi.fn(async () => {});
+  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
+    assert.equal(path, "/dokime.v1.Documents/CaptureCurrentDocument");
+    const decoded = fromBinary(input, toBinary(input, create(input, request)));
+    assert.ok("documentId" in decoded);
+    assert.equal(decoded.documentId, "");
+    return {
+      cancel: canceled,
+      async *[Symbol.asyncIterator]() {
+        yield create(output, {
+          frame: {
+            kind: {
+              case: "header",
+              value: {
+                documentId: "execution",
+                scope: { executionId: "execution", cycleId: "cycle" },
+                metadata: { identifier: "execution", label: "Execution" },
+                frontiers: { processEpoch: "product-epoch", stateRevision: 3n },
+              },
+            },
+          },
+        });
+        yield create(output, { frame: { kind: { case: "structureComplete", value: { frameCount: 2n } } } });
+        yield create(output, {
+          frame: {
+            kind: {
+              case: "evidenceCut",
+              value: { cut: { store: "host", epoch: "execution", position: 0n }, telemetry: true, cacheable: false },
+            },
+          },
+        });
+        yield create(output, { frame: { kind: { case: "completion", value: { frameCount: 4n } } } });
+      },
+    };
+  });
+  const release = vi.fn();
+  const document = await fetchNativeDocument(
+    { ...session, own: () => release },
+    { cycleId: "cycle", executionId: "execution", documentId: "default", epoch: "product-epoch" },
+  );
+  assert.equal(document.header.documentId, "execution");
+  assert.equal(document.complete, true);
+  assert.equal(release.mock.calls.length, 1);
+});
+
+test("History Projects Attributed Outcomes Without Inventing Criterion Counts", async () => {
+  const { fetchNativeExecutionPage } = await import("@/lib/api/native-checkpoints");
+  const { ExecutionAvailability, ArchiveScope } = await import("@host/dokime/v1/client_types_pb.js");
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/dokime.v1.History/BrowseExecutions");
+    assert.equal(request.filter.archive, ArchiveScope.ALL);
+    return {
+      discoveryComplete: true,
+      entries: [
+        {
+          metadata: {
+            executionId: "imported",
+            caseId: "case",
+            title: "Imported Result",
+            status: ExecutionState.SEALED,
+            outcome: { attribution: { case: "declared", value: { status: ResultStatus.PASSED } } },
+          },
+          availability: ExecutionAvailability.STORED,
+        },
+      ],
+    };
+  });
+  const page = await fetchNativeExecutionPage(session, null, undefined, {
+    filter: { text: "", archive: ArchiveScope.ALL, statuses: [], templateIds: [], cycleIds: [] },
+  });
+  assert.equal(page.entries[0].metadata.status, "passed");
+  assert.equal(page.entries[0].metadata.result, null);
+});
+
+test("Checkpoint Records Use Frozen Evidence and Preserve the Captured Log", async () => {
+  const { fetchNativeCheckpointRecords, nativeRecordText } = await import("@/lib/api/native-checkpoints");
+  const { WriteLogSchema } = await import("@host/dokime/v1/execution_pb.js");
+  const position = { history: { store: "stored", epoch: "captured" }, sequence: 7n };
+  const checkpoint = { executionIdentifier: "archived", position, evidenceThrough: position, version: new Uint8Array([1]) };
+  fixture.extra.mockImplementation(async (path) => {
+    if (path === "/dokime.v1.History/ListCheckpointRecords")
+      return {
+        checkpoint,
+        records: [
+          {
+            epoch: "captured",
+            ordinal: 1n,
+            record: {
+              timestamp: { seconds: 1n, nanos: 0 },
+              recordId: "log",
+              recordType: "dokime.log",
+              source: "thermal",
+              severity: Severity.INFO,
+              payload: toBinary(WriteLogSchema, create(WriteLogSchema, { severity: Severity.INFO, message: "Captured Measurement" })),
+            },
+          },
+        ],
+      };
+    assert.equal(path, "/dokime.v1.History/GetCheckpointDocument");
+    return { checkpoint, document: { execution: { executionId: "archived", status: ExecutionState.SEALED } } };
+  });
+  const page = await fetchNativeCheckpointRecords(session, checkpoint);
+  assert.equal(page.records[0].decoded?.details.message, "Captured Measurement");
+  assert.ok(page.records[0].record);
+  assert.equal(nativeRecordText(page.records[0].record, page.records[0].decoded).severity, "info");
+  assert.equal(fixture.extra.mock.calls.length, 2);
+});
+
+test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", async () => {
+  const { createNativeNote } = await import("@/lib/api/native-annotations");
+  const { NotePublication } = await import("@host/dokime/v1/client_types_pb.js");
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/dokime.v1.Notes/CreateNote");
+    assert.equal(request.epoch, "execution-epoch");
+    assert.deepEqual(request.owner.owner.kind, {
+      case: "execution",
+      value: create((await import("@host/dokime/v1/client_types_pb.js")).ExecutionNoteOwnerSchema, {
+        cycleId: "cycle",
+        executionId: "run",
+      }),
+    });
+    assert.ok(request.mutationId);
+    return { note: { noteId: "note", createdAt: { seconds: 1n, nanos: 0 } }, publication: NotePublication.CONFIRMED };
+  });
+  const receipt = await createNativeNote(session, "execution-epoch", "Measured", { test_cycle_id: "cycle", test_execution_id: "run" });
+  assert.equal(receipt.result?.publication, "confirmed");
 });
