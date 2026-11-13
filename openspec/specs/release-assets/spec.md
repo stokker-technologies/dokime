@@ -25,7 +25,7 @@ Dokime SHALL verify signed installer bytes against the compiled updater key usin
 
 ### Requirement: Preserve Required Native Validation
 
-Release tooling SHALL preserve required Windows and Linux Check/Test coverage and the development Release / Dry job, and SHALL use credential-free release rehearsal.
+Release tooling SHALL preserve required Windows and Linux Check/Test coverage and the Release / Dry job on release reviews and in Nightly, and SHALL use credential-free release rehearsal.
 
 #### Scenario: Inspect the Release Workflow
 
