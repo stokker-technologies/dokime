@@ -30,7 +30,7 @@ mise run test -- --changed crates/dokime-runtime-next/tests/system/client_runs_t
 ```
 
 Local Tests Build runs `build:host-fixtures`, which uses the available Rust, C#
-and C++ SDK tasks and exports the compiled thermal, execution and content fixtures under
+and C++ SDK tasks and exports the compiled thermal, execution and content fixtures and the SDK story host binary under
 `target/build/<profile>/<target>/fixtures/host/`. C# carries its runtime; C++ uses
 the Harmos-pinned native dependencies. On a workstation, `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` may select an existing Harmos source and read-only Windows
@@ -38,7 +38,9 @@ dependency cache. Neither belongs in project configuration. Python uses the
 separately built wheel, installed before archived system execution. Stories
 consume those fixtures and never compile plugins. Missing fixtures fail with
 the language and build prerequisite; no language is silently skipped.
-Python wheel installers select Harmos's `host` audience for the combined plugin
+Python SDK/starter journeys drive plugins through that running product host and
+the client root, without importing an Instance client stub. Python wheel installers
+select Harmos's `host` audience for the combined plugin
 and client SDK and bypass cached dependency wheels built for another audience.
 
 On Linux, the secret-storage and remote-pairing host stories start their own
@@ -111,7 +113,9 @@ mise run test -- --language typescript --layer system --select desktop-configura
 ```
 
 `build --artifact tests` produces the CI archive; it is unnecessary for a focused
-test without archived fixture inputs. `check` includes formatting, lint, repository configuration and
+test without archived fixture inputs. Generated Python checks install a fresh wheel and inspect its generated surface;
+the separate wheel story consumes the prepared host fixture and runs the starter.
+`check` includes formatting, lint, repository configuration and
 generated drift; `--language` limits language checks. `--repository`, `--bindings`,
 `--supply` and `--wasm` select individual checks.
 

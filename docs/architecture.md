@@ -23,9 +23,12 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `b5f595087967a085662689654bfadeff3d77ffa1`, rather than
+[Cargo.toml](../Cargo.toml), `26010c03516060deb5f70d17af3fbf0e49d9fbe2`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
+
+Paging, SDK packaging, transfers and durable lag were amended by the owner on
+2026-11-13. The linked Operation Grammar records their complete amended contracts.
 
 ## Invariants
 
@@ -87,7 +90,9 @@ inside that pinned dependency revision; other paths resolve in this repository.
    **Where:** [streaming requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-streaming-contracts),
    [current client protos](../proto/dokime/v1), [SDK operation](../sdk/rust/src/operation.rs).
    **Proof:** No proof yet for the complete contract; A3 must guard generation and
-   settlement. Current client Run twins remain. **Status:** locked direction (`operation-grammar`, `grpc-plugins`).
+   settlement. Current client Run twins remain. Unary file transfers replace
+   streaming transfers, with 4 MiB default chunks and an 8 MiB default message
+   limit, amended by the owner on 2026-11-13. **Status:** locked direction (`operation-grammar`, `grpc-plugins`).
 
 5. **Opaque Invocation Scope.** Carry and inherit scope unchanged; the library
    never interprets it, treats it as an authorization token or infers it from payload.
@@ -157,19 +162,25 @@ inside that pinned dependency revision; other paths resolve in this repository.
    **Why:** One predictable contract avoids aliases, field-mask machinery and lost updates.
    **Where:** [grammar and mapping](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
    [grammar requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md).
-   **Proof:** No proof yet for final declarations/revision/replay behavior; A7.
+   **Proof:** Bounded product declaration/plan/pending lists return whole sets;
+   `client_browses_catalog` checks schemas and whole catalog reads across restart.
+   No proof yet for final declarations/revision/replay behavior; A7.
    **Status:** locked direction (`operation-grammar`).
 
 9. **Position-Resolved Reads.** Optional `at` selects a previously returned compatible
    position or seal; omission selects latest durable without waiting, and every reply
    states `resolved_at`. Keep pages at that cut and open Watch there before durable
-   changes; durable lag must meet the payload-size-independent 250 ms p95 bound.
+   changes. Paging is only for rows that can grow unbounded; small bounded catalogs,
+   plugins, pairings, suites and schemas return whole. Measured durable lag is
+   accepted (small about 99 ms, large/mixed up to several hundred milliseconds
+   at p95), reported without a failing threshold or accepted-data snapshot.
+   Amended by the owner on 2026-11-13.
    **Why:** Consistency and read-your-write cannot depend on a read-triggered flush,
    wall time or unstable pages. Running execution reads resolve durable frontiers;
    sealed reads resolve their seal. Arbitrary historical positions are not offered.
    **Where:** [read/watch/paging requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [query delta](../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
-   **Proof:** No proof yet for this complete API and lag bound; A8 plus Nightly task
+   **Proof:** No proof yet for this complete API; A8 plus Nightly task
    1.9. Measure small, multi-megabyte and mixed payloads; test splitting/positions
    deterministically, never elapsed time. **Status:** locked direction (`operation-grammar`).
 
@@ -198,13 +209,19 @@ inside that pinned dependency revision; other paths resolve in this repository.
 12. **Refuse Incompatible Roots.** Refuse incompatible persistent state with backup
     and explicit fresh-root/reset guidance; never silently delete, reset or migrate
     development data. The new store checks its database identity/layout at baseline v1.
+    The host first takes an exclusive local.lock lease and returns a typed
+    OccupiedRoot error naming the path before opening SQLite if another host owns it.
+    Host clones and execution workers retain the lease through their lifetime.
     **Why:** A development schema break is allowed; destroying existing evidence is not.
     **Where:** [Store::open](../crates/dokime-storage/src/store.rs),
     [Incompatible error](../crates/dokime-storage/src/error.rs),
     [current compatibility requirement](../openspec/specs/data-shape-identity/spec.md).
     **Proof:** `client_collects_backend_diagnostics` in
     [client_collects_backend_diagnostics.rs](../crates/dokime-runtime-next/tests/system/client_collects_backend_diagnostics.rs)
-    refuses a populated foreign root and preserves its bytes. The older
+    refuses a populated foreign root and preserves its bytes.
+    `hosts_refuse_occupied_roots_before_opening_evidence` in
+    [storage_root_admission.rs](../crates/dokime-runtime-next/tests/system/storage_root_admission.rs)
+    proves external-lock refusal before database creation, cloned ownership and reopening. The older
     [format.rs](../crates/dokime-runtime/src/storage/format.rs) refuses unreadable
     built-in state, not obsolete evidence-digest markers. **Status:** landed.
 
@@ -240,6 +257,10 @@ inside that pinned dependency revision; other paths resolve in this repository.
     conformance use generic vocabulary and remain independently usable without
     product objects; language SDKs stay in the library. Product SDKs compose them,
     naming the same concepts and resource hierarchy consistently across all four languages.
+    Each language ships one package for plugin development and backend clients:
+    Python dokime-sdk composed with the single harmos-sdk; audience-specific builds
+    are removed, and a codebase may install itself via main.py. The API should
+    look simple and good. Amended by the owner on 2026-11-13.
     **Why:** Another host must not reimplement the plugin protocol or depend on this product.
     **Where:** [SDK ownership requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-library-owned-language-sdks),
     [SDK inventory](../openspec/changes/operation-grammar/design.md#sdk-ownership-and-remaining-coverage-facts),
@@ -388,7 +409,7 @@ inside that pinned dependency revision; other paths resolve in this repository.
 | Three audience faces (2026-11-12) | Keep instance protocol, invocation context and client authority independent. | [operation-grammar](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility) |
 | Managers and direct library composition (2026-11-12) | One live owner; avoid rebuilding generic machinery and leaking product policy. | [operation-grammar](../openspec/changes/operation-grammar/design.md#ownership-and-managers) |
 | Nested resources, whole-value Set and Append (2026-11-12) | Predictable verbs and revision safety without field-mask machinery. | [operation-grammar](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary) |
-| Latest durable/no wait; measured lag bound (2026-11-12) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
+| Latest durable/no wait; measured lag accepted (amended by the owner on 2026-11-13) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
 | Client resends; original receipt (2026-11-12) | Recover lost replies without applying an effect twice. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy) |
 | Independent execution host, then one cutover (2026-11-12; model locked 2026-11-10) | Prove execution before replacing desktop/CLI consumers; retain complete behavior. | [grpc-plugins](../openspec/changes/grpc-plugins/design.md) |
 | Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |

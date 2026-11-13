@@ -57,6 +57,7 @@ pub(crate) struct Runtime {
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
     progress: Mutex<HashMap<String, watch::Sender<Progress>>>,
+    _root_lease: Arc<std::fs::File>,
 }
 pub(crate) struct Active {
     pub plugin: String,
@@ -73,7 +74,7 @@ pub(crate) struct Active {
 impl ExecutionManager {
     pub(crate) fn new(
         store: Store, settings: HostSettings, plugins: Arc<Mutex<HashMap<String, Arc<Entry>>>>, prompts: Arc<PromptManager>,
-        changed: watch::Sender<u64>,
+        changed: watch::Sender<u64>, root_lease: Arc<std::fs::File>,
     ) -> Result<Self> {
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
@@ -105,6 +106,7 @@ impl ExecutionManager {
 
         Ok(Self {
             inner: Arc::new(Runtime {
+                _root_lease: root_lease,
                 store,
                 settings,
                 plugins,

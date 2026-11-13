@@ -44,19 +44,9 @@ pub const ID: &str = "dokime.prompts.list_definitions";
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
     super::declaration::<v1::PromptsListDefinitionsRequest, v1::ListPromptDefinitionsReply>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: v1::PromptsListDefinitionsRequest) -> Result<v1::ListPromptDefinitionsReply> {
+pub async fn handle(context: &Context, _request: v1::PromptsListDefinitionsRequest) -> Result<v1::ListPromptDefinitionsReply> {
     super::complete(ID, context.settings.read_timeout, async {
         let definitions = super::prompt_catalog::definitions(context)?;
-        let cursor = super::paging::cursor(context, "prompts.definitions".into(), definitions.iter().map(super::paging::bytes));
-        let (definitions, next_after_prompt_type) = super::paging::page(
-            definitions,
-            request.limit,
-            &request.after_prompt_type,
-            request.cursor.as_ref(),
-            &cursor,
-            context.settings.page_items,
-            |definition| &definition.metadata.as_ref().unwrap().identifier,
-        )?;
         let definitions = definitions
             .into_iter()
             .map(|definition| {
@@ -67,11 +57,7 @@ pub async fn handle(context: &Context, request: v1::PromptsListDefinitionsReques
                 }
             })
             .collect();
-        Ok(v1::ListPromptDefinitionsReply {
-            definitions,
-            next_after_prompt_type,
-            cursor: Some(cursor),
-        })
+        Ok(v1::ListPromptDefinitionsReply { definitions })
     })
     .await
 }

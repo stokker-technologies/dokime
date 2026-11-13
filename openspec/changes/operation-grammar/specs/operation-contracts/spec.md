@@ -9,6 +9,7 @@ Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
 Three visibility levels locked by the owner on 2026-11-12
+Paging, SDK packaging, transfers and durable lag amended by the owner on 2026-11-13
 
 These are target requirements, not implemented behavior.
 
@@ -153,30 +154,17 @@ added to client services for symmetry.
 
 ### Requirement: Generate Only Required Faces
 
-Each SDK role SHALL select its faces before generating contracts, stubs and
-hierarchical roots. A plugin SDK SHALL generate plugin protocol to serve and
-context to call, including product plugin operation declarations; a client SHALL
-generate client API only; a host SHALL generate all three. A combined SDK
-package SHALL keep these role surfaces separate. Public requirement descriptors
-SHALL remain usable by child calls without generating client-only management.
+Each language SHALL ship one SDK package containing both plugin-development
+interfaces and backend-client connection/functionality, with separate face roots.
+Python SHALL use `dokime-sdk` and the library's single `harmos-sdk`; no
+audience-specific builds SHALL remain. A codebase MAY install itself via `main.py`.
+The API SHALL be simple to consume. Amended by the owner on 2026-11-13.
 
-#### Scenario: Plugin Generation
+#### Scenario: One Package for Plugin and Client
 
-- **WHEN** a plugin SDK is generated in any of the four languages
-- **THEN** it can serve Instance and call context operations, and declare/require product plugin operations
-- **AND** it does not generate client-only management as part of its plugin role
-
-#### Scenario: Client Generation
-
-- **WHEN** an application, CLI tool or script client is generated
-- **THEN** it has only `harmos.v1` and `dokime.v1` client surfaces and their nested packages
-- **AND** Public provider invocation uses the generic host client path rather than generating an instance or context client
-
-#### Scenario: Host Generation
-
-- **WHEN** the product host is generated
-- **THEN** it has client API, context and plugin protocol contracts, with face roots kept separate
-- **AND** it serves client API/context to their permitted audiences and calls Instance as the host
+- **WHEN** an author installs the language SDK package
+- **THEN** it supplies plugin protocol/context interfaces and a backend client root
+- **AND** client roots do not expose context or Instance authority; a host may consume all faces
 
 ### Requirement: Predictable Operation Names
 
@@ -388,31 +376,19 @@ positions or the seal; unavailable or arbitrary earlier positions SHALL fail.
 - **WHEN** a caller supplies an earlier sequence that is neither a returned compatible position nor the seal
 - **THEN** the read fails explicitly rather than offering arbitrary historical selection
 
-### Requirement: Payload-Size-Independent Durable Lag
+### Requirement: Measured Durable Lag
 
-The newest durable position SHALL trail the newest accepted data by no more than
-250 ms at the 95th percentile, independent of payload size, proven by the
-Nightly benchmark case under small, multi-megabyte and mixed loads.
-Latest-durable/no-wait reads SHALL NOT wait for unsaved accepted data.
-The flush cadence alone SHALL NOT count as proof.
+Latest-durable/no-wait reads SHALL NOT wait for unsaved accepted data. The measured
+lag is accepted: small payloads about 99 ms, large and mixed up to several hundred
+milliseconds at p95. No accepted-data snapshot SHALL be built. The Nightly benchmark
+SHALL report p50, p95 and maximum without a failing threshold. Amended by the owner
+on 2026-11-13.
 
 #### Scenario: Nightly Measurement Across Payload Sizes
 
-- **WHEN** the durable-lag benchmark case runs in the Nightly benchmark set under the stable case naming convention used by the storage benches
-- **THEN** it reports p50, p95 and maximum durable lag separately for small samples at a high rate, multi-megabyte batches and a mix, comparing each p95 with the 250 ms p95 bound
-- **AND** a consumer can reuse the case against its own backend, including the independent product store, without wall-clock assertions in correctness tests
-
-#### Scenario: Deterministic Flush Bounds
-
-- **WHEN** input exceeds the configured flush size and the flush mechanism is tested deterministically
-- **THEN** the input is split into byte-bounded flush pieces and no single commit exceeds that configured size
-- **AND** the test verifies byte bounds and splitting without asserting elapsed time
-
-#### Scenario: Measured Bound Is Missed
-
-- **WHEN** any benchmark load misses the 250 ms p95 bound
-- **THEN** smaller flush pieces and flushing as soon as a size threshold is reached, rather than only on the cadence, are tried first and measured again
-- **AND** if those measures are insufficient, reads resolving against a snapshot of accepted data are the named fallback; that fallback is not built now
+- **WHEN** the reusable durable-lag benchmark measures small, multi-megabyte and mixed loads
+- **THEN** it reports the distributions for each load without a failing lag threshold
+- **AND** correctness tests verify durable positions and configured byte splitting deterministically, without elapsed-time assertions
 
 ### Requirement: Library-Owned Language SDKs
 
@@ -448,10 +424,22 @@ SHALL pin the opening snapshot, not freeze the subscription forever.
 
 ### Requirement: One Bounded Paging Shape
 
+Paging SHALL apply only to data rows that can grow unbounded in size. Small
+bounded sets SHALL return whole in one response, with no page controls or
+continuation. This includes catalog entries, plugins, pairings, suites and schemas.
+Executions, records, samples, log lines, files and notes SHALL remain paged and
+position-resolved. Amended by the owner on 2026-11-13.
+
 Paged reads SHALL use `page_size`, `max_bytes`, `page_token`, `next_page_token`
 and `resolved_at`. Tokens SHALL bind cut, selection, ordering and schema/projection
 revision. Continuation SHALL be exclusive in stable order, with row and byte
 bounds independent of physical work limits.
+
+#### Scenario: Bounded Declaration List
+
+- **WHEN** a caller lists a suite catalog or its schema declarations
+- **THEN** the response contains the whole declaration set with no continuation
+- **AND** evidence lists still use bounded pages at a resolved position
 
 #### Scenario: Collection Changes Between Pages
 
@@ -557,7 +545,8 @@ context/client declarations: Storage.CreateFileProduction, GetFileProduction,
 AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction.
 Append SHALL accept bounded ordered chunks, replay identical bytes and refuse
 conflicts. Publish SHALL verify complete bytes, length and digest before visibility; Delete SHALL
-abandon. Expiry SHALL be explicit.
+abandon. Expiry SHALL be explicit. Default chunks SHALL be 4 MiB and the default
+message limit SHALL be 8 MiB, amended by the owner on 2026-11-13.
 
 #### Scenario: Resume After Lost Reply
 
@@ -591,17 +580,17 @@ SHALL be removed in favor of ranged Get reads.
 - **THEN** the unary response returns a configuration-bounded range with total length, content digest and resolved_at
 - **AND** subsequent ranges preserve the content representation and returned cut
 
-### Requirement: Transfer Throughput Benchmark Before Removal
+### Requirement: Unary Transfer Replacement
 
-Large-file upload and download throughput SHALL be measured by a benchmark case
-in the Nightly set before superseded streaming transfers are deleted. Throughput
-SHALL NOT be a correctness-test assertion.
+Streaming file transfers SHALL be removed in favor of unary sessions and ranged
+reads. Throughput SHALL remain a Nightly benchmark measurement without a deletion
+gate or correctness-test threshold. Amended by the owner on 2026-11-13.
 
-#### Scenario: Measure Before Streaming Removal
+#### Scenario: Unary Replacement
 
-- **WHEN** replacement transfers are ready for deletion of the old streaming paths
-- **THEN** the Nightly benchmark case measures large-file upload and download throughput for the shared client/plugin mechanism before those paths are deleted
-- **AND** throughput remains a benchmark measurement rather than a correctness-test assertion
+- **WHEN** the composed transfer capability replaces a streaming file transfer
+- **THEN** callers use unary upload sessions or bounded ranged reads
+- **AND** the benchmark reports throughput without gating removal
 
 ### Requirement: Shared Failures and Retry Policy
 

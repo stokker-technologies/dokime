@@ -194,7 +194,7 @@ description = "Check Built Python Messages and Generated Service Stubs"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.python}} ty check --project sdk/python --exit-zero-on-warning",
-  "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}} --stubs",
+  "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}} --stubs --generated-only",
 ]
 
 [tasks."check:repository"]

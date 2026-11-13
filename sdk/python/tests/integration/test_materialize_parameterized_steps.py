@@ -6,7 +6,7 @@
 #
 # ***
 
-"""An Author Materializes Parameterized Steps And Isolates Execution State."""
+"""An Author Materializes, Retries And Releases Isolated Executions Through A Host."""
 
 # === Imports === #
 
@@ -15,16 +15,11 @@ import runpy
 import unittest
 from pathlib import Path
 
-import grpc
-from harmos.plugin.v1 import instance_pb2 as instance
-from harmos.plugin.v1.instance_pb2_grpc import InstanceStub
-from harmos.v1 import types_pb2 as wire
-
 # Third Party Imports
 import dokime
 
 # Local Imports
-from dokime.v1 import message, message_type
+from dokime.v1 import message
 
 # Type Checking Imports
 
@@ -39,13 +34,18 @@ from dokime.v1 import message, message_type
 
 class MaterializationStory(unittest.IsolatedAsyncioTestCase):
     async def test_materialize_retry_and_cleanup(self):
-        # Compose A Parameter-Dependent Template With Suite-Owned State.
+        # Compose A Parameter-Dependent Template With Execution-Owned State.
         instances = []
 
-        @dokime.suite("example.channels", label="Channels")
+        @dokime.suite(
+            "example.channels",
+            label="Channels",
+            parameters=[message("Parameter", metadata={"identifier": "channels", "label": "Channels"}, type=7, element_type=2)],
+        )
         class Channels:
             def __init__(self):
                 self.channels = []
+                self.attempts = []
                 instances.append(self)
 
             @dokime.materialize
@@ -56,9 +56,16 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
 
             @dokime.step("Measure", retries=1)
             def measure(self, ctx, *, channel):
+                self.attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
+                    from harmos.v1 import types_pb2 as wire
+
                     raise dokime.Failure(
-                        wire.Failure(classification=wire.CLASSIFICATION_TRANSIENT, code="retry_measurement", message="Retry measurement")
+                        wire.Failure(
+                            classification=wire.CLASSIFICATION_TRANSIENT,
+                            code="retry_measurement",
+                            message="Retry measurement",
+                        )
                     )
                 self.channels.append(channel)
 
@@ -66,76 +73,38 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             def all_channels(self, ctx):
                 return self.channels == ctx.parameters["channels"]
 
+        # Admit The Plugin Through A Real Product Host And Its Client Root.
         mechanical = Path(__file__).resolve().parents[2] / "examples/starter/tests/host.py"
-        invoke = runpy.run_path(str(mechanical))["invoke"]
-        endpoint = await dokime.serve(Channels, address="127.0.0.1:0")
+        host = await runpy.run_path(str(mechanical))["Host"].start(self)
+        endpoint = await dokime.serve(dokime.Plugin("channels", "1.0.0", suites=[Channels], requires=[]), address="127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
-        channel = grpc.aio.insecure_channel(endpoint.address)
-        self.addAsyncCleanup(channel.close)
-        client = InstanceStub(channel)
-
-        # Materialization Is Repeatable And Does Not Construct Resources.
-        request = message(
-            "MaterializeRequest",
-            template="example.channels",
-            parameters={"channels": {"list": {"values": [{"integer": 2}, {"integer": 4}]}}},
-        )
-        first = await invoke(client, "example.channels.materialize", request, message_type("TestCase"))
-        second = await invoke(client, "example.channels.materialize", request, message_type("TestCase"))
-        self.assertEqual(first, second)
+        self.addAsyncCleanup(host.close)
+        await host.client.plugins.add(endpoint.url)
+        suites = await host.client.suites.list()
+        parameters = {"channels": [[2, 4]]}
+        first = await host.client.templates.materialize(suites[0].suite_id, "example.channels", parameters)
+        second = await host.client.templates.materialize(suites[0].suite_id, "example.channels", parameters)
+        self.assertEqual([case.origin for case in first], [case.origin for case in second])
         self.assertEqual(instances, [])
-        self.assertEqual([item.metadata.identifier for item in first.steps], ["channel.2", "channel.4"])
-        description = await client.Get(instance.InstanceGetRequest(revision=1))
-        contract = next(item for item in description.catalog.operations if item.id == first.steps[0].operation)
-        self.assertEqual(contract.policy.retries.total_attempts, 2)
+        case = first[0].origin.plugin_run.test_case
+        self.assertEqual([item.metadata.identifier for item in case.steps], ["channel.2", "channel.4"])
 
-        # Run Two Executions Without An Initialize Hook And Keep Them Separate.
-        for execution in ("one", "two"):
-            origin = message("Origin", plugin_run={"plugin": description.id, "template": "example.channels", "test_case": first})
-            envelope = {"execution": execution, "test_case": first, "origin": origin}
-            for item in first.steps:
-                if item.metadata.identifier == "channel.2":
-                    with self.assertRaises(dokime.Failure) as failed:
-                        await invoke(
-                            client,
-                            item.operation,
-                            message("StepRequest", step=item.metadata.identifier, **envelope),
-                            message_type("StepResponse"),
-                            scope=execution,
-                        )
-                    self.assertEqual(failed.exception.value.classification, wire.CLASSIFICATION_TRANSIENT)
-                await invoke(
-                    client,
-                    item.operation,
-                    message("StepRequest", step=item.metadata.identifier, **envelope),
-                    message_type("StepResponse"),
-                    scope=execution,
-                    attempt=2,
-                )
-            result = await invoke(
-                client,
-                first.criteria[0].operation,
-                message("CriterionRequest", criterion="all.channels", **envelope),
-                message_type("CriterionResponse"),
-                scope=execution,
+        # Execute Twice; The Host Owns Retry, Scope And Cleanup.
+        identifiers = []
+        for _ in range(2):
+            cycle = await host.client.cycles.start(first)
+            identifiers.extend(cycle.executions)
+            async for _progress in cycle.watch():
+                pass
+            execution = await host.client.executions.get(cycle.executions[0])
+            self.assertEqual(
+                execution.outcome.evaluated.status,
+                execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
             )
-            self.assertTrue(result.passed)
-            await invoke(
-                client, "example.channels.cleanup", message("CleanupRequest", **envelope), message_type("CleanupResponse"), scope=execution
-            )
-        self.assertEqual([instance.channels for instance in instances], [[2, 4], [2, 4]])
+        self.assertEqual(len(set(identifiers)), 2)
+        self.assertEqual([item.channels for item in instances], [[2, 4], [2, 4]])
+        self.assertEqual([item.attempts for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)
         self.assertFalse(endpoint.plugin._sessions)
-
-        # Refuse An Execution Envelope With A Different Harmos Scope.
-        with self.assertRaises(grpc.aio.AioRpcError) as refused:
-            await invoke(
-                client,
-                first.steps[0].operation,
-                message("StepRequest", step="channel.2", **envelope),
-                message_type("StepResponse"),
-                scope="another",
-            )
-        self.assertEqual(refused.exception.code(), grpc.StatusCode.INTERNAL)
         with self.assertRaises(ValueError):
             dokime.Plugin("duplicate", "1.0.0", suites=[Channels, Channels]).catalog()
 

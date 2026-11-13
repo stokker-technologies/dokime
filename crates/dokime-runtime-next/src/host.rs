@@ -52,6 +52,7 @@ pub struct Host {
     pub(crate) prompts: Arc<crate::prompts::PromptManager>,
     pub(crate) reports: crate::reports::ReportManager,
     changed: tokio::sync::watch::Sender<u64>,
+    _root_lease: Arc<std::fs::File>,
 }
 
 /* === Enums === */
@@ -62,6 +63,14 @@ pub struct Host {
 
 impl Host {
     pub fn open(root: &Path, settings: HostSettings) -> Result<Self> {
+        std::fs::create_dir_all(root)?;
+        let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
+        match lease.try_lock() {
+            Ok(()) => (),
+            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
+            Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
+        }
+        let root_lease = Arc::new(lease);
         let store = Store::open(root)?;
         let changed = tokio::sync::watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
@@ -72,6 +81,7 @@ impl Host {
             plugins.clone(),
             prompts.clone(),
             changed.clone(),
+            root_lease.clone(),
         )?;
         let reports = crate::reports::ReportManager::new(store.clone());
         Ok(Self {
@@ -82,6 +92,7 @@ impl Host {
             prompts,
             reports,
             changed,
+            _root_lease: root_lease,
         })
     }
     pub async fn add_remote(&self, endpoint: &str) -> Result<String> {

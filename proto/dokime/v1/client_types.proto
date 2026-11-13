@@ -1960,15 +1960,11 @@ message ListArtifactsReply {
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListCaseParametersReply {
   repeated CaseParameter parameters = 1;
-  optional string next_after_name = 2;
-  ParameterCursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListCasesReply {
   repeated CaseSummary cases = 1;
-  optional string next_after_case_id = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/execution/wire.rs
@@ -1988,8 +1984,6 @@ message ListExecutionFilesReply {
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListExecutionStepsReply {
   repeated ExecutionStep steps = 1;
-  StepPageCursor next_cursor = 2;
-  Cursor observed_cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/execution/wire.rs
@@ -2009,8 +2003,6 @@ message ListHealthResponse {
 // Source: crates/dokime-domain/src/model/execution/wire.rs
 message ListMaterializedParametersReply {
   repeated MaterializedParameter parameters = 1;
-  optional string next_after_name = 2;
-  ParameterCursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/notes/wire.rs
@@ -2023,22 +2015,16 @@ message ListNotesResponse {
 // Source: crates/dokime-domain/src/model/prompts/wire.rs
 message ListPendingPromptsReply {
   repeated PendingPromptIdentity prompts = 1;
-  optional string next_after_prompt_id = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/prompts/wire.rs
 message ListPromptDefinitionsReply {
   repeated PromptDefinitionIdentity definitions = 1;
-  optional string next_after_prompt_type = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListRecordSchemasReply {
   repeated RecordSchemaIdentity schemas = 1;
-  optional string next_after_record_type = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-operations/src/telemetry/list_samples.rs
@@ -2058,8 +2044,6 @@ message ListSamples {
 // Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListSuitesReply {
   repeated SuiteIdentity suites = 1;
-  optional string next_after_suite_id = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/telemetry/wire.rs
@@ -2071,8 +2055,6 @@ message ListTelemetrySamplesRequestAfterStreamCursorsEntry {
 // Source: crates/dokime-domain/src/model/catalog/wire.rs
 message ListTelemetrySchemasReply {
   repeated TelemetrySchemaIdentity schemas = 1;
-  optional string next_after_stream = 2;
-  Cursor cursor = 3;
 }
 
 // Source: crates/dokime-domain/src/model/settings/wire.rs

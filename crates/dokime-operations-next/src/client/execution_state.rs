@@ -272,10 +272,7 @@ pub(super) fn planned(context: &Context, cycle: &str, case: &str) -> Result<v1::
         ..Default::default()
     })
 }
-pub(super) fn parameters(
-    context: &Context, parameters: &std::collections::HashMap<String, v1::Value>, limit: u32, after: &str,
-    supplied: Option<&v1::ParameterCursor>, selection: v1::ParameterCursorSelection,
-) -> Result<(Vec<v1::CaseParameter>, Option<String>, v1::ParameterCursor)> {
+pub(super) fn parameters(parameters: &std::collections::HashMap<String, v1::Value>) -> Vec<v1::CaseParameter> {
     let mut rows: Vec<_> = parameters
         .iter()
         .map(|(name, value)| v1::CaseParameter {
@@ -284,27 +281,7 @@ pub(super) fn parameters(
         })
         .collect();
     rows.sort_by(|left, right| left.name.cmp(&right.name));
-    let current = super::paging::cursor(context, format!("parameters/{selection:?}"), rows.iter().map(super::paging::bytes));
-    if supplied.is_some_and(|cursor| cursor.selection.as_ref() != Some(&selection)) {
-        return Err(Error::Precondition("Read Parameters: Restart Paging with the Same Selection".into()));
-    }
-    let (rows, next) = super::paging::page(
-        rows,
-        limit,
-        after,
-        supplied.and_then(|cursor| cursor.observed.as_ref()),
-        &current,
-        context.settings.page_items,
-        |row| &row.name,
-    )?;
-    Ok((
-        rows,
-        next,
-        v1::ParameterCursor {
-            observed: Some(current),
-            selection: Some(selection),
-        },
-    ))
+    rows
 }
 pub(super) fn archive_matches(scope: Option<i32>, archived: bool) -> Result<bool> {
     Ok(

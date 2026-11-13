@@ -72,6 +72,11 @@ The `dokime-host-next` binary accepts `--endpoint HOST:PORT --storage PATH`.
 It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
 Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode.
 The storage root retains a backend identity; each process has a new boot epoch.
+Before opening the evidence database, the host takes the root's exclusive
+`local.lock` lease. An occupied root returns `Error::OccupiedRoot` with its path;
+stop its owner or choose another root. Cloned host handles and execution workers
+retain the lease until they are dropped after shutdown. A stale lock file after
+a crash is harmless: the operating system releases the lock, and no data is reset.
 The bootstrap listener accepts loopback addresses. The library's Access.Listener.Get/Set
 owns the separate authenticated TLS listener. Enable it with the revision from Get,
 then use Access.Pairings.Create to obtain an endpoint, pinned certificate and bearer
@@ -109,9 +114,12 @@ are never written into the SQLite catalog. `dokime.secrets.read` reads the named
 protected credential within the calling execution's scope. Headless hosts need
 an available OS credential store for secret writes and TLS key persistence.
 
-Catalog and Health paging binds the current process epoch and inventory;
-installation paging binds its manifest digest. Restart paging after a stale
-cursor refusal. Generic status now uses the library root:
+Catalog suites, schema declarations, prompt definitions, planned cases, pending
+prompts, parameters and frozen steps return their complete bounded sets in stable
+order, without page controls or continuation. Executions, cycles and accumulated
+evidence (records, samples, health/log lines, files and notes) remain paged.
+Health paging binds the current process epoch and inventory; installation paging
+still belongs to the product copy awaiting library Plugins composition. Generic status now uses the library root:
 
 ```text
 Status.Get / Watch
@@ -155,9 +163,8 @@ Incremental watch buckets, live deltas, higher-order/non-category plot aggregate
 derived analysis defaults remain open; watches currently emit snapshots.
 
 Prompts serves all five operations and their bidirectional Run forms. Catalog
-definitions page by prompt type; pending prompts page by ID with cycle and
-execution filters. A changed selection or stale cursor requires restarting the
-page. Respond validates declared actions, fields, answer rules and evidence
+definitions return whole by prompt type; pending prompts return whole by ID with
+cycle and execution filters. Respond validates declared actions, fields, answer rules and evidence
 conditions, records the authenticated local responder and acknowledges durable
 acceptance. GetPrompt retains the question and answer after settlement and
 restart. `client_answers_operator_prompts` exercises this operator journey.
@@ -178,7 +185,7 @@ cycles wait for StartExecution; automatic cycles admit their runs after append.
 Interactive runs accept Next, RunStep and Finish with durable command receipts;
 retrying a command ID resolves its existing receipt. Pause and stop apply at step
 boundaries; cancel interrupts the active call and drains required cleanup.
-Cycle/execution detail, ordered steps, parameter pages and case lists expose
+Cycle/execution detail, complete ordered steps/parameters and bounded case lists expose
 backend-owned capabilities. Labels and archives remain editable presentation
 without altering seals. `client_controls_execution_lifecycle` proves the journey.
 
@@ -375,7 +382,7 @@ and cycle counts. Only run-specific execution identity, plugin digest/start time
 and receipt timestamps are excluded. Sealed evidence must reopen unchanged.
 Python and C++ also decode Door from retained schemas. C# registers record-only descriptors through Harmos Message<T>(); its named
 `csharp_frozen_record_schema_decodes_door` assertion now decodes Door from the
-frozen catalog at the exact b5f59508 Harmos revision.
+frozen catalog at the exact 26010c03 Harmos revision.
 
 Build the shared fixtures and install the Python wheel with the tasks above.
 `build:host-fixtures` invokes each compiled SDK's own tasks and exports the

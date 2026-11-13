@@ -20,7 +20,7 @@ reads SHALL inherit invocation scope and SHALL NOT be exposed to clients.
 - **WHEN** a live evidence query freezes context and its evidence frontier
 - **THEN** it needs no report publication, seal, provider stop or durability barrier, and a cycle cut freezes member revisions and membership
 - **AND** the selected journal/metadata frontier is already durable without checkpointing running executions
-- **AND** latest-durable/no-wait reads follow the locked payload-size-independent 250 ms p95 durable-lag bound in the operation-contracts delta, proven by the reusable Nightly storage benchmark rather than wall-clock test assertions
+- **AND** durable lag is reported by the reusable Nightly benchmark without a failing threshold or accepted-data snapshot, amended by the owner on 2026-11-13
 
 #### Scenario: Live Queries During Writes
 
@@ -62,7 +62,9 @@ at latest; a composite cut SHALL NOT be reduced to an unqualified scalar sequenc
 
 ### Requirement: Deterministic Seek Pagination
 
-Row responses SHALL contain typed rows/schema, `resolved_at`, effective limits,
+Only rows that can grow unbounded SHALL be paged; bounded declaration/configuration
+sets SHALL return whole (amended by the owner on 2026-11-13).
+Paged row responses SHALL contain typed rows/schema, `resolved_at`, effective limits,
 `next_page_token` and complete. Requests SHALL use `page_size`, `max_bytes` and
 `page_token`. Complete SHALL mean exhaustion without continuation. Tokens SHALL
 bind cut, canonical selection/projection/reduction, schema revision and last scanned

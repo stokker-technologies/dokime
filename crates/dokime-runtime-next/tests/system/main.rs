@@ -49,6 +49,7 @@ mod process_interruption;
 mod python_client_runs_thermal_suite_over_grpc;
 mod python_plugin_matches_rust_thermal_evidence;
 mod step_failure_and_retries;
+mod storage_root_admission;
 #[path = "../support/mod.rs"]
 mod support;
 mod thermal_suite_survives_host_restart;

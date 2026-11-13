@@ -7,7 +7,7 @@ if(NOT DOKIME_FETCH_DEPENDENCIES OR DOKIME_HARMOS_CACHE)
 endif()
 FetchContent_Declare(harmos
   GIT_REPOSITORY https://github.com/stokker-technologies/harmos.git
-  GIT_TAG b5f595087967a085662689654bfadeff3d77ffa1
+  GIT_TAG 26010c03516060deb5f70d17af3fbf0e49d9fbe2
   SOURCE_SUBDIR sdk/cpp)
 FetchContent_MakeAvailable(harmos)
 if(DOKIME_FETCH_DEPENDENCIES AND NOT DOKIME_HARMOS_CACHE)

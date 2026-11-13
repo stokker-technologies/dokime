@@ -5,6 +5,7 @@ Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
 Three visibility levels locked by the owner on 2026-11-12
+Paging, SDK packaging, transfers and durable lag amended by the owner on 2026-11-13
 
 Target decisions are Owner.
 Current-source observations are not target decisions.
@@ -16,8 +17,7 @@ The read-only product and library research reports supplied for this change are
 inputs, not contracts. Current product protocols are in `proto/dokime/v1/`;
 the new host and handlers are in `crates/dokime-runtime-next/` and
 `crates/dokime-operations-next/`. The existing loop and desktop still coexist
-with them. `grpc-plugins/design.md` owns that eventual atomic cutover. This
-proposal adds no implementation, compatibility layer or lifecycle activation.
+with them. `grpc-plugins/design.md` owns that eventual atomic cutover. The owner authorizes implementation under the combined grpc-plugins marker.
 
 ## Goals and Boundaries
 
@@ -27,8 +27,8 @@ work, finalization, publication and cooperative cancellation where promised.
 The library owns generic machinery under its managers; a product owns its storage
 definition, objects, policy and operations. Product lifecycle and evidence selection
 remain product-owned. No arbitrary time travel, second scheduler, automatic
-streaming projection or storage reset is proposed. An accepted-data snapshot is
-the named fallback if bounded durable lag cannot be achieved, not work to build now.
+streaming projection or storage reset is proposed. No accepted-data snapshot is built.
+The measured durable lag is accepted, amended by the owner on 2026-11-13.
 The owner decided on 2026-11-12 that language SDKs stay in the library and product
 SDKs build on them: other products will also host plugins on this library. Its
 protocol, SDKs and conformance suite remain self-sufficient, with no product vocabulary.
@@ -101,12 +101,13 @@ Vocabulary sections. Product-specific meanings belong in the next section.
 - **Latest and durability (Owner):** latest
   resolves once, at read/watch opening, to the latest durable position without
   waiting for accepted data that is not yet saved. A caller that needs its own write visible
-  passes the durable position from that write's receipt as `at`. Durable lag must
-  stay within 250 ms at the 95th percentile independent of payload size.
-  Benchmark small, multi-megabyte and mixed loads;
-  accepted-data snapshots are the fallback if smaller, size-triggered flushes
-  cannot meet the bound, not work to build now.
-- **Paging (Owner):** `page_size`, `max_bytes`, `page_token`, `next_page_token`,
+  passes the durable position from that write's receipt as `at`. The measured durable
+  lag is accepted: small payloads about 99 ms, large and mixed up to several hundred
+  milliseconds at p95. Report p50/p95/max without a failing threshold; no
+  accepted-data snapshot. Amended by the owner on 2026-11-13.
+- **Paging (Owner, amended by the owner on 2026-11-13):** paging is only for data
+  rows that can grow unbounded in size. Small bounded sets return whole in one
+  response, without page controls or continuation. Unbounded rows use `page_size`, `max_bytes`, `page_token`, `next_page_token`,
   `resolved_at`; tokens bind selection, ordering, cut and schema/projection revision.
   Stable ordering has an identifier tie-breaker and exclusive continuation. Bound
   rows and bytes; work bounds remain separate. Expired or mismatched tokens fail
@@ -142,8 +143,9 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   visible, and Delete to abandon. Identical chunk replay succeeds; different bytes
   at an accepted offset conflict. Download by repeated Storage.GetFileBytes calls with
   offset and maximum bytes; each response states total length and content digest.
-  Configuration bounds chunk and range sizes. Measure large-file throughput in a
-  Nightly benchmark case before deleting streaming transfers.
+  Configuration bounds chunk and range sizes: default chunk 4 MiB, default message
+  limit 8 MiB. Remove streaming file transfers. Throughput remains a benchmark
+  measurement, without a deletion gate. Amended by the owner on 2026-11-13.
 - **Streaming (Owner):** never generate twins automatically. Server streaming is
   reserved for Watch semantics (including noun-only streamed parts); the plugin protocol retains its own carriers. A managed
   stream exists only for an actual cooperative final-result promise after
@@ -217,13 +219,14 @@ Other plugins and clients never connect directly to an instance, even for a
 Public operation. Client credentials do not authorize context calls, and plugin
 identity does not authorize client-only management operations.
 
-The plugin SDK generates the plugin protocol to serve and context contracts to
-call (including product plugin operation declarations). A client generates only
-the client API. A host generates all three. A distribution containing both SDK
-roles keeps their generation inputs and roots separate. Generic child-call
-requirements can reference Public plugin operation descriptors without generating
-a client-only management surface. Plugin SDK visibility remains required in
-Rust, Python, C# and C++.
+One SDK package per language contains both plugin development interfaces and
+backend-client connection/functionality. Python uses `dokime-sdk` composed with
+`harmos-sdk`; Rust, C# and C++ follow the same single-package rule. Audience-specific
+builds are removed. A codebase can install itself via `main.py`; the API should
+look simple and good. Generation keeps plugin/context and client roots separate
+inside that package; a host consumes all three faces. Public requirement descriptors
+remain usable through child calls without granting client management authority.
+Amended by the owner on 2026-11-13.
 
 Illustrative protocol shape, in `harmos/plugin/v1/instance.proto` (supporting
 frames and payloads omitted; wrapper names apply to carriers as well):
@@ -323,7 +326,7 @@ at its resolved cut. A plugin produces progress through a host operation it call
 `dokime.context.v1.executions.Progress/Set`, with its context Get/revision
 contract. Set is not a client-facing RPC or part of the client counts; its Get
 is a separate declaration from the client progress Get. Parameters and
-steps each retain their sole paged noun-only read.
+steps each retain their sole whole-set noun-only read.
 
 ### Nested Wire Examples
 
@@ -497,38 +500,29 @@ read-your-write; an accepted-only receipt cannot. Resource Get/Watch must expose
 the later durable receipt without inventing an implicit read barrier. Watches use
 the same durable visibility rule for subsequent changes, not an accepted-data tail.
 
-The newest durable position must trail the newest accepted data by no more than
-250 ms at the 95th percentile, independent of payload size. A live view may
-therefore lag accepted data by a small interval, including for large payloads.
+The measured durable lag is accepted as it is: small payloads about 99 ms,
+large and mixed payloads up to several hundred milliseconds at the 95th percentile.
+The reusable Nightly benchmark reports p50, p95 and maximum for small,
+multi-megabyte and mixed loads, including a consumer's independent backend.
+There is no failing lag threshold and no accepted-data snapshot. Correctness
+proof checks positions, durability and configured byte splitting deterministically,
+never elapsed time. Amended by the owner on 2026-11-13.
 
-Read-only library source inspection confirms `crates/harmos-storage/src/config.rs::FLUSH_INTERVAL` is
-100 ms; `worker.rs` requests periodic flushes and `sqlite/mod.rs` sets
-`PRAGMA synchronous=FULL` before transactional persistence. Flush time is added
-to the cadence and grows with the bytes written: batches target 1 MB and are capped
-at 16 MB, each committed synchronously. Nothing measures durable lag today, so
-100 ms is not proof of the required bound. The new product `dokime-storage` is
-independent of `harmos-storage`; the library cadence is not proof of the new host's
-latency. The product store supplies the product durable frontier; the library
-supplies its own.
+### Paging Eligibility
 
-Add a durable-lag benchmark case to the Nightly benchmark set using the stable
-case naming convention of the storage benches. Report p50, p95 and maximum lag
-under small samples at a high rate, multi-megabyte batches and a mix. Make the
-case reusable by a consumer against its own backend, including the independent
-product store. Compare measured p95 for each load with the 250 ms p95 bound.
-These are benchmark measurements, never wall-clock assertions in tests. Test the
-mechanism deterministically: flush work is bounded in bytes and large input is
-split so no single commit exceeds the configured size.
+Paging is only for data rows that can grow unbounded in size. The same rule
+applies on every face. Amended by the owner on 2026-11-13.
 
-If the bound is missed, first try smaller flush pieces and flushing as soon as a
-size threshold is reached, rather than only on the cadence, then remeasure.
-If that is insufficient, the named fallback is reads resolving against a snapshot
-of accepted data; do not build that fallback now. A per-read durability barrier
-was considered and not chosen because it puts flush/commit latency on reads.
-An accepted-data snapshot adds snapshot/retention ownership and unsaved-data
-semantics, but remains the fallback rather than a rejected alternative. This
-owner decision replaces the reports' accepted-frontier and
-per-read-barrier suggestions, not a claim that current code already meets it.
+| Set | Shape | Reason |
+| --- | --- | --- |
+| Catalog entries, plugins and pairings (library-owned) | Whole | The admitted configuration is a small bounded set, not accumulated evidence. |
+| Catalog suites, record/stream schemas, prompt definitions and analyses | Whole | Each is a finite declaration set from admitted catalogs or one frozen execution. |
+| Secrets metadata and storage sources | Whole | These describe configured values/endpoints, not an accumulated evidence history. |
+| Cases and pending prompts | Whole | These are the bounded current plan and active operator questions. |
+| Executions, cycles and retained prompt history | Paged, position-resolved | Successive runs and asked questions accumulate without a fixed bound. |
+| Parameters and frozen steps | Whole | These are a finite case/execution definition, not appended evidence. |
+| Records, samples, log/health lines, files, artifacts and notes | Paged, position-resolved | Evidence can accumulate indefinitely within selected histories. |
+| Plot snapshots | Paged, position-resolved | Evaluated rows can grow with the selected evidence. |
 
 ### Representative Resource 1: Execution
 
@@ -633,14 +627,15 @@ state to resume. Storage.PublishFileProduction verifies complete bytes, length a
 exposing immutable content. Content.Artifacts.Create or Plugins.Create then references it.
 Sessions are caller-bound, bounded and expire explicitly; expiry cannot silently
 start another upload. Storage.DeleteFileProduction abandons it. Transport loss never publishes
-partial content. Chunk and range maxima are configuration-owned limits.
+partial content. Chunk and range maxima are configuration-owned limits; the default chunk is
+4 MiB and the default message limit is 8 MiB (amended by the owner on 2026-11-13).
 
 Storage.GetFileBytes returns a bounded range, repeated by the caller to resume downloads.
 The content identity and digest bind every range to the same representation,
 including a scoped evidence archive at a returned cut. There is no separate
-streaming archive download gRPC method. Measure large-file upload/download throughput
-in the Nightly benchmark set before deleting the superseded streaming transfers;
-throughput is a benchmark measurement, never a correctness-test assertion.
+streaming archive download gRPC method. Remove superseded streaming file transfers;
+large-file throughput remains a Nightly benchmark measurement, never a correctness
+assertion or deletion gate (amended by the owner on 2026-11-13).
 
 The library's existing `Storage` service owns this mechanism; add no transfer
 service alias. The client declarations below live in `harmos/v1/storage.proto`. Separate
@@ -1016,7 +1011,7 @@ not an alternative or compatibility RPC. CreateFileWriter is a fenced-resume
 branch and DeleteFileProduction an abandon branch, not mandatory before Publish.
 Content.ExecutionFiles.Get resolves metadata for Storage.WatchFileBytes;
 Content.ExecutionFiles.Watch follows product membership/metadata. Cases.Parameters
-and Executions.Parameters/Steps remain sole paged noun reads. Client progress
+and Executions.Parameters/Steps remain sole whole-set noun reads. Client progress
 Get/Watch and Executions.Get expose observation; no client progress Set exists.
 Evidence.Archive selects/assembles scoped product evidence at a cut and returns
 immutable content references for library ranged reads. Archive layout and policy
@@ -1175,7 +1170,7 @@ checkout named by its report:
   Preserve the actual contract; adding encryption is a separate owner decision.
 - **Decision overrides, not source discrepancies:** both reports' latest-read
   suggestions are replaced by owner-decided latest-durable/no-wait with
-  a payload-size-independent 250 ms p95 durable-lag bound; whole-value Set with
+  accepted measured durable lag without a failing threshold; whole-value Set with
   exact Get/revision symmetry is retained and bare replies become wrappers;
   WaitTime becomes Sleep; CreateRecord/CreateLog become Evidence.Records.Append/Evidence.Logs.Append.
   No arbitrary earlier cut API is carried forward.
@@ -1241,12 +1236,11 @@ capability and failing consumer proof are recorded under Library Requests. Exist
 product transfers and their journeys stay intact until that dependency is available;
 no duplicate persistence owner or forwarding service is introduced.
 
-HostValues is deferred without changing its locked ownership: the library's Get
-requires its private Caller resource, populated from admitted plugin declarations.
-`register_values` alone cannot attach that caller to the current product dispatcher.
-Wiring it requires the library-backed admission/context replacement excluded from
-this task and blocked by the existing wire-identity request. Existing settings and
-secret delivery remains until that composition is admitted.
+HostValues requires the library's Caller resource, populated from admitted plugin
+declarations; `register_values` alone cannot attach it to the current product
+dispatcher. Wiring it requires the library-backed admission/context replacement,
+now authorized and unblocked by the resolved wire-identity request. Existing
+settings/secret delivery remains until that implementation slice replaces it.
 
 The C++ library root cannot accept per-call bearer metadata or a caller context;
 its authenticated client journey remains on the existing fixture until the library
@@ -1255,18 +1249,15 @@ use the composed root. Shared old-loop protobuf declarations and generic managed
 client fixture DTOs retire with the excluded protocol/managed-method cutover; they
 are not exposed as new-host compatibility services.
 
-### Library Admission Request
+### Resolved Library Admission Request
 
-The converged revision's non-reserved `OperationContract::from_protobuf` path
-calls native `OperationDefinition::validate`, whose dotted-identity validator
-refuses both generated numeric template-local bindings and the locked
-`package.Service/Method` wire identities. The Rust SDK's reference-host authoring
-story fails at attachment before materialization with the existing step binding.
-The smallest upstream change is a wire-identity validation path that retains
-schema, fingerprint, visibility and provider admission independently from native
-portable IDs. Product aliases or renaming numeric bindings to evade it would
-hide the defect. The sibling is read-only; library-backed admission remains open
-under Library Requests in tasks.md.
+The pinned library now validates dotted wire identities with numeric segments and
+`package.Service/Method` identities whose package determines the face, independently
+from native portable identities. All five Rust SDK journeys pass, including the
+reference-host authoring story that previously failed at attachment. Descriptor,
+fingerprint, visibility and provider checks remain required. Library-backed
+admission/context composition can proceed; the product has not yet migrated its
+own dispatcher and plugin-entry lifecycle.
 
 ### SDK Ownership and Remaining Coverage Facts
 
@@ -1320,14 +1311,12 @@ them. Preserve both kinds of proof and their independent consumers.
 
 ## Risks and Migration Plan
 
-Durable lag is currently unmeasured: a 100 ms cadence plus synchronous commits
-of growing batches may miss the payload-size-independent p95 bound. Prove small,
-multi-megabyte and mixed loads in the reusable Nightly storage benchmark; first
-reduce flush pieces and add size-triggered flushing if needed. If that is
-insufficient, reads against accepted-data snapshots are the named fallback,
-with additional snapshot/retention ownership and unsaved-data semantics; they
-are not built now. SDK ownership is settled, but four-language plugin parity and
-generic managed-client coverage still need agreement and proof.
+Measured durable lag is accepted without a failing threshold and without an
+accepted-data snapshot, amended by the owner on 2026-11-13. SDK ownership and one
+package per language are settled; four-language parity still needs implementation
+and proof. Unary transfers use a 4 MiB default chunk and 8 MiB default message
+limit; streaming file transfers are removed as the composed capability becomes
+available, without a benchmark deletion gate.
 
 Pinned live cuts require retained mutable context; row hashes cannot supply that
 guarantee. Settle retention when implementing returned-position reads; independent
