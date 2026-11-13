@@ -48,8 +48,8 @@ use dokime_runtime_next::PluginProcess;
 async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Connect the Operator to a Real Host and Plugin
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
@@ -189,8 +189,9 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             .await?;
         let mut runtime = observation.watch_runtime(v1::ObservationWatchRuntimeRequest::default()).await?.into_inner();
         runtime.message().await?.unwrap();
-        let mut progress = observation
-            .watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: repeated.clone() })
+        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone())
+            .await?
+            .watch(v1::executions::ProgressWatchRequest { name: repeated.clone(), at: None })
             .await?
             .into_inner();
         let mut questions = Vec::new();

@@ -49,8 +49,8 @@ use dokime_storage::{Execution, Store};
 async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Registered Files and an Independent Execution
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         for id in ["content-a", "content-b"] {

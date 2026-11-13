@@ -40,6 +40,11 @@ The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 Reloading the WebView adopts and verifies the native owner's current connection,
 including an imported remote profile, before considering launch arguments.
+Execution progress uses `dokime.v1.executions.Progress/Watch` with its named
+resource, opaque revision, pinned position and terminal flag. Its adapter projects
+the served label and counts; elapsed time, ETA and a step identifier stay absent
+because this contract does not supply them. The operation grammar table in
+`docs/execution-host.md` distinguishes subsequent locked renames from landed routes.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
 use canonical host messages. SDK and binary adapter stories prove their boundaries;
@@ -121,7 +126,7 @@ focused native desktop commands must also pass `--features testing`.
 | `desktop://session-status` | Native connection generation, ownership and startup state |
 | `desktop://remote-imported`, `desktop://remote-import-failed` | Native pairing import outcome |
 | `desktop://stopping` | Native orderly shutdown |
-| Tauri RPC stream channel | `Observation.WatchExecutionProgress`, `Observation.WatchRuntime`, `Evidence.WatchRecords`, `Telemetry.WatchSamples`, `Plots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
+| Tauri RPC stream channel | `executions.Progress.Watch`, `Observation.WatchRuntime`, `Evidence.WatchRecords`, `Telemetry.WatchSamples`, `Plots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
 | Tauri install-progress channel | `Plugins.Install` transfer progress |
 
 ### Data Operations

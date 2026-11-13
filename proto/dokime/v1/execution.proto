@@ -150,14 +150,11 @@ message Record {
 // Fields are meaningful only when count is greater than zero.
 
 
-message ReportProgress {
-  string execution = 1;
-  uint64 completed = 2;
-  uint64 total = 3;
-  string label = 4;
+message ExecutionProgressValue {
+  uint64 completed = 1;
+  uint64 total = 2;
+  string label = 3;
 }
-
-message ReportProgressResponse {}
 
 
 

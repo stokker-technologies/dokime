@@ -75,7 +75,7 @@ pub struct Cycle {
 pub struct Progress {
     channel: Channel,
     pending: std::collections::VecDeque<String>,
-    stream: Option<tonic::Streaming<v1::ObservationWatchExecutionProgressOutput>>,
+    stream: Option<tonic::Streaming<v1::executions::ProgressWatchResponse>>,
     terminal: bool,
 }
 
@@ -266,35 +266,29 @@ impl Cycle {
 }
 
 impl Progress {
-    pub async fn next(&mut self) -> Result<Option<v1::ExecutionProgress>, Status> {
+    pub async fn next(&mut self) -> Result<Option<v1::executions::ProgressWatchResponse>, Status> {
         loop {
             if self.stream.is_none() {
                 let Some(identifier) = self.pending.pop_front() else {
                     return Ok(None);
                 };
-                let request = v1::ObservationWatchExecutionProgressRequest { test_execution_id: identifier };
-                self.stream = Some(
-                    v1::observation_client::ObservationClient::new(self.channel.clone())
-                        .watch_execution_progress(request)
-                        .await?
-                        .into_inner(),
-                );
+                let request = v1::executions::ProgressWatchRequest { name: identifier, at: None };
+                self.stream =
+                    Some(v1::executions::progress_client::ProgressClient::new(self.channel.clone()).watch(request).await?.into_inner());
                 self.terminal = false;
             }
             let Some(frame) = self.stream.as_mut().unwrap().message().await? else {
                 if !self.terminal {
-                    return Err(Status::data_loss("Watch Cycle: Missing Terminal Response"));
+                    return Err(Status::data_loss("Watch Cycle: Missing Finished Progress"));
                 }
                 self.stream = None;
                 continue;
             };
-            match frame.value {
-                Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) if !self.terminal => {
-                    return frame.progress.map(Some).ok_or_else(|| Status::data_loss("Watch Cycle: Missing Progress"));
-                }
-                Some(v1::observation_watch_execution_progress_output::Value::Response(_)) if !self.terminal => self.terminal = true,
-                _ => return Err(Status::data_loss("Watch Cycle: Invalid Terminal Response")),
+            if self.terminal {
+                return Err(Status::data_loss("Watch Cycle: Progress After Settlement"));
             }
+            self.terminal = frame.finished;
+            return Ok(Some(frame));
         }
     }
 }

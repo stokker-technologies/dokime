@@ -45,7 +45,7 @@ use dokime_runtime_next::{Error, Host};
 #[tokio::test]
 async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn std::error::Error>> {
     // Refuse An External Lease Before Creating The Evidence Database
-    let root = tempfile::tempdir()?;
+    let root = super::support::tempdir()?;
     let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.path().join("local.lock"))?;
     lease.try_lock()?;
     let refused = Host::open(root.path(), super::support::settings());

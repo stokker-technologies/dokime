@@ -50,8 +50,8 @@ use sha2::Digest;
 async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Sealed Evidence and Its Selected Document
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;

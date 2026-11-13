@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use prost::Message;
 
 // Local Imports
 use crate::{Result, client::Context};
@@ -47,6 +48,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(context: &Context, request: v1::ExecutionGetExecutionRequest) -> Result<v1::ExecutionDetail> {
     super::complete(ID, context.settings.read_timeout, async {
         let snapshot = super::execution_state::read(context, &request.execution_id)?;
+        let progress = context.host.store().resource_value(&request.execution_id, "progress", None)?;
         let controls = context.host.controls(&request.execution_id)?;
         let summary = super::execution_state::summary(context, &snapshot)?;
         let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
@@ -55,6 +57,8 @@ pub async fn handle(context: &Context, request: v1::ExecutionGetExecutionRequest
         let schemas = super::projection::schemas(&snapshot)?;
         let (started_at, finished_at) = context.host.store().execution_times(&request.execution_id)?;
         Ok(v1::ExecutionDetail {
+            progress: Some(v1::ExecutionProgressValue::decode(progress.payload.as_slice())?),
+            resolved_at: Some(progress.resolved_at),
             started_at: started_at.map(super::projection::timestamp),
             finished_at: if snapshot.state == dokime_storage::ExecutionState::Sealed {
                 finished_at.map(super::projection::timestamp)

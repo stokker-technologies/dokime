@@ -109,8 +109,8 @@ impl harmos_protocol::plugin::instance_server::Instance for AnalysisProvider {
 async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
         // Retain Correlated Streams and Numeric Group Labels
-        let root=tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root=super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store=Store::open(root.path())?;
         let catalog=harmos_protocol::v1::Catalog {types:Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),streams:["cells","calibration"].into_iter().map(|id|harmos_protocol::v1::StreamDeclaration {id:id.into(),row:"dokime.v1.PlotDomain".into(),..Default::default()}).collect(),..Default::default()};

@@ -48,8 +48,8 @@ use dokime_storage::{Execution, Sample, Store};
 async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare a Frozen Catalog with an Authored Document
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let mut plot = dokime_protocol::builders::Plot::time_series(v1::FieldReference::new("reading").field("min")).message;

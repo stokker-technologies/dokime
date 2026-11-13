@@ -17,7 +17,8 @@ public static class Host
   public static Operation<global::Dokime.Protocol.Context.V1.EvidenceStatisticsRequest, global::Dokime.Protocol.Context.V1.EvidenceStatisticsResponse> Statistics { get; } = new("dokime.context.v1.Evidence/Statistics", Visibility.Public);
   public static Operation<ReadSettings, SavedSettings> Settings { get; } = new("dokime.settings.read", Visibility.Public);
   public static Operation<ReadSecret, Secret> Secret { get; } = new("dokime.secrets.read", Visibility.Public);
-  public static Operation<ReportProgress, ReportProgressResponse> Progress { get; } = new("dokime.execution.progress", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.Executions.ProgressGetRequest, global::Dokime.Protocol.Context.V1.Executions.ProgressGetResponse> ProgressGet { get; } = new("dokime.context.v1.executions.Progress/Get", Visibility.Public);
+  public static Operation<global::Dokime.Protocol.Context.V1.Executions.ProgressSetRequest, global::Dokime.Protocol.Context.V1.Executions.ProgressSetResponse> ProgressSet { get; } = new("dokime.context.v1.executions.Progress/Set", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest, global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse> Log { get; } = new("dokime.context.v1.evidence.Logs/Append", Visibility.Public);
   public static Operation<SetTraceability, SetTraceabilityResponse> Traceability { get; } = new("dokime.execution.traceability", Visibility.Public);
   public static Operation<global::Dokime.Protocol.Context.V1.DocumentsAppendPartsRequest, global::Dokime.Protocol.Context.V1.DocumentsAppendPartsResponse> Document { get; } = new("dokime.context.v1.Documents/AppendParts", Visibility.Public);
@@ -65,8 +66,17 @@ public sealed class Context
       => OperationAsync(Host.Statistics, new global::Dokime.Protocol.Context.V1.EvidenceStatisticsRequest { Execution = Execution, Stream = stream, Field = field, Step = step });
   public Task<SavedSettings> SettingsAsync() => OperationAsync(Host.Settings, new ReadSettings());
   public Task<Secret> SecretAsync(string identifier) => OperationAsync(Host.Secret, new ReadSecret { Identifier = identifier });
-  public Task<ReportProgressResponse> ProgressAsync(ulong completed, ulong total, string label = "")
-      => OperationAsync(Host.Progress, new ReportProgress { Execution = Execution, Completed = completed, Total = total, Label = label });
+  public async Task<global::Dokime.Protocol.Context.V1.Executions.ProgressSetResponse> ProgressAsync(ulong completed, ulong total, string label = "")
+  {
+    var current = await OperationAsync(Host.ProgressGet, new global::Dokime.Protocol.Context.V1.Executions.ProgressGetRequest { Name = Execution });
+    return await OperationAsync(Host.ProgressSet, new global::Dokime.Protocol.Context.V1.Executions.ProgressSetRequest
+    {
+      Name = Execution,
+      Value = new ExecutionProgressValue { Completed = completed, Total = total, Label = label },
+      ExpectedRevision = current.Revision,
+      RequestId = Guid.NewGuid().ToString()
+    });
+  }
   public Task<global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse> LogAsync(Severity severity, string message)
       => OperationAsync(Host.Log, new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest { Execution = Execution, Severity = severity, Message = message });
 }

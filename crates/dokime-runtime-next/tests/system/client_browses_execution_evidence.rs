@@ -48,8 +48,8 @@ use dokime_storage::{Evidence, Execution, Store};
 async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Two Independent Imported Executions with Frozen Schemas
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
         let contracts = v1::RecordContracts {

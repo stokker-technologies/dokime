@@ -63,7 +63,7 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Await Durable Evidence While the Step Is in Flight
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;
         let mut child = tokio::process::Command::from(dokime_runtime_next::process::command(std::env::current_exe()?))

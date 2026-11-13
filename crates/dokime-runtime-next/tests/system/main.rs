@@ -25,6 +25,7 @@ mod client_installs_and_removes_managed_plugins;
 mod client_keeps_execution_notes;
 mod client_manages_plugin_entries;
 mod client_manages_secret_storage;
+mod client_observes_revisioned_progress;
 mod client_observes_runtime_state;
 mod client_pairs_and_rotates_remote_access;
 mod client_plans_parameter_selections;
@@ -40,6 +41,8 @@ mod client_renders_fixed_documents;
 mod client_runs_thermal_suite_over_grpc;
 mod client_transfers_execution_content;
 mod cpp_plugin_matches_rust_thermal_evidence;
+#[cfg(windows)]
+mod credentials_leave_with_discarded_roots;
 mod csharp_plugin_matches_rust_thermal_evidence;
 mod documents_and_reports;
 mod execution_capabilities;

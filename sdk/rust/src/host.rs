@@ -65,9 +65,14 @@ impl Request for dokime_protocol::context::EvidenceStatisticsRequest {
     const ID: &'static str = "dokime.context.v1.Evidence/Statistics";
 }
 
-impl Request for crate::v1::ReportProgress {
-    type Response = crate::v1::ReportProgressResponse;
-    const ID: &'static str = "dokime.execution.progress";
+impl Request for dokime_protocol::context::executions::ProgressGetRequest {
+    type Response = dokime_protocol::context::executions::ProgressGetResponse;
+    const ID: &'static str = "dokime.context.v1.executions.Progress/Get";
+}
+
+impl Request for dokime_protocol::context::executions::ProgressSetRequest {
+    type Response = dokime_protocol::context::executions::ProgressSetResponse;
+    const ID: &'static str = "dokime.context.v1.executions.Progress/Set";
 }
 
 impl Request for dokime_protocol::context::evidence::LogsAppendRequest {

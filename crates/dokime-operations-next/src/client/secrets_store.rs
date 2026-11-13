@@ -108,6 +108,19 @@ pub(super) enum Reply {
 
 /* === Public Functions === */
 
+pub fn remove_root_secrets(store: &dokime_storage::Store) -> Result<()> {
+    let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
+    for slot in &catalog.entries {
+        let entry = keyring::Entry::new(SERVICE, &format!("{}:{}", catalog.host_id, slot.slot)).map_err(|_| unavailable())?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(_) => return Err(unavailable()),
+        }
+    }
+    store.delete_administration("secrets")?;
+    Ok(())
+}
+
 pub fn register_redactions(context: &Context) -> Result<()> {
     let catalog: Catalog = context.host.store().administration("secrets")?.unwrap_or_default();
     for slot in &catalog.entries {

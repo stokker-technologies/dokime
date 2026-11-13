@@ -50,8 +50,8 @@ async fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn std
         // Package the Existing SDK Fixture with Verified Platform Metadata
         let executable = std::fs::read(super::support::thermal_fixture()?)?;
         let first_archive = bundle(&executable, "1.0.0")?;
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;

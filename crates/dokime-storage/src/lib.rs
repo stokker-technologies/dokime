@@ -28,6 +28,7 @@ mod plot_selection;
 mod plot_windows;
 mod query;
 mod report;
+mod resource_values;
 mod store;
 mod stream_windows;
 mod streams;
@@ -43,6 +44,7 @@ pub use plot_kinds::{CartesianRead, KindWindow};
 pub use plot_selection::{PlotGroup, PlotSelection};
 pub use query::{ExecutionCut, StatisticsRead};
 pub use report::Report;
+pub use resource_values::ResourceValue;
 pub use store::{ReadCancellation, Store};
 pub use stream_windows::{NumericBin, NumericWindow, SampleWindow};
 

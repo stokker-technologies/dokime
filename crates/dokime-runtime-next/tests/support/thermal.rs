@@ -89,11 +89,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
                     value.execution.clear();
                     entry.payload = value.encode_to_vec();
                 }
-                if entry.kind == "progress" {
-                    let mut value = v1::ReportProgress::decode(entry.payload.as_slice()).unwrap();
-                    value.execution.clear();
-                    entry.payload = value.encode_to_vec();
-                }
+
                 entry
             })
             .collect::<Vec<_>>()

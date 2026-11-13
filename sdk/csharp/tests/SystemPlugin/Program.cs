@@ -28,7 +28,7 @@ var template = new Template("thermal.cycle", "Thermal Cycle")
     }))
     .Cleanup(async context => await context.LogAsync(Severity.Info, "Cleaned Up"));
 var plugin = new Dokime.Plugin("thermal", "1.0.0", new Dokime.Suite("thermal", "Thermal", template))
-    .Record(door).Requires(Host.Prompt).Requires(Host.Record).Requires(Host.Records).Requires(Host.Statistics).Requires(Host.Progress).Requires(Host.Log).Requires(Clock.Sleep);
+    .Record(door).Requires(Host.Prompt).Requires(Host.Record).Requires(Host.Records).Requires(Host.Statistics).Requires(Host.ProgressGet).Requires(Host.ProgressSet).Requires(Host.Log).Requires(Clock.Sleep);
 plugin.Build().Section(new PromptCatalog { Prompts = { new Prompt { Metadata = new Metadata { Identifier = "thermal.door", Label = "Door Check" }, Message = "Is the Door Closed?", Archetype = PromptArchetype.Confirmation, Actions = { new PromptAction { Identifier = "yes", Label = "Yes" }, new PromptAction { Identifier = "no", Label = "No" } } } } });
 await plugin.ServeAsync(remote: args.Contains("--remote"));
 

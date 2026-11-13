@@ -152,7 +152,7 @@ export function useExecutionActions({
     progress: progress
       ? {
           completed: progress.completed,
-          label: stepLabel(execution, progress.stepId),
+          label: progress.label,
           total: progress.total,
         }
       : null,

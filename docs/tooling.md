@@ -49,7 +49,9 @@ Rust starter built through its own mise task. Stories never compile plugins.
 workstation source/dependency caches; do not put them in project configuration.
 Python consumes the built pure wheel and the pinned library SDK. Linux stories
 own an isolated session bus/keyring for credential storage; install `dbus` and
-`gnome-keyring`. Windows uses its operating system credential store.
+`gnome-keyring`. Windows uses its operating system credential store and removes
+every disposable root's protected slots through the product removal operation
+before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
@@ -69,8 +71,9 @@ on Linux and Windows; Nightly also produces and runs the desktop benchmark archi
 
 `mise run generate` builds the desktop's `export_preferences` example and reads
 canonical defaults through its embedded host, then generates protobuf messages,
-preference view models and native command declarations. Its generator-owned host
-root is `target/generated/preferences/host`; it is never silently reset.
+preference view models and native command declarations. The exporter owns a fresh
+temporary host and removes its credentials through the host operation after joining
+shutdown, including on failure. Previous generator and user roots stay intact.
 Generation requires the platform credential store, as ordinary host startup does.
 `mise -C crates/dokime-gui run generate:host-frontend` regenerates canonical host
 messages and native dispatch. Product staging carries both `generated/typescript`
@@ -81,6 +84,9 @@ GUI-owned `dist-report/`, without recreating a retired runtime package.
 
 `mise run generate -- --protocol` regenerates checked-in Rust protocol output;
 add `--check` to prove its drift. Never edit generated files.
+The protocol task also generates four-language SDK roots through the pinned
+library's descriptor table/generator; its check verifies those outputs for drift.
+Never edit generated files.
 
 ## Build and Delivery Artifacts
 

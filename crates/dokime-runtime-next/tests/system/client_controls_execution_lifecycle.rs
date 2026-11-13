@@ -48,8 +48,8 @@ use dokime_runtime_next::PluginProcess;
 async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Create a Mutable Cycle and Register Its Cases Without Running
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
@@ -74,7 +74,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         assert!(execution.delete_case(v1::ExecutionDeleteCaseRequest { cycle_id: cycle.cycle_id.clone(), case_id: case_id.clone(), ..Default::default() }).await.is_err());
         let started = execution.start_execution(v1::ExecutionStartExecutionRequest { execution_id: identifier.clone(), mode: v1::ExecutionMode::Interactive as i32 }).await?.into_inner();
         assert!(matches!(started.outcome.unwrap().kind, Some(v1::start_execution_outcome::Kind::Accepted(_))));
-        let mut progress = observation.watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: identifier.clone() }).await?.into_inner();
+        let mut progress = v1::executions::progress_client::ProgressClient::connect(process.url.clone()).await?.watch(v1::executions::ProgressWatchRequest { name: identifier.clone() , at: None }).await?.into_inner();
 
         // Pause and Resume Between Interactive Commands
         execution.pause_execution(v1::ExecutionPauseExecutionRequest { execution_id: identifier.clone(), ..Default::default() }).await?;
@@ -97,7 +97,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
 
         // Run the Prompt Step and Finish After Answering
         execution.submit_execution_command(v1::ExecutionSubmitExecutionCommandRequest { request_id: identifier.clone(), execution_id: identifier.clone(), command_id: "hold-command".into(), action: v1::ExecutionCommandAction::Next as i32, step_id: None }).await?;
-        while let Some(frame) = progress.message().await? { if matches!(frame.value, Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) if frame.progress.as_ref().is_some_and(|progress| progress.phase == "prompt")) { break; } }
+        while let Some(frame) = progress.message().await? { if frame.phase == "prompt" { break; } }
         let prompt = client.prompts.pending(identifier.clone()).await?.prompts[0].prompt_id.clone();
         client.prompts.respond(prompt, "yes", true).await?;
         loop {
@@ -132,8 +132,8 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn std::error:
         // Rerun Frozen Origins into a New Cycle and Cancel Its Active Run
         let rerun = execution.rerun_cycle(v1::ExecutionRerunCycleRequest { source_cycle_id: cycle.cycle_id.clone(), ..Default::default() }).await?.into_inner();
         let run = execution.list_executions(v1::ExecutionListExecutionsRequest { cycle_id: rerun.cycle_id.clone(), ..Default::default() }).await?.into_inner().executions[0].execution_id.clone();
-        let mut watch = observation.watch_execution_progress(v1::ObservationWatchExecutionProgressRequest { test_execution_id: run.clone() }).await?.into_inner();
-        while let Some(frame) = watch.message().await? { if matches!(frame.value, Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) if frame.progress.as_ref().is_some_and(|progress| progress.phase == "prompt")) { break; } }
+        let mut watch = v1::executions::progress_client::ProgressClient::connect(process.url.clone()).await?.watch(v1::executions::ProgressWatchRequest { name: run.clone() , at: None }).await?.into_inner();
+        while let Some(frame) = watch.message().await? { if frame.phase == "prompt" { break; } }
         execution.cancel_execution(v1::ExecutionCancelExecutionRequest { execution_id: run.clone(), ..Default::default() }).await?;
         while watch.message().await?.is_some() {}
         assert!(matches!(execution.get_execution(v1::ExecutionGetExecutionRequest { execution_id: run }).await?.into_inner().outcome.unwrap().attribution, Some(v1::execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == v1::Termination::Cancelled as i32));

@@ -13,6 +13,7 @@
 # Standard Library Imports
 from collections.abc import Sequence
 from typing import Any
+from uuid import uuid4
 
 # Third Party Imports
 from google.protobuf.duration_pb2 import Duration
@@ -51,7 +52,16 @@ HOST_OPERATIONS = tuple(
             "dokime.context.v1.EvidenceStatisticsRequest",
             "dokime.context.v1.EvidenceStatisticsResponse",
         ),
-        ("dokime.execution.progress", "ReportProgress", "ReportProgressResponse"),
+        (
+            "dokime.context.v1.executions.Progress/Get",
+            "dokime.context.v1.executions.ProgressGetRequest",
+            "dokime.context.v1.executions.ProgressGetResponse",
+        ),
+        (
+            "dokime.context.v1.executions.Progress/Set",
+            "dokime.context.v1.executions.ProgressSetRequest",
+            "dokime.context.v1.executions.ProgressSetResponse",
+        ),
         (
             "dokime.context.v1.evidence.Logs/Append",
             "dokime.context.v1.evidence.LogsAppendRequest",
@@ -160,7 +170,16 @@ class Context:
         return {key: decode(value) for key, value in response.values.items()}
 
     async def progress(self, completed: int, total: int, *, label: str = "") -> None:
-        await self.operation(message("ReportProgress", execution=self.execution, completed=completed, total=total, label=label))
+        current = await self.operation(message("dokime.context.v1.executions.ProgressGetRequest", name=self.execution))
+        await self.operation(
+            message(
+                "dokime.context.v1.executions.ProgressSetRequest",
+                name=self.execution,
+                value={"completed": completed, "total": total, "label": label},
+                expected_revision=current.revision,
+                request_id=str(uuid4()),
+            )
+        )
 
     async def log(self, text: str, *, severity: int = 2) -> None:
         await self.operation(

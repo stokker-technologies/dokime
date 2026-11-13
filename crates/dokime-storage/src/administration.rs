@@ -39,6 +39,10 @@ use crate::{Error, Result, Store};
 /* === Implementations === */
 
 impl Store {
+    pub fn delete_administration(&self, key: &str) -> Result<()> {
+        self.lock()?.execute("DELETE FROM administration WHERE id=?1", [key])?;
+        Ok(())
+    }
     pub fn administration<T: Message + Default>(&self, key: &str) -> Result<Option<T>> {
         let bytes: Option<Vec<u8>> =
             self.lock()?.query_row("SELECT payload FROM administration WHERE id=?1", [key], |row| row.get(0)).optional()?;

@@ -48,8 +48,8 @@ use dokime_storage::OutcomeCounts;
 async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Materialize an Evaluated and a Criterion-Free Execution
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let executable = super::support::execution_fixture()?;

@@ -49,7 +49,7 @@ use dokime_storage::ExecutionState;
 async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Admit Two Executions on the Controlled Clock
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let mut settings = super::support::settings();
         settings.clock = Arc::new(ControlledClock::new(0));
         let host = Host::open(root.path(), settings.clone())?;
@@ -108,7 +108,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
 async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Refuse Cancel While the Admitted Execution Is Still Queued
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
@@ -163,7 +163,7 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
 async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run and Seal the Evidence Before Rendering
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let settings = super::support::settings();
         let host = Host::open(root.path(), settings.clone())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;

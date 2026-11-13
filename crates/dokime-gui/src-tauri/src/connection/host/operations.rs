@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::v1;
 use dokime_sdk::client::v1 as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [98, 121, 45, 174, 74, 246, 45, 226, 218, 112, 123, 23, 59, 163, 236, 35, 184, 12, 35, 188, 255, 70, 38, 55, 187, 160, 110, 240, 158, 4, 25, 255];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [35, 150, 10, 59, 221, 248, 22, 155, 108, 150, 205, 242, 225, 96, 242, 28, 239, 135, 52, 236, 47, 19, 124, 96, 55, 212, 65, 89, 42, 103, 105, 203];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -108,6 +108,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.v1.Settings/UpdateApplicationSettings" => Box::pin(session.call::<v1::SettingsUpdateApplicationSettingsRequest, v1::SettingsSnapshot>("/dokime.v1.Settings/UpdateApplicationSettings", payload)).await,
         "/dokime.v1.Settings/UpdatePluginSettings" => Box::pin(session.call::<v1::SettingsUpdatePluginSettingsRequest, v1::PluginRuntimeSettings>("/dokime.v1.Settings/UpdatePluginSettings", payload)).await,
         "/dokime.v1.Telemetry/ListSamples" => Box::pin(session.call::<v1::TelemetryListSamplesRequest, v1::TelemetrySamplesReply>("/dokime.v1.Telemetry/ListSamples", payload)).await,
+        "/dokime.v1.executions.Progress/Get" => Box::pin(session.call::<v1::executions::ProgressGetRequest, v1::executions::ProgressGetResponse>("/dokime.v1.executions.Progress/Get", payload)).await,
         "/harmos.v1.CatalogEntries/List" => Box::pin(session.call::<library::CatalogEntriesListRequest, library::CatalogEntriesListResponse>("/harmos.v1.CatalogEntries/List", payload)).await,
         "/harmos.v1.Invocations/Cancel" => Box::pin(session.call::<library::InvocationsCancelRequest, library::InvocationsCancelResponse>("/harmos.v1.Invocations/Cancel", payload)).await,
         "/harmos.v1.Invocations/Get" => Box::pin(session.call::<library::InvocationsGetRequest, library::InvocationsGetResponse>("/harmos.v1.Invocations/Get", payload)).await,
@@ -175,12 +176,12 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
         "/dokime.v1.Media/AudioRecording" => Box::pin(session.watch::<v1::MediaAudioRecordingRequest, v1::MediaAudioRecordingOutput>("/dokime.v1.Media/AudioRecording", payload)).await,
         "/dokime.v1.Media/CameraRecording" => Box::pin(session.watch::<v1::MediaCameraRecordingRequest, v1::MediaCameraRecordingOutput>("/dokime.v1.Media/CameraRecording", payload)).await,
         "/dokime.v1.Media/ScreenRecording" => Box::pin(session.watch::<v1::MediaScreenRecordingRequest, v1::MediaScreenRecordingOutput>("/dokime.v1.Media/ScreenRecording", payload)).await,
-        "/dokime.v1.Observation/WatchExecutionProgress" => Box::pin(session.watch::<v1::ObservationWatchExecutionProgressRequest, v1::ObservationWatchExecutionProgressOutput>("/dokime.v1.Observation/WatchExecutionProgress", payload)).await,
         "/dokime.v1.Observation/WatchRuntime" => Box::pin(session.watch::<v1::ObservationWatchRuntimeRequest, v1::ObservationWatchRuntimeOutput>("/dokime.v1.Observation/WatchRuntime", payload)).await,
         "/dokime.v1.Plots/Watch" => Box::pin(session.watch::<v1::PlotsWatchRequest, v1::PlotsWatchOutput>("/dokime.v1.Plots/Watch", payload)).await,
         "/dokime.v1.Reports/DownloadCycleReport" => Box::pin(session.watch::<v1::ReportsDownloadCycleReportRequest, v1::ReportsDownloadCycleReportOutput>("/dokime.v1.Reports/DownloadCycleReport", payload)).await,
         "/dokime.v1.Reports/DownloadExecutionReport" => Box::pin(session.watch::<v1::ReportsDownloadExecutionReportRequest, v1::ReportsDownloadExecutionReportOutput>("/dokime.v1.Reports/DownloadExecutionReport", payload)).await,
         "/dokime.v1.Telemetry/WatchSamples" => Box::pin(session.watch::<v1::TelemetryWatchSamplesRequest, v1::TelemetryWatchSamplesOutput>("/dokime.v1.Telemetry/WatchSamples", payload)).await,
+        "/dokime.v1.executions.Progress/Watch" => Box::pin(session.watch::<v1::executions::ProgressWatchRequest, v1::executions::ProgressWatchResponse>("/dokime.v1.executions.Progress/Watch", payload)).await,
         "/harmos.v1.Invocations/Watch" => Box::pin(session.watch::<library::InvocationsWatchRequest, library::InvocationsWatchResponse>("/harmos.v1.Invocations/Watch", payload)).await,
         "/harmos.v1.Plugins/Watch" => Box::pin(session.watch::<library::PluginsWatchRequest, library::PluginsWatchResponse>("/harmos.v1.Plugins/Watch", payload)).await,
         "/harmos.v1.Status/Watch" => Box::pin(session.watch::<library::StatusWatchRequest, library::StatusWatchResponse>("/harmos.v1.Status/Watch", payload)).await,

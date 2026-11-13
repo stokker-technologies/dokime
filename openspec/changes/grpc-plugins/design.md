@@ -1168,11 +1168,9 @@ generator also has no domain error type: adding an unused error module only to
 satisfy the checker would create a placeholder rather than a required contract.
 
 
-Windows host proof is currently blocked by the operating-system credential store:
-Access credential publication returns native Windows error 8 from set_password,
-including in an isolated serial host story after compilation has finished. The
-failure is before the listener is announced; Host, CLI and Python SDK journeys
-therefore cannot complete. Focused diagnostic output is retained under
-`target/native-credential-failure.log`. No credentials belonging to existing roots
-were removed, and no alternate store, retry, deadline or budget change is added.
-The storage policy and pending source work remain unchanged.
+Disposable Windows roots remove their access and secret credentials through the
+product's root-scoped removal operation before deleting temporary storage. Host
+and CLI support owns failure-unwind cleanup; Python SDK and starter support calls
+the host executable's same removal operation after shutdown. Ordinary shutdown
+retains credentials for restart. Removal refuses an occupied root and preserves
+evidence; it never enumerates or deletes credentials belonging to other roots.

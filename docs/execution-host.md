@@ -89,6 +89,11 @@ certificate. Listener settings no longer belong to product application preferenc
 Dokime implements the library CredentialStore with atomic revision checks in product
 storage and private keys in the OS credential store. The library is the sole writer.
 Linux host-process stories retain one isolated credential-store session across restart.
+Windows stories remove their root's protected access and secret slots before deleting
+temporary storage, including during failure unwinding. Explicit root disposal uses
+`services::remove_credentials(root)` after stopping the host; it retains evidence
+and refuses an occupied root. The host executable exposes the same operation as
+`--storage PATH --remove-credentials`. Ordinary shutdown preserves credentials for restart.
 
 Plugins, Catalog, Settings, Secrets, Appearance and evidence Health
 serve every declared method, including their Run transports. Plugin installation
@@ -193,8 +198,12 @@ without altering seals. `client_controls_execution_lifecycle` proves the journey
 Observation serves runtime shells, scoped traceability, runtime invalidations and
 execution progress through both call forms. Runtime watches resynchronize first,
 reject another epoch or a future revision, and settle on graceful shutdown.
-Execution progress follows manager transitions and questions; each execution
-settles independently. Cancelling either watch leaves its run active.
+Execution progress uses `dokime.v1.executions.Progress.Get/Watch`; each execution
+settles independently. Get returns the current whole value, revision and durable
+`resolved_at`, also included in execution detail. Watch opens at the requested
+returned position and follows changes to that value and the manager's phase;
+its finished observation precedes successful stream completion. Unrelated evidence
+does not repeat an unchanged progress value. Cancelling a watch leaves its run active.
 `client_observes_runtime_state` proves these contracts.
 
 History serves all eleven operations and their Run forms. Checkpoint inspection
@@ -571,10 +580,20 @@ Environment and Time.Get now resolve through the active invocation and the
 host clock. Document and file-capture declarations still need their remaining
 handlers; the grammar task list retains those obligations.
 
-The plugin lifecycle, client resource split, Progress/Traceability/Effects
-revision contracts, HostValues and library plugin/transfer composition remain
-open. The lifecycle binding-policy dependency has a failing consumer proof in
-Library Requests. Existing context groups are replaced without wire aliases.
+Progress uses distinct context `dokime.context.v1.executions.Progress.Get/Set`
+wrappers. Get returns the complete writable `ExecutionProgressValue` and revision;
+Set replaces completed, total and label together, with an expected revision and
+caller-retained request ID. Reusing an unchanged request returns its original
+durable receipt, while stale revisions and changed requests conflict. SDK progress
+conveniences perform Get then Set and require both declarations. Clients have no Set.
+Returned progress positions survive restart until execution deletion; foreign or
+unissued positions are refused. `client_observes_revisioned_progress` exercises
+the plugin and client journey through the descriptor-derived client hierarchy.
+
+Lifecycle identities remain Protected bindings on Instance.Invoke. The rest of
+the client resource split, Traceability/Effects, HostValues and library
+plugin/transfer composition remain open. Existing context groups are replaced
+without wire aliases.
 
 ## Present Operation to Grammar Name
 

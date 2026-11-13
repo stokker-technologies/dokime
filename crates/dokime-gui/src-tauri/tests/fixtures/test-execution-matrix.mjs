@@ -20,12 +20,12 @@ try {
   const cycle = await api.executionCreateCycle(session, { origins: plan.cases.map(item => item.origin), continueAutomatically: true });
   const executionId = cycle.executionIds[0];
   // Await an Actual Prompt Phase; Never Wait for a Fixed Duration
-  progress = await api.observationWatchExecutionProgress(session, { testExecutionId: executionId });
+  progress = await api.executionsProgressWatch(session, { name: executionId });
   const iterator = progress[Symbol.asyncIterator]();
   while (true) {
     const next = await iterator.next();
     assert.ok(!next.done, "Execution Must Reach Its Operator Question");
-    if (next.value.progress?.phase === "prompt") break;
+    if (next.value.phase === "prompt") break;
   }
   const pending = await api.promptsListPending(session, { executionId });
   assert.equal(pending.prompts.length, 1);

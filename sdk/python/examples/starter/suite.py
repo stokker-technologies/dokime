@@ -90,7 +90,8 @@ def plugin():
         "dokime.context.v1.evidence.Records/Append",
         "dokime.context.v1.evidence.Records/List",
         "dokime.context.v1.Evidence/Statistics",
-        "dokime.execution.progress",
+        "dokime.context.v1.executions.Progress/Get",
+        "dokime.context.v1.executions.Progress/Set",
         "dokime.context.v1.evidence.Logs/Append",
         "harmos.context.v1.Time/Sleep",
     }

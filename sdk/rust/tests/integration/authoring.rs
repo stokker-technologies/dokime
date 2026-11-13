@@ -147,9 +147,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             },
         )
         .await?;
+    let get = ramp.child().await?;
+    ramp.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
     let progress = ramp.child().await?;
-    assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.completed, 1);
-    ramp.reply(progress.call, v1::ReportProgressResponse {}).await?;
+    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed, 1);
+    ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
     ramp.finish::<v1::StepResponse>().await?;
 
     // Answer the Operator Prompt and Acknowledge the Record Before the Step Continues.
@@ -220,9 +222,11 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 
     // Finish the Wait by Protocol Event and Acknowledge the Step's Final Progress.
     hold.reply(sleep.call, harmos_protocol::context::TimeSleepResponse {}).await?;
+    let get = hold.child().await?;
+    hold.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
     let progress = hold.child().await?;
-    assert_eq!(v1::ReportProgress::decode(progress.payload.as_slice())?.completed, 2);
-    hold.reply(progress.call, v1::ReportProgressResponse {}).await?;
+    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.value.unwrap().completed, 2);
+    hold.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
     hold.finish::<v1::StepResponse>().await?;
 
     // Evaluate Captured Evidence Through Host Statistics and Bounded Record Reads.

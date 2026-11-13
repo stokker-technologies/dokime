@@ -51,16 +51,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut endpoint = None;
     let mut root = None;
     let mut controlled = false;
+    let mut remove_credentials = false;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--endpoint" => endpoint = Some(arguments.next().ok_or("Start Host: Supply --endpoint HOST:PORT")?.parse()?),
             "--storage" => root = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --storage PATH")?)),
             "--controlled-clock" => controlled = true,
+            "--remove-credentials" => remove_credentials = true,
             _ => return Err(format!("Start Host: Unknown Argument {argument}").into()),
         }
     }
-    let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let root = root.ok_or("Start Host: Supply --storage PATH")?;
+    if remove_credentials {
+        services::remove_credentials(&root)?;
+        return Ok(());
+    }
+    let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
         clock,

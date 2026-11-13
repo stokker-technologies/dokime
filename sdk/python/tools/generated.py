@@ -91,7 +91,7 @@ def main():
             count += 1
         for service in definition.service:
             for method in service.method:
-                path = f"/dokime.v1.{service.name}/{method.name}"
+                path = f"/{definition.package}.{service.name}/{method.name}"
                 cardinality = ("stream" if method.client_streaming else "unary") + "_" + ("stream" if method.server_streaming else "unary")
                 methods[path] = cardinality
                 actual, serialize, deserialize = channel.methods[path]

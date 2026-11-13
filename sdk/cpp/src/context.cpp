@@ -10,6 +10,8 @@
 /* === Imports === */
 
 #include "dokime/context.hpp"
+#include "dokime/context/v1/executions/progress.pb.h"
+#include <random>
 
 /* === Macros === */
 
@@ -35,8 +37,10 @@ const harmos::Operation<::dokime::context::v1::evidence::RecordsListRequest, ::d
     records_call("dokime.context.v1.evidence.Records/List", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::EvidenceStatisticsRequest, ::dokime::context::v1::EvidenceStatisticsResponse>
     statistics_call("dokime.context.v1.Evidence/Statistics", harmos::wire::VISIBILITY_PUBLIC);
-const harmos::Operation<v1::ReportProgress, v1::ReportProgressResponse> progress_call("dokime.execution.progress",
-                                                                                      harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<::dokime::context::v1::executions::ProgressGetRequest, ::dokime::context::v1::executions::ProgressGetResponse>
+    progress_get("dokime.context.v1.executions.Progress/Get", harmos::wire::VISIBILITY_PUBLIC);
+const harmos::Operation<::dokime::context::v1::executions::ProgressSetRequest, ::dokime::context::v1::executions::ProgressSetResponse>
+    progress_set("dokime.context.v1.executions.Progress/Set", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<::dokime::context::v1::evidence::LogsAppendRequest, ::dokime::context::v1::evidence::LogsAppendResponse>
     log_call("dokime.context.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC);
 const harmos::Operation<v1::PublishArtifact, v1::ArtifactReceipt> artifact_call("dokime.execution.artifact",
@@ -101,12 +105,19 @@ v1::Secret Context::secret(std::string identifier) {
   return operation(statistics_call, std::move(request));
 }
 void Context::progress(std::uint64_t completed, std::uint64_t total, std::string label) {
-  v1::ReportProgress request;
-  request.set_execution(execution());
-  request.set_completed(completed);
-  request.set_total(total);
-  request.set_label(std::move(label));
-  operation(progress_call, std::move(request));
+  ::dokime::context::v1::executions::ProgressGetRequest get;
+  get.set_name(execution());
+  const auto current = operation(progress_get, std::move(get));
+  ::dokime::context::v1::executions::ProgressSetRequest request;
+  request.set_name(execution());
+  request.mutable_value()->set_completed(completed);
+  request.mutable_value()->set_total(total);
+  request.mutable_value()->set_label(std::move(label));
+  request.set_expected_revision(current.revision());
+  std::random_device random;
+  request.set_request_id(std::to_string(random()) + ":" + std::to_string(random()) + ":" + std::to_string(random()) + ":" +
+                         std::to_string(random()));
+  operation(progress_set, std::move(request));
 }
 void Context::log(v1::Severity severity, std::string message) {
   ::dokime::context::v1::evidence::LogsAppendRequest request;
@@ -131,7 +142,8 @@ void Context::declare_requirements(harmos::Plugin &plugin) {
       .requires_operation(record_call)
       .requires_operation(records_call)
       .requires_operation(statistics_call)
-      .requires_operation(progress_call)
+      .requires_operation(progress_get)
+      .requires_operation(progress_set)
       .requires_operation(log_call)
       .requires_operation(artifact_call)
       .requires_operation(traceability_call)

@@ -47,7 +47,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         use dokime::v1;
 
         // Save a Secret by Identifier and Reject Stale Edits
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let storage = root.path().join("storage");
         let credentials = super::support::CredentialStore::start(root.path()).await?;
         let process =

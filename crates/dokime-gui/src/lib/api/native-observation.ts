@@ -30,9 +30,10 @@ const GUI_SMALL_PAGE_ITEMS = 100;
 /* === Types === */
 
 type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
-type ExecutionProgressFrame = Wire<
-  Awaited<ReturnType<typeof rpc.observationWatchExecutionProgress>> extends NativeStream<infer Frame> ? Frame : never
->;
+interface ExecutionProgressFrame {
+  progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
+  finished: boolean;
+}
 type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
 type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
 type EvidenceScope = Wire<HostEvidenceScope>;
@@ -338,7 +339,7 @@ export async function openNativeExecutionProgressStream(
   session: NativeObservationSession,
   testExecutionId: string,
 ): Promise<NativeStream<ExecutionProgressFrame>> {
-  const reader = await rpc.observationWatchExecutionProgress(session, { testExecutionId });
+  const reader = await rpc.executionsProgressWatch(session, { name: testExecutionId });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
   const cancelReader = (): Promise<void> => {
@@ -358,7 +359,20 @@ export async function openNativeExecutionProgressStream(
   const forward = (async function* () {
     let exhausted = false;
     try {
-      for await (const frame of reader) yield frame;
+      for await (const frame of reader)
+        yield {
+          progress:
+            frame.value && !frame.finished
+              ? {
+                  testExecutionId,
+                  label: frame.value.label,
+                  phase: frame.phase,
+                  completed: frame.value.completed,
+                  total: frame.value.total,
+                }
+              : null,
+          finished: frame.finished,
+        };
       exhausted = true;
     } finally {
       if (!exhausted) await cancelReader().catch(() => undefined);

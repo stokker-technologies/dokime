@@ -47,8 +47,8 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
         use dokime::v1;
 
         // Open Settings and Save a Revision-Checked Preference
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         // An Unavailable Plugin Retains Editable Settings Without Startup Injection
         let catalog = dokime::Plugin::new("settings.fixture", "0.1.0")

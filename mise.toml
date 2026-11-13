@@ -9,7 +9,6 @@
 # === Settings === #
 
 [settings]
-jobs = 1
 lockfile = true
 
 # === Tools === #
@@ -80,12 +79,10 @@ run = [
 description = "Generate Clients from Contracts"
 usage = 'flag "--check" help="Check Rust Bindings; Requires --protocol"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"'
 run = """
-{% if usage.check and not usage.protocol %}
+{% if usage.protocol %}
+{{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}
+{% elif usage.check %}
 python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift Returns With the Desktop')"
-{% elif usage.protocol and usage.check %}
-mise run test -- --package dokime-protocol --target integration
-{% elif usage.protocol %}
-{{vars.tools}} dokime_tools.build.cargo focused run --locked --package dokime-protocol-generator
 {% else %}
 {{vars.tools}} dokime_tools.prepare.generated --generate
 {% endif %}
@@ -361,6 +358,7 @@ flag "--prepared"
 depends = [
   "test:rust:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:rust:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
+  "test:rust:acceptance --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:rust:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
 ]
 
@@ -445,6 +443,7 @@ flag "--prepared"
 depends = [
   "test:typescript:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:typescript:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
+  "test:typescript:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
 ]
 
 [tasks."prepare:desktop"]
@@ -462,7 +461,7 @@ flag "--select <select>"
 '''
 run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
-  '''{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% else %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}{% endif %}''',
 ]
 
 [tasks."test:typescript:unit"]

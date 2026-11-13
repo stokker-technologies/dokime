@@ -42,13 +42,20 @@ function generate() {
   descriptors.file.push(...librarySet.file.filter((file) => ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)));
   const type = (name) =>
     name.startsWith(".dokime.v1.")
-      ? name.replace(/^\.dokime\.v1\./, "v1::")
+      ? name.replace(/^\.dokime\.v1\./, "v1::").replaceAll(".", "::")
       : name.replace(/^\.harmos\.v1\./, "library::").replaceAll(".", "::");
   const unary = [];
   const watches = [];
   const inputs = [];
   for (const file of descriptors.file) {
-    if (!["dokime.v1", "harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)) continue;
+    if (
+      !(
+        file.package === "dokime.v1" ||
+        file.package.startsWith("dokime.v1.") ||
+        ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)
+      )
+    )
+      continue;
     for (const service of file.service) {
       if (["Backend", "Runtime", "Remote"].includes(service.name)) continue;
       for (const method of service.method) {
@@ -183,7 +190,7 @@ function generateFrontend() {
     return entry.message;
   }
   for (const file of files.values()) {
-    const productFile = file.package === "dokime.v1";
+    const productFile = file.package === "dokime.v1" || file.package.startsWith("dokime.v1.");
     const libraryFile = ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package);
     if (!productFile && !libraryFile) continue;
     for (const service of file.service) {
@@ -195,13 +202,11 @@ function generateFrontend() {
         continue;
       for (const method of service.method) {
         if (method.name.startsWith("Run")) continue;
-        const prefix = productFile
-          ? ""
-          : file.package
-              .split(".")
-              .slice(2)
-              .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
-              .join("");
+        const prefix = file.package
+          .split(".")
+          .slice(2)
+          .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
+          .join("");
         const fullName = `${prefix}${service.name}${method.name}`;
         const name = `${fullName[0].toLowerCase()}${fullName.slice(1)}`;
         const path = `/${file.package}.${service.name}/${method.name}`;

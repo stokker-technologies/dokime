@@ -268,11 +268,12 @@ impl Context {
     }
 
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
-        self.host(v1::ReportProgress {
-            execution: self.execution_id().into(),
-            completed,
-            total,
-            label: label.into(),
+        let current = self.host(dokime_protocol::context::executions::ProgressGetRequest { name: self.execution_id().into() }).await?;
+        self.host(dokime_protocol::context::executions::ProgressSetRequest {
+            name: self.execution_id().into(),
+            value: Some(v1::ExecutionProgressValue { completed, total, label: label.into() }),
+            expected_revision: current.revision,
+            request_id: uuid::Uuid::now_v7().to_string(),
         })
         .await?;
         Ok(())

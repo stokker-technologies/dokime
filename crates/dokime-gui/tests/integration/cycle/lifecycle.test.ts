@@ -411,10 +411,10 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const frame = path.endsWith("WatchRuntime")
       ? { resynchronized: true, cursor: { epoch: "host", stream: "runtime", position: 9n } }
-      : { resynchronized: true, revision: 10n, cleared: true };
-    if (path.endsWith("WatchExecutionProgress")) {
-      assert.ok("testExecutionId" in decoded);
-      assert.equal(decoded.testExecutionId, "execution");
+      : { finished: true };
+    if (path === "/dokime.v1.executions.Progress/Watch") {
+      assert.ok("name" in decoded);
+      assert.equal(decoded.name, "execution");
     }
     return {
       cancel: canceled,
@@ -434,7 +434,8 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   const progress = await openNativeExecutionProgressStream(observation, "execution");
   const frames = [];
   for await (const frame of progress) frames.push(frame);
-  assert.equal(frames[0].cleared, true);
+  assert.equal(frames[0].progress, null);
+  assert.equal(frames[0].finished, true);
   assert.equal(release.mock.calls.length, 2);
   await progress.cancel();
   for (const dispose of owned) dispose();

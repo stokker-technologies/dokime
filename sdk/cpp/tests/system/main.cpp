@@ -79,8 +79,12 @@ int main(int argc, char **argv) {
         .requires_operation(
             harmos::Operation<::dokime::context::v1::EvidenceStatisticsRequest, ::dokime::context::v1::EvidenceStatisticsResponse>(
                 "dokime.context.v1.Evidence/Statistics", harmos::wire::VISIBILITY_PUBLIC))
-        .requires_operation(harmos::Operation<dokime::v1::ReportProgress, dokime::v1::ReportProgressResponse>(
-            "dokime.execution.progress", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(
+            harmos::Operation<dokime::context::v1::executions::ProgressGetRequest, dokime::context::v1::executions::ProgressGetResponse>(
+                "dokime.context.v1.executions.Progress/Get", harmos::wire::VISIBILITY_PUBLIC))
+        .requires_operation(
+            harmos::Operation<dokime::context::v1::executions::ProgressSetRequest, dokime::context::v1::executions::ProgressSetResponse>(
+                "dokime.context.v1.executions.Progress/Set", harmos::wire::VISIBILITY_PUBLIC))
         .requires_operation(
             harmos::Operation<::dokime::context::v1::evidence::LogsAppendRequest, ::dokime::context::v1::evidence::LogsAppendResponse>(
                 "dokime.context.v1.evidence.Logs/Append", harmos::wire::VISIBILITY_PUBLIC))

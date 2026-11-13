@@ -48,7 +48,7 @@ use prost::Message;
 async fn step_failure_and_retries() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retry One Transient Failure and Exhaust Another Operation's Policy
-        let root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         for failures in [1, 2] {

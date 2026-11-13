@@ -995,19 +995,14 @@ pub struct Record {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ReportProgress {
-    #[prost(string, tag = "1")]
-    pub execution: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "2")]
+pub struct ExecutionProgressValue {
+    #[prost(uint64, tag = "1")]
     pub completed: u64,
-    #[prost(uint64, tag = "3")]
+    #[prost(uint64, tag = "2")]
     pub total: u64,
-    #[prost(string, tag = "4")]
+    #[prost(string, tag = "3")]
     pub label: ::prost::alloc::string::String,
 }
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ReportProgressResponse {}
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReadSettings {}
@@ -6670,6 +6665,10 @@ pub struct ExecutionOutcomeCounts {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionDetail {
+    #[prost(message, optional, tag = "20")]
+    pub progress: ::core::option::Option<ExecutionProgressValue>,
+    #[prost(message, optional, tag = "21")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::Position>,
     /// Counts and evaluated-only verdict for all executions in this cycle.
     #[prost(message, optional, tag = "19")]
     pub cycle_counts: ::core::option::Option<ExecutionOutcomeCounts>,
@@ -6921,36 +6920,6 @@ pub struct ExecutionPage {
     pub next: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, tag = "6")]
     pub complete: bool,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ExecutionProgress {
-    #[prost(string, tag = "1")]
-    pub test_execution_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub step_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub phase: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "4")]
-    pub completed: u64,
-    #[prost(uint64, tag = "5")]
-    pub total: u64,
-    #[prost(uint64, tag = "6")]
-    pub elapsed_ms: u64,
-    #[prost(uint64, optional, tag = "7")]
-    pub remaining_ms: ::core::option::Option<u64>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ExecutionProgressFrame {
-    #[prost(uint64, tag = "1")]
-    pub revision: u64,
-    #[prost(bool, tag = "2")]
-    pub resynchronized: bool,
-    #[prost(message, optional, tag = "3")]
-    pub progress: ::core::option::Option<ExecutionProgress>,
-    #[prost(bool, tag = "4")]
-    pub cleared: bool,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -29653,77 +29622,6 @@ pub mod observation_get_traceability_run_output {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationWatchExecutionProgressRequest {
-    #[prost(string, tag = "1")]
-    pub test_execution_id: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationWatchExecutionProgressOutput {
-    #[prost(oneof = "observation_watch_execution_progress_output::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<
-        observation_watch_execution_progress_output::Value,
-    >,
-}
-/// Nested message and enum types in `ObservationWatchExecutionProgressOutput`.
-pub mod observation_watch_execution_progress_output {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Item(super::ExecutionProgressFrame),
-        #[prost(message, tag = "2")]
-        Response(super::ClientEmpty),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationWatchExecutionProgressRunInput {
-    #[prost(
-        oneof = "observation_watch_execution_progress_run_input::Value",
-        tags = "1, 3, 4"
-    )]
-    pub value: ::core::option::Option<
-        observation_watch_execution_progress_run_input::Value,
-    >,
-}
-/// Nested message and enum types in `ObservationWatchExecutionProgressRunInput`.
-pub mod observation_watch_execution_progress_run_input {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Request(super::ObservationWatchExecutionProgressRequest),
-        #[prost(message, tag = "3")]
-        Cancel(super::ClientEmpty),
-        #[prost(message, tag = "4")]
-        Finish(super::ClientEmpty),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ObservationWatchExecutionProgressRunOutput {
-    #[prost(
-        oneof = "observation_watch_execution_progress_run_output::Value",
-        tags = "1, 2"
-    )]
-    pub value: ::core::option::Option<
-        observation_watch_execution_progress_run_output::Value,
-    >,
-}
-/// Nested message and enum types in `ObservationWatchExecutionProgressRunOutput`.
-pub mod observation_watch_execution_progress_run_output {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Item(super::ExecutionProgressFrame),
-        #[prost(message, tag = "2")]
-        Response(super::ClientEmpty),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ObservationWatchRuntimeRequest {
     #[prost(message, optional, tag = "1")]
     pub cursor: ::core::option::Option<Cursor>,
@@ -29985,75 +29883,6 @@ pub mod observation_client {
                 .insert(GrpcMethod::new("dokime.v1.Observation", "RunGetTraceability"));
             self.inner.streaming(req, path, codec).await
         }
-        /// Public. dokime.observation.watch_execution_progress. Output items precede the final response; require
-        /// successful final status. Cancelling this call does not undo committed mutations or cancel an admitted
-        /// execution. Streams the latest process-local progress for one execution. This is operational state: it is
-        /// coalesced, cleared at termination, and never persisted as telemetry or report evidence.
-        /// Latest progress, not a durable event log; revisions may coalesce. Reconnect with the captured revision or
-        /// explicitly resynchronize.
-        pub async fn watch_execution_progress(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::ObservationWatchExecutionProgressRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<super::ObservationWatchExecutionProgressOutput>,
-            >,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/dokime.v1.Observation/WatchExecutionProgress",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("dokime.v1.Observation", "WatchExecutionProgress"),
-                );
-            self.inner.server_streaming(req, path, codec).await
-        }
-        /// Public. Request first; ordered items, then finish or cancel; await settlement and final status.
-        pub async fn run_watch_execution_progress(
-            &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::ObservationWatchExecutionProgressRunInput,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<
-                    super::ObservationWatchExecutionProgressRunOutput,
-                >,
-            >,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/dokime.v1.Observation/RunWatchExecutionProgress",
-            );
-            let mut req = request.into_streaming_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("dokime.v1.Observation", "RunWatchExecutionProgress"),
-                );
-            self.inner.streaming(req, path, codec).await
-        }
         /// Public. dokime.observation.watch_runtime. Output items precede the final response; require successful final
         /// status. Cancelling this call does not undo committed mutations or cancel an admitted execution. This is a
         /// latest-state invalidation stream, not a durable event log. The initial frame always resynchronizes from
@@ -30187,47 +30016,6 @@ pub mod observation_server {
             >,
         ) -> std::result::Result<
             tonic::Response<Self::RunGetTraceabilityStream>,
-            tonic::Status,
-        >;
-        /// Server streaming response type for the WatchExecutionProgress method.
-        type WatchExecutionProgressStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ObservationWatchExecutionProgressOutput,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
-        /// Public. dokime.observation.watch_execution_progress. Output items precede the final response; require
-        /// successful final status. Cancelling this call does not undo committed mutations or cancel an admitted
-        /// execution. Streams the latest process-local progress for one execution. This is operational state: it is
-        /// coalesced, cleared at termination, and never persisted as telemetry or report evidence.
-        /// Latest progress, not a durable event log; revisions may coalesce. Reconnect with the captured revision or
-        /// explicitly resynchronize.
-        async fn watch_execution_progress(
-            &self,
-            request: tonic::Request<super::ObservationWatchExecutionProgressRequest>,
-        ) -> std::result::Result<
-            tonic::Response<Self::WatchExecutionProgressStream>,
-            tonic::Status,
-        >;
-        /// Server streaming response type for the RunWatchExecutionProgress method.
-        type RunWatchExecutionProgressStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ObservationWatchExecutionProgressRunOutput,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
-        /// Public. Request first; ordered items, then finish or cancel; await settlement and final status.
-        async fn run_watch_execution_progress(
-            &self,
-            request: tonic::Request<
-                tonic::Streaming<super::ObservationWatchExecutionProgressRunInput>,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<Self::RunWatchExecutionProgressStream>,
             tonic::Status,
         >;
         /// Server streaming response type for the WatchRuntime method.
@@ -30529,114 +30317,6 @@ pub mod observation_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = RunGetTraceabilitySvc(inner);
-                        let codec = tonic_prost::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/dokime.v1.Observation/WatchExecutionProgress" => {
-                    #[allow(non_camel_case_types)]
-                    struct WatchExecutionProgressSvc<T: Observation>(pub Arc<T>);
-                    impl<
-                        T: Observation,
-                    > tonic::server::ServerStreamingService<
-                        super::ObservationWatchExecutionProgressRequest,
-                    > for WatchExecutionProgressSvc<T> {
-                        type Response = super::ObservationWatchExecutionProgressOutput;
-                        type ResponseStream = T::WatchExecutionProgressStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::ObservationWatchExecutionProgressRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Observation>::watch_execution_progress(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = WatchExecutionProgressSvc(inner);
-                        let codec = tonic_prost::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/dokime.v1.Observation/RunWatchExecutionProgress" => {
-                    #[allow(non_camel_case_types)]
-                    struct RunWatchExecutionProgressSvc<T: Observation>(pub Arc<T>);
-                    impl<
-                        T: Observation,
-                    > tonic::server::StreamingService<
-                        super::ObservationWatchExecutionProgressRunInput,
-                    > for RunWatchExecutionProgressSvc<T> {
-                        type Response = super::ObservationWatchExecutionProgressRunOutput;
-                        type ResponseStream = T::RunWatchExecutionProgressStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                tonic::Streaming<
-                                    super::ObservationWatchExecutionProgressRunInput,
-                                >,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Observation>::run_watch_execution_progress(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = RunWatchExecutionProgressSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

@@ -257,9 +257,12 @@ enum Visibility {
 ```
 
 For example `dokime/plugin/v1/steps.proto` declares StepsExecuteRequest and
-StepsExecuteResponse for the catalog operation
-`dokime.plugin.v1.Steps/Execute`, carried by Instance.Invoke; it declares no
-`service Steps` RPC. Context wrappers similarly describe child payloads rather
+StepsExecuteResponse, the messages every step shares; it declares no
+`service Steps` RPC and no single catalog operation. Each lifecycle binding (a
+step, a criterion, a template's materialize, initialize and cleanup) is its own
+Protected catalog operation under its plugin-authored dotted identity, such as
+`thermal.cycle.step.0`, with its own callee-owned policy and handler, carried by
+Instance.Invoke. Amended by the owner on 2026-11-13. Context wrappers similarly describe child payloads rather
 than new network entry methods. Counts below distinguish these logical service
 namespaces from wire gRPC services and exclude supporting payload/control frames.
 
@@ -1196,13 +1199,19 @@ header is stale. Generated availability is not proof of application consumption.
 
 ## Open Questions During Implementation
 
-The canonical lifecycle split is blocked on representing template-local bindings
-with their independent callee-owned policy under one operation ID. The pinned SDK
-registry rejects a second Steps/Execute contract, even when the handlers and retry
-policies belong to distinct steps. The focused consumer proof and requested shape
-are in Library Requests. Moving per-binding policy into caller-authored overrides,
-collapsing those policies or advertising old dynamic IDs would change the locked
-contract; no such replacement is introduced. Independent context groups continue.
+Progress retains issued durable positions across restart until its execution is
+deleted. Its immutable value history and request receipts are committed with
+evidence; reads never flush accepted work. Client Get/Watch and context Get/Set
+use separate wrappers on the same storage owner. Unrelated evidence does not
+emit unchanged progress, while manager phase and finished observations remain
+part of Watch. Other resources' mutable-cut retention remains to be settled.
+
+Lifecycle identity (Owner, amended by the owner on 2026-11-13): each lifecycle
+binding keeps its own Protected operation identity with its own callee-owned policy
+and handler; the plugin face supplies the shared request and response messages. The
+qualified names in the lifecycle rows of the mapping table name those message
+families, not one shared operation. The library gains no binding-local dispatch, and
+the Library Request for it is withdrawn.
 
 Settings/secrets ownership and all four hierarchical client roots are locked,
 not open questions. The manager split keeps cycles with execution; the additive

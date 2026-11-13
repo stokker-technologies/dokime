@@ -18,6 +18,7 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
+from importlib.resources import files
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -60,11 +61,12 @@ class Client:
             unary_unary=lambda *args, **kwargs: partial(channel.unary_unary(*args, **kwargs), metadata=self.metadata),
             unary_stream=lambda *args, **kwargs: partial(channel.unary_stream(*args, **kwargs), metadata=self.metadata),
         )
-        self._library = LibraryClient(resource_channel)
+        product_table = json.loads(files("dokime").joinpath("resources.json").read_text(encoding="utf-8"))
+        self._library = LibraryClient(resource_channel, product_table)
         self.stubs = {name: stub(channel) for name, stub in services().items()}
         self._methods = []
         for definition in descriptors().file:
-            if definition.package != "dokime.v1":
+            if definition.package != "dokime.v1" and not definition.package.startswith("dokime.v1."):
                 continue
             for service in definition.service:
                 selected = descriptor_pool.Default().FindServiceByName(f"{definition.package}.{service.name}")
@@ -170,23 +172,23 @@ class Cycle:
     async def watch(self):
         for identifier in self.executions:
             terminal = False
-            async for frame in self.client.call(message("ObservationWatchExecutionProgressRequest", test_execution_id=identifier)):
-                kind = frame.WhichOneof("value")
+            async for frame in self.client._library.executions.progress.watch(
+                message("dokime.v1.executions.ProgressWatchRequest", name=identifier)
+            ):
                 if terminal:
-                    raise RuntimeError("Watch Cycle: Frame After Terminal Response")
-                if kind == "response":
-                    terminal = True
-                elif kind == "item" and frame.item.HasField("progress"):
-                    yield frame.item.progress
-                else:
-                    raise RuntimeError("Watch Cycle: Missing Progress")
+                    raise RuntimeError("Watch Cycle: Progress After Settlement")
+                terminal = frame.finished
+                yield frame
             if not terminal:
-                raise RuntimeError("Watch Cycle: Missing Terminal Response")
+                raise RuntimeError("Watch Cycle: Missing Finished Progress")
 
 
 class Executions:
     def __init__(self, client: Client):
         self._client = client
+
+    def __getattr__(self, name):
+        return getattr(self._client._library.executions, name)
 
     async def get(self, identifier: str):
         return await self._client.call(message("ExecutionGetExecutionRequest", execution_id=identifier))

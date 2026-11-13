@@ -50,8 +50,8 @@ use tokio::process::Command;
 async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
-        let root = tempfile::tempdir()?;
-        let credential_root = tempfile::tempdir()?;
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let python = std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {

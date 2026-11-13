@@ -22,6 +22,7 @@ mod content;
 mod documents;
 mod evidence;
 mod execution;
+mod executions_progress;
 mod health;
 mod history;
 mod managed_plugins;
@@ -116,6 +117,25 @@ impl Drop for Server {
 
 /* === Public Functions === */
 
+/// Remove Protected Values Before Explicitly Discarding a Storage Root.
+/// The Host Must Be Stopped; Evidence and the Root Itself Are Retained.
+pub fn remove_credentials(root: &Path) -> Result<()> {
+    if !root.join("backend-id").is_file() {
+        return Ok(());
+    }
+    let lease = std::fs::OpenOptions::new().read(true).write(true).open(root.join("local.lock"))?;
+    match lease.try_lock() {
+        Ok(()) => {}
+        Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),
+        Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+    }
+    let host_id = std::fs::read_to_string(root.join("backend-id"))?;
+    let storage = dokime_storage::Store::open(root)?;
+    dokime_operations_next::client::remove_root_secrets(&storage)?;
+    access_credentials::Store::new(storage, host_id).remove()?;
+    Ok(())
+}
+
 pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSettings, settings: ClientSettings) -> Result<Server> {
     if !endpoint.ip().is_loopback() {
         return Err(Error::Invalid("Use the Authenticated Remote Listener for Non-Loopback Access".into()));
@@ -132,21 +152,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     }
     let clock = host_settings.clock.clone();
     let host = Host::open(root, host_settings)?;
-    let identity_path = root.join("backend-id");
-    let backend_id = if identity_path.exists() {
-        std::fs::read_to_string(&identity_path).map_err(|error| {
-            Error::Invalid(format!("Start Host: Cannot Read Backend Identity; Make a Backup and Reset or Choose a Fresh Root: {error}"))
-        })?
-    } else {
-        use std::io::Write;
-        let identifier = uuid::Uuid::now_v7().to_string();
-        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&identity_path)?;
-        file.write_all(identifier.as_bytes())?;
-        file.sync_all()?;
-        identifier
-    };
-    uuid::Uuid::parse_str(&backend_id)
-        .map_err(|_| Error::Invalid("Start Host: Cannot Decode Backend Identity; Make a Backup and Reset or Choose a Fresh Root".into()))?;
+    let backend_id = host.store.identity().to_owned();
     let identity = v1::BackendIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
@@ -230,6 +236,11 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 
 fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
+    manager.register_service(
+        v1::executions::progress_server::ProgressServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
     manager.register_service(
         v1::appearance_server::AppearanceServer::new(services.clone())
             .max_decoding_message_size(message_bytes)

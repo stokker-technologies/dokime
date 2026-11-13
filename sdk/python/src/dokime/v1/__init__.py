@@ -42,7 +42,7 @@ def descriptors() -> descriptor_pb2.FileDescriptorSet:
 def services() -> dict[str, type]:
     result = {}
     for definition in descriptors().file:
-        if definition.package != "dokime.v1":
+        if definition.package != "dokime.v1" and not definition.package.startswith("dokime.v1."):
             continue
         module = import_module(definition.name.removesuffix(".proto").replace("/", ".") + "_pb2_grpc")
         for service in definition.service:

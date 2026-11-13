@@ -309,7 +309,7 @@ impl Session {
     {
         let value = Q::decode(payload).map_err(|error| Status::invalid_argument(format!("{path}: {error}")))?;
         let request = self.request(value)?;
-        let transport = self.client.transport_handle();
+        let transport = self.client.transport().transport_handle();
         let response = self
             .execute(transport.unary::<Q, R>(path.parse().expect("generated operation path"), request, R::default().descriptor()))
             .await?;
@@ -326,7 +326,7 @@ impl Session {
         let value = Q::decode(payload).map_err(|error| Status::invalid_argument(format!("{path}: {error}")))?;
         let mut request = self.request(value)?;
         request.set_timeout(self.watch_timeout);
-        let transport = self.client.transport_handle();
+        let transport = self.client.transport().transport_handle();
         let mut watch = self
             .execute(transport.watch_known::<Q, O>(path.parse().expect("generated operation path"), request, O::default().descriptor()))
             .await?;

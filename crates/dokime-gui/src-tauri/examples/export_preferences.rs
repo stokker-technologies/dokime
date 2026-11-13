@@ -53,10 +53,21 @@ fn main() -> Result<(), String> {
 }
 
 async fn export() -> Result<(), Box<dyn std::error::Error>> {
-    // Reuse the Generator-Owned Host Root Without Resetting Its Storage.
+    // Own a Fresh Disposable Host; Existing Generator and User Roots Stay Intact.
     let directory = PathBuf::from(std::env::args_os().nth(1).ok_or("Export Preferences: Supply an Output Directory")?);
+    let root = tempfile::tempdir()?;
+    let result = export_at(&directory, root.path()).await;
+    if root.path().join("backend-id").is_file()
+        && let Err(error) = dokime_runtime_next::services::remove_credentials(root.path())
+    {
+        return Err(format!("Export Preferences: Remove Credentials at {}: {error}", root.keep().display()).into());
+    }
+    result
+}
+
+async fn export_at(directory: &std::path::Path, root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     let (mut owner, _) =
-        backend::start(&Backend::new(directory.join("host")), |_| {}).await.map_err(|error| format!("Export Preferences: {error:?}"))?;
+        backend::start(&Backend::new(root.to_owned()), |_| {}).await.map_err(|error| format!("Export Preferences: {error:?}"))?;
     let session = owner.session()?;
     let result = async {
         // Read Product Defaults and the Independently Owned Listener.

@@ -16,6 +16,7 @@
 #include "dokime/context/v1/evidence.pb.h"
 #include "dokime/context/v1/evidence/logs.pb.h"
 #include "dokime/context/v1/evidence/records.pb.h"
+#include "dokime/context/v1/executions/progress.pb.h"
 #include "dokime/context/v1/files.pb.h"
 #include "dokime/context/v1/files/captures.pb.h"
 #include "dokime/context/v1/prompts.pb.h"

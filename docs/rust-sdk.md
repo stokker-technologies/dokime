@@ -153,6 +153,13 @@ the generated messages and their declared requirements.
 `ctx.sleep` and `ctx.now` require `dokime::clock::TimeSleepRequest` and `dokime::clock::TimeGetRequest`;
 all waits and clock reads go to the host.
 
+`ctx.progress(...)` requires both context `executions::ProgressGetRequest` and
+`ProgressSetRequest`. It gets the revision then replaces completed, total and
+label as one value. Raw Set callers retain their request ID when resending.
+Clients observe it through `client.executions.progress.get(request)` and
+`.watch(request)`, using `dokime::v1::executions` wrappers. Their root is generated
+from the same descriptor table as the other SDKs and composes library services.
+
 `Record::<Door>::new(id, label)` names a derived record message. Pass the record
 value to `.record(...)` on Plugin and `ctx.record(&contract, value)` to publish it.
 Publication waits for the host receipt. The record type accumulator is inferred;

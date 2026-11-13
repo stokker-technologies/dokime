@@ -66,6 +66,8 @@ mod execution_state;
 pub mod execution_stop_execution;
 pub mod execution_submit_execution_command;
 pub mod execution_update_cycle_policy;
+pub mod executions_progress_get;
+pub mod executions_progress_watch;
 pub mod health_list_health;
 mod history;
 pub mod history_browse_cycles;
@@ -85,7 +87,6 @@ pub mod notes_list_notes;
 mod notes_selection;
 pub mod observation_get_runtime_shell;
 pub mod observation_get_traceability;
-pub mod observation_watch_execution_progress;
 pub mod observation_watch_runtime;
 mod paging;
 mod planning;
@@ -141,7 +142,7 @@ pub mod telemetry_watch_samples;
 
 /* === Re-Exports === */
 
-pub use secrets_store::register_redactions;
+pub use secrets_store::{register_redactions, remove_root_secrets};
 
 /* === Imports === */
 
@@ -295,9 +296,7 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Observation/GetTraceability",
     "/dokime.v1.Observation/RunGetRuntimeShell",
     "/dokime.v1.Observation/RunGetTraceability",
-    "/dokime.v1.Observation/RunWatchExecutionProgress",
     "/dokime.v1.Observation/RunWatchRuntime",
-    "/dokime.v1.Observation/WatchExecutionProgress",
     "/dokime.v1.Observation/WatchRuntime",
     "/dokime.v1.Planning/MaterializeTemplate",
     "/dokime.v1.Planning/PreviewSelection",
@@ -382,6 +381,8 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Telemetry/RunListSamples",
     "/dokime.v1.Telemetry/RunWatchSamples",
     "/dokime.v1.Telemetry/WatchSamples",
+    "/dokime.v1.executions.Progress/Get",
+    "/dokime.v1.executions.Progress/Watch",
 ];
 
 /* === Macros === */

@@ -313,15 +313,13 @@ fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), Box<dyn
         let response = session.call_raw("/dokime.v1.Execution/CreateCycle", &request).await?;
         let cycle = v1::CreateCycleReply::decode(response.as_slice())?;
         let execution = cycle.execution_ids.first().ok_or("Start Desktop Execution: Missing Execution Identity")?.clone();
-        let request = v1::ObservationWatchExecutionProgressRequest { test_execution_id: execution.clone() }.encode_to_vec();
-        let mut progress = session.watch_raw("/dokime.v1.Observation/WatchExecutionProgress", &request).await?;
+        let request = v1::executions::ProgressWatchRequest { name: execution.clone(), at: None }.encode_to_vec();
+        let mut progress = session.watch_raw("/dokime.v1.executions.Progress/Watch", &request).await?;
         loop {
             let frame = progress.next().await.ok_or("Observe Desktop Execution: Closed Before Prompt")??;
-            let frame = v1::ObservationWatchExecutionProgressOutput::decode(frame.as_slice())?;
-            let Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) = frame.value else {
-                return Err("Observe Desktop Execution: Finished Before Prompt".into());
-            };
-            if frame.progress.is_some_and(|progress| progress.phase == "prompt") { break; }
+            let frame = v1::executions::ProgressWatchResponse::decode(frame.as_slice())?;
+            if frame.finished { return Err("Observe Desktop Execution: Finished Before Prompt".into()); }
+            if frame.phase == "prompt" { break; }
         }
         let request = v1::PromptsListPendingRequest { execution_id: Some(execution.clone()), ..Default::default() }.encode_to_vec();
         let response = session.call_raw("/dokime.v1.Prompts/ListPending", &request).await?;
@@ -362,12 +360,9 @@ fn thermal_catalog_execution_prompts_evidence_and_report() -> Result<(), Box<dyn
         session.call_raw("/dokime.v1.Prompts/Respond", &request).await?;
         let mut terminal = false;
         while let Some(frame) = progress.next().await {
-            let frame = v1::ObservationWatchExecutionProgressOutput::decode(frame?.as_slice())?;
-            match frame.value {
-                Some(v1::observation_watch_execution_progress_output::Value::Item(_)) if !terminal => {}
-                Some(v1::observation_watch_execution_progress_output::Value::Response(_)) if !terminal => terminal = true,
-                _ => return Err("Observe Desktop Execution: Invalid Terminal Sequence".into()),
-            }
+            let frame = v1::executions::ProgressWatchResponse::decode(frame?.as_slice())?;
+            if terminal { return Err("Observe Desktop Execution: Frame After Completion".into()); }
+            terminal = frame.finished;
         }
         assert!(terminal);
 
