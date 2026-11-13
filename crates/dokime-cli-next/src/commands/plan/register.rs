@@ -23,7 +23,7 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -61,18 +61,16 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     if bytes.len() > settings.retained_bytes.get() {
         return Err(crate::error::Error::Capacity("Register Selection: Select a Smaller Request".into()));
     }
-    let descriptor = v1::PlanningRegisterSelectionRequest::default().descriptor();
+    let descriptor = client::CasesCreateRequest::default().descriptor();
     let mut json = serde_json::Deserializer::from_slice(&bytes);
     let message = prost_reflect::DynamicMessage::deserialize(descriptor, &mut json)?;
     json.end()?;
-    let request = message.transcode_to::<v1::PlanningRegisterSelectionRequest>()?;
+    let mut request = message.transcode_to::<client::CasesCreateRequest>()?;
+    request.validate_only = false;
 
     // Let the Host Own Validation and Registration
-    let channel = settings.channel(endpoint, false).await?;
-    let reply = v1::planning_client::PlanningClient::with_interceptor(channel, settings.interceptor())
-        .register_selection(request)
-        .await?
-        .into_inner();
+    let client = settings.sdk(endpoint, false).await?;
+    let reply = client.cases.create(settings.request(request)).await?.into_inner();
     if let Some(path) = args.out {
         let bytes = reply.encode_to_vec();
         if bytes.len() > settings.retained_bytes.get() {

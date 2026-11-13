@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -46,9 +47,9 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::prompts_client::PromptsClient::with_interceptor(channel, settings.interceptor());
-    let value = client.get_prompt(dokime::v1::PromptsGetPromptRequest { prompt_id: args.prompt }).await?.into_inner();
+    let client = settings.sdk(endpoint, false).await?;
+    let request = client::PromptsGetRequest { name: args.prompt, at: None };
+    let value = client.prompts.get(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -46,9 +47,9 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::catalog_client::CatalogClient::with_interceptor(channel, settings.interceptor());
-    let value = client.get_suite(dokime::v1::CatalogGetSuiteRequest { suite_id: args.suite }).await?.into_inner();
+    let client = settings.sdk(endpoint, false).await?;
+    let request = client::SuitesGetRequest { name: args.suite, ..Default::default() };
+    let value = client.suites.get(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

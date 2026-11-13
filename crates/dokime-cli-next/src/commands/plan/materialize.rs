@@ -22,6 +22,7 @@ use std::{collections::HashMap, path::PathBuf};
 use prost::Message;
 
 // Local Imports
+use dokime_protocol::client;
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -34,6 +35,9 @@ use dokime_protocol::v1;
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
+    request_id: Option<String>,
+
     #[arg(long)]
     suite: String,
 
@@ -59,8 +63,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = v1::planning_client::PlanningClient::with_interceptor(channel, settings.interceptor());
+    let client = settings.sdk(endpoint, false).await?;
     let mut parameters: HashMap<String, Vec<v1::Value>> = HashMap::new();
     if let Some(path) = args.parameters {
         let input: HashMap<String, Vec<serde_json::Value>> = serde_json::from_slice(&std::fs::read(path)?)?;
@@ -74,22 +77,26 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             parameters.insert(name, converted);
         }
     }
-    let request = v1::PlanningMaterializeTemplateRequest {
-        selection: Some(v1::RegisteredSelection {
-            suite_id: args.suite,
-            template_id: args.template,
-            parameters: parameters
-                .into_iter()
-                .map(|(key, values)| v1::RegisteredSelectionParametersEntry {
-                    key,
-                    value: Some(v1::SelectionValues { values }),
-                })
-                .collect(),
+    let request = client::CasesCreateRequest {
+        request_id: settings.request_id(args.request_id)?,
+        validate_only: false,
+        plan: Some(client::SelectionPlan {
+            selections: vec![client::RegisteredSelection {
+                suite_id: args.suite,
+                template_id: args.template,
+                parameters: parameters
+                    .into_iter()
+                    .map(|(key, values)| client::RegisteredSelectionParametersEntry {
+                        key,
+                        value: Some(client::SelectionValues { values }),
+                    })
+                    .collect(),
+                ..Default::default()
+            }],
             ..Default::default()
         }),
     };
-    let cases = client.materialize_template(request).await?.into_inner().cases;
-    let value = v1::PreviewSelectionReply { cases, ..Default::default() };
+    let value = client.cases.create(settings.request(request)).await?.into_inner();
     let bytes = value.encode_to_vec();
     if bytes.len() > settings.retained_bytes.get() {
         return Err(crate::error::Error::Capacity("Materialize Cases: Increase retained_bytes or Select Fewer Cases".into()));

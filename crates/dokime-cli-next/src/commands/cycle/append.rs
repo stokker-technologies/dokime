@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -33,7 +34,7 @@ use prost::Message;
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, help = "Encoded dokime.v1.ExecutionAppendExecutionsRequest")]
+    #[arg(long, help = "Encoded dokime.client.v1.ExecutionsCreateRequest")]
     request: PathBuf,
 
     #[arg(long)]
@@ -52,12 +53,9 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     if std::fs::metadata(&args.request)?.len() > settings.retained_bytes.get() as u64 {
         return Err(crate::error::Error::Capacity("Append Executions: Select a Smaller Request".into()));
     }
-    let request = dokime::v1::ExecutionAppendExecutionsRequest::decode(std::fs::read(args.request)?.as_slice())?;
-    let channel = settings.channel(endpoint, false).await?;
-    let value = dokime::v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor())
-        .append_executions(request)
-        .await?
-        .into_inner();
+    let request = client::ExecutionsCreateRequest::decode(std::fs::read(args.request)?.as_slice())?;
+    let client = settings.sdk(endpoint, false).await?;
+    let value = client.executions.create(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

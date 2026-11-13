@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -31,6 +32,9 @@
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
+    request_id: Option<String>,
+
     execution: String,
 
     #[arg(long)]
@@ -55,33 +59,30 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::prompts_client::PromptsClient::with_interceptor(channel, settings.interceptor());
+    let client = settings.sdk(endpoint, false).await?;
     let identifier = match args.prompt {
         Some(identifier) => identifier,
         None => {
-            let pending = client
-                .list_pending(dokime::v1::PromptsListPendingRequest {
-                    execution_id: Some(args.execution),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner();
+            let request = client::PromptsListRequest {
+                execution_id: Some(args.execution),
+                pending_only: true,
+                ..Default::default()
+            };
+            let pending = client.prompts.list(settings.request(request)).await?.into_inner();
             if pending.prompts.len() != 1 {
                 return Err("Answer Prompt: Supply --prompt When There Is Not Exactly One Pending Prompt".into());
             }
-            pending.prompts[0].prompt_id.clone()
+            pending.prompts[0].prompt.as_ref().ok_or("Answer Prompt: Missing Prompt Identity")?.prompt_id.clone()
         }
     };
-    let value = client
-        .respond(dokime::v1::PromptsRespondRequest {
-            prompt_id: identifier,
-            action: args.action,
-            accepted: args.accepted,
-            ..Default::default()
-        })
-        .await?
-        .into_inner();
+    let request = client::prompts::AnswersCreateRequest {
+        parent: identifier,
+        action: args.action,
+        accepted: args.accepted,
+        request_id: settings.request_id(args.request_id)?,
+        ..Default::default()
+    };
+    let value = client.prompts.answers.create(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

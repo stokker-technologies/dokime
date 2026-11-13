@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -34,6 +34,9 @@ use dokime_protocol::v1;
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
+    request_id: Option<String>,
+
     #[arg(long)]
     cases: PathBuf,
 
@@ -51,19 +54,19 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     if std::fs::metadata(&args.cases)?.len() > settings.retained_bytes.get() as u64 {
-        return Err(crate::error::Error::Capacity("Start Cycle: Select a Smaller Case File or Increase retained_bytes".into()));
+        return Err(crate::error::Error::Capacity("Start Cycle: Select a Smaller Case File".into()));
     }
-    let cases = v1::PreviewSelectionReply::decode(std::fs::read(args.cases)?.as_slice())?;
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor());
+    let cases = client::CasesCreateResponse::decode(std::fs::read(args.cases)?.as_slice())?;
     let origins =
         cases.cases.into_iter().map(|case| case.origin.ok_or("Start Cycle: Case Has No Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
-    let request = v1::ExecutionCreateCycleRequest {
+    let client = settings.sdk(endpoint, false).await?;
+    let request = client::CyclesCreateRequest {
         origins,
         continue_automatically: true,
+        request_id: settings.request_id(args.request_id)?,
         ..Default::default()
     };
-    let value = client.create_cycle(request).await?.into_inner();
+    let value = client.cycles.create(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

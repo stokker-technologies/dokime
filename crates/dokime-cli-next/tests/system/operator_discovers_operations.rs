@@ -60,10 +60,11 @@ async fn operator_discovers_operations() -> Result<(), Box<dyn std::error::Error
         };
         let client = dokime::Client::from_channel(channel, settings)?;
         let reply = client
-            .catalog(dokime::client::CatalogEntriesListRequest {
+            .catalog_entries
+            .list(tonic::Request::new(dokime::client::CatalogEntriesListRequest {
                 kind: dokime::client::CatalogKind::Operations as i32,
                 ..Default::default()
-            })
+            }))
             .await?
             .into_inner();
         let actual = listed["operations"].as_array().ok_or("List Operations: Missing Operations")?;

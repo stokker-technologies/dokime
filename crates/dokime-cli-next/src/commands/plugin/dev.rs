@@ -21,6 +21,7 @@ use std::{io::Write, path::PathBuf};
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -50,8 +51,8 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let result: crate::Result<()> = async {
         if endpoint.is_some() || settings.pairing.is_some() {
             let channel = settings.channel(endpoint, false).await?;
-            let mut client = dokime::v1::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
-            let entry = client.add(dokime::v1::AddRemotePlugin { url: process.endpoint().into() }).await?.into_inner();
+            let mut client = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
+            let entry = client.add(client::AddRemotePlugin { url: process.endpoint().into() }).await?.into_inner();
             registered = Some((client, entry.entry));
         }
         println!("{}", process.endpoint());
@@ -69,7 +70,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     .await;
     let removed = match registered {
-        Some((mut client, entry)) => client.remove(dokime::v1::RemovePlugin { entry }).await.map(|_| ()),
+        Some((mut client, entry)) => client.remove(client::RemovePlugin { entry }).await.map(|_| ()),
         None => Ok(()),
     };
     let closed = process.close().await;

@@ -113,6 +113,16 @@ fn command() -> tokio::process::Command {
     command
 }
 
+fn client_settings() -> dokime::ClientSettings {
+    dokime::ClientSettings {
+        transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
+        retained_bytes: std::num::NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
+        message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+        input_items: std::num::NonZeroUsize::new(8).unwrap(),
+        input_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+    }
+}
+
 async fn run(args: &[&str]) -> Result<String, Box<dyn std::error::Error>> {
     let output = command().args(args).output().await?;
     if !output.status.success() {
