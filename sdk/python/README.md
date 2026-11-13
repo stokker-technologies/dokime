@@ -55,7 +55,7 @@ async def main():
 ```
 
 The runnable [starter](examples/starter/) keeps its endpoint open until Ctrl+C.
-Its own test drives a complete execution through an in-process Harmos host:
+Its own test drives a complete execution through the prepared product host and client root:
 
 ```sh
 dokime new bench --lang python
