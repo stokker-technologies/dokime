@@ -49,6 +49,7 @@ Final full validation is separate from source completion.
 
 - [x] 0.A Record paging eligibility, one SDK package per language, unary transfers with 4 MiB default chunks and 8 MiB messages, and accepted threshold-free durable lag with no accepted-data snapshot in proposal/design/requirements/architecture; amended by the owner on 2026-11-13.
 - [ ] 0.B Lifecycle identity: keep every step, criterion and template lifecycle binding as its own Protected operation under its plugin-authored identity, sharing the plugin-face messages; align the mapping table, the requirements and the four SDKs; amended by the owner on 2026-11-13.
+- [ ] 0.C Merge gate, amended by the owner on 2026-11-13: the branch merges into dev once the face split with lifecycle identities, the library compositions and the desktop on the new host with both WebView lanes pass their targeted proof and the `-next` names are renamed. The missing context operations, command-line parity, held Query operations, invariant guards and test-placement findings land afterwards on dev, or earlier from worktrees with disjoint ownership; they do not hold the merge.
 - [x] 0.B Implement whole-set responses for product-owned bounded lists using design.md's per-set reasoning; keep unbounded evidence/history paged and position-resolved.
 - [ ] 0.C Migrate all product SDK distributions, installers, generators, fixtures and guides to one package per language; remove audience-specific builds after the library revision supplies the single harmos-sdk.
 
@@ -80,6 +81,8 @@ Final full validation is separate from source completion.
 - [ ] P2 Prove the pin with every new-host system story, new CLI system stories, fixture producers, protocol drift, SDK checks, format/language/repository checks, Tests compilation and canonical locked offline metadata. Record remaining native Linux proof explicitly.
 
 ## 0. Face Packages and File Moves First
+
+- [ ] 0.2.2 Replace Progress with context Executions.Progress.Get/Set and client Executions.Progress.Get/Watch, whole-value revision checks and retained durable positions; include the same value in execution detail. Inventory: progress protos/payloads, protocol and shared library client-root generation, storage resource values/issued positions, operations/host adapters, all four SDKs and their consumers/fixtures/starters/stories, architecture/execution-host/SDK guides. Remove ReportProgress and Observation progress methods and twins in the same building slice. Lifecycle identities and GUI sources remain excluded.
 
 - [x] 0.2.1 Move the independent Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment context declarations and their four-language consumers to final packages; retain distinct wrappers and no context client gRPC services. Inventory: proto/dokime/context, shared payloads, protocol generator/reflection, storage/evidence decoding, operations/runtime, SDKs, fixtures and current guides. Finish focused host/SDK/generation proof before closing.
 - [x] 0.C.1 Rename the Python distribution to dokime-sdk, retain import dokime, and migrate wheel/source release verification, starter requirements and fresh-install proof. Rust dokime, NuGet Dokime and CMake DokimeCpp / Dokime::Cpp already each contain both halves.
