@@ -13,16 +13,13 @@
 
 /* === Imports === */
 
-// Standard Library Imports
-use std::{future::Future, net::Ipv4Addr, sync::Arc, time::Duration};
 // Third Party Imports
-use tokio::sync::Notify;
+use prost::Message;
+use tokio_stream::StreamExt;
+
 // Local Imports
-use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
-use crate::wire::WireMessage;
-use dokime::client::contracts::{backend, catalog};
-use dokime::client::{Client, Error, Target};
-use dokime::domain::model;
+use crate::support::server::Fixture;
+use dokime_sdk::{client::v1 as library, v1};
 
 /* === Constants === */
 
@@ -42,346 +39,46 @@ use dokime::domain::model;
 
 /* === Private Functions === */
 
-async fn install_with_deadline(client: Client, mode: &str) -> String {
-    let frame = model::plugins::wire::InstallPluginFrame::default();
-    if mode == "prepared" {
-        let upload = client.plugins_install_open().unwrap();
-        upload.send(frame).await.unwrap();
-        return upload.finish().await.unwrap().install_id;
-    }
-    if mode == "typed" {
-        return client.plugins_install(tokio_stream::iter([frame])).await.unwrap().install_id;
-    }
-
-    // Canonical Empty Request And Input Item Envelopes, As Sent By The WebView.
-    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
-    let deadline = Duration::from_secs(20);
-    let mut reply = client.stream_raw("/dokime.v1.Plugins/Install", input, deadline).await.unwrap();
-    let bytes = reply.message().await.unwrap().unwrap();
-    let (installed, _) = model::plugins::wire::PluginInstallation::from_wire(&bytes).unwrap();
-    assert!(reply.message().await.unwrap().is_none());
-    installed.install_id.clone()
-}
-
-async fn assert_pending<F: Future + Unpin>(future: &mut F) {
-    tokio::task::yield_now().await;
-    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-    assert!(std::pin::Pin::new(future).poll(&mut context).is_pending(), "the future completed before its release");
-}
-
 /* === Tests === */
 
 #[tokio::test]
-async fn negotiation_deadline_expires_and_reconnects() {
-    // Hold Negotiation After The Request Reaches The Backend.
-    let mut service = Service::new("negotiation-deadline");
-    let gate = Arc::new(Gate::new());
-    service.gate = Some(gate.clone());
-    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let target = Target::local(&server.endpoint).unwrap();
-    let deadline = Duration::from_millis(target.settings().request_timeout_ms);
-    let pending = Client::connect(target.clone(), None, None);
-    tokio::pin!(pending);
-    tokio::select! {
-        _ = gate.entered.notified() => {},
-        result = &mut pending => panic!("negotiation ended before the gated response: {:?}", result.err()),
-    }
-
-    // Expire The Product Deadline Without Waiting On The Machine Clock.
-    tokio::time::pause();
-    tokio::time::advance(deadline).await;
-    assert!(matches!(pending.await, Err(Error::Rpc(status)) if status.code() == tonic::Code::DeadlineExceeded));
-    tokio::time::resume();
-
-    // Release Both The Cancelled Request And The Reconnect.
-    gate.release.add_permits(2);
-    let client = Client::connect(target, None, None).await.unwrap();
-    assert_eq!(client.backend().backend_id, "negotiation-deadline");
-    client.close_and_wait().await;
-    server_health(&server.endpoint).await;
+async fn sdk_and_binary_calls_share_host_identity() {
+    // Read the Same Library Status Through Typed and Binary Adapter Calls
+    let fixture = Fixture::new().await;
+    let client = fixture.client().await;
+    let typed =
+        client.execute(client.client().status.get(client.request(library::StatusGetRequest {}).unwrap())).await.unwrap().into_inner();
+    let bytes = client.call_raw("/harmos.v1.Status/Get", &[]).await.unwrap();
+    let binary = library::StatusGetResponse::decode(bytes.as_slice()).unwrap();
+    assert_eq!(typed.status.unwrap().identity, binary.status.unwrap().identity);
+    fixture.close().await;
 }
 
 #[tokio::test]
-async fn uploads_use_stream_deadlines() {
-    for mode in ["raw", "typed", "prepared"] {
-        let mut service = Service::new("stream-deadline");
-        service.methods.push("/dokime.v1.Plugins/Install".into());
-        let gate = Arc::new(Gate::new());
-        service.upload_gate = Some(gate.clone());
-        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let target = Target::local(&server.endpoint).unwrap();
-        let client = Client::connect(target, None, None).await.unwrap();
-
-        let uploading = client.with_timeout(Duration::from_millis(10));
-        let mut task = tokio::spawn(async move { install_with_deadline(uploading, mode).await });
-        tokio::select! {
-            _ = gate.entered.notified() => {},
-            result = &mut task => panic!("{mode} upload ended before the gated response: {result:?}"),
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        gate.release.add_permits(1);
-        assert_eq!(task.await.unwrap(), "1", "{mode} upload honors its stream deadline");
-
-        client.close_and_wait().await;
-        server_health(&server.endpoint).await;
-    }
-}
-
-#[tokio::test]
-async fn raw_stream_deadline_expires() {
-    let mut service = Service::new("stream-deadline");
-    service.methods.push("/dokime.v1.Plugins/Install".into());
-    let gate = Arc::new(Gate::new());
-    service.upload_gate = Some(gate.clone());
-    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let target = Target::local(&server.endpoint).unwrap();
-    let client = Client::connect(target, None, None).await.unwrap();
-
-    let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
-    let pending = client.stream_raw("/dokime.v1.Plugins/Install", input, Duration::from_secs(2));
-    tokio::pin!(pending);
-    tokio::select! {
-        _ = gate.entered.notified() => {},
-        result = &mut pending => panic!("upload ended before the gated response: {result:?}"),
-    }
-    assert!(matches!(pending.await, Err(Error::Rpc(status)) if status.code() == tonic::Code::DeadlineExceeded));
-
-    gate.release.add_permits(1);
-    client.close_and_wait().await;
-    server_health(&server.endpoint).await;
-}
-
-#[tokio::test]
-async fn client_close_cancels() {
-    let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, Some("shared")).await.unwrap();
-    assert_eq!(client.backend().backend_id, "shared");
-    assert_eq!(client.backend().limits.max_request_bytes, u64::MAX);
-    let retained = client.clone();
-    let (started, running) = tokio::sync::oneshot::channel();
-    let pending = tokio::spawn(async move {
-        retained
-            .guard(async move {
-                started.send(()).unwrap();
-                std::future::pending::<()>().await
-            })
-            .await
-    });
-    running.await.unwrap();
-
-    client.close();
-    client.close();
-    assert!(matches!(pending.await.unwrap(), Err(Error::Closed)));
-    assert!(matches!(client.channel(), Err(Error::Closed)));
-    assert!(matches!(client.execute(async { Ok(()) }).await, Err(Error::Closed)));
-
-    server_health(&server.endpoint).await;
-}
-
-#[tokio::test]
-async fn client_verifies_identity() {
-    let service = Service::new("shared");
-    let epoch = service.identity_epoch.clone();
-    let requests = service.requests.clone();
-    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-
-    client.verify(true).await.unwrap();
-    let health = client.call(backend::GetHealth {}).await.unwrap();
-    assert_eq!(health.backend_id, "shared");
-    let calls = requests.lock().unwrap().len();
+async fn disconnect_joins_the_idle_watch() {
+    // Open a Real Host Watch Before Disconnecting Its Connection Generation
+    let fixture = Fixture::new().await;
+    let client = fixture.client().await;
+    let mut watch = client.watch_raw("/dokime.v1.Observation/WatchRuntime", &[]).await.unwrap();
+    let opening = watch.next().await.unwrap().unwrap();
     assert!(matches!(
-        client.call(catalog::GetSuite { suite_id: "absent".into() }).await,
-        Err(Error::Rpc(status)) if status.code() == tonic::Code::PermissionDenied
+        v1::ObservationWatchRuntimeOutput::decode(opening.as_slice()).unwrap().value,
+        Some(v1::observation_watch_runtime_output::Value::Item(_))
     ));
-
-    assert_eq!(requests.lock().unwrap().len(), calls);
-
-    *epoch.lock().unwrap() = "restarted".into();
-    assert!(matches!(client.verify(true).await, Err(Error::IdentityChanged)));
-    client.verify(false).await.unwrap();
-
-    client.close();
-    assert!(matches!(client.verify(false).await, Err(Error::Closed)));
-}
-
-#[tokio::test]
-async fn client_response_limit() {
-    let mut service = Service::new("shared");
-    service.max_response_bytes = 1;
-    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-
-    assert!(matches!(
-        client.call(backend::GetHealth {}).await,
-        Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange
-    ));
-}
-
-#[tokio::test]
-async fn stream_close_releases() {
-    for action in ["client", "stream", "drop"] {
-        let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Backend/WatchLogs".into());
-        let closed = service.stream_closed.clone();
-        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-        let stream = client
-            .stream(backend::WatchLogs {
-                min_level: model::backend::wire::LogLevel::Unspecified,
-                replay_lines: 0,
-            })
-            .await
-            .unwrap();
-        assert!(stream.message().await.unwrap().is_some());
-
-        match action {
-            "client" => {
-                client.close_and_wait().await;
-                assert!(matches!(stream.message().await, Err(Error::Closed)));
-            }
-            "stream" => {
-                stream.close().await;
-                client.call(backend::GetHealth {}).await.unwrap();
-            }
-            "drop" => drop(stream),
-            _ => unreachable!(),
-        }
-
-        closed.notified().await;
-        server_health(&server.endpoint).await;
+    fixture.close().await;
+    assert!(client.cancellation().is_cancelled());
+    while let Some(frame) = watch.next().await {
+        frame.unwrap();
     }
 }
 
 #[tokio::test]
-async fn stream_clones_close() {
-    let mut service = Service::new("shared");
-    service.methods.push("/dokime.v1.Backend/WatchLogs".into());
-    let closed = service.stream_closed.clone();
-    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-    let stream = client
-        .stream(backend::WatchLogs {
-            min_level: model::backend::wire::LogLevel::Unspecified,
-            replay_lines: 0,
-        })
-        .await
-        .unwrap();
-    let other = stream.clone();
-    assert!(stream.message().await.unwrap().is_some());
-    drop(stream);
-
-    let first = other.message();
-    let second = other.message();
-    tokio::pin!(first, second);
-    assert_pending(&mut first).await;
-    assert_pending(&mut second).await;
-    other.close().await;
-    assert!(matches!(first.await, Err(Error::Closed)));
-    assert!(matches!(second.await, Err(Error::Closed)));
-    other.close().await;
-    closed.notified().await;
-    client.call(backend::GetHealth {}).await.unwrap();
-}
-
-#[tokio::test]
-async fn upload_stop_releases() {
-    for action in ["reply", "caller", "client"] {
-        let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Install".into());
-        let gate = Arc::new(Gate::new());
-        if action != "reply" {
-            service.upload_gate = Some(gate.clone());
-        }
-        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-        let dropped = Arc::new(Notify::new());
-        let input = UploadInput { first: true, dropped: dropped.clone() };
-        let retained = client.clone();
-        let task = tokio::spawn(async move { retained.plugins_install(input).await });
-
-        match action {
-            "reply" => {
-                task.await.unwrap().unwrap();
-            }
-            "caller" => {
-                gate.entered.notified().await;
-                task.abort();
-                assert!(task.await.unwrap_err().is_cancelled());
-            }
-            "client" => {
-                gate.entered.notified().await;
-                client.close_and_wait().await;
-                assert!(matches!(task.await.unwrap(), Err(Error::Closed)));
-            }
-            _ => unreachable!(),
-        }
-
-        dropped.notified().await;
-        gate.release.add_permits(1);
-        server_health(&server.endpoint).await;
-    }
-}
-
-#[tokio::test]
-async fn upload_operation_closes() {
-    for action in ["finish", "cancel", "client", "waiter"] {
-        let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Install".into());
-        service.upload_drain = true;
-        // An Empty Canonical Input Envelope Requires Two Framing Bytes.
-        service.max_request_bytes = 2;
-        let gate = Arc::new(Gate::new());
-        if action != "finish" {
-            service.upload_gate = Some(gate.clone());
-        }
-        let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-        let upload = client.plugins_install_open().unwrap();
-        let oversized = model::plugins::wire::InstallPluginFrame {
-            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Header(model::plugins::wire::InstallPluginHeader {
-                size_bytes: 1,
-                sha256: String::new(),
-            })),
-        };
-        assert!(matches!(upload.send(oversized).await,
-            Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
-        let retained = upload.clone();
-        upload.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
-        drop(upload);
-
-        if action == "finish" {
-            retained.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
-            assert_eq!(retained.finish().await.unwrap().install_id, "2");
-            assert!(matches!(retained.finish().await, Err(Error::Closed)));
-        } else {
-            gate.entered.notified().await;
-            match action {
-                "cancel" => retained.close().await,
-                "client" => client.close_and_wait().await,
-                "waiter" => {
-                    let waiting = retained.clone();
-                    let (started, running) = tokio::sync::oneshot::channel();
-                    let task = tokio::spawn(async move {
-                        let result = waiting.finish();
-                        tokio::pin!(result);
-                        assert_pending(&mut result).await;
-                        started.send(()).unwrap();
-                        result.await
-                    });
-                    running.await.unwrap();
-                    task.abort();
-                    assert!(task.await.unwrap_err().is_cancelled());
-                    retained.close().await;
-                }
-                _ => unreachable!(),
-            }
-            gate.release.add_permits(1);
-        }
-
-        assert!(matches!(retained.send(model::plugins::wire::InstallPluginFrame::default()).await, Err(Error::Closed)));
-        retained.close().await;
-        retained.close().await;
-        server_health(&server.endpoint).await;
-    }
+async fn sdk_status_remains_available_after_native_detach() {
+    // Native Detach Cancels Its Leases Without Stopping the Host
+    let fixture = Fixture::new().await;
+    fixture.session.disconnect().unwrap();
+    let client = fixture.client().await;
+    let response: library::StatusGetResponse = client.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await.unwrap();
+    assert!(response.status.unwrap().available);
+    fixture.close().await;
 }

@@ -319,8 +319,6 @@ fn read_inside<'a>(pack: &'a ResolvedPack, relative: &str) -> Result<&'a [u8], S
 pub(crate) mod testing {
     /* === Modules === */
 
-    pub mod pack;
-
     /* === Re-Exports === */
 
     /* === Imports === */

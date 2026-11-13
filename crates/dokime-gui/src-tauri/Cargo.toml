@@ -145,8 +145,8 @@ tauri-build = { version = "2.7.2", features = [] }
 # === Dev Dependencies === #
 
 [dev-dependencies]
-criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 # Local
+dokime-storage = { workspace = true }
 
 # Git
 
@@ -163,6 +163,7 @@ harmos-packaging = { version = "=0.1.14", features = ["generate-proto"] }
 # Configuration
 
 # Filesystem
+tar = { workspace = true }
 
 # Parsing
 
@@ -175,6 +176,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 
 # Networking
 rcgen = { version = "0.14.10", features = ["x509-parser"] }
+tonic-prost = { workspace = true }
 
 # Storage
 
@@ -182,6 +184,7 @@ rcgen = { version = "0.14.10", features = ["x509-parser"] }
 tauri = { version = "2.12.5", features = ["test"] }
 
 # Testing
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
 # === Target Dependencies === #
 
