@@ -27,7 +27,7 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.execution.records";
+pub const ID: &str = "dokime.context.v1.evidence.Records/List";
 
 /* === Macros === */
 
@@ -44,9 +44,14 @@ pub const ID: &str = "dokime.execution.records";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::RecordsRequest, v1::Records>(ID, prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?)
+    crate::declaration::<dokime_protocol::context::evidence::RecordsListRequest, dokime_protocol::context::evidence::RecordsListResponse>(
+        ID,
+        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
+    )
 }
-pub async fn handle(resources: &Resources, request: v1::RecordsRequest) -> Result<v1::Records> {
+pub async fn handle(
+    resources: &Resources, request: dokime_protocol::context::evidence::RecordsListRequest,
+) -> Result<dokime_protocol::context::evidence::RecordsListResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let snapshot = resources.store.read(&resources.execution)?;
     let mut records = Vec::new();
@@ -54,7 +59,7 @@ pub async fn handle(resources: &Resources, request: v1::RecordsRequest) -> Resul
         if !snapshot.step_contains(&request.step, evidence.position) {
             continue;
         }
-        let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         records.push(v1::Record {
             kind: record.kind,
             payload: record.payload,
@@ -66,7 +71,7 @@ pub async fn handle(resources: &Resources, request: v1::RecordsRequest) -> Resul
     let count = records.len() as u64;
     let last = records.last().cloned();
     let start = records.len().saturating_sub(request.limit as usize);
-    Ok(v1::Records {
+    Ok(dokime_protocol::context::evidence::RecordsListResponse {
         count,
         last,
         records: if request.limit == 0 { Vec::new() } else { records[start..].to_vec() },

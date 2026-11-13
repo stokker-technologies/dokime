@@ -123,7 +123,7 @@ impl Store {
             count,
         ))
     }
-    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<v1::Statistics> {
+    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
         let connection = self.lock()?;
         let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
         let parameters = params![
@@ -141,7 +141,7 @@ impl Store {
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
         )?;
         if count == 0 {
-            return Ok(v1::Statistics::default());
+            return Ok(dokime_protocol::context::EvidenceStatisticsResponse::default());
         }
         let mean = mean.unwrap();
         let variance: f64 = connection.query_row(
@@ -189,7 +189,7 @@ impl Store {
             |row| row.get(0),
         )?;
         let _ = squares;
-        Ok(v1::Statistics {
+        Ok(dokime_protocol::context::EvidenceStatisticsResponse {
             count: count as u64,
             min: min.unwrap(),
             max: max.unwrap(),

@@ -134,7 +134,7 @@ Generated Dokime messages bind through `dokime::host::Call<T>`:
 use dokime::{host, prelude::*, v1};
 
 async fn note(ctx: &Context) -> Result<()> {
-    ctx.operation(host::Call(v1::WriteLog {
+    ctx.operation(host::Call(dokime::protocol::context::v1::evidence::LogsAppendRequest {
         execution: ctx.execution_id().into(),
         severity: v1::Severity::Info as i32,
         message: "Measurement Started".into(),
@@ -144,7 +144,7 @@ async fn note(ctx: &Context) -> Result<()> {
 }
 ```
 
-Declare `.requires_host::<v1::WriteLog>()` on the plugin for that call.
+Declare `.requires_host::<dokime::protocol::context::v1::evidence::LogsAppendRequest>()` on the plugin for that call.
 `ctx.host(request)` accepts the generated request directly and returns its generated
 reply. `prompt`, `record`, `records`, `statistics`, `progress`, `log`, `secret`,
 `settings` and `typed_settings` are thin conveniences. Artifact, file capture,
@@ -158,7 +158,7 @@ value to `.record(...)` on Plugin and `ctx.record(&contract, value)` to publish 
 Publication waits for the host receipt. The record type accumulator is inferred;
 it contributes record descriptors to the one `dokime.v1.RecordContracts` section.
 `Prompt::new(...).field(...).action(...)` composes a catalog prompt;
-`ctx.prompt(v1::OperatorQuestion { ... })` uses its identifier or an inline definition.
+`ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest { ... })` uses its identifier or an inline definition.
 
 `Observer::new(&stream, handler).every_ms(...)` answers host ticks with rows stamped
 by Harmos using the tick time. `.interval_setting(...)` selects a saved cadence.

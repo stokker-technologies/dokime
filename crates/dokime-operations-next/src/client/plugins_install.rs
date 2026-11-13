@@ -117,17 +117,28 @@ pub async fn handle(
         };
         host.install_plugin_bundle(bytes, cancelled).await
     });
-    match tokio::time::timeout_at(deadline, &mut task).await {
-        Ok(result) => result.map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?,
-        Err(_) => {
-            let _ = cancel.send(());
-            match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
-                // A Completed Commit Wins Cancellation; Report Its Durable Result
-                Ok(reply) => Ok(reply),
-                Err(Error::Cancelled(_)) => Err(Error::Deadline(ID.into())),
-                Err(error) => Err(error),
+    let cancellation = async {
+        while let Some(frame) = input.next().await {
+            match frame {
+                Ok(Upload::Cancel) => return Ok::<(), Error>(()),
+                Err(_) => break,
+                _ => return Err(invalid("Send Only Cancel After Finishing the Upload")),
             }
         }
+        std::future::pending::<Result<()>>().await
+    };
+    let failure = tokio::select! {
+        biased;
+        result = &mut task => return result.map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?,
+        _ = tokio::time::sleep_until(deadline) => Error::Deadline(ID.into()),
+        result = cancellation => result.err().unwrap_or_else(|| Error::Cancelled("Install Plugin: Cancelled by the Client".into())),
+    };
+    let _ = cancel.send(());
+    match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
+        // A Completed Commit Wins Cancellation; Report Its Durable Result.
+        Ok(reply) => Ok(reply),
+        Err(Error::Cancelled(_)) => Err(failure),
+        Err(error) => Err(error),
     }
 }
 

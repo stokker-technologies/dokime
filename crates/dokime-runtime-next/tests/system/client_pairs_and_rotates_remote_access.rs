@@ -231,14 +231,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
             .create(tonic::Request::new(access::PairingsCreateRequest { label: "Replacement Desktop".into() }))
             .await?
             .into_inner();
-        let listed = remote
-            .access
-            .pairings
-            .list(tonic::Request::new(access::PairingsListRequest {
-                at: None,
-            }))
-            .await?
-            .into_inner();
+        let listed = remote.access.pairings.list(tonic::Request::new(access::PairingsListRequest { at: None })).await?.into_inner();
         assert_eq!(listed.pairings.len(), 2);
         let mut request = tonic::Request::new(harmos_protocol::v1::StatusGetRequest {});
         request.metadata_mut().insert("authorization", format!("Bearer {}", first.credential).parse()?);

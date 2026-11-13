@@ -523,7 +523,7 @@ fn render_evidence(output: &mut NamedTempFile, snapshot: &FixedSnapshot, kind: i
                     continue;
                 }
                 if kind == v1::EvidenceCard::Records {
-                    let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+                    let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
                     let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
                     let mut message = None;
                     for section in &catalog.sections {

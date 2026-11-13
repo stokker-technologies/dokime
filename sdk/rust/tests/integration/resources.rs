@@ -95,7 +95,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, v1::WriteLogResponse {}).await?;
+    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     initialize.finish::<v1::InitializeResponse>().await?;
     let mut initialize = process
         .invoke(
@@ -109,7 +109,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, v1::WriteLogResponse {}).await?;
+    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     initialize.finish::<v1::InitializeResponse>().await?;
 
     // Reject a Changed Definition on an Already Initialized Execution.
@@ -149,7 +149,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, v1::WriteLogResponse {}).await?;
+    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     cleanup.finish::<v1::CleanupResponse>().await?;
     assert_eq!(
         process.invoke(&case.steps[0].operation, "a", step.clone()).await?.failure().await?.classification,
@@ -175,7 +175,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, v1::WriteLogResponse {}).await?;
+    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     cleanup.finish::<v1::CleanupResponse>().await?;
 
     // Finish the Remaining Execution and Verify Managed Stop Exits Normally.
@@ -192,7 +192,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, v1::WriteLogResponse {}).await?;
+    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
     cleanup.finish::<v1::CleanupResponse>().await?;
     process.stop(false).await?;
     Ok(())

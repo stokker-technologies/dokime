@@ -11,7 +11,7 @@ requires = ["hatchling==1.33.0", "grpcio-tools==1.85.1"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dokime"
+name = "dokime-sdk"
 version = "0.1.5"
 description = "Remote Dokime plugin authoring and generated gRPC clients."
 requires-python = ">=3.13"

@@ -61,7 +61,7 @@ def main():
     methods = {}
     count = 0
     for definition in descriptors().file:
-        if definition.package not in ("dokime.v1", "harmos.v1"):
+        if not definition.package.startswith(("dokime.", "harmos.")):
             continue
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()
@@ -84,10 +84,10 @@ def main():
                 )
             )
             raise ValueError(f"Generated message descriptors differ: {definition.name}\n{difference}")
-        if definition.package != "dokime.v1":
+        if not definition.package.startswith("dokime."):
             continue
         for name in runtime.message_types_by_name:
-            message_type(name)().SerializeToString()
+            message_type(f"{definition.package}.{name}")().SerializeToString()
             count += 1
         for service in definition.service:
             for method in service.method:

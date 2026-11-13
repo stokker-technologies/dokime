@@ -50,19 +50,19 @@ impl<T: Request> harmos::OperationRequest for Wire<T> {
     const ID: &'static str = T::ID;
 }
 
-impl Request for crate::v1::PublishRecord {
-    type Response = crate::v1::RecordReceipt;
-    const ID: &'static str = "dokime.execution.record";
+impl Request for dokime_protocol::context::evidence::RecordsAppendRequest {
+    type Response = dokime_protocol::context::evidence::RecordsAppendResponse;
+    const ID: &'static str = "dokime.context.v1.evidence.Records/Append";
 }
 
-impl Request for crate::v1::RecordsRequest {
-    type Response = crate::v1::Records;
-    const ID: &'static str = "dokime.execution.records";
+impl Request for dokime_protocol::context::evidence::RecordsListRequest {
+    type Response = dokime_protocol::context::evidence::RecordsListResponse;
+    const ID: &'static str = "dokime.context.v1.evidence.Records/List";
 }
 
-impl Request for crate::v1::StatisticsRequest {
-    type Response = crate::v1::Statistics;
-    const ID: &'static str = "dokime.execution.statistics";
+impl Request for dokime_protocol::context::EvidenceStatisticsRequest {
+    type Response = dokime_protocol::context::EvidenceStatisticsResponse;
+    const ID: &'static str = "dokime.context.v1.Evidence/Statistics";
 }
 
 impl Request for crate::v1::ReportProgress {
@@ -70,9 +70,9 @@ impl Request for crate::v1::ReportProgress {
     const ID: &'static str = "dokime.execution.progress";
 }
 
-impl Request for crate::v1::WriteLog {
-    type Response = crate::v1::WriteLogResponse;
-    const ID: &'static str = "dokime.execution.log";
+impl Request for dokime_protocol::context::evidence::LogsAppendRequest {
+    type Response = dokime_protocol::context::evidence::LogsAppendResponse;
+    const ID: &'static str = "dokime.context.v1.evidence.Logs/Append";
 }
 
 impl Request for crate::v1::ReadSettings {
@@ -85,9 +85,9 @@ impl Request for crate::v1::ReadSecret {
     const ID: &'static str = "dokime.secrets.read";
 }
 
-impl Request for crate::v1::OperatorQuestion {
-    type Response = crate::v1::OperatorAnswer;
-    const ID: &'static str = "dokime.execution.prompt";
+impl Request for dokime_protocol::context::PromptsCreateRequest {
+    type Response = dokime_protocol::context::PromptsCreateResponse;
+    const ID: &'static str = "dokime.context.v1.Prompts/Create";
 }
 
 impl Request for crate::v1::SetTraceability {
@@ -95,9 +95,9 @@ impl Request for crate::v1::SetTraceability {
     const ID: &'static str = "dokime.execution.traceability";
 }
 
-impl Request for crate::v1::AddDocumentPart {
-    type Response = crate::v1::AddDocumentPartResponse;
-    const ID: &'static str = "dokime.execution.document";
+impl Request for dokime_protocol::context::DocumentsAppendPartsRequest {
+    type Response = dokime_protocol::context::DocumentsAppendPartsResponse;
+    const ID: &'static str = "dokime.context.v1.Documents/AppendParts";
 }
 
 impl Request for crate::v1::PublishArtifact {
@@ -105,24 +105,24 @@ impl Request for crate::v1::PublishArtifact {
     const ID: &'static str = "dokime.execution.artifact";
 }
 
-impl Request for crate::v1::CopyFiles {
-    type Response = crate::v1::CapturedFiles;
-    const ID: &'static str = "dokime.files.copy_files";
+impl Request for dokime_protocol::context::FilesCaptureRequest {
+    type Response = dokime_protocol::context::FilesCaptureResponse;
+    const ID: &'static str = "dokime.context.v1.Files/Capture";
 }
 
-impl Request for crate::v1::StartCapture {
-    type Response = crate::v1::CaptureStarted;
-    const ID: &'static str = "dokime.files.start_capture";
+impl Request for dokime_protocol::context::files::CapturesStartRequest {
+    type Response = dokime_protocol::context::files::CapturesStartResponse;
+    const ID: &'static str = "dokime.context.v1.files.Captures/Start";
 }
 
-impl Request for crate::v1::StopCapture {
-    type Response = crate::v1::CapturedFiles;
-    const ID: &'static str = "dokime.files.stop_capture";
+impl Request for dokime_protocol::context::files::CapturesStopRequest {
+    type Response = dokime_protocol::context::files::CapturesStopResponse;
+    const ID: &'static str = "dokime.context.v1.files.Captures/Stop";
 }
 
-impl Request for crate::v1::ReadEnvironment {
-    type Response = crate::v1::Environment;
-    const ID: &'static str = "dokime.execution.environment";
+impl Request for dokime_protocol::context::BackendEnvironmentRequest {
+    type Response = dokime_protocol::context::BackendEnvironmentResponse;
+    const ID: &'static str = "dokime.context.v1.Backend/Environment";
 }
 
 impl Request for crate::v1::PrepareEffect {

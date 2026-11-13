@@ -25,25 +25,42 @@
 
 /* === Classes === */
 
-class Backend final : public harmos::v1::Status::Service {
-  grpc::Status Get(grpc::ServerContext *context, const harmos::v1::StatusGetRequest *, harmos::v1::StatusGetResponse *response) override {
-    if (!context->client_metadata().contains("authorization"))
-      return {grpc::StatusCode::UNAUTHENTICATED, "Pair This Client"};
+class Backend final : public harmos::v1::Status::CallbackService {
+  grpc::ServerUnaryReactor *Get(grpc::CallbackServerContext *context, const harmos::v1::StatusGetRequest *,
+                                harmos::v1::StatusGetResponse *response) override {
+    auto *reactor = context->DefaultReactor();
+    if (!context->client_metadata().contains("authorization")) {
+      reactor->Finish({grpc::StatusCode::UNAUTHENTICATED, "Pair This Client"});
+      return reactor;
+    }
     response->mutable_status()->mutable_identity()->set_host_id("bench");
     response->mutable_status()->mutable_identity()->set_application_name("Dokime");
-    return grpc::Status::OK;
+    reactor->Finish(grpc::Status::OK);
+    return reactor;
   }
 };
 
-class Logs final : public harmos::v1::status::Logs::Service {
-  grpc::Status Watch(grpc::ServerContext *context, const harmos::v1::status::LogsWatchRequest *,
-                     grpc::ServerWriter<harmos::v1::status::LogsWatchResponse> *output) override {
-    if (!context->client_metadata().contains("authorization"))
-      return {grpc::StatusCode::UNAUTHENTICATED, "Pair This Client"};
-    harmos::v1::status::LogsWatchResponse frame;
-    frame.add_events()->set_target("execution");
-    output->Write(frame);
-    return grpc::Status::OK;
+class LogRead final : public grpc::ServerWriteReactor<harmos::v1::status::LogsWatchResponse> {
+  harmos::v1::status::LogsWatchResponse frame_;
+
+public:
+  explicit LogRead(bool authenticated) {
+    if (!authenticated) {
+      Finish({grpc::StatusCode::UNAUTHENTICATED, "Pair This Client"});
+      return;
+    }
+    frame_.add_events()->set_target("execution");
+    StartWrite(&frame_);
+  }
+  void OnWriteDone(bool success) override {
+    Finish(success ? grpc::Status::OK : grpc::Status(grpc::StatusCode::CANCELLED, "Read Logs: Client Closed"));
+  }
+  void OnDone() override { delete this; }
+};
+class Logs final : public harmos::v1::status::Logs::CallbackService {
+  grpc::ServerWriteReactor<harmos::v1::status::LogsWatchResponse> *Watch(grpc::CallbackServerContext *context,
+                                                                         const harmos::v1::status::LogsWatchRequest *) override {
+    return new LogRead(context->client_metadata().contains("authorization"));
   }
 };
 

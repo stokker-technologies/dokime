@@ -884,7 +884,7 @@ The CLI owns executable-only tar packaging using the existing schema-1 manifest,
 `build:cli-fixtures` generates and builds the Rust starter through its mise task; system stories compare those exact source bytes and consume the exported executable.
 Installer packaging, old CLI removal and binary renaming remain atomic cutover work; this additive CLI never imports the old host.
 
-All Harmos git consumers pin `de07fc54f38ece9fcd660af3146876aaf651fe3c`; native legacy hosts retain registry 0.1.14.
+All Harmos Git consumers pin the owner-selected single-SDK revision. The old native hosts and their registry dependencies are removed.
 The protocol dispatcher binds Request.scope directly; SDK execution validation reads Context::scope(), and native Harmos callers use Scope/with_scope when adopted.
 Harmos storage adoption will replace dokime-storage's direct SQLite transactions, Arrow batch persistence and hand-owned projection/index queries; it is a separate task.
 

@@ -1,6 +1,6 @@
 # Dokime Python SDK
 
-`dokime` is one pure Python package for remote plugin authoring and async gRPC
+`dokime-sdk` (import `dokime`) is one pure Python package for remote plugin authoring and async gRPC
 clients. It builds on the Harmos Python SDK at revision
 `81d32d3bc9ab3e2121746923712ec9508cee3ec7`, serves `harmos.plugin.v1.Instance`, and exchanges
 generated `dokime.v1` messages. Python never starts Dokime.
@@ -11,7 +11,7 @@ Use Python 3.13 or newer. Build this candidate and install its portable wheel:
 
 ```sh
 mise run build -- --language python
-uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
+uv add --no-cache /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 ```
 
 The wheel installs `grpcio`, `protobuf`, and the exact-revision `harmos-sdk`
@@ -56,7 +56,7 @@ Its own test drives a complete execution through the prepared product host and c
 ```sh
 dokime new bench --lang python
 cd bench
-uv add --no-cache /path/to/dokime-0.1.5-py3-none-any.whl
+uv add --no-cache /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 mise run test
 mise run serve
 ```

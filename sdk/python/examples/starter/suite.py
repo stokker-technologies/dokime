@@ -13,12 +13,11 @@
 # Standard Library Imports
 
 # Third Party Imports
+# Local Imports
 from google.protobuf.wrappers_pb2 import BoolValue
 
 import dokime
-
-# Local Imports
-from dokime.context import HOST_OPERATIONS
+from dokime import HOST_OPERATIONS
 from dokime.v1 import message
 
 # Type Checking Imports
@@ -87,12 +86,12 @@ class Capture:
 
 def plugin():
     needed = {
-        "dokime.execution.prompt",
-        "dokime.execution.record",
-        "dokime.execution.records",
-        "dokime.execution.statistics",
+        "dokime.context.v1.Prompts/Create",
+        "dokime.context.v1.evidence.Records/Append",
+        "dokime.context.v1.evidence.Records/List",
+        "dokime.context.v1.Evidence/Statistics",
         "dokime.execution.progress",
-        "dokime.execution.log",
+        "dokime.context.v1.evidence.Logs/Append",
         "harmos.context.v1.Time/Sleep",
     }
     return dokime.Plugin(

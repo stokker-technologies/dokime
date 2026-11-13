@@ -67,7 +67,7 @@ async fn step_failure_and_retries() -> Result<(), Box<dyn std::error::Error>> {
                 .records("execution.attempt")
                 .into_iter()
                 .map(|evidence| {
-                    let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+                    let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
                     super::support::Attempt::decode(record.payload.as_slice())
                 })
                 .collect::<Result<Vec<_>, _>>()?;

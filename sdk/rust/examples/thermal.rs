@@ -83,12 +83,12 @@ fn main() -> Result<()> {
         .suite(Suite::new("thermal", "Thermal").template(template))
         .record(door)
         .prompt(prompt)
-        .requires_host::<v1::OperatorQuestion>()
-        .requires_host::<v1::PublishRecord>()
-        .requires_host::<v1::RecordsRequest>()
-        .requires_host::<v1::StatisticsRequest>()
+        .requires_host::<dokime::protocol::context::v1::PromptsCreateRequest>()
+        .requires_host::<dokime::protocol::context::v1::evidence::RecordsAppendRequest>()
+        .requires_host::<dokime::protocol::context::v1::evidence::RecordsListRequest>()
+        .requires_host::<dokime::protocol::context::v1::EvidenceStatisticsRequest>()
         .requires_host::<v1::ReportProgress>()
-        .requires_host::<v1::WriteLog>()
+        .requires_host::<dokime::protocol::context::v1::evidence::LogsAppendRequest>()
         .requires::<dokime::clock::TimeSleepRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
@@ -107,7 +107,7 @@ async fn ramp(ctx: &Context) -> Result<()> {
 
 async fn hold(ctx: &Context) -> Result<()> {
     let answer = ctx
-        .prompt(v1::OperatorQuestion {
+        .prompt(dokime::protocol::context::v1::PromptsCreateRequest {
             prompt: "door".into(),
             prompt_type: "thermal.door".into(),
             ..Default::default()

@@ -84,7 +84,7 @@ pub(super) fn view(context: &Context, identifier: &str) -> Result<v1::PromptView
         .iter()
         .find(|entry| entry.position == position && entry.kind == "prompt")
         .ok_or_else(|| Error::NotFound("Read Prompt: Select a Question Asked by This Execution".into()))?;
-    let question = v1::OperatorQuestion::decode(entry.payload.as_slice())?;
+    let question = dokime_protocol::context::PromptsCreateRequest::decode(entry.payload.as_slice())?;
     if question.prompt != prompt {
         return Err(Error::NotFound("Read Prompt: Use the Identifier Returned by ListPending".into()));
     }
@@ -96,7 +96,7 @@ pub(super) fn view(context: &Context, identifier: &str) -> Result<v1::PromptView
         .iter()
         .rev()
         .filter(|entry| entry.position > position && entry.position < next && (entry.kind == "client:answer" || entry.kind == "answer"))
-        .map(|entry| v1::OperatorAnswer::decode(entry.payload.as_slice()))
+        .map(|entry| dokime_protocol::context::PromptsCreateResponse::decode(entry.payload.as_slice()))
         .collect::<std::result::Result<Vec<_>, _>>()?
         .into_iter()
         .find(|answer| answer.prompt == prompt);

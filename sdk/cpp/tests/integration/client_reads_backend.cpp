@@ -65,7 +65,11 @@ int main() {
   } catch (const std::runtime_error &) {
     refused = true;
   }
-  check(refused, "Authentication Failure Was Hidden");
+  grpc::ClientContext checking_refusal;
+  harmos::v1::StatusGetResponse refused_response;
+  auto status_stub = client.stub<harmos::v1::Status>();
+  auto failure = status_stub->Get(&checking_refusal, {}, &refused_response);
+  check(refused && failure.error_code() == grpc::StatusCode::UNAUTHENTICATED, "Authentication Failure Was Hidden");
 
   // Add a Remote Entry and Read Its Canonical Placement Through Generated Stubs.
   auto plugin_stub = client.stub<dokime::v1::Plugins>();

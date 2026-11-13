@@ -25,12 +25,11 @@ use prost_reflect::{DescriptorPool, DynamicMessage, Value};
 
 // Local Imports
 use crate::{Error, Resources, Result};
-use dokime_protocol::v1;
 use dokime_storage::StatisticsRead;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.execution.statistics";
+pub const ID: &str = "dokime.context.v1.Evidence/Statistics";
 
 /* === Macros === */
 
@@ -47,12 +46,14 @@ pub const ID: &str = "dokime.execution.statistics";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<v1::StatisticsRequest, v1::Statistics>(
+    crate::declaration::<dokime_protocol::context::EvidenceStatisticsRequest, dokime_protocol::context::EvidenceStatisticsResponse>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(resources: &Resources, request: v1::StatisticsRequest) -> Result<v1::Statistics> {
+pub async fn handle(
+    resources: &Resources, request: dokime_protocol::context::EvidenceStatisticsRequest,
+) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let snapshot = resources.store.cut(&resources.execution)?;
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
@@ -113,7 +114,7 @@ pub async fn handle(resources: &Resources, request: v1::StatisticsRequest) -> Re
         }
     }
     if values.is_empty() {
-        let response = v1::Statistics::default();
+        let response = dokime_protocol::context::EvidenceStatisticsResponse::default();
         let read = StatisticsRead {
             request: Some(request),
             positions,
@@ -135,7 +136,7 @@ pub async fn handle(resources: &Resources, request: v1::StatisticsRequest) -> Re
         let high = index.ceil() as usize;
         values[low] + (values[high] - values[low]) * index.fract()
     };
-    let response = v1::Statistics {
+    let response = dokime_protocol::context::EvidenceStatisticsResponse {
         count,
         min: values[0],
         max: values[values.len() - 1],

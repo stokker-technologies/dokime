@@ -41,7 +41,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    [current protocol](../proto/dokime/v1), [current host](../crates/dokime-runtime-next/src/services/mod.rs).
    **Proof:** No proof yet; task A2 must guard all three audiences and generation filters.
    **Status:** locked direction (`operation-grammar`); separate package roots and
-   product declarations are not landed. The host now calls the pinned library's
+   product lifecycle/client declarations are not fully landed. Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment now have separate context wrappers and no client gRPC entry methods. The host now calls the pinned library's
    `harmos.plugin.v1.Instance` carrier.
 
 2. **Three-Level Visibility.** Private is plugin-internal, never catalogued or on
@@ -233,7 +233,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [current dispatch policy](../crates/dokime-runtime-next/src/dispatch.rs).
     **Proof:** No proof yet for all policy/override paths; A11. `step_failure_and_retries`
     in [step_failure_and_retries.rs](../crates/dokime-runtime-next/tests/system/step_failure_and_retries.rs)
-    proves actual attempt evidence, not complete policy parity.
+    proves actual attempt evidence, not complete policy parity. The execution fixture also reads invocation-scoped Environment and Time.Get from its initialize call.
     **Status:** locked direction (`operation-grammar`).
 
 14. **One-Way Crate Layers.** Dependency direction is protocol ← storage ← operations

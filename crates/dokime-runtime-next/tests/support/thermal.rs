@@ -70,22 +70,22 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
             .map(|mut entry| {
                 entry.receipt_ns = 0;
                 if entry.kind.starts_with("record:") {
-                    let mut value = v1::PublishRecord::decode(entry.payload.as_slice()).unwrap();
+                    let mut value = dokime_protocol::context::evidence::RecordsAppendRequest::decode(entry.payload.as_slice()).unwrap();
                     value.execution.clear();
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "read:statistics" {
-                    let mut value = v1::StatisticsRequest::decode(entry.payload.as_slice()).unwrap();
+                    let mut value = dokime_protocol::context::EvidenceStatisticsRequest::decode(entry.payload.as_slice()).unwrap();
                     value.execution.clear();
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "read:records" {
-                    let mut value = v1::RecordsRequest::decode(entry.payload.as_slice()).unwrap();
+                    let mut value = dokime_protocol::context::evidence::RecordsListRequest::decode(entry.payload.as_slice()).unwrap();
                     value.execution.clear();
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "log" {
-                    let mut value = v1::WriteLog::decode(entry.payload.as_slice()).unwrap();
+                    let mut value = dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).unwrap();
                     value.execution.clear();
                     entry.payload = value.encode_to_vec();
                 }
@@ -120,7 +120,7 @@ pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let door = pool.get_message_by_name("thermal.v1.Door").expect("Retain the Door Record Schema");
     for record in actual.records("thermal.door") {
-        let record = v1::PublishRecord::decode(record.payload.as_slice()).unwrap();
+        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
         let decoded = prost_reflect::DynamicMessage::decode(door.clone(), record.payload.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
     }

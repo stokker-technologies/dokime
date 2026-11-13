@@ -86,7 +86,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     Evidence {
                         kind: "record:reading".into(),
                         step: "capture".into(),
-                        payload: v1::PublishRecord {
+                        payload: dokime_protocol::context::evidence::RecordsAppendRequest {
                             execution: id.into(),
                             kind: "reading".into(),
                             payload: vec![index],
@@ -101,7 +101,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                 id,
                 Evidence {
                     kind: "log".into(),
-                    payload: v1::WriteLog {
+                    payload: dokime_protocol::context::evidence::LogsAppendRequest {
                         execution: id.into(),
                         severity: v1::Severity::Warning as i32,
                         message: "Review the sensor".into(),

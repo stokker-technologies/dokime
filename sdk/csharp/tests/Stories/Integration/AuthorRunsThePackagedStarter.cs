@@ -46,14 +46,14 @@ public sealed class AuthorRunsThePackagedStarter
       var origin = new Origin { PluginRun = new PluginRun { Plugin = description.Id, Template = template.Metadata.Identifier, TestCase = testCase } };
 
       // Execute the Measurement and Acknowledge Its Host Log Call.
-      WriteLog? log = null;
+      global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest? log = null;
       await wire.InvokeAsync<StepResponse>(description, step.Operation,
           new StepRequest { Execution = "starter-execution", Step = step.Metadata.Identifier, TestCase = testCase, Origin = origin },
           "starter-execution", child =>
           {
             Assert.Equal(Dokime.Host.Log.Contract.Id, child.Operation);
-            log = WriteLog.Parser.ParseFrom(child.Payload);
-            return new WriteLogResponse().ToByteString();
+            log = global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest.Parser.ParseFrom(child.Payload);
+            return new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse().ToByteString();
           });
       Assert.Equal("starter-execution", log!.Execution);
       Assert.Equal(Severity.Info, log.Severity);

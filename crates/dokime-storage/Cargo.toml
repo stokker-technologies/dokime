@@ -108,6 +108,10 @@ tempfile = { workspace = true }
 
 # === Test Targets === #
 
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
 # === Bench Targets === #
 
 # === Example Targets === #

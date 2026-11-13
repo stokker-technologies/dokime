@@ -59,7 +59,7 @@ mise run build -- --package dokime-cli-next
 
 ### Python
 
-The pure Python SDK composes remote plugins and async clients over Harmos gRPC.
+The pure Python `dokime-sdk` package (import `dokime`) composes remote plugins and async clients over Harmos gRPC.
 Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
 #### Examples

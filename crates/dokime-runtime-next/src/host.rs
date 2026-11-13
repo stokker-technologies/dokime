@@ -261,13 +261,13 @@ impl Host {
     pub fn streams_closed(&self, identifier: &str) -> Result<bool> {
         Ok(self.store.streams_closed(identifier)?)
     }
-    pub async fn next_prompt(&self, execution: &str) -> Result<v1::OperatorQuestion> {
+    pub async fn next_prompt(&self, execution: &str) -> Result<dokime_protocol::context::PromptsCreateRequest> {
         self.prompts.next(execution, &self.executions).await
     }
-    pub fn pending_prompts(&self) -> Result<Vec<(String, v1::OperatorQuestion)>> {
+    pub fn pending_prompts(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>> {
         self.prompts.pending_prompts()
     }
-    pub fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    pub fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.prompts.answer(execution, answer)
     }
     pub fn cancel(&self, execution: &str) -> Result<()> {
@@ -282,7 +282,7 @@ impl Host {
     pub fn signal_change(&self) {
         self.changed.send_modify(|revision| *revision += 1);
     }
-    pub fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()> {
+    pub fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.prompts.record_answer(execution, answer)
     }
     pub async fn shutdown(&self) -> Result<()> {

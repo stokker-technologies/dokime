@@ -1,0 +1,38 @@
+syntax = "proto3";
+package dokime.context.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Context.V1.Evidence";
+import "dokime/v1/execution.proto";
+import "google/protobuf/timestamp.proto";
+
+// Public child-call declarations carried by Instance.Invoke; no client service.
+
+message RecordsAppendRequest {
+  string execution = 1;
+  // Identifier of the record contract.
+  string kind = 2;
+  // Serialized record message of that contract.
+  bytes payload = 3;
+  // When the plugin produced it; the host adds its arrival time.
+  google.protobuf.Timestamp at = 4;
+}
+
+message RecordsAppendResponse {
+  // Position of the record among the execution's records of this kind.
+  uint64 ordinal = 1;
+}
+
+message RecordsListRequest {
+  string execution = 1;
+  string kind = 2;
+  // Limit to the time range of one step; empty for the whole execution.
+  string step = 3;
+  // 0 returns only count and last.
+  uint32 limit = 4;
+}
+
+message RecordsListResponse {
+  uint64 count = 1;
+  .dokime.v1.Record last = 2;
+  // The most recent records, oldest first, up to the requested limit.
+  repeated .dokime.v1.Record records = 3;
+}

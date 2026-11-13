@@ -24,7 +24,6 @@ use rusqlite::params;
 
 // Local Imports
 use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store, streams};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -45,13 +44,13 @@ pub struct ExecutionCut {
 #[derive(Clone, PartialEq, Message)]
 pub struct StatisticsRead {
     #[prost(message, optional, tag = "1")]
-    pub request: Option<v1::StatisticsRequest>,
+    pub request: Option<dokime_protocol::context::EvidenceStatisticsRequest>,
 
     #[prost(uint64, repeated, tag = "2")]
     pub positions: Vec<u64>,
 
     #[prost(message, optional, tag = "3")]
-    pub response: Option<v1::Statistics>,
+    pub response: Option<dokime_protocol::context::EvidenceStatisticsResponse>,
 }
 
 /* === Enums === */
@@ -71,14 +70,15 @@ impl Store {
         Ok(frontier as u64)
     }
     pub fn cached_statistics(
-        &self, execution: &str, request: &v1::StatisticsRequest, after: u64, through: u64,
+        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
     ) -> Result<Option<StatisticsRead>> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         let cache = self.statistics.lock().map_err(|_| Error::Invalid("Read Statistics: Restart After the Query Cache Failed".into()))?;
         Ok(cache.get(&key).filter(|(frontier, _)| *frontier == through).map(|(_, read)| read.clone()))
     }
     pub fn cache_statistics(
-        &self, execution: &str, request: &v1::StatisticsRequest, after: u64, through: u64, read: StatisticsRead,
+        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
+        read: StatisticsRead,
     ) -> Result<()> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         self.statistics

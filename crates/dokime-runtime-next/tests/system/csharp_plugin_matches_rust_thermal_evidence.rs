@@ -80,7 +80,7 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
             let prompt = host.next_prompt(&execution).await?;
             host.answer(
                 &execution,
-                v1::OperatorAnswer {
+                dokime_protocol::context::PromptsCreateResponse {
                     prompt: prompt.prompt,
                     action: "yes".into(),
                     accepted: true,

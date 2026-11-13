@@ -123,7 +123,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
             let samples=(0..32).map(|index|Sample {stream:stream.into(),source_ns:index*1_000_000_000,row:v1::PlotDomain {min:if stream=="cells"{(index%4+1) as f64}else{2.0},max:(index+1) as f64}.encode_to_vec(),..Default::default()}).collect::<Vec<_>>();
             store.sample_batch("advanced",&samples)?;
         }
-        for time in [5,25] {store.append("advanced",dokime_storage::Evidence {kind:"record:event".into(),source_ns:time*1_000_000_000,payload:v1::PublishRecord {execution:"advanced".into(),kind:"event".into(),payload:v1::WriteLog {message:"Captured Event".into(),..Default::default()}.encode_to_vec(),..Default::default()}.encode_to_vec(),..Default::default()})?;}
+        for time in [5,25] {store.append("advanced",dokime_storage::Evidence {kind:"record:event".into(),source_ns:time*1_000_000_000,payload:dokime_protocol::context::evidence::RecordsAppendRequest {execution:"advanced".into(),kind:"event".into(),payload:dokime_protocol::context::evidence::LogsAppendRequest {message:"Captured Event".into(),..Default::default()}.encode_to_vec(),..Default::default()}.encode_to_vec(),..Default::default()})?;}
         store.close_streams("advanced")?;
         store.close("advanced",v1::Termination::Completed,v1::ExecutionOutcome::default())?;
         store.seal("advanced")?;

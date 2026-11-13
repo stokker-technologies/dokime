@@ -80,7 +80,7 @@ async fn execution_isolation() -> Result<(), Box<dyn std::error::Error>> {
             }
             let records = snapshot.records("execution.attempt");
             assert_eq!(records.len(), 1);
-            let record = v1::PublishRecord::decode(records[0].payload.as_slice())?;
+            let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(records[0].payload.as_slice())?;
             let attempt = super::support::Attempt::decode(record.payload.as_slice())?;
             assert_eq!(attempt.value, value);
             assert!(attempt.scope_refused);

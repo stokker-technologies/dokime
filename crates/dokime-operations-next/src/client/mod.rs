@@ -470,9 +470,9 @@ pub trait Host: Send + Sync {
     async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin>;
     async fn start(&self, origins: Vec<v1::Origin>) -> Result<StartedCycle>;
     fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>>;
-    fn pending(&self) -> Result<Vec<(String, v1::OperatorQuestion)>>;
-    fn answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()>;
-    fn record_answer(&self, execution: &str, answer: v1::OperatorAnswer) -> Result<()>;
+    fn pending(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>>;
+    fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()>;
+    fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()>;
 }
 
 /* === Implementations === */

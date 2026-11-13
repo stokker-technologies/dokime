@@ -57,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::HistoryGetCheckpointContextR
         for entry in &snapshot.evidence {
             match entry.kind.as_str() {
                 "prompt" => {
-                    let question = v1::OperatorQuestion::decode(entry.payload.as_slice())?;
+                    let question = dokime_protocol::context::PromptsCreateRequest::decode(entry.payload.as_slice())?;
                     let identifier = super::projection::prompt_id(&cut.execution.identifier, &question.prompt, entry.position);
                     if let Some(prompt) = super::prompt_catalog::view(context, &identifier)?.prompt {
                         prompts.push(prompt);

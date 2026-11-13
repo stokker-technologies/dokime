@@ -3,7 +3,7 @@ revision = 5
 requires-python = ">=3.13"
 
 [[package]]
-name = "dokime"
+name = "dokime-sdk"
 version = "0.1.5"
 source = { editable = "." }
 dependencies = [

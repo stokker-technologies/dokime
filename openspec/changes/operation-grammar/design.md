@@ -1196,6 +1196,14 @@ header is stale. Generated availability is not proof of application consumption.
 
 ## Open Questions During Implementation
 
+The canonical lifecycle split is blocked on representing template-local bindings
+with their independent callee-owned policy under one operation ID. The pinned SDK
+registry rejects a second Steps/Execute contract, even when the handlers and retry
+policies belong to distinct steps. The focused consumer proof and requested shape
+are in Library Requests. Moving per-binding policy into caller-authored overrides,
+collapsing those policies or advertising old dynamic IDs would change the locked
+contract; no such replacement is introduced. Independent context groups continue.
+
 Settings/secrets ownership and all four hierarchical client roots are locked,
 not open questions. The manager split keeps cycles with execution; the additive
 host has no live recordings and adds no capture manager. The following protocol questions remain open.
@@ -1225,13 +1233,11 @@ The new host removes its Access handlers/settings ownership and generic Backend,
 Runtime and diagnostic collection handlers. Final face generation must remove unserved product Access/Status declarations
 and migrate the remaining SDK fixture consumers together. No product Remote service is registered in the new host.
 
-Transfers are deferred because the pinned Storage service cannot register the
-product's already-owned immutable content sources. Its ranged Get requires a
-reference in its own saved storage history; the public plugin-manager ContentSource
-port does not supply Storage delivery. The missing narrow source/lease/range
-capability and failing consumer proof are recorded under Library Requests. Existing
-product transfers and their journeys stay intact until that dependency is available;
-no duplicate persistence owner or forwarding service is introduced.
+The pinned Storage manager now exposes `register_content_source` with scoped
+resolution and leased ranged reads. Product transfer composition remains open:
+it must register execution/report/appearance ownership and remove its superseded
+transfer paths in the same slice. The earlier missing-port proof in Library
+Requests describes the prior pin; it is not a blocker at the current revision.
 
 HostValues requires the library's Caller resource, populated from admitted plugin
 declarations; `register_values` alone cannot attach it to the current product
@@ -1239,12 +1245,10 @@ dispatcher. Wiring it requires the library-backed admission/context replacement,
 now authorized and unblocked by the resolved wire-identity request. Existing
 settings/secret delivery remains until that implementation slice replaces it.
 
-The C++ library root cannot accept per-call bearer metadata or a caller context;
-its authenticated client journey remains on the existing fixture until the library
-capability in Library Requests is pinned. Rust, Python and C# status consumers now
-use the composed root. Shared old-loop protobuf declarations and generic managed-
-client fixture DTOs retire with the excluded protocol/managed-method cutover; they
-are not exposed as new-host compatibility services.
+The pinned C++ root now accepts the caller's ClientContext first, and Watch
+borrows it. The authenticated root journey adopts those signatures. Shared
+old-loop protocol declarations and managed-client fixture DTOs remain scheduled
+for their protocol/client cutover, not new-host compatibility services.
 
 ### Resolved Library Admission Request
 

@@ -499,6 +499,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 - [ ] Resolve project-wide native desktop dependency/source findings when its host switch restores workspace ownership; do not restore deleted loop dependencies to make the dormant manifest parse.
 - [ ] Reconcile generated protocol source auditing with generator ownership; keep the protocol drift stories and never hand-format generated bindings.
 - [ ] Reconcile the thermal Python suite's dependent schema declarations and the protocol generator's required-error-module finding with source policy; preserve execution order and do not add unused error types.
-- [ ] Move the managed-install cancellation and stored-report filesystem journeys out of unit scope while preserving their behavior; managed cancellation must compile and run on every supported host platform.
+- [x] Move managed-install cancellation to the cross-platform client_cancels_managed_installation system story, using awaited process events and cancellation settlement. Windows proof passes; native Linux execution remains open.
+- [x] Move stored-report byte retention/restart/tamper refusal into the storage integration target without exposing the private database handle.
 - [ ] Reconcile the checker-required root contributing entry with the project-owned guide under docs/.
 - [ ] Reconcile maintained plot task lists with source policy without losing their benchmark requirements or retained evidence.

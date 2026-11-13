@@ -11,6 +11,14 @@
 
 /* === Imports === */
 
+#include "dokime/context/v1/backend.pb.h"
+#include "dokime/context/v1/documents.pb.h"
+#include "dokime/context/v1/evidence.pb.h"
+#include "dokime/context/v1/evidence/logs.pb.h"
+#include "dokime/context/v1/evidence/records.pb.h"
+#include "dokime/context/v1/files.pb.h"
+#include "dokime/context/v1/files/captures.pb.h"
+#include "dokime/context/v1/prompts.pb.h"
 #include "dokime/v1/catalog.pb.h"
 #include "dokime/v1/host.pb.h"
 #include "harmos/harmos.hpp"
@@ -80,17 +88,17 @@ public:
   }
   void sleep(google::protobuf::Duration duration) { transport_.sleep(duration); }
   google::protobuf::Timestamp now() { return transport_.now(); }
-  v1::OperatorAnswer prompt(v1::OperatorQuestion request);
+  ::dokime::context::v1::PromptsCreateResponse prompt(::dokime::context::v1::PromptsCreateRequest request);
   v1::SavedSettings settings();
   v1::Secret secret(std::string identifier);
-  v1::RecordReceipt record(std::string kind, const google::protobuf::Message &value);
-  v1::Records records(std::string kind, std::string step = {}, std::uint32_t limit = 0);
-  v1::Statistics statistics(std::string stream, std::string field = {}, std::string step = {});
+  ::dokime::context::v1::evidence::RecordsAppendResponse record(std::string kind, const google::protobuf::Message &value);
+  ::dokime::context::v1::evidence::RecordsListResponse records(std::string kind, std::string step = {}, std::uint32_t limit = 0);
+  ::dokime::context::v1::EvidenceStatisticsResponse statistics(std::string stream, std::string field = {}, std::string step = {});
   void progress(std::uint64_t completed, std::uint64_t total, std::string label = {});
   void log(v1::Severity severity, std::string message);
   v1::ArtifactReceipt artifact(v1::PublishArtifact request);
   void traceability(v1::SetTraceability request);
-  void document(v1::AddDocumentPart request);
+  void document(::dokime::context::v1::DocumentsAppendPartsRequest request);
   static void declare_requirements(harmos::Plugin &plugin);
 
 private:

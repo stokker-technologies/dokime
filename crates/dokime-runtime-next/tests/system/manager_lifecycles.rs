@@ -133,7 +133,7 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
         host.stop_execution(&execution)?;
         assert_eq!(host.execution(&execution)?.state, ExecutionState::Open);
         assert_eq!(host.pending_prompts()?.len(), 1);
-        let answer = v1::OperatorAnswer {
+        let answer = dokime_protocol::context::PromptsCreateResponse {
             prompt: question.prompt,
             accepted: true,
             action: "continue".into(),

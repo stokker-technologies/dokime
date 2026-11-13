@@ -36,21 +36,53 @@ __all__ = ["HOST_OPERATIONS", "Context"]
 HOST_OPERATIONS = tuple(
     Operation(identifier, message_type(request), message_type(response), wire.VISIBILITY_PUBLIC)
     for identifier, request, response in (
-        ("dokime.execution.record", "PublishRecord", "RecordReceipt"),
-        ("dokime.execution.records", "RecordsRequest", "Records"),
-        ("dokime.execution.statistics", "StatisticsRequest", "Statistics"),
+        (
+            "dokime.context.v1.evidence.Records/Append",
+            "dokime.context.v1.evidence.RecordsAppendRequest",
+            "dokime.context.v1.evidence.RecordsAppendResponse",
+        ),
+        (
+            "dokime.context.v1.evidence.Records/List",
+            "dokime.context.v1.evidence.RecordsListRequest",
+            "dokime.context.v1.evidence.RecordsListResponse",
+        ),
+        (
+            "dokime.context.v1.Evidence/Statistics",
+            "dokime.context.v1.EvidenceStatisticsRequest",
+            "dokime.context.v1.EvidenceStatisticsResponse",
+        ),
         ("dokime.execution.progress", "ReportProgress", "ReportProgressResponse"),
-        ("dokime.execution.log", "WriteLog", "WriteLogResponse"),
+        (
+            "dokime.context.v1.evidence.Logs/Append",
+            "dokime.context.v1.evidence.LogsAppendRequest",
+            "dokime.context.v1.evidence.LogsAppendResponse",
+        ),
         ("dokime.settings.read", "ReadSettings", "SavedSettings"),
         ("dokime.secrets.read", "ReadSecret", "Secret"),
-        ("dokime.execution.prompt", "OperatorQuestion", "OperatorAnswer"),
+        ("dokime.context.v1.Prompts/Create", "dokime.context.v1.PromptsCreateRequest", "dokime.context.v1.PromptsCreateResponse"),
         ("dokime.execution.traceability", "SetTraceability", "SetTraceabilityResponse"),
-        ("dokime.execution.document", "AddDocumentPart", "AddDocumentPartResponse"),
+        (
+            "dokime.context.v1.Documents/AppendParts",
+            "dokime.context.v1.DocumentsAppendPartsRequest",
+            "dokime.context.v1.DocumentsAppendPartsResponse",
+        ),
         ("dokime.execution.artifact", "PublishArtifact", "ArtifactReceipt"),
-        ("dokime.files.copy_files", "CopyFiles", "CapturedFiles"),
-        ("dokime.files.start_capture", "StartCapture", "CaptureStarted"),
-        ("dokime.files.stop_capture", "StopCapture", "CapturedFiles"),
-        ("dokime.execution.environment", "ReadEnvironment", "Environment"),
+        ("dokime.context.v1.Files/Capture", "dokime.context.v1.FilesCaptureRequest", "dokime.context.v1.FilesCaptureResponse"),
+        (
+            "dokime.context.v1.files.Captures/Start",
+            "dokime.context.v1.files.CapturesStartRequest",
+            "dokime.context.v1.files.CapturesStartResponse",
+        ),
+        (
+            "dokime.context.v1.files.Captures/Stop",
+            "dokime.context.v1.files.CapturesStopRequest",
+            "dokime.context.v1.files.CapturesStopResponse",
+        ),
+        (
+            "dokime.context.v1.Backend/Environment",
+            "dokime.context.v1.BackendEnvironmentRequest",
+            "dokime.context.v1.BackendEnvironmentResponse",
+        ),
         ("dokime.execution.effect.prepare", "PrepareEffect", "Ticket"),
         ("dokime.execution.effect.applied", "ConfirmEffect", "ConfirmEffectResponse"),
     )
@@ -93,7 +125,7 @@ class Context:
         definition = message("Prompt", metadata={"identifier": "question", "label": text}, message=text)
         for index, choice in enumerate(choices or ("OK",)):
             definition.actions.add(identifier=str(index), label=choice)
-        response = await self.operation(message("OperatorQuestion", prompt="question", definition=definition))
+        response = await self.operation(message("dokime.context.v1.PromptsCreateRequest", prompt="question", definition=definition))
         if not response.accepted:
             raise ValueError("Operator answer was not accepted")
         actions = {action.identifier: action.label for action in definition.actions}
@@ -106,7 +138,9 @@ class Context:
         row = payload if payload is not None else definition.row(**fields)
         if not isinstance(row, definition.row):
             raise TypeError(f"Invalid record payload: {kind}")
-        return await self.operation(message("PublishRecord", execution=self.execution, kind=kind, payload=row.SerializeToString()))
+        return await self.operation(
+            message("dokime.context.v1.evidence.RecordsAppendRequest", execution=self.execution, kind=kind, payload=row.SerializeToString())
+        )
 
     def records(self, kind: str, *, step: str = "") -> "RecordsQuery":
         if kind not in self._records:
@@ -114,7 +148,9 @@ class Context:
         return RecordsQuery(self, self._records[kind], step)
 
     async def statistics(self, stream: str, field: str | None = None, *, step: str = ""):
-        return await self.operation(message("StatisticsRequest", execution=self.execution, stream=stream, field=field or "", step=step))
+        return await self.operation(
+            message("dokime.context.v1.EvidenceStatisticsRequest", execution=self.execution, stream=stream, field=field or "", step=step)
+        )
 
     async def secret(self, identifier: str) -> bytes:
         return (await self.operation(message("ReadSecret", identifier=identifier))).value
@@ -127,7 +163,9 @@ class Context:
         await self.operation(message("ReportProgress", execution=self.execution, completed=completed, total=total, label=label))
 
     async def log(self, text: str, *, severity: int = 2) -> None:
-        await self.operation(message("WriteLog", execution=self.execution, message=text, severity=severity))
+        await self.operation(
+            message("dokime.context.v1.evidence.LogsAppendRequest", execution=self.execution, message=text, severity=severity)
+        )
 
     async def traceability(self, identifier: str, value: Any, *, label: str = "", source: str = "", unit: str = "") -> None:
         entry = message(
@@ -143,7 +181,15 @@ class Context:
         field = {"dokime.v1.Section": "subsection", "dokime.v1.Card": "card"}.get(part.DESCRIPTOR.full_name)
         if field is None:
             raise TypeError("Document parts must be Section or Card messages")
-        await self.operation(message("AddDocumentPart", execution=self.execution, document=document, section=section, **{field: part}))
+        await self.operation(
+            message(
+                "dokime.context.v1.DocumentsAppendPartsRequest",
+                execution=self.execution,
+                document=document,
+                section=section,
+                **{field: part},
+            )
+        )
 
     async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", replace: bool = False):
         from uuid import uuid4
@@ -153,16 +199,16 @@ class Context:
         )
 
     async def copy_files(self, source: Message, output: str):
-        return await self.operation(message("CopyFiles", source=source, output=output))
+        return await self.operation(message("dokime.context.v1.FilesCaptureRequest", source=source, output=output))
 
     async def start_capture(self, source: Message, output: str, mode: Message):
-        return await self.operation(message("StartCapture", source=source, output=output, mode=mode))
+        return await self.operation(message("dokime.context.v1.files.CapturesStartRequest", source=source, output=output, mode=mode))
 
     async def stop_capture(self, capture_id: int):
-        return await self.operation(message("StopCapture", capture_id=capture_id))
+        return await self.operation(message("dokime.context.v1.files.CapturesStopRequest", capture_id=capture_id))
 
     async def environment(self):
-        return await self.operation(message("ReadEnvironment"))
+        return await self.operation(message("dokime.context.v1.BackendEnvironmentRequest"))
 
     async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = ""):
         return await self.operation(
@@ -187,7 +233,13 @@ class RecordsQuery:
 
     async def read(self, *, limit: int = 0):
         return await self._context.operation(
-            message("RecordsRequest", execution=self._context.execution, kind=self._definition.identifier, step=self._step, limit=limit)
+            message(
+                "dokime.context.v1.evidence.RecordsListRequest",
+                execution=self._context.execution,
+                kind=self._definition.identifier,
+                step=self._step,
+                limit=limit,
+            )
         )
 
     async def count(self) -> int:

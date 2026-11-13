@@ -66,7 +66,7 @@ def enum_value(enum: str, name: str) -> int:
 # === Private Functions === #
 
 for _definition in descriptors().file:
-    if _definition.package == "dokime.v1":
+    if _definition.package.startswith("dokime."):
         import_module(_definition.name.removesuffix(".proto").replace("/", ".") + "_pb2")
 
 # === Entry Point === #

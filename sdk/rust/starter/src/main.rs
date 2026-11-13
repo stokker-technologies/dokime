@@ -55,16 +55,16 @@ fn main() -> Result<()> {
         .suite(Suite::new("example", "Example").template(template))
         .record(confirmation)
         .prompt(Prompt::new("example.confirmation", "Confirmation", "Continue?").action("yes", "Yes").action("no", "No"))
-        .requires_host::<v1::OperatorQuestion>()
-        .requires_host::<v1::PublishRecord>()
-        .requires_host::<v1::RecordsRequest>();
+        .requires_host::<dokime::protocol::context::v1::PromptsCreateRequest>()
+        .requires_host::<dokime::protocol::context::v1::evidence::RecordsAppendRequest>()
+        .requires_host::<dokime::protocol::context::v1::evidence::RecordsListRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn confirm(ctx: &Context) -> Result<()> {
     let answer = ctx
-        .prompt(v1::OperatorQuestion {
+        .prompt(dokime::protocol::context::v1::PromptsCreateRequest {
             prompt: "confirmation".into(),
             prompt_type: "example.confirmation".into(),
             ..Default::default()

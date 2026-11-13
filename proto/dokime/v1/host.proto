@@ -1,34 +1,9 @@
 syntax = "proto3";
 package dokime.v1;
 import "dokime/v1/values.proto";
-import "dokime/v1/documents.proto";
 import "dokime/v1/execution.proto";
-import "google/protobuf/timestamp.proto";
 
-// Public context operations carried by harmos.v1 child calls. Execution scope
-// is inherited from Request.scope, never selected by an untrusted payload.
-// dokime.execution.prompt: OperatorQuestion -> OperatorAnswer
-// dokime.execution.traceability: SetTraceability -> SetTraceabilityResponse
-// dokime.execution.document: AddDocumentPart -> AddDocumentPartResponse
-// dokime.execution.artifact: PublishArtifact -> ArtifactReceipt
-// dokime.files.copy_files: CopyFiles -> CapturedFiles
-// dokime.files.start_capture: StartCapture -> CaptureStarted
-// dokime.files.stop_capture: StopCapture -> CapturedFiles
-// dokime.execution.environment: ReadEnvironment -> Environment
-// dokime.execution.effect.prepare: PrepareEffect -> Ticket
-// dokime.execution.effect.applied: ConfirmEffect -> ConfirmEffectResponse
-// Sleep and clock reads use harmos.clock.sleep / harmos.clock.now; no Dokime copy.
-// Client-facing services are declared in client_*.proto. Their Public operations
-// reuse these messages when they expose the same context operation vocabulary.
-message OperatorQuestion {
-  string prompt = 1;
-  string prompt_type = 2;
-  map<string, Value> values = 3;
-  // An inline definition supports questions assembled by ctx.prompt at runtime;
-  // absent uses the catalog definition named by prompt_type.
-  Prompt definition = 4;
-}
-// Catalog payload name avoids the dokime.v1.Prompts service namespace.
+// Shared prompt, traceability, file-capture and effect payloads.
 message PromptCatalog { repeated Prompt prompts = 1; }
 message Prompt {
   Metadata metadata = 1;
@@ -135,26 +110,13 @@ enum StreamMatchOperator {
   STREAM_MATCH_OPERATOR_LE = 6;
   STREAM_MATCH_OPERATOR_WITHIN = 7;
 }
-message OperatorAnswer {
-  string prompt = 1;
-  string action = 2;
-  map<string, Value> values = 3;
-  string responder = 4;
-  google.protobuf.Timestamp submitted_at = 5;
-  bool accepted = 6;
-}
+
 // Upsert entries by metadata.identifier; other entries remain unchanged.
 message SetTraceability { string execution = 1; repeated TraceabilityEntry entries = 2; }
 message TraceabilityEntry { Metadata metadata = 1; Value value = 2; string source = 3; string unit = 4; }
 message SetTraceabilityResponse {}
-message AddDocumentPart {
-  string execution = 1;
-  string document = 2;
-  // Append to the named section. An empty section selects the document root.
-  string section = 3;
-  oneof part { Section subsection = 4; Card card = 5; }
-}
-message AddDocumentPartResponse {}
+
+
 // One acknowledged chunk per call. Sequence starts at zero; last commits the
 // artifact. This is not a stream. The host checks repeated name and media type.
 message PublishArtifact {
@@ -168,10 +130,10 @@ message PublishArtifact {
   bool replace = 8;
 }
 message ArtifactReceipt { string artifact = 1; uint64 size_bytes = 2; bool sealed = 3; }
-message CopyFiles { FileSource source = 1; string output = 2; }
-message StartCapture { FileSource source = 1; string output = 2; CaptureMode mode = 3; }
-message StopCapture { uint64 capture_id = 1; }
-message CaptureStarted { uint64 capture_id = 1; }
+
+
+
+
 message FileSource {
   oneof kind { FileLocation file = 1; FileSelection tree = 2; FileSelection newest = 3; }
 }
@@ -188,7 +150,7 @@ message MirrorCapture { optional uint32 interval_s = 1; }
 message LineMatcher { string pattern = 1; string stream = 2; repeated LineField fields = 3; }
 message LineField { string name = 1; ValueType type = 2; }
 message LineMarker { string pattern = 1; string record_type = 2; }
-message CapturedFiles { repeated CapturedArtifact artifacts = 1; repeated CaptureGap gaps = 2; }
+
 message CapturedArtifact { string artifact = 1; uint64 size_bytes = 2; }
 message CaptureGap { string path = 1; uint64 offset = 2; CaptureGapReason reason = 3; }
 enum CaptureGapReason {
@@ -198,8 +160,8 @@ enum CaptureGapReason {
   CAPTURE_GAP_REASON_VANISHED = 3;
   CAPTURE_GAP_REASON_RESUME_UNSUPPORTED = 4;
 }
-message ReadEnvironment {}
-message Environment { uint32 backend_pid = 1; bool in_step = 2; }
+
+
 message PrepareEffect { string resource = 1; string inverse_operation = 2; bytes inverse = 3; string description = 4; }
 message Ticket { string id = 1; }
 message ConfirmEffect { string ticket = 1; string at = 2; bool restored = 3; }

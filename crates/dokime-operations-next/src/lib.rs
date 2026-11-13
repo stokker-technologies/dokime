@@ -13,6 +13,7 @@
 
 pub mod artifact;
 pub mod client;
+pub mod environment;
 mod error;
 pub mod log;
 pub mod progress;
@@ -24,6 +25,7 @@ pub mod secret;
 pub mod settings;
 pub mod sleep;
 pub mod statistics;
+pub mod time;
 
 /* === Re-Exports === */
 
@@ -66,6 +68,8 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
         let declarations = || -> Result<Vec<h::OperationContract>> {
             Ok(vec![
                 artifact::declaration()?,
+                environment::declaration()?,
+                time::declaration()?,
                 log::declaration()?,
                 progress::declaration()?,
                 record::declaration()?,
@@ -93,13 +97,27 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
     resources.check_action_scope(&resources.execution, &request.operation)?;
     let payload = request.payload.as_slice();
     match request.operation.as_str() {
+        environment::ID => {
+            Ok(environment::handle(resources, dokime_protocol::context::BackendEnvironmentRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        time::ID => Ok(time::handle(resources, harmos_protocol::context::TimeGetRequest::decode(payload)?).await?.encode_to_vec()),
         artifact::ID => Ok(artifact::handle(resources, v1::PublishArtifact::decode(payload)?).await?.encode_to_vec()),
-        log::ID => Ok(log::handle(resources, v1::WriteLog::decode(payload)?).await?.encode_to_vec()),
+        log::ID => {
+            Ok(log::handle(resources, dokime_protocol::context::evidence::LogsAppendRequest::decode(payload)?).await?.encode_to_vec())
+        }
         progress::ID => Ok(progress::handle(resources, v1::ReportProgress::decode(payload)?).await?.encode_to_vec()),
-        record::ID => Ok(record::handle(resources, v1::PublishRecord::decode(payload)?).await?.encode_to_vec()),
-        records::ID => Ok(records::handle(resources, v1::RecordsRequest::decode(payload)?).await?.encode_to_vec()),
-        statistics::ID => Ok(statistics::handle(resources, v1::StatisticsRequest::decode(payload)?).await?.encode_to_vec()),
-        prompt::ID => Ok(prompt::handle(resources, v1::OperatorQuestion::decode(payload)?).await?.encode_to_vec()),
+        record::ID => {
+            Ok(record::handle(resources, dokime_protocol::context::evidence::RecordsAppendRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        records::ID => {
+            Ok(records::handle(resources, dokime_protocol::context::evidence::RecordsListRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        statistics::ID => {
+            Ok(statistics::handle(resources, dokime_protocol::context::EvidenceStatisticsRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        prompt::ID => {
+            Ok(prompt::handle(resources, dokime_protocol::context::PromptsCreateRequest::decode(payload)?).await?.encode_to_vec())
+        }
         secret::ID => Ok(secret::handle(resources, v1::ReadSecret::decode(payload)?).await?.encode_to_vec()),
         settings::ID => Ok(settings::handle(resources, v1::ReadSettings::decode(payload)?).await?.encode_to_vec()),
         sleep::ID => Ok(sleep::handle(resources, harmos_protocol::context::TimeSleepRequest::decode(payload)?).await?.encode_to_vec()),
