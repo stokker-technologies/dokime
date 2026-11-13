@@ -16,7 +16,7 @@ latest reads SHALL select already durable data without a flush barrier.
 - **WHEN** a query resolves a durable cut during a running execution
 - **THEN** it does not flush admitted unsaved evidence or change execution lifecycle
 - **AND** each product service method delegates through one operation file to a manager or storage, while generic library services are composed directly without redeclaration
-- **AND** latest-durable/no-wait reads follow the locked payload-size-independent 250 ms p95 durable-lag bound in the operation-contracts delta
+- **AND** durable lag is reported by the reusable Nightly benchmark without a failing threshold or accepted-data snapshot, amended by the owner on 2026-11-13
 
 #### Scenario: Contract Discovery
 

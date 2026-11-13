@@ -27,6 +27,9 @@ Upstream source citations below use **Harmos** paths at the exact revision pinne
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 
+Paging, SDK packaging, transfers and durable lag were amended by the owner on
+2026-11-13. The linked Operation Grammar records their complete amended contracts.
+
 ## Invariants
 
 1. **Three Faces.** The plugin protocol is served by a running plugin instance and
@@ -87,7 +90,9 @@ inside that pinned dependency revision; other paths resolve in this repository.
    **Where:** [streaming requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-streaming-contracts),
    [current client protos](../proto/dokime/v1), [SDK operation](../sdk/rust/src/operation.rs).
    **Proof:** No proof yet for the complete contract; A3 must guard generation and
-   settlement. Current client Run twins remain. **Status:** locked direction (`operation-grammar`, `grpc-plugins`).
+   settlement. Current client Run twins remain. Unary file transfers replace
+   streaming transfers, with 4 MiB default chunks and an 8 MiB default message
+   limit, amended by the owner on 2026-11-13. **Status:** locked direction (`operation-grammar`, `grpc-plugins`).
 
 5. **Opaque Invocation Scope.** Carry and inherit scope unchanged; the library
    never interprets it, treats it as an authorization token or infers it from payload.
@@ -163,13 +168,17 @@ inside that pinned dependency revision; other paths resolve in this repository.
 9. **Position-Resolved Reads.** Optional `at` selects a previously returned compatible
    position or seal; omission selects latest durable without waiting, and every reply
    states `resolved_at`. Keep pages at that cut and open Watch there before durable
-   changes; durable lag must meet the payload-size-independent 250 ms p95 bound.
+   changes. Paging is only for rows that can grow unbounded; small bounded catalogs,
+   plugins, pairings, suites and schemas return whole. Measured durable lag is
+   accepted (small about 99 ms, large/mixed up to several hundred milliseconds
+   at p95), reported without a failing threshold or accepted-data snapshot.
+   Amended by the owner on 2026-11-13.
    **Why:** Consistency and read-your-write cannot depend on a read-triggered flush,
    wall time or unstable pages. Running execution reads resolve durable frontiers;
    sealed reads resolve their seal. Arbitrary historical positions are not offered.
    **Where:** [read/watch/paging requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [query delta](../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
-   **Proof:** No proof yet for this complete API and lag bound; A8 plus Nightly task
+   **Proof:** No proof yet for this complete API; A8 plus Nightly task
    1.9. Measure small, multi-megabyte and mixed payloads; test splitting/positions
    deterministically, never elapsed time. **Status:** locked direction (`operation-grammar`).
 
@@ -240,6 +249,10 @@ inside that pinned dependency revision; other paths resolve in this repository.
     conformance use generic vocabulary and remain independently usable without
     product objects; language SDKs stay in the library. Product SDKs compose them,
     naming the same concepts and resource hierarchy consistently across all four languages.
+    Each language ships one package for plugin development and backend clients:
+    Python dokime-sdk composed with the single harmos-sdk; audience-specific builds
+    are removed, and a codebase may install itself via main.py. The API should
+    look simple and good. Amended by the owner on 2026-11-13.
     **Why:** Another host must not reimplement the plugin protocol or depend on this product.
     **Where:** [SDK ownership requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-library-owned-language-sdks),
     [SDK inventory](../openspec/changes/operation-grammar/design.md#sdk-ownership-and-remaining-coverage-facts),
@@ -388,7 +401,7 @@ inside that pinned dependency revision; other paths resolve in this repository.
 | Three audience faces (2026-11-12) | Keep instance protocol, invocation context and client authority independent. | [operation-grammar](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility) |
 | Managers and direct library composition (2026-11-12) | One live owner; avoid rebuilding generic machinery and leaking product policy. | [operation-grammar](../openspec/changes/operation-grammar/design.md#ownership-and-managers) |
 | Nested resources, whole-value Set and Append (2026-11-12) | Predictable verbs and revision safety without field-mask machinery. | [operation-grammar](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary) |
-| Latest durable/no wait; measured lag bound (2026-11-12) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
+| Latest durable/no wait; measured lag accepted (amended by the owner on 2026-11-13) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
 | Client resends; original receipt (2026-11-12) | Recover lost replies without applying an effect twice. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy) |
 | Independent execution host, then one cutover (2026-11-12; model locked 2026-11-10) | Prove execution before replacing desktop/CLI consumers; retain complete behavior. | [grpc-plugins](../openspec/changes/grpc-plugins/design.md) |
 | Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |
