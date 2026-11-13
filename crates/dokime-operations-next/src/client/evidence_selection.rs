@@ -41,7 +41,6 @@ use prost::Message;
 
 /* === Public Functions === */
 
-
 pub(super) fn validate(selection: &v1::CapturedRecordSelection) -> Result<()> {
     if selection.severities.iter().any(|severity| {
         !matches!(

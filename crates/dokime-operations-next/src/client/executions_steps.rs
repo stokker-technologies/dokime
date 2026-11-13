@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Steps
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,7 +47,7 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::ExecutionsStepsRequest) -> Result<v1::ExecutionsStepsResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let position=context.host.store().resource_value(&request.name,"progress",request.at.as_ref())?.resolved_at;
+        let position = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?.resolved_at;
 
         let snapshot = super::execution_state::evidence(context, &request.name)?;
         let case = super::execution_state::case(snapshot.execution.origin.as_ref().unwrap())?;
@@ -77,8 +76,9 @@ let position=context.host.store().resource_value(&request.name,"progress",reques
                 ..Default::default()
             });
         }
-        Ok(v1::ExecutionsStepsResponse { steps, resolved_at:Some(position) })
-    }).await
+        Ok(v1::ExecutionsStepsResponse { steps, resolved_at: Some(position) })
+    })
+    .await
 }
 
 /* === Private Functions === */

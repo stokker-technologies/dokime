@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Delete
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,11 +47,20 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::ExecutionsDeleteRequest) -> Result<v1::ExecutionsDeleteResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-let execution=super::execution_state::detail(context,&request.name)?;
-let cut=context.host.store().cut(&request.name)?;
-context.host.store().delete_sealed_execution(&request.request_id,&request.name,&cut.seal)?;
-context.host.signal_change();Ok(v1::ExecutionsDeleteResponse {execution:Some(execution),receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        if let Some(reply) = context.host.store().deleted_execution(&request.request_id, &request.name)? {
+            return Ok(reply);
+        }
+        let execution = super::execution_state::detail(context, &request.name)?;
+        let cut = context.host.store().cut(&request.name)?;
+        let response = v1::ExecutionsDeleteResponse {
+            execution: Some(execution),
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        };
+        context.host.store().delete_sealed_execution(&request.request_id, &request.name, &cut.seal, &response)?;
+        context.host.signal_change();
+        Ok(response)
+    })
+    .await
 }
 
 /* === Private Functions === */

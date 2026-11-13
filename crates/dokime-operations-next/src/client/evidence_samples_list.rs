@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Evidence Samples List
 
 /* === Modules === */
 
@@ -49,25 +49,61 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::evidence::SamplesListRequest) -> Result<v1::evidence::SamplesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-
         let identifier = super::projection::execution_scope(request.scope.as_ref())?;
         let store = context.host.store();
         let cut = store.metadata(identifier)?;
-let page=request.page.clone().unwrap_or_default();
-let supplied=request.at.as_ref().map(|cut| {if cut.positions.len()!=1 || !cut.revisions.is_empty(){return Err(Error::Invalid("List Samples: Supply Its Returned Execution Cut".into()));}Ok(&cut.positions[0])}).transpose()?;
-let position=store.resource_value(identifier,"progress",supplied)?.resolved_at;
-let mut cut=cut;cut.frontier=position.sequence;
-let resolved_at=h::ReadCut {positions:vec![position],revisions:Vec::new()};
-let mut selected=request.clone();selected.page=None;selected.at=None;
-let binding=format!("{}{}",super::views::hex(&super::paging::bytes(&selected)),super::views::hex(&sha2::Sha256::digest(resolved_at.encode_to_vec())));
-let mut after=std::collections::BTreeMap::<String,u64>::new();
-if !page.page_token.is_empty(){let (key,token)=page.page_token.split_once('/').ok_or_else(||Error::Invalid("List Samples: Supply the Returned Page Token".into()))?;
- if key!=binding {return Err(Error::Invalid("List Samples: Keep the Same Cut and Selection".into()));}
- after=serde_json::from_str(token).map_err(|_|Error::Invalid("List Samples: Supply the Returned Stream Positions".into()))?;
-}
-let start_ns=request.between.as_ref().and_then(|window|window.start.as_ref()).map(crate::resources::timestamp_ns).transpose()?.unwrap_or(i64::MIN);
-let end_ns=request.between.as_ref().and_then(|window|window.end.as_ref()).map(crate::resources::timestamp_ns).transpose()?.unwrap_or(i64::MAX);
-if start_ns>end_ns {return Err(Error::Invalid("List Samples: Choose Increasing Source-Time Bounds".into()));}
+        let page = request.page.clone().unwrap_or_default();
+        let supplied = request
+            .at
+            .as_ref()
+            .map(|cut| {
+                if cut.positions.len() != 1 || !cut.revisions.is_empty() {
+                    return Err(Error::Invalid("List Samples: Supply Its Returned Execution Cut".into()));
+                }
+                Ok(&cut.positions[0])
+            })
+            .transpose()?;
+        let position = store.resource_value(identifier, "progress", supplied)?.resolved_at;
+        let mut cut = cut;
+        cut.frontier = position.sequence;
+        let resolved_at = h::ReadCut {
+            positions: vec![position],
+            revisions: Vec::new(),
+        };
+        let mut selected = request.clone();
+        selected.page = None;
+        selected.at = None;
+        let binding = format!(
+            "{}{}",
+            super::views::hex(&super::paging::bytes(&selected)),
+            super::views::hex(&sha2::Sha256::digest(resolved_at.encode_to_vec()))
+        );
+        let mut after = std::collections::BTreeMap::<String, u64>::new();
+        if !page.page_token.is_empty() {
+            let (key, token) =
+                page.page_token.split_once('/').ok_or_else(|| Error::Invalid("List Samples: Supply the Returned Page Token".into()))?;
+            if key != binding {
+                return Err(Error::Invalid("List Samples: Keep the Same Cut and Selection".into()));
+            }
+            after = serde_json::from_str(token).map_err(|_| Error::Invalid("List Samples: Supply the Returned Stream Positions".into()))?;
+        }
+        let start_ns = request
+            .between
+            .as_ref()
+            .and_then(|window| window.start.as_ref())
+            .map(crate::resources::timestamp_ns)
+            .transpose()?
+            .unwrap_or(i64::MIN);
+        let end_ns = request
+            .between
+            .as_ref()
+            .and_then(|window| window.end.as_ref())
+            .map(crate::resources::timestamp_ns)
+            .transpose()?
+            .unwrap_or(i64::MAX);
+        if start_ns > end_ns {
+            return Err(Error::Invalid("List Samples: Choose Increasing Source-Time Bounds".into()));
+        }
         let names = store.stream_names(identifier)?;
         let streams = names
             .iter()
@@ -76,7 +112,9 @@ if start_ns>end_ns {return Err(Error::Invalid("List Samples: Choose Increasing S
             })
             .cloned()
             .collect::<Vec<_>>();
-if after.iter().any(|(key,value)|!names.contains(key) || *value>cut.frontier){return Err(Error::Invalid("List Samples: Continue Within the Selected Stream Histories".into()));}
+        if after.iter().any(|(key, value)| !names.contains(key) || *value > cut.frontier) {
+            return Err(Error::Invalid("List Samples: Continue Within the Selected Stream Histories".into()));
+        }
         let limit = super::projection::limit(page.page_size, context.settings.page_items);
         let (step_after, through) = store.step_range(
             identifier,
@@ -162,9 +200,27 @@ if after.iter().any(|(key,value)|!names.contains(key) || *value>cut.frontier){re
                 values.values.retain(|key, _| request.signals.iter().any(|pattern| super::evidence_selection::matches(pattern, key)));
             }
         }
-let next_page_token=if bounded {String::new()} else {format!("{binding}/{}",serde_json::to_string(&after).map_err(|error|Error::Invalid(format!("List Samples: Encode Continuation: {error}")))?)};
-Ok(v1::evidence::SamplesListResponse {samples:samples.into_iter().map(|sample|v1::SampleRow {kind:Some(v1::sample_row::Kind::Raw(sample))}).collect(),schema:None,resolved_at:Some(resolved_at),next_page_token})
-    }).await
+        let next_page_token = if bounded {
+            String::new()
+        } else {
+            format!(
+                "{binding}/{}",
+                serde_json::to_string(&after).map_err(|error| Error::Invalid(format!("List Samples: Encode Continuation: {error}")))?
+            )
+        };
+        Ok(v1::evidence::SamplesListResponse {
+            samples: samples
+                .into_iter()
+                .map(|sample| v1::SampleRow {
+                    kind: Some(v1::sample_row::Kind::Raw(sample)),
+                })
+                .collect(),
+            schema: None,
+            resolved_at: Some(resolved_at),
+            next_page_token,
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

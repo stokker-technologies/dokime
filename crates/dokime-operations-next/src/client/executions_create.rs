@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Create
 
 /* === Modules === */
 
@@ -24,7 +24,6 @@ use prost::Message;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -49,7 +48,6 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::ExecutionsCreateRequest) -> Result<v1::ExecutionsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-
         let cycle = super::execution_state::cycle(context, &request.parent)?;
         if cycle.sealed || request.executions.is_empty() || request.executions.len() > context.settings.max_cases {
             return Err(Error::Invalid("Append Executions: Supply Bounded Bindings to an Unsealed Cycle".into()));
@@ -100,8 +98,16 @@ pub async fn handle(context: &Context, request: v1::ExecutionsCreateRequest) -> 
                 context.host.start_existing(&binding.execution_id, v1::ExecutionMode::Automatic).await?;
             }
         }
-Ok(v1::ExecutionsCreateResponse {executions:request.executions.iter().map(|binding|super::execution_state::detail(context,&binding.execution_id)).collect::<Result<Vec<_>>>()?,receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        Ok(v1::ExecutionsCreateResponse {
+            executions: request
+                .executions
+                .iter()
+                .map(|binding| super::execution_state::detail(context, &binding.execution_id))
+                .collect::<Result<Vec<_>>>()?,
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

@@ -13,6 +13,7 @@
 
 pub mod artifact;
 pub mod client;
+pub mod content_artifacts_create;
 pub mod environment;
 mod error;
 pub mod log;
@@ -71,6 +72,7 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
         let declarations = || -> Result<Vec<h::OperationContract>> {
             Ok(vec![
                 artifact::declaration()?,
+                content_artifacts_create::declaration()?,
                 environment::declaration()?,
                 time::declaration()?,
                 log::declaration()?,
@@ -107,6 +109,11 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
             Ok(environment::handle(resources, dokime_protocol::context::BackendEnvironmentRequest::decode(payload)?).await?.encode_to_vec())
         }
         time::ID => Ok(time::handle(resources, harmos_protocol::context::TimeGetRequest::decode(payload)?).await?.encode_to_vec()),
+        content_artifacts_create::ID => {
+            Ok(content_artifacts_create::handle(resources, dokime_protocol::context::content::ArtifactsCreateRequest::decode(payload)?)
+                .await?
+                .encode_to_vec())
+        }
         artifact::ID => Ok(artifact::handle(resources, v1::PublishArtifact::decode(payload)?).await?.encode_to_vec()),
         log::ID => {
             Ok(log::handle(resources, dokime_protocol::context::evidence::LogsAppendRequest::decode(payload)?).await?.encode_to_vec())

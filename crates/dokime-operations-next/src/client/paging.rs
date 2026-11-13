@@ -23,7 +23,6 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use crate::client::Context;
 
-
 /* === Constants === */
 
 /* === Macros === */
@@ -55,12 +54,14 @@ pub(super) fn cursor(context: &Context, selection: String, rows: impl IntoIterat
         digest.update(row);
     }
     let bytes = digest.finalize();
-    harmos_protocol::v1::ReadCut { positions:Vec::new(),revisions:vec![harmos_protocol::v1::ResourceRevision {
-        name:format!("{}/{selection}",context.host.identity().backend_id),revision:bytes.to_vec(),
-    }] }
+    harmos_protocol::v1::ReadCut {
+        positions: Vec::new(),
+        revisions: vec![harmos_protocol::v1::ResourceRevision {
+            name: format!("{}/{selection}", context.host.identity().backend_id),
+            revision: bytes.to_vec(),
+        }],
+    }
 }
-
-
 
 /* === Private Functions === */
 

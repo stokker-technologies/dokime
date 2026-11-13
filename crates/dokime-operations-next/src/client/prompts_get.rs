@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Prompts Get
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,9 +47,16 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::PromptsGetRequest) -> Result<v1::PromptsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let (prompt,cut)=super::views::read(context,&format!("prompt/{}",request.name),request.at.as_ref(),async {super::prompt_catalog::view(context,&request.name)}).await?;
-Ok(v1::PromptsGetResponse {prompt:Some(prompt),resolved_at:Some(cut)})
-    }).await
+        let (prompt, cut) = super::views::read(context, &format!("prompt/{}", request.name), request.at.as_ref(), async {
+            super::prompt_catalog::view(context, &request.name)
+        })
+        .await?;
+        Ok(v1::PromptsGetResponse {
+            prompt: Some(prompt),
+            resolved_at: Some(cut),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Reports Publish
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -51,9 +50,9 @@ pub async fn handle(context: &Context, request: v1::ReportsPublishRequest) -> Re
 let prepared:dokime_storage::Report=context.host.store().administration(&request.name)?.ok_or_else(||Error::NotFound("Publish Report: Create Its Prepared Report First".into()))?;
 if request.expected_revision!=prepared.seal {return Err(Error::Conflict("Publish Report: Use the Prepared File Digest as Its Revision".into()));}
 if !matches!(request.subject.as_ref().and_then(|subject|subject.kind.as_ref()),Some(v1::report_subject::Kind::Execution(execution)) if execution==&prepared.execution){return Err(Error::Invalid("Publish Report: Keep Its Prepared Execution Subject".into()));}
-let report=context.host.store().publish_report(&prepared.execution,&prepared.execution_seal,prepared.document.ok_or_else(||Error::Invalid("Publish Report: Restore Its Frozen Document".into()))?,prepared.html)?;
+let report=context.host.publish_report(prepared)?;
 let cut=context.host.store().metadata(&report.execution)?;
-Ok(v1::ReportsPublishResponse {report:Some(v1::ReportMetadata {test_cycle_id:cut.execution.cycle,test_execution_id:Some(report.execution.clone()),identifier:report.identifier.clone(),metadata:report.document.and_then(|document|document.metadata),origin:v1::ReportOrigin::Sealed as i32,..Default::default()}),seal:report.seal,receipt:Some(super::views::receipt(&request.request_id)?)})
+Ok(v1::ReportsPublishResponse {report:Some(v1::ReportMetadata {test_cycle_id:cut.execution.cycle,test_execution_id:Some(report.execution.clone()),identifier:report.identifier.clone(),metadata:report.document.and_then(|document|document.metadata),origin:v1::ReportOrigin::Sealed as i32,..Default::default()}),seal:report.seal,receipt:Some(super::views::receipt(context,&request.request_id)?)})
     }).await
 }
 

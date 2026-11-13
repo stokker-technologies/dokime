@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Cycles Create
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,15 +47,30 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::CyclesCreateRequest) -> Result<v1::CyclesCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-let mut request=request;
-let mut skipped=Vec::new();
-if !request.source_cycle.is_empty() {
- let source=super::execution_state::cycle(context,&request.source_cycle)?;
- if source.running_count>0 || source.queued_count>0 {return Err(Error::Precondition("Create Cycle: Finish the Source Before Rerunning".into()));}
- if !request.origins.is_empty() {return Err(Error::Invalid("Create Cycle: Select Origins or a Source Cycle".into()));}
- for snapshot in super::execution_state::snapshots(context,&request.source_cycle)? { match snapshot.execution.origin {Some(origin) if matches!(origin.kind,Some(v1::origin::Kind::PluginRun(_)))=>request.origins.push(origin),_=>skipped.push(v1::RerunCaseNotice {case_id:snapshot.execution.identifier,reason:"Imported Evidence Has No Runnable TestCase".into(),..Default::default()})} }
- if request.metadata.is_none(){request.metadata=source.metadata;}
-}
+        let mut request = request;
+        let mut skipped = Vec::new();
+        if !request.source_cycle.is_empty() {
+            let source = super::execution_state::cycle(context, &request.source_cycle)?;
+            if source.running_count > 0 || source.queued_count > 0 {
+                return Err(Error::Precondition("Create Cycle: Finish the Source Before Rerunning".into()));
+            }
+            if !request.origins.is_empty() {
+                return Err(Error::Invalid("Create Cycle: Select Origins or a Source Cycle".into()));
+            }
+            for snapshot in super::execution_state::snapshots(context, &request.source_cycle)? {
+                match snapshot.execution.origin {
+                    Some(origin) if matches!(origin.kind, Some(v1::origin::Kind::PluginRun(_))) => request.origins.push(origin),
+                    _ => skipped.push(v1::RerunCaseNotice {
+                        case_id: snapshot.execution.identifier,
+                        reason: "Imported Evidence Has No Runnable TestCase".into(),
+                        ..Default::default()
+                    }),
+                }
+            }
+            if request.metadata.is_none() {
+                request.metadata = source.metadata;
+            }
+        }
 
         if request.origins.len() > context.settings.max_cases {
             return Err(Error::Invalid("Create Cycle: Reduce the Origin List to the Case Bound".into()));
@@ -113,19 +127,40 @@ if !request.source_cycle.is_empty() {
                     context,
                     v1::ExecutionsCreateRequest {
                         parent: cycle.cycle_id.clone(),
-                        executions: bindings,request_id:request.request_id.clone(),
+                        executions: bindings,
+                        request_id: request.request_id.clone(),
                     },
                 )
                 .await?;
-                execution_ids = reply.executions.into_iter().filter_map(|execution|execution.summary.map(|summary|summary.execution_id)).collect();
+                execution_ids =
+                    reply.executions.into_iter().filter_map(|execution| execution.summary.map(|summary| summary.execution_id)).collect();
             }
         }
-        if !request.source_cycle.is_empty(){cycle.rerun_of=Some(request.source_cycle);}
-context.host.store().save_cycle(&cycle)?;
+        if !request.source_cycle.is_empty() {
+            cycle.rerun_of = Some(request.source_cycle);
+        }
+        context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-let _=execution_ids;
-Ok(v1::CyclesCreateResponse {cycle:Some(cycle),skipped,receipt:Some(super::views::receipt(&request.request_id)?),..Default::default()})
-    }).await
+        let _ = execution_ids;
+        let admitted = super::executions_list::handle(
+            context,
+            v1::ExecutionsListRequest {
+                parent: cycle.cycle_id.clone(),
+                ..Default::default()
+            },
+        )
+        .await?;
+        let mut receipt = super::views::receipt(context, &request.request_id)?;
+        receipt.durable_at = admitted.resolved_at.as_ref().and_then(|cut| cut.positions.first()).cloned();
+        receipt.accepted_at = receipt.durable_at.clone();
+        Ok(v1::CyclesCreateResponse {
+            cycle: Some(cycle),
+            skipped,
+            receipt: Some(receipt),
+            ..Default::default()
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

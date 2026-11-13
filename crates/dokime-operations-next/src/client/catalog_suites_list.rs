@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Catalog Suites List
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,15 +47,17 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::catalog::SuitesListRequest) -> Result<v1::catalog::SuitesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let at = request.at.clone();
-let key = format!("catalog/suites/{}", request.parent);
-let (saved, cut) = super::views::read(context,&key,at.as_ref(),async {
- let inventory = super::catalog_inventory::Inventory::read(context).await?;
- let values = inventory.suites.into_iter().map(|(_,value)|value).collect::<Vec<_>>();
- Ok(v1::catalog::SuitesListResponse { values, ..Default::default() })
-}).await?;
-Ok(v1::catalog::SuitesListResponse { resolved_at:Some(cut),..saved })
-    }).await
+        let at = request.at.clone();
+        let key = format!("catalog/suites/{}", request.parent);
+        let (saved, cut) = super::views::read(context, &key, at.as_ref(), async {
+            let inventory = super::catalog_inventory::Inventory::read(context).await?;
+            let values = inventory.suites.into_iter().map(|(_, value)| value).collect::<Vec<_>>();
+            Ok(v1::catalog::SuitesListResponse { values, ..Default::default() })
+        })
+        .await?;
+        Ok(v1::catalog::SuitesListResponse { resolved_at: Some(cut), ..saved })
+    })
+    .await
 }
 
 /* === Private Functions === */

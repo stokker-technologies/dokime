@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Cases List
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,11 +47,16 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::CasesListRequest) -> Result<v1::CasesListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let (mut reply,cut)=super::views::read(context,&format!("{ID}/{}/{}",request.parent,String::new()),request.at.as_ref(),async { 
-        let cases = super::execution_state::cases(context, &request.parent)?;
-        Ok(v1::CasesListResponse { cases,..Default::default() }) }).await?;
-reply.resolved_at=Some(cut);Ok(reply)
-    }).await
+        let (mut reply, cut) =
+            super::views::read(context, &format!("{ID}/{}/{}", request.parent, String::new()), request.at.as_ref(), async {
+                let cases = super::execution_state::cases(context, &request.parent)?;
+                Ok(v1::CasesListResponse { cases, ..Default::default() })
+            })
+            .await?;
+        reply.resolved_at = Some(cut);
+        Ok(reply)
+    })
+    .await
 }
 
 /* === Private Functions === */

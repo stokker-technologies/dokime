@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Cases Delete
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,10 +47,14 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::CasesDeleteRequest) -> Result<v1::CasesDeleteResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-super::execution_state::cycle(context,&request.parent)?;
-context.host.store().delete_planned_case(&request.parent,&request.name)?;
-context.host.signal_change();Ok(v1::CasesDeleteResponse {receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        super::execution_state::cycle(context, &request.parent)?;
+        context.host.store().delete_planned_case(&request.parent, &request.name)?;
+        context.host.signal_change();
+        Ok(v1::CasesDeleteResponse {
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

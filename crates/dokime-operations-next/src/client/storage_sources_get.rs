@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Storage Sources Get
 
 /* === Modules === */
 
@@ -24,7 +24,6 @@ use prost::Message;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -49,11 +48,20 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::storage::SourcesGetRequest) -> Result<v1::storage::SourcesGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let (mut reply,cut)=super::views::read(context,ID,request.at.as_ref(),async {
- let initial=v1::StorageSources::default();let (payload,revision)=context.host.store().administration_value("storage-sources",&initial.encode_to_vec())?;
- Ok(v1::storage::SourcesGetResponse {value:Some(v1::StorageSources::decode(payload.as_slice())?),revision,..Default::default()})
-}).await?;reply.resolved_at=Some(cut);Ok(reply)
-    }).await
+        let (mut reply, cut) = super::views::read(context, ID, request.at.as_ref(), async {
+            let initial = v1::StorageSources::default();
+            let (payload, revision) = context.host.store().administration_value("storage-sources", &initial.encode_to_vec())?;
+            Ok(v1::storage::SourcesGetResponse {
+                value: Some(v1::StorageSources::decode(payload.as_slice())?),
+                revision,
+                ..Default::default()
+            })
+        })
+        .await?;
+        reply.resolved_at = Some(cut);
+        Ok(reply)
+    })
+    .await
 }
 
 /* === Private Functions === */

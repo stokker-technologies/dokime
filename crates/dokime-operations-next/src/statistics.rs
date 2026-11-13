@@ -56,8 +56,8 @@ pub async fn handle(
 ) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let mut snapshot = resources.store.cut(&resources.execution)?;
-    let resolved_at=resources.store.resource_value(&resources.execution,"progress",request.at.as_ref())?.resolved_at;
-    snapshot.frontier=resolved_at.sequence;
+    let resolved_at = resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at;
+    snapshot.frontier = resolved_at.sequence;
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let stream = catalog
         .streams
@@ -86,7 +86,7 @@ pub async fn handle(
     if let Some(mut read) = resources.store.cached_statistics(&resources.execution, &key, start, frontier)? {
         read.request = Some(request);
         let mut response = read.response.clone().unwrap_or_default();
-        response.resolved_at=Some(resolved_at);
+        response.resolved_at = Some(resolved_at);
         resources.evidence("read:statistics", read.encode_to_vec(), None)?;
         return Ok(response);
     }
@@ -117,7 +117,10 @@ pub async fn handle(
         }
     }
     if values.is_empty() {
-        let response = dokime_protocol::context::EvidenceStatisticsResponse {resolved_at:Some(resolved_at),..Default::default()};
+        let response = dokime_protocol::context::EvidenceStatisticsResponse {
+            resolved_at: Some(resolved_at),
+            ..Default::default()
+        };
         let read = StatisticsRead {
             request: Some(request),
             positions,
@@ -140,7 +143,7 @@ pub async fn handle(
         values[low] + (values[high] - values[low]) * index.fract()
     };
     let response = dokime_protocol::context::EvidenceStatisticsResponse {
-        resolved_at:Some(resolved_at),
+        resolved_at: Some(resolved_at),
         count,
         min: values[0],
         max: values[values.len() - 1],

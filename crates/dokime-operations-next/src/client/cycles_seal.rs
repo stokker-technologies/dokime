@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Cycles Seal
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,7 +47,6 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::CyclesSealRequest) -> Result<v1::CyclesSealResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-
         let mut cycle = super::execution_state::cycle(context, &request.name)?;
         for row in super::execution_state::snapshots(context, &request.name)? {
             if row.state != dokime_storage::ExecutionState::Sealed {
@@ -60,8 +58,12 @@ pub async fn handle(context: &Context, request: v1::CyclesSealRequest) -> Result
         cycle.updated_at = Some(super::projection::timestamp(context.host.now_ns()));
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-Ok(v1::CyclesSealResponse {seal:super::paging::bytes(&cycle),receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        Ok(v1::CyclesSealResponse {
+            seal: super::paging::bytes(&cycle),
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

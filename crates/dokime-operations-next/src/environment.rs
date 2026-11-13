@@ -52,7 +52,7 @@ pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -
     resources.check_action_scope(&resources.execution, ID)?;
     Ok(BackendEnvironmentResponse {
         backend_pid: std::process::id(),
-        resolved_at:Some(resources.store.resource_value(&resources.execution,"progress",request.at.as_ref())?.resolved_at),
+        resolved_at: Some(resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at),
         in_step: !resources.step.is_empty(),
     })
 }

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Catalog Stream Schemas List
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,15 +47,21 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::catalog::StreamSchemasListRequest) -> Result<v1::catalog::StreamSchemasListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let at = request.at.clone();
-let key = format!("catalog/stream_schemas/{}", request.parent);
-let (saved, cut) = super::views::read(context,&key,at.as_ref(),async {
- let inventory = super::catalog_inventory::Inventory::read(context).await?;
- let values = inventory.streams;
- Ok(v1::catalog::StreamSchemasListResponse { values, ..Default::default() })
-}).await?;
-Ok(v1::catalog::StreamSchemasListResponse { resolved_at:Some(cut),..saved })
-    }).await
+        let at = request.at.clone();
+        let key = format!("catalog/stream_schemas/{}", request.parent);
+        let (saved, cut) = super::views::read(context, &key, at.as_ref(), async {
+            let inventory = if request.parent.is_empty() {
+                super::catalog_inventory::Inventory::read(context).await?
+            } else {
+                super::catalog_inventory::Inventory::captured(context, &request.parent)?
+            };
+            let values = inventory.streams;
+            Ok(v1::catalog::StreamSchemasListResponse { values, ..Default::default() })
+        })
+        .await?;
+        Ok(v1::catalog::StreamSchemasListResponse { resolved_at: Some(cut), ..saved })
+    })
+    .await
 }
 
 /* === Private Functions === */

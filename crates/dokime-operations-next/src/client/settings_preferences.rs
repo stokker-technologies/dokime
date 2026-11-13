@@ -67,13 +67,18 @@ pub(super) fn initial() -> v1::SettingsGetResponse {
                 stop_timeout_s: 10,
             }),
         }),
-        resolved_at:None,
+        resolved_at: None,
     }
 }
 
 pub(super) fn read(context: &Context) -> Result<v1::SettingsGetResponse> {
-    let (payload,revision)=context.host.store().administration_value("preferences",&prost::Message::encode_to_vec(&initial().value.unwrap()))?;
-    Ok(v1::SettingsGetResponse {value:Some(<v1::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),revision,resolved_at:None})
+    let (payload, revision) =
+        context.host.store().administration_value("preferences", &prost::Message::encode_to_vec(&initial().value.unwrap()))?;
+    Ok(v1::SettingsGetResponse {
+        value: Some(<v1::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),
+        revision,
+        resolved_at: None,
+    })
 }
 
 pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
@@ -114,13 +119,23 @@ pub(super) fn validate(settings: &v1::ApplicationSettings) -> Result<()> {
 }
 
 pub(super) fn plugin(context: &Context, identifier: &str) -> Result<v1::plugins::SettingsGetResponse> {
+    let plugin = plugin_owner(context, identifier)?;
+    for_plugin(&context.host.store(), plugin)
+}
+
+pub(super) fn plugin_owner(context: &Context, identifier: &str) -> Result<v1::Plugin> {
     let plugin = context
         .host
         .plugins()?
         .into_iter()
         .find(|plugin| plugin.entry == identifier || plugin.description.as_ref().is_some_and(|description| description.id == identifier))
         .ok_or_else(|| invalid("Select an Installed or Remote Plugin"))?;
-    for_plugin(&context.host.store(), plugin)
+    Ok(plugin)
+}
+
+pub(super) fn plugin_key(context: &Context, identifier: &str) -> Result<String> {
+    let plugin = plugin_owner(context, identifier)?;
+    Ok(format!("plugin-settings:{}", plugin.description.as_ref().map_or(plugin.entry.as_str(), |description| description.id.as_str())))
 }
 
 pub(crate) fn for_plugin(store: &dokime_storage::Store, plugin: v1::Plugin) -> Result<v1::plugins::SettingsGetResponse> {

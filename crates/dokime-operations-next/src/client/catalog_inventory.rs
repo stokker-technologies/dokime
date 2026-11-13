@@ -49,14 +49,29 @@ impl Inventory {
     pub async fn read(context: &Context) -> Result<Self> {
         context.host.refresh_plugin_states().await?;
         let plugins = context.host.plugins()?;
+        let mut catalogs = Vec::new();
+        for plugin in plugins.iter().filter(|plugin| plugin.state == v1::PluginState::Ready as i32) {
+            catalogs.push(
+                plugin
+                    .description
+                    .as_ref()
+                    .and_then(|description| description.catalog.clone())
+                    .ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect the Plugin with Its Catalog".into()))?,
+            );
+        }
+        Self::from_catalogs(catalogs, context.host.suites()?)
+    }
+
+    pub fn captured(context: &Context, parent: &str) -> Result<Self> {
+        let snapshot = context.host.store().metadata(parent)?;
+        let catalog = harmos_protocol::v1::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+        Self::from_catalogs(vec![catalog], Vec::new())
+    }
+
+    fn from_catalogs(catalogs: Vec<harmos_protocol::v1::Catalog>, suites: Vec<(String, v1::Suite)>) -> Result<Self> {
         let mut records = std::collections::BTreeMap::new();
         let mut streams = std::collections::BTreeMap::new();
-        for plugin in plugins.iter().filter(|plugin| plugin.state == v1::PluginState::Ready as i32) {
-            let catalog = plugin
-                .description
-                .as_ref()
-                .and_then(|description| description.catalog.as_ref())
-                .ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect the Plugin with Its Catalog".into()))?;
+        for catalog in catalogs {
             let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect with Message Descriptors".into()))?;
             let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| Error::Invalid(error.to_string()))?;
             for section in &catalog.sections {
@@ -121,7 +136,7 @@ impl Inventory {
             }
         }
         Ok(Self {
-            suites: context.host.suites()?,
+            suites,
             records: records.into_values().collect(),
             streams: streams.into_values().collect(),
         })

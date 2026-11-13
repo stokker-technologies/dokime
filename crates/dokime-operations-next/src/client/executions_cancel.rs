@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Cancel
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,9 +47,13 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::ExecutionsCancelRequest) -> Result<v1::ExecutionsCancelResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-context.host.control_execution(&request.name,super::RunAction::Cancel)?;
-Ok(v1::ExecutionsCancelResponse {execution:Some(super::execution_state::detail(context,&request.name)?),receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        context.host.control_execution(&request.name, super::RunAction::Cancel)?;
+        Ok(v1::ExecutionsCancelResponse {
+            execution: Some(super::execution_state::detail(context, &request.name)?),
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Storage Sources Set
 
 /* === Modules === */
 
@@ -24,7 +24,6 @@ use prost::Message;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -49,13 +48,27 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::storage::SourcesSetRequest) -> Result<v1::storage::SourcesSetResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-let value=request.value.as_ref().ok_or_else(||Error::Invalid("Set Storage Sources: Supply the Whole Writable Value".into()))?;
-let mut identifiers=std::collections::BTreeSet::new();
-if value.sources.iter().any(|source|source.identifier.is_empty() || !identifiers.insert(&source.identifier)) {return Err(Error::Invalid("Set Storage Sources: Supply Unique Identifiers".into()));}
-let fingerprint=super::views::hex(&super::paging::bytes(&request));
-let (payload,revision,receipt)=context.host.store().replace_administration_value("storage-sources",&request.expected_revision,&request.request_id,fingerprint.as_bytes(),&value.encode_to_vec())?;
-context.host.signal_change();Ok(v1::storage::SourcesSetResponse {value:Some(v1::StorageSources::decode(payload.as_slice())?),revision,receipt:Some(receipt)})
-    }).await
+        let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Storage Sources: Supply the Whole Writable Value".into()))?;
+        let mut identifiers = std::collections::BTreeSet::new();
+        if value.sources.iter().any(|source| source.identifier.is_empty() || !identifiers.insert(&source.identifier)) {
+            return Err(Error::Invalid("Set Storage Sources: Supply Unique Identifiers".into()));
+        }
+        let fingerprint = super::views::hex(&super::paging::bytes(&request));
+        let (payload, revision, receipt) = context.host.store().replace_administration_value(
+            "storage-sources",
+            &request.expected_revision,
+            &request.request_id,
+            fingerprint.as_bytes(),
+            &value.encode_to_vec(),
+        )?;
+        context.host.signal_change();
+        Ok(v1::storage::SourcesSetResponse {
+            value: Some(v1::StorageSources::decode(payload.as_slice())?),
+            revision,
+            receipt: Some(receipt),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

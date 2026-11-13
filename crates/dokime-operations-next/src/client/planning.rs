@@ -109,10 +109,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
     if super::paging::cursor(context, "planning.catalog".into(), latest.iter().map(super::paging::bytes)) != catalog_cursor {
         return Err(Error::Precondition("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
     }
-    let reply = v1::CasesCreateResponse {
-        cases,
-        ..Default::default()
-    };
+    let reply = v1::CasesCreateResponse { cases, ..Default::default() };
     if reply.encoded_len() > context.settings.message_bytes {
         return Err(Error::Invalid("Plan Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));
     }

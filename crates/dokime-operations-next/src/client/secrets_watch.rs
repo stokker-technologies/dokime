@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Secrets Watch
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,29 +47,68 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::SecretsWatchRequest) -> Result<super::Output<v1::SecretsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
-let mut storage=context.host.store().subscribe();let mut runtime=context.host.changes();
-let mut selection=v1::SecretsListRequest {at:request.at};
-let first=super::secrets_list::handle(context,selection.clone()).await?;
-let context=context.clone();let (sender,output)=tokio::sync::mpsc::channel(context.settings.stream_buffer);
-tokio::spawn(async move {
- let work=async {
-  let mut page=first;let mut opening=true;
-  loop {
-   let cut=page.resolved_at.clone();let token=String::new();
-   let response=v1::SecretsWatchResponse {entries:page.entries,generation:page.generation,resolved_at:cut.clone(),opening,resync_required:None};
-   if sender.send(Ok(response)).await.is_err() {return;}
-   if !token.is_empty() {selection.at=cut;} else {
-    if context.host.shutting_down() {return;}
-    tokio::select! {_ = sender.closed()=>return,changed=storage.changed()=>if changed.is_err(){return;},changed=runtime.changed()=>if changed.is_err(){return;}}
-    opening=false;selection.at=None;
-   }
-   page=match super::secrets_list::handle(&context,selection.clone()).await {Ok(page)=>page,Err(error)=>{let _=sender.send(Ok(v1::SecretsWatchResponse {resync_required:Some(h::Failure {code:"resync_required".into(),message:format!("{ID}: {error}"),..Default::default()}),..Default::default()})).await;return;}};
-  }
- };
- if tokio::time::timeout(context.settings.watch_timeout,work).await.is_err(){let _=sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));}
-});
-Ok(tokio_stream::wrappers::ReceiverStream::new(output))
-    }).await
+        let mut storage = context.host.store().subscribe();
+        let mut runtime = context.host.changes();
+        let mut selection = v1::SecretsListRequest { at: request.at };
+        let first = super::secrets_list::handle(context, selection.clone()).await?;
+        let context = context.clone();
+        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+        tokio::spawn(async move {
+            let work = async {
+                let mut page = first;
+                let mut opening = true;
+                loop {
+                    let cut = page.resolved_at.clone();
+                    let token = String::new();
+                    let response = v1::SecretsWatchResponse {
+                        entries: page.entries,
+                        generation: page.generation,
+                        resolved_at: cut.clone(),
+                        opening,
+                        resync_required: None,
+                    };
+                    if sender.send(Ok(response)).await.is_err() {
+                        return;
+                    }
+                    if !token.is_empty() {
+                        selection.at = cut;
+                    } else {
+                        if context.host.shutting_down() {
+                            return;
+                        }
+                        tokio::select! {
+                            _ = sender.closed() => return,
+                            changed = storage.changed() => if changed.is_err() { return; },
+                            changed = runtime.changed() => if changed.is_err() { return; },
+                        }
+                        opening = false;
+                        selection.at = None;
+                    }
+                    page = match super::secrets_list::handle(&context, selection.clone()).await {
+                        Ok(page) => page,
+                        Err(error) => {
+                            let _ = sender
+                                .send(Ok(v1::SecretsWatchResponse {
+                                    resync_required: Some(h::Failure {
+                                        code: "resync_required".into(),
+                                        message: format!("{ID}: {error}"),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }))
+                                .await;
+                            return;
+                        }
+                    };
+                }
+            };
+            if tokio::time::timeout(context.settings.watch_timeout, work).await.is_err() {
+                let _ = sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
+            }
+        });
+        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
+    })
+    .await
 }
 
 /* === Private Functions === */

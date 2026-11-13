@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Commands Create
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,9 +47,13 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::executions::CommandsCreateRequest) -> Result<v1::executions::CommandsCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-let command=context.host.submit_command(request.clone())?;
-Ok(v1::executions::CommandsCreateResponse {command:Some(command),receipt:Some(super::views::receipt(&request.request_id)?)})
-    }).await
+        let command = context.host.submit_command(request.clone())?;
+        Ok(v1::executions::CommandsCreateResponse {
+            command: Some(command),
+            receipt: Some(super::views::receipt(context, &request.request_id)?),
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

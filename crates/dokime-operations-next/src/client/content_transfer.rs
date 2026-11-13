@@ -7,15 +7,15 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Content Transfer
 
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
-use sha2::{Digest,Sha256};
-use crate::{Error,Result};
+use crate::{Error, Result};
+use sha2::{Digest, Sha256};
 pub(super) fn temporary(file: std::fs::File) -> Result<(std::fs::File, u64, String)> {
     let length = file.metadata().map_err(|error| Error::Invalid(format!("Inspect Temporary Export: {error}")))?.len();
     let mut hash = Sha256::new();

@@ -53,8 +53,9 @@ pub async fn handle(
 ) -> Result<dokime_protocol::context::evidence::LogsAppendResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let source = request.at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
-    let (_,receipt)=resources.evidence_requested(ID,&request.request_id,&request.encode_to_vec(),"log",request.encode_to_vec(),source)?;
-    Ok(dokime_protocol::context::evidence::LogsAppendResponse {receipt:Some(receipt)})
+    let (_, receipt) =
+        resources.evidence_requested(ID, &request.request_id, &request.encode_to_vec(), "log", request.encode_to_vec(), source)?;
+    Ok(dokime_protocol::context::evidence::LogsAppendResponse { receipt: Some(receipt) })
 }
 
 /* === Private Functions === */

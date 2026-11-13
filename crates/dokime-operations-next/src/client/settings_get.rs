@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Settings Get
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,13 +47,18 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::SettingsGetRequest) -> Result<v1::SettingsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let (mut reply,cut)=super::views::read(context,ID,request.at.as_ref(),async {super::settings_preferences::read(context)}).await?;
-reply.resolved_at=Some(cut);Ok(reply)
-    }).await
+        let (mut reply, cut) =
+            super::views::read(context, ID, request.at.as_ref(), async { super::settings_preferences::read(context) }).await?;
+        reply.resolved_at = Some(cut);
+        Ok(reply)
+    })
+    .await
 }
 
 /* === Private Functions === */
 
-pub fn initial_preferences()->v1::SettingsGetResponse {super::settings_preferences::initial()}
+pub fn initial_preferences() -> v1::SettingsGetResponse {
+    super::settings_preferences::initial()
+}
 
 /* === Tests === */

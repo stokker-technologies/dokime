@@ -326,18 +326,32 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
     let (changes, removed, generation) = match action {
         Action::List => return Ok(Reply::Snapshot(snapshot(context, &previous, false)?)),
         Action::Lookup(id) => {
-            return Ok(Reply::Lookup(v1::SecretWritable {metadata:previous.entries.iter().find(|slot|slot.metadata.as_ref().is_some_and(|metadata|metadata.identifier==id)).and_then(|slot|slot.metadata.clone()),
+            return Ok(Reply::Lookup(v1::SecretWritable {
+                metadata: previous
+                    .entries
+                    .iter()
+                    .find(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == id))
+                    .and_then(|slot| slot.metadata.clone()),
                 value: Some(lookup(context, &previous, &id)?.to_string()),
             }));
         }
         Action::Put(request) => {
-            let generation=u64::from_be_bytes(request.expected_revision.as_slice().try_into().map_err(|_|invalid("Use the Revision from Get Secret"))?);
-            let value=request.value.ok_or_else(||invalid("Supply the Whole Secret Value"))?;
-            let metadata=value.metadata.ok_or_else(||invalid("Supply Secret Metadata"))?;
-            if metadata.identifier!=request.name {return Err(invalid("Keep the Secret Name and Metadata Identifier Consistent"));}
+            let generation = u64::from_be_bytes(
+                request.expected_revision.as_slice().try_into().map_err(|_| invalid("Use the Revision from Get Secret"))?,
+            );
+            let value = request.value.ok_or_else(|| invalid("Supply the Whole Secret Value"))?;
+            let metadata = value.metadata.ok_or_else(|| invalid("Supply Secret Metadata"))?;
+            if metadata.identifier != request.name {
+                return Err(invalid("Keep the Secret Name and Metadata Identifier Consistent"));
+            }
             (vec![(metadata, value.value.map(Zeroizing::new))], Vec::new(), generation)
         }
-        Action::Remove(request) => {let generation=u64::from_be_bytes(request.expected_revision.as_slice().try_into().map_err(|_|invalid("Use the Revision from Get Secret"))?);(Vec::new(),request.names,generation)},
+        Action::Remove(request) => {
+            let generation = u64::from_be_bytes(
+                request.expected_revision.as_slice().try_into().map_err(|_| invalid("Use the Revision from Get Secret"))?,
+            );
+            (Vec::new(), request.names, generation)
+        }
         Action::Export(request) => {
             if request.generation != previous.generation {
                 return Err(invalid("Refresh the Secret Catalog Before Exporting"));

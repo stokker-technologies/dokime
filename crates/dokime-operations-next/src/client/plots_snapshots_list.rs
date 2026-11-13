@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Plots Snapshots List
 
 /* === Modules === */
 
@@ -26,7 +26,7 @@ use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 use dokime_storage::NumericWindow;
 use prost_reflect::DescriptorPool;
-use sha2::{Digest,Sha256};
+use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 
 /* === Constants === */
@@ -52,15 +52,34 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::plots::SnapshotsListRequest) -> Result<v1::plots::SnapshotsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let key=format!("plots/{}",super::views::hex(&super::paging::bytes(&v1::plots::SnapshotsListRequest {requests:request.requests.clone(),..Default::default()})));
-let (saved,cut)=super::views::read(context,&key,request.at.as_ref(),async {
- let mut reply=v1::plots::SnapshotsListResponse::default();
- for selected in request.requests {reply.envelopes.push(query_one(context,selected).await?);}
- Ok(reply)
-}).await?;
-let (envelopes,next_page_token)=super::views::page(saved.envelopes,request.page.as_ref(),context.settings.page_items)?;
-super::bounded_reply(context,v1::plots::SnapshotsListResponse {envelopes,resolved_at:Some(cut),next_page_token})
-    }).await
+        super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
+        let key = format!(
+            "plots/{}",
+            super::views::hex(&super::paging::bytes(&v1::plots::SnapshotsListRequest {
+                requests: request.requests.clone(),
+                ..Default::default()
+            }))
+        );
+        let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
+            let mut reply = v1::plots::SnapshotsListResponse::default();
+            for selected in request.requests {
+                reply.envelopes.push(query_one(context, selected).await?);
+            }
+            Ok(reply)
+        })
+        .await?;
+        let (envelopes, next_page_token) =
+            super::views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
+        super::bounded_reply(
+            context,
+            v1::plots::SnapshotsListResponse {
+                envelopes,
+                resolved_at: Some(cut),
+                next_page_token,
+            },
+        )
+    })
+    .await
 }
 
 /* === Private Functions === */
@@ -81,7 +100,11 @@ pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> R
                 store: context.host.identity().backend_id,
                 epoch: execution.into(),
             };
-            if at.positions.len()!=1 || !at.revisions.is_empty() || at.positions[0].history.as_ref() != Some(&history) || at.positions[0].sequence > cut.frontier {
+            if at.positions.len() != 1
+                || !at.revisions.is_empty()
+                || at.positions[0].history.as_ref() != Some(&history)
+                || at.positions[0].sequence > cut.frontier
+            {
                 return Err(Error::Invalid("Query Plot: Refresh the Document's Evidence Cut for This Backend".into()));
             }
             cut.frontier = at.positions[0].sequence;
@@ -700,6 +723,5 @@ fn ns(seconds: f64) -> Result<i64> {
     }
     Ok(nanos.round() as i64)
 }
-
 
 /* === Tests === */

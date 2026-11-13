@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Catalog Suites Get
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,10 +47,19 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::catalog::SuitesGetRequest) -> Result<v1::catalog::SuitesGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
-let reply=super::catalog_suites_list::handle(context,v1::catalog::SuitesListRequest { parent:request.parent,at:request.at }).await?;
-let value=reply.values.into_iter().find(|value|value.metadata.as_ref().is_some_and(|metadata|metadata.identifier==request.name)).ok_or_else(||Error::NotFound("Get Suites: Select a Declared Identifier".into()))?;
-Ok(v1::catalog::SuitesGetResponse {value:Some(value),resolved_at:reply.resolved_at})
-    }).await
+        let reply =
+            super::catalog_suites_list::handle(context, v1::catalog::SuitesListRequest { parent: request.parent, at: request.at }).await?;
+        let value = reply
+            .values
+            .into_iter()
+            .find(|value| value.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.name))
+            .ok_or_else(|| Error::NotFound("Get Suites: Select a Declared Identifier".into()))?;
+        Ok(v1::catalog::SuitesGetResponse {
+            value: Some(value),
+            resolved_at: reply.resolved_at,
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

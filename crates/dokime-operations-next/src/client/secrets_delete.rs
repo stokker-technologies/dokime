@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Secrets Delete
 
 /* === Modules === */
 
@@ -23,7 +23,6 @@ use harmos_protocol::v1 as h;
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -48,10 +47,19 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::SecretsDeleteRequest) -> Result<v1::SecretsDeleteResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-let receipt=super::views::receipt(&request.request_id)?;
-let super::secrets_store::Reply::Snapshot(snapshot)=super::secrets_store::perform(context,super::secrets_store::Action::Remove(request.clone())).await? else {return Err(Error::Invalid("Delete Secret: Restart the Secret Store".into()));};
-context.host.signal_change();Ok(v1::SecretsDeleteResponse {receipt:Some(receipt),cleanup_pending:snapshot.cleanup_pending})
-    }).await
+        let receipt = super::views::receipt(context, &request.request_id)?;
+        let super::secrets_store::Reply::Snapshot(snapshot) =
+            super::secrets_store::perform(context, super::secrets_store::Action::Remove(request.clone())).await?
+        else {
+            return Err(Error::Invalid("Delete Secret: Restart the Secret Store".into()));
+        };
+        context.host.signal_change();
+        Ok(v1::SecretsDeleteResponse {
+            receipt: Some(receipt),
+            cleanup_pending: snapshot.cleanup_pending,
+        })
+    })
+    .await
 }
 
 /* === Private Functions === */

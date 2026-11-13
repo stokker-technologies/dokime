@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Cases Create
 
 /* === Modules === */
 
@@ -19,12 +19,10 @@
 
 // Third Party Imports
 use harmos_protocol::v1 as h;
-use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
-
 
 /* === Constants === */
 
@@ -49,30 +47,26 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContr
 }
 pub async fn handle(context: &Context, request: v1::CasesCreateRequest) -> Result<v1::CasesCreateResponse> {
     super::complete(ID, context.settings.mutation_timeout, async {
-
         if !request.validate_only && request.request_id.trim().is_empty() {
             return Err(Error::Invalid("Register Selection: Supply a Stable Nonempty Idempotency Key".into()));
         }
         let plan = request.plan.ok_or_else(|| Error::Invalid("Create Cases: Supply a Plan".into()))?;
-        if !plan.case_ids.is_empty() {
-            return Err(Error::Invalid("Register Selection: Select Templates Instead of Already Registered Cases".into()));
+        if request.validate_only {
+            return super::planning::resolve(context, &plan).await;
         }
-        if request.validate_only { return super::planning::resolve(context,&plan).await; }
-let bytes = plan.encode_to_vec();
+        if !plan.case_ids.is_empty() {
+            return Err(Error::Invalid("Create Cases: Select Templates Instead of Already Registered Cases".into()));
+        }
+        let bytes = super::paging::bytes(&plan);
         if let Some(reply) =
             context.host.store().registration(&request.request_id, &bytes).map_err(|error| Error::Precondition(error.to_string()))?
         {
             return Ok(reply);
         }
         let reply = super::planning::resolve(context, &plan).await?;
-        Ok(context.host.store().register_cases(
-            Some(&request.request_id),
-            &bytes,
-            &plan.cycle_id,
-            reply,
-            context.settings.message_bytes,
-        )?)
-    }).await
+        Ok(context.host.store().register_cases(Some(&request.request_id), &bytes, &plan.cycle_id, reply, context.settings.message_bytes)?)
+    })
+    .await
 }
 
 /* === Private Functions === */

@@ -21,6 +21,7 @@ pub mod cases_list;
 pub mod cases_parameters;
 pub mod cases_watch;
 pub mod catalog_analyses;
+mod catalog_inventory;
 pub mod catalog_prompt_definitions_get;
 pub mod catalog_prompt_definitions_list;
 pub mod catalog_record_schemas_get;
@@ -36,12 +37,15 @@ pub mod content_artifacts_watch;
 pub mod content_execution_files_get;
 pub mod content_execution_files_list;
 pub mod content_execution_files_watch;
+mod content_transfer;
 pub mod cycles_create;
 pub mod cycles_get;
 pub mod cycles_list;
 pub mod cycles_seal;
 pub mod cycles_set;
 pub mod cycles_watch;
+pub mod document_expansion;
+pub mod document_plot;
 pub mod documents_get;
 pub mod documents_watch;
 pub mod evidence_archive;
@@ -56,8 +60,10 @@ pub mod evidence_records_list;
 pub mod evidence_records_watch;
 pub mod evidence_samples_list;
 pub mod evidence_samples_watch;
+mod evidence_selection;
 pub mod evidence_traceability_get;
 pub mod evidence_traceability_watch;
+mod execution_state;
 pub mod executions_cancel;
 pub mod executions_commands_create;
 pub mod executions_commands_get;
@@ -73,6 +79,9 @@ pub mod executions_start;
 pub mod executions_steps;
 pub mod executions_stop;
 pub mod executions_watch;
+mod paging;
+mod planning;
+mod plot_analysis;
 pub mod plots_settings_get;
 pub mod plots_settings_set;
 pub mod plots_snapshots_list;
@@ -88,6 +97,9 @@ pub mod plugins_remove;
 pub mod plugins_set_enabled;
 pub mod plugins_settings_get;
 pub mod plugins_settings_set;
+mod projection;
+mod prompt_catalog;
+mod prompt_validation;
 pub mod prompts_answers_create;
 pub mod prompts_get;
 pub mod prompts_list;
@@ -101,27 +113,15 @@ pub mod secrets_get;
 pub mod secrets_import;
 pub mod secrets_list;
 pub mod secrets_set;
+pub(crate) mod secrets_store;
 pub mod secrets_watch;
 pub mod settings_get;
+pub(crate) mod settings_preferences;
 pub mod settings_schema;
 pub mod settings_set;
 pub mod storage_sources_get;
 pub mod storage_sources_set;
-mod catalog_inventory;
-mod content_transfer;
-pub mod document_expansion;
-pub mod document_plot;
-mod evidence_selection;
-mod execution_state;
-mod paging;
-mod planning;
-mod plot_analysis;
-mod projection;
-mod prompt_catalog;
-mod prompt_validation;
 mod views;
-pub(crate) mod secrets_store;
-pub(crate) mod settings_preferences;
 
 /* === Re-Exports === */
 
@@ -286,7 +286,14 @@ pub struct Progress {
     pub failure: Option<String>,
 }
 #[derive(Clone)]
-pub struct HostIdentity {pub backend_id:String,pub epoch:String,pub product_version:String,pub target:String,pub started_at:Option<prost_types::Timestamp>,pub display_name:String}
+pub struct HostIdentity {
+    pub backend_id: String,
+    pub epoch: String,
+    pub product_version: String,
+    pub target: String,
+    pub started_at: Option<prost_types::Timestamp>,
+    pub display_name: String,
+}
 pub struct StartedCycle {
     pub identifier: String,
     pub executions: Vec<String>,
@@ -318,10 +325,12 @@ pub trait Host: Send + Sync {
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
-    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&harmos_protocol::v1::ReadCut>) -> Result<(std::fs::File, v1::ReportMetadata)>;
+    fn render_report(
+        &self, subject: &v1::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+    ) -> Result<(std::fs::File, v1::ReportMetadata)>;
     fn retain_report(&self, file: std::fs::File, reference: harmos_protocol::storage::FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, harmos_protocol::storage::FileReference)>>;
-    fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
+    fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report>;
     async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;
@@ -338,7 +347,9 @@ pub trait Host: Send + Sync {
     fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>>;
     fn pending(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>>;
     fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()>;
-    fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()>;
+    fn record_answer(
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::v1::Receipt>;
 }
 
 /* === Implementations === */
