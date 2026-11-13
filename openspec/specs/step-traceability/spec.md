@@ -23,17 +23,3 @@ The system SHALL let steps add and replace traceability sections and rows throug
 
 - **WHEN** a step references a missing section, submits duplicate row identifiers or claims a host-derived section identifier
 - **THEN** the edit is logged and refused without changing previously captured traceability
-
-### Requirement: Existing Evidence and Storage Ownership
-
-The system SHALL use the document-style execution index and buffered evidence pipeline with existing durable traceability transactions and projections. Development storage SHALL remain v1 and existing data SHALL never be silently reset or deleted.
-
-#### Scenario: Multiple Edits in One Delivery
-
-- **WHEN** several edits to one section share an evidence batch
-- **THEN** durable state and testing reports retain the final edit without duplicate sections
-
-#### Scenario: Captured Report Stability
-
-- **WHEN** a report has been sealed from captured evidence
-- **THEN** later live edits do not rewrite its captured traceability

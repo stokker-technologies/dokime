@@ -5,19 +5,6 @@ Define the canonical read-only query operations, their configuration, authorizat
 
 ## Requirements
 
-### Requirement: Canonical Read Operations
-Dokime SHALL expose the five unary query operations in `design.md`, each with one canonical request in `dokime-operations`, domain response types and generated contracts. Runtime SHALL own query execution. Queries SHALL be read-only and idempotent at a supplied snapshot.
-
-#### Scenario: Initial Live Query
-- **WHEN** a query creates a durable cut during a running execution
-- **THEN** it may flush admitted evidence but cannot change the execution lifecycle
-- **AND** transport adapters use the runtime semantics without redeclaration
-
-#### Scenario: Contract Discovery
-- **WHEN** an authorized caller discovers the operation catalog
-- **THEN** each operation has a dotted ID, one request schema, response schema and declared Harmos policy
-- **AND** native, gRPC, generated clients and generic CLI calls use that same declaration
-
 ### Requirement: Configuration-Owned Policies and Limits
 A runtime-owned immutable query configuration SHALL compose canonical Harmos policies and storage/schema/message budgets. It SHALL own query defaults and ceilings, reject invalid settings at composition, and disallow request policy overrides. Page sizes SHALL clamp to effective ceilings; excessive complexity/work SHALL fail explicitly.
 
@@ -61,13 +48,6 @@ Query failures SHALL use the existing Harmos failure path with stable typed deta
 - **WHEN** a request names an undeclared field, or a later page loses its backing evidence
 - **THEN** the first fails with the field and InvalidArgument and the second with an unavailable-snapshot or storage error
 - **AND** neither silently omits rows or substitutes a different snapshot
-
-### Requirement: Cheap CLI Parity
-The existing `dokime operation call` command SHALL support the five canonical request/response contracts, including snapshot and continuation fields, without a new parser or bespoke query command tree. JSON replies SHALL retain schema, snapshot and completeness metadata. Documentation SHALL show a first request and continuation using the returned token; dedicated flags and dataframe exports are outside scope.
-
-#### Scenario: CLI Continuation
-- **WHEN** a caller invokes `dokime operation call dokime.query.list_records --input request.json --output page.json`
-- **THEN** the saved response contains the same typed rows and continuation metadata as the Python page interface
 
 ### Requirement: Cycle Work at the Snapshot
 Cycle query rows SHALL expose the declared cycle work status and running execution count from the query cut. Status SHALL be captured from the cycle revision; running count SHALL count only Running member executions at that same cut. Existing phase and paging semantics SHALL remain unchanged.

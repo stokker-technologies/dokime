@@ -1,9 +1,5 @@
 # Plot Pipeline
 
-Status: direction agreed with the owner on 2026-11-10; implementation is in
-progress on the feature branch from `feat/grpc-plugins`. The baseline and final
-validation remain pending.
-
 ## Why
 
 Live plots and multi-day runs are core. The renderer and storage are already

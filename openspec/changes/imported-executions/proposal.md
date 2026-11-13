@@ -131,11 +131,6 @@ and focused proof in tasks.md. This specification task changes only OpenSpec;
 it runs no builds or tests. Existing development data is never reset silently;
 incompatible storage requires an explicit fresh root and keeps the v1 baseline.
 
-The earlier automatic-seal import call, transaction-scoped four-operation sketch
-and cross-reference placing execution origins here are superseded. Broader Python
-backend/cycle context-manager rewrites are removed from this change; the gRPC SDK
-wave owns flat SDK lifecycle and removal of the embedded Python backend.
-
 ## Open Decisions
 
 The locked model leaves review issues **4, 11, 12, 23, 24 and 26** partially open.

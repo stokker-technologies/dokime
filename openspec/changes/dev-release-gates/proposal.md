@@ -18,5 +18,4 @@ commit validation gates.
 
 Workflows, the setup action, Python CI/release tooling, tooling
 tests, task/policy declarations and CONTRIBUTING are owned by this branch.
-Product/test code and repository settings are excluded. PR #160 supplies the
-package-scope design. Delivery is part of the combined `feat/grpc-plugins` candidate; this specification-only assignment grants no remote authority.
+Product/test code and repository settings are excluded. Delivery is part of the combined `feat/grpc-plugins` candidate; this specification-only assignment grants no remote authority.

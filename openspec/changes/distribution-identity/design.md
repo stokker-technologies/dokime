@@ -1,7 +1,5 @@
 # Design
 
-Source is integrated. Native Unix branded-distribution proof remains open.
-
 ## Identity Source
 
 ```toml

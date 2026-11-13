@@ -6,8 +6,6 @@ Branded distributions reuse unchanged Dokime binaries, so every installation sto
 
 ## What Changes
 
-Source is integrated; remaining native proof is tracked in `tasks.md`.
-
 - The distributor's installer manifest declares the distribution identifier (`[installer] identifier = "com.example.testhub"`). It becomes the installation's storage and install identity.
 - `cargo dokime installer package` writes the identifier into an installed distribution file beside the executable and uses it for the NSIS install folder and uninstall registry keys and for DEB/RPM package names.
 - The desktop resolves every directory from the installed distribution identity before anything else starts: application, data, plugins, logs and the WebView2 profile. CLI and server defaults use the same lookup.

@@ -1,8 +1,5 @@
 # Organization Pack Coverage
 
-Status: implementation and documentation are integrated. Final packaged
-desktop/report proof remains open. Independent of `grpc-plugins`.
-
 ## Why
 
 With an organization pack applied, the built-in product name still appears in

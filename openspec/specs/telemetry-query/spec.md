@@ -5,19 +5,6 @@ Define Arrow telemetry projection and filtering, exact statistics, time buckets 
 
 ## Requirements
 
-### Requirement: Arrow Projection and Filtering
-Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/schema/time indexes and decode needed columns where compression permits. Predicates/windows SHALL precede reductions. Raw results SHALL preserve typed identity, time, sequence, scope, selected values and schema/units. Unsupported layouts SHALL fail without unbounded fallback.
-
-#### Scenario: Server Execution Plan
-- **WHEN** the server plans a raw or reduced telemetry selection
-- **THEN** omitted fields selects all declared columns within limits, and projection includes predicate/time columns
-- **AND** it uses no per-sample RPC, full-history Python decode, JSON round-trip or plot-preview substitution
-
-#### Scenario: Narrow Window and Projection
-- **WHEN** a query selects two fields and a short time window from a million-sample execution
-- **THEN** catalog time indexes skip irrelevant batches and only admitted projected batches are processed
-- **AND** raw selected values agree with the stored contract and original evidence at that cut
-
 ### Requirement: Exact Server Statistics
 `aggregate_samples` SHALL accept bounded ordered unique alias/field/Harmos Aggregate outputs: count, sum, mean, min, max, median, std, rms and integral percentile ranks 0..100. Arithmetic SHALL follow Harmos f64 projection/population-std semantics; non-finite results SHALL fail. Percentiles SHALL interpolate exactly at `(n-1)*rank/100` without sketches.
 
@@ -31,30 +18,6 @@ Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/sche
 - **WHEN** the selected finite values are 0, 10, 20 and 30 plus one null
 - **THEN** row count is 5, field count is 4, mean is 15 and p95 is 28.5
 - **AND** quality metadata identifies the excluded null and std uses the population denominator
-
-### Requirement: Bounded Exact Reduction Plans
-
-Requests SHALL share native projected batch decoding across outputs within working, scan and time budgets. Moments and rank indexes MAY answer only matching scope, selection and frontier. Other percentiles SHALL use bounded exact numeric selection. Accumulators SHALL NOT retain unbounded decoded raw history. Numeric spools SHALL respect caller memory budgets. Deadline or resource exhaustion SHALL fail without approximation or partial results; cancellation SHALL stop selection cooperatively.
-
-#### Scenario: Completed or Exhausted Reduction
-
-- **WHEN** an exact reduction finishes or exhausts its admitted work
-- **THEN** success identifies output types/units, selected row counts, excluded-value counts and snapshot
-- **AND** exhaustion returns a typed failure, never current-frontier statistics, partial estimates or preview aggregates
-
-#### Scenario: Older Cut with Newer Numeric Index
-
-- **WHEN** samples arrive after a query snapshot and its mutable numeric summary has advanced
-- **THEN** the query computes from the original Arrow cut or a matching retained index
-- **AND** it never reads a newer summary as if it belonged to that cut
-
-#### Scenario: Shared Decode and Numeric Spool
-
-- **WHEN** one request selects several statistics or bucket fields
-- **THEN** borrowed projected columns feed the existing sequential reducers after version, capture, predicate, window and frontier selection
-- **AND** compact finite numeric projections may spill to temporary storage within admitted query budgets, including payload, spill buffering and rank scratch within caller-owned working memory
-- **AND** nonempty interior percentiles retain the existing logical nine-pass scan charge even when evidence is decoded once
-- **AND** exact percentile bits agree across memory and spill paths without weakening scan, memory or policy deadlines
 
 ### Requirement: Explicit Time Buckets
 `every` SHALL select fixed positive duration buckets anchored at Unix epoch UTC using floor(timestamp/every), with `agg` required. Numeric bucket reducers SHALL be count/sum/mean/min/max. Windows SHALL clip inputs, not labeled bucket bounds. Buckets SHALL reduce each execution/stream/schema-compatible partition separately and omit empty buckets.
