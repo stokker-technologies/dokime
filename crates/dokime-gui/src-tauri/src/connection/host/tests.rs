@@ -187,11 +187,46 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn std:
         let response = session.call_raw("/dokime.v1.Execution/GetCycle", &request).await?;
         assert_eq!(v1::CycleSummary::decode(response.as_slice())?.cycle_id, cycle.cycle_id);
 
+        // Read Traceability Through Its Revisioned Resource and Retain the Scoped Cut
+        let scope = v1::EvidenceScope {
+            cycle_id: Some(cycle.cycle_id.clone()),
+            ..Default::default()
+        };
+        let request = v1::evidence::TraceabilityGetRequest {
+            scope: Some(scope.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let response = session.call_raw("/dokime.v1.evidence.Traceability/Get", &request).await?;
+        let response = v1::evidence::TraceabilityGetResponse::decode(response.as_slice())?;
+        assert!(response.snapshots.is_empty());
+        assert!(response.next_page_token.is_empty());
+        let cut = response.resolved_at.ok_or("Get Traceability: Missing Read Cut")?;
+        assert!(cut.positions.is_empty());
+        assert!(cut.revisions.is_empty());
+
+        // Watch Traceability on the Same Native Connection Until Owned Shutdown
+        let request = v1::evidence::TraceabilityWatchRequest {
+            scope: Some(scope),
+            at: Some(cut.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let mut traceability = session.watch_raw("/dokime.v1.evidence.Traceability/Watch", &request).await?;
+        let opening = traceability.next().await.ok_or("Watch Traceability: Missing Opening")??;
+        let opening = v1::evidence::TraceabilityWatchResponse::decode(opening.as_slice())?;
+        assert!(opening.opening);
+        assert!(opening.snapshots.is_empty());
+        assert_eq!(opening.resolved_at.as_ref(), Some(&cut));
+
         // Unknown Routes Fail Explicitly and Shutdown Joins the Idle Watch
         let error = session.call_raw("/dokime.v1.Unknown/Get", &[]).await.unwrap_err();
         assert!(matches!(error, Error::Rpc(status) if status.code() == tonic::Code::Unimplemented));
         owner.close().await?;
         while let Some(frame) = watch.next().await {
+            frame?;
+        }
+        while let Some(frame) = traceability.next().await {
             frame?;
         }
         assert!(session.watches.lock().await.is_empty());

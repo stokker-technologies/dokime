@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::v1;
 use dokime_sdk::client::v1 as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [35, 150, 10, 59, 221, 248, 22, 155, 108, 150, 205, 242, 225, 96, 242, 28, 239, 135, 52, 236, 47, 19, 124, 96, 55, 212, 65, 89, 42, 103, 105, 203];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [126, 33, 2, 222, 70, 65, 246, 132, 91, 85, 32, 255, 172, 248, 223, 224, 231, 54, 190, 135, 237, 166, 168, 160, 16, 53, 123, 94, 237, 210, 194, 230];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -65,7 +65,6 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.v1.Notes/EditNote" => Box::pin(session.call::<v1::NotesEditNoteRequest, v1::EditNoteResponse>("/dokime.v1.Notes/EditNote", payload)).await,
         "/dokime.v1.Notes/ListNotes" => Box::pin(session.call::<v1::NotesListNotesRequest, v1::ListNotesResponse>("/dokime.v1.Notes/ListNotes", payload)).await,
         "/dokime.v1.Observation/GetRuntimeShell" => Box::pin(session.call::<v1::ObservationGetRuntimeShellRequest, v1::RuntimeShellSnapshot>("/dokime.v1.Observation/GetRuntimeShell", payload)).await,
-        "/dokime.v1.Observation/GetTraceability" => Box::pin(session.call::<v1::ObservationGetTraceabilityRequest, v1::TraceabilityPage>("/dokime.v1.Observation/GetTraceability", payload)).await,
         "/dokime.v1.Planning/MaterializeTemplate" => Box::pin(session.call::<v1::PlanningMaterializeTemplateRequest, v1::PreviewSelectionReply>("/dokime.v1.Planning/MaterializeTemplate", payload)).await,
         "/dokime.v1.Planning/PreviewSelection" => Box::pin(session.call::<v1::PlanningPreviewSelectionRequest, v1::PreviewSelectionReply>("/dokime.v1.Planning/PreviewSelection", payload)).await,
         "/dokime.v1.Planning/RegisterSelection" => Box::pin(session.call::<v1::PlanningRegisterSelectionRequest, v1::PreviewSelectionReply>("/dokime.v1.Planning/RegisterSelection", payload)).await,
@@ -108,6 +107,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.v1.Settings/UpdateApplicationSettings" => Box::pin(session.call::<v1::SettingsUpdateApplicationSettingsRequest, v1::SettingsSnapshot>("/dokime.v1.Settings/UpdateApplicationSettings", payload)).await,
         "/dokime.v1.Settings/UpdatePluginSettings" => Box::pin(session.call::<v1::SettingsUpdatePluginSettingsRequest, v1::PluginRuntimeSettings>("/dokime.v1.Settings/UpdatePluginSettings", payload)).await,
         "/dokime.v1.Telemetry/ListSamples" => Box::pin(session.call::<v1::TelemetryListSamplesRequest, v1::TelemetrySamplesReply>("/dokime.v1.Telemetry/ListSamples", payload)).await,
+        "/dokime.v1.evidence.Traceability/Get" => Box::pin(session.call::<v1::evidence::TraceabilityGetRequest, v1::evidence::TraceabilityGetResponse>("/dokime.v1.evidence.Traceability/Get", payload)).await,
         "/dokime.v1.executions.Progress/Get" => Box::pin(session.call::<v1::executions::ProgressGetRequest, v1::executions::ProgressGetResponse>("/dokime.v1.executions.Progress/Get", payload)).await,
         "/harmos.v1.CatalogEntries/List" => Box::pin(session.call::<library::CatalogEntriesListRequest, library::CatalogEntriesListResponse>("/harmos.v1.CatalogEntries/List", payload)).await,
         "/harmos.v1.Invocations/Cancel" => Box::pin(session.call::<library::InvocationsCancelRequest, library::InvocationsCancelResponse>("/harmos.v1.Invocations/Cancel", payload)).await,
@@ -181,6 +181,7 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
         "/dokime.v1.Reports/DownloadCycleReport" => Box::pin(session.watch::<v1::ReportsDownloadCycleReportRequest, v1::ReportsDownloadCycleReportOutput>("/dokime.v1.Reports/DownloadCycleReport", payload)).await,
         "/dokime.v1.Reports/DownloadExecutionReport" => Box::pin(session.watch::<v1::ReportsDownloadExecutionReportRequest, v1::ReportsDownloadExecutionReportOutput>("/dokime.v1.Reports/DownloadExecutionReport", payload)).await,
         "/dokime.v1.Telemetry/WatchSamples" => Box::pin(session.watch::<v1::TelemetryWatchSamplesRequest, v1::TelemetryWatchSamplesOutput>("/dokime.v1.Telemetry/WatchSamples", payload)).await,
+        "/dokime.v1.evidence.Traceability/Watch" => Box::pin(session.watch::<v1::evidence::TraceabilityWatchRequest, v1::evidence::TraceabilityWatchResponse>("/dokime.v1.evidence.Traceability/Watch", payload)).await,
         "/dokime.v1.executions.Progress/Watch" => Box::pin(session.watch::<v1::executions::ProgressWatchRequest, v1::executions::ProgressWatchResponse>("/dokime.v1.executions.Progress/Watch", payload)).await,
         "/harmos.v1.Invocations/Watch" => Box::pin(session.watch::<library::InvocationsWatchRequest, library::InvocationsWatchResponse>("/harmos.v1.Invocations/Watch", payload)).await,
         "/harmos.v1.Plugins/Watch" => Box::pin(session.watch::<library::PluginsWatchRequest, library::PluginsWatchResponse>("/harmos.v1.Plugins/Watch", payload)).await,

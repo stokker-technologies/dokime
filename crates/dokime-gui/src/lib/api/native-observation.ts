@@ -34,8 +34,8 @@ interface ExecutionProgressFrame {
   progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
   finished: boolean;
 }
-type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
-type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
+type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["snapshots"][number]>;
+type TraceabilityCut = Wire<NonNullable<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["resolvedAt"]>>;
 type EvidenceScope = Wire<HostEvidenceScope>;
 
 /* === Runtime shell === */
@@ -114,97 +114,132 @@ export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycl
   };
 }
 
-type NativeTraceabilityPage = Awaited<ReturnType<typeof rpc.observationGetTraceability>>;
+type TraceabilityResponse = Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>;
 
-/** Read the current traceability projection through exact, generation-bound pages. */
+/** Read ordered traceability snapshots at one generation-bound, scoped read cut. */
 export async function fetchNativeTraceability(session: SessionIdentity, scope?: RecordScope | null): Promise<TraceabilitySnapshot> {
-  const operation = "Observation.GetTraceability";
+  const operation = "Evidence.Traceability.Get";
   const requestedScope = nativeEvidenceScope(scope);
   const items: NativeTraceabilitySnapshot[] = [];
-  let afterTraceabilityId = "";
-  let cursor: Cursor | undefined;
-  let hostTraceabilityFingerprint: string | undefined;
+  const tokens = new Set<string>();
+  let pageToken = "";
+  let at: TraceabilityCut | undefined;
 
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     assertTraceabilitySession(session, operation);
-    const response = await rpc.observationGetTraceability(session, {
+    const response = await rpc.evidenceTraceabilityGet(session, {
       ...(requestedScope ? { scope: requestedScope } : {}),
-      limit: NATIVE_PAGE_SIZE,
-      afterTraceabilityId,
-      ...(cursor ? { cursor } : {}),
-      ...(hostTraceabilityFingerprint ? { hostTraceabilityFingerprint } : {}),
+      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+      ...(at ? { at } : {}),
     });
     assertTraceabilitySession(session, operation);
 
-    validateTraceabilityPage(response, requestedScope, cursor, hostTraceabilityFingerprint, operation);
-    cursor ??= response.cursor;
-    hostTraceabilityFingerprint ??= response.hostTraceabilityFingerprint;
+    validateTraceabilityResponse(response, at, requestedScope, items.at(-1), operation);
+    at ??= response.resolvedAt;
     items.push(...response.snapshots);
 
-    const nextAfterTraceabilityId = response.nextAfterTraceabilityId;
-    if (response.complete) {
-      if (nextAfterTraceabilityId) {
-        throw new NativeApiLimitError(operation, "complete page included a continuation marker");
-      }
-      return mapNativeTraceability(items, response.scope, requestedScope, operation);
-    }
-    if (!nextAfterTraceabilityId) {
-      throw new NativeApiLimitError(operation, "incomplete page omitted its continuation marker");
-    }
+    const nextPageToken = response.nextPageToken;
+    if (!nextPageToken) return mapNativeTraceability(items, requestedScope, operation);
     if (!response.snapshots.length) {
       throw new NativeApiLimitError(operation, "incomplete page contained no snapshots");
     }
-    if (nextAfterTraceabilityId === afterTraceabilityId) {
+    if (tokens.has(nextPageToken)) {
       throw new NativeApiLimitError(operation, "traceability pagination did not advance");
     }
-    afterTraceabilityId = nextAfterTraceabilityId;
+    tokens.add(nextPageToken);
+    pageToken = nextPageToken;
   }
 
   throw new NativeApiLimitError(operation, `more than ${NATIVE_MAX_PAGES} traceability pages`);
 }
 
-function validateTraceabilityPage(
-  response: NativeTraceabilityPage,
+function validateTraceabilityResponse(
+  response: TraceabilityResponse,
+  expectedCut: TraceabilityCut | undefined,
   requestedScope: EvidenceScope | undefined,
-  expectedCursor: Cursor | undefined,
-  expectedHostTraceabilityFingerprint: string | undefined,
+  previous: NativeTraceabilitySnapshot | undefined,
   operation: string,
 ): void {
-  if (
-    !response ||
-    !Array.isArray(response.snapshots) ||
-    typeof response.complete !== "boolean" ||
-    typeof response.nextAfterTraceabilityId !== "string"
-  ) {
+  if (!response || !Array.isArray(response.snapshots) || typeof response.nextPageToken !== "string") {
     throw new NativeApiLimitError(operation, "response omitted its page fields");
   }
-  if (
-    !response.cursor ||
-    typeof response.cursor.epoch !== "string" ||
-    typeof response.cursor.stream !== "string" ||
-    !response.cursor.epoch.trim() ||
-    !response.cursor.stream.trim() ||
-    typeof response.cursor.position !== "bigint"
-  ) {
-    throw new NativeApiLimitError(operation, "response omitted a usable cursor");
+  const cut = response.resolvedAt;
+  if (!cut || !Array.isArray(cut.positions) || !Array.isArray(cut.revisions) || cut.revisions.length) {
+    throw new NativeApiLimitError(operation, "response omitted a usable read cut");
   }
-  if (expectedCursor && !sameNativeCursor(expectedCursor, response.cursor)) {
-    throw new NativeApiLimitError(operation, "response cursor changed during pagination");
+  const histories = new Set<string>();
+  for (const position of cut.positions) {
+    const history = position.history;
+    if (!history?.store?.trim() || !history.epoch?.trim() || typeof position.sequence !== "bigint" || position.sequence < 0n) {
+      throw new NativeApiLimitError(operation, "read cut omitted a usable history position");
+    }
+    if (histories.has(history.epoch)) {
+      throw new NativeApiLimitError(operation, "read cut repeated an execution history");
+    }
+    histories.add(history.epoch);
   }
-  if (typeof response.hostTraceabilityFingerprint !== "string" || !response.hostTraceabilityFingerprint.trim()) {
-    throw new NativeApiLimitError(operation, "response omitted its host traceability fingerprint");
+  if (requestedScope?.executionId && (cut.positions.length !== 1 || !histories.has(requestedScope.executionId))) {
+    throw new NativeApiLimitError(operation, "read cut did not retain the requested execution");
   }
-  if (expectedHostTraceabilityFingerprint && expectedHostTraceabilityFingerprint !== response.hostTraceabilityFingerprint) {
-    throw new NativeApiLimitError(operation, "response host traceability fingerprint changed during pagination");
+  if (expectedCut && !sameTraceabilityCut(expectedCut, cut)) {
+    throw new NativeApiLimitError(operation, "response read cut changed during pagination");
   }
-  if (!sameNativeScope(requestedScope, response.scope)) {
-    throw new NativeApiLimitError(operation, "response scope did not match the requested scope");
+  for (const snapshot of response.snapshots) {
+    const position = snapshot.resolvedAt;
+    const bound = cut.positions.find((item) => item.history?.epoch === position?.history?.epoch);
+    if (
+      !position ||
+      !bound ||
+      position.history?.store !== bound.history?.store ||
+      typeof position.sequence !== "bigint" ||
+      position.sequence < 1n ||
+      position.sequence > bound.sequence ||
+      !snapshot.revision?.length
+    ) {
+      throw new NativeApiLimitError(operation, "snapshot omitted its revision or fell outside the read cut");
+    }
+    if (!snapshot.scope || !matchesTraceabilityScope(requestedScope, snapshot.scope)) {
+      throw new NativeApiLimitError(operation, "snapshot scope did not match the requested scope");
+    }
+    if (snapshot.scope.executionId !== position.history?.epoch) {
+      throw new NativeApiLimitError(operation, "snapshot scope did not match its history");
+    }
+    if (previous?.resolvedAt) {
+      const earlier = previous.resolvedAt;
+      const epoch = position.history!.epoch;
+      const earlierEpoch = earlier.history!.epoch;
+      if (epoch < earlierEpoch || (epoch === earlierEpoch && position.sequence <= earlier.sequence)) {
+        throw new NativeApiLimitError(operation, "snapshots were not in strict history order");
+      }
+    }
+    previous = snapshot;
   }
+}
+
+function sameTraceabilityCut(left: TraceabilityCut, right: TraceabilityCut): boolean {
+  return (
+    left.positions.length === right.positions.length &&
+    left.positions.every((position, index) => {
+      const other = right.positions[index];
+      return (
+        position.history?.store === other.history?.store &&
+        position.history?.epoch === other.history?.epoch &&
+        position.sequence === other.sequence
+      );
+    })
+  );
+}
+
+function matchesTraceabilityScope(wanted: EvidenceScope | undefined, actual: EvidenceScope): boolean {
+  if (!wanted) return true;
+  // The Host Validates the Runtime Epoch; Snapshot Scopes Carry Durable Attribution.
+  const { origin, sessionId: _sessionId, ...fields } = wanted;
+  const matchesFields = Object.entries(fields).every(([key, value]) => value == null || actual[key as keyof EvidenceScope] === value);
+  return matchesFields && (!origin || JSON.stringify(origin.kind?.kind) === JSON.stringify(actual.origin?.kind?.kind));
 }
 
 function mapNativeTraceability(
   snapshots: NativeTraceabilitySnapshot[],
-  responseScope: EvidenceScope | undefined,
   requestedScope: EvidenceScope | undefined,
   operation: string,
 ): TraceabilitySnapshot {
@@ -229,7 +264,12 @@ function mapNativeTraceability(
       if (!entry.value) {
         throw new NativeApiLimitError(operation, "traceability entry omitted its value");
       }
-      const value = nativeValueToJson(entry.value);
+      let value: unknown;
+      try {
+        value = nativeValueToJson(entry.value);
+      } catch (error) {
+        throw new NativeApiLimitError(operation, `traceability entry contained an invalid value: ${String(error)}`);
+      }
       if (value === undefined) {
         throw new NativeApiLimitError(operation, "traceability entry contained an unknown value");
       }
@@ -259,29 +299,10 @@ function mapNativeTraceability(
     };
   });
   const result = traceabilitySnapshotFromItems(items, (value) => recordScopeFromNative(value ?? undefined));
-  if (responseScope || requestedScope) {
-    result.scope = recordScopeFromNative(responseScope ?? requestedScope);
+  if (requestedScope) {
+    result.scope = recordScopeFromNative(requestedScope);
   }
   return result;
-}
-
-function sameNativeCursor(left: Cursor | undefined, right: Cursor | undefined): boolean {
-  return Boolean(left && right && left.epoch === right.epoch && left.stream === right.stream && left.position === right.position);
-}
-
-function sameNativeScope(left: EvidenceScope | undefined, right: EvidenceScope | undefined): boolean {
-  if (!left || !right) return left === right;
-  return (
-    (left.sessionId ?? null) === (right.sessionId ?? null) &&
-    (left.cycleId ?? null) === (right.cycleId ?? null) &&
-    (left.caseId ?? null) === (right.caseId ?? null) &&
-    (left.executionId ?? null) === (right.executionId ?? null) &&
-    (left.stepId ?? null) === (right.stepId ?? null) &&
-    (left.criterionId ?? null) === (right.criterionId ?? null) &&
-    (left.templateId ?? null) === (right.templateId ?? null) &&
-    (left.suiteId ?? null) === (right.suiteId ?? null) &&
-    JSON.stringify(left.origin?.kind?.kind) === JSON.stringify(right.origin?.kind?.kind)
-  );
 }
 
 function assertTraceabilitySession(session: SessionIdentity, operation: string): void {
