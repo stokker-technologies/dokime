@@ -446,6 +446,7 @@ dependencies = [
  "prost",
  "prost-reflect",
  "prost-types",
+ "sha2",
  "thiserror",
  "tonic",
  "uuid",

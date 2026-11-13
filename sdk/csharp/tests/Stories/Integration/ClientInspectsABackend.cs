@@ -4,6 +4,7 @@ using Dokime.Protocol.Client.V1;
 using Dokime;
 using Dokime.Protocol.V1;
 using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Grpc.Net.Client;
 using Stories.Support;
 using Xunit;
@@ -63,6 +64,20 @@ public sealed class ClientInspectsABackend
     using var list = plugins.ListAsync(new ListPlugins(), headers);
     var listed = await list.ResponseAsync;
     Assert.Equal(added, Assert.Single(listed.Plugins));
+
+    // Fetch Descriptor Pages Once, Then Reuse Them for Another Execution.
+    var schemas = new FrozenSchemaCache();
+    var source = server.App.Services.GetRequiredService<FakeSchemas>();
+    var detail = new ExecutionDetail { Summary = new ExecutionSummary { ExecutionId = "first" }, Schemas = new FrozenSchemas { Digest = source.Digest } };
+    var types = await schemas.GetAsync(client, detail, new CallOptions(headers));
+    Assert.Equal(new[] { "google/protobuf/wrappers.proto", "google/protobuf/empty.proto" }, types.File.Select(file => file.Name));
+    var calls = source.Calls;
+    Assert.Equal(types.File.Count, calls);
+    types.File.Clear();
+    detail.Summary.ExecutionId = "second";
+    var reused = await schemas.GetAsync(client, detail, new CallOptions(headers));
+    Assert.Equal(calls, source.Calls);
+    Assert.Equal(2, reused.File.Count);
 
     // Preserve the Server's Refusal Through a Generated Unary Call.
     using var invalid = plugins.AddAsync(new AddRemotePlugin { Url = "invalid" }, headers);

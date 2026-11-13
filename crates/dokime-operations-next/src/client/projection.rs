@@ -21,6 +21,7 @@
 use harmos_protocol::v1 as h;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, ReflectMessage};
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, client::Context};
@@ -204,7 +205,8 @@ pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<dokime_protocol::c
             ..Default::default()
         })
         .collect();
-    Ok(dokime_protocol::client::FrozenSchemas { catalog: Some(catalog), records, streams })
+    let digest = Sha256::digest(catalog.types.unwrap_or_default().encode_to_vec()).to_vec();
+    Ok(dokime_protocol::client::FrozenSchemas { digest, records, streams })
 }
 pub(super) fn records(
     snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>,

@@ -981,6 +981,29 @@
     "owner": "dokime",
     "face": "client",
     "version": "v1",
+    "parents": [
+      "executions"
+    ],
+    "service": "Schemas",
+    "method": "Get",
+    "package": "dokime.client.v1.executions",
+    "path": [
+      "executions",
+      "schemas",
+      "get"
+    ],
+    "request": "dokime.client.v1.executions.SchemasGetRequest",
+    "response": "dokime.client.v1.executions.SchemasGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/executions/schemas.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
     "parents": [],
     "service": "Executions",
     "method": "Get",

@@ -5417,9 +5417,10 @@ pub mod evidence_server {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FrozenSchemas {
-    /// Frozen descriptors and contract identities for exact payload decoding.
-    #[prost(message, optional, tag = "3")]
-    pub catalog: ::core::option::Option<::harmos_protocol::v1::Catalog>,
+    /// SHA-256 of the serialized frozen google.protobuf.FileDescriptorSet, in file order.
+    /// Fetch descriptors through Executions.Schemas.Get only on a cache miss.
+    #[prost(bytes = "vec", tag = "3")]
+    pub digest: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, repeated, tag = "1")]
     pub records: ::prost::alloc::vec::Vec<super::super::v1::RecordSchema>,
     #[prost(message, repeated, tag = "2")]

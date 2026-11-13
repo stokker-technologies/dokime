@@ -99,6 +99,24 @@ impl Store {
         Ok(value)
     }
 
+    /// Read Immutable Frozen Descriptors at an Issued Execution Cut.
+    pub fn execution_schemas(&self, execution: &str, at: Option<&Position>) -> Result<ResourceValue> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let mut value = resolve_value(&transaction, &self.identity, execution, "schemas", at)?;
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let execution = crate::Execution::decode(payload.as_slice())?;
+        let catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice())?;
+        value.payload = catalog.types.unwrap_or_default().encode_to_vec();
+        value.revision = Sha256::digest(&value.payload).to_vec();
+        transaction.execute(
+            "INSERT OR IGNORE INTO read_positions VALUES (?1,?2)",
+            params![execution.identifier, value.resolved_at.sequence as i64],
+        )?;
+        transaction.commit()?;
+        Ok(value)
+    }
+
     pub fn retain_read_positions(&self, positions: &[Position]) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;

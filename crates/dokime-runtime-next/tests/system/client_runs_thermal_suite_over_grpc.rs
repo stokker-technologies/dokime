@@ -19,6 +19,7 @@
 use std::process::Stdio;
 
 // Third Party Imports
+use prost::Message;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -103,9 +104,9 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error:
         let cases=client.templates.materialize(suite_id,"thermal.cycle",std::collections::HashMap::from([("limit".into(),vec![v1::Value {kind:Some(v1::value::Kind::Number(85.0))}])])).await?;assert_eq!(cases.len(),1);let isolation=cases[0].clone();
         let cycle=client.cycles.start(cases).await?;let execution_id=cycle.executions[0].clone();let mut progress=cycle.watch();let mut phases=Vec::new();while let Some(frame)=progress.next().await?{phases.push(frame.phase.clone());if frame.phase=="prompt"{break;}}
         assert!(phases.iter().any(|phase|phase=="prompt"));let pending=client.prompts.pending(execution_id.clone()).await?;let prompt_id=pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();assert_eq!(client.prompts.get(prompt_id.clone()).await?.prompt.unwrap().prompt.unwrap().prompt_id,prompt_id);client.prompts.respond(prompt_id,"yes",true).await?;while let Some(frame)=progress.next().await?{phases.push(frame.phase);}assert!(phases.iter().any(|phase|phase=="finished"));
-        let detail=client.executions.get(execution_id.clone()).await?.execution.unwrap();assert_eq!(detail.summary.as_ref().unwrap().state,v1::ExecutionState::Sealed as i32);assert!(!detail.seal.is_empty());assert!(matches!(detail.outcome.as_ref().unwrap().attribution.as_ref(),Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status==v1::ResultStatus::Passed as i32));
+        let reply=client.executions.get(execution_id.clone()).await?;eprintln!("Execution Get Reply: {} Bytes", reply.encoded_len());let detail=reply.execution.unwrap();assert_eq!(detail.summary.as_ref().unwrap().state,v1::ExecutionState::Sealed as i32);assert!(!detail.seal.is_empty());assert!(matches!(detail.outcome.as_ref().unwrap().attribution.as_ref(),Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status==v1::ResultStatus::Passed as i32));
         let page=client.executions.list().await?;assert_eq!(page.executions[0].summary.as_ref(),detail.summary.as_ref());
-        let records=client.records.list(execution_id.clone()).await?;assert!(!records.records.is_empty());let frozen=detail.schemas.as_ref().unwrap().catalog.as_ref().unwrap();let pool=prost_reflect::DescriptorPool::from_file_descriptor_set(frozen.types.clone().unwrap())?;
+        let records=client.records.list(execution_id.clone()).await?;assert!(!records.records.is_empty());let mut schema_cache = dokime::client::FrozenSchemaCache::default();let frozen=schema_cache.get(&client,&detail).await?;let pool=prost_reflect::DescriptorPool::from_file_descriptor_set((*frozen).clone())?;
         let door=prost_reflect::DynamicMessage::decode(pool.get_message_by_name("thermal.v1.Door").unwrap(),records.records[0].payload.as_slice())?;assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(),&prost_reflect::Value::Bool(true));
         let samples=client.samples.list(execution_id.clone()).await?;let raw=samples.samples.iter().map(|row|match row.kind.as_ref().unwrap(){dokime_protocol::client::evidence::sample_row::Kind::Raw(sample)=>sample,_=>panic!("Expected Raw Samples")}).collect::<Vec<_>>();assert_eq!(raw.len(),3);assert_eq!(raw.iter().map(|sample|sample.timestamp.unwrap().seconds).collect::<Vec<_>>(),vec![0,1,2]);assert!(raw.iter().all(|sample|!sample.payload.is_empty()));assert!(raw.iter().all(|sample|sample.values.as_ref().unwrap().values["celsius"].kind==Some(v1::value::Kind::Number(84.0))));
 

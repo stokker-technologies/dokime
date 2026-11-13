@@ -12,6 +12,10 @@
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
+#include "harmos/harmos.hpp"
+#include <atomic>
+#include <google/protobuf/empty.pb.h>
+#include <google/protobuf/wrappers.pb.h>
 
 /* === Macros === */
 
@@ -20,6 +24,33 @@
 /* === Types === */
 
 /* === Classes === */
+
+class Schemas : public dokime::client::v1::executions::Schemas::Service {
+public:
+  google::protobuf::FileDescriptorSet types;
+  std::atomic<int> calls = 0;
+  Schemas() {
+    google::protobuf::BoolValue::descriptor()->file()->CopyTo(types.add_file());
+    google::protobuf::Empty::descriptor()->file()->CopyTo(types.add_file());
+  }
+  grpc::Status Get(grpc::ServerContext *context, const dokime::client::v1::executions::SchemasGetRequest *request,
+                   dokime::client::v1::executions::SchemasGetResponse *reply) override {
+    if (!context->client_metadata().contains("authorization"))
+      return {grpc::StatusCode::UNAUTHENTICATED, "Get Schemas: Supply Credentials"};
+    ++calls;
+    auto cut = reply->mutable_resolved_at();
+    cut->mutable_history()->set_store("schemas");
+    cut->mutable_history()->set_epoch(request->name());
+    cut->set_sequence(1);
+    const bool first = request->page().page_token().empty();
+    if (!first && (request->at().SerializeAsString() != cut->SerializeAsString() || request->page().page_token() != "second"))
+      return {grpc::StatusCode::INVALID_ARGUMENT, "Get Schemas: Continue the Same Read Cut"};
+    reply->set_digest(harmos::detail::sha256(types.SerializeAsString()));
+    *reply->mutable_types()->add_file() = types.file(first ? 0 : 1);
+    reply->set_next_page_token(first ? "second" : "");
+    return grpc::Status::OK;
+  }
+};
 
 /* === Templates === */
 
@@ -35,11 +66,13 @@ int main() {
   Plugins plugins;
   Suites suites;
   Logs log_service;
+  Schemas schema_service;
   grpc::ServerBuilder builder;
   builder.RegisterService(&backend);
   builder.RegisterService(&plugins);
   builder.RegisterService(&suites);
   builder.RegisterService(&log_service);
+  builder.RegisterService(&schema_service);
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
   auto channel = server->InProcessChannel({});
@@ -111,5 +144,20 @@ int main() {
     refused = error.status().error_code() == grpc::StatusCode::INVALID_ARGUMENT;
   }
   check(refused, "Plugin Refusal Was Hidden");
+  // Fetch Complete Descriptor Pages, Then Reuse Them for Another Execution.
+  dokime::FrozenSchemaCache schemas;
+  dokime::client::v1::ExecutionDetail detail;
+  detail.mutable_summary()->set_execution_id("first");
+  detail.mutable_schemas()->set_digest(harmos::detail::sha256(schema_service.types.SerializeAsString()));
+  const auto configure = [](grpc::ClientContext &context) { context.AddMetadata("authorization", "Bearer test"); };
+  const auto types = schemas.get(client, detail, configure);
+  check(types->file_size() == 2 && types->file(0).name() == "google/protobuf/wrappers.proto" &&
+            types->file(1).name() == "google/protobuf/empty.proto",
+        "Descriptor Pages Were Lost");
+  const auto calls = schema_service.calls.load();
+  check(calls == types->file_size(), "Descriptors Were Fetched More Than Once");
+  detail.mutable_summary()->set_execution_id("second");
+  const auto reused = schemas.get(client, detail, configure);
+  check(types == reused && schema_service.calls.load() == calls, "Equal Descriptor Digests Were Fetched Again");
   server->Shutdown();
 }

@@ -129,6 +129,7 @@
 #include "dokime/client/v1/executions.grpc.pb.h"
 #include "dokime/client/v1/executions/commands.grpc.pb.h"
 #include "dokime/client/v1/executions/progress.grpc.pb.h"
+#include "dokime/client/v1/executions/schemas.grpc.pb.h"
 #include "dokime/client/v1/media/captures.grpc.pb.h"
 #include "dokime/client/v1/plots/settings.grpc.pb.h"
 #include "dokime/client/v1/plots/snapshots.grpc.pb.h"
@@ -423,6 +424,18 @@ struct ExecutionsProgressResource {
   std::unique_ptr<grpc::ClientReader<::dokime::client::v1::executions::ProgressWatchResponse>>
   watch(grpc::ClientContext &context, const ::dokime::client::v1::executions::ProgressWatchRequest &request) {
     return ::dokime::client::v1::executions::Progress::NewStub(channel)->Watch(&context, request);
+  }
+};
+struct ExecutionsSchemasResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit ExecutionsSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::client::v1::executions::SchemasGetResponse get(grpc::ClientContext &context,
+                                                           const ::dokime::client::v1::executions::SchemasGetRequest &request) {
+    ::dokime::client::v1::executions::SchemasGetResponse response;
+    const auto status = ::dokime::client::v1::executions::Schemas::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
   }
 };
 struct MediaCapturesResource {
@@ -778,7 +791,9 @@ struct ExecutionsResource {
   std::shared_ptr<grpc::Channel> channel;
   ExecutionsCommandsResource commands;
   ExecutionsProgressResource progress;
-  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), commands(channel), progress(channel) {}
+  ExecutionsSchemasResource schemas;
+  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel)
+      : channel(channel), commands(channel), progress(channel), schemas(channel) {}
   ::dokime::client::v1::ExecutionsGetResponse get(grpc::ClientContext &context, const ::dokime::client::v1::ExecutionsGetRequest &request) {
     ::dokime::client::v1::ExecutionsGetResponse response;
     const auto status = ::dokime::client::v1::Executions::NewStub(channel)->Get(&context, request, &response);

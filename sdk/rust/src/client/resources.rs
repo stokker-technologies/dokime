@@ -460,12 +460,14 @@ pub struct Executions {
     client: ClientTransport,
     pub commands: ExecutionsCommands,
     pub progress: ExecutionsProgress,
+    pub schemas: ExecutionsSchemas,
 }
 impl Executions {
     pub fn new(client: ClientTransport) -> Self {
         Self {
             commands: ExecutionsCommands::new(client.clone()),
             progress: ExecutionsProgress::new(client.clone()),
+            schemas: ExecutionsSchemas::new(client.clone()),
             client,
         }
     }
@@ -535,6 +537,20 @@ impl ExecutionsProgress {
     }
     pub async fn watch(&self, request: tonic::Request<dokime_protocol::client::executions::ProgressWatchRequest>) -> Result<Watching<dokime_protocol::client::executions::ProgressWatchResponse>, tonic::Status> {
         self.client.watch_known(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Progress/Watch"), request, dokime_protocol::client::executions::ProgressWatchResponse::default().descriptor()).await
+    }
+}
+#[derive(Clone)]
+pub struct ExecutionsSchemas {
+    client: ClientTransport,
+}
+impl ExecutionsSchemas {
+    pub fn new(client: ClientTransport) -> Self {
+        Self {
+            client,
+        }
+    }
+    pub async fn get(&self, request: tonic::Request<dokime_protocol::client::executions::SchemasGetRequest>) -> Result<tonic::Response<dokime_protocol::client::executions::SchemasGetResponse>, tonic::Status> {
+        self.client.unary(tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.client.v1.executions.Schemas/Get"), request, dokime_protocol::client::executions::SchemasGetResponse::default().descriptor()).await
     }
 }
 #[derive(Clone)]

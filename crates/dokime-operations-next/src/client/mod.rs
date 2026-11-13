@@ -74,6 +74,7 @@ pub mod executions_list;
 pub mod executions_parameters;
 pub mod executions_progress_get;
 pub mod executions_progress_watch;
+pub mod executions_schemas_get;
 pub mod executions_set;
 pub mod executions_start;
 pub mod executions_steps;
@@ -173,6 +174,7 @@ pub const METHODS: &[&str] = &[
     "/dokime.client.v1.Executions/Create",
     "/dokime.client.v1.Executions/Delete",
     "/dokime.client.v1.Executions/Get",
+    "/dokime.client.v1.executions.Schemas/Get",
     "/dokime.client.v1.Executions/List",
     "/dokime.client.v1.Executions/Parameters",
     "/dokime.client.v1.Executions/Set",

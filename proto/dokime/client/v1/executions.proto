@@ -14,8 +14,9 @@ import "harmos/v1/types.proto";
 // Schemas frozen for this execution, from its plugin catalog or its import-local catalog. Import schemas do not
 // register a plugin or overwrite global definitions.
 message FrozenSchemas {
-  // Frozen descriptors and contract identities for exact payload decoding.
-  .harmos.v1.Catalog catalog = 3;
+  // SHA-256 of the serialized frozen google.protobuf.FileDescriptorSet, in file order.
+  // Fetch descriptors through Executions.Schemas.Get only on a cache miss.
+  bytes digest = 3;
   repeated .dokime.v1.RecordSchema records = 1;
   repeated .dokime.v1.TelemetrySchema streams = 2;
 }

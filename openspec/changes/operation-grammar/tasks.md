@@ -220,3 +220,5 @@ Final full validation is separate from source completion.
 - [x] Complete all five Rust SDK stories, including reference-host authoring and numeric template-local admission, after adopting the wire-identity fix. Library-backed context/plugin composition is now unblocked by identity validation; its implementation and journeys remain open.
 - [x] Replace the Linux-only managed-install cancellation unit journey with an awaited cross-platform system story. Windows cancellation settlement, child closure and rollback pass; native Linux execution remains part of final platform proof.
 - [x] Complete the shipping Rust check and Tests producer within the owner's disk bounds, including old-loop and desktop test compilation, host/CLI fixture export and the prepared compiler-contract harness. Preserve diagnostics through native cleanup without increasing budgets or disabling checks.
+
+- [x] Replace embedded execution catalogs with SHA-256 schema identities and `Executions.Schemas.Get` descriptor-file pages; migrate Rust/C#/C++ decoders and prove bounded detail reads, complete decoding and digest reuse across executions.

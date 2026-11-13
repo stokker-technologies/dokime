@@ -98,6 +98,22 @@ services for authentication refusal, identity, complete log stream envelopes,
 plugin Add/List and typed server errors. It defines no substitute protocol.
 Real-host execution remains separate integration proof.
 
+Execution details retain `schemas().digest()` and display identities. Fetch frozen
+descriptors only on a digest cache miss:
+
+```cpp
+dokime::FrozenSchemaCache schemas;
+auto types = schemas.get(client, detail);
+```
+
+The caller owns the cache lifetime and synchronizes access when sharing it between
+threads. `get` fetches one file per `executions.schemas.get` page at one cut and
+verifies the complete SHA-256 digest before retaining an immutable shared set.
+Equal digests reuse it across executions. An optional context configuration callback
+forwards metadata, cancellation setup and deadline overrides to every page;
+operation policies supply deadlines otherwise. Assemble all files before resolving
+descriptor dependencies when using raw calls.
+
 ## Source Distribution and Starter
 
 `mise -C sdk/cpp run archive -- --version VERSION` creates

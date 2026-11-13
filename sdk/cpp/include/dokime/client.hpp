@@ -15,7 +15,9 @@
 #include "dokime/client/v1/plugins.grpc.pb.h"
 #include "dokime/resources.hpp"
 #include "harmos/client.hpp"
+#include <functional>
 #include <grpcpp/grpcpp.h>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -62,5 +64,14 @@ public:
 
 private:
   std::shared_ptr<grpc::Channel> channel_;
+};
+// Caller-Owned Cache; Confine It to One Thread or Synchronize Access.
+class FrozenSchemaCache {
+public:
+  std::shared_ptr<const google::protobuf::FileDescriptorSet> get(const Client &client, const ::dokime::client::v1::ExecutionDetail &detail,
+                                                                 const std::function<void(grpc::ClientContext &)> &configure = {});
+
+private:
+  std::map<std::string, std::shared_ptr<const google::protobuf::FileDescriptorSet>> sets_;
 };
 } // namespace dokime

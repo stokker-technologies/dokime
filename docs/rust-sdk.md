@@ -227,6 +227,21 @@ use dokime::protocol::client::v1 as product;
 let suites = client.suites.list(tonic::Request::new(product::SuitesListRequest::default())).await?;
 ```
 
+Execution details carry `schemas.digest` and display identities. Decode payloads
+with the execution's frozen descriptors, fetched only on a digest cache miss:
+
+```rust
+let mut schemas = dokime::client::FrozenSchemaCache::default();
+let types = schemas.get(&client, &detail).await?;
+let pool = prost_reflect::DescriptorPool::from_file_descriptor_set((*types).clone())?;
+```
+
+The caller owns the cache and releases retained descriptors by dropping it.
+`get` fetches one file per `client.executions.schemas.get` page at one returned cut and verifies
+the complete SHA-256 digest before caching. Equal digests reuse one set across
+executions, including when the host is offline. Raw callers must assemble all files
+before resolving dependencies; a page alone need not form a complete descriptor pool.
+
 Product watches return managed `Watching<T>` values; consume them with
 `next().await?` and drop them to close observation without cancelling execution.
 Retain returned read cuts and continuation positions as required by each resource.

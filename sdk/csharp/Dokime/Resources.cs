@@ -588,11 +588,13 @@ public sealed class ExecutionsResource
   private readonly CallInvoker invoker;
   public ExecutionsCommandsResource Commands { get; }
   public ExecutionsProgressResource Progress { get; }
+  public ExecutionsSchemasResource Schemas { get; }
   public ExecutionsResource(CallInvoker invoker)
   {
     this.invoker = invoker;
     Commands = new ExecutionsCommandsResource(invoker);
     Progress = new ExecutionsProgressResource(invoker);
+    Schemas = new ExecutionsSchemasResource(invoker);
   }
   public AsyncUnaryCall<global::Dokime.Protocol.Client.V1.ExecutionsGetResponse> Get(global::Dokime.Protocol.Client.V1.ExecutionsGetRequest request, CallOptions options = default)
   {
@@ -714,6 +716,21 @@ public sealed class ExecutionsProgressResource
         Marshallers.Create<global::Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchRequest.Parser.ParseFrom(bytes)),
         Marshallers.Create<global::Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.Client.V1.ExecutionsResources.ProgressWatchResponse.Parser.ParseFrom(bytes)));
     return invoker.AsyncServerStreamingCall(method, null, options, request);
+  }
+}
+public sealed class ExecutionsSchemasResource
+{
+  private readonly CallInvoker invoker;
+  public ExecutionsSchemasResource(CallInvoker invoker)
+  {
+    this.invoker = invoker;
+  }
+  public AsyncUnaryCall<global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetResponse> Get(global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetRequest request, CallOptions options = default)
+  {
+    var method = new Method<global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetRequest, global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetResponse>(MethodType.Unary, "dokime.client.v1.executions.Schemas", "Get",
+        Marshallers.Create<global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Protocol.Client.V1.ExecutionsResources.SchemasGetResponse.Parser.ParseFrom(bytes)));
+    return invoker.AsyncUnaryCall(method, null, options, request);
   }
 }
 public sealed class InvocationsResource

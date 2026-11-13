@@ -39,6 +39,7 @@ mod evidence_traceability;
 mod executions;
 mod executions_commands;
 mod executions_progress;
+mod executions_schemas;
 mod managed_plugins;
 mod media_captures;
 mod plots_settings;
@@ -284,6 +285,11 @@ fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Serv
     )?;
     manager.register_service(
         dokime_protocol::client::evidence_server::EvidenceServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::client::executions::schemas_server::SchemasServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

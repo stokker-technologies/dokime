@@ -12,10 +12,13 @@
 /* === Modules === */
 
 mod host;
+mod schemas;
 #[rustfmt::skip]
 mod resources;
 
 /* === Re-Exports === */
+
+pub use schemas::FrozenSchemaCache;
 
 pub use host::{Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates};
 

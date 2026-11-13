@@ -742,6 +742,7 @@ resources. The library vendoring, packages and generated references remain pinne
 | `dokime.v1.evidence.Traceability/Get` | `dokime.client.v1.evidence.Traceability/Get` | `dokime.client.v1.evidence.TraceabilityGetRequest` | `dokime.client.v1.evidence.TraceabilityGetResponse` | Client | moved |
 | `dokime.v1.evidence.Traceability/Watch` | `dokime.client.v1.evidence.Traceability/Watch` | `dokime.client.v1.evidence.TraceabilityWatchRequest` | `dokime.client.v1.evidence.TraceabilityWatchResponse` | Client | moved |
 | `dokime.v1.Executions/Get` | `dokime.client.v1.Executions/Get` | `dokime.client.v1.ExecutionsGetRequest` | `dokime.client.v1.ExecutionsGetResponse` | Client | moved |
+| Embedded `Executions.FrozenSchemas.catalog` | `dokime.client.v1.executions.Schemas/Get` | `dokime.client.v1.executions.SchemasGetRequest` | `dokime.client.v1.executions.SchemasGetResponse` | Client | replaced by digest and paged descriptors |
 | `dokime.v1.Executions/Set` | `dokime.client.v1.Executions/Set` | `dokime.client.v1.ExecutionsSetRequest` | `dokime.client.v1.ExecutionsSetResponse` | Client | moved |
 | `dokime.v1.Executions/List` | `dokime.client.v1.Executions/List` | `dokime.client.v1.ExecutionsListRequest` | `dokime.client.v1.ExecutionsListResponse` | Client | moved |
 | `dokime.v1.Executions/Watch` | `dokime.client.v1.Executions/Watch` | `dokime.client.v1.ExecutionsWatchRequest` | `dokime.client.v1.ExecutionsWatchResponse` | Client | moved |
@@ -835,6 +836,10 @@ resources. The library vendoring, packages and generated references remain pinne
 | `harmos.context.v1.Time/Get` | `harmos.context.v1.Time/Get` | `harmos.context.v1.TimeGetRequest` | `harmos.context.v1.TimeGetResponse` | Plugin Host | done |
 | `harmos.context.v1.Time/Sleep` | `harmos.context.v1.Time/Sleep` | `harmos.context.v1.TimeSleepRequest` | `harmos.context.v1.TimeSleepResponse` | Plugin Host | done |
 
+Decision: schema retrieval returns descriptors only; display identities stay in the detail.
+Descriptor files are the page unit; each encoded response obeys the smaller of
+`PageRequest.max_bytes` (when set) and the existing host unary message limit.
+
 Each lifecycle binding keeps its own Protected visibility, policy and handler;
 only its shared request/response pair is reused. There is no lifecycle dispatch
 service. Documents.Get retains its ordered bounded frames, counters and fixed cut.
@@ -854,18 +859,19 @@ RecordSchemas/StreamSchemas; do not merge them with library Schemas/Streams.
 The former Catalog.Analyses becomes Analyses.List, preserving its single method
 and payload fields; Suites, RecordSchemas, StreamSchemas and PromptDefinitions
 lose their catalog parent. SettingsCatalog and PromptCatalog become the shared
-SettingsDeclarations and PromptDefinitions message names. The only remaining
-`Catalog` type reference in product source is the required external
-`harmos.v1.Catalog` field in client Executions.FrozenSchemas; removing it would
-change that field type and requires a later library pin. Comments refer to the
-same pinned library descriptors where relevant. No product Catalog declaration remains.
+SettingsDeclarations and PromptDefinitions message names. `FrozenSchemas` carries
+only a SHA-256 descriptor digest plus record/stream identities. Its former embedded
+`harmos.v1.Catalog` is removed. `Executions.Schemas.Get` returns the complete frozen
+`FileDescriptorSet` in file order through bounded pages, independently of plugin
+availability. SDK caches retain complete sets by digest, including across executions.
+No product Catalog declaration remains.
 
 ### Protocol File Inventory
 
 All paths below are relative to `proto/dokime/`; braces enumerate files.
 
 - `v1/{analyses,appearance,cycles,documents,empty,evidence,execution,expressions,files,formatting,metadata,notes,parameters,plots,prompts,record_contracts,scalar,schemas,settings,suites,traceability}.proto`
-- `client/v1/{aggregates,analyses,backend,backend/overview,cases,content,content/artifacts,content/execution_files,cycles,documents,evidence,evidence/health_events,evidence/notes,evidence/records,evidence/samples,evidence/traceability,executions,executions/commands,executions/progress,media/captures,plots/settings,plots/snapshots,plugins,plugins/settings,prompt_definitions,prompts,prompts/answers,record_schemas,reports,secrets,settings,storage/sources,stream_schemas,suites}.proto`
+- `client/v1/{aggregates,analyses,backend,backend/overview,cases,content,content/artifacts,content/execution_files,cycles,documents,evidence,evidence/health_events,evidence/notes,evidence/records,evidence/samples,evidence/traceability,executions,executions/commands,executions/progress,executions/schemas,media/captures,plots/settings,plots/snapshots,plugins,plugins/settings,prompt_definitions,prompts,prompts/answers,record_schemas,reports,secrets,settings,storage/sources,stream_schemas,suites}.proto`
 - `plugin/v1/{criteria,executions,steps,test_cases}.proto`
 - `plugin/host/v1/{backend,content/artifacts,documents,effects,evidence,evidence/logs,evidence/records,evidence/traceability,executions/progress,files,files/captures,prompts,secrets,settings}.proto`
 

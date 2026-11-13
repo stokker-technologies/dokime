@@ -137,6 +137,21 @@ read. Paged resources bind continuation tokens to their selection and cut. Watch
 gaps require explicit resynchronization. Downloads use bounded unary responses
 and ranged `client.Storage.GetFileBytes` reads; only watches use server streaming.
 
+Execution details contain `Schemas.Digest` and display identities. Fetch frozen
+descriptors through `client.Executions.Schemas.Get` only when that digest is absent
+from your cache:
+
+```csharp
+var schemas = new Dokime.FrozenSchemaCache();
+var types = await schemas.GetAsync(client, detail, options);
+```
+
+The caller owns the cache lifetime. `GetAsync` fetches one descriptor file per page at one
+cut, verifies the assembled SHA-256 digest, and reuses equal digests across executions.
+Each result is an independent copy, so decoder changes cannot mutate the cached set.
+`CallOptions` forwards cancellation, metadata and an explicit deadline override;
+operation policies supply deadlines otherwise.
+
 Plugin child calls use separate `Dokime.Protocol.Plugin.Host.V1` contracts and its
 nested `.ContentResources`, `.EvidenceResources`, `.ExecutionsResources` and
 `.FilesResources` namespaces. Context
@@ -190,7 +205,7 @@ runtime is the default. See [Execution Host](execution-host.md) for named runs.
 The named assertion `csharp_frozen_record_schema_decodes_door` passes in both
 placements at the pinned Harmos revision. `Record<T>` calls descriptor-only
 `Message<T>()`, retaining Door and its dependencies without an artificial
-operation, stream or section. The frozen catalog decodes the exact record bytes.
+operation, stream or section. Frozen descriptors from `Executions.Schemas.Get` decode the exact record bytes.
 
 ## Composed Client Services
 
