@@ -80,7 +80,7 @@ Final full validation is separate from source completion.
 
 ## 0. Face Packages and File Moves First
 
-- [ ] 0.2.1 Move the independent Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment context declarations and their four-language consumers to final packages; retain distinct wrappers and no context client gRPC services. Inventory: proto/dokime/context, shared payloads, protocol generator/reflection, storage/evidence decoding, operations/runtime, SDKs, fixtures and current guides. Finish focused host/SDK/generation proof before closing.
+- [x] 0.2.1 Move the independent Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment context declarations and their four-language consumers to final packages; retain distinct wrappers and no context client gRPC services. Inventory: proto/dokime/context, shared payloads, protocol generator/reflection, storage/evidence decoding, operations/runtime, SDKs, fixtures and current guides. Finish focused host/SDK/generation proof before closing.
 - [x] 0.C.1 Rename the Python distribution to dokime-sdk, retain import dokime, and migrate wheel/source release verification, starter requirements and fresh-install proof. Rust dokime, NuGet Dokime and CMake DokimeCpp / Dokime::Cpp already each contain both halves.
 
 

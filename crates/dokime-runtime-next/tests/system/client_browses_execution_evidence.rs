@@ -59,7 +59,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     label: "Reading".into(),
                     ..Default::default()
                 }),
-                message: "dokime.v1.WriteLog".into(),
+                message: "dokime.context.v1.evidence.LogsAppendRequest".into(),
             }],
         };
         let catalog = harmos_protocol::v1::Catalog {

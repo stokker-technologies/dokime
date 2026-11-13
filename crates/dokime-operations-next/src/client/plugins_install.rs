@@ -118,14 +118,11 @@ pub async fn handle(
         host.install_plugin_bundle(bytes, cancelled).await
     });
     let cancellation = async {
-        while let Some(frame) = input.next().await {
-            match frame {
-                Ok(Upload::Cancel) => return Ok::<(), Error>(()),
-                Err(_) => break,
-                _ => return Err(invalid("Send Only Cancel After Finishing the Upload")),
-            }
+        match input.next().await {
+            Some(Ok(Upload::Cancel)) => Ok::<(), Error>(()),
+            Some(Ok(_)) => Err(invalid("Send Only Cancel After Finishing the Upload")),
+            Some(Err(_)) | None => std::future::pending::<Result<()>>().await,
         }
-        std::future::pending::<Result<()>>().await
     };
     let failure = tokio::select! {
         biased;

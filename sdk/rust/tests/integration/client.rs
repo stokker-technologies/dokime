@@ -117,6 +117,18 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
     );
     assert!(bounded.is_err());
 
+    // Enforce a Valid Consumer Response Bound Before Decoding the Reply.
+    let bounded = Client::from_channel(
+        server.channel.clone(),
+        ClientSettings {
+            transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(256) },
+            message_bytes: NonZeroUsize::new(1024).unwrap(),
+            ..settings
+        },
+    )?
+    .authorization("Bearer story".parse()?);
+    assert!(bounded.call(&health, v1::GetBackendHealth {}).await.is_err());
+
     // Release the Connection and Stop the Owned In-Process Server.
     drop(bounded);
     drop(client);

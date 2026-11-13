@@ -59,7 +59,7 @@ pub async fn handle(context: &Context, request: v1::EvidenceGetCapturedRecordSch
             )?)
             .map_err(|error| Error::Invalid(error.to_string()))?;
             let descriptor = pool
-                .get_message_by_name("dokime.v1.WriteLog")
+                .get_message_by_name("dokime.context.v1.evidence.LogsAppendRequest")
                 .ok_or_else(|| Error::Invalid("Get Captured Log Schema: Rebuild the Host Protocol".into()))?;
             return Ok(v1::RecordSchema {
                 record_type: request.record_type,

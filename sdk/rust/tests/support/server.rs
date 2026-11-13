@@ -227,7 +227,7 @@ fn health() -> v1::BackendHealth {
         epoch: "boot".into(),
         readiness: v1::BackendReadiness::Ready as i32,
         observed_at: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
-        message: String::new(),
+        message: "x".repeat(4096),
     }
 }
 

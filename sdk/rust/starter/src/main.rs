@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::{prelude::*, v1};
+use dokime::prelude::*;
 
 /* === Constants === */
 

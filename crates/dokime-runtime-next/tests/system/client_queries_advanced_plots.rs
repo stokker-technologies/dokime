@@ -115,7 +115,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let store=Store::open(root.path())?;
         let catalog=harmos_protocol::v1::Catalog {types:Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),streams:["cells","calibration"].into_iter().map(|id|harmos_protocol::v1::StreamDeclaration {id:id.into(),row:"dokime.v1.PlotDomain".into(),..Default::default()}).collect(),..Default::default()};
         let mut catalog=catalog;
-        let records=v1::RecordContracts {records:vec![v1::RecordContract {metadata:Some(v1::Metadata {identifier:"event".into(),..Default::default()}),message:"dokime.v1.WriteLog".into()}]};
+        let records=v1::RecordContracts {records:vec![v1::RecordContract {metadata:Some(v1::Metadata {identifier:"event".into(),..Default::default()}),message:"dokime.context.v1.evidence.LogsAppendRequest".into()}]};
         catalog.sections.push(harmos_protocol::v1::Section {r#type:"dokime.v1.RecordContracts".into(),payload:records.encode_to_vec()});
         store.create(&Execution {identifier:"advanced".into(),cycle:"advanced".into(),catalog:catalog.encode_to_vec(),origin:Some(v1::Origin {kind:Some(v1::origin::Kind::Import(v1::Import::default()))}),..Default::default()})?;
         for stream in ["cells","calibration"] {
