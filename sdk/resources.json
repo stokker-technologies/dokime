@@ -1225,6 +1225,224 @@
     "face": "client",
     "version": "v1",
     "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Create",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "create"
+    ],
+    "request": "dokime.client.v1.files.UploadsCreateRequest",
+    "response": "dokime.client.v1.files.UploadsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsCreateResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Get",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "get"
+    ],
+    "request": "dokime.client.v1.files.UploadsGetRequest",
+    "response": "dokime.client.v1.files.UploadsGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Resume",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "resume"
+    ],
+    "request": "dokime.client.v1.files.UploadsResumeRequest",
+    "response": "dokime.client.v1.files.UploadsResumeResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsResumeRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsResumeResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Append",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "append"
+    ],
+    "request": "dokime.client.v1.files.UploadsAppendRequest",
+    "response": "dokime.client.v1.files.UploadsAppendResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsAppendRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsAppendResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Publish",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "publish"
+    ],
+    "request": "dokime.client.v1.files.UploadsPublishRequest",
+    "response": "dokime.client.v1.files.UploadsPublishResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsPublishRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsPublishResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Delete",
+    "package": "dokime.client.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "delete"
+    ],
+    "request": "dokime.client.v1.files.UploadsDeleteRequest",
+    "response": "dokime.client.v1.files.UploadsDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesResources.UploadsDeleteResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Get",
+    "package": "dokime.client.v1",
+    "path": [
+      "files",
+      "get"
+    ],
+    "request": "dokime.client.v1.FilesGetRequest",
+    "response": "dokime.client.v1.FilesGetResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesGetRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Read",
+    "package": "dokime.client.v1",
+    "path": [
+      "files",
+      "read"
+    ],
+    "request": "dokime.client.v1.FilesReadRequest",
+    "response": "dokime.client.v1.FilesReadResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesReadRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesReadResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Watch",
+    "package": "dokime.client.v1",
+    "path": [
+      "files",
+      "watch"
+    ],
+    "request": "dokime.client.v1.FilesWatchRequest",
+    "response": "dokime.client.v1.FilesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesWatchResponse",
+    "client_streaming": false,
+    "server_streaming": true,
+    "file": "dokime/client/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Delete",
+    "package": "dokime.client.v1",
+    "path": [
+      "files",
+      "delete"
+    ],
+    "request": "dokime.client.v1.FilesDeleteRequest",
+    "response": "dokime.client.v1.FilesDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Client.V1.FilesDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Client.V1.FilesDeleteResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/client/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "client",
+    "version": "v1",
+    "parents": [
       "media"
     ],
     "service": "Captures",
@@ -2080,6 +2298,224 @@
     "file": "dokime/client/v1/suites.proto"
   },
   {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Create",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "create"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsCreateRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsCreateResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsCreateRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsCreateResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Get",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "get"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsGetRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsGetResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsGetRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Resume",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "resume"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsResumeRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsResumeResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsResumeRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsResumeResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Append",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "append"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsAppendRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsAppendResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsAppendRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsAppendResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Publish",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "publish"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsPublishRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsPublishResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsPublishRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsPublishResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [
+      "files"
+    ],
+    "service": "Uploads",
+    "method": "Delete",
+    "package": "dokime.plugin.host.v1.files",
+    "path": [
+      "files",
+      "uploads",
+      "delete"
+    ],
+    "request": "dokime.plugin.host.v1.files.UploadsDeleteRequest",
+    "response": "dokime.plugin.host.v1.files.UploadsDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesResources.UploadsDeleteResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files/uploads.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Get",
+    "package": "dokime.plugin.host.v1",
+    "path": [
+      "files",
+      "get"
+    ],
+    "request": "dokime.plugin.host.v1.FilesGetRequest",
+    "response": "dokime.plugin.host.v1.FilesGetResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesGetRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesGetResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Read",
+    "package": "dokime.plugin.host.v1",
+    "path": [
+      "files",
+      "read"
+    ],
+    "request": "dokime.plugin.host.v1.FilesReadRequest",
+    "response": "dokime.plugin.host.v1.FilesReadResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesReadRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesReadResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Watch",
+    "package": "dokime.plugin.host.v1",
+    "path": [
+      "files",
+      "watch"
+    ],
+    "request": "dokime.plugin.host.v1.FilesWatchRequest",
+    "response": "dokime.plugin.host.v1.FilesWatchResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesWatchRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesWatchResponse",
+    "client_streaming": false,
+    "server_streaming": true,
+    "file": "dokime/plugin/host/v1/files.proto"
+  },
+  {
+    "owner": "dokime",
+    "face": "context",
+    "version": "v1",
+    "parents": [],
+    "service": "Files",
+    "method": "Delete",
+    "package": "dokime.plugin.host.v1",
+    "path": [
+      "files",
+      "delete"
+    ],
+    "request": "dokime.plugin.host.v1.FilesDeleteRequest",
+    "response": "dokime.plugin.host.v1.FilesDeleteResponse",
+    "request_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesDeleteRequest",
+    "response_csharp": "Dokime.Protocol.Plugin.Host.V1.FilesDeleteResponse",
+    "client_streaming": false,
+    "server_streaming": false,
+    "file": "dokime/plugin/host/v1/files.proto"
+  },
+  {
     "owner": "harmos",
     "face": "context",
     "version": "v1",
@@ -2198,646 +2634,6 @@
     "client_streaming": false,
     "server_streaming": false,
     "file": "harmos/context/v1/samples.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateFileProduction",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "create_file_production"
-    ],
-    "request": "harmos.context.v1.StorageCreateFileProductionRequest",
-    "response": "harmos.context.v1.StorageCreateFileProductionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageCreateFileProductionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageCreateFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileProduction",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_file_production"
-    ],
-    "request": "harmos.context.v1.StorageGetFileProductionRequest",
-    "response": "harmos.context.v1.StorageGetFileProductionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetFileProductionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendFileBytes",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "append_file_bytes"
-    ],
-    "request": "harmos.context.v1.StorageAppendFileBytesRequest",
-    "response": "harmos.context.v1.StorageAppendFileBytesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageAppendFileBytesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageAppendFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateFileWriter",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "create_file_writer"
-    ],
-    "request": "harmos.context.v1.StorageCreateFileWriterRequest",
-    "response": "harmos.context.v1.StorageCreateFileWriterResponse",
-    "request_csharp": "Harmos.Context.V1.StorageCreateFileWriterRequest",
-    "response_csharp": "Harmos.Context.V1.StorageCreateFileWriterResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "PublishFileProduction",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "publish_file_production"
-    ],
-    "request": "harmos.context.v1.StoragePublishFileProductionRequest",
-    "response": "harmos.context.v1.StoragePublishFileProductionResponse",
-    "request_csharp": "Harmos.Context.V1.StoragePublishFileProductionRequest",
-    "response_csharp": "Harmos.Context.V1.StoragePublishFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "DeleteFileProduction",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "delete_file_production"
-    ],
-    "request": "harmos.context.v1.StorageDeleteFileProductionRequest",
-    "response": "harmos.context.v1.StorageDeleteFileProductionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageDeleteFileProductionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageDeleteFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileBytes",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_file_bytes"
-    ],
-    "request": "harmos.context.v1.StorageGetFileBytesRequest",
-    "response": "harmos.context.v1.StorageGetFileBytesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetFileBytesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "Capabilities",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "capabilities"
-    ],
-    "request": "harmos.context.v1.StorageCapabilitiesRequest",
-    "response": "harmos.context.v1.StorageCapabilitiesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageCapabilitiesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageCapabilitiesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateSnapshot",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "create_snapshot"
-    ],
-    "request": "harmos.context.v1.StorageCreateSnapshotRequest",
-    "response": "harmos.context.v1.StorageCreateSnapshotResponse",
-    "request_csharp": "Harmos.Context.V1.StorageCreateSnapshotRequest",
-    "response_csharp": "Harmos.Context.V1.StorageCreateSnapshotResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "DeleteSnapshot",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "delete_snapshot"
-    ],
-    "request": "harmos.context.v1.StorageDeleteSnapshotRequest",
-    "response": "harmos.context.v1.StorageDeleteSnapshotResponse",
-    "request_csharp": "Harmos.Context.V1.StorageDeleteSnapshotRequest",
-    "response_csharp": "Harmos.Context.V1.StorageDeleteSnapshotResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListColumnRows",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "list_column_rows"
-    ],
-    "request": "harmos.context.v1.StorageListColumnRowsRequest",
-    "response": "harmos.context.v1.StorageListColumnRowsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageListColumnRowsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageListColumnRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListIndexEntries",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "list_index_entries"
-    ],
-    "request": "harmos.context.v1.StorageListIndexEntriesRequest",
-    "response": "harmos.context.v1.StorageListIndexEntriesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageListIndexEntriesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageListIndexEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetIndexDefinition",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "set_index_definition"
-    ],
-    "request": "harmos.context.v1.StorageSetIndexDefinitionRequest",
-    "response": "harmos.context.v1.StorageSetIndexDefinitionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageSetIndexDefinitionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageSetIndexDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetProjectionDefinition",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "set_projection_definition"
-    ],
-    "request": "harmos.context.v1.StorageSetProjectionDefinitionRequest",
-    "response": "harmos.context.v1.StorageSetProjectionDefinitionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageSetProjectionDefinitionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageSetProjectionDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AdvanceProjection",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "advance_projection"
-    ],
-    "request": "harmos.context.v1.StorageAdvanceProjectionRequest",
-    "response": "harmos.context.v1.StorageAdvanceProjectionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageAdvanceProjectionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageAdvanceProjectionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListProjectionRows",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "list_projection_rows"
-    ],
-    "request": "harmos.context.v1.StorageListProjectionRowsRequest",
-    "response": "harmos.context.v1.StorageListProjectionRowsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageListProjectionRowsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageListProjectionRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetProjectionStatus",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_projection_status"
-    ],
-    "request": "harmos.context.v1.StorageGetProjectionStatusRequest",
-    "response": "harmos.context.v1.StorageGetProjectionStatusResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetProjectionStatusRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetProjectionStatusResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetObject",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "set_object"
-    ],
-    "request": "harmos.context.v1.StorageSetObjectRequest",
-    "response": "harmos.context.v1.StorageSetObjectResponse",
-    "request_csharp": "Harmos.Context.V1.StorageSetObjectRequest",
-    "response_csharp": "Harmos.Context.V1.StorageSetObjectResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListRows",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "list_rows"
-    ],
-    "request": "harmos.context.v1.StorageListRowsRequest",
-    "response": "harmos.context.v1.StorageListRowsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageListRowsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageListRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchRows",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "watch_rows"
-    ],
-    "request": "harmos.context.v1.StorageWatchRowsRequest",
-    "response": "harmos.context.v1.StorageWatchRowsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageWatchRowsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageWatchRowsResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendRecords",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "append_records"
-    ],
-    "request": "harmos.context.v1.StorageAppendRecordsRequest",
-    "response": "harmos.context.v1.StorageAppendRecordsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageAppendRecordsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageAppendRecordsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendSamples",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "append_samples"
-    ],
-    "request": "harmos.context.v1.StorageAppendSamplesRequest",
-    "response": "harmos.context.v1.StorageAppendSamplesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageAppendSamplesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageAppendSamplesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendObjectRevisions",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "append_object_revisions"
-    ],
-    "request": "harmos.context.v1.StorageAppendObjectRevisionsRequest",
-    "response": "harmos.context.v1.StorageAppendObjectRevisionsResponse",
-    "request_csharp": "Harmos.Context.V1.StorageAppendObjectRevisionsRequest",
-    "response_csharp": "Harmos.Context.V1.StorageAppendObjectRevisionsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileHash",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_file_hash"
-    ],
-    "request": "harmos.context.v1.StorageGetFileHashRequest",
-    "response": "harmos.context.v1.StorageGetFileHashResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetFileHashRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetFileHashResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CaptureFile",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "capture_file"
-    ],
-    "request": "harmos.context.v1.StorageCaptureFileRequest",
-    "response": "harmos.context.v1.StorageCaptureFileResponse",
-    "request_csharp": "Harmos.Context.V1.StorageCaptureFileRequest",
-    "response_csharp": "Harmos.Context.V1.StorageCaptureFileResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchFileBytes",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "watch_file_bytes"
-    ],
-    "request": "harmos.context.v1.StorageWatchFileBytesRequest",
-    "response": "harmos.context.v1.StorageWatchFileBytesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageWatchFileBytesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageWatchFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchFileProduction",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "watch_file_production"
-    ],
-    "request": "harmos.context.v1.StorageWatchFileProductionRequest",
-    "response": "harmos.context.v1.StorageWatchFileProductionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageWatchFileProductionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageWatchFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListDirectoryEntries",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "list_directory_entries"
-    ],
-    "request": "harmos.context.v1.StorageListDirectoryEntriesRequest",
-    "response": "harmos.context.v1.StorageListDirectoryEntriesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageListDirectoryEntriesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageListDirectoryEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchDirectoryEntries",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "watch_directory_entries"
-    ],
-    "request": "harmos.context.v1.StorageWatchDirectoryEntriesRequest",
-    "response": "harmos.context.v1.StorageWatchDirectoryEntriesResponse",
-    "request_csharp": "Harmos.Context.V1.StorageWatchDirectoryEntriesRequest",
-    "response_csharp": "Harmos.Context.V1.StorageWatchDirectoryEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetIndexDefinition",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_index_definition"
-    ],
-    "request": "harmos.context.v1.StorageGetIndexDefinitionRequest",
-    "response": "harmos.context.v1.StorageGetIndexDefinitionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetIndexDefinitionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetIndexDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetProjectionDefinition",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_projection_definition"
-    ],
-    "request": "harmos.context.v1.StorageGetProjectionDefinitionRequest",
-    "response": "harmos.context.v1.StorageGetProjectionDefinitionResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetProjectionDefinitionRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetProjectionDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "context",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetObject",
-    "package": "harmos.context.v1",
-    "path": [
-      "storage",
-      "get_object"
-    ],
-    "request": "harmos.context.v1.StorageGetObjectRequest",
-    "response": "harmos.context.v1.StorageGetObjectResponse",
-    "request_csharp": "Harmos.Context.V1.StorageGetObjectRequest",
-    "response_csharp": "Harmos.Context.V1.StorageGetObjectResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/context/v1/storage.proto"
   },
   {
     "owner": "harmos",
@@ -3411,646 +3207,6 @@
     "client_streaming": false,
     "server_streaming": true,
     "file": "harmos/v1/status.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateFileProduction",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "create_file_production"
-    ],
-    "request": "harmos.v1.StorageCreateFileProductionRequest",
-    "response": "harmos.v1.StorageCreateFileProductionResponse",
-    "request_csharp": "Harmos.V1.StorageCreateFileProductionRequest",
-    "response_csharp": "Harmos.V1.StorageCreateFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileProduction",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_file_production"
-    ],
-    "request": "harmos.v1.StorageGetFileProductionRequest",
-    "response": "harmos.v1.StorageGetFileProductionResponse",
-    "request_csharp": "Harmos.V1.StorageGetFileProductionRequest",
-    "response_csharp": "Harmos.V1.StorageGetFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendFileBytes",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "append_file_bytes"
-    ],
-    "request": "harmos.v1.StorageAppendFileBytesRequest",
-    "response": "harmos.v1.StorageAppendFileBytesResponse",
-    "request_csharp": "Harmos.V1.StorageAppendFileBytesRequest",
-    "response_csharp": "Harmos.V1.StorageAppendFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateFileWriter",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "create_file_writer"
-    ],
-    "request": "harmos.v1.StorageCreateFileWriterRequest",
-    "response": "harmos.v1.StorageCreateFileWriterResponse",
-    "request_csharp": "Harmos.V1.StorageCreateFileWriterRequest",
-    "response_csharp": "Harmos.V1.StorageCreateFileWriterResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "PublishFileProduction",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "publish_file_production"
-    ],
-    "request": "harmos.v1.StoragePublishFileProductionRequest",
-    "response": "harmos.v1.StoragePublishFileProductionResponse",
-    "request_csharp": "Harmos.V1.StoragePublishFileProductionRequest",
-    "response_csharp": "Harmos.V1.StoragePublishFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "DeleteFileProduction",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "delete_file_production"
-    ],
-    "request": "harmos.v1.StorageDeleteFileProductionRequest",
-    "response": "harmos.v1.StorageDeleteFileProductionResponse",
-    "request_csharp": "Harmos.V1.StorageDeleteFileProductionRequest",
-    "response_csharp": "Harmos.V1.StorageDeleteFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileBytes",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_file_bytes"
-    ],
-    "request": "harmos.v1.StorageGetFileBytesRequest",
-    "response": "harmos.v1.StorageGetFileBytesResponse",
-    "request_csharp": "Harmos.V1.StorageGetFileBytesRequest",
-    "response_csharp": "Harmos.V1.StorageGetFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "Capabilities",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "capabilities"
-    ],
-    "request": "harmos.v1.StorageCapabilitiesRequest",
-    "response": "harmos.v1.StorageCapabilitiesResponse",
-    "request_csharp": "Harmos.V1.StorageCapabilitiesRequest",
-    "response_csharp": "Harmos.V1.StorageCapabilitiesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CreateSnapshot",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "create_snapshot"
-    ],
-    "request": "harmos.v1.StorageCreateSnapshotRequest",
-    "response": "harmos.v1.StorageCreateSnapshotResponse",
-    "request_csharp": "Harmos.V1.StorageCreateSnapshotRequest",
-    "response_csharp": "Harmos.V1.StorageCreateSnapshotResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "DeleteSnapshot",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "delete_snapshot"
-    ],
-    "request": "harmos.v1.StorageDeleteSnapshotRequest",
-    "response": "harmos.v1.StorageDeleteSnapshotResponse",
-    "request_csharp": "Harmos.V1.StorageDeleteSnapshotRequest",
-    "response_csharp": "Harmos.V1.StorageDeleteSnapshotResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListColumnRows",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "list_column_rows"
-    ],
-    "request": "harmos.v1.StorageListColumnRowsRequest",
-    "response": "harmos.v1.StorageListColumnRowsResponse",
-    "request_csharp": "Harmos.V1.StorageListColumnRowsRequest",
-    "response_csharp": "Harmos.V1.StorageListColumnRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListIndexEntries",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "list_index_entries"
-    ],
-    "request": "harmos.v1.StorageListIndexEntriesRequest",
-    "response": "harmos.v1.StorageListIndexEntriesResponse",
-    "request_csharp": "Harmos.V1.StorageListIndexEntriesRequest",
-    "response_csharp": "Harmos.V1.StorageListIndexEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetIndexDefinition",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "set_index_definition"
-    ],
-    "request": "harmos.v1.StorageSetIndexDefinitionRequest",
-    "response": "harmos.v1.StorageSetIndexDefinitionResponse",
-    "request_csharp": "Harmos.V1.StorageSetIndexDefinitionRequest",
-    "response_csharp": "Harmos.V1.StorageSetIndexDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetProjectionDefinition",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "set_projection_definition"
-    ],
-    "request": "harmos.v1.StorageSetProjectionDefinitionRequest",
-    "response": "harmos.v1.StorageSetProjectionDefinitionResponse",
-    "request_csharp": "Harmos.V1.StorageSetProjectionDefinitionRequest",
-    "response_csharp": "Harmos.V1.StorageSetProjectionDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AdvanceProjection",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "advance_projection"
-    ],
-    "request": "harmos.v1.StorageAdvanceProjectionRequest",
-    "response": "harmos.v1.StorageAdvanceProjectionResponse",
-    "request_csharp": "Harmos.V1.StorageAdvanceProjectionRequest",
-    "response_csharp": "Harmos.V1.StorageAdvanceProjectionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListProjectionRows",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "list_projection_rows"
-    ],
-    "request": "harmos.v1.StorageListProjectionRowsRequest",
-    "response": "harmos.v1.StorageListProjectionRowsResponse",
-    "request_csharp": "Harmos.V1.StorageListProjectionRowsRequest",
-    "response_csharp": "Harmos.V1.StorageListProjectionRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetProjectionStatus",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_projection_status"
-    ],
-    "request": "harmos.v1.StorageGetProjectionStatusRequest",
-    "response": "harmos.v1.StorageGetProjectionStatusResponse",
-    "request_csharp": "Harmos.V1.StorageGetProjectionStatusRequest",
-    "response_csharp": "Harmos.V1.StorageGetProjectionStatusResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "SetObject",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "set_object"
-    ],
-    "request": "harmos.v1.StorageSetObjectRequest",
-    "response": "harmos.v1.StorageSetObjectResponse",
-    "request_csharp": "Harmos.V1.StorageSetObjectRequest",
-    "response_csharp": "Harmos.V1.StorageSetObjectResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListRows",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "list_rows"
-    ],
-    "request": "harmos.v1.StorageListRowsRequest",
-    "response": "harmos.v1.StorageListRowsResponse",
-    "request_csharp": "Harmos.V1.StorageListRowsRequest",
-    "response_csharp": "Harmos.V1.StorageListRowsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchRows",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "watch_rows"
-    ],
-    "request": "harmos.v1.StorageWatchRowsRequest",
-    "response": "harmos.v1.StorageWatchRowsResponse",
-    "request_csharp": "Harmos.V1.StorageWatchRowsRequest",
-    "response_csharp": "Harmos.V1.StorageWatchRowsResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendRecords",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "append_records"
-    ],
-    "request": "harmos.v1.StorageAppendRecordsRequest",
-    "response": "harmos.v1.StorageAppendRecordsResponse",
-    "request_csharp": "Harmos.V1.StorageAppendRecordsRequest",
-    "response_csharp": "Harmos.V1.StorageAppendRecordsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendSamples",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "append_samples"
-    ],
-    "request": "harmos.v1.StorageAppendSamplesRequest",
-    "response": "harmos.v1.StorageAppendSamplesResponse",
-    "request_csharp": "Harmos.V1.StorageAppendSamplesRequest",
-    "response_csharp": "Harmos.V1.StorageAppendSamplesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "AppendObjectRevisions",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "append_object_revisions"
-    ],
-    "request": "harmos.v1.StorageAppendObjectRevisionsRequest",
-    "response": "harmos.v1.StorageAppendObjectRevisionsResponse",
-    "request_csharp": "Harmos.V1.StorageAppendObjectRevisionsRequest",
-    "response_csharp": "Harmos.V1.StorageAppendObjectRevisionsResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetFileHash",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_file_hash"
-    ],
-    "request": "harmos.v1.StorageGetFileHashRequest",
-    "response": "harmos.v1.StorageGetFileHashResponse",
-    "request_csharp": "Harmos.V1.StorageGetFileHashRequest",
-    "response_csharp": "Harmos.V1.StorageGetFileHashResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "CaptureFile",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "capture_file"
-    ],
-    "request": "harmos.v1.StorageCaptureFileRequest",
-    "response": "harmos.v1.StorageCaptureFileResponse",
-    "request_csharp": "Harmos.V1.StorageCaptureFileRequest",
-    "response_csharp": "Harmos.V1.StorageCaptureFileResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchFileBytes",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "watch_file_bytes"
-    ],
-    "request": "harmos.v1.StorageWatchFileBytesRequest",
-    "response": "harmos.v1.StorageWatchFileBytesResponse",
-    "request_csharp": "Harmos.V1.StorageWatchFileBytesRequest",
-    "response_csharp": "Harmos.V1.StorageWatchFileBytesResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchFileProduction",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "watch_file_production"
-    ],
-    "request": "harmos.v1.StorageWatchFileProductionRequest",
-    "response": "harmos.v1.StorageWatchFileProductionResponse",
-    "request_csharp": "Harmos.V1.StorageWatchFileProductionRequest",
-    "response_csharp": "Harmos.V1.StorageWatchFileProductionResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "ListDirectoryEntries",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "list_directory_entries"
-    ],
-    "request": "harmos.v1.StorageListDirectoryEntriesRequest",
-    "response": "harmos.v1.StorageListDirectoryEntriesResponse",
-    "request_csharp": "Harmos.V1.StorageListDirectoryEntriesRequest",
-    "response_csharp": "Harmos.V1.StorageListDirectoryEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "WatchDirectoryEntries",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "watch_directory_entries"
-    ],
-    "request": "harmos.v1.StorageWatchDirectoryEntriesRequest",
-    "response": "harmos.v1.StorageWatchDirectoryEntriesResponse",
-    "request_csharp": "Harmos.V1.StorageWatchDirectoryEntriesRequest",
-    "response_csharp": "Harmos.V1.StorageWatchDirectoryEntriesResponse",
-    "client_streaming": false,
-    "server_streaming": true,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetIndexDefinition",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_index_definition"
-    ],
-    "request": "harmos.v1.StorageGetIndexDefinitionRequest",
-    "response": "harmos.v1.StorageGetIndexDefinitionResponse",
-    "request_csharp": "Harmos.V1.StorageGetIndexDefinitionRequest",
-    "response_csharp": "Harmos.V1.StorageGetIndexDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetProjectionDefinition",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_projection_definition"
-    ],
-    "request": "harmos.v1.StorageGetProjectionDefinitionRequest",
-    "response": "harmos.v1.StorageGetProjectionDefinitionResponse",
-    "request_csharp": "Harmos.V1.StorageGetProjectionDefinitionRequest",
-    "response_csharp": "Harmos.V1.StorageGetProjectionDefinitionResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
-  },
-  {
-    "owner": "harmos",
-    "face": "client",
-    "version": "v1",
-    "parents": [],
-    "service": "Storage",
-    "method": "GetObject",
-    "package": "harmos.v1",
-    "path": [
-      "storage",
-      "get_object"
-    ],
-    "request": "harmos.v1.StorageGetObjectRequest",
-    "response": "harmos.v1.StorageGetObjectResponse",
-    "request_csharp": "Harmos.V1.StorageGetObjectRequest",
-    "response_csharp": "Harmos.V1.StorageGetObjectResponse",
-    "client_streaming": false,
-    "server_streaming": false,
-    "file": "harmos/v1/storage.proto"
   },
   {
     "owner": "harmos",

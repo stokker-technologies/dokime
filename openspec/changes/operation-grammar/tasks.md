@@ -79,6 +79,13 @@ Final full validation is separate from source completion.
 - [ ] 0.D.7 Command-line tool: migrate typed and raw calls, discovery, examples, revisioned changes, content transfers and retained paging to the table; run focused command-line proof.
 - [ ] 0.D.8 Desktop adapter: migrate final face wrappers and library workflows on the restored host; validate ordered document structure/cuts/results and counters, then run focused native and both WebView journeys.
 
+## Consumer Story Repairs
+
+- [x] R1 Define product Files and Files.Uploads on client and plugin-host boundaries and additive frozen protobuf message bindings; regenerate protocol and SDK roots.
+- [ ] R2 Serve Files over the existing content store, populate schema bindings and selected document headers, and advertise product bindings where the pinned library permits it.
+- [ ] R3 Move command-line, desktop and four SDK file and schema consumers to the product resources.
+- [ ] R4 Prove the named consumer and host stories, generation stability and requested final checks; report upstream refusals without weakening checks.
+
 ## Architecture Proof Obligations
 
 - [ ] A1 First: guard **Public Child Routing** and **Three-Level Visibility** with a product story proving plugin -> host -> plugin Public success/result/failure, declared requirements/fingerprints, unchanged scope and child cancellation, Protected peer/client refusal, Private catalog/wire absence and local-only invocation. No product story proves both Public success and Private refusal today; upstream tests are not product proof. Use four-language conformance for SDK policy parity.

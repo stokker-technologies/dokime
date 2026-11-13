@@ -15,6 +15,9 @@ include!("dokime.client.v1.evidence.rs");
 pub mod executions {
 include!("dokime.client.v1.executions.rs");
 }
+pub mod files {
+include!("dokime.client.v1.files.rs");
+}
 pub mod media {
 include!("dokime.client.v1.media.rs");
 }

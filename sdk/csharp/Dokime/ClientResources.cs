@@ -14,6 +14,7 @@ public sealed partial class Client
   public Sdk.DocumentsResource Documents => new(Calls);
   public Sdk.EvidenceResource Evidence => new(Calls);
   public Sdk.ExecutionsResource Executions => new(Calls);
+  public Sdk.FilesResource Files => new(Calls);
   public Sdk.InvocationsResource Invocations => new(Calls);
   public Sdk.MediaResource Media => new(Calls);
   public Sdk.PlotsResource Plots => new(Calls);

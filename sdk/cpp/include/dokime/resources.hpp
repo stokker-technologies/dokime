@@ -3,94 +3,44 @@
 #include <grpcpp/grpcpp.h>
 #include <memory>
 #include <stdexcept>
-#pragma push_macro("AdvanceProjection")
-#undef AdvanceProjection
 #pragma push_macro("Appearance")
 #undef Appearance
-#pragma push_macro("AppendFileBytes")
-#undef AppendFileBytes
-#pragma push_macro("AppendObjectRevisions")
-#undef AppendObjectRevisions
-#pragma push_macro("AppendRecords")
-#undef AppendRecords
-#pragma push_macro("AppendSamples")
-#undef AppendSamples
+#pragma push_macro("Append")
+#undef Append
 #pragma push_macro("Archive")
 #undef Archive
 #pragma push_macro("Cancel")
 #undef Cancel
-#pragma push_macro("Capabilities")
-#undef Capabilities
-#pragma push_macro("CaptureFile")
-#undef CaptureFile
 #pragma push_macro("Create")
 #undef Create
-#pragma push_macro("CreateFileProduction")
-#undef CreateFileProduction
-#pragma push_macro("CreateFileWriter")
-#undef CreateFileWriter
-#pragma push_macro("CreateSnapshot")
-#undef CreateSnapshot
 #pragma push_macro("Delete")
 #undef Delete
-#pragma push_macro("DeleteFileProduction")
-#undef DeleteFileProduction
-#pragma push_macro("DeleteSnapshot")
-#undef DeleteSnapshot
 #pragma push_macro("Export")
 #undef Export
 #pragma push_macro("Get")
 #undef Get
-#pragma push_macro("GetFileBytes")
-#undef GetFileBytes
-#pragma push_macro("GetFileHash")
-#undef GetFileHash
-#pragma push_macro("GetFileProduction")
-#undef GetFileProduction
-#pragma push_macro("GetIndexDefinition")
-#undef GetIndexDefinition
-#pragma push_macro("GetObject")
-#undef GetObject
-#pragma push_macro("GetProjectionDefinition")
-#undef GetProjectionDefinition
-#pragma push_macro("GetProjectionStatus")
-#undef GetProjectionStatus
 #pragma push_macro("Import")
 #undef Import
 #pragma push_macro("Invoke")
 #undef Invoke
 #pragma push_macro("List")
 #undef List
-#pragma push_macro("ListColumnRows")
-#undef ListColumnRows
-#pragma push_macro("ListDirectoryEntries")
-#undef ListDirectoryEntries
-#pragma push_macro("ListIndexEntries")
-#undef ListIndexEntries
-#pragma push_macro("ListProjectionRows")
-#undef ListProjectionRows
-#pragma push_macro("ListRows")
-#undef ListRows
 #pragma push_macro("Parameters")
 #undef Parameters
 #pragma push_macro("Publish")
 #undef Publish
-#pragma push_macro("PublishFileProduction")
-#undef PublishFileProduction
+#pragma push_macro("Read")
+#undef Read
 #pragma push_macro("Restart")
 #undef Restart
+#pragma push_macro("Resume")
+#undef Resume
 #pragma push_macro("Schema")
 #undef Schema
 #pragma push_macro("Seal")
 #undef Seal
 #pragma push_macro("Set")
 #undef Set
-#pragma push_macro("SetIndexDefinition")
-#undef SetIndexDefinition
-#pragma push_macro("SetObject")
-#undef SetObject
-#pragma push_macro("SetProjectionDefinition")
-#undef SetProjectionDefinition
 #pragma push_macro("Sleep")
 #undef Sleep
 #pragma push_macro("Start")
@@ -103,14 +53,6 @@
 #undef Stop
 #pragma push_macro("Watch")
 #undef Watch
-#pragma push_macro("WatchDirectoryEntries")
-#undef WatchDirectoryEntries
-#pragma push_macro("WatchFileBytes")
-#undef WatchFileBytes
-#pragma push_macro("WatchFileProduction")
-#undef WatchFileProduction
-#pragma push_macro("WatchRows")
-#undef WatchRows
 #include "dokime/client/v1/aggregates.grpc.pb.h"
 #include "dokime/client/v1/analyses.grpc.pb.h"
 #include "dokime/client/v1/backend.grpc.pb.h"
@@ -130,6 +72,8 @@
 #include "dokime/client/v1/executions/commands.grpc.pb.h"
 #include "dokime/client/v1/executions/progress.grpc.pb.h"
 #include "dokime/client/v1/executions/schemas.grpc.pb.h"
+#include "dokime/client/v1/files.grpc.pb.h"
+#include "dokime/client/v1/files/uploads.grpc.pb.h"
 #include "dokime/client/v1/media/captures.grpc.pb.h"
 #include "dokime/client/v1/plots/settings.grpc.pb.h"
 #include "dokime/client/v1/plots/snapshots.grpc.pb.h"
@@ -154,7 +98,6 @@
 #include "harmos/v1/status/diagnostics.grpc.pb.h"
 #include "harmos/v1/status/logs.grpc.pb.h"
 #include "harmos/v1/status/trace_events.grpc.pb.h"
-#include "harmos/v1/storage.grpc.pb.h"
 #include "harmos/v1/time.grpc.pb.h"
 namespace dokime::resources {
 struct AccessCertificatesResource {
@@ -435,6 +378,58 @@ struct ExecutionsSchemasResource {
     const auto status = ::dokime::client::v1::executions::Schemas::NewStub(channel)->Get(&context, request, &response);
     if (!status.ok())
       throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+};
+struct FilesUploadsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit FilesUploadsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  ::dokime::client::v1::files::UploadsCreateResponse create(grpc::ClientContext &context,
+                                                            const ::dokime::client::v1::files::UploadsCreateRequest &request) {
+    ::dokime::client::v1::files::UploadsCreateResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Create(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Create: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::files::UploadsGetResponse get(grpc::ClientContext &context,
+                                                      const ::dokime::client::v1::files::UploadsGetRequest &request) {
+    ::dokime::client::v1::files::UploadsGetResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::files::UploadsResumeResponse resume(grpc::ClientContext &context,
+                                                            const ::dokime::client::v1::files::UploadsResumeRequest &request) {
+    ::dokime::client::v1::files::UploadsResumeResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Resume(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Resume: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::files::UploadsAppendResponse append(grpc::ClientContext &context,
+                                                            const ::dokime::client::v1::files::UploadsAppendRequest &request) {
+    ::dokime::client::v1::files::UploadsAppendResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Append(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Append: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::files::UploadsPublishResponse publish(grpc::ClientContext &context,
+                                                              const ::dokime::client::v1::files::UploadsPublishRequest &request) {
+    ::dokime::client::v1::files::UploadsPublishResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Publish(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Publish: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::files::UploadsDeleteResponse delete_(grpc::ClientContext &context,
+                                                             const ::dokime::client::v1::files::UploadsDeleteRequest &request) {
+    ::dokime::client::v1::files::UploadsDeleteResponse response;
+    const auto status = ::dokime::client::v1::files::Uploads::NewStub(channel)->Delete(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Delete: ") + status.error_message());
     return response;
   }
 };
@@ -877,6 +872,36 @@ struct ExecutionsResource {
     return response;
   }
 };
+struct FilesResource {
+  std::shared_ptr<grpc::Channel> channel;
+  FilesUploadsResource uploads;
+  explicit FilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), uploads(channel) {}
+  ::dokime::client::v1::FilesGetResponse get(grpc::ClientContext &context, const ::dokime::client::v1::FilesGetRequest &request) {
+    ::dokime::client::v1::FilesGetResponse response;
+    const auto status = ::dokime::client::v1::Files::NewStub(channel)->Get(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Get: ") + status.error_message());
+    return response;
+  }
+  ::dokime::client::v1::FilesReadResponse read(grpc::ClientContext &context, const ::dokime::client::v1::FilesReadRequest &request) {
+    ::dokime::client::v1::FilesReadResponse response;
+    const auto status = ::dokime::client::v1::Files::NewStub(channel)->Read(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Read: ") + status.error_message());
+    return response;
+  }
+  std::unique_ptr<grpc::ClientReader<::dokime::client::v1::FilesWatchResponse>>
+  watch(grpc::ClientContext &context, const ::dokime::client::v1::FilesWatchRequest &request) {
+    return ::dokime::client::v1::Files::NewStub(channel)->Watch(&context, request);
+  }
+  ::dokime::client::v1::FilesDeleteResponse delete_(grpc::ClientContext &context, const ::dokime::client::v1::FilesDeleteRequest &request) {
+    ::dokime::client::v1::FilesDeleteResponse response;
+    const auto status = ::dokime::client::v1::Files::NewStub(channel)->Delete(&context, request, &response);
+    if (!status.ok())
+      throw std::runtime_error(std::string("Delete: ") + status.error_message());
+    return response;
+  }
+};
 struct InvocationsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit InvocationsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
@@ -1155,246 +1180,8 @@ struct StatusResource {
   }
 };
 struct StorageResource {
-  std::shared_ptr<grpc::Channel> channel;
   StorageSourcesResource sources;
-  explicit StorageResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), sources(channel) {}
-  ::harmos::v1::StorageCreateFileProductionResponse
-  create_file_production(grpc::ClientContext &context, const ::harmos::v1::StorageCreateFileProductionRequest &request) {
-    ::harmos::v1::StorageCreateFileProductionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->CreateFileProduction(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("CreateFileProduction: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetFileProductionResponse get_file_production(grpc::ClientContext &context,
-                                                                     const ::harmos::v1::StorageGetFileProductionRequest &request) {
-    ::harmos::v1::StorageGetFileProductionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetFileProduction(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetFileProduction: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageAppendFileBytesResponse append_file_bytes(grpc::ClientContext &context,
-                                                                 const ::harmos::v1::StorageAppendFileBytesRequest &request) {
-    ::harmos::v1::StorageAppendFileBytesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->AppendFileBytes(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("AppendFileBytes: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageCreateFileWriterResponse create_file_writer(grpc::ClientContext &context,
-                                                                   const ::harmos::v1::StorageCreateFileWriterRequest &request) {
-    ::harmos::v1::StorageCreateFileWriterResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->CreateFileWriter(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("CreateFileWriter: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StoragePublishFileProductionResponse
-  publish_file_production(grpc::ClientContext &context, const ::harmos::v1::StoragePublishFileProductionRequest &request) {
-    ::harmos::v1::StoragePublishFileProductionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->PublishFileProduction(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("PublishFileProduction: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageDeleteFileProductionResponse
-  delete_file_production(grpc::ClientContext &context, const ::harmos::v1::StorageDeleteFileProductionRequest &request) {
-    ::harmos::v1::StorageDeleteFileProductionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->DeleteFileProduction(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("DeleteFileProduction: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetFileBytesResponse get_file_bytes(grpc::ClientContext &context,
-                                                           const ::harmos::v1::StorageGetFileBytesRequest &request) {
-    ::harmos::v1::StorageGetFileBytesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetFileBytes(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetFileBytes: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageCapabilitiesResponse capabilities(grpc::ClientContext &context,
-                                                         const ::harmos::v1::StorageCapabilitiesRequest &request) {
-    ::harmos::v1::StorageCapabilitiesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->Capabilities(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("Capabilities: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageCreateSnapshotResponse create_snapshot(grpc::ClientContext &context,
-                                                              const ::harmos::v1::StorageCreateSnapshotRequest &request) {
-    ::harmos::v1::StorageCreateSnapshotResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->CreateSnapshot(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("CreateSnapshot: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageDeleteSnapshotResponse delete_snapshot(grpc::ClientContext &context,
-                                                              const ::harmos::v1::StorageDeleteSnapshotRequest &request) {
-    ::harmos::v1::StorageDeleteSnapshotResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->DeleteSnapshot(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("DeleteSnapshot: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageListColumnRowsResponse list_column_rows(grpc::ClientContext &context,
-                                                               const ::harmos::v1::StorageListColumnRowsRequest &request) {
-    ::harmos::v1::StorageListColumnRowsResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->ListColumnRows(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("ListColumnRows: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageListIndexEntriesResponse list_index_entries(grpc::ClientContext &context,
-                                                                   const ::harmos::v1::StorageListIndexEntriesRequest &request) {
-    ::harmos::v1::StorageListIndexEntriesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->ListIndexEntries(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("ListIndexEntries: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageSetIndexDefinitionResponse set_index_definition(grpc::ClientContext &context,
-                                                                       const ::harmos::v1::StorageSetIndexDefinitionRequest &request) {
-    ::harmos::v1::StorageSetIndexDefinitionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->SetIndexDefinition(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("SetIndexDefinition: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageSetProjectionDefinitionResponse
-  set_projection_definition(grpc::ClientContext &context, const ::harmos::v1::StorageSetProjectionDefinitionRequest &request) {
-    ::harmos::v1::StorageSetProjectionDefinitionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->SetProjectionDefinition(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("SetProjectionDefinition: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageAdvanceProjectionResponse advance_projection(grpc::ClientContext &context,
-                                                                    const ::harmos::v1::StorageAdvanceProjectionRequest &request) {
-    ::harmos::v1::StorageAdvanceProjectionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->AdvanceProjection(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("AdvanceProjection: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageListProjectionRowsResponse list_projection_rows(grpc::ClientContext &context,
-                                                                       const ::harmos::v1::StorageListProjectionRowsRequest &request) {
-    ::harmos::v1::StorageListProjectionRowsResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->ListProjectionRows(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("ListProjectionRows: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetProjectionStatusResponse get_projection_status(grpc::ClientContext &context,
-                                                                         const ::harmos::v1::StorageGetProjectionStatusRequest &request) {
-    ::harmos::v1::StorageGetProjectionStatusResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetProjectionStatus(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetProjectionStatus: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageSetObjectResponse set_object(grpc::ClientContext &context, const ::harmos::v1::StorageSetObjectRequest &request) {
-    ::harmos::v1::StorageSetObjectResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->SetObject(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("SetObject: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageListRowsResponse list_rows(grpc::ClientContext &context, const ::harmos::v1::StorageListRowsRequest &request) {
-    ::harmos::v1::StorageListRowsResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->ListRows(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("ListRows: ") + status.error_message());
-    return response;
-  }
-  std::unique_ptr<grpc::ClientReader<::harmos::v1::StorageWatchRowsResponse>>
-  watch_rows(grpc::ClientContext &context, const ::harmos::v1::StorageWatchRowsRequest &request) {
-    return ::harmos::v1::Storage::NewStub(channel)->WatchRows(&context, request);
-  }
-  ::harmos::v1::StorageAppendRecordsResponse append_records(grpc::ClientContext &context,
-                                                            const ::harmos::v1::StorageAppendRecordsRequest &request) {
-    ::harmos::v1::StorageAppendRecordsResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->AppendRecords(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("AppendRecords: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageAppendSamplesResponse append_samples(grpc::ClientContext &context,
-                                                            const ::harmos::v1::StorageAppendSamplesRequest &request) {
-    ::harmos::v1::StorageAppendSamplesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->AppendSamples(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("AppendSamples: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageAppendObjectRevisionsResponse
-  append_object_revisions(grpc::ClientContext &context, const ::harmos::v1::StorageAppendObjectRevisionsRequest &request) {
-    ::harmos::v1::StorageAppendObjectRevisionsResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->AppendObjectRevisions(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("AppendObjectRevisions: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetFileHashResponse get_file_hash(grpc::ClientContext &context,
-                                                         const ::harmos::v1::StorageGetFileHashRequest &request) {
-    ::harmos::v1::StorageGetFileHashResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetFileHash(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetFileHash: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageCaptureFileResponse capture_file(grpc::ClientContext &context,
-                                                        const ::harmos::v1::StorageCaptureFileRequest &request) {
-    ::harmos::v1::StorageCaptureFileResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->CaptureFile(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("CaptureFile: ") + status.error_message());
-    return response;
-  }
-  std::unique_ptr<grpc::ClientReader<::harmos::v1::StorageWatchFileBytesResponse>>
-  watch_file_bytes(grpc::ClientContext &context, const ::harmos::v1::StorageWatchFileBytesRequest &request) {
-    return ::harmos::v1::Storage::NewStub(channel)->WatchFileBytes(&context, request);
-  }
-  std::unique_ptr<grpc::ClientReader<::harmos::v1::StorageWatchFileProductionResponse>>
-  watch_file_production(grpc::ClientContext &context, const ::harmos::v1::StorageWatchFileProductionRequest &request) {
-    return ::harmos::v1::Storage::NewStub(channel)->WatchFileProduction(&context, request);
-  }
-  ::harmos::v1::StorageListDirectoryEntriesResponse
-  list_directory_entries(grpc::ClientContext &context, const ::harmos::v1::StorageListDirectoryEntriesRequest &request) {
-    ::harmos::v1::StorageListDirectoryEntriesResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->ListDirectoryEntries(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("ListDirectoryEntries: ") + status.error_message());
-    return response;
-  }
-  std::unique_ptr<grpc::ClientReader<::harmos::v1::StorageWatchDirectoryEntriesResponse>>
-  watch_directory_entries(grpc::ClientContext &context, const ::harmos::v1::StorageWatchDirectoryEntriesRequest &request) {
-    return ::harmos::v1::Storage::NewStub(channel)->WatchDirectoryEntries(&context, request);
-  }
-  ::harmos::v1::StorageGetIndexDefinitionResponse get_index_definition(grpc::ClientContext &context,
-                                                                       const ::harmos::v1::StorageGetIndexDefinitionRequest &request) {
-    ::harmos::v1::StorageGetIndexDefinitionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetIndexDefinition(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetIndexDefinition: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetProjectionDefinitionResponse
-  get_projection_definition(grpc::ClientContext &context, const ::harmos::v1::StorageGetProjectionDefinitionRequest &request) {
-    ::harmos::v1::StorageGetProjectionDefinitionResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetProjectionDefinition(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetProjectionDefinition: ") + status.error_message());
-    return response;
-  }
-  ::harmos::v1::StorageGetObjectResponse get_object(grpc::ClientContext &context, const ::harmos::v1::StorageGetObjectRequest &request) {
-    ::harmos::v1::StorageGetObjectResponse response;
-    const auto status = ::harmos::v1::Storage::NewStub(channel)->GetObject(&context, request, &response);
-    if (!status.ok())
-      throw std::runtime_error(std::string("GetObject: ") + status.error_message());
-    return response;
-  }
+  explicit StorageResource(std::shared_ptr<grpc::Channel> channel) : sources(channel) {}
 };
 struct StreamSchemasResource {
   std::shared_ptr<grpc::Channel> channel;
@@ -1464,6 +1251,7 @@ struct Client {
   DocumentsResource documents;
   EvidenceResource evidence;
   ExecutionsResource executions;
+  FilesResource files;
   InvocationsResource invocations;
   MediaResource media;
   PlotsResource plots;
@@ -1481,62 +1269,34 @@ struct Client {
   TimeResource time;
   explicit Client(std::shared_ptr<grpc::Channel> channel)
       : access(channel), aggregates(channel), analyses(channel), backend(channel), cases(channel), catalog_entries(channel),
-        content(channel), cycles(channel), documents(channel), evidence(channel), executions(channel), invocations(channel), media(channel),
-        plots(channel), plugins(channel), prompt_definitions(channel), prompts(channel), record_schemas(channel), reports(channel),
-        secrets(channel), settings(channel), status(channel), storage(channel), stream_schemas(channel), suites(channel), time(channel) {}
+        content(channel), cycles(channel), documents(channel), evidence(channel), executions(channel), files(channel), invocations(channel),
+        media(channel), plots(channel), plugins(channel), prompt_definitions(channel), prompts(channel), record_schemas(channel),
+        reports(channel), secrets(channel), settings(channel), status(channel), storage(channel), stream_schemas(channel), suites(channel),
+        time(channel) {}
 };
 } // namespace dokime::resources
-#pragma pop_macro("WatchRows")
-#pragma pop_macro("WatchFileProduction")
-#pragma pop_macro("WatchFileBytes")
-#pragma pop_macro("WatchDirectoryEntries")
 #pragma pop_macro("Watch")
 #pragma pop_macro("Stop")
 #pragma pop_macro("Steps")
 #pragma pop_macro("Statistics")
 #pragma pop_macro("Start")
 #pragma pop_macro("Sleep")
-#pragma pop_macro("SetProjectionDefinition")
-#pragma pop_macro("SetObject")
-#pragma pop_macro("SetIndexDefinition")
 #pragma pop_macro("Set")
 #pragma pop_macro("Seal")
 #pragma pop_macro("Schema")
+#pragma pop_macro("Resume")
 #pragma pop_macro("Restart")
-#pragma pop_macro("PublishFileProduction")
+#pragma pop_macro("Read")
 #pragma pop_macro("Publish")
 #pragma pop_macro("Parameters")
-#pragma pop_macro("ListRows")
-#pragma pop_macro("ListProjectionRows")
-#pragma pop_macro("ListIndexEntries")
-#pragma pop_macro("ListDirectoryEntries")
-#pragma pop_macro("ListColumnRows")
 #pragma pop_macro("List")
 #pragma pop_macro("Invoke")
 #pragma pop_macro("Import")
-#pragma pop_macro("GetProjectionStatus")
-#pragma pop_macro("GetProjectionDefinition")
-#pragma pop_macro("GetObject")
-#pragma pop_macro("GetIndexDefinition")
-#pragma pop_macro("GetFileProduction")
-#pragma pop_macro("GetFileHash")
-#pragma pop_macro("GetFileBytes")
 #pragma pop_macro("Get")
 #pragma pop_macro("Export")
-#pragma pop_macro("DeleteSnapshot")
-#pragma pop_macro("DeleteFileProduction")
 #pragma pop_macro("Delete")
-#pragma pop_macro("CreateSnapshot")
-#pragma pop_macro("CreateFileWriter")
-#pragma pop_macro("CreateFileProduction")
 #pragma pop_macro("Create")
-#pragma pop_macro("CaptureFile")
-#pragma pop_macro("Capabilities")
 #pragma pop_macro("Cancel")
 #pragma pop_macro("Archive")
-#pragma pop_macro("AppendSamples")
-#pragma pop_macro("AppendRecords")
-#pragma pop_macro("AppendObjectRevisions")
-#pragma pop_macro("AppendFileBytes")
+#pragma pop_macro("Append")
 #pragma pop_macro("Appearance")
-#pragma pop_macro("AdvanceProjection")

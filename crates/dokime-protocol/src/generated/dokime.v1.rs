@@ -2501,6 +2501,9 @@ pub struct RecordSchema {
     pub allow_extra_fields: bool,
     #[prost(message, optional, tag = "10")]
     pub display: ::core::option::Option<RecordDisplay>,
+    /// Fully qualified protobuf message in the frozen descriptor set.
+    #[prost(string, tag = "11")]
+    pub message_name: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2561,6 +2564,9 @@ pub struct TelemetrySchema {
     pub validation_mode: ::core::option::Option<i32>,
     #[prost(bool, tag = "12")]
     pub foreign: bool,
+    /// Fully qualified protobuf row message in the frozen descriptor set.
+    #[prost(string, tag = "13")]
+    pub message_name: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

@@ -969,6 +969,11 @@ pub struct SchemasGetResponse {
     pub digest: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub types: ::core::option::Option<::prost_types::FileDescriptorSet>,
+    /// Frozen identities and their protobuf message bindings, repeated on every page.
+    #[prost(message, repeated, tag = "3")]
+    pub records: ::prost::alloc::vec::Vec<super::super::super::v1::RecordSchema>,
+    #[prost(message, repeated, tag = "4")]
+    pub streams: ::prost::alloc::vec::Vec<super::super::super::v1::TelemetrySchema>,
     #[prost(message, optional, tag = "90")]
     pub resolved_at: ::core::option::Option<::harmos_protocol::v1::Position>,
     #[prost(string, tag = "91")]

@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dokime.client.v1;
+
+// === Imports === //
+
+import "harmos/v1/types.proto";
+import "harmos/v1/storage_types.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+
+// === Services === //
+
+// Product-Owned File Transfers.
+service Files {
+  // Get the File.
+  rpc Get(FilesGetRequest) returns (FilesGetResponse);
+  // Read the File.
+  rpc Read(FilesReadRequest) returns (FilesReadResponse);
+  // Watch the File.
+  rpc Watch(FilesWatchRequest) returns (stream FilesWatchResponse);
+  // Delete the File.
+  rpc Delete(FilesDeleteRequest) returns (FilesDeleteResponse);
+}
+
+// === Requests and Responses === //
+
+// Inspect File Metadata and Transfer Limits.
+message FilesGetRequest {
+  .harmos.storage.v1.FileReference file = 1;
+  .harmos.v1.ReadCut at = 90;
+}
+// One File and the Limits for Subsequent Reads.
+message FilesGetResponse {
+  .harmos.storage.v1.FileReference file = 1;
+  uint64 chunk_bytes = 2;
+  uint64 message_bytes = 3;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+// Read One Bounded Chunk at an Offset.
+message FilesReadRequest {
+  .harmos.storage.v1.FileReference file = 1;
+  uint64 offset = 2;
+  uint64 max_bytes = 3;
+  .harmos.v1.ReadCut at = 90;
+}
+// Bytes and the Exact Read Selection.
+message FilesReadResponse {
+  bytes data = 1;
+  uint64 total_length = 2;
+  bytes sha256 = 3;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+// Follow a Stored File as It Grows.
+message FilesWatchRequest {
+  .harmos.storage.v1.FileReference file = 1;
+  uint64 offset = 2;
+}
+// One Chunk or the Terminal Length, with Its Read Cut.
+message FilesWatchResponse {
+  .harmos.storage.v1.FileBatch data = 1;
+  .harmos.storage.v1.FileCompletion completion = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+// Delete Stored Content with Replay Safety.
+message FilesDeleteRequest {
+  .harmos.storage.v1.FileReference file = 1;
+  string request_id = 2;
+}
+// Original Deletion Receipt on Replay.
+message FilesDeleteResponse {
+  .harmos.v1.Receipt receipt = 1;
+}
+
+// === Resources === //
+
+// === Enums === //

@@ -7292,6 +7292,625 @@ pub mod executions_server {
         const NAME: &'static str = SERVICE_NAME;
     }
 }
+/// Inspect File Metadata and Transfer Limits.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesGetRequest {
+    #[prost(message, optional, tag = "1")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
+    #[prost(message, optional, tag = "90")]
+    pub at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
+}
+/// One File and the Limits for Subsequent Reads.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesGetResponse {
+    #[prost(message, optional, tag = "1")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
+    #[prost(uint64, tag = "2")]
+    pub chunk_bytes: u64,
+    #[prost(uint64, tag = "3")]
+    pub message_bytes: u64,
+    #[prost(message, optional, tag = "90")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
+}
+/// Read One Bounded Chunk at an Offset.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesReadRequest {
+    #[prost(message, optional, tag = "1")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
+    #[prost(uint64, tag = "2")]
+    pub offset: u64,
+    #[prost(uint64, tag = "3")]
+    pub max_bytes: u64,
+    #[prost(message, optional, tag = "90")]
+    pub at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
+}
+/// Bytes and the Exact Read Selection.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesReadResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint64, tag = "2")]
+    pub total_length: u64,
+    #[prost(bytes = "vec", tag = "3")]
+    pub sha256: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "90")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
+}
+/// Follow a Stored File as It Grows.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FilesWatchRequest {
+    #[prost(message, optional, tag = "1")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
+    #[prost(uint64, tag = "2")]
+    pub offset: u64,
+}
+/// One Chunk or the Terminal Length, with Its Read Cut.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesWatchResponse {
+    #[prost(message, optional, tag = "1")]
+    pub data: ::core::option::Option<::harmos_protocol::storage::FileBatch>,
+    #[prost(message, optional, tag = "2")]
+    pub completion: ::core::option::Option<::harmos_protocol::storage::FileCompletion>,
+    #[prost(message, optional, tag = "90")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
+}
+/// Delete Stored Content with Replay Safety.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FilesDeleteRequest {
+    #[prost(message, optional, tag = "1")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
+    #[prost(string, tag = "2")]
+    pub request_id: ::prost::alloc::string::String,
+}
+/// Original Deletion Receipt on Replay.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FilesDeleteResponse {
+    #[prost(message, optional, tag = "1")]
+    pub receipt: ::core::option::Option<::harmos_protocol::v1::Receipt>,
+}
+/// Generated client implementations.
+pub mod files_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    /// Product-Owned File Transfers.
+    #[derive(Debug, Clone)]
+    pub struct FilesClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl FilesClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> FilesClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> FilesClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            FilesClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        /// Get the File.
+        pub async fn get(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FilesGetRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesGetResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.client.v1.Files/Get",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.client.v1.Files", "Get"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Read the File.
+        pub async fn read(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FilesReadRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesReadResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.client.v1.Files/Read",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.client.v1.Files", "Read"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Watch the File.
+        pub async fn watch(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FilesWatchRequest>,
+        ) -> std::result::Result<
+            tonic::Response<tonic::codec::Streaming<super::FilesWatchResponse>>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.client.v1.Files/Watch",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.client.v1.Files", "Watch"));
+            self.inner.server_streaming(req, path, codec).await
+        }
+        /// Delete the File.
+        pub async fn delete(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FilesDeleteRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesDeleteResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.client.v1.Files/Delete",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.client.v1.Files", "Delete"));
+            self.inner.unary(req, path, codec).await
+        }
+    }
+}
+/// Generated server implementations.
+pub mod files_server {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    /// Generated trait containing gRPC methods that should be implemented for use with FilesServer.
+    #[async_trait]
+    pub trait Files: std::marker::Send + std::marker::Sync + 'static {
+        /// Get the File.
+        async fn get(
+            &self,
+            request: tonic::Request<super::FilesGetRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesGetResponse>,
+            tonic::Status,
+        >;
+        /// Read the File.
+        async fn read(
+            &self,
+            request: tonic::Request<super::FilesReadRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesReadResponse>,
+            tonic::Status,
+        >;
+        /// Server streaming response type for the Watch method.
+        type WatchStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::FilesWatchResponse, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        /// Watch the File.
+        async fn watch(
+            &self,
+            request: tonic::Request<super::FilesWatchRequest>,
+        ) -> std::result::Result<tonic::Response<Self::WatchStream>, tonic::Status>;
+        /// Delete the File.
+        async fn delete(
+            &self,
+            request: tonic::Request<super::FilesDeleteRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FilesDeleteResponse>,
+            tonic::Status,
+        >;
+    }
+    /// Product-Owned File Transfers.
+    #[derive(Debug)]
+    pub struct FilesServer<T> {
+        inner: Arc<T>,
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
+    }
+    impl<T> FilesServer<T> {
+        pub fn new(inner: T) -> Self {
+            Self::from_arc(Arc::new(inner))
+        }
+        pub fn from_arc(inner: Arc<T>) -> Self {
+            Self {
+                inner,
+                accept_compression_encodings: Default::default(),
+                send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
+            }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
+        {
+            InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
+    }
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for FilesServer<T>
+    where
+        T: Files,
+        B: Body + std::marker::Send + 'static,
+        B::Error: Into<StdError> + std::marker::Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+        fn poll_ready(
+            &mut self,
+            _cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn call(&mut self, req: http::Request<B>) -> Self::Future {
+            match req.uri().path() {
+                "/dokime.client.v1.Files/Get" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetSvc<T: Files>(pub Arc<T>);
+                    impl<T: Files> tonic::server::UnaryService<super::FilesGetRequest>
+                    for GetSvc<T> {
+                        type Response = super::FilesGetResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FilesGetRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Files>::get(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.client.v1.Files/Read" => {
+                    #[allow(non_camel_case_types)]
+                    struct ReadSvc<T: Files>(pub Arc<T>);
+                    impl<T: Files> tonic::server::UnaryService<super::FilesReadRequest>
+                    for ReadSvc<T> {
+                        type Response = super::FilesReadResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FilesReadRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Files>::read(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ReadSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.client.v1.Files/Watch" => {
+                    #[allow(non_camel_case_types)]
+                    struct WatchSvc<T: Files>(pub Arc<T>);
+                    impl<
+                        T: Files,
+                    > tonic::server::ServerStreamingService<super::FilesWatchRequest>
+                    for WatchSvc<T> {
+                        type Response = super::FilesWatchResponse;
+                        type ResponseStream = T::WatchStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FilesWatchRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Files>::watch(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = WatchSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.client.v1.Files/Delete" => {
+                    #[allow(non_camel_case_types)]
+                    struct DeleteSvc<T: Files>(pub Arc<T>);
+                    impl<T: Files> tonic::server::UnaryService<super::FilesDeleteRequest>
+                    for DeleteSvc<T> {
+                        type Response = super::FilesDeleteResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FilesDeleteRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Files>::delete(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DeleteSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
+            }
+        }
+    }
+    impl<T> Clone for FilesServer<T> {
+        fn clone(&self) -> Self {
+            let inner = self.inner.clone();
+            Self {
+                inner,
+                accept_compression_encodings: self.accept_compression_encodings,
+                send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
+            }
+        }
+    }
+    /// Generated gRPC service name
+    pub const SERVICE_NAME: &str = "dokime.client.v1.Files";
+    impl<T> tonic::server::NamedService for FilesServer<T> {
+        const NAME: &'static str = SERVICE_NAME;
+    }
+}
 /// Public operations: dokime.plugins.list (ListPlugins -> PluginEntries),
 /// dokime.plugins.add (AddRemotePlugin -> Plugin), and
 /// dokime.plugins.remove (RemovePlugin -> RemovePluginResponse).

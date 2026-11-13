@@ -811,18 +811,10 @@ resources. The library vendoring, packages and generated references remain pinne
 | `<template>.cleanup` | `<template>.cleanup` | `dokime.plugin.v1.ExecutionsCleanupRequest` | `dokime.plugin.v1.ExecutionsCleanupResponse` | Plugin (Protected) | done |
 | `dokime.settings.read` | `harmos.context.v1.HostValues/Get` | `dokime.plugin.host.v1.ReadSettings` | `dokime.plugin.host.v1.SavedSettings` | Plugin Host | awaits composition |
 | `dokime.secrets.read` | `harmos.context.v1.HostValues/Get` | `dokime.plugin.host.v1.ReadSecret` | `dokime.plugin.host.v1.Secret` | Plugin Host | awaits composition |
-| `dokime.execution.artifact (byte transfer)` | `harmos.context.v1.Storage/AppendFileBytes` | `dokime.plugin.host.v1.content.PublishArtifact` | `dokime.plugin.host.v1.content.ArtifactReceipt` | Plugin Host | awaits composition |
 | `harmos.v1.status.Diagnostics/Get` | `harmos.v1.status.Diagnostics/Get` | `harmos.v1.status.DiagnosticsGetRequest` | `harmos.v1.status.DiagnosticsGetResponse` | Client | done |
 | `harmos.v1.Status/Get` | `harmos.v1.Status/Get` | `harmos.v1.StatusGetRequest` | `harmos.v1.StatusGetResponse` | Client | done |
 | `harmos.v1.status.Logs/Watch` | `harmos.v1.status.Logs/Watch` | `harmos.v1.status.LogsWatchRequest` | `harmos.v1.status.LogsWatchResponse` | Client | done |
 | `harmos.v1.status.TraceEvents/Watch` | `harmos.v1.status.TraceEvents/Watch` | `harmos.v1.status.TraceEventsWatchRequest` | `harmos.v1.status.TraceEventsWatchResponse` | Client | done |
-| `harmos.context.v1.Storage/GetFileBytes` | `harmos.context.v1.Storage/GetFileBytes` | `harmos.context.v1.StorageGetFileBytesRequest` | `harmos.context.v1.StorageGetFileBytesResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/WatchFileBytes` | `harmos.context.v1.Storage/WatchFileBytes` | `harmos.context.v1.StorageWatchFileBytesRequest` | `harmos.context.v1.StorageWatchFileBytesResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/CreateFileProduction` | `harmos.context.v1.Storage/CreateFileProduction` | `harmos.context.v1.StorageCreateFileProductionRequest` | `harmos.context.v1.StorageCreateFileProductionResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/GetFileProduction` | `harmos.context.v1.Storage/GetFileProduction` | `harmos.context.v1.StorageGetFileProductionRequest` | `harmos.context.v1.StorageGetFileProductionResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/CreateFileWriter` | `harmos.context.v1.Storage/CreateFileWriter` | `harmos.context.v1.StorageCreateFileWriterRequest` | `harmos.context.v1.StorageCreateFileWriterResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/DeleteFileProduction` | `harmos.context.v1.Storage/DeleteFileProduction` | `harmos.context.v1.StorageDeleteFileProductionRequest` | `harmos.context.v1.StorageDeleteFileProductionResponse` | Client | awaits composition |
-| `harmos.context.v1.Storage/PublishFileProduction` | `harmos.context.v1.Storage/PublishFileProduction` | `harmos.context.v1.StoragePublishFileProductionRequest` | `harmos.context.v1.StoragePublishFileProductionResponse` | Client | awaits composition |
 | `harmos.v1.Plugins/Get` | `harmos.v1.Plugins/Get` | `harmos.v1.PluginsGetRequest` | `harmos.v1.PluginsGetResponse` | Client | awaits composition |
 | `harmos.v1.Plugins/Create` | `harmos.v1.Plugins/Create` | `harmos.v1.PluginsCreateRequest` | `harmos.v1.PluginsCreateResponse` | Client | awaits composition |
 | `harmos.v1.Plugins/List` | `harmos.v1.Plugins/List` | `harmos.v1.PluginsListRequest` | `harmos.v1.PluginsListResponse` | Client | awaits composition |
@@ -836,7 +828,29 @@ resources. The library vendoring, packages and generated references remain pinne
 | `harmos.context.v1.Time/Get` | `harmos.context.v1.Time/Get` | `harmos.context.v1.TimeGetRequest` | `harmos.context.v1.TimeGetResponse` | Plugin Host | done |
 | `harmos.context.v1.Time/Sleep` | `harmos.context.v1.Time/Sleep` | `harmos.context.v1.TimeSleepRequest` | `harmos.context.v1.TimeSleepResponse` | Plugin Host | done |
 
-Decision: schema retrieval returns descriptors only; display identities stay in the detail.
+| File Transfer | `dokime.client.v1.Files/Get` | `dokime.client.v1.FilesGetRequest` | `dokime.client.v1.FilesGetResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Read` | `dokime.client.v1.FilesReadRequest` | `dokime.client.v1.FilesReadResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Watch` | `dokime.client.v1.FilesWatchRequest` | `dokime.client.v1.FilesWatchResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Delete` | `dokime.client.v1.FilesDeleteRequest` | `dokime.client.v1.FilesDeleteResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Create` | `dokime.client.v1.files.UploadsCreateRequest` | `dokime.client.v1.files.UploadsCreateResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Get` | `dokime.client.v1.files.UploadsGetRequest` | `dokime.client.v1.files.UploadsGetResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Resume` | `dokime.client.v1.files.UploadsResumeRequest` | `dokime.client.v1.files.UploadsResumeResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Append` | `dokime.client.v1.files.UploadsAppendRequest` | `dokime.client.v1.files.UploadsAppendResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Publish` | `dokime.client.v1.files.UploadsPublishRequest` | `dokime.client.v1.files.UploadsPublishResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Delete` | `dokime.client.v1.files.UploadsDeleteRequest` | `dokime.client.v1.files.UploadsDeleteResponse` | Client | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Get` | `dokime.plugin.host.v1.FilesGetRequest` | `dokime.plugin.host.v1.FilesGetResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Read` | `dokime.plugin.host.v1.FilesReadRequest` | `dokime.plugin.host.v1.FilesReadResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Watch` | `dokime.plugin.host.v1.FilesWatchRequest` | `dokime.plugin.host.v1.FilesWatchResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Delete` | `dokime.plugin.host.v1.FilesDeleteRequest` | `dokime.plugin.host.v1.FilesDeleteResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Create` | `dokime.plugin.host.v1.files.UploadsCreateRequest` | `dokime.plugin.host.v1.files.UploadsCreateResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Get` | `dokime.plugin.host.v1.files.UploadsGetRequest` | `dokime.plugin.host.v1.files.UploadsGetResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Resume` | `dokime.plugin.host.v1.files.UploadsResumeRequest` | `dokime.plugin.host.v1.files.UploadsResumeResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Append` | `dokime.plugin.host.v1.files.UploadsAppendRequest` | `dokime.plugin.host.v1.files.UploadsAppendResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Publish` | `dokime.plugin.host.v1.files.UploadsPublishRequest` | `dokime.plugin.host.v1.files.UploadsPublishResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Delete` | `dokime.plugin.host.v1.files.UploadsDeleteRequest` | `dokime.plugin.host.v1.files.UploadsDeleteResponse` | Plugin Host | declared |
+
+Decision: product file resources own transfer; Create, Get and Resume return chunk/message limits.
+Schema retrieval returns frozen record/stream `message_name` bindings on every descriptor page.
 Descriptor files are the page unit; each encoded response obeys the smaller of
 `PageRequest.max_bytes` (when set) and the existing host unary message limit.
 

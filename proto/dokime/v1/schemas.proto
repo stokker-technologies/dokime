@@ -82,6 +82,8 @@ message RecordSchema {
   optional .dokime.v1.ValidationMode validation_mode = 8;
   bool allow_extra_fields = 9;
   .dokime.v1.RecordDisplay display = 10;
+  // Fully qualified protobuf message in the frozen descriptor set.
+  string message_name = 11;
 }
 
 enum RecordTone {
@@ -136,6 +138,8 @@ message TelemetrySchema {
   bool scalar = 10;
   optional .dokime.v1.ValidationMode validation_mode = 11;
   bool foreign = 12;
+  // Fully qualified protobuf row message in the frozen descriptor set.
+  string message_name = 13;
 }
 
 enum ValidationMode {

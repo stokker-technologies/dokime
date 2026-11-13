@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dokime.plugin.host.v1.files;
+
+// === Imports === //
+
+import "harmos/v1/types.proto";
+import "harmos/v1/storage_types.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.FilesResources";
+
+// === Services === //
+
+// Product-Owned File Transfers.
+service Uploads {
+  // Create the Upload.
+  rpc Create(UploadsCreateRequest) returns (UploadsCreateResponse);
+  // Get the Upload.
+  rpc Get(UploadsGetRequest) returns (UploadsGetResponse);
+  // Resume the Upload.
+  rpc Resume(UploadsResumeRequest) returns (UploadsResumeResponse);
+  // Append the Upload.
+  rpc Append(UploadsAppendRequest) returns (UploadsAppendResponse);
+  // Publish the Upload.
+  rpc Publish(UploadsPublishRequest) returns (UploadsPublishResponse);
+  // Delete the Upload.
+  rpc Delete(UploadsDeleteRequest) returns (UploadsDeleteResponse);
+}
+
+// === Requests and Responses === //
+
+// Begin a File Upload; Retain request_id for Resending.
+message UploadsCreateRequest {
+  .harmos.storage.v1.FileMetadata metadata = 1;
+  string request_id = 2;
+}
+// Writer Session and the Limits for Subsequent Chunks.
+message UploadsCreateResponse {
+  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.v1.Receipt receipt = 2;
+  uint64 chunk_bytes = 3;
+  uint64 message_bytes = 4;
+}
+// Inspect Durable Upload Progress Before Resuming.
+message UploadsGetRequest {
+  .harmos.storage.v1.StagedFile file = 1;
+  .harmos.v1.ReadCut at = 90;
+}
+// Accepted and Durable Lengths Are Separate Facts.
+message UploadsGetResponse {
+  .harmos.storage.v1.FileProgress production = 1;
+  uint64 writer_generation = 2;
+  uint64 accepted_length = 3;
+  uint64 durable_length = 4;
+  uint64 chunk_bytes = 5;
+  uint64 message_bytes = 6;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+// Take Over Writing, Invalidating the Previous Writer.
+message UploadsResumeRequest {
+  .harmos.storage.v1.FileSession session = 1;
+  string request_id = 2;
+}
+// New Writer Session and the Durable Append Offset.
+message UploadsResumeResponse {
+  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.v1.Receipt receipt = 2;
+  uint64 chunk_bytes = 3;
+  uint64 message_bytes = 4;
+}
+// Append One Chunk at the Returned Offset.
+message UploadsAppendRequest {
+  .harmos.storage.v1.FileSession session = 1;
+  uint64 offset = 2;
+  bytes data = 3;
+  string request_id = 4;
+}
+// Original Producer and Receipt on Replay.
+message UploadsAppendResponse {
+  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.v1.Receipt receipt = 2;
+}
+// Finish Only When Length and SHA-256 Match.
+message UploadsPublishRequest {
+  .harmos.storage.v1.FileSession session = 1;
+  uint64 length = 2;
+  bytes sha256 = 3;
+  string request_id = 4;
+}
+// Published Immutable Reference and Original Receipt.
+message UploadsPublishResponse {
+  .harmos.storage.v1.FileReference file = 1;
+  .harmos.v1.Receipt receipt = 2;
+}
+// Abandon an Unpublished Upload.
+message UploadsDeleteRequest {
+  .harmos.storage.v1.FileSession session = 1;
+  string request_id = 2;
+}
+// Terminal Upload Progress and Original Receipt.
+message UploadsDeleteResponse {
+  .harmos.storage.v1.FileProgress production = 1;
+  .harmos.v1.Receipt receipt = 2;
+}
+
+// === Resources === //
+
+// === Enums === //

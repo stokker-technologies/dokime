@@ -58,6 +58,7 @@ function generate() {
       )
     )
       continue;
+    if (file.name === "harmos/v1/storage.proto") continue;
     for (const service of file.service) {
       for (const method of service.method) {
         const path = `/${file.package}.${service.name}/${method.name}`;
