@@ -450,6 +450,13 @@ implicit reset or deletion occurs.
 
 ## Content and Notes
 
+The library transfer replacement is blocked by its missing product content-source
+registration port, recorded in Operation Grammar Library Requests. The current
+content journeys below still exercise the product implementation. HostValues also
+waits for library-backed plugin admission; settings and secret value delivery keep
+their current invocation-scoped handlers until that replacement is available.
+
+
 Content serves ordered artifact transfers, execution/cycle evidence exports and
 registered execution-file inventory, bounded windows, downloads and follows.
 Client uploads require an explicit SHA-256 completion before input finish;

@@ -1233,6 +1233,28 @@ remain solely for that loop until its separately locked atomic desktop cutover.
 Deleting them now requires changing that loop's protocol and desktop consumers,
 which this slice does not migrate. No product Remote service is registered in the new host.
 
+Transfers are deferred because the pinned Storage service cannot register the
+product's already-owned immutable content sources. Its ranged Get requires a
+reference in its own saved storage history; the public plugin-manager ContentSource
+port does not supply Storage delivery. The missing narrow source/lease/range
+capability and failing consumer proof are recorded under Library Requests. Existing
+product transfers and their journeys stay intact until that dependency is available;
+no duplicate persistence owner or forwarding service is introduced.
+
+HostValues is deferred without changing its locked ownership: the library's Get
+requires its private Caller resource, populated from admitted plugin declarations.
+`register_values` alone cannot attach that caller to the current product dispatcher.
+Wiring it requires the library-backed admission/context replacement excluded from
+this task and blocked by the existing wire-identity request. Existing settings and
+secret delivery remains until that composition is admitted.
+
+The C++ library root cannot accept per-call bearer metadata or a caller context;
+its authenticated client journey remains on the existing fixture until the library
+capability in Library Requests is pinned. Rust, Python and C# status consumers now
+use the composed root. Shared old-loop protobuf declarations and generic managed-
+client fixture DTOs retire with the excluded protocol/managed-method cutover; they
+are not exposed as new-host compatibility services.
+
 ### Library Admission Request
 
 The converged revision's non-reserved `OperationContract::from_protobuf` path
