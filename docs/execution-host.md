@@ -76,6 +76,7 @@ The bootstrap listener accepts loopback addresses. The library's Access.Listener
 owns the separate authenticated TLS listener. Enable it with the revision from Get,
 then use Access.Pairings.Create to obtain an endpoint, pinned certificate and bearer
 credential. Pairings are independent: List returns metadata and Delete revokes one.
+Pairing labels retain their existing 256-byte bound.
 Access.Certificates.Create rotates live TLS trust and revokes all pairings; existing
 connections survive and fresh pairings authorize them. New connections trust the new
 certificate. Listener settings no longer belong to product application preferences.

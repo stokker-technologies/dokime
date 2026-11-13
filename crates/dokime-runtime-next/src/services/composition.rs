@@ -30,6 +30,8 @@ use crate::{Result, SchedulerClock};
 
 /* === Constants === */
 
+const PAIRING_LABEL_BYTES: NonZeroUsize = NonZeroUsize::new(256).unwrap();
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -118,7 +120,7 @@ pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc
         handshake_timeout: settings.read_timeout,
         pairings: NonZeroUsize::new(settings.max_cases).unwrap(),
         read_leases: NonZeroUsize::new(settings.page_items).unwrap(),
-        label_bytes: NonZeroUsize::new(settings.message_bytes).unwrap(),
+        label_bytes: PAIRING_LABEL_BYTES,
     }
 }
 
