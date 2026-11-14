@@ -23,7 +23,7 @@
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/icon.icns",
-      "sha256": "08243c9e5b0ea074d33a4ff7b41e6ff3c2e54b51cc4ab0c28eb7a2abb671c5a1"
+      "sha256": "9aad3e309a40c987239836a02f69e53939ea48543bc694b5655b735287236880"
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/icon.ico",

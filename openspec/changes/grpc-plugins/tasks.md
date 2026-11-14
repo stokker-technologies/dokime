@@ -518,14 +518,17 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 
 ## Remaining Source Policy Proof
 
-- [x] Repair CI after the protocol face split: export declared preferences without
+- [ ] Repair CI after the protocol face split: export declared preferences without
   host startup, preserve startup causes, move Python upload I/O off the event loop,
   include every face in the Python stub catalog, prepare standalone fixture jobs
   without frontend tools, and prove current release-profile desktop bundling.
   Source inventory: the desktop exporter and startup diagnostics; runtime error
   and service composition; Python client and service catalog; setup action,
   build-test workflow and mise preparation; affected generation/tooling tests;
-  architecture and tooling guides. Generated bindings change only through mise.
+  architecture and tooling guides. Product generation additionally owns canonical
+  ICNS chunk ordering in the organization generator and its generated icons and
+  integrity inventory, with deterministic tooling coverage. Generated bindings
+  and assets change only through mise.
 - [ ] Run the requested committed-head format, Rust/Python/repository checks,
   generated wheel check, Windows Product and release-profile fixture builds;
   confirm generation leaves a clean tree and no disposable access credentials.

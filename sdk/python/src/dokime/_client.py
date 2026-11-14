@@ -17,6 +17,7 @@ import json
 import os
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
+from io import FileIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -126,7 +127,7 @@ class Client(Resource):
 class Files(FilesResource):
     async def upload(self, path: str | Path) -> Message:
         request_id = str(uuid4())
-        source = await asyncio.to_thread(lambda: Path(path).open("rb"))
+        source = await asyncio.to_thread(FileIO, path, "rb")
         try:
             metadata = await asyncio.to_thread(os.fstat, source.fileno())
             created = await self._client.call(

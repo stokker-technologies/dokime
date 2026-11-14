@@ -65,7 +65,9 @@ The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.
 Product builds prepare generated clients, icons and the production frontend before
-compiling and exporting the native shell with `custom-protocol`. Tests Build also
+compiling and exporting the native shell with `custom-protocol`. The icon generator
+orders ICNS representations canonically so repeat builds retain identical bytes
+and integrity hashes. Tests Build also
 prepares the SDK desktop bundle. Run focused native desktop stories with
 `--features testing`; their disposable-root owner removes credentials after the
 runtime stops, including on failure. WebView lanes are available through
