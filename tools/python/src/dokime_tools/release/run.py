@@ -620,6 +620,10 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
     targets = list(settings.get("targets", [])) if selected == "all" else [selected]
     with policy.credential_free(settings, profile=profile):
         _refuse_overrides(directory)
+        if not hosted and targets == [native_target(settings)] and not stage_only:
+            policy.execute(directory, ["mise", "run", "build", "--", "--language", "python", "--profile", profile])
+            policy.execute(directory, ["mise", "run", "build", "--", "--profile", profile])
+            policy.execute(directory, ["mise", "run", "package", "--", "--profile", profile, "--target", targets[0]])
         revision = _revision(directory) if stage_only else None
         dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets)
         if not stage_only and _task_defined(directory, "release:tag"):

@@ -459,7 +459,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 Product Files and Files.Uploads own client transfers and scoped plugin-host unary
 transfers over the existing content store. They reuse library file/session/receipt
 vocabulary and return per-call transfer limits. Published artifact, execution-file,
-report, evidence-archive and appearance references use Files.Read. Replay receipts
+report, evidence-archive and appearance references use Files.Read. Files.Watch
+selects exactly one published file or upload; upload watches follow durable bytes
+before publication and retain the selected writer identity. Replay receipts
 and writer generations survive restart. The development storage baseline remains
 v1; the added upload/request tables make older layouts explicitly incompatible,
 without migration or automatic reset. Library in-process storage composition is

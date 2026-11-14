@@ -13,7 +13,6 @@
 # Standard Library Imports
 from datetime import UTC, datetime
 from fractions import Fraction
-from typing import TypeAlias
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -31,7 +30,7 @@ __all__ = ["decode", "encode"]
 
 # === Types === #
 
-Scalar: TypeAlias = None | bool | int | float | str | bytes | Fraction | datetime | list["Scalar"] | tuple["Scalar", ...]
+type Scalar = None | bool | int | float | str | bytes | Fraction | datetime | list[Scalar] | tuple[Scalar, ...]
 
 # === Classes === #
 

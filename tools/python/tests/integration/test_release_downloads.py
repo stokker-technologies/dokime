@@ -14,6 +14,7 @@
 import hashlib
 import io
 import json
+import os
 import tarfile
 import tempfile
 import unittest
@@ -131,6 +132,40 @@ class DownloadManifestTests(unittest.TestCase):
 
 
 class StageTests(unittest.TestCase):
+    def test_local_rehearsal_prepares_native_packages_without_credentials(self) -> None:
+        commands: list[list[str]] = []
+        settings = {"targets": ["windows-x86_64"]}
+
+        def execute(directory: Path, arguments: list[str]) -> str:
+            self.assertNotIn("GH_TOKEN", os.environ)
+            self.assertEqual(os.environ["RELEASE_PROFILE"], "dev")
+            commands.append(arguments)
+            return ""
+
+        def verify_packages(*args: object, **kwargs: object) -> None:
+            self.assertEqual(
+                commands,
+                [
+                    ["mise", "run", "build", "--", "--language", "python", "--profile", "dev"],
+                    ["mise", "run", "build", "--", "--profile", "dev"],
+                    ["mise", "run", "package", "--", "--profile", "dev", "--target", "windows-x86_64"],
+                ],
+            )
+            self.assertNotIn("GH_TOKEN", os.environ)
+
+        with (
+            mock.patch.dict(os.environ, {"GH_TOKEN": "rehearsal-secret"}),
+            mock.patch.object(run, "continuous_integration", return_value=False),
+            mock.patch.object(run, "native_target", return_value="windows-x86_64"),
+            mock.patch.object(run, "_refuse_overrides"),
+            mock.patch.object(run, "_task_defined", return_value=False),
+            mock.patch.object(run.policy, "execute", side_effect=execute),
+            mock.patch.object(run, "dry", side_effect=verify_packages) as verify,
+        ):
+            run.rehearse(Path.cwd(), settings, profile="dev")
+            verify.assert_called_once()
+            self.assertEqual(os.environ["GH_TOKEN"], "rehearsal-secret")
+
     def test_stage_requires_packaged_notices(self):
         for missing_archive in (True, False):
             with self.subTest(missing_archive=missing_archive), tempfile.TemporaryDirectory() as directory:
@@ -197,7 +232,7 @@ class StageTests(unittest.TestCase):
                     f"{owner}/{audience}/v1/service.proto" for owner in ("dokime", "harmos") for audience in ("model", "host", "plugin")
                 }
 
-                def export(_: Path, command: list[str]) -> None:
+                def export(_: Path, command: list[str], protocol_sources: set[str] = protocol_sources) -> None:
                     self.assertTrue(Path(command[0]).is_file())
                     exported = Path(command[-1])
                     for name in protocol_sources:

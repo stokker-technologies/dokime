@@ -810,8 +810,8 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
             for group in sorted({field["oneof"] for field in method["fields"] if field["oneof"]}):
                 members = [field for field in method["fields"] if field["oneof"] == group]
                 variant = rust_message(method["request"]).rsplit("::", 1)[0] + "::" + snake(request) + "::" + group.title()
-                selected = ", ".join("options." + field["name"] for field in members)
-                lines += [f"            {group}: match ({selected}) {{"]
+                variants = ", ".join("options." + field["name"] for field in members)
+                lines += [f"            {group}: match ({variants}) {{"]
                 for index, member in enumerate(members):
                     pattern = ", ".join("Some(value)" if index == other else "None" for other in range(len(members)))
                     lines += [f"                ({pattern}) => Some({variant}::{member['name'].title()}(value)),"]

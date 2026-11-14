@@ -11,9 +11,11 @@
 # === Imports === #
 
 # Standard Library Imports
+from collections.abc import Iterator
+from typing import TypeAliasType
 
 # Third Party Imports
-from mypy import stubtest
+from mypy import nodes, stubtest
 from mypy.options import Options
 
 # Local Imports
@@ -45,6 +47,14 @@ MODULES = [
 # === Classes === #
 
 # === Public Functions === #
+
+
+@stubtest.verify.register(nodes.TypeAlias)
+def verify_typealias(stub: nodes.TypeAlias, runtime: object, object_path: list[str]) -> Iterator[stubtest.Error]:
+    """Verify PEP 695 Alias Values Through the Same Strict Alias Checker."""
+    if isinstance(runtime, TypeAliasType):
+        runtime = runtime.__value__
+    yield from stubtest.verify_typealias(stub, runtime, object_path)
 
 
 def main() -> int:

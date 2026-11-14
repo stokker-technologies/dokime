@@ -758,7 +758,7 @@ The complete library identity/type mapping is in the pinned
 | `dokime.client.v1.Files/Delete` | `dokime.host.v1.Files/Delete` | ALL | `dokime.host.v1.FilesDeleteRequest` | `dokime.host.v1.FilesDeleteResponse` |
 | `dokime.client.v1.Files/Get` | `dokime.host.v1.Files/Get` | ALL | `dokime.host.v1.FilesGetRequest` | `dokime.host.v1.FilesGetResponse` |
 | `dokime.client.v1.Files/Read` | `dokime.host.v1.Files/Read` | ALL | `dokime.host.v1.FilesReadRequest` | `dokime.host.v1.FilesReadResponse` |
-| `dokime.client.v1.Files/Watch` | `dokime.host.v1.Files/Watch` | ALL | `dokime.host.v1.FilesWatchRequest` | `dokime.host.v1.FilesWatchResponse` |
+| `dokime.client.v1.Files/Watch` | `dokime.host.v1.Files/Watch` | ALL | `dokime.host.v1.FilesWatchRequest` (target: file or upload) | `dokime.host.v1.FilesWatchResponse` |
 | `dokime.client.v1.Plugins/Add` | `harmos.host.v1.Plugins/Create` | CLIENTS | `harmos.host.v1.PluginsCreateRequest` | `harmos.host.v1.PluginsCreateResponse` |
 | `dokime.client.v1.Plugins/GetInstallation` | `harmos.host.v1.Plugins/Get` | CLIENTS | `harmos.host.v1.PluginsGetRequest` | `harmos.host.v1.PluginsGetResponse` |
 | `dokime.client.v1.Plugins/Install` | `harmos.host.v1.Plugins/Create` | CLIENTS | `harmos.host.v1.PluginsCreateRequest` | `harmos.host.v1.PluginsCreateResponse` |
@@ -847,7 +847,7 @@ The complete library identity/type mapping is in the pinned
 | `dokime.plugin.host.v1.Files/Delete` | `dokime.host.v1.Files/Delete` | ALL | `dokime.host.v1.FilesDeleteRequest` | `dokime.host.v1.FilesDeleteResponse` |
 | `dokime.plugin.host.v1.Files/Get` | `dokime.host.v1.Files/Get` | ALL | `dokime.host.v1.FilesGetRequest` | `dokime.host.v1.FilesGetResponse` |
 | `dokime.plugin.host.v1.Files/Read` | `dokime.host.v1.Files/Read` | ALL | `dokime.host.v1.FilesReadRequest` | `dokime.host.v1.FilesReadResponse` |
-| `dokime.plugin.host.v1.Files/Watch` | `dokime.host.v1.Files/Watch` | ALL | `dokime.host.v1.FilesWatchRequest` | `dokime.host.v1.FilesWatchResponse` |
+| `dokime.plugin.host.v1.Files/Watch` | `dokime.host.v1.Files/Watch` | ALL | `dokime.host.v1.FilesWatchRequest` (target: file or upload) | `dokime.host.v1.FilesWatchResponse` |
 | `dokime.plugin.host.v1.Prompts/Create` | `dokime.host.v1.Prompts/Create` | PLUGINS | `dokime.host.v1.PromptsCreateRequest` | `dokime.host.v1.PromptsCreateResponse` |
 | `dokime.plugin.host.v1.content.Artifacts/Create` | `dokime.host.v1.content.Artifacts/Create` | ALL | `dokime.host.v1.content.ArtifactsCreateRequest` | `dokime.host.v1.content.ArtifactsCreateResponse` |
 | `dokime.plugin.host.v1.evidence.Logs/Append` | `dokime.host.v1.evidence.Logs/Append` | PLUGINS | `dokime.host.v1.evidence.LogsAppendRequest` | `dokime.host.v1.evidence.LogsAppendResponse` |
@@ -1654,6 +1654,12 @@ v1 path. Raw protocol modules are private SDK implementation details. Nested
 resource payload names gain their owner prefix where a flat barrel would collide.
 The composed root includes `client.plugins.list()` beside
 `client.executions.create(...)` and `client.plugins.secrets.list(...)`.
+
+Rust keeps required selectors positional and places defaultable document/evidence
+filters in each call's generated Options value. Client options can be cloned for
+replay without regenerating their mutation identity. Python's strict stub check
+verifies PEP 695 alias values and the generic callable's declared type parameters;
+generated-server checks also compare canonical registered gRPC service names.
 
 ### Definition Repair Call Shapes
 

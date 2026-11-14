@@ -59,6 +59,7 @@ class ProductCompilerRecordTests(unittest.TestCase):
 
             with (
                 patch.object(product.paths, "output", return_value=root),
+                patch.object(product.configuration, "ROOT", root),
                 patch.object(product.subprocess, "run", side_effect=compile_product),
                 patch.object(product.outputs, "executables", return_value={}),
                 patch.object(product.cargo, "record_target"),
@@ -73,9 +74,10 @@ class ProductCompilerRecordTests(unittest.TestCase):
 
                 # Publish The Completed Replacement Only After Cargo Succeeds
                 fail = False
-                product.build("dev")
+                exported = product.build("dev")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
                 self.assertFalse(pending.exists())
+                self.assertEqual(set(exported), {"product/compiler.json", "product/target.txt"})
 
 
 class CompilerEnvironmentTests(unittest.TestCase):
