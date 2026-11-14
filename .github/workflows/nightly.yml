@@ -256,14 +256,14 @@ jobs:
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst"]'
+          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120

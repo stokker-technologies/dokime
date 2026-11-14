@@ -13,6 +13,7 @@
 # Standard Library Imports
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -47,6 +48,7 @@ def build(
     selection: Sequence[str] = ("--workspace", "--bins", "--benches"),
     *,
     require_benchmark: bool = True,
+    environment: dict[str, str] | None = None,
 ) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
@@ -68,6 +70,7 @@ def build(
         with raw.open("w", encoding="utf-8") as written:
             subprocess.run(
                 command,
+                env=environment,
                 stdin=sys.stdin,
                 stderr=sys.stderr,
                 creationflags=spawn_flags(),
@@ -129,9 +132,25 @@ def main() -> None:
         else ("--workspace", "--bins", "--benches")
     )
     directory = Path.cwd()
-    messages = build(directory, ["--features", "dokime-gui/custom-protocol", *extra], selection)
-    generated.stage("bench")
     output = paths.output(directory, "build", "bench")
+    environment = dict(os.environ)
+    if options.binary in (None, "system-desktop"):
+        # Build And Embed The Instrumented Surface In The Matching Native Shell.
+        web = output / "web"
+        subprocess.run(
+            ["node", "benches/system/build.mjs", str(web)],
+            cwd=directory / "crates/dokime-gui",
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        config = json.loads(environment.get("TAURI_CONFIG", "{}"))
+        config.setdefault("build", {})["frontendDist"] = Path(os.path.relpath(web, directory / "crates/dokime-gui/src-tauri")).as_posix()
+        environment["TAURI_CONFIG"] = json.dumps(config)
+    messages = build(directory, ["--features", "dokime-gui/custom-protocol", *extra], selection, environment=environment)
+    generated.stage("bench")
     stamp = json.loads((output / "fixtures/stamp.json").read_text(encoding="utf-8"))
     modules = [path.relative_to(directory).as_posix() for path in (output / "generated").rglob("*") if path.is_file()]
     archive.stamp(directory, "bench", [*stamp["files"], *modules], stamp["metadata"])
