@@ -541,7 +541,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             }
             assert!(header && completed);
 
-            // Deliver the Report Through Library Ranges and the Native Verified Writer.
+            // Deliver the Report Through Product File Ranges and the Native Verified Writer.
             let subject = client::ReportSubject {
                 kind: Some(client::report_subject::Kind::Execution(execution.clone())),
             };
@@ -579,8 +579,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 )
                 .await?;
             let reference = report.file.ok_or("Read Report: Missing File Reference")?;
+            let selected: client::FilesGetResponse =
+                session.unary("/dokime.client.v1.Files/Get", client::FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
             let mut bytes = Vec::new();
-            let mut at = None;
+            let mut at = selected.resolved_at;
             while bytes.len() < reference.length as usize {
                 let reply: client::FilesReadResponse = session
                     .unary(
@@ -588,7 +590,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                         client::FilesReadRequest {
                             file: Some(reference.clone()),
                             offset: bytes.len() as u64,
-                            max_bytes: 65_536,
+                            max_bytes: selected.chunk_bytes,
                             at: at.clone(),
                         },
                     )

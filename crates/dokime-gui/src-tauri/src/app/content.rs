@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
 use dokime_protocol::client;
-use dokime_protocol::client::FilesReadRequest;
 use dokime_protocol::client::FilesReadResponse;
+use dokime_protocol::client::{FilesGetRequest, FilesGetResponse, FilesReadRequest};
 use sha2::{Digest, Sha256};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -207,6 +207,18 @@ pub(crate) async fn fetch_verified(
     if reference.sha256.len() != 32 {
         return Err(invalid("Read Content: Host Omitted Its SHA-256"));
     }
+    let selected: FilesGetResponse =
+        session.unary("/dokime.client.v1.Files/Get", FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
+    let selected_file = selected.file.as_ref().ok_or_else(|| invalid("Read Content: Host Omitted Its Selected File"))?;
+    if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
+        return Err(invalid("Read Content: Selected File Identity Changed"));
+    }
+    let frame_bytes = frame_bytes
+        .min(usize::try_from(selected.chunk_bytes).map_err(|_| invalid("Read Content: Invalid Chunk Limit"))?)
+        .min(usize::try_from(selected.message_bytes.saturating_sub(1024)).map_err(|_| invalid("Read Content: Invalid Message Limit"))?);
+    if frame_bytes == 0 {
+        return Err(invalid("Read Content: Host Omitted Its Transfer Limits"));
+    }
     let content_type = reference.metadata.as_ref().map(|metadata| metadata.media_type.clone());
     let directory =
         destination.parent().ok_or_else(|| DeliveryError::local(DeliveryStage::Prepare, "Select a destination with a parent directory"))?;
@@ -215,7 +227,7 @@ pub(crate) async fn fetch_verified(
     let mut file = File::from_std(staged.reopen().map_err(write_error)?);
     let mut digest = Sha256::new();
     let mut offset = 0;
-    let mut at = None;
+    let mut at = selected.resolved_at;
     while offset < reference.length {
         let reply: FilesReadResponse = session
             .unary(

@@ -55,6 +55,8 @@ pub struct Content(pub Service);
 pub struct Storage(pub Service);
 
 struct Metadata(Service);
+struct FileInformation(Service);
+
 struct Download(Service);
 
 /* === Implementations === */
@@ -131,6 +133,30 @@ impl UnaryService<client::content::ArtifactsGetRequest> for Metadata {
             metadata.id = "fixture-artifact".into();
             metadata.media_type = "application/octet-stream".into();
             Ok(Response::new(reply))
+        })
+    }
+}
+
+impl UnaryService<client::FilesGetRequest> for FileInformation {
+    type Response = client::FilesGetResponse;
+    type Future = BoxFuture<Response<Self::Response>, Status>;
+    fn call(&mut self, request: Request<client::FilesGetRequest>) -> Self::Future {
+        Box::pin(async move {
+            Ok(Response::new(client::FilesGetResponse {
+                file: request.into_inner().file,
+                chunk_bytes: 4096,
+                message_bytes: 32768,
+                resolved_at: Some(library::ReadCut {
+                    positions: vec![library::Position {
+                        history: Some(library::History {
+                            store: "fixture".into(),
+                            epoch: "content".into(),
+                        }),
+                        sequence: 1,
+                    }],
+                    revisions: Vec::new(),
+                }),
+            }))
         })
     }
 }
