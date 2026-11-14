@@ -112,6 +112,13 @@ pub fn execution_fixture() -> Result<PathBuf, Box<dyn Error>> {
     }
     Ok(path)
 }
+pub fn secrets_fixture() -> Result<PathBuf, Box<dyn Error>> {
+    let path = fixture_root().join(format!("dokime-rust-secrets{}", std::env::consts::EXE_SUFFIX));
+    if !path.is_file() {
+        return Err("Build the Secret Fixture Through mise run build:host-fixtures".into());
+    }
+    Ok(path)
+}
 pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<String, Value> {
     use dokime_protocol::v1::{Value, value::Kind};
     std::collections::HashMap::from([
