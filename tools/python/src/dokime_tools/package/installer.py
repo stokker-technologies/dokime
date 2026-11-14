@@ -99,7 +99,13 @@ def bundle(root: Path, profile: str) -> list[Path]:
         if profile == "dev":
             command.append("--debug")
         result = subprocess.run(
-            command, cwd=root / "crates/dokime-gui", env=environment, capture_output=True, text=True, check=False, creationflags=spawn_flags()
+            command,
+            cwd=root / "crates/dokime-gui",
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            creationflags=spawn_flags(),
         )
         print(result.stdout, end="", flush=True)
         print(result.stderr, end="", file=sys.stderr, flush=True)
