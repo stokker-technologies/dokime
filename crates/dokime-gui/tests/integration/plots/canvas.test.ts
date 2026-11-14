@@ -82,6 +82,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         "--headless=new",
         "--no-sandbox",
         "--disable-gpu",
+        "--disable-background-mode",
         "--no-first-run",
         "--remote-debugging-port=0",
         `--user-data-dir=${join(scratch, "profile")}`,
