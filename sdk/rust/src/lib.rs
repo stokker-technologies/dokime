@@ -35,17 +35,16 @@ mod template;
 /* === Re-Exports === */
 
 pub use client::{Client, ClientSettings};
-pub use context::Context;
+use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
-pub use dokime_protocol::builders;
 pub use error::{Error, Result};
 pub use exports::*;
-pub use harmos::{Classification, Failure, OperationPolicy, OperationRequest, Publisher, Visibility};
-pub use operation::Operation;
-pub use plugin::{CatalogTypes, Plugin};
-pub use record::Record;
-pub use stream::{Observer, Stream};
+pub use harmos::OperationRequest;
+
+use plugin::Plugin;
+use record::Record;
+use stream::{Observer, Stream};
 
 /* === Imports === */
 
@@ -55,6 +54,7 @@ pub use stream::{Observer, Stream};
 extern crate self as dokime;
 
 // Local Imports
+use harmos::Message as HarmosMessage;
 
 /* === Constants === */
 
@@ -69,11 +69,11 @@ extern crate self as dokime;
 /* === Traits === */
 
 // Protobuf Data with the Harmos Descriptor Contract.
-pub trait Message: harmos::Message {}
+pub trait Message: HarmosMessage {}
 
 /* === Implementations === */
 
-impl<T: harmos::Message> Message for T {}
+impl<T: HarmosMessage> Message for T {}
 
 /* === Public Functions === */
 
@@ -83,12 +83,6 @@ impl<T: harmos::Message> Message for T {}
 #[doc(hidden)]
 pub mod encoding {
     /* === Modules === */
-
-#[rustfmt::skip]
-mod exports;
-    mod wire {
-        pub(crate) use dokime_protocol::{host, model, plugin};
-    }
 
     /* === Re-Exports === */
 

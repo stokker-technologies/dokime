@@ -16,11 +16,11 @@
 /* === Imports === */
 
 use super::resources::Files;
-use dokime_protocol::client::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
-use harmos_protocol::storage::{FileMetadata, FileReference};
+use super::{FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
+use crate::{FileMetadata, FileReference};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::Path};
-use tonic::{Request, Status};
+use tonic::Status;
 use uuid::Uuid;
 
 /* === Constants === */
@@ -46,19 +46,18 @@ impl Files {
         let request_id = Uuid::now_v7().to_string();
         let created = self
             .uploads
-            .create(Request::new(UploadsCreateRequest {
-                metadata: Some(FileMetadata {
+            .create_with(
+                FileMetadata {
                     expected_length: Some(length),
                     ..Default::default()
-                }),
-                request_id: format!("{request_id}/create"),
-            }))
-            .await?
-            .into_inner();
-        let session = created
-            .production
-            .and_then(|production| production.session)
-            .ok_or_else(|| Status::data_loss("Upload File: Missing Writer Session"))?;
+                },
+                FilesUploadsCreateOptions {
+                    request_id: Some(format!("{request_id}/create")),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let upload = created.upload.ok_or_else(|| Status::data_loss("Upload File: Missing Upload"))?;
         let work = async {
             let chunk = usize::try_from(created.chunk_bytes)
                 .ok()
@@ -75,16 +74,18 @@ impl Files {
                 }
                 let reply = self
                     .uploads
-                    .append(Request::new(UploadsAppendRequest {
-                        session: Some(session.clone()),
+                    .append_with(
+                        upload.clone(),
                         offset,
-                        data: buffer[..size].to_vec(),
-                        request_id: format!("{request_id}/append/{offset}"),
-                    }))
-                    .await?
-                    .into_inner();
+                        buffer[..size].to_vec(),
+                        FilesUploadsAppendOptions {
+                            request_id: Some(format!("{request_id}/append/{offset}")),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
                 offset += size as u64;
-                if reply.production.as_ref().is_none_or(|production| production.length != offset) {
+                if reply.upload.as_ref().is_none_or(|upload| upload.accepted_length != offset) {
                     return Err(Status::data_loss("Upload File: Invalid Accepted Offset"));
                 }
                 digest.update(&buffer[..size]);
@@ -92,15 +93,17 @@ impl Files {
             let digest = digest.finalize().to_vec();
             let reply = self
                 .uploads
-                .publish(Request::new(UploadsPublishRequest {
-                    session: Some(session.clone()),
-                    length: offset,
-                    sha256: digest.clone(),
-                    request_id: format!("{request_id}/publish"),
-                }))
-                .await?
-                .into_inner();
-            let reference = reply.file.ok_or_else(|| Status::data_loss("Upload File: Missing Published Reference"))?;
+                .publish_with(
+                    upload.clone(),
+                    offset,
+                    digest.clone(),
+                    FilesUploadsPublishOptions {
+                        request_id: Some(format!("{request_id}/publish")),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let reference = reply.upload.ok_or_else(|| Status::data_loss("Upload File: Missing Published Reference"))?;
             if reference.length != offset || reference.sha256 != digest {
                 return Err(Status::data_loss("Upload File: Published Length or SHA-256 Changed"));
             }
@@ -109,10 +112,13 @@ impl Files {
         .await;
         if work.is_err() {
             self.uploads
-                .delete(Request::new(UploadsDeleteRequest {
-                    session: Some(session),
-                    request_id: format!("{request_id}/abandon"),
-                }))
+                .delete_with(
+                    upload,
+                    FilesUploadsDeleteOptions {
+                        request_id: Some(format!("{request_id}/abandon")),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| Status::unknown(format!("Abandon File Upload After {work:?}: {error}")))?;
         }

@@ -18,10 +18,14 @@ mod types;
 
 /* === Re-Exports === */
 
-pub use crate::Context;
+pub use crate::context::Context;
+pub use crate::operation::Operation;
 pub use crate::prompt::Prompt;
+pub use crate::record::Record;
+pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
+pub use harmos::plugin::Publisher;
 pub use types::*;
 include!("host_exports.rs");
 
@@ -41,10 +45,16 @@ use prost::{
 };
 
 // Local Imports
-use crate::{
-    Error, Message, Observer, Operation, OperationRequest, Prompt, Record, Result, Stream, Suite, context::Executions, host, message::Wire,
-    stream::Registration, template::validate_names, v1,
-};
+use crate::SecretDeclaration;
+use crate::SecretsDeclarations;
+use crate::SettingDeclaration;
+use crate::SettingsDeclarations;
+use crate::{Analyses, Analysis};
+use crate::{Error, Message, OperationRequest, Result, context::Executions, message::Wire, stream::Registration, template::validate_names};
+use crate::{Prompt as PromptDefinition, PromptDefinitions, RecordContract, RecordContracts, Suites};
+use harmos::Error as HarmosError;
+use harmos::Message as HarmosMessage;
+use harmos::plugin::Plugin as HarmosPlugin;
 
 /* === Constants === */
 
@@ -54,26 +64,28 @@ use crate::{
 
 /* === Structs === */
 
-// A Product Plugin. Composition Is Inert Until Catalog Validation or Serve.
+// A Product Plugin. Composition Is Inert Until Declaration Validation or Serve.
 pub struct Plugin<C = ()> {
     assembly: Assembly,
     marker: PhantomData<fn() -> C>,
 }
 
 struct Assembly {
-    inner: harmos::Plugin,
+    inner: HarmosPlugin,
     identifier: String,
     suites: Vec<Suite>,
-    records: Vec<v1::RecordContract>,
-    prompts: Vec<v1::Prompt>,
-    settings: Vec<v1::Setting>,
+    records: Vec<RecordContract>,
+    prompts: Vec<PromptDefinition>,
+    analyses: Vec<Analysis>,
+    settings: Vec<SettingDeclaration>,
+    secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
     errors: Vec<String>,
     stop: Vec<Box<dyn Fn() -> Result<()> + Send + Sync>>,
 }
 
 struct Records<C> {
-    message: Wire<v1::RecordContracts>,
+    message: Wire<RecordContracts>,
     marker: PhantomData<fn() -> C>,
 }
 
@@ -83,7 +95,7 @@ struct Records<C> {
 
 // Descriptor Accumulation for Typed Record Contracts; Normally Inferred by the Builder.
 #[doc(hidden)]
-pub trait CatalogTypes: Send + Sync + 'static {
+pub trait DeclarationTypes: Send + Sync + 'static {
     fn types() -> prost_types::FileDescriptorSet;
 }
 
@@ -94,12 +106,14 @@ impl Plugin {
         let identifier = identifier.into();
         Self {
             assembly: Assembly {
-                inner: harmos::Plugin::new(identifier.clone(), version),
+                inner: HarmosPlugin::new(identifier.clone(), version),
                 identifier,
                 suites: Vec::new(),
                 records: Vec::new(),
                 prompts: Vec::new(),
+                analyses: Vec::new(),
                 settings: Vec::new(),
+                secrets: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
                 stop: Vec::new(),
@@ -109,7 +123,7 @@ impl Plugin {
     }
 }
 
-impl<C: CatalogTypes> Plugin<C> {
+impl<C: DeclarationTypes> Plugin<C> {
     pub fn suite(mut self, suite: Suite) -> Self {
         self.assembly.suites.push(suite);
         self
@@ -118,18 +132,26 @@ impl<C: CatalogTypes> Plugin<C> {
         self.assembly.registrations.push(operation.registration());
         self
     }
-    pub fn requires<Q: OperationRequest>(mut self) -> Self {
+    pub fn analysis<H>(mut self, definition: Analysis, handler: H) -> Self
+    where
+        H: for<'a> AsyncFn(&'a Context, AnalysesComputeRequest) -> Result<AnalysesComputeResponse> + Send + Sync + 'static,
+    {
+        let identifier = definition.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()).to_owned();
+        self.assembly.analyses.push(definition);
+        self.operation(Operation::analysis(identifier, handler))
+    }
+    pub fn requires_operation<Q: OperationRequest>(mut self) -> Self {
         self.assembly.inner = self.assembly.inner.requires::<Q>();
         self
     }
-    pub fn requires_host<Q: host::Request>(self) -> Self {
-        self.requires::<Wire<Q>>()
+    pub(crate) fn requires<Q: crate::host::Request>(self) -> Self {
+        self.requires_operation::<Wire<Q>>()
     }
     pub fn prompt(mut self, prompt: Prompt) -> Self {
         self.assembly.prompts.push(prompt.definition);
         self
     }
-    pub fn setting(mut self, setting: v1::Setting) -> Self {
+    pub fn setting(mut self, setting: SettingDeclaration) -> Self {
         self.assembly.settings.push(setting);
         self
     }
@@ -138,6 +160,10 @@ impl<C: CatalogTypes> Plugin<C> {
             Ok(settings) => self.assembly.settings.extend(settings),
             Err(error) => self.assembly.errors.push(error.to_string()),
         }
+        self
+    }
+    pub fn secret(mut self, secret: SecretDeclaration) -> Self {
+        self.assembly.secrets.push(secret);
         self
     }
     pub fn record<T: Message>(mut self, record: Record<T>) -> Plugin<(C, T)> {
@@ -166,14 +192,16 @@ impl<C: CatalogTypes> Plugin<C> {
     }
 
     // Finish Composition Without Opening a Socket or Running Author Callbacks.
-    pub fn into_harmos(self) -> Result<harmos::Plugin> {
+    pub fn into_harmos(self) -> Result<HarmosPlugin> {
         let Assembly {
             mut inner,
             identifier,
             suites,
             records,
             prompts,
+            analyses,
             settings,
+            secrets,
             registrations,
             errors,
             stop,
@@ -194,10 +222,7 @@ impl<C: CatalogTypes> Plugin<C> {
             prompts.iter().filter_map(|prompt| prompt.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
             "Prompt",
         )?;
-        validate_names(
-            settings.iter().map(|setting| setting.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
-            "Setting",
-        )?;
+        validate_names(settings.iter().map(|setting| setting.name.as_str()), "Setting")?;
         for prompt in &prompts {
             validate_names(
                 prompt.fields.iter().map(|field| field.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
@@ -205,10 +230,19 @@ impl<C: CatalogTypes> Plugin<C> {
             )?;
             validate_names(prompt.actions.iter().map(|action| action.identifier.as_str()), "Prompt Action")?;
         }
-        for setting in &settings {
-            if setting.kind.is_none() {
-                return Err(Error::Invalid("Declare the Setting Kind Before Serving".into()));
-            }
+        validate_names(
+            secrets.iter().map(|secret| secret.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
+            "Secret",
+        )?;
+        if !secrets.is_empty() {
+            inner = inner.section(Wire(SecretsDeclarations { secrets }));
+        }
+        validate_names(
+            analyses.iter().map(|analysis| analysis.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
+            "Analysis",
+        )?;
+        if !analyses.is_empty() {
+            inner = inner.section(Wire(Analyses { analyses }));
         }
         let executions: Executions = Arc::new(Mutex::new(HashMap::new()));
         let mut definitions = Vec::new();
@@ -221,45 +255,45 @@ impl<C: CatalogTypes> Plugin<C> {
             definitions.push(suite.definition);
         }
         if !definitions.is_empty() {
-            inner = inner.section(Wire(v1::Suites { suites: definitions }));
+            inner = inner.section(Wire(Suites { suites: definitions }));
         }
         if !records.is_empty() {
             inner = inner.section(Records::<C> {
-                message: Wire(v1::RecordContracts { records }),
+                message: Wire(RecordContracts { records }),
                 marker: PhantomData,
             });
         }
         if !prompts.is_empty() {
-            inner = inner.section(Wire(v1::PromptDefinitions { prompts }));
+            inner = inner.section(Wire(PromptDefinitions { prompts }));
         }
         if !settings.is_empty() {
-            inner = inner.section(Wire(v1::SettingsDeclarations { settings }));
+            inner = inner.settings(SettingsDeclarations { values: settings });
         }
         for register in registrations {
             inner = register(inner, executions.clone());
         }
-        inner = inner.on_stop(move || crate::context::clear(&executions).map_err(harmos::Error::from));
+        inner = inner.on_stop(move || crate::context::clear(&executions).map_err(HarmosError::from));
         for cleanup in stop {
-            inner = inner.on_stop(move || cleanup().map_err(harmos::Error::from));
+            inner = inner.on_stop(move || cleanup().map_err(HarmosError::from));
         }
-        inner.catalog()?;
+        inner.declarations()?;
         Ok(inner)
     }
-    pub fn catalog(self) -> Result<harmos_protocol::v1::Catalog> {
-        self.into_harmos()?.catalog().map_err(Error::from)
+    pub fn declarations(self) -> Result<crate::Declarations> {
+        self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn serve(self) -> Result<()> {
         self.into_harmos()?.serve().map_err(Error::from)
     }
 }
 
-impl CatalogTypes for () {
+impl DeclarationTypes for () {
     fn types() -> prost_types::FileDescriptorSet {
         prost_types::FileDescriptorSet::default()
     }
 }
 
-impl<C: CatalogTypes, T: Message> CatalogTypes for (C, T) {
+impl<C: DeclarationTypes, T: Message> DeclarationTypes for (C, T) {
     fn types() -> prost_types::FileDescriptorSet {
         let mut types = C::types();
         harmos::encoding::merge_descriptor_types(&mut types, T::types());
@@ -290,12 +324,12 @@ impl<C: Send + Sync> prost::Message for Records<C> {
     }
 }
 
-impl<C: CatalogTypes> harmos::Message for Records<C> {
+impl<C: DeclarationTypes> HarmosMessage for Records<C> {
     fn name() -> String {
-        <Wire<v1::RecordContracts> as harmos::Message>::name()
+        <Wire<RecordContracts> as HarmosMessage>::name()
     }
     fn types() -> prost_types::FileDescriptorSet {
-        let mut types = <Wire<v1::RecordContracts> as harmos::Message>::types();
+        let mut types = <Wire<RecordContracts> as HarmosMessage>::types();
         harmos::encoding::merge_descriptor_types(&mut types, C::types());
         types
     }

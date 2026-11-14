@@ -21,7 +21,8 @@ use std::marker::PhantomData;
 // Third Party Imports
 
 // Local Imports
-use crate::{Message, v1};
+use crate::Message;
+use crate::{Metadata, RecordContract};
 
 /* === Constants === */
 
@@ -33,7 +34,7 @@ use crate::{Message, v1};
 
 // A Record Contract Names a Message, Independent of Stream Publication.
 pub struct Record<T: Message> {
-    pub(crate) definition: v1::RecordContract,
+    pub(crate) definition: RecordContract,
     marker: PhantomData<fn() -> T>,
 }
 
@@ -46,8 +47,8 @@ pub struct Record<T: Message> {
 impl<T: Message> Record<T> {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
-            definition: v1::RecordContract {
-                metadata: Some(v1::Metadata {
+            definition: RecordContract {
+                metadata: Some(Metadata {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),

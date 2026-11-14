@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::v1;
+use crate::{AnswerRule, EvidenceCondition, Metadata, Prompt as PromptDefinition, PromptAction, PromptArchetype, PromptField};
 
 /* === Constants === */
 
@@ -31,7 +31,7 @@ use crate::v1;
 /* === Structs === */
 
 pub struct Prompt {
-    pub(crate) definition: v1::Prompt,
+    pub(crate) definition: PromptDefinition,
 }
 
 /* === Enums === */
@@ -43,8 +43,8 @@ pub struct Prompt {
 impl Prompt {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            definition: v1::Prompt {
-                metadata: Some(v1::Metadata {
+            definition: PromptDefinition {
+                metadata: Some(Metadata {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),
@@ -55,31 +55,31 @@ impl Prompt {
             },
         }
     }
-    pub fn field(mut self, field: v1::PromptField) -> Self {
+    pub fn field(mut self, field: PromptField) -> Self {
         self.definition.fields.push(field);
         self
     }
     pub fn action(mut self, identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        self.definition.actions.push(v1::PromptAction {
+        self.definition.actions.push(PromptAction {
             identifier: identifier.into(),
             label: label.into(),
             ..Default::default()
         });
         self
     }
-    pub fn archetype(mut self, archetype: v1::PromptArchetype) -> Self {
+    pub fn archetype(mut self, archetype: PromptArchetype) -> Self {
         self.definition.archetype = archetype as i32;
         self
     }
-    pub fn rule(mut self, rule: v1::AnswerRule) -> Self {
+    pub fn rule(mut self, rule: AnswerRule) -> Self {
         self.definition.rules.push(rule);
         self
     }
-    pub fn condition(mut self, condition: v1::EvidenceCondition) -> Self {
+    pub fn condition(mut self, condition: EvidenceCondition) -> Self {
         self.definition.condition = Some(condition);
         self
     }
-    pub fn into_message(self) -> v1::Prompt {
+    pub fn into_message(self) -> PromptDefinition {
         self.definition
     }
 }

@@ -27,6 +27,7 @@ use prost::{
 use prost_reflect::ReflectMessage;
 
 // Local Imports
+use harmos::Message as HarmosMessage;
 
 /* === Constants === */
 
@@ -69,7 +70,7 @@ impl<T: Message> Message for Wire<T> {
     }
 }
 
-impl<T: ReflectMessage + Default + 'static> harmos::Message for Wire<T> {
+impl<T: ReflectMessage + Default + 'static> HarmosMessage for Wire<T> {
     fn name() -> String {
         T::default().descriptor().full_name().into()
     }

@@ -47,7 +47,7 @@ struct Reading {
 fn main() -> dokime::Result<()> {
     use dokime::prelude::*;
     let stream = Stream::<Reading>::new("consumer.temperature", "Temperature [°C]");
-    Plugin::new("consumer", "1.0.0").stream(stream).catalog()?;
+    Plugin::new("consumer", "1.0.0").stream(stream).declarations()?;
     Ok(())
 }
 

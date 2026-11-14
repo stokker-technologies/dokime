@@ -84,7 +84,7 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     if !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(&input, "Message Cannot Have Generic Parameters"));
     }
-    let mut package = "dokime.plugin.v1".to_owned();
+    let mut package = "dokime.user".to_owned();
     let mut file = None;
     let mut protobuf_name = name.to_string();
     for attr in &input.attrs {

@@ -20,7 +20,13 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Context, Message, Publisher, Result, context::Executions};
+use crate::{Context, Message, Result, context::Executions};
+use harmos::Error as HarmosError;
+use harmos::plugin::Context as HarmosContext;
+use harmos::plugin::Observer as HarmosObserver;
+use harmos::plugin::Plugin as HarmosPlugin;
+use harmos::plugin::Publisher;
+use harmos::plugin::Stream as HarmosStream;
 
 /* === Constants === */
 
@@ -28,21 +34,21 @@ use crate::{Context, Message, Publisher, Result, context::Executions};
 
 /* === Type Aliases === */
 
-type Producer<T> = Box<dyn FnOnce(harmos::Stream<T>, Executions) -> harmos::Stream<T> + Send>;
-pub(crate) type Registration = Box<dyn FnOnce(harmos::Plugin, Executions) -> harmos::Plugin + Send>;
+type Producer<T> = Box<dyn FnOnce(HarmosStream<T>, Executions) -> HarmosStream<T> + Send>;
+pub(crate) type Registration = Box<dyn FnOnce(HarmosPlugin, Executions) -> HarmosPlugin + Send>;
 
 /* === Structs === */
 
 // An execution or plugin-wide stream with one protobuf message per sample.
 pub struct Stream<T: Message> {
     pub(crate) identifier: String,
-    pub(crate) inner: harmos::Stream<T>,
+    pub(crate) inner: HarmosStream<T>,
     producer: Option<Producer<T>>,
 }
 
 pub struct Observer {
-    register: Box<dyn FnOnce(Executions) -> harmos::Observer + Send>,
-    configure: Vec<Box<dyn FnOnce(harmos::Observer) -> harmos::Observer + Send>>,
+    register: Box<dyn FnOnce(Executions) -> HarmosObserver + Send>,
+    configure: Vec<Box<dyn FnOnce(HarmosObserver) -> HarmosObserver + Send>>,
 }
 
 /* === Enums === */
@@ -55,7 +61,7 @@ impl<T: Message> Stream<T> {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         let identifier = identifier.into();
         Self {
-            inner: harmos::Stream::new(identifier.clone()).description(label),
+            inner: HarmosStream::new(identifier.clone()).description(label),
             identifier,
             producer: None,
         }
@@ -72,9 +78,9 @@ impl<T: Message> Stream<T> {
         H: for<'a> AsyncFn(&'a Context, Publisher<T>) -> Result<()> + Send + Sync + 'static,
     {
         self.producer = Some(Box::new(move |stream, executions| {
-            stream.publish_on(async move |transport: &harmos::Context, publisher| {
+            stream.publish_on(async move |transport: &HarmosContext, publisher| {
                 let context = Context::publication(transport, &executions)?;
-                handler(&context, publisher).await.map_err(harmos::Error::from)
+                handler(&context, publisher).await.map_err(HarmosError::from)
             })
         }));
         self
@@ -99,10 +105,10 @@ impl Observer {
         let identifier = stream.identifier.clone();
         Self {
             register: Box::new(move |executions| {
-                let stream = harmos::Stream::<T>::new(identifier);
-                harmos::Observer::new(&stream, async move |transport: &harmos::Context| {
+                let stream = HarmosStream::<T>::new(identifier);
+                HarmosObserver::new(&stream, async move |transport: &HarmosContext| {
                     let context = Context::publication(transport, &executions)?;
-                    handler(&context).await.map_err(harmos::Error::from)
+                    handler(&context).await.map_err(HarmosError::from)
                 })
             }),
             configure: Vec::new(),
@@ -123,7 +129,7 @@ impl Observer {
         self.configure(move |observer| observer.interval_setting(identifier))
     }
 
-    fn configure(mut self, configure: impl FnOnce(harmos::Observer) -> harmos::Observer + Send + 'static) -> Self {
+    fn configure(mut self, configure: impl FnOnce(HarmosObserver) -> HarmosObserver + Send + 'static) -> Self {
         self.configure.push(Box::new(configure));
         self
     }

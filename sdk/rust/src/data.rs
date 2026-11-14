@@ -22,7 +22,12 @@ use std::collections::HashMap;
 use prost_reflect::{DynamicMessage, Kind, ReflectMessage, Value as DynamicValue};
 
 // Local Imports
-use crate::{Error, Message, Result, v1};
+use crate::ExactNumber;
+use crate::{Error, Message, Result};
+use crate::{
+    Metadata, Null, Parameter, ParameterExpression, SettingDeclaration, SettingValue, SettingValues, Value, ValueList, ValueType,
+    parameter_expression, setting_value, value,
+};
 
 /* === Constants === */
 
@@ -38,88 +43,97 @@ use crate::{Error, Message, Result, v1};
 
 // A resolved parameter scalar. Integer conversions refuse overflow and mixed types.
 pub trait FromValue: Sized {
-    fn from_value(value: &v1::Value) -> Result<Self>;
+    fn from_value(value: &Value) -> Result<Self>;
 }
 
 /* === Implementations === */
 
 impl FromValue for bool {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::Boolean(value)) => Ok(value),
+            Some(value::Kind::Boolean(value)) => Ok(value),
             _ => Err(invalid("Expected Boolean")),
         }
     }
 }
 
 impl FromValue for String {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match &value.kind {
-            Some(v1::value::Kind::Text(value)) => Ok(value.clone()),
+            Some(value::Kind::Text(value)) => Ok(value.clone()),
             _ => Err(invalid("Expected Text")),
         }
     }
 }
 
+impl FromValue for ExactNumber {
+    fn from_value(value: &Value) -> Result<Self> {
+        match &value.kind {
+            Some(value::Kind::Exact(value)) => Ok(value.clone()),
+            _ => Err(invalid("Read Exact Number: Expected an Exact Value")),
+        }
+    }
+}
+
 impl FromValue for f64 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::Number(value)) if value.is_finite() => Ok(value),
+            Some(value::Kind::Number(value)) if value.is_finite() => Ok(value),
             _ => Err(invalid("Expected Finite Number")),
         }
     }
 }
 
 impl FromValue for i64 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::Integer(value)) => Ok(value),
+            Some(value::Kind::Integer(value)) => Ok(value),
             _ => Err(invalid("Expected Signed Integer")),
         }
     }
 }
 
 impl FromValue for u64 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::UnsignedInteger(value)) => Ok(value),
+            Some(value::Kind::UnsignedInteger(value)) => Ok(value),
             _ => Err(invalid("Expected Unsigned Integer")),
         }
     }
 }
 
 impl<T: FromValue> FromValue for Vec<T> {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match &value.kind {
-            Some(v1::value::Kind::List(list)) => list.values.iter().map(T::from_value).collect(),
+            Some(value::Kind::List(list)) => list.values.iter().map(T::from_value).collect(),
             _ => Err(invalid("Expected List")),
         }
     }
 }
 
 impl<T: FromValue> FromValue for Option<T> {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::Null(_)) => Ok(None),
+            Some(value::Kind::Null(_)) => Ok(None),
             _ => T::from_value(value).map(Some),
         }
     }
 }
 
 impl FromValue for i32 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         i32::try_from(i64::from_value(value)?).map_err(invalid)
     }
 }
 
 impl FromValue for u32 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         u32::try_from(u64::from_value(value)?).map_err(invalid)
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         let number = f64::from_value(value)? as f32;
         if !number.is_finite() {
             return Err(invalid("Number Exceeds f32 Range"));
@@ -129,9 +143,9 @@ impl FromValue for f32 {
 }
 
 impl FromValue for prost_types::Timestamp {
-    fn from_value(value: &v1::Value) -> Result<Self> {
+    fn from_value(value: &Value) -> Result<Self> {
         match value.kind {
-            Some(v1::value::Kind::Datetime(value)) => Ok(value),
+            Some(value::Kind::Datetime(value)) => Ok(value),
             _ => Err(invalid("Expected Timestamp")),
         }
     }
@@ -139,7 +153,7 @@ impl FromValue for prost_types::Timestamp {
 
 /* === Public Functions === */
 
-pub(crate) fn decode<T: Message>(values: &HashMap<String, v1::Value>) -> Result<T> {
+pub(crate) fn decode<T: Message>(values: &HashMap<String, Value>) -> Result<T> {
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(T::types()).map_err(invalid)?;
     let descriptor = pool.get_message_by_name(&T::name()).ok_or_else(|| invalid("Missing Data Descriptor"))?;
     let mut message = DynamicMessage::new(descriptor.clone());
@@ -155,11 +169,11 @@ pub(crate) fn decode<T: Message>(values: &HashMap<String, v1::Value>) -> Result<
             }
             return Err(invalid(format!("Missing Data Field: {}", field.name())));
         };
-        if matches!(value.kind, Some(v1::value::Kind::Null(_))) && field.supports_presence() {
+        if matches!(value.kind, Some(value::Kind::Null(_))) && field.supports_presence() {
             continue;
         }
         let value = if field.is_list() {
-            let Some(v1::value::Kind::List(list)) = &value.kind else {
+            let Some(value::Kind::List(list)) = &value.kind else {
                 return Err(invalid(format!("Expected List: {}", field.name())));
             };
             DynamicValue::List(list.values.iter().map(|value| dynamic(&field.kind(), value)).collect::<Result<_>>()?)
@@ -171,7 +185,7 @@ pub(crate) fn decode<T: Message>(values: &HashMap<String, v1::Value>) -> Result<
     T::decode(prost::Message::encode_to_vec(&message).as_slice()).map_err(invalid)
 }
 
-pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<v1::Parameter>> {
+pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<Parameter>> {
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(T::types()).map_err(invalid)?;
     let descriptor = pool.get_message_by_name(&T::name()).ok_or_else(|| invalid("Missing Parameter Descriptor"))?;
     let message = DynamicMessage::decode(descriptor.clone(), defaults.encode_to_vec().as_slice()).map_err(invalid)?;
@@ -187,20 +201,18 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<v1::Parameter>> 
                 let DynamicValue::List(list) = value.as_ref() else {
                     return Err(invalid("Invalid List Default"));
                 };
-                v1::Value {
-                    kind: Some(v1::value::Kind::List(v1::ValueList {
+                Value {
+                    kind: Some(value::Kind::List(ValueList {
                         values: list.iter().map(scalar).collect::<Result<_>>()?,
                     })),
                 }
             } else if field.supports_presence() && !message.has_field(&field) {
-                v1::Value {
-                    kind: Some(v1::value::Kind::Null(v1::Null {})),
-                }
+                Value { kind: Some(value::Kind::Null(Null {})) }
             } else {
                 scalar(message.get_field(&field).as_ref())?
             };
-            Ok(v1::Parameter {
-                metadata: Some(v1::Metadata {
+            Ok(Parameter {
+                metadata: Some(Metadata {
                     identifier: field.name().into(),
                     label: field
                         .name()
@@ -217,10 +229,10 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<v1::Parameter>> 
                     description: String::new(),
                     ..Default::default()
                 }),
-                r#type: if field.is_list() { v1::ValueType::List as i32 } else { element_type as i32 },
+                r#type: if field.is_list() { ValueType::List as i32 } else { element_type as i32 },
                 element_type: if field.is_list() { element_type as i32 } else { 0 },
-                expression: Some(v1::ParameterExpression {
-                    kind: Some(v1::parameter_expression::Kind::Literal(value)),
+                expression: Some(ParameterExpression {
+                    kind: Some(parameter_expression::Kind::Literal(value)),
                 }),
                 ..Default::default()
             })
@@ -228,29 +240,48 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<v1::Parameter>> 
         .collect()
 }
 
-pub(crate) fn settings<T: Message>(defaults: T) -> Result<Vec<v1::Setting>> {
+pub(crate) fn settings<T: Message>(defaults: T) -> Result<Vec<SettingDeclaration>> {
     parameters(defaults)?
         .into_iter()
         .map(|parameter| {
+            let metadata = parameter.metadata.ok_or_else(|| invalid("Declare Settings: Missing Metadata"))?;
             let value = parameter.expression.and_then(|expression| match expression.kind {
-                Some(v1::parameter_expression::Kind::Literal(value)) => value.kind,
+                Some(parameter_expression::Kind::Literal(value)) => value.kind,
                 _ => None,
             });
-            let kind = match value {
-                Some(v1::value::Kind::Boolean(value)) => v1::setting::Kind::Boolean(v1::BooleanSetting { default_value: value }),
-                Some(v1::value::Kind::Text(value)) => v1::setting::Kind::Text(v1::TextSetting { default_value: value, required: false }),
-                Some(v1::value::Kind::Number(value)) => v1::setting::Kind::Number(v1::NumberSetting {
-                    default_value: value,
-                    ..Default::default()
-                }),
-                _ => return Err(invalid("Setting Defaults Require Boolean, Text or f64 Numbers; Use an Explicit Setting for Other Kinds")),
+            let value = match value {
+                Some(value::Kind::Boolean(value)) => setting_value::Value::Flag(value),
+                Some(value::Kind::Integer(value)) => setting_value::Value::Integer(value),
+                Some(value::Kind::Number(value)) => setting_value::Value::Number(value),
+                Some(value::Kind::Text(value)) => setting_value::Value::Text(value),
+                _ => return Err(invalid("Declare Settings: Supply a Boolean, Signed Integer, Number or Text Default")),
             };
-            Ok(v1::Setting {
-                metadata: parameter.metadata,
-                kind: Some(kind),
+            Ok(SettingDeclaration {
+                name: metadata.identifier,
+                title: metadata.label,
+                description: metadata.description,
+                default: Some(SettingValue { value: Some(value) }),
             })
         })
         .collect()
+}
+
+pub(crate) fn decode_settings<T: Message>(settings: SettingValues) -> Result<T> {
+    let values = settings
+        .values
+        .into_iter()
+        .map(|(name, value)| {
+            let kind = match value.value {
+                Some(setting_value::Value::Flag(value)) => value::Kind::Boolean(value),
+                Some(setting_value::Value::Integer(value)) => value::Kind::Integer(value),
+                Some(setting_value::Value::Number(value)) => value::Kind::Number(value),
+                Some(setting_value::Value::Text(value)) => value::Kind::Text(value),
+                _ => return Err(invalid("Read Settings: Unsupported or Missing Typed Value")),
+            };
+            Ok((name, Value { kind: Some(kind) }))
+        })
+        .collect::<Result<HashMap<_, _>>>()?;
+    decode(&values)
 }
 
 /* === Private Functions === */
@@ -259,21 +290,21 @@ fn invalid(error: impl std::fmt::Display) -> Error {
     Error::Invalid(error.to_string())
 }
 
-fn value_type(kind: &Kind) -> Result<v1::ValueType> {
+fn value_type(kind: &Kind) -> Result<ValueType> {
     Ok(match kind {
-        Kind::Bool => v1::ValueType::Boolean,
-        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 | Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => v1::ValueType::Integer,
-        Kind::Uint32 | Kind::Fixed32 | Kind::Uint64 | Kind::Fixed64 => v1::ValueType::UnsignedInteger,
-        Kind::Float | Kind::Double => v1::ValueType::Number,
-        Kind::String => v1::ValueType::Text,
-        Kind::Bytes => v1::ValueType::Bytes,
-        Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => v1::ValueType::Datetime,
+        Kind::Bool => ValueType::Boolean,
+        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 | Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => ValueType::Integer,
+        Kind::Uint32 | Kind::Fixed32 | Kind::Uint64 | Kind::Fixed64 => ValueType::UnsignedInteger,
+        Kind::Float | Kind::Double => ValueType::Number,
+        Kind::String => ValueType::Text,
+        Kind::Bytes => ValueType::Bytes,
+        Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => ValueType::Datetime,
         _ => return Err(invalid("Parameters and Settings Require Scalar or List Data")),
     })
 }
 
-fn scalar(value: &DynamicValue) -> Result<v1::Value> {
-    use v1::value::Kind as V;
+fn scalar(value: &DynamicValue) -> Result<Value> {
+    use value::Kind as V;
     let kind = match value {
         DynamicValue::Bool(value) => V::Boolean(*value),
         DynamicValue::I32(value) => V::Integer(i64::from(*value)),
@@ -289,11 +320,11 @@ fn scalar(value: &DynamicValue) -> Result<v1::Value> {
         ),
         _ => return Err(invalid("Unsupported or Nonfinite Default Value")),
     };
-    Ok(v1::Value { kind: Some(kind) })
+    Ok(Value { kind: Some(kind) })
 }
 
-fn dynamic(kind: &Kind, value: &v1::Value) -> Result<DynamicValue> {
-    use v1::value::Kind as V;
+fn dynamic(kind: &Kind, value: &Value) -> Result<DynamicValue> {
+    use value::Kind as V;
     Ok(match (kind, &value.kind) {
         (Kind::Bool, Some(V::Boolean(value))) => DynamicValue::Bool(*value),
         (Kind::String, Some(V::Text(value))) => DynamicValue::String(value.clone()),

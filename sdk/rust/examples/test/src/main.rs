@@ -31,7 +31,7 @@ use dokime::prelude::*;
 /* === Structs === */
 
 #[derive(dokime::Record)]
-#[harmos(package = "example.v1")]
+#[harmos(package = "example")]
 struct Confirmation {
     accepted: bool,
 }
@@ -53,23 +53,17 @@ fn main() -> Result<()> {
         .criterion(Criterion::new("Confirmed", confirmed).identifier("confirmed"));
     let plugin = Plugin::new("example", "0.1.0")
         .suite(Suite::new("example", "Example").template(template))
-        .record(confirmation)
         .prompt(Prompt::new("example.confirmation", "Confirmation", "Continue?").action("yes", "Yes").action("no", "No"))
-        .requires_host::<dokime::protocol::plugin::host::v1::PromptsCreateRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsAppendRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsListRequest>();
+        .requires_host(HostOperation::PromptsCreate)
+        .requires_host(HostOperation::EvidenceRecordsAppend)
+        .requires_host(HostOperation::EvidenceRecordsList)
+        .record(confirmation);
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn confirm(ctx: &Context) -> Result<()> {
-    let answer = ctx
-        .prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
-            prompt: "confirmation".into(),
-            prompt_type: "example.confirmation".into(),
-            ..Default::default()
-        })
-        .await?;
+    let answer = ctx.host().prompts.create("confirmation".into(), "example.confirmation".into(), Default::default()).await?;
     let record = Record::<Confirmation>::new("example.confirmation", "Confirmation");
     ctx.record(
         &record,

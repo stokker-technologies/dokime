@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use harmos::Error as HarmosError;
 
 /* === Constants === */
 
@@ -39,7 +40,7 @@ pub enum Error {
     Invalid(String),
 
     #[error(transparent)]
-    Harmos(#[from] harmos::Error),
+    Harmos(#[from] HarmosError),
 }
 
 /* === Traits === */
@@ -50,7 +51,7 @@ impl Error {
     pub fn failure(
         classification: harmos::Classification, code: impl Into<String>, message: impl Into<String>, action: impl Into<String>,
     ) -> Self {
-        harmos::Error::failure(classification, code, message, action).into()
+        HarmosError::failure(classification, code, message, action).into()
     }
 }
 
@@ -78,7 +79,7 @@ impl From<tonic::transport::Error> for Error {
     }
 }
 
-impl From<Error> for harmos::Error {
+impl From<Error> for HarmosError {
     fn from(error: Error) -> Self {
         match error {
             Error::Invalid(message) => Self::Invalid(message),

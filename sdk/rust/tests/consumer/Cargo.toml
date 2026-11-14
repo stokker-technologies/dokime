@@ -43,12 +43,20 @@ name = "dokime-rust-secrets"
 path = "../fixtures/secrets.rs"
 
 [[bin]]
-name = "dokime-rust-starter"
-path = "../../starter/src/main.rs"
+name = "dokime-rust-test"
+path = "../../examples/test/src/main.rs"
 
 [[bin]]
 name = "dokime-sdk-consumer"
 path = "src/main.rs"
+
+[[bin]]
+name = "dokime-rust-plugin"
+path = "../../examples/plugin/src/main.rs"
+
+[[bin]]
+name = "dokime-rust-client"
+path = "../../examples/client/src/main.rs"
 
 # === Features === #
 
@@ -57,6 +65,8 @@ path = "src/main.rs"
 [dependencies]
 # Local
 dokime = { path = "../.." }
+prost-types = { version = "0.14.4" }
+tonic = { version = "0.14.8", features = ["transport"] }
 
 # Git
 
@@ -77,7 +87,7 @@ dokime = { path = "../.." }
 # Concurrency
 
 # Async
-tokio = { version = "1.50.0", features = ["sync"] }
+tokio = { version = "1.50.0", features = ["sync", "rt", "net", "time"] }
 
 # Networking
 
@@ -93,6 +103,7 @@ tokio = { version = "1.50.0", features = ["sync"] }
 
 [dev-dependencies]
 # Local
+dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 
 # Git
 harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
@@ -109,7 +120,6 @@ harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technol
 # Serialization
 prost = { version = "0.14.4" }
 prost-reflect = { version = "0.16.5" }
-prost-types = { version = "0.14.4" }
 tonic-prost = { version = "0.14.8" }
 
 # Configuration

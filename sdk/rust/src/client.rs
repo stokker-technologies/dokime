@@ -12,7 +12,6 @@
 /* === Modules === */
 
 mod files;
-mod host;
 mod schemas;
 #[rustfmt::skip]
 mod resources;
@@ -27,22 +26,18 @@ pub use types::*;
 
 pub use schemas::FrozenSchemaCache;
 
-pub use host::{Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates};
-
-pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
+pub use harmos::ClientSettings;
+pub use harmos::client::{Input, Method, NoItems, Running};
 /* === Imports === */
 
 // Standard Library Imports
 
 // Third Party Imports
 use prost_reflect::ReflectMessage;
-use tonic::{
-    IntoRequest, Request, Response, Status,
-    metadata::{Ascii, MetadataValue},
-    transport::Channel,
-};
+use tonic::{Status as RpcStatus, transport::Channel};
 
 // Local Imports
+use crate::DiscoveredContract;
 use std::ops::Deref;
 
 /* === Constants === */
@@ -57,7 +52,6 @@ use std::ops::Deref;
 #[derive(Clone)]
 pub struct Client {
     transport: harmos::Client,
-    authorization: Option<MetadataValue<Ascii>>,
     resources: resources::Root,
 }
 
@@ -70,18 +64,10 @@ pub struct Client {
 impl Client {
     pub fn new(transport: harmos::Client) -> Self {
         let resources = resources::Root::new(transport.transport_handle());
-        Self {
-            transport,
-            authorization: None,
-            resources,
-        }
+        Self { transport, resources }
     }
-    pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, Status> {
+    pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, RpcStatus> {
         Ok(Self::new(harmos::Client::new(channel, settings)?))
-    }
-    pub fn authorization(mut self, value: MetadataValue<Ascii>) -> Self {
-        self.authorization = Some(value);
-        self
     }
     pub fn transport(&self) -> &harmos::Client {
         &self.transport
@@ -90,41 +76,45 @@ impl Client {
     // Bind Authoritative Host Discovery to Generated Dokime Messages, Checking Their Schema.
     pub fn method<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
         &self, contract: DiscoveredContract,
-    ) -> Result<Method<Q, R>, Status> {
+    ) -> Result<Method<Q, R>, RpcStatus> {
         Method::new(contract)
     }
 
-    pub async fn catalog(
-        &self, request: impl IntoRequest<CatalogEntriesListRequest>,
-    ) -> Result<Response<CatalogEntriesListResponse>, Status> {
-        self.transport.catalog_entries.list(self.request(request)).await
-    }
-
-    pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: impl IntoRequest<Q>) -> Result<Response<R>, Status>
+    pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: Q) -> Result<R, RpcStatus>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,
     {
-        self.transport.call(method, self.request(request)).await
+        self.transport.call(method, request).await
+    }
+    pub async fn call_with<Q, R>(&self, method: &Method<Q, R>, request: Q, context: CallOptions) -> Result<R, RpcStatus>
+    where
+        Q: prost::Message + Default + Send + 'static,
+        R: prost::Message + Default + Send + 'static,
+    {
+        self.transport.call_with(method, request, context).await
     }
 
     // Upload, Download, Watch and Duplex Calls Retain Harmos's Explicit Finish and Join.
-    pub async fn start<Q, R, I, O>(&self, method: &Method<Q, R, I, O>, request: impl IntoRequest<Q>) -> Result<Running<R, I, O>, Status>
+    pub async fn start<Q, R, I, O>(&self, method: &Method<Q, R, I, O>, request: Q) -> Result<Running<R, I, O>, RpcStatus>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,
         I: prost::Message + Default + Send + 'static,
         O: prost::Message + Default + Send + 'static,
     {
-        self.transport.start(method, self.request(request)).await
+        self.transport.start(method, request).await
     }
-
-    fn request<T>(&self, request: impl IntoRequest<T>) -> Request<T> {
-        let mut request = request.into_request();
-        if let Some(authorization) = &self.authorization {
-            request.metadata_mut().insert("authorization", authorization.clone());
-        }
-        request
+    pub async fn start_with<Q, R, I, O>(
+        &self, method: &Method<Q, R, I, O>, request: Q, context: CallOptions,
+    ) -> Result<Running<R, I, O>, RpcStatus>
+    where
+        Q: prost::Message + Default + Send + 'static,
+        R: prost::Message + Default + Send + 'static,
+        I: prost::Message + Default + Send + 'static,
+        O: prost::Message + Default + Send + 'static,
+    {
+        self.transport.start_with(method, request, context).await
     }
 }
 
