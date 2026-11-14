@@ -49,4 +49,5 @@ fn main() -> Result<(), String> {
         .map_err(|error| format!("Export Preferences: Write {}: {error}", output.display()))?;
     Ok(())
 }
+
 /* === Tests === */

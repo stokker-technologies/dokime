@@ -68,6 +68,7 @@ pub use dokime_operations_next::client::ClientSettings;
 use std::{net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
+use harmos_runtime::{grpc::GrpcManager, services::status::Status};
 
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
@@ -150,7 +151,7 @@ impl Server {
     pub fn endpoint(&self) -> SocketAddr {
         self.endpoint
     }
-    pub fn status(&self) -> &Arc<harmos_runtime::services::status::Status> {
+    pub fn status(&self) -> &Arc<Status> {
         &self.status
     }
     pub async fn close(mut self) -> Result<()> {
@@ -301,7 +302,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 
 /* === Private Functions === */
 
-fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
+fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
     manager.register_service(
         FilesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),

@@ -14,7 +14,8 @@
 /* === Imports === */
 
 use super::{BackendDiagnostics, DesktopSessionError as Error};
-use crate::connection::host::{self, Connection};
+use crate::connection::host::{self, Connection, Error as HostError};
+use dokime_runtime_next::Error as RuntimeError;
 use std::path::PathBuf;
 
 /* === Constants === */
@@ -60,8 +61,8 @@ pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> 
 
 /* === Private Functions === */
 
-fn failure(backend: &Backend, error: host::Error) -> Error {
-    if let host::Error::Host(dokime_runtime_next::Error::OccupiedRoot(root)) = error {
+fn failure(backend: &Backend, error: HostError) -> Error {
+    if let HostError::Host(RuntimeError::OccupiedRoot(root)) = error {
         let message = format!(
             "The data folder {} is in use by another host. Connect to that host, close its owner or select a fresh storage root.",
             root.display()
