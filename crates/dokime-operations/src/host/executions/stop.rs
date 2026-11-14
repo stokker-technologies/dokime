@@ -18,10 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
+use crate::host::RunAction;
 use crate::{Result, host::Context};
+use dokime_protocol::host::ExecutionsStopRequest;
+use dokime_protocol::host::ExecutionsStopResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,18 +45,13 @@ pub const ID: &str = "dokime.host.v1.Executions/Stop";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsStopRequest, dokime_protocol::host::ExecutionsStopResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsStopRequest, ExecutionsStopResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsStopRequest,
-) -> Result<dokime_protocol::host::ExecutionsStopResponse> {
+pub async fn handle(context: &Context, request: ExecutionsStopRequest) -> Result<ExecutionsStopResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        context.host.control_execution(&request.name, crate::host::RunAction::Stop)?;
-        Ok(dokime_protocol::host::ExecutionsStopResponse {
+        context.host.control_execution(&request.name, RunAction::Stop)?;
+        Ok(ExecutionsStopResponse {
             execution: Some(crate::host::execution_state::detail(context, &request.name)?),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })

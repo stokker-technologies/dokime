@@ -18,12 +18,20 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::CycleStatus;
+use dokime_protocol::host::ExecutionMode;
+use dokime_protocol::host::ExecutionsCreateRequest;
+use dokime_protocol::host::ExecutionsCreateResponse;
+use dokime_protocol::model::origin::Kind;
+use dokime_storage::Execution;
+use harmos_protocol::host::PluginState;
+use harmos_protocol::model::OperationContract;
+use std::collections::HashSet;
 
 /* === Constants === */
 
@@ -43,22 +51,18 @@ pub const ID: &str = "dokime.host.v1.Executions/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsCreateRequest, dokime_protocol::host::ExecutionsCreateResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsCreateRequest, ExecutionsCreateResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsCreateRequest,
-) -> Result<dokime_protocol::host::ExecutionsCreateResponse> {
+pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Result<ExecutionsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
+        let _guard = context.administration.lock().await;
         let cycle = crate::host::execution_state::cycle(context, &request.parent)?;
         if cycle.sealed || request.executions.is_empty() || request.executions.len() > context.settings.max_cases {
             return Err(Error::Invalid("Append Executions: Supply Bounded Bindings to an Unsealed Cycle".into()));
         }
-        let mut identifiers = std::collections::HashSet::new();
-        let plugins = context.host.plugins()?;
+        let mut identifiers = HashSet::new();
+        let plugins = context.host.plugins().await?;
         let mut prepared = Vec::new();
         for binding in &request.executions {
             if uuid::Uuid::parse_str(&binding.execution_id).is_err() || !identifiers.insert(&binding.execution_id) {
@@ -67,26 +71,31 @@ pub async fn handle(
             let case = context.host.store().planned_case(&binding.case_id)?;
             let origin = case.origin.ok_or_else(|| Error::Invalid("Append Executions: Materialize the Selected Case".into()))?;
             let run = match origin.kind.as_ref() {
-                Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => run,
+                Some(Kind::PluginRun(run)) => run,
                 _ => return Err(Error::Invalid("Append Executions: Use PluginRun Cases; Import Evidence Separately".into())),
             };
             let plugin = plugins
                 .iter()
-                .find(|plugin| {
-                    plugin.state == harmos_protocol::host::PluginState::Ready as i32
-                        && plugin.description.as_ref().is_some_and(|description| description.id == run.plugin)
-                })
+                .find(|plugin| plugin.state == PluginState::Ready as i32 && plugin.name == run.plugin)
                 .ok_or_else(|| Error::Precondition("Append Executions: Reconnect the Case's Plugin Before Admission".into()))?;
-            let description = plugin.description.as_ref().unwrap();
-            let catalog = description.declarations.as_ref().unwrap();
+            let description = plugin
+                .description
+                .as_ref()
+                .ok_or_else(|| Error::Precondition("Append Executions: Discover the Plugin Before Admission".into()))?;
+            let catalog = description
+                .declarations
+                .as_ref()
+                .ok_or_else(|| Error::Precondition("Append Executions: Discover the Plugin Catalog Before Admission".into()))?;
             let catalog_bytes = catalog.encode_to_vec();
             let origin = if catalog.digest != run.digest || description.started_at != run.started_at {
-                context.host.materialize(&run.plugin, &run.template, run.test_case.as_ref().unwrap().parameters.clone()).await?
+                let test_case =
+                    run.test_case.as_ref().ok_or_else(|| Error::Invalid("Append Executions: Supply the Frozen TestCase".into()))?;
+                context.host.materialize(&run.plugin, &run.template, test_case.parameters.clone()).await?
             } else {
                 origin
             };
             prepared.push((
-                dokime_storage::Execution {
+                Execution {
                     identifier: binding.execution_id.clone(),
                     cycle: request.parent.clone(),
                     origin: Some(origin),
@@ -98,12 +107,12 @@ pub async fn handle(
         }
         context.host.store().bind_executions(&request.parent, &prepared)?;
         context.host.signal_change();
-        if cycle.continue_automatically && cycle.status != dokime_protocol::host::CycleStatus::Paused as i32 {
+        if cycle.continue_automatically && cycle.status != CycleStatus::Paused as i32 {
             for binding in &request.executions {
-                context.host.start_existing(&binding.execution_id, dokime_protocol::host::ExecutionMode::Automatic).await?;
+                context.host.start_existing(&binding.execution_id, ExecutionMode::Automatic).await?;
             }
         }
-        Ok(dokime_protocol::host::ExecutionsCreateResponse {
+        Ok(ExecutionsCreateResponse {
             executions: request
                 .executions
                 .iter()

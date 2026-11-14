@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::executions::CommandsGetRequest;
+use dokime_protocol::host::executions::CommandsGetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +44,10 @@ pub const ID: &str = "dokime.host.v1.executions.Commands/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::executions::CommandsGetRequest, dokime_protocol::host::executions::CommandsGetResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CommandsGetRequest, CommandsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::executions::CommandsGetRequest,
-) -> Result<dokime_protocol::host::executions::CommandsGetResponse> {
+pub async fn handle(context: &Context, request: CommandsGetRequest) -> Result<CommandsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let command = context
             .host
@@ -57,7 +55,7 @@ pub async fn handle(
             .command(&request.parent, &request.name)?
             .ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         let resolved_at = context.host.store().resource_value(&request.parent, "progress", request.at.as_ref())?.resolved_at;
-        Ok(dokime_protocol::host::executions::CommandsGetResponse {
+        Ok(CommandsGetResponse {
             command: Some(command),
             resolved_at: Some(resolved_at),
         })

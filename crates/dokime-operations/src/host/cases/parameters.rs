@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::CasesParametersRequest;
+use dokime_protocol::host::CasesParametersResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +44,10 @@ pub const ID: &str = "dokime.host.v1.Cases/Parameters";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CasesParametersRequest, dokime_protocol::host::CasesParametersResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CasesParametersRequest, CasesParametersResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CasesParametersRequest,
-) -> Result<dokime_protocol::host::CasesParametersResponse> {
+pub async fn handle(context: &Context, request: CasesParametersRequest) -> Result<CasesParametersResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
@@ -57,7 +55,7 @@ pub async fn handle(
                 let parameters = crate::host::execution_state::parameters(
                     &crate::host::execution_state::case(planned.origin.as_ref().unwrap())?.parameters,
                 );
-                Ok(dokime_protocol::host::CasesParametersResponse { parameters, ..Default::default() })
+                Ok(CasesParametersResponse { parameters, ..Default::default() })
             })
             .await?;
         reply.resolved_at = Some(cut);

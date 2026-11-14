@@ -18,10 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
+use crate::host::RunAction;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::ExecutionsGetRequest;
+use dokime_protocol::host::ExecutionsSetRequest;
+use dokime_protocol::host::ExecutionsSetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,20 +46,15 @@ pub const ID: &str = "dokime.host.v1.Executions/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsSetRequest, dokime_protocol::host::ExecutionsSetResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsSetRequest, ExecutionsSetResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsSetRequest,
-) -> Result<dokime_protocol::host::ExecutionsSetResponse> {
+pub async fn handle(context: &Context, request: ExecutionsSetRequest) -> Result<ExecutionsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
         let previous = crate::host::executions::get::handle(
             context,
-            dokime_protocol::host::ExecutionsGetRequest {
+            ExecutionsGetRequest {
                 name: request.name.clone(),
                 ..Default::default()
             },
@@ -69,13 +69,10 @@ pub async fn handle(
         }
         context.host.store().set_execution_presentation(&request.name, Some(&value.label), Some(value.archived))?;
         if previous.value.as_ref().is_some_and(|previous| previous.paused != value.paused) {
-            context.host.control_execution(
-                &request.name,
-                if value.paused { crate::host::RunAction::Pause } else { crate::host::RunAction::Resume },
-            )?;
+            context.host.control_execution(&request.name, if value.paused { RunAction::Pause } else { RunAction::Resume })?;
         }
         context.host.signal_change();
-        Ok(dokime_protocol::host::ExecutionsSetResponse {
+        Ok(ExecutionsSetResponse {
             revision: crate::host::paging::bytes(&value),
             value: Some(value),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),

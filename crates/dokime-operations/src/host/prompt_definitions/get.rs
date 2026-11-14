@@ -18,10 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::PromptDefinitionsGetRequest;
+use dokime_protocol::host::PromptDefinitionsGetResponse;
+use dokime_protocol::host::PromptDefinitionsListRequest;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,27 +45,20 @@ pub const ID: &str = "dokime.host.v1.PromptDefinitions/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::PromptDefinitionsGetRequest, dokime_protocol::host::PromptDefinitionsGetResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<PromptDefinitionsGetRequest, PromptDefinitionsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::PromptDefinitionsGetRequest,
-) -> Result<dokime_protocol::host::PromptDefinitionsGetResponse> {
+pub async fn handle(context: &Context, request: PromptDefinitionsGetRequest) -> Result<PromptDefinitionsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let reply = crate::host::prompt_definitions::list::handle(
-            context,
-            dokime_protocol::host::PromptDefinitionsListRequest { parent: request.parent, at: request.at },
-        )
-        .await?;
+        let reply =
+            crate::host::prompt_definitions::list::handle(context, PromptDefinitionsListRequest { parent: request.parent, at: request.at })
+                .await?;
         let value = reply
             .values
             .into_iter()
             .find(|value| value.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.name))
             .ok_or_else(|| Error::NotFound("Get Prompt Definition: Select a Declared Identifier".into()))?;
-        Ok(dokime_protocol::host::PromptDefinitionsGetResponse {
+        Ok(PromptDefinitionsGetResponse {
             value: Some(value),
             resolved_at: reply.resolved_at,
         })

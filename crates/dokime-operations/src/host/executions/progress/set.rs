@@ -18,13 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
+use crate::Error;
 use crate::{Resources, Result};
+use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::executions::ProgressSetRequest;
 use dokime_protocol::host::executions::ProgressSetResponse;
+use dokime_storage::Evidence;
+use harmos_protocol::model::OperationContract;
+use prost_types::FileDescriptorSet;
 
 /* === Constants === */
 
@@ -44,25 +48,23 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Set";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<ProgressSetRequest, ProgressSetResponse>(
-        ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
+pub fn declaration() -> Result<OperationContract> {
+    crate::declaration::<ProgressSetRequest, ProgressSetResponse>(ID, FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?)
 }
 pub async fn handle(resources: &Resources, request: ProgressSetRequest) -> Result<ProgressSetResponse> {
-    resources.check_action_scope(&request.name, ID)?;
-    let value = request.value.ok_or_else(|| crate::Error::Invalid("Set Progress: Supply the Whole Writable Value".into()))?;
+    let name = resources.resolve_execution(request.name.as_deref(), ID)?;
+    resources.check_action_scope(name, ID)?;
+    let value = request.value.ok_or_else(|| Error::Invalid("Set Progress: Supply the Whole Writable Value".into()))?;
     if value.completed > value.total {
-        return Err(crate::Error::Invalid("Set Progress: Keep Completed Progress Within Its Total".into()));
+        return Err(Error::Invalid("Set Progress: Keep Completed Progress Within Its Total".into()));
     }
     let now = resources.clock.now_ns();
     let (saved, receipt) = resources.store.set_resource_value(
-        &request.name,
+        name,
         "progress",
         &request.expected_revision,
         &request.request_id,
-        dokime_storage::Evidence {
+        Evidence {
             kind: "progress".into(),
             step: resources.step.clone(),
             payload: value.encode_to_vec(),

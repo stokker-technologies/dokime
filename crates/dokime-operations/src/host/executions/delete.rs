@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::ExecutionsDeleteRequest;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,22 +44,17 @@ pub const ID: &str = "dokime.host.v1.Executions/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsDeleteRequest, dokime_protocol::host::ExecutionsDeleteResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsDeleteRequest, ExecutionsDeleteResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsDeleteRequest,
-) -> Result<dokime_protocol::host::ExecutionsDeleteResponse> {
+pub async fn handle(context: &Context, request: ExecutionsDeleteRequest) -> Result<ExecutionsDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if let Some(reply) = context.host.store().deleted_execution(&request.request_id, &request.name)? {
             return Ok(reply);
         }
         let execution = crate::host::execution_state::detail(context, &request.name)?;
         let cut = context.host.store().cut(&request.name)?;
-        let response = dokime_protocol::host::ExecutionsDeleteResponse {
+        let response = ExecutionsDeleteResponse {
             execution: Some(execution),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         };

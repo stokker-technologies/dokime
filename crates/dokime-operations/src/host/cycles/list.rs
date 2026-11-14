@@ -18,11 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::CycleOrderKey;
+use dokime_protocol::host::CycleStatus;
+use dokime_protocol::host::CyclesListRequest;
+use dokime_protocol::host::CyclesListResponse;
+use harmos_protocol::model::OperationContract;
+use std::cmp::Ordering;
 
 /* === Constants === */
 
@@ -42,15 +47,10 @@ pub const ID: &str = "dokime.host.v1.Cycles/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CyclesListRequest, dokime_protocol::host::CyclesListResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CyclesListRequest, CyclesListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CyclesListRequest,
-) -> Result<dokime_protocol::host::CyclesListResponse> {
+pub async fn handle(context: &Context, request: CyclesListRequest) -> Result<CyclesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let mut selection = request.clone();
@@ -60,7 +60,7 @@ pub async fn handle(
         let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             let mut cycles = crate::host::execution_state::cycles(context)?;
             let filter = request.filter.clone().unwrap_or_default();
-            if filter.statuses.iter().any(|status| dokime_protocol::host::CycleStatus::try_from(*status).is_err()) {
+            if filter.statuses.iter().any(|status| CycleStatus::try_from(*status).is_err()) {
                 return Err(Error::Invalid("List Cycles: Choose Valid Status Filters".into()));
             }
             let mut selected = Vec::new();
@@ -87,20 +87,19 @@ pub async fn handle(
                 selected.push(cycle);
             }
             let order = request.order.unwrap_or_default();
-            let key = dokime_protocol::host::CycleOrderKey::try_from(order.key)
-                .map_err(|_| Error::Invalid("List Cycles: Choose a Valid Order".into()))?;
+            let key = CycleOrderKey::try_from(order.key).map_err(|_| Error::Invalid("List Cycles: Choose a Valid Order".into()))?;
             selected.sort_by(|left, right| {
                 let order = match key {
-                    dokime_protocol::host::CycleOrderKey::Label => {
+                    CycleOrderKey::Label => {
                         left.metadata.as_ref().map(|metadata| &metadata.label).cmp(&right.metadata.as_ref().map(|metadata| &metadata.label))
                     }
-                    dokime_protocol::host::CycleOrderKey::CreatedAt => {
+                    CycleOrderKey::CreatedAt => {
                         crate::host::execution_state::time(left.created_at).cmp(&crate::host::execution_state::time(right.created_at))
                     }
                     _ => crate::host::execution_state::time(left.updated_at).cmp(&crate::host::execution_state::time(right.updated_at)),
                 }
                 .then_with(|| left.cycle_id.cmp(&right.cycle_id));
-                if order == std::cmp::Ordering::Equal { left.cycle_id.cmp(&right.cycle_id) } else { order }
+                if order == Ordering::Equal { left.cycle_id.cmp(&right.cycle_id) } else { order }
             });
             if order.descending {
                 selected.reverse();
@@ -111,7 +110,7 @@ pub async fn handle(
                         && (selection.phases.is_empty() || selection.phases.contains(&cycle.phase))
                 });
             }
-            Ok(dokime_protocol::host::CyclesListResponse { cycles: selected, ..Default::default() })
+            Ok(CyclesListResponse { cycles: selected, ..Default::default() })
         })
         .await?;
         let (cycles, next_page_token) = crate::host::views::page(
@@ -123,7 +122,7 @@ pub async fn handle(
         )?;
         crate::host::bounded_reply(
             context,
-            dokime_protocol::host::CyclesListResponse {
+            CyclesListResponse {
                 cycles,
                 resolved_at: Some(cut),
                 next_page_token,

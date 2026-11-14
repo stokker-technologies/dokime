@@ -18,10 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
+use crate::host::RunAction;
 use crate::{Result, host::Context};
+use dokime_protocol::host::ExecutionsCancelRequest;
+use dokime_protocol::host::ExecutionsCancelResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,18 +45,13 @@ pub const ID: &str = "dokime.host.v1.Executions/Cancel";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsCancelRequest, dokime_protocol::host::ExecutionsCancelResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsCancelRequest, ExecutionsCancelResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsCancelRequest,
-) -> Result<dokime_protocol::host::ExecutionsCancelResponse> {
+pub async fn handle(context: &Context, request: ExecutionsCancelRequest) -> Result<ExecutionsCancelResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        context.host.control_execution(&request.name, crate::host::RunAction::Cancel)?;
-        Ok(dokime_protocol::host::ExecutionsCancelResponse {
+        context.host.control_execution(&request.name, RunAction::Cancel)?;
+        Ok(ExecutionsCancelResponse {
             execution: Some(crate::host::execution_state::detail(context, &request.name)?),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })

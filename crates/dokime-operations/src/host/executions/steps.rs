@@ -18,10 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::ExecutionStep;
+use dokime_protocol::host::ExecutionsStepsRequest;
+use dokime_protocol::host::ExecutionsStepsResponse;
+use dokime_protocol::host::StepStatus;
+use dokime_storage::ExecutionState;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +47,10 @@ pub const ID: &str = "dokime.host.v1.Executions/Steps";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::ExecutionsStepsRequest, dokime_protocol::host::ExecutionsStepsResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionsStepsRequest, ExecutionsStepsResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::ExecutionsStepsRequest,
-) -> Result<dokime_protocol::host::ExecutionsStepsResponse> {
+pub async fn handle(context: &Context, request: ExecutionsStepsRequest) -> Result<ExecutionsStepsResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let position = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?.resolved_at;
 
@@ -67,21 +68,13 @@ pub async fn handle(
                 .find(|entry| entry.kind == "step:end")
                 .map(|entry| crate::host::projection::timestamp(entry.receipt_ns));
             let status = if finished_at.is_some() {
-                if evidence.iter().any(|entry| entry.kind == "step:failure") {
-                    dokime_protocol::host::StepStatus::Failed
-                } else {
-                    dokime_protocol::host::StepStatus::Passed
-                }
+                if evidence.iter().any(|entry| entry.kind == "step:failure") { StepStatus::Failed } else { StepStatus::Passed }
             } else if started_at.is_some() {
-                if snapshot.state == dokime_storage::ExecutionState::Sealed {
-                    dokime_protocol::host::StepStatus::Cancelled
-                } else {
-                    dokime_protocol::host::StepStatus::Running
-                }
+                if snapshot.state == ExecutionState::Sealed { StepStatus::Cancelled } else { StepStatus::Running }
             } else {
-                dokime_protocol::host::StepStatus::Pending
+                StepStatus::Pending
             };
-            steps.push(dokime_protocol::host::ExecutionStep {
+            steps.push(ExecutionStep {
                 step_id: identifier,
                 metadata: step.metadata.clone(),
                 ordinal: index as u64,
@@ -91,7 +84,7 @@ pub async fn handle(
                 ..Default::default()
             });
         }
-        Ok(dokime_protocol::host::ExecutionsStepsResponse { steps, resolved_at: Some(position) })
+        Ok(ExecutionsStepsResponse { steps, resolved_at: Some(position) })
     })
     .await
 }

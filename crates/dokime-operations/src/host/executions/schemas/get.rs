@@ -18,15 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 use prost_types::FileDescriptorSet;
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::executions::SchemasGetRequest;
 use dokime_protocol::host::executions::SchemasGetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -46,7 +47,7 @@ pub const ID: &str = "dokime.host.v1.executions.Schemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<SchemasGetRequest, SchemasGetResponse>(ID, settings.read_timeout)
 }
 

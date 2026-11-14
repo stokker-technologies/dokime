@@ -23,7 +23,17 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::PromptInstance;
+use dokime_protocol::host::PromptKind;
+use dokime_protocol::host::PromptResponse;
+use dokime_protocol::host::PromptView;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::model::MapValue;
+use dokime_protocol::model::Prompt;
+use dokime_protocol::model::PromptArchetype;
+use dokime_protocol::model::PromptDefinitions;
+use std::result::Result as StandardResult;
 
 /* === Constants === */
 
@@ -41,9 +51,9 @@ use dokime_protocol::model;
 
 /* === Public Functions === */
 
-pub(crate) fn definitions(context: &Context) -> Result<Vec<dokime_protocol::model::Prompt>> {
+pub(crate) async fn definitions(context: &Context) -> Result<Vec<Prompt>> {
     let mut definitions = BTreeMap::new();
-    for plugin in context.host.plugins()? {
+    for plugin in context.host.plugins().await? {
         let Some(catalog) = plugin.description.and_then(|description| description.declarations) else {
             continue;
         };
@@ -51,7 +61,7 @@ pub(crate) fn definitions(context: &Context) -> Result<Vec<dokime_protocol::mode
             if section.r#type != "dokime.model.v1.PromptDefinitions" {
                 continue;
             }
-            for definition in dokime_protocol::model::PromptDefinitions::decode(section.payload.as_slice())?.prompts {
+            for definition in PromptDefinitions::decode(section.payload.as_slice())?.prompts {
                 let id = definition
                     .metadata
                     .as_ref()
@@ -69,7 +79,7 @@ pub(crate) fn definitions(context: &Context) -> Result<Vec<dokime_protocol::mode
     Ok(definitions.into_values().collect())
 }
 
-pub(crate) fn view(context: &Context, identifier: &str) -> Result<dokime_protocol::host::PromptView> {
+pub(crate) fn view(context: &Context, identifier: &str) -> Result<PromptView> {
     let (execution, prompt) =
         identifier.split_once('/').ok_or_else(|| Error::Invalid("Read Prompt: Select an Identifier Returned by ListPending".into()))?;
     if !context.host.store().identifiers()?.iter().any(|id| id == execution) {
@@ -84,7 +94,7 @@ pub(crate) fn view(context: &Context, identifier: &str) -> Result<dokime_protoco
         .iter()
         .find(|entry| entry.position == position && entry.kind == "prompt")
         .ok_or_else(|| Error::NotFound("Read Prompt: Select a Question Asked by This Execution".into()))?;
-    let question = dokime_protocol::host::PromptsCreateRequest::decode(entry.payload.as_slice())?;
+    let question = PromptsCreateRequest::decode(entry.payload.as_slice())?;
     if question.prompt != prompt {
         return Err(Error::NotFound("Read Prompt: Use the Identifier Returned by ListPending".into()));
     }
@@ -96,31 +106,31 @@ pub(crate) fn view(context: &Context, identifier: &str) -> Result<dokime_protoco
         .iter()
         .rev()
         .filter(|entry| entry.position > position && entry.position < next && (entry.kind == "client:answer" || entry.kind == "answer"))
-        .map(|entry| dokime_protocol::host::PromptsCreateResponse::decode(entry.payload.as_slice()))
-        .collect::<std::result::Result<Vec<_>, _>>()?
+        .map(|entry| PromptsCreateResponse::decode(entry.payload.as_slice()))
+        .collect::<StandardResult<Vec<_>, _>>()?
         .into_iter()
         .find(|answer| answer.prompt == prompt);
-    let response = answer.map(|answer| dokime_protocol::host::PromptResponse {
+    let response = answer.map(|answer| PromptResponse {
         prompt_id: identifier.into(),
         action: answer.action,
         accepted: answer.accepted,
         responder: answer.responder,
         submitted_at: answer.submitted_at,
-        values: Some(dokime_protocol::model::MapValue { values: answer.values }),
+        values: Some(MapValue { values: answer.values }),
     });
-    let kind = match dokime_protocol::model::PromptArchetype::try_from(definition.archetype).unwrap_or_default() {
-        dokime_protocol::model::PromptArchetype::Confirmation => dokime_protocol::host::PromptKind::Confirmation,
-        dokime_protocol::model::PromptArchetype::Form => dokime_protocol::host::PromptKind::Form,
-        dokime_protocol::model::PromptArchetype::Choice => dokime_protocol::host::PromptKind::Choice,
-        dokime_protocol::model::PromptArchetype::Status => dokime_protocol::host::PromptKind::Status,
-        _ => dokime_protocol::host::PromptKind::Unspecified,
+    let kind = match PromptArchetype::try_from(definition.archetype).unwrap_or_default() {
+        PromptArchetype::Confirmation => PromptKind::Confirmation,
+        PromptArchetype::Form => PromptKind::Form,
+        PromptArchetype::Choice => PromptKind::Choice,
+        PromptArchetype::Status => PromptKind::Status,
+        _ => PromptKind::Unspecified,
     };
-    Ok(dokime_protocol::host::PromptView {
-        prompt: Some(dokime_protocol::host::PromptInstance {
+    Ok(PromptView {
+        prompt: Some(PromptInstance {
             prompt_id: identifier.into(),
             definition: Some(definition),
             kind: kind as i32,
-            values: Some(dokime_protocol::model::MapValue { values: question.values }),
+            values: Some(MapValue { values: question.values }),
             scope: Some(crate::host::projection::entry_scope(&snapshot, entry)?),
             created_at: Some(crate::host::projection::timestamp(entry.receipt_ns)),
         }),

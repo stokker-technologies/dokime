@@ -18,10 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
+use crate::host::Output;
 use crate::{Result, host::Context};
+use dokime_protocol::host::CasesListRequest;
+use dokime_protocol::host::CasesWatchRequest;
+use dokime_protocol::host::CasesWatchResponse;
+use harmos_protocol::model::Failure;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,19 +47,14 @@ pub const ID: &str = "dokime.host.v1.Cases/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CasesWatchRequest, dokime_protocol::host::CasesWatchResponse>(
-        ID,
-        settings.watch_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CasesWatchRequest, CasesWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CasesWatchRequest,
-) -> Result<crate::host::Output<dokime_protocol::host::CasesWatchResponse>> {
+pub async fn handle(context: &Context, request: CasesWatchRequest) -> Result<Output<CasesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::host::CasesListRequest { parent: request.parent, at: request.at };
+        let mut selection = CasesListRequest { parent: request.parent, at: request.at };
         let first = crate::host::cases::list::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
@@ -64,7 +65,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = String::new();
-                    let response = dokime_protocol::host::CasesWatchResponse {
+                    let response = CasesWatchResponse {
                         cases: page.cases,
                         resolved_at: cut.clone(),
                         opening,
@@ -91,8 +92,8 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::host::CasesWatchResponse {
-                                    resync_required: Some(h::Failure {
+                                .send(Ok(CasesWatchResponse {
+                                    resync_required: Some(Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),
                                         ..Default::default()

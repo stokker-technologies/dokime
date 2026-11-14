@@ -18,12 +18,18 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::PromptResponse;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::prompts::AnswersCreateRequest;
+use dokime_protocol::host::prompts::AnswersCreateResponse;
+use dokime_protocol::model::MapValue;
+use harmos_protocol::model::OperationContract;
+use std::num::NonZeroUsize;
 
 /* === Constants === */
 
@@ -43,15 +49,10 @@ pub const ID: &str = "dokime.host.v1.prompts.Answers/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::prompts::AnswersCreateRequest, dokime_protocol::host::prompts::AnswersCreateResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<AnswersCreateRequest, AnswersCreateResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::prompts::AnswersCreateRequest,
-) -> Result<dokime_protocol::host::prompts::AnswersCreateResponse> {
+pub async fn handle(context: &Context, request: AnswersCreateRequest) -> Result<AnswersCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut normalized = request.clone();
         normalized.action = normalized.action.trim().into();
@@ -62,15 +63,15 @@ pub async fn handle(
             .ok_or_else(|| Error::Invalid("Create Prompt Answer: Select Its Returned Prompt Identity".into()))?
             .0;
         if let Some((saved, receipt)) = context.host.store().requested_evidence(execution, ID, &request.request_id, &fingerprint)? {
-            let answer = dokime_protocol::host::PromptsCreateResponse::decode(saved.payload.as_slice())?;
-            return Ok(dokime_protocol::host::prompts::AnswersCreateResponse {
-                answer: Some(dokime_protocol::host::PromptResponse {
+            let answer = PromptsCreateResponse::decode(saved.payload.as_slice())?;
+            return Ok(AnswersCreateResponse {
+                answer: Some(PromptResponse {
                     prompt_id: request.parent,
                     action: answer.action,
                     responder: answer.responder,
                     submitted_at: answer.submitted_at,
                     accepted: answer.accepted,
-                    values: Some(dokime_protocol::model::MapValue { values: answer.values }),
+                    values: Some(MapValue { values: answer.values }),
                 }),
                 receipt: Some(receipt),
             });
@@ -90,7 +91,7 @@ pub async fn handle(
                     &stream.stream,
                     position - 1,
                     position,
-                    std::num::NonZeroUsize::new(1).unwrap(),
+                    NonZeroUsize::new(1).unwrap(),
                 )?);
             }
         }
@@ -101,7 +102,7 @@ pub async fn handle(
             &execution,
             &request.request_id,
             &fingerprint,
-            dokime_protocol::host::PromptsCreateResponse {
+            PromptsCreateResponse {
                 prompt: question.prompt,
                 action: request.action.trim().into(),
                 accepted: request.accepted,
@@ -111,7 +112,7 @@ pub async fn handle(
             },
         )?;
         let answer = crate::host::prompts::catalog::view(context, &request.parent)?.response;
-        Ok(dokime_protocol::host::prompts::AnswersCreateResponse { answer, receipt: Some(receipt) })
+        Ok(AnswersCreateResponse { answer, receipt: Some(receipt) })
     })
     .await
 }

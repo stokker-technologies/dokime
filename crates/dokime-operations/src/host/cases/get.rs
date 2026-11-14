@@ -18,10 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::CaseDetail;
+use dokime_protocol::host::CasesGetRequest;
+use dokime_protocol::host::CasesGetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,10 +45,10 @@ pub const ID: &str = "dokime.host.v1.Cases/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CasesGetRequest, dokime_protocol::host::CasesGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CasesGetRequest, CasesGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(context: &Context, request: dokime_protocol::host::CasesGetRequest) -> Result<dokime_protocol::host::CasesGetResponse> {
+pub async fn handle(context: &Context, request: CasesGetRequest) -> Result<CasesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
@@ -52,8 +56,8 @@ pub async fn handle(context: &Context, request: dokime_protocol::host::CasesGetR
                 let summary =
                     crate::host::execution_state::cases(context, &request.parent)?.into_iter().find(|case| case.case_id == request.name);
                 let parameter_count = crate::host::execution_state::case(case.origin.as_ref().unwrap())?.parameters.len() as u64;
-                Ok(dokime_protocol::host::CasesGetResponse {
-                    value: Some(dokime_protocol::host::CaseDetail {
+                Ok(CasesGetResponse {
+                    value: Some(CaseDetail {
                         summary,
                         parameter_count,
                         generation_index: case.ordinal,

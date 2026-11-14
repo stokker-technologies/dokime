@@ -21,10 +21,12 @@
 use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_protocol::host::executions::ProgressGetResponse;
 use dokime_protocol::model::ExecutionProgressValue;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -44,21 +46,18 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<harmos_protocol::model::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<ProgressGetRequest, ProgressGetResponse>(ID, settings.read_timeout)
 }
 
 pub async fn handle(context: &Context, request: ProgressGetRequest) -> Result<ProgressGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let name = crate::resources::resolve_execution(None, request.name.as_deref(), ID)?;
-        let saved = context.host.store().resource_value(name, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?;
+        let name = context.resolve_execution(request.name.as_deref(), ID)?;
+        let saved = context.host.store().resource_value(name, "progress", request.at.as_ref())?;
         Ok(ProgressGetResponse {
             value: Some(ExecutionProgressValue::decode(saved.payload.as_slice())?),
             revision: saved.revision,
-            resolved_at: Some(harmos_protocol::model::ReadCut {
-                positions: vec![saved.resolved_at],
-                revisions: Vec::new(),
-            }),
+            resolved_at: Some(saved.resolved_at),
         })
     })
     .await

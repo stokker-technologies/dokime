@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::PromptsGetRequest;
+use dokime_protocol::host::PromptsGetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,21 +44,16 @@ pub const ID: &str = "dokime.host.v1.Prompts/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::PromptsGetRequest, dokime_protocol::host::PromptsGetResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<PromptsGetRequest, PromptsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::PromptsGetRequest,
-) -> Result<dokime_protocol::host::PromptsGetResponse> {
+pub async fn handle(context: &Context, request: PromptsGetRequest) -> Result<PromptsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (prompt, cut) = crate::host::views::read(context, &format!("prompt/{}", request.name), request.at.as_ref(), async {
             crate::host::prompts::catalog::view(context, &request.name)
         })
         .await?;
-        Ok(dokime_protocol::host::PromptsGetResponse {
+        Ok(PromptsGetResponse {
             prompt: Some(prompt),
             resolved_at: Some(cut),
         })

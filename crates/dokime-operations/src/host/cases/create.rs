@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::CasesCreateRequest;
+use dokime_protocol::host::CasesCreateResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +44,10 @@ pub const ID: &str = "dokime.host.v1.Cases/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CasesCreateRequest, dokime_protocol::host::CasesCreateResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CasesCreateRequest, CasesCreateResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CasesCreateRequest,
-) -> Result<dokime_protocol::host::CasesCreateResponse> {
+pub async fn handle(context: &Context, request: CasesCreateRequest) -> Result<CasesCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if !request.validate_only && request.request_id.trim().is_empty() {
             return Err(Error::Invalid("Register Selection: Supply a Stable Nonempty Idempotency Key".into()));

@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
+use dokime_protocol::host::CasesDeleteRequest;
+use dokime_protocol::host::CasesDeleteResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,20 +44,16 @@ pub const ID: &str = "dokime.host.v1.Cases/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CasesDeleteRequest, dokime_protocol::host::CasesDeleteResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CasesDeleteRequest, CasesDeleteResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CasesDeleteRequest,
-) -> Result<dokime_protocol::host::CasesDeleteResponse> {
+pub async fn handle(context: &Context, request: CasesDeleteRequest) -> Result<CasesDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
+        let _guard = context.administration.lock().await;
         crate::host::execution_state::cycle(context, &request.parent)?;
         context.host.store().delete_planned_case(&request.parent, &request.name)?;
         context.host.signal_change();
-        Ok(dokime_protocol::host::CasesDeleteResponse {
+        Ok(CasesDeleteResponse {
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })
     })

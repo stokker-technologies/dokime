@@ -18,11 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::ClientSettings;
+use crate::host::RunAction;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::CycleStatus;
+use dokime_protocol::host::CyclesGetRequest;
+use dokime_protocol::host::CyclesSetRequest;
+use dokime_protocol::host::CyclesSetResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -42,20 +47,15 @@ pub const ID: &str = "dokime.host.v1.Cycles/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::CyclesSetRequest, dokime_protocol::host::CyclesSetResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<CyclesSetRequest, CyclesSetResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::CyclesSetRequest,
-) -> Result<dokime_protocol::host::CyclesSetResponse> {
+pub async fn handle(context: &Context, request: CyclesSetRequest) -> Result<CyclesSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
         let previous = crate::host::cycles::get::handle(
             context,
-            dokime_protocol::host::CyclesGetRequest {
+            CyclesGetRequest {
                 name: request.name.clone(),
                 ..Default::default()
             },
@@ -78,17 +78,15 @@ pub async fn handle(
         for row in crate::host::execution_state::snapshots(context, &request.name)? {
             let controls = context.host.controls(&row.execution.identifier)?;
             if controls.can_cancel && controls.paused != value.paused {
-                context.host.control_execution(
-                    &row.execution.identifier,
-                    if value.paused { crate::host::RunAction::Pause } else { crate::host::RunAction::Resume },
-                )?;
+                context
+                    .host
+                    .control_execution(&row.execution.identifier, if value.paused { RunAction::Pause } else { RunAction::Resume })?;
             }
         }
-        cycle.status =
-            if value.paused { dokime_protocol::host::CycleStatus::Paused } else { dokime_protocol::host::CycleStatus::Ready } as i32;
+        cycle.status = if value.paused { CycleStatus::Paused } else { CycleStatus::Ready } as i32;
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-        Ok(dokime_protocol::host::CyclesSetResponse {
+        Ok(CyclesSetResponse {
             revision: crate::host::paging::bytes(&value),
             value: Some(value),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),

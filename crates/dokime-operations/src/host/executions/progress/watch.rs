@@ -20,6 +20,8 @@
 // Third Party Imports
 
 // Local Imports
+use crate::Error;
+use crate::host::ClientSettings;
 use crate::{
     Result,
     host::{Context, Output},
@@ -27,6 +29,7 @@ use crate::{
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_protocol::host::executions::ProgressWatchRequest;
 use dokime_protocol::host::executions::ProgressWatchResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -46,7 +49,7 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<harmos_protocol::model::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<ProgressWatchRequest, ProgressWatchResponse>(ID, settings.watch_timeout)
 }
 
@@ -55,7 +58,7 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
         let mut runtime = context.host.progress(&request.name)?;
         let mut storage = context.host.store().subscribe();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
-        let terminal = sender.clone().reserve_owned().await.map_err(|_| crate::Error::Invalid("Watch Progress: Reconnect the Client Stream".into()))?;
+        let terminal = sender.clone().reserve_owned().await.map_err(|_| Error::Invalid("Watch Progress: Reconnect the Client Stream".into()))?;
         let context = context.clone();
         tokio::spawn(async move {
             let timeout = context.settings.watch_timeout;
@@ -69,7 +72,7 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                         return;
                     }
                     let pinned_opening = at.is_some();
-                    let saved = match crate::host::executions::progress::get::handle(&context, ProgressGetRequest { name: request.name.clone(), at: at.take() }).await {
+                    let saved = match crate::host::executions::progress::get::handle(&context, ProgressGetRequest { name: Some(request.name.clone()), at: at.take() }).await {
                         Ok(saved) => saved,
                         Err(error) => { let _ = sender.send(Err(crate::host::status(error))).await; return; }
                     };

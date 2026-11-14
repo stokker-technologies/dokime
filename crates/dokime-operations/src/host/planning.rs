@@ -23,7 +23,21 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use dokime_protocol::host::CasesCreateResponse;
+use dokime_protocol::host::PlannedCase;
+use dokime_protocol::host::RegisteredSelection;
+use dokime_protocol::host::SelectionPlan;
+use dokime_protocol::host::selected_file_kind::Kind as SelectedFileKind;
+use dokime_protocol::model::Parameter;
+use dokime_protocol::model::ParameterBinaryOperator;
+use dokime_protocol::model::ParameterExpression;
+use dokime_protocol::model::ParameterUnaryOperator;
+use dokime_protocol::model::TestCaseTemplate;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::ValueList;
+use dokime_protocol::model::ValueType;
+use dokime_protocol::model::parameter_expansion::Kind as ParameterExpansionKind;
+use dokime_protocol::model::value::Kind as ValueKind;
 
 /* === Constants === */
 
@@ -41,9 +55,7 @@ use dokime_protocol::model;
 
 /* === Public Functions === */
 
-pub(crate) async fn resolve(
-    context: &Context, plan: &dokime_protocol::host::SelectionPlan,
-) -> Result<dokime_protocol::host::CasesCreateResponse> {
+pub(crate) async fn resolve(context: &Context, plan: &SelectionPlan) -> Result<CasesCreateResponse> {
     if !plan.case_ids.is_empty() && !plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Choose Registered Cases or Template Selections".into()));
     }
@@ -59,7 +71,7 @@ pub(crate) async fn resolve(
         for identifier in &plan.case_ids {
             cases.push(context.host.store().planned_case(identifier)?);
         }
-        return Ok(dokime_protocol::host::CasesCreateResponse { cases, ..Default::default() });
+        return Ok(CasesCreateResponse { cases, ..Default::default() });
     }
     if plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Supply at Least One Selection".into()));
@@ -67,7 +79,7 @@ pub(crate) async fn resolve(
     if !plan.cycle_id.is_empty() && crate::host::execution_state::cycle(context, &plan.cycle_id)?.sealed {
         return Err(Error::Precondition("Plan Selection: Select an Unsealed Cycle".into()));
     }
-    let catalog = context.host.plugins()?;
+    let catalog = context.host.plugins().await?;
     let catalog_cursor = crate::host::paging::cursor(context, "planning.catalog".into(), catalog.iter().map(crate::host::paging::bytes));
     let suites = context.host.suites()?;
     let first_ordinal = if plan.cycle_id.is_empty() { 0 } else { context.host.store().planned_cases(&plan.cycle_id)?.len() as u64 };
@@ -96,7 +108,7 @@ pub(crate) async fn resolve(
             if let Some(metadata) = &mut metadata {
                 metadata.label = format!("{} #{}", metadata.label, first_ordinal + cases.len() as u64 + 1);
             }
-            cases.push(dokime_protocol::host::PlannedCase {
+            cases.push(PlannedCase {
                 suite_id: selection.suite_id.clone(),
                 template_id: selection.template_id.clone(),
                 metadata,
@@ -107,11 +119,11 @@ pub(crate) async fn resolve(
             });
         }
     }
-    let latest = context.host.plugins()?;
+    let latest = context.host.plugins().await?;
     if crate::host::paging::cursor(context, "planning.catalog".into(), latest.iter().map(crate::host::paging::bytes)) != catalog_cursor {
         return Err(Error::Precondition("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
     }
-    let reply = dokime_protocol::host::CasesCreateResponse { cases, ..Default::default() };
+    let reply = CasesCreateResponse { cases, ..Default::default() };
     if reply.encoded_len() > context.settings.message_bytes {
         return Err(Error::Invalid("Plan Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));
     }
@@ -120,9 +132,7 @@ pub(crate) async fn resolve(
 
 /* === Private Functions === */
 
-fn expand(
-    template: &dokime_protocol::model::TestCaseTemplate, selection: &dokime_protocol::host::RegisteredSelection, cap: usize,
-) -> Result<Vec<HashMap<String, dokime_protocol::model::Value>>> {
+fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usize) -> Result<Vec<HashMap<String, Value>>> {
     let mut supplied = HashMap::new();
     for parameter in &selection.parameters {
         if !template.parameters.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == parameter.key)) {
@@ -169,22 +179,15 @@ fn expand(
         }
         unresolved = remaining;
     }
-    let mut dimensions: Vec<(String, Vec<HashMap<String, dokime_protocol::model::Value>>)> = Vec::new();
+    let mut dimensions: Vec<(String, Vec<HashMap<String, Value>>)> = Vec::new();
     for parameter in &template.parameters {
         let name = &parameter.metadata.as_ref().unwrap().identifier;
         let Some(mut values) = resolved.remove(name) else {
             continue;
         };
-        if parameter.r#type == dokime_protocol::model::ValueType::List as i32
-            && !matches!(
-                values.as_slice(),
-                [dokime_protocol::model::Value {
-                    kind: Some(dokime_protocol::model::value::Kind::List(_))
-                }]
-            )
-        {
-            values = vec![dokime_protocol::model::Value {
-                kind: Some(dokime_protocol::model::value::Kind::List(dokime_protocol::model::ValueList { values })),
+        if parameter.r#type == ValueType::List as i32 && !matches!(values.as_slice(), [Value { kind: Some(ValueKind::List(_)) }]) {
+            values = vec![Value {
+                kind: Some(ValueKind::List(ValueList { values })),
             }];
         }
         if values.is_empty() || values.len() > cap {
@@ -195,11 +198,11 @@ fn expand(
             validate_parameter(parameter, value)?;
         }
         let expansion = parameter.expansion.as_ref().and_then(|expansion| expansion.kind.as_ref());
-        if matches!(expansion, Some(dokime_protocol::model::parameter_expansion::Kind::Single(true))) && values.len() != 1 {
+        if matches!(expansion, Some(ParameterExpansionKind::Single(true))) && values.len() != 1 {
             return Err(Error::Invalid(format!("Plan Selection: Supply One Value for {name}")));
         }
         let group = match expansion {
-            Some(dokime_protocol::model::parameter_expansion::Kind::Zip(group)) => format!("zip:{group}"),
+            Some(ParameterExpansionKind::Zip(group)) => format!("zip:{group}"),
             _ => format!("parameter:{name}"),
         };
         if let Some((_, rows)) = dimensions.iter_mut().find(|(key, _)| key == &group) {
@@ -237,8 +240,8 @@ fn expand(
             return Err(Error::Invalid("Plan Selection: Use Unique Declared File Parameters".into()));
         }
         let value = match file.value.as_ref().and_then(|file| file.kind.as_ref()).and_then(|kind| kind.kind.as_ref()) {
-            Some(dokime_protocol::host::selected_file_kind::Kind::Value(value)) => Some(value.clone()),
-            Some(dokime_protocol::host::selected_file_kind::Kind::Clear(_)) => None,
+            Some(SelectedFileKind::Value(value)) => Some(value.clone()),
+            Some(SelectedFileKind::Clear(_)) => None,
             None => return Err(Error::Invalid("Plan Selection: Select or Explicitly Clear Each File".into())),
         };
         files.insert(file.key.clone(), value);
@@ -253,8 +256,8 @@ fn expand(
             for combination in &mut combinations {
                 combination.insert(
                     name.clone(),
-                    dokime_protocol::model::Value {
-                        kind: Some(dokime_protocol::model::value::Kind::Text(value.clone())),
+                    Value {
+                        kind: Some(ValueKind::Text(value.clone())),
                     },
                 );
             }
@@ -263,17 +266,17 @@ fn expand(
     Ok(combinations)
 }
 
-fn coerce(kind: i32, value: &mut dokime_protocol::model::Value) -> Result<()> {
+fn coerce(kind: i32, value: &mut Value) -> Result<()> {
     use dokime_protocol::model::value::Kind;
-    value.kind = Some(match (dokime_protocol::model::ValueType::try_from(kind), value.kind.take()) {
-        (Ok(dokime_protocol::model::ValueType::Number), Some(Kind::Integer(value))) => Kind::Number(value as f64),
-        (Ok(dokime_protocol::model::ValueType::Number), Some(Kind::UnsignedInteger(value))) => Kind::Number(value as f64),
-        (Ok(dokime_protocol::model::ValueType::Integer), Some(Kind::Number(value)))
+    value.kind = Some(match (ValueType::try_from(kind), value.kind.take()) {
+        (Ok(ValueType::Number), Some(Kind::Integer(value))) => Kind::Number(value as f64),
+        (Ok(ValueType::Number), Some(Kind::UnsignedInteger(value))) => Kind::Number(value as f64),
+        (Ok(ValueType::Integer), Some(Kind::Number(value)))
             if value.is_finite() && value.fract() == 0.0 && value >= i64::MIN as f64 && value < -(i64::MIN as f64) =>
         {
             Kind::Integer(value as i64)
         }
-        (Ok(dokime_protocol::model::ValueType::UnsignedInteger), Some(Kind::Number(value)))
+        (Ok(ValueType::UnsignedInteger), Some(Kind::Number(value)))
             if value.is_finite() && value.fract() == 0.0 && value >= 0.0 && value < u64::MAX as f64 =>
         {
             Kind::UnsignedInteger(value as u64)
@@ -284,9 +287,9 @@ fn coerce(kind: i32, value: &mut dokime_protocol::model::Value) -> Result<()> {
     Ok(())
 }
 
-fn validate_parameter(parameter: &dokime_protocol::model::Parameter, value: &dokime_protocol::model::Value) -> Result<()> {
+fn validate_parameter(parameter: &Parameter, value: &Value) -> Result<()> {
     let name = &parameter.metadata.as_ref().unwrap().identifier;
-    if matches!(value.kind, Some(dokime_protocol::model::value::Kind::Null(_))) && !parameter.required {
+    if matches!(value.kind, Some(ValueKind::Null(_))) && !parameter.required {
         return Ok(());
     }
     if !crate::host::prompts::validation::type_matches(parameter.r#type, value)
@@ -294,7 +297,7 @@ fn validate_parameter(parameter: &dokime_protocol::model::Parameter, value: &dok
     {
         return Err(Error::Invalid(format!("Plan Selection: Use the Declared Type and Choices for {name}")));
     }
-    if let Some(dokime_protocol::model::value::Kind::List(list)) = &value.kind
+    if let Some(ValueKind::List(list)) = &value.kind
         && (parameter.min_items.is_some_and(|min| list.values.len() < min as usize)
             || parameter.max_items.is_some_and(|max| list.values.len() > max as usize)
             || list.values.iter().any(|value| !crate::host::prompts::validation::type_matches(parameter.element_type, value)))
@@ -308,20 +311,17 @@ fn validate_parameter(parameter: &dokime_protocol::model::Parameter, value: &dok
     Ok(())
 }
 
-fn numeric(value: &dokime_protocol::model::Value) -> Option<f64> {
+fn numeric(value: &Value) -> Option<f64> {
     match value.kind {
-        Some(dokime_protocol::model::value::Kind::Integer(value)) => Some(value as f64),
-        Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => Some(value as f64),
-        Some(dokime_protocol::model::value::Kind::Number(value)) => Some(value),
+        Some(ValueKind::Integer(value)) => Some(value as f64),
+        Some(ValueKind::UnsignedInteger(value)) => Some(value as f64),
+        Some(ValueKind::Number(value)) => Some(value),
         _ => None,
     }
 }
 
-fn expression_values(
-    expression: &dokime_protocol::model::ParameterExpression, resolved: &HashMap<String, Vec<dokime_protocol::model::Value>>, cap: usize,
-) -> Result<Option<Vec<dokime_protocol::model::Value>>> {
+fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String, Vec<Value>>, cap: usize) -> Result<Option<Vec<Value>>> {
     use dokime_protocol::model::parameter_expression::Kind;
-    use dokime_protocol::model::value::Kind as Value;
     let values = match expression.kind.as_ref() {
         Some(Kind::Literal(value)) => vec![value.clone()],
         Some(Kind::Reference(name)) => return Ok(resolved.get(name).cloned()),
@@ -348,7 +348,7 @@ fn expression_values(
                 if values.len() >= cap {
                     return Err(Error::Invalid("Plan Selection: Reduce the Integer Range".into()));
                 }
-                values.push(dokime_protocol::model::Value { kind: Some(Value::Integer(value)) });
+                values.push(Value { kind: Some(ValueKind::Integer(value)) });
                 value = value
                     .checked_add(range.step)
                     .ok_or_else(|| Error::Invalid("Plan Selection: Keep Integer Ranges Within Their Type".into()))?;
@@ -368,7 +368,7 @@ fn expression_values(
                 if index == cap {
                     return Err(Error::Invalid("Plan Selection: Reduce the Number Range".into()));
                 }
-                values.push(dokime_protocol::model::Value { kind: Some(Value::Number(value)) });
+                values.push(Value { kind: Some(ValueKind::Number(value)) });
             }
             values
         }
@@ -377,8 +377,8 @@ fn expression_values(
                 return Err(Error::Invalid("Plan Selection: Use a Bounded Finite Linear Space".into()));
             }
             (0..range.count)
-                .map(|index| dokime_protocol::model::Value {
-                    kind: Some(Value::Number(if range.count == 1 {
+                .map(|index| Value {
+                    kind: Some(ValueKind::Number(if range.count == 1 {
                         range.start
                     } else {
                         range.start + (range.stop - range.start) * index as f64 / (range.count - 1) as f64
@@ -394,7 +394,7 @@ fn expression_values(
             return expression_values(fallback, resolved, cap);
         }
         Some(Kind::Unary(unary)) => {
-            if unary.operator != dokime_protocol::model::ParameterUnaryOperator::Negate as i32 {
+            if unary.operator != ParameterUnaryOperator::Negate as i32 {
                 return Err(Error::Invalid("Plan Selection: Declare a Valid Unary Operator".into()));
             }
             let child = unary.value.as_ref().ok_or_else(|| Error::Invalid("Plan Selection: Supply the Unary Operand".into()))?;
@@ -404,12 +404,12 @@ fn expression_values(
             values
                 .into_iter()
                 .map(|value| match value.kind {
-                    Some(Value::Integer(value)) => value
+                    Some(ValueKind::Integer(value)) => value
                         .checked_neg()
-                        .map(|value| dokime_protocol::model::Value { kind: Some(Value::Integer(value)) })
+                        .map(|value| Value { kind: Some(ValueKind::Integer(value)) })
                         .ok_or_else(|| Error::Invalid("Plan Selection: Avoid Integer Overflow".into())),
                     _ => numeric(&value)
-                        .map(|value| dokime_protocol::model::Value { kind: Some(Value::Number(-value)) })
+                        .map(|value| Value { kind: Some(ValueKind::Number(-value)) })
                         .ok_or_else(|| Error::Invalid("Plan Selection: Use Numeric Unary Operands".into())),
                 })
                 .collect::<Result<_>>()?
@@ -434,17 +434,17 @@ fn expression_values(
                 let (Some(left), Some(right)) = (numeric(left), numeric(right)) else {
                     return Err(Error::Invalid("Plan Selection: Use Numeric Arithmetic Operands".into()));
                 };
-                let value = match dokime_protocol::model::ParameterBinaryOperator::try_from(binary.operator).unwrap_or_default() {
-                    dokime_protocol::model::ParameterBinaryOperator::Add => left + right,
-                    dokime_protocol::model::ParameterBinaryOperator::Subtract => left - right,
-                    dokime_protocol::model::ParameterBinaryOperator::Multiply => left * right,
-                    dokime_protocol::model::ParameterBinaryOperator::Divide if right != 0.0 => left / right,
+                let value = match ParameterBinaryOperator::try_from(binary.operator).unwrap_or_default() {
+                    ParameterBinaryOperator::Add => left + right,
+                    ParameterBinaryOperator::Subtract => left - right,
+                    ParameterBinaryOperator::Multiply => left * right,
+                    ParameterBinaryOperator::Divide if right != 0.0 => left / right,
                     _ => return Err(Error::Invalid("Plan Selection: Use Valid Arithmetic Without Division by Zero".into())),
                 };
                 if !value.is_finite() {
                     return Err(Error::Invalid("Plan Selection: Keep Arithmetic Results Finite".into()));
                 }
-                values.push(dokime_protocol::model::Value { kind: Some(Value::Number(value)) });
+                values.push(Value { kind: Some(ValueKind::Number(value)) });
             }
             values
         }
@@ -460,134 +460,109 @@ fn expression_values(
 
 #[cfg(test)]
 mod tests {
-    use crate::host::*;
+    use super::*;
+    use dokime_protocol::host::RegisteredSelectionParametersEntry;
+    use dokime_protocol::host::SelectionValues;
+    use dokime_protocol::model::IntegerRange;
+    use dokime_protocol::model::Metadata;
+    use dokime_protocol::model::ParameterBinary;
+    use dokime_protocol::model::ParameterExpansion;
+    use dokime_protocol::model::ParameterExpressions;
+    use dokime_protocol::model::parameter_expression::Kind as ParameterExpressionKind;
 
     #[test]
     fn parameter_expressions_preserve_zip_and_list_shapes() -> Result<()> {
         // Resolve a Selected Space and Its Pairwise Derived Values
-        let template = dokime_protocol::model::TestCaseTemplate {
+        let template = TestCaseTemplate {
             parameters: vec![
-                dokime_protocol::model::Parameter {
-                    metadata: Some(dokime_protocol::model::Metadata {
+                Parameter {
+                    metadata: Some(Metadata {
                         identifier: "left".into(),
                         ..Default::default()
                     }),
-                    r#type: dokime_protocol::model::ValueType::Number as i32,
-                    expansion: Some(dokime_protocol::model::ParameterExpansion {
-                        kind: Some(dokime_protocol::model::parameter_expansion::Kind::Zip("pair".into())),
+                    r#type: ValueType::Number as i32,
+                    expansion: Some(ParameterExpansion {
+                        kind: Some(ParameterExpansionKind::Zip("pair".into())),
                     }),
                     ..Default::default()
                 },
-                dokime_protocol::model::Parameter {
-                    metadata: Some(dokime_protocol::model::Metadata {
+                Parameter {
+                    metadata: Some(Metadata {
                         identifier: "right".into(),
                         ..Default::default()
                     }),
-                    r#type: dokime_protocol::model::ValueType::Number as i32,
-                    expansion: Some(dokime_protocol::model::ParameterExpansion {
-                        kind: Some(dokime_protocol::model::parameter_expansion::Kind::Zip("pair".into())),
+                    r#type: ValueType::Number as i32,
+                    expansion: Some(ParameterExpansion {
+                        kind: Some(ParameterExpansionKind::Zip("pair".into())),
                     }),
-                    expression: Some(dokime_protocol::model::ParameterExpression {
-                        kind: Some(dokime_protocol::model::parameter_expression::Kind::Binary(Box::new(
-                            dokime_protocol::model::ParameterBinary {
-                                operator: dokime_protocol::model::ParameterBinaryOperator::Add as i32,
-                                left: Some(Box::new(dokime_protocol::model::ParameterExpression {
-                                    kind: Some(dokime_protocol::model::parameter_expression::Kind::Reference("left".into())),
-                                })),
-                                right: Some(Box::new(dokime_protocol::model::ParameterExpression {
-                                    kind: Some(dokime_protocol::model::parameter_expression::Kind::Array(
-                                        dokime_protocol::model::ParameterExpressions {
-                                            values: vec![
-                                                dokime_protocol::model::ParameterExpression {
-                                                    kind: Some(dokime_protocol::model::parameter_expression::Kind::Literal(
-                                                        dokime_protocol::model::Value {
-                                                            kind: Some(dokime_protocol::model::value::Kind::Number(10.0)),
-                                                        },
-                                                    )),
-                                                },
-                                                dokime_protocol::model::ParameterExpression {
-                                                    kind: Some(dokime_protocol::model::parameter_expression::Kind::Literal(
-                                                        dokime_protocol::model::Value {
-                                                            kind: Some(dokime_protocol::model::value::Kind::Number(20.0)),
-                                                        },
-                                                    )),
-                                                },
-                                            ],
+                    expression: Some(ParameterExpression {
+                        kind: Some(ParameterExpressionKind::Binary(Box::new(ParameterBinary {
+                            operator: ParameterBinaryOperator::Add as i32,
+                            left: Some(Box::new(ParameterExpression {
+                                kind: Some(ParameterExpressionKind::Reference("left".into())),
+                            })),
+                            right: Some(Box::new(ParameterExpression {
+                                kind: Some(ParameterExpressionKind::Array(ParameterExpressions {
+                                    values: vec![
+                                        ParameterExpression {
+                                            kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Number(10.0)) })),
                                         },
-                                    )),
+                                        ParameterExpression {
+                                            kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Number(20.0)) })),
+                                        },
+                                    ],
                                 })),
-                            },
-                        ))),
+                            })),
+                        }))),
                     }),
                     ..Default::default()
                 },
-                dokime_protocol::model::Parameter {
-                    metadata: Some(dokime_protocol::model::Metadata {
+                Parameter {
+                    metadata: Some(Metadata {
                         identifier: "labels".into(),
                         ..Default::default()
                     }),
-                    r#type: dokime_protocol::model::ValueType::List as i32,
-                    element_type: dokime_protocol::model::ValueType::Text as i32,
-                    expression: Some(dokime_protocol::model::ParameterExpression {
-                        kind: Some(dokime_protocol::model::parameter_expression::Kind::Array(
-                            dokime_protocol::model::ParameterExpressions {
-                                values: vec![
-                                    dokime_protocol::model::ParameterExpression {
-                                        kind: Some(dokime_protocol::model::parameter_expression::Kind::Literal(
-                                            dokime_protocol::model::Value {
-                                                kind: Some(dokime_protocol::model::value::Kind::Text("a".into())),
-                                            },
-                                        )),
-                                    },
-                                    dokime_protocol::model::ParameterExpression {
-                                        kind: Some(dokime_protocol::model::parameter_expression::Kind::Literal(
-                                            dokime_protocol::model::Value {
-                                                kind: Some(dokime_protocol::model::value::Kind::Text("b".into())),
-                                            },
-                                        )),
-                                    },
-                                ],
-                            },
-                        )),
+                    r#type: ValueType::List as i32,
+                    element_type: ValueType::Text as i32,
+                    expression: Some(ParameterExpression {
+                        kind: Some(ParameterExpressionKind::Array(ParameterExpressions {
+                            values: vec![
+                                ParameterExpression {
+                                    kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Text("a".into())) })),
+                                },
+                                ParameterExpression {
+                                    kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Text("b".into())) })),
+                                },
+                            ],
+                        })),
                     }),
                     ..Default::default()
                 },
             ],
             ..Default::default()
         };
-        let selection = dokime_protocol::host::RegisteredSelection {
-            parameters: vec![dokime_protocol::host::RegisteredSelectionParametersEntry {
+        let selection = RegisteredSelection {
+            parameters: vec![RegisteredSelectionParametersEntry {
                 key: "left".into(),
-                value: Some(dokime_protocol::host::SelectionValues {
-                    values: vec![
-                        dokime_protocol::model::Value {
-                            kind: Some(dokime_protocol::model::value::Kind::Number(1.0)),
-                        },
-                        dokime_protocol::model::Value {
-                            kind: Some(dokime_protocol::model::value::Kind::Number(2.0)),
-                        },
-                    ],
+                value: Some(SelectionValues {
+                    values: vec![Value { kind: Some(ValueKind::Number(1.0)) }, Value { kind: Some(ValueKind::Number(2.0)) }],
                 }),
             }],
             ..Default::default()
         };
         let rows = expand(&template, &selection, 4)?;
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0]["right"].kind, Some(dokime_protocol::model::value::Kind::Number(11.0)));
-        assert_eq!(rows[1]["right"].kind, Some(dokime_protocol::model::value::Kind::Number(22.0)));
-        assert!(matches!(&rows[0]["labels"].kind,Some(dokime_protocol::model::value::Kind::List(values)) if values.values.len() == 2));
+        assert_eq!(rows[0]["right"].kind, Some(ValueKind::Number(11.0)));
+        assert_eq!(rows[1]["right"].kind, Some(ValueKind::Number(22.0)));
+        assert!(matches!(&rows[0]["labels"].kind,Some(ValueKind::List(values)) if values.values.len() == 2));
 
         // Refuse an Incompatible Pair Without Producing a Partial Expansion
         let mut invalid = template.clone();
-        if let Some(dokime_protocol::model::parameter_expression::Kind::Binary(binary)) =
+        if let Some(ParameterExpressionKind::Binary(binary)) =
             invalid.parameters[1].expression.as_mut().and_then(|expression| expression.kind.as_mut())
         {
-            binary.right = Some(Box::new(dokime_protocol::model::ParameterExpression {
-                kind: Some(dokime_protocol::model::parameter_expression::Kind::Range(dokime_protocol::model::IntegerRange {
-                    start: 1,
-                    stop: 4,
-                    step: 1,
-                })),
+            binary.right = Some(Box::new(ParameterExpression {
+                kind: Some(ParameterExpressionKind::Range(IntegerRange { start: 1, stop: 4, step: 1 })),
             }));
         }
         assert!(expand(&invalid, &selection, 8).is_err());
