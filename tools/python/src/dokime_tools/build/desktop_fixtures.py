@@ -62,15 +62,18 @@ def build(profile: str) -> None:
     executable = paths.output(root, "build", profile) / "fixtures/host" / f"dokime-rust-thermal{extension}"
     bundle = output / "thermal.dokime"
     bundle.unlink(missing_ok=True)
-    subprocess.run(
+    result = subprocess.run(
         [str(cli), "plugin", "bundle", "--executable", str(executable), "--out", str(bundle)],
         cwd=root,
-        check=True,
+        check=False,
+        text=True,
         creationflags=spawn_flags(),
         stdin=sys.stdin,
         stdout=sys.stdout,
-        stderr=sys.stderr,
+        stderr=subprocess.PIPE,
     )
+    print(result.stderr, end="", file=sys.stderr, flush=True)
+    result.check_returncode()
 
     # Extend the Tests Fixture Inventory Without Replacing Product Bytes
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"

@@ -1,7 +1,8 @@
 # Repository Tooling
 
 Use `mise tasks` to discover entry points, with arguments after `--`. Preparation
-installs the root `.venv/` and frontend dependencies. Build, test and checks use
+installs the root `.venv/` and frontend dependencies. `prepare --without-frontend`
+prepares SDK-only jobs without requiring Node or pnpm. Build, test and checks use
 project tasks; compiler caches belong to the workstation.
 
 ## Focused Development
@@ -75,11 +76,10 @@ retained suites. PR and Nightly select native acceptance plus both WebView lanes
 on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 
 `mise run generate` builds the desktop's `export_preferences` example and reads
-canonical defaults through its embedded host, then generates protobuf messages,
-preference view models and native command declarations. The exporter owns a fresh
-temporary host and removes its credentials through the host operation after joining
-shutdown, including on failure. Previous generator and user roots stay intact.
-Generation requires the platform credential store, as ordinary host startup does.
+canonical defaults from the product and listener declarations, then generates
+protobuf messages, preference view models and native command declarations.
+Exporting defaults opens no host, storage root or credential store. Ordinary host
+startup still requires the platform credential store.
 `mise -C crates/dokime-gui run generate:host-frontend` regenerates canonical host
 messages and native dispatch. Product staging carries both `generated/typescript`
 and `generated/host`; consumers restore both before importing the frontend.

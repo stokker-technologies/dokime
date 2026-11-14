@@ -145,7 +145,7 @@ if (!scope) throw new Error("Generate Preferences: Missing Native Scope");
 models.set("SettingsScope", `export type SettingsScope = ${scope[1].split(",").map((value) => value.trim()).filter(Boolean).map((value) => JSON.stringify(value.toLowerCase())).join(" | ")};`);
 writeFileSync(resolve(output, "application-settings.ts"), `// Generated From Host Preferences and Native Registry Declarations. Do Not Edit.\n${[...models.values()].join("\n")}\n`);
 
-// Read Defaults Exported Through the Desktop's Real Embedded Host.
+// Read Defaults Exported From the Product's Declarations.
 const { createFileRegistry } = require("@bufbuild/protobuf");
 const registryTypes = createFileRegistry(set);
 const snapshotType = registryTypes.getMessage("dokime.client.v1.SettingsGetResponse");

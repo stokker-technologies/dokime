@@ -91,7 +91,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      DOKIME_HOST_FIXTURE_LANGUAGE: ${{ inputs.channel == 'nightly' && 'none' || 'rust' }}
+      DOKIME_HOST_FIXTURE_LANGUAGE: rust
       CI_TRANSPORT: 'true'
       CI_OUTPUTS: ${{ matrix.outputs }}
       CI_CACHE_PROFILE: test
@@ -208,6 +208,7 @@ jobs:
     - uses: ./.github/actions/setup
       with:
         platform: ${{ matrix.platform }}
+        prepare-arguments: --without-frontend
     - name: Install the .NET SDK
       if: inputs.fixture-language == 'csharp'
       run: mise -C sdk/csharp install dotnet

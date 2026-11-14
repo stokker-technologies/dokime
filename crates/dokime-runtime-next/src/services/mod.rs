@@ -107,6 +107,7 @@ use dokime_protocol::client::secrets_server::SecretsServer;
 use dokime_protocol::client::storage::sources_server::SourcesServer;
 use dokime_protocol::client::stream_schemas_server::StreamSchemasServer;
 use dokime_protocol::client::suites_server::SuitesServer;
+use dokime_protocol::client::{RemoteListenerSettings, SettingsGetResponse};
 use dokime_storage::Store;
 use prost_types::Timestamp;
 use std::fs::OpenOptions;
@@ -174,6 +175,20 @@ impl Drop for Server {
 }
 
 /* === Public Functions === */
+
+/// Compose Declared Defaults Without Opening Storage, Credentials or Transports.
+pub fn initial_preferences() -> SettingsGetResponse {
+    let mut snapshot = dokime_operations_next::client::settings_get::initial_preferences();
+    let listener = composition::initial_listener();
+    snapshot.value.as_mut().expect("declared application settings").listener = Some(RemoteListenerSettings {
+        enabled: listener.enabled,
+        address: listener.endpoint,
+        certificate_names: listener.certificate_names,
+        tls_enabled: true,
+        authentication_enabled: true,
+    });
+    snapshot
+}
 
 /// Remove Protected Values Before Explicitly Discarding a Storage Root.
 /// The Host Must Be Stopped; Evidence and the Root Itself Are Retained.

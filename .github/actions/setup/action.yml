@@ -17,6 +17,10 @@ inputs:
     description: Tools
     required: false
     default: ''
+  prepare-arguments:
+    description: Arguments for Project Preparation
+    required: false
+    default: ''
   cache-backend:
     description: Cache-backend
     required: false
@@ -170,4 +174,8 @@ runs:
       cache: false
       mise_dir: ${{ env.MISE_DATA_DIR }}
   - shell: bash
-    run: mise run prepare --
+    run: |
+      read -r -a prepare_arguments <<< "$PREPARE_ARGUMENTS"
+      mise run prepare -- "${prepare_arguments[@]}"
+    env:
+      PREPARE_ARGUMENTS: ${{ inputs.prepare-arguments }}

@@ -68,11 +68,11 @@ lane = "uv run --no-sync --project tools/python python -m dokime_tools.test.run 
 
 [tasks."prepare"]
 description = "Prepare Tools and Inputs"
-usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"'
+usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"; flag "--without-frontend" help="Prepare Only Python Tooling and SDK Inputs"'
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
-  "pnpm --dir crates/dokime-gui install --frozen-lockfile",
+  "{% if not usage.without_frontend %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]

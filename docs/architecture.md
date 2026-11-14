@@ -427,6 +427,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 
 ## Product File Ownership
 
+Build-time preference export composes the product's declared settings and the
+listener declaration used by Access configuration. It opens no host, storage or
+credentials. Runtime startup failures retain the underlying operation causes;
+desktop diagnostics do not classify every startup failure as incompatible storage.
+
 Product Files and Files.Uploads own client transfers and scoped plugin-host unary
 transfers over the existing content store. They reuse library file/session/receipt
 vocabulary and return per-call transfer limits. Published artifact, execution-file,

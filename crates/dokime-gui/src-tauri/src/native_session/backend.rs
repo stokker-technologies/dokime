@@ -68,10 +68,7 @@ fn failure(backend: &Backend, error: host::Error) -> Error {
         );
         return Error::BackendRunning { root, message };
     }
-    let message = format!(
-        "Start Local Host at {}: {error}; preserve this folder for backup and select a fresh storage root if its format is incompatible",
-        backend.root.display()
-    );
+    let message = format!("Start Local Host at {}: {error}", backend.root.display());
     Error::Startup {
         message: message.clone(),
         diagnostics: Some(Box::new(BackendDiagnostics {

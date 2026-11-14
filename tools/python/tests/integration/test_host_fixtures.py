@@ -11,6 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import io
 import subprocess
 import tempfile
 import unittest
@@ -19,7 +20,7 @@ from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import host_fixtures, paths
+from dokime_tools.build import desktop_fixtures, host_fixtures, paths
 
 # Type Checking Imports
 
@@ -33,6 +34,21 @@ from dokime_tools.build import host_fixtures, paths
 
 
 class HostFixtureTests(unittest.TestCase):
+    def test_desktop_bundle_failure_keeps_tool_diagnostics(self):
+        diagnostic = "fixture stderr\n"
+        refusal = subprocess.CompletedProcess(["dokime-next"], 3, stderr=diagnostic)
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(desktop_fixtures.configuration, "ROOT", Path(temporary)),
+            patch.object(desktop_fixtures.subprocess, "run", side_effect=[subprocess.CompletedProcess(["mise"], 0), refusal]),
+            patch.object(desktop_fixtures.shutil, "copy2"),
+            patch.object(desktop_fixtures.sys, "stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaises(subprocess.CalledProcessError) as failure,
+        ):
+            desktop_fixtures.build("release")
+        self.assertEqual(failure.exception.returncode, refusal.returncode)
+        self.assertEqual(stderr.getvalue(), diagnostic)
+
     def test_explicit_producers_build_only_the_selected_language(self):
         for language in ("rust", "python", "csharp", "cpp", "none"):
             with self.subTest(language=language), tempfile.TemporaryDirectory() as temporary:

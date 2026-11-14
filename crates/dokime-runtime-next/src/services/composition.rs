@@ -23,6 +23,7 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::v1::access::ListenerValue;
 
 // Local Imports
 use super::ClientSettings;
@@ -111,11 +112,7 @@ pub(super) fn transport(settings: &ClientSettings) -> harmos_runtime::grpc::Sett
 
 pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc::access::AccessSettings {
     harmos_runtime::grpc::access::AccessSettings {
-        listener: harmos_protocol::v1::access::ListenerValue {
-            enabled: false,
-            endpoint: "127.0.0.1:0".into(),
-            certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
-        },
+        listener: initial_listener(),
         transport: transport(settings),
         handshake_timeout: settings.read_timeout,
         pairings: NonZeroUsize::new(settings.max_cases).unwrap(),
@@ -125,5 +122,13 @@ pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc
 }
 
 /* === Private Functions === */
+
+pub(super) fn initial_listener() -> ListenerValue {
+    ListenerValue {
+        enabled: false,
+        endpoint: "127.0.0.1:0".into(),
+        certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
+    }
+}
 
 /* === Tests === */
