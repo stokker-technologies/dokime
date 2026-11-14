@@ -26,17 +26,17 @@ from mypy.options import Options
 
 MODULES = [
     "dokime",
-    "dokime._client",
     "dokime._context",
     "dokime._plugin",
     "dokime.authoring",
     "dokime.client",
+    "dokime.connection",
+    "dokime.transfers",
     "dokime.documents",
     "dokime.plot",
     "dokime.plugin",
     "dokime.schemas",
     "dokime.values",
-    "dokime.v1",
     "dokime.generated.resources",
 ]
 

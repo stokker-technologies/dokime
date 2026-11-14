@@ -12,17 +12,18 @@
 # Standard Library Imports
 import hashlib
 import json
+from collections.abc import Callable
 from difflib import unified_diff
 from importlib import import_module
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
-
-# Third Party Imports
-from google.protobuf import descriptor_pb2, descriptor_pool
 
 # Local Imports
-from dokime.v1 import descriptors, message_type, services
+# Third Party Imports
+from google.protobuf import descriptor_pb2, descriptor_pool
+from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from google.protobuf.message import Message
+from google.protobuf.message_factory import GetMessageClass
 
 # Type Checking Imports
 
@@ -37,34 +38,73 @@ from dokime.v1 import descriptors, message_type, services
 
 class RecordingChannel:
     def __init__(self) -> None:
-        self.methods = {}
+        self.methods: dict[str, tuple[str, Callable[[Message], bytes], Callable[[bytes], Message]]] = {}
 
-    def __getattr__(self, cardinality: Any) -> Any:
-        def register(path: Any, request_serializer: Any, response_deserializer: Any, **options: Any) -> Any:
-            self.methods[path] = (cardinality, request_serializer, response_deserializer)
+    def unary_unary(
+        self,
+        path: str,
+        request_serializer: Callable[[Message], bytes],
+        response_deserializer: Callable[[bytes], Message],
+        **options: object,
+    ) -> None:
+        self.methods[path] = ("unary_unary", request_serializer, response_deserializer)
 
-        return register
+    def unary_stream(
+        self,
+        path: str,
+        request_serializer: Callable[[Message], bytes],
+        response_deserializer: Callable[[bytes], Message],
+        **options: object,
+    ) -> None:
+        self.methods[path] = ("unary_stream", request_serializer, response_deserializer)
+
+    def stream_unary(
+        self,
+        path: str,
+        request_serializer: Callable[[Message], bytes],
+        response_deserializer: Callable[[bytes], Message],
+        **options: object,
+    ) -> None:
+        self.methods[path] = ("stream_unary", request_serializer, response_deserializer)
+
+    def stream_stream(
+        self,
+        path: str,
+        request_serializer: Callable[[Message], bytes],
+        response_deserializer: Callable[[bytes], Message],
+        **options: object,
+    ) -> None:
+        self.methods[path] = ("stream_stream", request_serializer, response_deserializer)
 
 
 # === Public Functions === #
 
 
-def main() -> Any:
+def main() -> None:
     root = Path(__file__).resolve().parents[3]
     sources = root / "proto"
-    manifest = json.loads(files("dokime.v1").joinpath("sources.json").read_text())
+    manifest = json.loads(files("dokime").joinpath("_wire").joinpath("sources.json").read_text())
     expected = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")}
     if manifest != expected:
         raise ValueError("Installed generated surface differs from proto/; rebuild and reinstall the SDK wheel")
     channel = RecordingChannel()
-    for stub in services().values():
-        stub(channel)
+    descriptors = FileDescriptorSet.FromString(files("dokime").joinpath("_wire/surface.pb").read_bytes())
+    for definition in descriptors.file:
+        if not definition.package.startswith("dokime.") or not definition.service:
+            continue
+        module = definition.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime._wire.", 1)
+        stubs = import_module(module + "_pb2_grpc")
+        for service in definition.service:
+            getattr(stubs, service.name + "Stub")(channel)
     methods = {}
     count = 0
-    for definition in descriptors().file:
+    for definition in descriptors.file:
         if not definition.package.startswith(("dokime.", "harmos.")):
             continue
-        import_module(definition.name.removesuffix(".proto").replace("/", ".") + "_pb2")
+        module = definition.name.removesuffix(".proto").replace("/", ".")
+        for owner in ("dokime", "harmos"):
+            module = module.replace(owner + ".", owner + "._wire.", 1) if module.startswith(owner + ".") else module
+        import_module(module + "_pb2")
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()
         runtime.CopyToProto(actual_definition)
@@ -89,7 +129,7 @@ def main() -> Any:
         if not definition.package.startswith("dokime."):
             continue
         for name in runtime.message_types_by_name:
-            message_type(f"{definition.package}.{name}")().SerializeToString()
+            GetMessageClass(descriptor_pool.Default().FindMessageTypeByName(f"{definition.package}.{name}"))().SerializeToString()
             count += 1
         for service in definition.service:
             for method in service.method:
@@ -99,15 +139,13 @@ def main() -> Any:
                 actual, serialize, deserialize = channel.methods[path]
                 if actual != cardinality:
                     raise ValueError(f"Generated method cardinality differs: {path}")
-                serialize(message_type(method.input_type.removeprefix("."))())
+                serialize(GetMessageClass(descriptor_pool.Default().FindMessageTypeByName(method.input_type.removeprefix(".")))())
                 reply = deserialize(b"")
                 if reply.DESCRIPTOR.full_name != method.output_type.removeprefix("."):
                     raise ValueError(f"Generated reply differs: {path}")
     if set(methods) != set(channel.methods):
         raise ValueError("Generated stubs and service descriptors differ")
     print(f"Generated surface matches {len(expected)} protos: {count} messages, {len(methods)} RPCs")
-    if not methods:
-        print("Host integration prerequisite: proto/dokime/v1 currently declares no client services")
 
 
 # === Private Functions === #

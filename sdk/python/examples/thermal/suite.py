@@ -1,23 +1,33 @@
-from typing import Any
+from typing import cast
+
+from google.protobuf.message import Message
+
+from dokime import Parameter, Prompt, PromptDefinitions
+from dokime.authoring import Record, Suite, Template, criterion, observer, step, stream
+from dokime.plugin import Context, Plugin
 
 # SPDX-License-Identifier: Apache-2.0
 """The Same Thermal Procedure as Every SDK."""
 
-from dokime.v1 import message
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 
 import dokime
-from dokime import HOST_OPERATIONS
+from dokime.plugin import HostOperation
 
 
 # Protobuf Types Belong to the Fixture, Not to the SDK.
-def row_type(name: Any, field: Any, kind: Any) -> Any:
-    definition = descriptor_pb2.FileDescriptorProto(name=f"thermal/{name}.proto", package="thermal.v1", syntax="proto3")
+def row_type(name: str, field: str, kind: int) -> type[Message]:
+    definition = descriptor_pb2.FileDescriptorProto(name=f"thermal/{name}.proto", package="thermal", syntax="proto3")
     row = definition.message_type.add(name=name)
-    row.field.add(name=field, number=1, type=kind, label=1)
+    row.field.add(
+        name=field,
+        number=1,
+        type=cast(descriptor_pb2.FieldDescriptorProto.Type, kind),
+        label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
+    )
     pool = descriptor_pool.Default()
     pool.Add(definition)
-    return message_factory.GetMessageClass(pool.FindMessageTypeByName(f"thermal.v1.{name}"))
+    return message_factory.GetMessageClass(pool.FindMessageTypeByName(f"thermal.{name}"))
 
 
 Temperature = row_type("Temperature", "celsius", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
@@ -25,75 +35,81 @@ Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
 
 
 class Thermal:
-    async def initialize(self, ctx: Any) -> Any:
-        self.limit = ctx.parameters["limit"]
+    async def initialize(self, ctx: Context) -> None:
+        limit = ctx.parameters["limit"]
+        if not isinstance(limit, (float, int)):
+            raise TypeError("Initialize Thermal Cycle: Limit Must Be Numeric")
+        self.limit = limit
         await ctx.log("Initialized")
 
-    @dokime.step("Ramp to Target", identifier="ramp", retries=2)
-    async def ramp(self, ctx: Any) -> Any:
+    @step("Ramp to Target", identifier="ramp", retries=2)
+    async def ramp(self, ctx: Context) -> None:
         await ctx.progress(1, 2, label="Ramp to Target")
 
-    @dokime.step("Hold", identifier="hold")
-    async def hold(self, ctx: Any) -> Any:
-        question = next(operation for operation in HOST_OPERATIONS if operation.id == "dokime.plugin.host.v1.Prompts/Create")
-        answer = await ctx.operation(question)(
-            message("dokime.plugin.host.v1.PromptsCreateRequest", prompt="door", prompt_type="thermal.door")
-        )
+    @step("Hold", identifier="hold")
+    async def hold(self, ctx: Context) -> None:
+        answer = await ctx.host.prompts.create("door", "thermal.door", {})
         await ctx.record("thermal.door", Door(closed=answer.action == "yes" and answer.accepted))
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
 
-    @dokime.stream("Temperature [°C]", identifier="thermal.temperature", row=Temperature)
-    @dokime.observer(interval_ms=1000)
-    def temperature(self, ctx: Any) -> Any:
+    @stream("Temperature [°C]", identifier="thermal.temperature", row=Temperature)
+    @observer(interval_ms=1000)
+    def temperature(self, ctx: Context) -> Message:
         return Temperature(celsius=self.limit - 1.0)
 
-    @dokime.criterion("Temperature Within Limit", identifier="within_limit")
-    async def within_limit(self, ctx: Any) -> Any:
+    @criterion("Temperature Within Limit", identifier="within_limit")
+    async def within_limit(self, ctx: Context) -> bool:
         stats = await ctx.statistics("thermal.temperature", "celsius", step="hold")
         door = await ctx.records("thermal.door", step="hold").last()
-        return stats.count > 0 and stats.max.number <= self.limit and door is not None and door.closed
+        return (
+            stats.statistics.count > 0
+            and stats.statistics.max.number <= self.limit
+            and door is not None
+            and door.SerializeToString() == Door(closed=True).SerializeToString()
+        )
 
-    async def cleanup(self, ctx: Any) -> Any:
+    async def cleanup(self, ctx: Context) -> None:
         await ctx.log("Cleaned Up")
 
 
-def plugin() -> Any:
-    template = dokime.Template(
+def plugin() -> Plugin:
+    template = Template(
         "thermal.cycle",
         Thermal,
         "Thermal Cycle",
         parameters=[
-            message("Parameter", metadata={"identifier": "limit", "label": "Limit"}, type=4, expression={"literal": {"number": 85.0}})
+            Parameter(
+                metadata={"identifier": "limit", "label": "Limit"}, type="VALUE_TYPE_NUMBER", expression={"literal": {"number": 85.0}}
+            )
         ],
     )
-    prompt = message(
-        "PromptDefinitions",
+    prompt = PromptDefinitions(
         prompts=[
-            message(
-                "Prompt",
+            Prompt(
                 metadata={"identifier": "thermal.door", "label": "Door Check"},
                 message="Is the Door Closed?",
-                archetype=1,
+                archetype="PROMPT_ARCHETYPE_CONFIRMATION",
                 actions=[{"identifier": "yes", "label": "Yes"}, {"identifier": "no", "label": "No"}],
             )
         ],
     )
-    needed = {
-        "dokime.plugin.host.v1.Prompts/Create",
-        "dokime.plugin.host.v1.evidence.Records/Append",
-        "dokime.plugin.host.v1.evidence.Records/List",
-        "dokime.plugin.host.v1.Evidence/Statistics",
-        "dokime.plugin.host.v1.executions.Progress/Get",
-        "dokime.plugin.host.v1.executions.Progress/Set",
-        "dokime.plugin.host.v1.evidence.Logs/Append",
-        "harmos.context.v1.Time/Sleep",
-    }
+    needed = [
+        HostOperation.PROMPTS_CREATE,
+        HostOperation.EVIDENCE_RECORDS_APPEND,
+        HostOperation.EVIDENCE_RECORDS_LIST,
+        HostOperation.EVIDENCE_STATISTICS,
+        HostOperation.EXECUTIONS_PROGRESS_GET,
+        HostOperation.EXECUTIONS_PROGRESS_SET,
+        HostOperation.EVIDENCE_LOGS_APPEND,
+        HostOperation.TIME_GET,
+        HostOperation.TIME_SLEEP,
+    ]
     return dokime.Plugin(
         "thermal",
         "1.0.0",
-        suites=[dokime.Suite("thermal", [template], "Thermal")],
-        records=[dokime.Record("thermal.door", Door, "Door Check")],
+        suites=[Suite("thermal", [template], "Thermal")],
+        records=[Record("thermal.door", Door, "Door Check")],
         sections=[prompt],
-        requires=[operation for operation in HOST_OPERATIONS if operation.id in needed],
+        requires=needed,
     )

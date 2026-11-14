@@ -14,10 +14,16 @@
 import re
 from typing import Self
 
+from ._wire.model.v1.documents_pb2 import Card
+from ._wire.model.v1.documents_pb2 import Document as DocumentValue
+from ._wire.model.v1.documents_pb2 import Section as SectionValue
+from ._wire.model.v1.documents_pb2 import Summary as SummaryValue
+from ._wire.model.v1.expressions_pb2 import DataExpression
+from ._wire.model.v1.metadata_pb2 import Metadata
+
 # Third Party Imports
 # Local Imports
 from .plot import Expression, Plot, _expression
-from .v1 import documents_pb2, expressions_pb2, message, metadata_pb2
 
 # Type Checking Imports
 
@@ -34,7 +40,7 @@ __all__ = ["Document", "Section", "Summary"]
 
 class Document:
     def __init__(self, label: str) -> None:
-        self.message = message("Document", metadata=metadata(label))
+        self.message = DocumentValue(metadata=metadata(label))
 
     @property
     def label(self) -> str:
@@ -56,7 +62,7 @@ class Document:
 
 class Section:
     def __init__(self, label: str) -> None:
-        self.message = message("Section", metadata=metadata(label))
+        self.message = SectionValue(metadata=metadata(label))
 
     def id(self, identifier: str) -> Self:
         self.message.metadata.identifier = identifier
@@ -65,7 +71,7 @@ class Section:
     def plot(self, plot: Plot) -> Self:
         if not isinstance(plot, Plot):
             raise TypeError("Section.plot requires a Plot value")
-        value = message("Plot")
+        value = type(plot.message)()
         value.CopyFrom(plot.message)
         if not value.metadata.label:
             expression = value.z if value.HasField("z") else value.y[0] if value.y else value.x
@@ -93,9 +99,9 @@ class Section:
         self.message.cards.add(metadata=metadata(label), markdown=markdown)
         return self
 
-    def card(self, card: documents_pb2.Card) -> Self:
-        if card.DESCRIPTOR.full_name != "dokime.v1.Card":
-            raise TypeError("Section.card requires a dokime.v1.Card message")
+    def card(self, card: Card) -> Self:
+        if not isinstance(card, Card):
+            raise TypeError("Section.card requires a Card value")
         self.message.cards.add().CopyFrom(card)
         return self
 
@@ -105,7 +111,7 @@ class Section:
 
 class Summary:
     def __init__(self) -> None:
-        self.message = message("Summary")
+        self.message = SummaryValue()
 
     def tile(self, label: str, value: Expression, *, unit: str = "") -> Self:
         self.message.tiles.add(metadata=metadata(label), value=_expression(value), unit=unit)
@@ -115,14 +121,14 @@ class Summary:
 # === Public Functions === #
 
 
-def metadata(label: str) -> metadata_pb2.Metadata:
-    return message("Metadata", identifier=".".join(part.lower() for part in re.split(r"[\W_]+", label) if part), label=label)
+def metadata(label: str) -> Metadata:
+    return Metadata(identifier=".".join(part.lower() for part in re.split(r"[\W_]+", label) if part), label=label)
 
 
 # === Private Functions === #
 
 
-def expression_label(value: expressions_pb2.DataExpression) -> str:
+def expression_label(value: DataExpression) -> str:
     if value.label:
         return value.label
     kind = value.WhichOneof("kind")

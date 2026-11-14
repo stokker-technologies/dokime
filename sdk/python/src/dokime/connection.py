@@ -1,0 +1,199 @@
+# ***
+#
+# dokime-rust-workspace
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
+"""Own Async Connections to the Generated Client Tree."""
+
+# === Imports === #
+
+# Standard Library Imports
+import json
+import os
+from collections.abc import Awaitable, Callable, Sequence
+from pathlib import Path
+from typing import TypedDict
+from urllib.parse import urlsplit
+
+# Third Party Imports
+from grpc import ssl_channel_credentials
+from grpc.aio import (
+    ClientCallDetails,
+    Metadata,
+    UnaryStreamCall,
+    UnaryStreamClientInterceptor,
+    UnaryUnaryCall,
+    UnaryUnaryClientInterceptor,
+    insecure_channel,
+    secure_channel,
+)
+
+# Local Imports
+from .client import Client
+
+# Type Checking Imports
+
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
+
+
+class Pairing(TypedDict):
+    certificate_pem: str | None
+    access_key: str | None
+    backend_identifier: str
+    endpoints: list[str]
+    label: str
+    version: int
+
+
+class _UnaryMetadata(UnaryUnaryClientInterceptor):
+    def __init__(self, metadata: Sequence[tuple[str, str]]) -> None:
+        self._metadata = tuple(metadata)
+
+    async def intercept_unary_unary[Q, R](
+        self,
+        continuation: Callable[[ClientCallDetails, Q], Awaitable[UnaryUnaryCall[Q, R]]],
+        client_call_details: ClientCallDetails,
+        request: Q,
+    ) -> UnaryUnaryCall[Q, R]:
+        details = ClientCallDetails(
+            client_call_details.method,
+            client_call_details.timeout,
+            Metadata(*self._metadata, *(client_call_details.metadata or ())),
+            client_call_details.credentials,
+            client_call_details.wait_for_ready,
+        )
+        return await continuation(details, request)
+
+
+class _StreamMetadata(UnaryStreamClientInterceptor):
+    def __init__(self, metadata: Sequence[tuple[str, str]]) -> None:
+        self._metadata = tuple(metadata)
+
+    async def intercept_unary_stream[Q, R](
+        self,
+        continuation: Callable[[ClientCallDetails, Q], Awaitable[UnaryStreamCall[Q, R]]],
+        client_call_details: ClientCallDetails,
+        request: Q,
+    ) -> UnaryStreamCall[Q, R]:
+        details = ClientCallDetails(
+            client_call_details.method,
+            client_call_details.timeout,
+            Metadata(*self._metadata, *(client_call_details.metadata or ())),
+            client_call_details.credentials,
+            client_call_details.wait_for_ready,
+        )
+        return await continuation(details, request)
+
+
+# === Public Functions === #
+
+
+async def connect(
+    target: str | Path | None = None,
+    *,
+    certificate_pem: str | None = None,
+    access_key: str | None = None,
+    expected_backend_id: str | None = None,
+) -> Client:
+    selected = str(target or os.environ.get("DOKIME_REMOTE", ""))
+    if not selected:
+        raise ValueError("Connect: Name an Endpoint or Pairing File, or Set DOKIME_REMOTE")
+    if selected.endswith(".pair"):
+        pairing = _pairing(Path(selected))
+        certificate_pem = pairing["certificate_pem"]
+        access_key = pairing["access_key"]
+        expected_backend_id = pairing["backend_identifier"]
+        selected = pairing["endpoints"][0]
+    endpoint = urlsplit(selected)
+    if (
+        endpoint.scheme not in ("http", "https")
+        or not endpoint.hostname
+        or not endpoint.port
+        or endpoint.path
+        or endpoint.query
+        or endpoint.fragment
+        or endpoint.username
+        or endpoint.password
+    ):
+        raise ValueError("Connect: Supply an HTTP(S) Origin with an Explicit Port")
+    metadata = (("authorization", f"Bearer {access_key}"),) if access_key else ()
+    interceptors = [_UnaryMetadata(metadata), _StreamMetadata(metadata)]
+    if endpoint.scheme == "https":
+        if not certificate_pem:
+            raise ValueError("Connect: HTTPS Requires a Pinned Server Certificate")
+        channel = secure_channel(endpoint.netloc, ssl_channel_credentials(certificate_pem.encode()), interceptors=interceptors)
+    else:
+        if certificate_pem:
+            raise ValueError("Connect: HTTP Cannot Carry a Certificate")
+        channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
+    client = Client(channel)
+    client._owned_channel = channel
+    try:
+        if expected_backend_id:
+            status = await client.status.get()
+            if status.status.identity.host_id != expected_backend_id:
+                raise ValueError("Connect: Host Identity Differs from the Paired Host")
+        else:
+            await channel.channel_ready()
+        return client
+    except BaseException:
+        await client.close()
+        raise
+
+
+# === Private Functions === #
+
+
+def _pairing(path: Path) -> Pairing:
+    source = path.open("rb")
+    try:
+        content = source.read(1_048_577)
+    finally:
+        source.close()
+    if len(content) > 1_048_576:
+        raise ValueError("Pairing file exceeds 1 MiB")
+    pairing = json.loads(content)
+    required = {"version", "endpoints", "backend_identifier", "label", "certificate_pem", "access_key"}
+    if not isinstance(pairing, dict) or set(pairing) != required or type(pairing["version"]) is not int or pairing["version"] != 1:
+        raise ValueError("Invalid version 1 pairing file")
+    endpoints = pairing["endpoints"]
+    if not isinstance(endpoints, list) or not 1 <= len(endpoints) <= 32 or any(not isinstance(endpoint, str) for endpoint in endpoints):
+        raise ValueError("Pairing requires between 1 and 32 endpoint strings")
+    if len(set(endpoints)) != len(endpoints):
+        raise ValueError("Pairing endpoints must be distinct")
+    identity = pairing["backend_identifier"]
+    label = pairing["label"]
+    if (
+        not isinstance(identity, str)
+        or not identity
+        or len(identity.encode()) > 128
+        or any(character.isspace() or ord(character) < 32 for character in identity)
+    ):
+        raise ValueError("Invalid pairing backend identifier")
+    if not isinstance(label, str) or not label.strip() or len(label.encode()) > 256 or any(ord(character) < 32 for character in label):
+        raise ValueError("Invalid pairing label")
+    key = pairing["access_key"]
+    if key is not None and (
+        not isinstance(key, str) or not 32 <= len(key) <= 4096 or not all(33 <= ord(character) <= 126 for character in key)
+    ):
+        raise ValueError("Invalid pairing access key")
+    certificate = pairing["certificate_pem"]
+    if certificate is not None and not isinstance(certificate, str):
+        raise ValueError("Read Pairing: Certificate Must Be PEM Text")
+    return Pairing(
+        version=1, endpoints=list(endpoints), backend_identifier=identity, label=label, certificate_pem=certificate, access_key=key
+    )
+
+
+# === Entry Point === #

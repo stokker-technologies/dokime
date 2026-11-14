@@ -15,8 +15,8 @@ run = 'uv sync --locked --all-groups --project ../../tools/python'
 [tasks.format]
 description = "Format the Python SDK"
 run = [
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix . ../tests/fixtures/python',
-  'uv run --no-sync --project ../../tools/python ruff format . ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix .',
+  'uv run --no-sync --project ../../tools/python ruff format .',
 ]
 
 [tasks.check]
@@ -58,11 +58,15 @@ run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 description = "Test Library Conformance"
 run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -v'
 
-[tasks.starter]
-description = "Test the Starter"
-dir = "examples/starter"
+[tasks.example-test]
+description = "Test the Test Examples"
+dir = "examples/test"
 run = 'uv run --no-sync --project ../../../../tools/python python -m unittest discover -s ../../../tests/fixtures/python/starter -v'
 
 [tasks.generate]
 description = "Generate Typed Python Protocol Packages"
-run = 'uv run --locked --group generate python tools/generate.py'
+run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
+
+[tasks.unit]
+description = "Test Python SDK Units"
+run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v'

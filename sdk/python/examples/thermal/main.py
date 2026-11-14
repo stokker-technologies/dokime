@@ -13,7 +13,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
 import sys
-from typing import Any
 
 # Third Party Imports
 from suite import plugin
@@ -33,7 +32,7 @@ from suite import plugin
 # === Public Functions === #
 
 
-async def main() -> Any:
+async def main() -> None:
     endpoint = await plugin().start("127.0.0.1:0")
     print(endpoint.url, flush=True)
     try:

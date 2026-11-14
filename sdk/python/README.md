@@ -1,267 +1,197 @@
 # Dokime Python SDK
 
-`dokime-sdk` (import `dokime`) is one pure Python package for remote plugin authoring and async gRPC
-clients. It builds on the Harmos Python SDK at revision
-`2124adafd52e1c50085521389c82720387edd46d`, serves `harmos.plugin.v1.Instance`, and exchanges
-generated messages: `dokime.v1` for shared values, `dokime.client.v1` for client calls,
-`dokime.plugin.v1` for lifecycle bindings and `dokime.plugin.host.v1` for host calls.
-Python never starts Dokime.
+`dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
+It composes Harmos at immutable revision `2124adafd52e1c50085521389c82720387edd46d`.
+Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
 
-Use Python 3.13 or newer. Build this candidate and install its portable wheel:
-
-```sh
-mise run build:python
-uv add --no-cache /path/to/dokime_sdk-0.1.5-py3-none-any.whl
-```
-
-The wheel installs `grpcio`, `protobuf`, and the exact-revision `harmos-sdk`
-dependency. Building the SDK uses `grpcio-tools`; it requires no Rust or native
-Dokime compiler. Registry publication is a separate release action.
-
-## Author a Remote Plugin
-
-```python
-import dokime
-
-
-@dokime.suite("example.measurement", label="Measurement")
-class Measurement:
-    def initialize(self, ctx):
-        self.reading = 2.5
-
-    @dokime.stream("Reading", identifier="example.reading")
-    @dokime.observer(interval_ms=200)
-    def reading_sample(self, ctx):
-        return self.reading
-
-    @dokime.step("Measure", retries=1)
-    async def measure(self, ctx):
-        await ctx.progress(1, 1, label="Measured")
-
-    @dokime.criterion("Positive Reading")
-    def positive(self, ctx):
-        return self.reading > 0
-
-
-async def main():
-    endpoint = await dokime.serve(Measurement, address="127.0.0.1:7001")
-    print(endpoint.url)
-    # The application owns its event loop and shutdown signal.
-    await endpoint.close()
-```
-
-The runnable [starter](examples/starter/) matches the Rust starter's Example suite:
-Confirm asks a declared question and records its answer; Confirmed evaluates that record.
-Its endpoint stays open until Ctrl+C.
-Its own test drives a complete execution through the prepared product host and client root:
-
-```sh
-dokime new bench --lang python
-cd bench
-uv add --no-cache /path/to/dokime_sdk-0.1.5-py3-none-any.whl
-mise run test
-mise run serve
-```
-
-The CLI embeds `.gitattributes`, `.gitignore`, `main.py`, `suite.py`, `pyproject.toml`,
-`mise.toml`, `tests/host.py`, and `tests/test_capture.py` directly from that directory.
-CLI integration belongs to the CLI owner; these source files are authoritative.
-
-## Compose Definitions
-
-Python decorators register ordinary values. The equivalent explicit form is
-`Suite(identifier, templates=[Template(identifier, instance, steps=[Step(...)],
-criteria=[Criterion(...)])])`, passed to
-`Plugin(identifier, version, suites=[...])` and then `await dokime.serve(plugin)`.
-Pass independent protobuf payload types through `messages=[Payload]`; record payload
-types are registered automatically. Harmos owns their descriptor merging and catalog digest.
-Pass generated `Parameter` and `FileParameter` messages and composed `Document`
-values to `Template`. Duplicate identifiers fail when the plugin is constructed
-or its catalog is built, before its endpoint starts.
-
-The SDK derives a pure `<template>.materialize` operation and Protected unary
-initialize, step, criterion, and cleanup operations. Step retries become Harmos
-operation attempts. Parameter-dependent materialization uses the same handlers:
-
-```python
-@dokime.materialize
-def materialize(cls, case, parameters):
-    for channel in parameters["channels"]:
-        case.step(f"Measure Channel {channel}", cls.measure, channel=channel)
-```
-
-Materializers are synchronous and must be pure. They may be called again to
-recover argument bindings from a frozen case. They cannot call the host.
-The SDK constructs one suite instance on its first execution operation, shares
-it with steps, criteria, and observers, and releases it after cleanup, including
-when cleanup raises. Resources stay on `self` and are never serialized.
-
-## Host Calls and Evidence
-
-Callbacks may be synchronous when they need no awaited work; host calls are
-async. `await ctx.operation(operation)(request)` binds an explicit typed `dokime.Operation`
-and forwards its policy and cancellation through Harmos. Import hardware drivers inside
-operation handlers; suite steps call those operations through their context.
-Use async handlers for local Private operations with the pinned library, including
-handlers that call synchronous drivers.
-`Plugin.requires` defaults to the SDK's host operations. An explicit `requires`
-sequence replaces that set; compose it with `dokime.HOST_OPERATIONS`
-when adding another plugin's operations.
-
-Conveniences cover `prompt`, `sleep`, `now`, `record`, `records`, `statistics`,
-`settings`, `secret`, `progress`, `log`, `traceability`, `document`, `artifact`,
-file copying/capture, environment and effect prepare/confirm. They are unary
-child calls on the invoking Harmos call, inheriting its execution scope and
-cancellation. Sleep always uses the host clock.
-
-Declare records with `Record(identifier, GeneratedMessage)` on the plugin;
-publish with `await ctx.record(identifier, **fields)` or pass a message as the
-second argument. `await ctx.records(identifier).last()` returns the decoded
-message, and `.count()` returns the acknowledged count. Stream values use
-generated protobuf messages; a scalar observer returns a float, carried as
-`google.protobuf.DoubleValue`. A stream method without `@observer` is an async
-generator. The host owns demand, sampling ticks, sample timestamps, and storage.
-
-`dokime.plot`, `Stream.field()`, `Document`, `Section`, and `Summary` compose
-canonical document/plot messages. A builder's `.message` is the generated wire
-message, suitable for a catalog document or `ctx.document` part. No native
-extension or separate binary descriptor is committed.
-
-The pinned Harmos Python sample carrier creates observer contexts without an invocation
-channel and refuses operation calls from sample callbacks. Successful observer child
-calls need the library to supply that carrier; the SDK retains the library transport.
-
-## Connect a Client
-
-`await dokime.connect("http://127.0.0.1:8765")` opens an async channel.
-Use `await client.close()` to cancel its calls and release the channel.
-HTTPS requires a pinned PEM certificate; `access_key` supplies Bearer
-authorization. A `.pair` path (or `DOKIME_REMOTE`) additionally requests backend
-identity verification before returning a client.
-
-`client.stubs` contains each generated `dokime.client.v1` service stub, keyed by its
-fully qualified service name. `client.call(request)` locates a unique generated
-method by input type; pass `method=MethodDescriptor` for an ambiguous method or
-a streaming request. Unary calls are awaited; server-streaming calls are async
-iterators. The channel's generated stubs also remain directly available.
-`client.plugins`, `suites`, `templates`, `cycles`, `executions`, `prompts`,
-`records`, `samples` and `reports` compose requests over those generated methods.
-Cycle watches yield `dokime.client.v1.executions.ProgressWatchResponse` values and verify
-finished progress followed by successful final status. The descriptor-derived
-`client.executions.progress.get(request)` and `.watch(request)` use distinct client
-wrappers; context `Progress.Get/Set` supplies whole-value revision checks. Declare
-both context operations when selecting requirements for `ctx.progress(...)`.
-Registry resources are flat: `client.suites`, `record_schemas`, `stream_schemas`,
-`prompt_definitions` and `analyses`. Wheel builds generate concrete typed resource
-classes and matching stubs. Convenience resources also accept canonical request
-messages and retain their nested resources. The pinned library still owns its
-`catalog_entries` root.
-Report downloads create a preview and read its file through library Storage,
-verifying size and SHA-256 before returning bytes. Downloads never publish a report.
-
-```python
-client = await dokime.connect(url)
-try:
-    await client.plugins.add(plugin_url)
-    suites = await client.suites.list()
-    cases = await client.templates.materialize("example", "example.capture", {})
-    cycle = await client.cycles.start(cases)
-    async for progress in cycle.watch():
-        if progress.phase == "prompt":
-            pending = await client.prompts.pending(cycle.executions[0])
-            await client.prompts.respond(pending[0].prompt.prompt_id, "yes", accepted=True)
-finally:
-    await client.close()
-```
-
-The wheel generates Dokime client gRPC methods from the authoritative protos;
-the library root supplies Access, Status and Storage. The in-process client story
-adds a remote plugin, lists its canonical entry, drains Status.Logs envelopes,
-propagates refusals and removes the entry before explicitly closing the client.
-Pairing verifies the host identity through Status.Get.
-The new execution host also runs the real-process Python client journey; see
-[Execution Host](../../docs/execution-host.md).
-
-## Decode Frozen Evidence
-
-Execution details contain a schema digest and record/stream identities. Fetch descriptors
-only on a digest miss and reuse them across executions, including after plugin removal:
-
-```python
-cache = dokime.FrozenSchemaCache()
-execution = await client.executions.get(execution_id)
-records = await client.records.list(execution_id)
-door = await cache.decode(client, execution, "thermal.v1.Door", records.records[0].payload)
-```
-
-The cache fetches every `Executions.Schemas.Get` page at the same returned cut,
-checks the digest before caching and assembles dependencies before decoding. Descriptor
-snapshots returned by `get(client, execution)` are independent copies. Drop the cache
-to release retained descriptors.
-
-## Setup, Build, Test and Package
-
-Run these tasks from the repository root:
+Use Python 3.13 or newer. From the repository root:
 
 ```sh
 mise -C sdk/python run prepare
-mise -C sdk/python run format
 mise -C sdk/python run build
 mise -C sdk/python run install
+```
+
+Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
+The wheel depends on `grpcio`, `protobuf` and the pinned Harmos SDK. Building it needs no Rust compiler.
+
+## Connect a Client
+
+```python
+from dokime.connection import connect
+
+
+async def inspect(endpoint: str) -> None:
+    client = await connect(endpoint)
+    try:
+        entries = await client.plugins.list()
+        for entry in entries.entries:
+            print(entry.name)
+        suites = await client.suites.list()
+        for suite in suites.suites:
+            print(suite.metadata.label)
+    finally:
+        await client.close()
+```
+
+`dokime.Client` and `dokime.client.Client` expose one composed resource tree.
+Pass request content as arguments, such as `client.executions.get(name)` and
+`client.plugins.settings.list(name)`. Operations with one response field return
+that field; operations with several return their typed response. Client calls accept
+`timeout`, `call_metadata` and `credentials` for one call. Close cancels the owned
+channel and its active calls; closing twice is safe.
+
+`connect` accepts an HTTP(S) origin, a pairing file, or `DOKIME_REMOTE`. HTTPS
+requires a pinned PEM certificate. `access_key` applies bearer metadata to unary
+and streaming calls; a paired host identity is checked through Status before use.
+Use the generated access resources to manage listener settings and pairings.
+
+Plugin administration and settings use the library's PluginEntry identity:
+
+```python
+from dokime.client import PluginPlacement, PluginRemote, PluginValue
+from dokime.connection import connect
+
+
+async def register(endpoint: str, plugin_url: str) -> None:
+    client = await connect(endpoint)
+    try:
+        result = await client.plugins.create(
+            "example",
+            PluginPlacement(remote=PluginRemote(url=plugin_url)),
+            PluginValue(),
+            request_id="register-example",
+        )
+        await client.plugins.settings.list(result.entry.name)
+        await client.plugins.delete(result.entry.name, result.entry.revision)
+    finally:
+        await client.close()
+```
+
+Retain the same `request_id` when retrying a mutation. Product secret bindings
+are nested at `client.plugins.secrets`; they contain host secret identifiers and
+availability, never secret bytes. Binding replacement uses the revision returned
+by List. The plugin context exposes only the operations plugins may call after composition.
+
+## Author a Plugin
+
+The examples are the starter sources:
+
+- [Client](examples/client/main.py) browses a running host.
+- [Plugin](examples/plugin/main.py) serves an independent typed operation.
+- [Test Suite](examples/test/suite.py) declares a confirmation journey with decorators.
+- [Test Template](examples/test/template.py) composes that journey explicitly.
+- [Thermal Suite](examples/thermal/suite.py) retains the cross-language host fixture.
+
+Serve the test example with `uv run python sdk/python/examples/test/main.py`.
+The endpoint stays open until cancellation. Its owner always calls `close()`.
+The command-line tool embeds these example sources; its embedding is owned by the CLI.
+
+Import authoring builders and decorators from `dokime.authoring`, document builders
+from `dokime.documents`, and `Plugin`, `Context` and `HostOperation` from
+`dokime.plugin`. Root types are model values. For example, the authoring `Suite`
+builder and the root Suite model have distinct modules.
+
+`Plugin(identifier, version, suites=[...], records=[...])` composes one Harmos
+plugin. `requires` accepts generated HostOperation members and independently typed
+operation declarations. Omitting it selects the generated plugin host requirements;
+an explicit sequence replaces that set. `settings` accepts library setting
+declarations. `secrets` accepts SecretDeclaration values; duplicate or empty
+identifiers fail before serving. A secret read must name a declared secret, and the
+host also authorizes its trusted plugin identity and binding.
+
+Lifecycle and analysis payloads come from `dokime.plugin`. Independent lifecycle
+bindings remain Protected. Use the library's `operation` decorator for additional
+operations, and pass their instance through `Plugin(operations=...)`. The SDK
+constructs an execution-owned suite instance, shares it with steps, criteria and
+observers, and releases it after cleanup even when cleanup raises.
+
+Materializers are synchronous and pure. They freeze parameter-dependent steps
+and criteria without host calls. Resources remain on the suite instance and are
+never serialized. Stream callbacks retain their declared protobuf row types and
+raw analysis time axes; scalar observers use DoubleValue rows.
+
+## Call the Host
+
+Callbacks receive a typed Context. Its `host` is the generated plugin resource root:
+
+```python
+from dokime.plugin import Context
+
+
+async def confirm(context: Context) -> None:
+    answer = await context.host.prompts.create("confirmation", "example.confirmation", {})
+    await context.record("example.confirmation", value=answer.accepted and answer.action == "yes")
+```
+
+Conveniences cover records, prompts, progress, logs, traceability, document parts,
+settings and declared secrets. `context.operation(operation)(request)` binds an
+independent typed operation and supports a policy override. Host calls inherit
+execution scope and cancellation. Time reads and sleeps use the library's host
+clock; observer intervals and retries belong to operation policies and settings.
+The library's sample carrier must provide an invocation channel before sample
+callbacks can make child calls.
+
+Media capture, FTP capture and the effects journal remain unimplemented. Their
+host operations refuse the action rather than returning empty success. Storage
+is an in-process host boundary; there is no SDK storage service.
+
+## Compose and Decode Evidence
+
+`dokime.plot` composes plot expressions. `Document`, `Section` and `Summary` in
+`dokime.documents` retain canonical model messages, including pending/result
+bindings and card completion supplied by host document responses.
+
+`dokime.values.encode` and `decode` preserve signed/unsigned integers and Fraction
+values through ExactNumber, including statistics sums, typed presence and plot
+category totals. Drawing coordinates do not replace exact totals.
+
+`FrozenSchemaCache` in `dokime.schemas` fetches execution schema pages at one read
+cut, verifies their SHA-256, caches by digest and decodes frozen record/stream
+bindings after plugin removal. Returned descriptor snapshots are independent copies.
+
+Use `upload_file` in `dokime.transfers` for unified Files uploads and
+`download_report(client, execution, max_bytes=...)` for verified report previews.
+Uploads honor returned chunk/message bounds and preserve mutation identities;
+report downloads verify file length and digest and never publish a report.
+
+## Build and Verify
+
+```sh
+mise -C sdk/python run format
 mise -C sdk/python run check
-mise -C sdk/python run package
-mise -C sdk/python run generated
-mise run check:python:bindings
-mise run build:host-fixtures -- --language rust
+mise -C sdk/python run generate -- --check
+mise -C sdk/python run build
+mise -C sdk/python run install
+mise -C sdk/python run unit
 mise -C sdk/python run test
-mise -C sdk/python run starter
+mise -C sdk/python run generated
+mise -C sdk/python run package
 mise -C sdk/python run wheel
 ```
 
-The package contains inline annotations, regular typed protocol packages and
-`dokime.generated.resources`; no runtime resource table or dynamic public
-attribute fallback is shipped. The current call shape is retained until the
-next library pin regenerates the resource roots and protobuf bindings.
-`package` verifies and copies the existing wheel and source distribution to
-`target/package/dev/any/python`; it never compiles. SDK test fixtures live under
-`sdk/tests/fixtures/python`.
+`check` covers SDK sources, examples, tests and tooling with Ruff and the type
+checker, without type ignores. `generate --check` regenerates wire bindings in
+temporary storage and reports drift without writing committed output. `generated`
+checks the installed wheel's source manifest, private descriptor set, message
+shapes, RPC cardinalities and serializers. `tools/stubs.py` checks authored public
+modules and generated resource signatures against the installed package.
 
-`generated` checks every source hash, generated message, service method,
-cardinality, serializer, and response type. `check:python:bindings` also runs strict
-mypy stubtest against the installed public package and generated resource stubs in a
-fresh environment, without an allowlist or ignored missing stubs.
-`generate` refreshes committed messages, `.pyi` files, typed package markers
-and gRPC stubs from `proto/`, matching the library SDK structure. Source
-distributions carry those same proto sources so wheel builds remain self-contained.
+Build exports a pure wheel and source distribution under
+`target/build/dev/any/python`; package verifies and copies those bytes to
+`target/package/dev/any/python`. Repository tasks share the root `.venv`.
+The SDK's immutable git dependency remains in its package metadata and lockfile.
 
-For transport conformance, build `harmos-conformance` through the pinned Harmos
-checkout's `mise run build -- --package harmos-conformance`, set
-`HARMOS_CONFORMANCE_HOST` to that executable, then run
-`mise -C sdk/python run conformance`. It runs the fixed language-neutral
-fixture through Dokime's plugin composition against all reference-host rules.
+Host-backed stories require prepared host fixtures and a controlled clock.
+They await readiness and progress conditions. Each owned host removes its
+credentials before disposing of its temporary storage, including on Windows.
+Existing roots are never reset; incompatible roots require selecting a fresh root.
+See [Execution Host](../../docs/execution-host.md) for fixture build commands.
 
-The cross-language suite is [`examples/thermal/suite.py`](examples/thermal/suite.py).
-The named host story `python_plugin_matches_rust_thermal_evidence` adds its remote
-URL, runs `thermal.cycle` with `limit = 85`, answers the door, and compares the
-frozen test case, ordered records/steps/logs, samples and outcome with Rust.
-It reopens the sealed evidence after shutdown. The starter retains its own
-host-driven authoring story, using the client root rather than an Instance client stub.
-The host owns the controlled clock, retries, evidence and cleanup. Linux stories
-start an isolated session bus/keyring; install dbus and gnome-keyring first.
-Build prerequisites and named host runs are in
-[Execution Host](../../docs/execution-host.md).
-
-## Composed Client Services
-
-The async `Client` exposes the library resource root, including
-`client.access.listener.get`, `client.access.pairings.create` and
-`client.access.certificates.create`, with the client's configured metadata.
-Use requests from the matching `harmos.v1.access` modules. Generic identity and
-health use `client.status.get`; logs, trace events and diagnostics are nested
-under that same root. Connection identity checks use the library's stable host ID.
-
-`await client.files.upload(path)` publishes a local file using the host's returned
-chunk/message limits and verifies its length/SHA-256. `FrozenSchemaCache.decode`
-accepts a frozen record or stream identity and resolves its `message_name` binding.
+For transport conformance, set `HARMOS_CONFORMANCE_HOST` to the pinned library's
+reference host and `HARMOS_CONFORMANCE_FIXTURE` to its
+`sdk/python/tests/fixtures/conformance` directory, then run
+`mise -C sdk/python run conformance`. Full platform validation belongs to hosted CI
+and Nightly; a local native run does not substitute for the other platform.

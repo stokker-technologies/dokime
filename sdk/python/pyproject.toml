@@ -48,7 +48,7 @@ python-version = "3.13"
 python = "../../.venv"
 
 [tool.ty.src]
-include = ["src/dokime", "tests", "examples"]
+include = ["src/dokime", "tests", "examples", "tools", "hatch_build.py"]
 # protoc Owns Generated Bindings; Descriptor and Stub Stories Verify Their Contract.
 exclude = ["**/*_pb2*"]
 
@@ -65,3 +65,7 @@ source_pkgs = ["dokime"]
 
 [tool.coverage.paths]
 dokime = ["src/dokime", "*/site-packages/dokime"]
+
+[tool.ruff.lint]
+# Every SDK and Tooling Function Has an Explicit Typed Signature.
+extend-select = ["ANN"]
