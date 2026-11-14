@@ -120,7 +120,7 @@ fn main() {
     for count in [30, 100] {
         for condition in ["cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled"] {
             println!(
-                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; persisted history; publication/actions included when named; cold reopens host and desktop before timer; no timing assertions"
+                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; durable history; producer prompt handoff/actions included when named, without a publication durability barrier; cold reopens host and desktop before timer"
             );
             group.bench_function(format!("{count}/{condition}"), |bencher| {
                 bencher.iter_custom(|iterations| {

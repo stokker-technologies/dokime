@@ -377,7 +377,7 @@ fn main() {
     group.sampling_mode(SamplingMode::Flat);
     let fixture = Fixture::new();
     let mut offset = 0;
-    boundary("Store Admission and Flush, 1,024 Rows", "warm; sample_batch and flush_samples; durable; encoding excluded");
+    boundary("Store Admission and Flush, 1,024 Rows", "warm open store; sample_batch and flush_samples, including file creation when absent; durable; row encoding excluded");
     group.bench_function("store_admission_and_flush/1024", |b| {
         b.iter_custom(|iterations| {
             let mut elapsed = Duration::ZERO;

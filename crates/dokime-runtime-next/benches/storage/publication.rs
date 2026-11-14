@@ -191,7 +191,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     let mut plugin = None;
     super::boundary(
         "Runtime Observer Publication and Evidence Barrier, 1,024 Rows",
-        "warm host, fresh execution; release ready step, one tick carrying 1,024 encoded samples through plugin transport and batch admission, append produced-count record (durable evidence barrier), await captured prompt; execution end and shutdown excluded",
+        "warm host, fresh execution; release ready step, tick-driven producer encoding of 1,024 samples, plugin transport and batch admission, append produced-count record (durable evidence barrier), await captured prompt; execution end and shutdown excluded",
     );
     group.bench_function("observer_publication_and_barrier_durable/1024", |b| {
         let plugin = plugin.get_or_insert_with(|| executor.block_on(Producer::start(&settings().placement, &[])).unwrap());
