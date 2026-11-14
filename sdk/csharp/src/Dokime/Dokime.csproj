@@ -9,12 +9,12 @@
     <RepositoryUrl>https://github.com/stokker-technologies/dokime</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Stories" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <None Include="$(RepoRoot)docs/sdk-csharp.md" Pack="true" PackagePath="/" />
     <PackageReference Include="Harmos" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Grpc.Net.Client" />
-    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
   </ItemGroup>
 </Project>

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Dokime;
-using Dokime.Protocol.V1;
-using Dokime.Protocol.Plugin.V1;
-using Harmos.Sdk;
+using Dokime.Plugins;
+using Harmos.Plugins;
 using Stories.Support;
 using Xunit;
+using Step = Dokime.Plugins.Step;
+using Suite = Dokime.Plugins.Suite;
 
 namespace Stories.Integration;
 
@@ -18,9 +19,13 @@ public sealed class AuthorRejectsMismatchedExecution
     var instrument = new Instrument();
     var template = new Template("guard.case", "Guard")
         .Resource(_ => Task.FromResult<IAsyncDisposable>(instrument))
-        .Step(new Dokime.Step("read", "Read", _ => { instrument.Reads++; return Task.CompletedTask; }))
+        .Step(new Step("read", "Read", _ =>
+        {
+          instrument.Reads++;
+          return Task.CompletedTask;
+        }))
         .Cleanup(_ => throw new InvalidOperationException("Fixture cleanup failed"));
-    var plugin = new Dokime.Plugin("guard", "1.0.0", new Dokime.Suite("guards", "Guards", template));
+    var plugin = new Plugin("guard", "1.0.0", new Suite("guards", "Guards", template));
     await using var server = await PluginServer.StartAsync(plugin);
     var description = await server.Wire.DescribeAsync();
     var testCase = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "guard.case.materialize", new TestCasesMaterializeRequest { Template = "guard.case" })).TestCase;
@@ -44,6 +49,10 @@ public sealed class AuthorRejectsMismatchedExecution
   {
     internal int Reads;
     internal int Disposals;
-    public ValueTask DisposeAsync() { Disposals++; return ValueTask.CompletedTask; }
+    public ValueTask DisposeAsync()
+    {
+      Disposals++;
+      return ValueTask.CompletedTask;
+    }
   }
 }

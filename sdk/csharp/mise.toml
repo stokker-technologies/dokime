@@ -20,15 +20,20 @@ description = "Restore the C# Solution"
 depends = ["prepare:harmos"]
 run = ['"{{tools.dotnet.path}}/dotnet" restore Dokime.slnx --configfile NuGet.Config --force-evaluate']
 
+[tasks."generate"]
+description = "Verify Frozen C# Generation"
+depends = ["restore"]
+run = ['uv run --no-sync --project ../../tools/python python tools/generate.py']
+
 [tasks."build"]
 description = "Build the C# Solution"
-depends = ["restore"]
+depends = ["generate"]
 run = ['"{{tools.dotnet.path}}/dotnet" build Dokime.slnx --configuration Release --no-restore']
 
 [tasks."format"]
 description = "Format the C# Solution"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore',
+  'python tools/format.py "{{tools.dotnet.path}}/dotnet"',
   'uv run --no-sync --project ../../tools/python ruff check --select I --fix tools',
   'uv run --no-sync --project ../../tools/python ruff format --line-length 140 tools',
 ]
@@ -36,10 +41,12 @@ run = [
 [tasks."check"]
 description = "Check C# Formatting and Generated Clients"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --verify-no-changes',
+  'python tools/format.py "{{tools.dotnet.path}}/dotnet" --check',
+  'uv run --no-sync --project ../../tools/python python tools/generate.py',
   'python tools/check_clients.py',
   'uv run --no-sync --project ../../tools/python ruff check --select I,F401,E9 tools',
   'uv run --no-sync --project ../../tools/python ruff format --line-length 140 --check tools',
+  'uv run --no-sync --project ../../tools/python ty check --project . --python ../../.venv --extra-search-path ../../tools/python/src tools',
 ]
 
 [tasks."package"]
@@ -58,7 +65,7 @@ run = [
 
 [tasks."build:starter"]
 description = "Build the NuGet Consumer"
-usage = 'flag "--project <project>" default="starter/Starter.csproj"'
+usage = 'flag "--project <project>" default="examples/Test/Test.csproj"'
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore "{{usage.project}}" --configfile NuGet.Config --packages ../../target/cs/packages --force-evaluate',
   '"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration Release --no-restore',
@@ -85,6 +92,14 @@ run = [
   'cargo build --manifest-path ../../target/cs/reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target/cs/reference/target',
 ]
 
+[tasks."build:examples"]
+description = "Build the Installed NuGet Examples"
+run = [
+  { task = "build:starter --project examples/Client/Client.csproj" },
+  { task = "build:starter --project examples/Plugin/Plugin.csproj" },
+  { task = "build:starter --project examples/Test/Test.csproj" },
+]
+
 [tasks."test:starter"]
 description = "Test the Packaged Starter"
 run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Starter"']
@@ -97,7 +112,8 @@ run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Confor
 description = "Clean C# Compiler Outputs"
 run = [
   '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean starter/Starter.csproj --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Test/Test.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration Release',
   '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release --artifacts-path ../../target/cs/harmos',
 ]

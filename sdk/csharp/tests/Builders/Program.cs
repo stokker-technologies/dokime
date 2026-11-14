@@ -7,9 +7,9 @@
  * ***
  */
 
-using Dokime.Authoring;
-using Plots = Dokime.Authoring.Plots;
-using Dokime.Protocol.V1;
+using Dokime.Plugins;
+using Plots = Dokime.Plugins.Plots;
+using Dokime;
 using Google.Protobuf;
 
 var input = Expressions.Field("scan", "temperature");

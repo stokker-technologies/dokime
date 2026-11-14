@@ -37,19 +37,28 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision = "2124adafd52e1c50085521389c82720387edd46d"
-output = Path(__file__).resolve().parents[1] / "../../target/cs/reference"
+revision: str = "2124adafd52e1c50085521389c82720387edd46d"
+output: Path = Path(__file__).resolve().parents[1] / "../../target/cs/reference"
 output.mkdir(parents=True, exist_ok=True)
-source = os.environ.get("HARMOS_SOURCE")
+source: str | None = os.environ.get("HARMOS_SOURCE")
 if source:
-    archive = subprocess.check_output(["git", "-C", source, "archive", "--format=zip", revision])
-    with zipfile.ZipFile(io.BytesIO(archive)) as files:
+    archive: bytes = subprocess.check_output(["git", "-C", source, "archive", "--format=zip", revision])
+    files = zipfile.ZipFile(io.BytesIO(archive))
+    try:
         files.extractall(output)
+    finally:
+        files.close()
 else:
-    with urllib.request.urlopen(f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz") as response:
+    response = urllib.request.urlopen(f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz")
+    try:
         archive = response.read()
-    with tarfile.open(fileobj=io.BytesIO(archive)) as files:
-        for member in files.getmembers():
+    finally:
+        response.close()
+    members = tarfile.open(fileobj=io.BytesIO(archive))
+    try:
+        for member in members.getmembers():
             member.name = str(Path(*Path(member.name).parts[1:]))
             if member.name != ".":
-                files.extract(member, output, filter="data")
+                members.extract(member, output, filter="data")
+    finally:
+        members.close()
