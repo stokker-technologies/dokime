@@ -14,9 +14,6 @@
 mod error;
 pub mod host;
 mod resources;
-pub mod settings;
-pub mod sleep;
-pub mod time;
 
 /* === Re-Exports === */
 

@@ -9,7 +9,6 @@ package dokime.host.v1;
 // === Imports === //
 
 import "dokime/model/v1/plots.proto";
-import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -61,15 +60,6 @@ message SettingsSchemaRequest { .harmos.model.v1.ReadCut at = 1; }
 message SettingsSchemaResponse { .dokime.host.v1.SettingsFrame schema = 1; .harmos.model.v1.ReadCut resolved_at = 2; }
 
 // === Resources === //
-
-// ReadSettings value owned by this resource.
-message ReadSettings {}
-
-// SavedSettings value owned by this resource.
-message SavedSettings {
-  
-  map<string, .dokime.model.v1.Value> values = 1;
-}
 
 // ApplicationAppearance value owned by this resource.
 message ApplicationAppearance {
