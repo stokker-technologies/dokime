@@ -20,9 +20,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
-use dokime_gui::native_session::backend::{self, Backend};
-use dokime_protocol::client;
-use dokime_sdk::client::v1::access;
+use dokime_runtime_next::services::initial_preferences;
 
 /* === Constants === */
 
@@ -43,53 +41,13 @@ use dokime_sdk::client::v1::access;
 /* === Private Functions === */
 
 fn main() -> Result<(), String> {
-    // The Generated Host Router's Debug Future Exceeds the Windows Main Stack.
-    std::thread::Builder::new()
-        .name("Export Preferences".into())
-        .stack_size(8 * 1024 * 1024)
-        .spawn(|| tokio::runtime::Runtime::new().map_err(|error| error.to_string())?.block_on(export()).map_err(|error| error.to_string()))
-        .map_err(|error| error.to_string())?
-        .join()
-        .map_err(|_| "Export Preferences: Worker Panicked".to_owned())?
-}
-
-async fn export() -> Result<(), Box<dyn std::error::Error>> {
-    // Own a Fresh Disposable Host; Existing Generator and User Roots Stay Intact.
     let directory = PathBuf::from(std::env::args_os().nth(1).ok_or("Export Preferences: Supply an Output Directory")?);
-    let root = tempfile::tempdir()?;
-    let result = export_at(&directory, root.path()).await;
-    if root.path().join("backend-id").is_file()
-        && let Err(error) = dokime_runtime_next::services::remove_credentials(root.path())
-    {
-        return Err(format!("Export Preferences: Remove Credentials at {}: {error}", root.keep().display()).into());
-    }
-    result
-}
-
-async fn export_at(directory: &std::path::Path, root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let (mut owner, _) =
-        backend::start(&Backend::new(root.to_owned()), |_| {}).await.map_err(|error| format!("Export Preferences: {error:?}"))?;
-    let session = owner.session()?;
-    let result = async {
-        // Read Product Defaults and the Independently Owned Listener.
-        let mut snapshot: client::SettingsGetResponse =
-            session.unary("/dokime.client.v1.Settings/Get", client::SettingsGetRequest::default()).await?;
-        let listener: access::ListenerGetResponse = session.unary("/harmos.v1.access.Listener/Get", access::ListenerGetRequest {}).await?;
-        let listener = listener.value.ok_or("Export Preferences: Host Omitted Listener")?;
-        snapshot.value.as_mut().ok_or("Export Preferences: Host Omitted Settings")?.listener = Some(client::RemoteListenerSettings {
-            enabled: listener.enabled,
-            address: listener.endpoint,
-            certificate_names: listener.certificate_names,
-            tls_enabled: true,
-            authentication_enabled: true,
-        });
-        std::fs::create_dir_all(directory)?;
-        std::fs::write(directory.join("defaults.bin"), snapshot.encode_to_vec())?;
-        Ok::<_, Box<dyn std::error::Error>>(())
-    }
-    .await;
-    owner.close().await?;
-    result
+    let snapshot = initial_preferences();
+    std::fs::create_dir_all(&directory).map_err(|error| format!("Export Preferences: Create {}: {error}", directory.display()))?;
+    let output = directory.join("defaults.bin");
+    std::fs::write(&output, snapshot.encode_to_vec())
+        .map_err(|error| format!("Export Preferences: Write {}: {error}", output.display()))?;
+    Ok(())
 }
 
 /* === Tests === */

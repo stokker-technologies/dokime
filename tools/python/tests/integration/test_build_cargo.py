@@ -133,7 +133,10 @@ class IconInputTests(unittest.TestCase):
             (brand / "icons/icon.png").write_bytes(b"source fixture")
             destination = root / "crates/dokime-gui/src-tauri/icons"
             destination.mkdir(parents=True)
-            outputs = {"icon.ico": b"icon fixture", "64x64.png": b"png fixture"}
+            small = b"ic08" + (13).to_bytes(4, "big") + b"small"
+            large = b"ic09" + (13).to_bytes(4, "big") + b"large"
+            header = b"icns" + (8 + len(small) + len(large)).to_bytes(4, "big")
+            outputs = {"icon.ico": b"icon fixture", "64x64.png": b"png fixture", "icon.icns": header + large + small}
 
             def render(command, **options):
                 directory = Path(command[command.index("--output") + 1])
@@ -148,12 +151,18 @@ class IconInputTests(unittest.TestCase):
             ):
                 organization.generate_icons()
                 self.assertEqual(copies.call_count, len(outputs))
+                self.assertEqual((destination / "icon.icns").read_bytes(), header + small + large)
+                outputs["icon.icns"] = header + small + large
                 organization.generate_icons()
                 self.assertEqual(copies.call_count, len(outputs))
                 outputs["icon.ico"] = b"changed icon fixture"
                 organization.generate_icons()
                 self.assertEqual(copies.call_count, len(outputs) + 1)
                 self.assertEqual((destination / "icon.ico").read_bytes(), outputs["icon.ico"])
+                for invalid in (b"icns", b"icns" + (16).to_bytes(4, "big") + b"ic08" + bytes(4)):
+                    outputs["icon.icns"] = invalid
+                    with self.assertRaises(ValueError):
+                        organization.generate_icons()
 
 
 class FocusedCargoTests(unittest.TestCase):

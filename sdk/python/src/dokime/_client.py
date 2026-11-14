@@ -17,6 +17,7 @@ import json
 import os
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
+from io import FileIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -126,11 +127,13 @@ class Client(Resource):
 class Files(FilesResource):
     async def upload(self, path: str | Path) -> Message:
         request_id = str(uuid4())
-        with Path(path).open("rb") as source:
+        source = await asyncio.to_thread(FileIO, path, "rb")
+        try:
+            metadata = await asyncio.to_thread(os.fstat, source.fileno())
             created = await self._client.call(
                 message(
                     "dokime.client.v1.files.UploadsCreateRequest",
-                    metadata={"expected_length": os.fstat(source.fileno()).st_size},
+                    metadata={"expected_length": metadata.st_size},
                     request_id=f"{request_id}/create",
                 )
             )
@@ -140,7 +143,7 @@ class Files(FilesResource):
                     raise ValueError("Upload File: Invalid Transfer Limits")
                 digest = hashlib.sha256()
                 offset = 0
-                while data := source.read(created.chunk_bytes):
+                while data := await asyncio.to_thread(source.read, created.chunk_bytes):
                     reply = await self._client.call(
                         message(
                             "dokime.client.v1.files.UploadsAppendRequest",
@@ -171,6 +174,8 @@ class Files(FilesResource):
                     message("dokime.client.v1.files.UploadsDeleteRequest", session=session, request_id=f"{request_id}/abandon")
                 )
                 raise
+        finally:
+            await asyncio.to_thread(source.close)
 
 
 class Plugins(PluginsResource):

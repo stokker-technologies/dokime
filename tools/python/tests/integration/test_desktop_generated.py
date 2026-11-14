@@ -52,8 +52,8 @@ const packageRequire = createRequire(resolve("crates/dokime-gui/package.json"));
 const { create, createFileRegistry, fromBinary, toBinary } = packageRequire("@bufbuild/protobuf");
 const { FileDescriptorSetSchema } = packageRequire("@bufbuild/protobuf/wkt");
 const registry = createFileRegistry(fromBinary(FileDescriptorSetSchema, readFileSync("crates/dokime-protocol/src/descriptors.bin")));
-const type = registry.getMessage("dokime.v1.SettingsSnapshot");
-const value = create(type, { revision: 7n, settings: {
+const type = registry.getMessage("dokime.client.v1.SettingsGetResponse");
+const value = create(type, { revision: Buffer.from([7]), value: {
   appearance: { themeMode: 1, density: 2 }, report: { plotDownsample: 4, plotPoints: 1537 },
   client: { connectTimeoutMs: 4321n, requestTimeoutMs: 8765n }, telemetry: { intervalMs: 321n },
   listener: { enabled: true, certificateNames: ["fixture.local"] }, plugins: { startupTimeoutS: 31, stopTimeoutS: 17 },

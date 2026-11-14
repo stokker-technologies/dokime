@@ -98,6 +98,8 @@ def generate_icons() -> None:
             stderr=sys.stderr,
         )
         outputs = sorted(path for path in Path(directory).iterdir() if path.is_file())
+        icon = Path(directory) / "icon.icns"
+        icon.write_bytes(_canonical_icns(icon.read_bytes()))
         for path in outputs:
             stage_file(path, destination / path.name)
         _write_json(
@@ -111,6 +113,21 @@ def generate_icons() -> None:
 
 
 # === Private Functions === #
+
+
+def _canonical_icns(data: bytes) -> bytes:
+    """Order Representations Without Changing Their Encoded Image Bytes."""
+    if len(data) < 8 or data[:4] != b"icns" or int.from_bytes(data[4:8], "big") != len(data):
+        raise ValueError("Generate Desktop Icons: Tauri Returned an Invalid ICNS Header")
+    chunks = []
+    offset = 8
+    while offset < len(data):
+        length = int.from_bytes(data[offset + 4 : offset + 8], "big")
+        if length < 8 or offset + length > len(data):
+            raise ValueError("Generate Desktop Icons: Tauri Returned an Invalid ICNS Representation")
+        chunks.append(data[offset : offset + length])
+        offset += length
+    return data[:8] + b"".join(sorted(chunks))
 
 
 def _write_json(path: Path, value: object) -> None:

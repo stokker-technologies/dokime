@@ -140,6 +140,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [current composition](../crates/dokime-runtime-next/Cargo.toml),
    [product settings](../crates/dokime-operations-next/src/settings.rs).
+   Build-time preference export composes declared product settings and the listener
+   declaration used by Access configuration, without opening a host, storage or
+   credentials. Runtime startup failures retain underlying operation causes;
+   desktop diagnostics do not classify every startup failure as incompatible storage.
    **Proof:** `client_pairs_and_rotates_remote_access` exercises direct library
    composition, bearer authorization of product services, revocation, restart
    and live rotation. The new host serves library Access.Listener,

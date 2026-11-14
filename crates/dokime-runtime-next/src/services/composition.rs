@@ -17,12 +17,21 @@
 
 // Standard Library Imports
 use std::{
+    convert::Infallible,
     num::NonZeroUsize,
+    result::Result as StdResult,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
 // Third Party Imports
+use harmos_protocol::v1::access::ListenerValue;
+use harmos_runtime::{
+    Runtime, Setup, Startup,
+    clock::{Reading, Sleep},
+    grpc::{Settings as TransportSettings, access::AccessSettings},
+};
+use tokio::time::Instant;
 
 // Local Imports
 use super::ClientSettings;
@@ -41,7 +50,7 @@ const PAIRING_LABEL_BYTES: NonZeroUsize = NonZeroUsize::new(256).unwrap();
 pub(super) struct Application;
 struct Clock {
     source: Arc<dyn SchedulerClock>,
-    origin: tokio::time::Instant,
+    origin: Instant,
     origin_ns: i64,
 }
 
@@ -53,9 +62,9 @@ struct Clock {
 
 impl harmos_runtime::Lifecycle for Application {
     type Config = ();
-    type Error = std::convert::Infallible;
-    type Context = harmos_runtime::Startup<Self>;
-    async fn prepare(_: (), _: &mut harmos_runtime::Setup<Self>) -> std::result::Result<Self, Self::Error> {
+    type Error = Infallible;
+    type Context = Startup<Self>;
+    async fn prepare(_: (), _: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
         Ok(Self)
     }
 }
@@ -65,14 +74,14 @@ impl harmos_runtime::Application for Application {
     type Record = ();
 }
 impl harmos_runtime::clock::Source for Clock {
-    fn read(&self) -> harmos_runtime::clock::Reading {
+    fn read(&self) -> Reading {
         let now_ns = self.source.now_ns();
-        harmos_runtime::clock::Reading {
+        Reading {
             instant: self.origin + Duration::from_nanos(now_ns.saturating_sub(self.origin_ns).max(0) as u64),
             date: SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns.max(0) as u64),
         }
     }
-    fn sleep_until(&self, deadline: tokio::time::Instant) -> harmos_runtime::clock::Sleep {
+    fn sleep_until(&self, deadline: Instant) -> Sleep {
         let source = self.source.clone();
         let deadline_ns =
             self.origin_ns.saturating_add(deadline.saturating_duration_since(self.origin).as_nanos().min(i64::MAX as u128) as i64);
@@ -82,13 +91,13 @@ impl harmos_runtime::clock::Source for Clock {
 
 /* === Public Functions === */
 
-pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<harmos_runtime::Runtime<Application>> {
+pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<Runtime<Application>> {
     let clock = harmos_runtime::clock::Clock::with_clock(Clock {
         origin_ns: source.now_ns(),
         source,
-        origin: tokio::time::Instant::now(),
+        origin: Instant::now(),
     });
-    harmos_runtime::Runtime::<Application>::launch_with((), (), |setup| {
+    Runtime::<Application>::launch_with((), (), |setup| {
         setup.settings().clock(clock);
         setup.resource::<Option<Arc<harmos_storage::StorageManager>>>(None);
         setup.catalog(harmos_runtime::builtins::host_catalog(), harmos_runtime::operations::Lane::default());
@@ -97,8 +106,8 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<harmos_run
     .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))
 }
 
-pub(super) fn transport(settings: &ClientSettings) -> harmos_runtime::grpc::Settings {
-    let mut transport = harmos_runtime::grpc::Settings {
+pub(super) fn transport(settings: &ClientSettings) -> TransportSettings {
+    let mut transport = TransportSettings {
         request_timeout: settings.watch_timeout,
         shutdown_timeout: settings.mutation_timeout,
         ..Default::default()
@@ -109,13 +118,9 @@ pub(super) fn transport(settings: &ClientSettings) -> harmos_runtime::grpc::Sett
     transport
 }
 
-pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc::access::AccessSettings {
-    harmos_runtime::grpc::access::AccessSettings {
-        listener: harmos_protocol::v1::access::ListenerValue {
-            enabled: false,
-            endpoint: "127.0.0.1:0".into(),
-            certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
-        },
+pub(super) fn access_settings(settings: &ClientSettings) -> AccessSettings {
+    AccessSettings {
+        listener: initial_listener(),
         transport: transport(settings),
         handshake_timeout: settings.read_timeout,
         pairings: NonZeroUsize::new(settings.max_cases).unwrap(),
@@ -125,5 +130,13 @@ pub(super) fn access_settings(settings: &ClientSettings) -> harmos_runtime::grpc
 }
 
 /* === Private Functions === */
+
+pub(super) fn initial_listener() -> ListenerValue {
+    ListenerValue {
+        enabled: false,
+        endpoint: "127.0.0.1:0".into(),
+        certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
+    }
+}
 
 /* === Tests === */
