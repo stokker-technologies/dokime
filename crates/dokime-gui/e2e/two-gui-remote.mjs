@@ -246,6 +246,8 @@ try {
     const report = await deliver(gui, { kind: "execution_report", executionId }, "execution.html", "html_report");
     assert.equal(report.origin, "sealed");
     const html = await readFile(report.path);
+    await mkdir(join(evidence, name), { recursive: true });
+    await writeFile(join(evidence, name, "execution.html"), html);
     assert.ok(html.toString("utf8").includes("Thermal"));
     hashes.push(createHash("sha256").update(html).digest("hex"));
     await openNativeReport(report.path);
