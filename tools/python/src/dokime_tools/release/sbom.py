@@ -181,7 +181,18 @@ def auditable(profile: str, command: list[str]) -> int:
         command[0] = sys.executable
     if not command:
         raise policy.ToolError("pass an existing build entry point")
-    return subprocess.run(command, env=environment, check=False, creationflags=spawn_flags()).returncode
+    result = subprocess.run(
+        command,
+        env=environment,
+        check=False,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+    if result.returncode:
+        print(f"Build Rust Products: {subprocess.list2cmdline(command)} Exited {result.returncode}", file=sys.stderr, flush=True)
+    return result.returncode
 
 
 def workspace(directory: Path, target: str, output: Path) -> list[Path]:

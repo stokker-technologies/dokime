@@ -73,11 +73,13 @@ def main(arguments: list[str] | None = None) -> int:
     if args.cargo is not None:
         if args.operation != "build" or args.package or not args.cargo or args.cargo[0] not in ("build", "check", "rustc"):
             parser.error("--cargo requires build and a native build, check or rustc command")
-        if not any(
+        workspace_check = args.cargo[0] == "check" and "--workspace" in args.cargo[1:]
+        package_selection = any(
             argument in ("-p", "--package") or argument.startswith("--package=") or argument.startswith("-p") and len(argument) > 2
             for argument in args.cargo[1:]
-        ):
-            parser.error("--cargo requires an explicit Cargo package")
+        )
+        if not package_selection and not workspace_check:
+            parser.error("--cargo requires an explicit Cargo package or an explicit workspace check")
         if (
             args.profile != "dev"
             or args.check

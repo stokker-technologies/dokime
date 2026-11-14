@@ -39,3 +39,5 @@ target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-system-suite system/main.cpp)
 target_link_libraries(dokime-system-suite PRIVATE dokime_thermal_protocol)
 target_link_libraries(dokime-system-suite PRIVATE Dokime::Cpp)
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/runtime-$<CONFIG>.txt"
+  CONTENT "$<TARGET_FILE_DIR:dokime-system-suite>\n$<JOIN:$<TARGET_RUNTIME_DLLS:dokime-system-suite>,\n>")

@@ -53,7 +53,12 @@ def main() -> None:
     )
     parser.add_argument("--build-dir", type=Path)
     parser.add_argument("--harmos-source", type=Path, default=os.environ.get("HARMOS_SOURCE"))
-    parser.add_argument("--harmos-cache", type=Path, default=os.environ.get("DOKIME_HARMOS_CACHE"))
+    parser.add_argument(
+        "--harmos-cache",
+        type=Path,
+        default=os.environ.get("DOKIME_HARMOS_CACHE"),
+        help="CMake Package Prefix for Cached Native Dependencies",
+    )
     parser.add_argument("--fetch-dependencies", action="store_true")
     parser.add_argument("--fresh", action="store_true", help="Refresh the CMake Configuration While Preserving Compiled Outputs")
     parser.add_argument("--target")
@@ -65,11 +70,17 @@ def main() -> None:
     args = parser.parse_args()
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
-    directory = (args.build_dir or root / "target/sdk/cpp").resolve()
+    directory = (args.build_dir or root / "target/cpp").resolve()
     directory.mkdir(parents=True, exist_ok=True)
     configuration = "Debug"
     environment = dict(os.environ)
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    if os.name == "nt":
+        # Dependency Submodules Contain Long Source Names; Keep Git Policy Child-Scoped.
+        index = int(environment.get("GIT_CONFIG_COUNT", "0"))
+        environment["GIT_CONFIG_COUNT"] = str(index + 1)
+        environment[f"GIT_CONFIG_KEY_{index}"] = "core.longpaths"
+        environment[f"GIT_CONFIG_VALUE_{index}"] = "true"
 
     if args.action == "format":
         formatter = shutil.which("clang-format")
@@ -107,6 +118,7 @@ def main() -> None:
             str(directory),
             "-DCMAKE_BUILD_TYPE=Debug",
             "-DDOKIME_BUILD_CONFORMANCE=ON",
+            f"-DDOKIME_FETCH_DEPENDENCIES={'ON' if args.fetch_dependencies else 'OFF'}",
         ]
         if args.fresh:
             command += ["--fresh"]
@@ -116,8 +128,6 @@ def main() -> None:
             command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
         if args.harmos_cache:
             command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
-        if args.fetch_dependencies:
-            command += ["-DDOKIME_FETCH_DEPENDENCIES=ON"]
     elif args.action == "build":
         command = [
             "cmake",
@@ -236,6 +246,13 @@ def main() -> None:
     print("\n".join(lines[-60:]))
     print(f"Complete Output: {log}")
     result.check_returncode()
+    if args.action == "build":
+        # Stage Package-Provided Runtime Libraries Beside Their Consumer.
+        manifest = directory / f"runtime-{configuration}.txt"
+        if manifest.is_file():
+            destination, *libraries = manifest.read_text(encoding="utf-8").splitlines()
+            for library in libraries:
+                shutil.copy2(library, Path(destination) / Path(library).name)
 
 
 # === Private Functions === #

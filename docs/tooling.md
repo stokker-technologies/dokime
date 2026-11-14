@@ -24,6 +24,8 @@ Focused tests use nextest and compile only the selected package/target. `--exact
 selects a test, `--story` selects a module, and `--filterset` takes a nextest expression.
 `--artifact tests` consumes the matching prepared archive without compilation.
 An empty selection fails. Clippy runs through lint/check, never build/test.
+After source closure, `mise run build -- --cargo check --workspace --tests --locked`
+runs the explicit workspace compiler proof through the same task owner.
 
 ## Fixtures and Stories
 
@@ -39,9 +41,12 @@ mise -C sdk/cpp run test
 mise run build -- --artifact tests
 ```
 
-Host fixture production builds the Rust reference, content fixture and host;
+Host fixture production builds the Rust reference, content fixture, host and pure Python wheel;
 C# and C++ producers use their SDK tasks. `build:host-fixtures --language
-rust|python|csharp|cpp` selects one producer. Fixtures are exported under
+rust|python|csharp|cpp` selects one producer. C++ uses `target/cpp/` with short
+generated and object paths on Windows; cached dependency builds resolve code
+generators through the same Protobuf/gRPC package targets as uncached builds.
+Fixtures are exported under
 `target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
 Rust starter built through its own mise task. Stories never compile plugins.
 

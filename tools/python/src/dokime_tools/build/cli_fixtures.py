@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -43,7 +44,15 @@ def build(profile: str) -> None:
     extension = ".exe" if os.name == "nt" else ""
 
     # Build the CLI Through the Project Task.
-    subprocess.run(["mise", "run", "build", "--", "--package", "dokime-cli-next"], cwd=root, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        ["mise", "run", "build", "--", "--package", "dokime-cli-next"],
+        cwd=root,
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     cli = root / "target/debug" / f"dokime-next{extension}"
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
@@ -53,8 +62,24 @@ def build(profile: str) -> None:
         project = Path(scratch) / "rust"
 
         # Generate the User's Rust Project With the Real Command-Line Tool.
-        subprocess.run([str(cli), "new", str(project), "--lang", "rust"], cwd=root, check=True, creationflags=spawn_flags())
-        subprocess.run(["mise", "trust", str(project / "mise.toml")], cwd=root, check=True, creationflags=spawn_flags())
+        subprocess.run(
+            [str(cli), "new", str(project), "--lang", "rust"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.run(
+            ["mise", "trust", str(project / "mise.toml")],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
 
         # Build the Generated Source Against the SDK Candidate.
         sdk = (root / "sdk/rust").as_posix()

@@ -117,7 +117,7 @@ descriptor dependencies when using raw calls.
 ## Source Distribution and Starter
 
 `mise -C sdk/cpp run archive -- --version VERSION` creates
-`target/sdk/cpp/dokime-cpp-VERSION.tar.gz` and its SHA-256 sidecar. The archive
+`target/cpp/dokime-cpp-VERSION.tar.gz` and its SHA-256 sidecar. The archive
 contains `sdk/cpp` and the authoritative `proto` tree in their repository layout.
 It also includes this guide, LICENSE and NOTICE. It contains neither generated
 bindings nor dependency binaries. Release tooling
@@ -142,25 +142,28 @@ Consumers of the SDK retain the library's Plugin audience by default:
 mise -C sdk/cpp tasks --all
 mise -C sdk/cpp run prepare
 mise -C sdk/cpp run format
-mise -C sdk/cpp run configure -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/harmos/target/cpp/dev
+mise -C sdk/cpp run configure -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
 mise -C sdk/cpp run build
 mise -C sdk/cpp run test
 mise -C sdk/cpp run check
 mise -C sdk/cpp run conformance -- --host C:/path/to/harmos-conformance.exe
-mise -C sdk/cpp run starter -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/harmos/target/cpp/dev
-mise -C sdk/cpp run starter -- --build-dir ../../target/sdk/cpp-archive-proof --sdk-archive ../../target/sdk/cpp/dokime-cpp-0.1.0.tar.gz --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/harmos/target/cpp/dev
+mise -C sdk/cpp run starter -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
+mise -C sdk/cpp run starter -- --build-dir ../../target/cpp-archive-proof --sdk-archive ../../target/cpp/dokime-cpp-0.1.0.tar.gz --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
 ```
 
 `configure --fetch-dependencies` builds the exact Harmos-pinned gRPC dependency
 graph inside the selected build directory; the execution-host fixture producer
-uses this mode on Linux and Windows.
+uses this mode on Linux and Windows. `--harmos-cache` (or `DOKIME_HARMOS_CACHE`)
+selects a CMake package prefix containing Protobuf, gRPC and OpenSSL instead.
+The same imported package targets supply headers, libraries and code generators;
+no relocated Visual Studio project or hard-coded compiler path is read. Runtime
+DLLs are staged beside the fixture when the packages use shared libraries.
 
 Without `--harmos-cache` or `--fetch-dependencies`, configure uses the CMake package dependencies installed
 by vcpkg, and fetches the exact Harmos revision unless its source is overridden.
-`--harmos-cache` imports the existing Windows Visual Studio Debug gRPC/protobuf
-libraries and code generators read-only. It builds the requested Harmos SDK source
-anew, sharing only dependencies. Never clean or reconfigure that other worker's
-cache. Native Linux proof uses package dependencies and remains separately required.
+Cached packages remain read-only while the requested Harmos SDK source builds
+inside the selected output directory. Never clean or reconfigure another worker's
+cache. Native Linux proof remains separately required.
 `--build-dir` selects a fresh output directory for all actions. Complete logs and
 CTest JUnit stay under that directory. Tests consume existing build outputs.
 

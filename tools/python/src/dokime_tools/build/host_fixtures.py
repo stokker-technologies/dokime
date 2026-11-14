@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -46,7 +47,7 @@ def build(profile: str, language: str = "auto") -> None:
 
     languages = {language}
     if language == "auto":
-        languages = {"rust"}
+        languages = {"rust", "python"}
         if shutil.which("dotnet"):
             languages.add("csharp")
         if shutil.which("cmake"):
@@ -54,7 +55,15 @@ def build(profile: str, language: str = "auto") -> None:
 
     # Build The Rust Reference And Execution Fixtures.
     if "rust" in languages:
-        subprocess.run(["mise", "-C", "sdk/rust", "run", "sdk:build"], cwd=root, check=True, creationflags=spawn_flags())
+        subprocess.run(
+            ["mise", "-C", "sdk/rust", "run", "sdk:build"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         for name in ("dokime-rust-thermal", "dokime-rust-execution"):
             shutil.copy2(root / "target/debug" / f"{name}{extension}", output / f"{name}{extension}")
 
@@ -77,40 +86,70 @@ def build(profile: str, language: str = "auto") -> None:
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
         shutil.copy2(root / "target/debug" / f"dokime-host-next{extension}", output / f"dokime-host-next{extension}")
 
     # Publish The C# Fixture With Its Runtime And Local SDK Package.
     if "csharp" in languages:
-        subprocess.run(["mise", "-C", "sdk/csharp", "run", "build"], cwd=root, check=True, creationflags=spawn_flags())
-        subprocess.run(["mise", "-C", "sdk/csharp", "run", "package"], cwd=root, check=True, creationflags=spawn_flags())
+        subprocess.run(
+            ["mise", "-C", "sdk/csharp", "run", "build"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.run(
+            ["mise", "-C", "sdk/csharp", "run", "package"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         subprocess.run(
             ["mise", "-C", "sdk/csharp", "run", "publish:system", "--", str(output / "csharp")],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
 
     # Build The C++ Fixture With The Pinned Native Dependency Graph.
     if "cpp" in languages:
-        directory = Path(os.environ.get("DOKIME_CPP_BUILD_DIR", root / "target/sdk/cpp")).resolve()
+        directory = Path(os.environ.get("DOKIME_CPP_BUILD_DIR", root / "target/cpp")).resolve()
         subprocess.run(
             ["mise", "-C", "sdk/cpp", "run", "configure", "--", "--fetch-dependencies", "--build-dir", str(directory)],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         subprocess.run(
             ["mise", "-C", "sdk/cpp", "run", "build", "--", "--target", "dokime-system-suite", "--build-dir", str(directory)],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         native = directory / "tests"
         if os.name == "nt":
             native /= "Debug"
         shutil.copy2(native / f"dokime-system-suite{extension}", output / f"dokime-system-suite{extension}")
+        for library in native.glob("*.dll"):
+            shutil.copy2(library, output / library.name)
 
     # Build The Pure Python Fixture Without A Host Dependency.
     if "python" in languages:
