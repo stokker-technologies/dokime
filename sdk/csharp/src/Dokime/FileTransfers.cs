@@ -6,6 +6,7 @@ using Dokime.Plugins;
 using Google.Protobuf;
 using Grpc.Core;
 using Harmos;
+using File = System.IO.File;
 
 namespace Dokime;
 
@@ -16,7 +17,7 @@ public static class FileTransfers
           metadata => files.Uploads.Create(metadata, context: context),
           (upload, offset, data) => files.Uploads.Append(upload, offset, data, context: context),
           (upload, length, digest) => files.Uploads.Publish(upload, length, digest, context: context),
-          upload => files.Uploads.Delete(upload, context: context.WithCancellationToken(default).WithDeadline(null)));
+          upload => files.Uploads.Delete(upload, context: new CallOptions(headers: context.Headers)));
 
   public static Task<FileReference> UploadAsync(this HostFilesResource files, string path,
       OperationPolicy? policy = null, CancellationToken cancellationToken = default)

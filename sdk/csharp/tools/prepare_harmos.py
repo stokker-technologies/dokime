@@ -56,7 +56,9 @@ if source:
             "--format=zip",
             revision,
             "sdk/csharp/src/Harmos",
+            "sdk/csharp/tests/Harmos.Conformance",
             "sdk/csharp/Directory.Build.props",
+            "sdk/tests/fixtures/conformance/proto",
             "proto",
         ]
     )
@@ -77,7 +79,9 @@ else:
         for member in members.getmembers():
             relative = Path(*Path(member.name).parts[1:])
             if (
-                relative.as_posix().startswith(("sdk/csharp/src/Harmos/", "proto/"))
+                relative.as_posix().startswith(
+                    ("sdk/csharp/src/Harmos/", "sdk/csharp/tests/Harmos.Conformance/", "sdk/tests/fixtures/conformance/proto/", "proto/")
+                )
                 or relative.as_posix() == "sdk/csharp/Directory.Build.props"
             ):
                 member.name = str(relative)

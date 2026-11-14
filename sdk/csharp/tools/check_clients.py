@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Check that the authoritative protocol provides client service definitions."""
+"""Check Frozen Service Stubs Against the Authoritative Protocol."""
 # === Imports === #
 
 # Standard Library Imports
@@ -33,26 +33,27 @@ from pathlib import Path
 # === Entry Point === #
 
 root: Path = Path(__file__).resolve().parents[1]
-services: list[tuple[str, str, str]] = []
+services: list[tuple[str, str]] = []
 for protocol in (root / "../../proto/dokime").resolve().rglob("*.proto"):
     source = protocol.read_text()
     package_match: re.Match[str] | None = re.search(r"^package\s+([\w.]+);", source, re.MULTILINE)
     if package_match is None:
         sys.exit(f"Check C# Clients: Missing Package in {protocol}")
     package: str = package_match.group(1)
-    namespace_match: re.Match[str] | None = re.search(r'^option csharp_namespace = "([\w.]+)";', source, re.MULTILINE)
-    namespace: str = namespace_match.group(1) if namespace_match else ".".join(part.title() for part in package.split("."))
-    if namespace.endswith(".Clients"):
-        namespace = namespace.removesuffix(".Clients") + ".Internal.Client"
-    services.extend((package, namespace, service) for service in re.findall(r"^service\s+(\w+)\s*\{", source, re.MULTILINE))
+    services.extend((package, service) for service in re.findall(r"^service\s+(\w+)\s*\{", source, re.MULTILINE))
 if not services:
     sys.exit("Client coverage is blocked: proto/dokime has no service declarations.")
 
 generated: list[str] = [path.read_text(encoding="utf-8-sig") for path in (root / "src/Dokime/Generated/Wire").rglob("*Grpc.cs")]
 missing: list[str] = [
     f"{package}.{service}"
-    for package, namespace, service in services
-    if not any(f"namespace {namespace};" in source and f"class {service}Client" in source for source in generated)
+    for package, service in services
+    if not any(
+        f'__ServiceName = "{package}.{service}";' in source
+        and f"internal static partial class {service}" in source
+        and f"class {service}Client" in source
+        for source in generated
+    )
 ]
 if missing:
     sys.exit("Missing generated clients: " + ", ".join(missing))

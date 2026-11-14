@@ -93,7 +93,7 @@ run = [
 description = "Build the Pinned Reference Host"
 run = [
   'python tools/prepare_reference.py',
-  'cargo build --manifest-path ../../target/cs/reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target/cs/reference/target',
+  'cargo build --manifest-path ../../target/cs/reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target',
 ]
 
 [tasks."build:examples"]

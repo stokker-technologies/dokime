@@ -1,34 +1,61 @@
 // SPDX-License-Identifier: Apache-2.0
 using Dokime;
-using Dokime.Protocol.V1;
+using Dokime.Clients.EvidenceResources;
+using Dokime.Plugins;
 using Google.Protobuf.WellKnownTypes;
-using Harmos.Sdk;
+using Harmos;
 using ThermalStory;
+using Criterion = Dokime.Plugins.Criterion;
+using Step = Dokime.Plugins.Step;
+using Suite = Dokime.Plugins.Suite;
+using Value = Dokime.Value;
+using ValueType = Dokime.ValueType;
 
-var door = new Dokime.Record<Door>("thermal.door", "Door Check");
-var temperature = new Dokime.Stream<Temperature>("thermal.temperature");
+var door = new Record<Door>("thermal.door", "Door Check");
+var temperature = new Stream<Temperature>("thermal.temperature");
 var template = new Template("thermal.cycle", "Thermal Cycle")
-    .Parameter(new Parameter { Metadata = new Metadata { Identifier = "limit", Label = "Limit" }, Type = Dokime.Protocol.V1.ValueType.Number, Expression = new ParameterExpression { Literal = new Dokime.Protocol.V1.Value { Number = 85 } } })
+    .Parameter(new Parameter { Metadata = new Metadata { Identifier = "limit", Label = "Limit" }, Type = ValueType.Number, Expression = new ParameterExpression { Literal = new Value { Number = 85 } } })
     .Resource(context => Task.FromResult<IAsyncDisposable>(new Bench(context.Parameters["limit"].Number)))
     .Initialize(async context => await context.LogAsync(Severity.Info, "Initialized"))
     .Observer(new Observer<Temperature>(temperature, new Duration { Seconds = 1 }, context => Task.FromResult(new Temperature { Celsius = context.Resource<Bench>().Limit - 1 })))
-    .Step(new Dokime.Step("ramp", "Ramp to Target", async context => await context.ProgressAsync(1, 2, "Ramp to Target"), Retries: 2))
-    .Step(new Dokime.Step("hold", "Hold", async context =>
+    .Step(new Step("ramp", "Ramp to Target", async context =>
     {
-      var answer = await context.OperationAsync(Host.Prompt, new global::Dokime.Protocol.Plugin.Host.V1.PromptsCreateRequest { Prompt = "door", PromptType = "thermal.door" });
-      await context.RecordAsync(door, new Door { Closed = answer.Action == "yes" && answer.Accepted });
-      await context.SleepAsync(new Duration { Seconds = 2, Nanos = 500000000 });
-      await context.ProgressAsync(2, 2, "Hold");
+      var current = await context.Host.Executions.Progress.Get();
+      var progress = new ExecutionProgressValue { Completed = 1, Total = 2, Label = "Ramp to Target" };
+      await context.Host.Executions.Progress.Set(progress, current.Revision);
+    }, Policy: new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = 3, Initial = new Duration { Nanos = 100_000_000 } } }, ReplaySafe: true))
+    .Step(new Step("hold", "Hold", async context =>
+    {
+      var answer = await context.Host.Prompts.Create("door", "thermal.door", new Dictionary<string, Value>());
+      var at = await context.Host.Time.Get();
+      await context.RecordAsync(door, new Door { Closed = answer.Action == "yes" && answer.Accepted }, at);
+      await context.Host.Time.Sleep(new Duration { Seconds = 2, Nanos = 500_000_000 });
+      var current = await context.Host.Executions.Progress.Get();
+      var progress = new ExecutionProgressValue { Completed = 2, Total = 2, Label = "Hold" };
+      await context.Host.Executions.Progress.Set(progress, current.Revision);
     }))
-    .Criterion(new Dokime.Criterion("within_limit", "Temperature Within Limit", async context =>
+    .Criterion(new Criterion("within_limit", "Temperature Within Limit", async context =>
     {
-      var statistics = await context.StatisticsAsync(temperature.Identifier, "celsius", "hold");
-      var records = await context.RecordsAsync(door.Identifier, "hold");
-      return statistics.Count > 0 && statistics.Max <= context.Resource<Bench>().Limit && records.Last is not null && Door.Parser.ParseFrom(records.Last.Payload).Closed;
+      var reply = await context.Host.Evidence.Statistics(temperature.Identifier, [], new Window(), [], "celsius", "hold");
+      var statistics = reply.Statistics ?? throw new InvalidDataException("Read Statistics: Missing Payload");
+      var records = await context.Host.Evidence.Records.List(door.Identifier, [], new Window(), "hold", new CapturedRecordSelection());
+      var withinLimit = statistics.Count > 0 && statistics.Max?.KindCase == Value.KindOneofCase.Number
+          && statistics.Max.Number <= context.Resource<Bench>().Limit;
+      var closed = records.Last is not null && Door.Parser.ParseFrom(records.Last.Payload).Closed;
+      return withinLimit && closed;
     }))
     .Cleanup(async context => await context.LogAsync(Severity.Info, "Cleaned Up"));
-var plugin = new Dokime.Plugin("thermal", "1.0.0", new Dokime.Suite("thermal", "Thermal", template))
-    .Record(door).Requires(Host.Prompt).Requires(Host.Record).Requires(Host.Records).Requires(Host.Statistics).Requires(Host.ProgressGet).Requires(Host.ProgressSet).Requires(Host.Log).Requires(Clock.Sleep);
+var plugin = new Plugin("thermal", "1.0.0", new Suite("thermal", "Thermal", template))
+    .Record(door)
+    .Requires(HostOperation.PromptsCreate)
+    .Requires(HostOperation.EvidenceRecordsAppend)
+    .Requires(HostOperation.EvidenceRecordsList)
+    .Requires(HostOperation.EvidenceStatistics)
+    .Requires(HostOperation.ExecutionsProgressGet)
+    .Requires(HostOperation.ExecutionsProgressSet)
+    .Requires(HostOperation.EvidenceLogsAppend)
+    .Requires(HostOperation.TimeGet)
+    .Requires(HostOperation.TimeSleep);
 plugin.Build().Section(new PromptDefinitions { Prompts = { new Prompt { Metadata = new Metadata { Identifier = "thermal.door", Label = "Door Check" }, Message = "Is the Door Closed?", Archetype = PromptArchetype.Confirmation, Actions = { new PromptAction { Identifier = "yes", Label = "Yes" }, new PromptAction { Identifier = "no", Label = "No" } } } } });
 await plugin.ServeAsync(remote: args.Contains("--remote"));
 

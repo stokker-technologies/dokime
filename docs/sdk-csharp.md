@@ -29,6 +29,8 @@ and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
 uses its immutable source archive. Dokime references the resulting NuGet package.
 It does not compile library sources into the product assembly.
+The conformance project links the same revision's test fixture sources and model
+definitions from that staging directory; they remain outside the NuGet assembly.
 
 `generate` regenerates C# into temporary storage and compares the result with the
 frozen checked-in `Generated/Client.g.cs`, `Generated/Host.g.cs` and `Generated/Wire`
@@ -46,11 +48,11 @@ the content hash recorded by these locks. `package` consumes the existing Releas
 `build:starter -- --project /path/to/Test.csproj` selects an exported consumer.
 Each example pins the NuGet package directly and can be exported independently.
 
-`test:generation` compiles both generated public surfaces and their content calls.
-It excludes the authored FileTransfers.cs, whose nullable deadline and ambiguous
-File references still fail a normal SDK build, and writes only under target/cs/generation.
-Full SDK, installed package and real-host proof remain open in the
-[consumer work list](execution-host.md#c-sdk-7-items).
+`test:generation` compiles both generated public surfaces and their content calls
+in isolation under `target/cs/generation`. `build` compiles the complete solution,
+including authored file transfers. `test`, `package`, `build:examples` and
+`test:starter` exercise the SDK and its installed NuGet consumers. Real-host proof
+also requires the operations/runtime crates and shared host fixtures.
 
 ## Author a Test
 
@@ -177,7 +179,8 @@ stay in the test harness. Scenario time uses host ticks and awaited conditions.
 
 `test:starter` selects the installed Test example and exercises managed shutdown.
 Set `DOKIME_STARTER` to another prepared example executable when needed.
-`build:reference` builds the pinned library conformance host with one Cargo job;
+`build:reference` builds the pinned library conformance host with one Cargo job
+in the shared `target` directory;
 `test:conformance` runs its managed and remote fixture journeys. These require
 prepared artifacts and never compile inside a test.
 

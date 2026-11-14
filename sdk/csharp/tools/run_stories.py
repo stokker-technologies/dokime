@@ -33,10 +33,10 @@ from pathlib import Path
 
 # === Entry Point === #
 
-root = Path(__file__).resolve().parents[1]
-suffix = ".exe" if os.name == "nt" else ""
-environment = os.environ.copy()
-environment["HARMOS_CONFORMANCE_HOST"] = str(root / f"../../target/cs/reference/target/debug/harmos-conformance{suffix}")
+root: Path = Path(__file__).resolve().parents[1]
+suffix: str = ".exe" if os.name == "nt" else ""
+environment: dict[str, str] = os.environ.copy()
+environment["HARMOS_CONFORMANCE_HOST"] = str(root / f"../../target/debug/harmos-conformance{suffix}")
 environment["DOKIME_CONFORMANCE_PLUGIN"] = str(root / f"../../target/cs/bin/Conformance/release/dokime-conformance-plugin{suffix}")
 environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Test/release/dokime-example-test{suffix}"))
 subprocess.run(

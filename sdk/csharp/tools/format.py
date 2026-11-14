@@ -52,6 +52,11 @@ command: list[str] = [options.dotnet, "format", "whitespace", str(root), "--fold
 if options.check:
     command.append("--verify-no-changes")
 subprocess.run(command, check=True)
+fixtures: Path = (root / "../tests/fixtures/csharp").resolve()
+command = [options.dotnet, "format", "whitespace", str(fixtures), "--folder"]
+if options.check:
+    command.append("--verify-no-changes")
+subprocess.run(command, check=True)
 command = [options.dotnet, "format", str(root / "Dokime.slnx"), "--no-restore", "--include", *files]
 if options.check:
     command.append("--verify-no-changes")

@@ -2,7 +2,7 @@
 
 using Dokime;
 using Dokime.Plugins;
-using Harmos.Plugins;
+using Harmos;
 using Stories.Support;
 using Xunit;
 using Step = Dokime.Plugins.Step;

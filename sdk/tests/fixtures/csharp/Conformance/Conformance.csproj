@@ -6,5 +6,10 @@
   <ItemGroup>
     <ProjectReference Include="$(RepoRoot)sdk/csharp/src/Dokime/Dokime.csproj" />
     <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+    <Compile Include="$(RepoRoot)target/cs/h/sdk/csharp/tests/Harmos.Conformance/Fixture.cs" Link="Fixture.cs" />
+    <Compile Include="$(RepoRoot)target/cs/h/sdk/csharp/tests/Harmos.Conformance/CallerRequest.g.cs" Link="CallerRequest.g.cs" />
+    <Compile Include="$(RepoRoot)target/cs/h/sdk/csharp/tests/Harmos.Conformance/Generated/**/*.cs" />
+    <Protobuf Include="$(RepoRoot)target/cs/h/sdk/tests/fixtures/conformance/proto/conformance/model/v1/fixture.proto"
+              ProtoRoot="$(RepoRoot)target/cs/h/sdk/tests/fixtures/conformance/proto" GrpcServices="None" />
   </ItemGroup>
 </Project>
