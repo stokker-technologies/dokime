@@ -394,6 +394,7 @@ try {
           const deadline = performance.now() + DRAW_WAIT_MS;
           while (true) {
             const plot = await desktop.execute("return desktopInspect(arguments[0])", [`desktop.plot.${index}`]);
+            if (!plot) throw new Error(`Draw Document ${historyRows}/${count}/Plot ${index}: Native Window Closed Before Drawing`);
             if (plot.error)
               throw new Error(
                 `Draw Document ${historyRows}/${count}/Plot ${index}: ${JSON.stringify(await desktop.execute("return desktopResult()"))}`,

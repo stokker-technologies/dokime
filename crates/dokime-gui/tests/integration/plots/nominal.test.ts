@@ -12,6 +12,8 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
+import { create } from "@bufbuild/protobuf";
+import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
 import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/plots_pb.js";
 import { LineStyle } from "@host/dokime/v1/plots_pb.js";
 
@@ -28,11 +30,13 @@ import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import {
+  mapNativePlotWatchPage,
   toNativePlotRequest,
   type NativePlotPayloadEnvelope,
   type NativePlotStreamMessage,
   type NativePlotStreamUpdate,
 } from "@/lib/api/native-plots";
+import { jsonToNativeValue } from "@/lib/host/values";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
@@ -2279,6 +2283,74 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   assert.equal(request.plotType, PlotKind.XY);
   assert.equal(request.xyInterval, XyInterval.SIGMA);
   assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
+});
+
+test("Native Columns Reach Trajectory and Categorical Renderers", () => {
+  const instants = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:04Z"];
+  for (const kind of ["trajectory", "bar", "pie"] as const) {
+    const wire = create(SnapshotsWatchResponseSchema, {
+      updates: [
+        {
+          kind: PlotStreamKind.SNAPSHOT,
+          envelope: {
+            plotId: kind,
+            epoch: "epoch",
+            selection: kind,
+            diagnostics: {},
+            payload: {
+              stream: "values",
+              xKey: "coordinate",
+              maxPoints: 2n,
+              series: [{ key: "value", label: "Value", rawPoints: 2n }],
+              frame: {
+                mode: PlotCartesianMode.FACETED,
+                pointCount: 2n,
+                series: [
+                  {
+                    x: (kind === "trajectory" ? [1, 4] : ["First", "Second"]).map(jsonToNativeValue),
+                    y: [{ value: 2 }, { value: 3 }],
+                    instants: kind === "trajectory" ? instants : [],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    });
+    const update = mapNativePlotWatchPage(wire, new Map([[kind, kind]])).updates[0];
+    assert.ok(update.kind !== "pending");
+    assert.equal(update.payload.cartesian, null);
+    const plot = documentPlotSpec({
+      plot: { plot_id: kind, title: "Values", stream: "values", plot_type: kind, y: ["value"], arrangement: "grouped" },
+      payload: update.payload,
+    });
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      createElement(
+        PlotInteractionProvider,
+        { zoom: false },
+        kind === "trajectory"
+          ? createElement(TrajectoryPlot, { plot })
+          : kind === "bar"
+            ? createElement(BarPlot, { plot })
+            : createElement(PiePlot, { plot }),
+      ),
+    );
+    assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
+    if (kind === "trajectory") {
+      assert.equal(host.querySelector("[data-trajectory-instant]")?.getAttribute("data-trajectory-instant"), instants[1]);
+      assert.deepEqual(
+        plot.series[0].points.map((point) => point.instant),
+        instants,
+      );
+    } else {
+      assert.deepEqual(
+        [...host.querySelectorAll("[data-category]")].map((element) => element.getAttribute("data-category")),
+        ["First", "Second"],
+      );
+    }
+  }
 });
 
 test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () => {

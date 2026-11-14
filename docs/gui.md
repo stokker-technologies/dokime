@@ -87,6 +87,11 @@ retains other subscriptions and rendered frames. Manual All uses the same bounde
 batch selection through paged snapshots. Off-screen cards resume when visible,
 and a replaced connection generation cancels every owned group. Failed groups
 retain their actionable failure without discarding other groups' data.
+Native plot projection uses the requested plot kind: time-series, frequency and
+XY renderers retain one Cartesian frame; trajectory and categorical renderers
+receive one bounded point projection with source instants and exact category
+values, without a duplicate Cartesian copy. Whole-document benchmark traversal
+checks those real host-to-renderer handoffs as well as initial visible drawing.
 
 `Executions.Get` carries frozen record/stream declarations and a schema digest.
 `src/lib/host/schemas.ts` fetches complete descriptor-file pages through
