@@ -55,6 +55,7 @@ pub fn declaration() -> Result<OperationContract> {
 
 pub async fn handle(resources: &Resources, request: DocumentsAppendPartsRequest) -> Result<DocumentsAppendPartsResponse> {
     resources.check_action_scope(&request.execution, ID)?;
+    let _guard = resources.context.administration.lock().await;
     if let Some((_, receipt)) =
         resources.store.requested_evidence(&resources.execution, ID, &request.request_id, &request.encode_to_vec())?
     {
@@ -106,6 +107,18 @@ fn apply(document: &mut Document, request: &DocumentsAppendPartsRequest) -> Resu
         return Err(Error::Invalid("Append Document Parts: Select the Frozen Document Identity".into()));
     }
     let part = request.part.as_ref().ok_or_else(|| Error::Invalid("Append Document Parts: Supply a Card or Subsection".into()))?;
+    if request.section.is_empty() {
+        return Err(Error::Invalid("Append Document Parts: Select a Nonempty Section Identity".into()));
+    }
+    let mut pending = document.sections.iter().collect::<Vec<_>>();
+    let mut matches = 0;
+    while let Some(section) = pending.pop() {
+        matches += usize::from(section.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.section));
+        pending.extend(section.sections.iter());
+    }
+    if matches != 1 {
+        return Err(Error::Invalid("Append Document Parts: Select One Existing Section Identity".into()));
+    }
     let mut sections = document.sections.iter_mut().collect::<Vec<_>>();
     let mut selected = None;
     while let Some(section) = sections.pop() {

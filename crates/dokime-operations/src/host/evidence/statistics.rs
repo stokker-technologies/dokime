@@ -31,7 +31,7 @@ use crate::{
 };
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
-use dokime_storage::{BatchSelection, Error as StorageError, NumericWindow, StatisticsRead};
+use dokime_storage::{BatchSelection, Error as StorageError, Evidence, NumericWindow, StatisticsRead};
 use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
@@ -68,9 +68,6 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
     let store = context.host.store();
     if request.at.as_ref().is_some_and(|at| at.positions.len() != 1 || !at.revisions.is_empty()) {
         return Err(Error::Invalid("Compute Statistics: Supply Its Returned Execution Cut".into()));
-    }
-    if !request.outputs.is_empty() {
-        return Err(Error::Invalid("Compute Statistics: Output Publication Is Not Implemented; Read the Typed Statistics Payload".into()));
     }
     let mut snapshot = store.cut(execution)?;
     let resolved_at = store.resource_value(execution, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?.resolved_at;
@@ -145,6 +142,8 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
     if start_ns > end_ns {
         return Err(Error::Invalid("Compute Statistics: Choose Increasing Source-Time Bounds".into()));
     }
+    let selected = Evidence { step: step.into(), ..Default::default() };
+    let scope_matches = crate::host::evidence::selection::scope_matches(scope, &snapshot, &selected);
     let page_size = NonZeroUsize::new(context.settings.page_items).unwrap();
     let (after, through) = store.step_range(execution, step, snapshot.frontier, page_size)?;
     let start = after;
@@ -198,7 +197,7 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
         end_ns,
         bins: NonZeroUsize::MIN,
     })?;
-    if !request.versions.is_empty() && !request.versions.contains(&1) {
+    if !scope_matches || !request.versions.is_empty() && !request.versions.contains(&1) {
         statistics = Default::default();
         positions.clear();
     }

@@ -66,6 +66,10 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
     let mut scope = request.scope.unwrap_or_default();
     if context.caller.is_some() {
         let execution = context.resolve_execution(scope.execution_id.as_deref(), ID)?.to_owned();
+        let cut = context.host.store().metadata(&execution)?;
+        if scope.cycle_id.as_ref().is_some_and(|cycle| cycle != &cut.execution.cycle) {
+            return Err(Error::Permission("Get Traceability: Select the Calling Execution's Cycle".into()));
+        }
         scope.execution_id = Some(execution);
     } else if scope.execution_id.is_none() && scope.cycle_id.is_none() {
         return Err(Error::Invalid("Get Traceability: Select an Execution or Cycle".into()));

@@ -107,7 +107,10 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
         scope.step_id = Some(request.step.clone());
     }
     if let Some(id) = &scope.execution_id {
-        context.host.store().metadata(id)?;
+        let cut = context.host.store().metadata(id)?;
+        if context.caller.is_some() && scope.cycle_id.as_ref().is_some_and(|cycle| cycle != &cut.execution.cycle) {
+            return Err(Error::Permission("List Records: Select the Calling Execution's Cycle".into()));
+        }
     }
     let page = request.page.take().unwrap_or_default();
     let limit = crate::host::projection::limit(page.page_size, context.settings.page_items);
