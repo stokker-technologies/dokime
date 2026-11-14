@@ -126,7 +126,7 @@ class Client(Resource):
 class Files(FilesResource):
     async def upload(self, path: str | Path) -> Message:
         request_id = str(uuid4())
-        source = await asyncio.to_thread(Path(path).open, "rb")
+        source = await asyncio.to_thread(lambda: Path(path).open("rb"))
         try:
             metadata = await asyncio.to_thread(os.fstat, source.fileno())
             created = await self._client.call(
