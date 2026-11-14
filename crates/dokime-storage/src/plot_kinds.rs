@@ -20,10 +20,25 @@
 // Third Party Imports
 
 // Local Imports
-use crate::scalar::{self, ScalarValue as Value};
+use crate::scalar::{self, ScalarValue};
 use crate::{Error, NumericWindow, Result, Store};
-use dokime_protocol::v1;
+use dokime_protocol::v1::{
+    self, Aggregate, DataExpression, FftDetrend, FftWindow, FrequencyLevelUnit, GridAxisEntry, GridDefinition, PlotFftOptions,
+    PlotIntervalOptions, PlotWindow, Reduction, Value,
+};
 use std::collections::BTreeMap;
+
+use dokime_protocol::client::plots::ContourGrid;
+use dokime_protocol::client::plots::GridCell;
+use dokime_protocol::client::plots::GridFrame;
+use dokime_protocol::client::plots::GridFrames;
+use dokime_protocol::client::plots::NullableNumber;
+use dokime_protocol::client::plots::PlotCartesianMode;
+use dokime_protocol::client::plots::PlotColumn;
+use dokime_protocol::client::plots::PlotFrame;
+use dokime_protocol::client::plots::PlotSigmaBin;
+use dokime_protocol::client::plots::PlotSigmaIntervalAnalysis;
+use dokime_protocol::client::plots::PlotSigmaSeries;
 
 /* === Constants === */
 
@@ -31,7 +46,7 @@ use std::collections::BTreeMap;
 
 /* === Type Aliases === */
 
-pub type CartesianRead = (dokime_protocol::client::plots::PlotFrame, u64, Vec<(String, u64)>);
+pub type CartesianRead = (PlotFrame, u64, Vec<(String, u64)>);
 
 /* === Structs === */
 
@@ -76,7 +91,7 @@ impl Store {
         let mut rows = kept.into_values().collect::<Vec<_>>();
         rows.sort_by_key(|row| row.position);
         let rows = rows.into_iter().map(|r| Ok::<_, Error>((r.time, r.x, r.y, scalar::number(&r.z), r.g)));
-        let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
+        let mut columns: BTreeMap<String, PlotColumn> = BTreeMap::new();
         let mut points = 0;
         for row in rows {
             let (time, x, y, z, group) = row?;
@@ -87,13 +102,13 @@ impl Store {
             let column = columns.entry(text(group)).or_default();
             column.instants.push(instant(time));
             column.x.push(value(x));
-            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(y) });
-            column.z.push(dokime_protocol::client::plots::NullableNumber { value: z });
+            column.y.push(NullableNumber { value: Some(y) });
+            column.z.push(NullableNumber { value: z });
         }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
-            dokime_protocol::client::plots::PlotFrame {
-                mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
+            PlotFrame {
+                mode: Some(PlotCartesianMode::Faceted as i32),
                 series: columns.into_values().collect(),
                 point_count: points as u64,
                 ..Default::default()
@@ -102,7 +117,7 @@ impl Store {
             keys,
         ))
     }
-    pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<v1::Aggregate>, unique: bool) -> Result<CartesianRead> {
+    pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<Aggregate>, unique: bool) -> Result<CartesianRead> {
         let mut grouped = BTreeMap::<(String, String), (Input, u64, f64, f64, f64)>::new();
         self.kind_values(&request, |row| {
             if missing(&row.x) {
@@ -124,16 +139,16 @@ impl Store {
         })?;
         let rows = grouped.into_values().map(|(row, n, sum, min, max)| {
             let y = match aggregate {
-                Some(v1::Aggregate::Count) => n as f64,
-                Some(v1::Aggregate::Sum) => sum,
-                Some(v1::Aggregate::Mean) => sum / n as f64,
-                Some(v1::Aggregate::Min) => min,
-                Some(v1::Aggregate::Max) => max,
+                Some(Aggregate::Count) => n as f64,
+                Some(Aggregate::Sum) => sum,
+                Some(Aggregate::Mean) => sum / n as f64,
+                Some(Aggregate::Min) => min,
+                Some(Aggregate::Max) => max,
                 _ => row.y,
             };
             Ok::<_, Error>((row.x, y, row.g, n as i64))
         });
-        let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
+        let mut columns: BTreeMap<String, PlotColumn> = BTreeMap::new();
         let mut points = 0;
         let mut count = 0;
         let mut raw_counts = BTreeMap::<String, u64>::new();
@@ -154,12 +169,12 @@ impl Store {
             *raw_counts.entry(group.clone()).or_default() += n as u64;
             let column = columns.entry(group).or_default();
             column.x.push(value(x));
-            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(y) });
+            column.y.push(NullableNumber { value: Some(y) });
         }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
-            dokime_protocol::client::plots::PlotFrame {
-                mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
+            PlotFrame {
+                mode: Some(PlotCartesianMode::Faceted as i32),
                 series: columns.into_values().collect(),
                 point_count: points as u64,
                 ..Default::default()
@@ -168,14 +183,12 @@ impl Store {
             keys,
         ))
     }
-    pub fn sigma_window(
-        &self, request: KindWindow<'_>, options: v1::PlotIntervalOptions,
-    ) -> Result<(dokime_protocol::client::plots::PlotSigmaIntervalAnalysis, u64)> {
+    pub fn sigma_window(&self, request: KindWindow<'_>, options: PlotIntervalOptions) -> Result<(PlotSigmaIntervalAnalysis, u64)> {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
             return Err(Error::Invalid("Query XY Sigma: Supply Positive Finite Bin Width and Sigma".into()));
         }
         let width = options.bin_width;
-        let mut groups = BTreeMap::<(String, i64), (Value, u64, f64, f64, f64, f64)>::new();
+        let mut groups = BTreeMap::<(String, i64), (ScalarValue, u64, f64, f64, f64, f64)>::new();
         self.kind_values(&request, |row| {
             let Some(x) = scalar::number(&row.x) else {
                 return Ok(());
@@ -197,7 +210,7 @@ impl Store {
         let reduced = groups
             .into_iter()
             .map(|((_, bin), (g, n, mean, m2, min, max))| Ok::<_, Error>((bin, g, n as i64, mean, m2 / n as f64, min, max)));
-        let mut series = BTreeMap::<String, dokime_protocol::client::plots::PlotSigmaSeries>::new();
+        let mut series = BTreeMap::<String, PlotSigmaSeries>::new();
         let mut count = 0;
         let mut points = 0;
         for row in reduced {
@@ -214,11 +227,11 @@ impl Store {
                 upper = upper.min(max);
             }
             let group = text(group);
-            let output = series.entry(group.clone()).or_insert_with(|| dokime_protocol::client::plots::PlotSigmaSeries {
+            let output = series.entry(group.clone()).or_insert_with(|| PlotSigmaSeries {
                 key: if group.is_empty() { request.window.field.into() } else { format!("{}/{group}", request.window.field) },
                 ..Default::default()
             });
-            output.bins.push(dokime_protocol::client::plots::PlotSigmaBin {
+            output.bins.push(PlotSigmaBin {
                 x: (bin as f64 + 0.5) * width,
                 count: n as u64,
                 mean,
@@ -228,17 +241,17 @@ impl Store {
             output.raw_points += n as u64;
             count += n as u64;
         }
-        Ok((dokime_protocol::client::plots::PlotSigmaIntervalAnalysis { series: series.into_values().collect() }, count))
+        Ok((PlotSigmaIntervalAnalysis { series: series.into_values().collect() }, count))
     }
     pub fn contour_window(
-        &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
-    ) -> Result<(dokime_protocol::client::plots::ContourGrid, u64)> {
+        &self, request: KindWindow<'_>, x_view: Option<&PlotWindow>, y_view: Option<&PlotWindow>, reduction: Reduction,
+    ) -> Result<(ContourGrid, u64)> {
         self.contour_scaled_window(request, x_view, y_view, reduction, false, false)
     }
     pub fn contour_scaled_window(
-        &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
-        x_log: bool, y_log: bool,
-    ) -> Result<(dokime_protocol::client::plots::ContourGrid, u64)> {
+        &self, request: KindWindow<'_>, x_view: Option<&PlotWindow>, y_view: Option<&PlotWindow>, reduction: Reduction, x_log: bool,
+        y_log: bool,
+    ) -> Result<(ContourGrid, u64)> {
         let mut bounds = (None::<f64>, None::<f64>, None::<f64>, None::<f64>);
         self.kind_values(&request, |row| {
             if let (Some(x), Some(_)) = (scalar::number(&row.x), scalar::number(&row.z)) {
@@ -252,7 +265,7 @@ impl Store {
             Ok(())
         })?;
         let (Some(x_min), Some(x_max), Some(y_min), Some(y_max)) = bounds else {
-            return Ok((dokime_protocol::client::plots::ContourGrid::default(), 0));
+            return Ok((ContourGrid::default(), 0));
         };
         let (x_min, mut x_max) = x_view.map_or((x_min, x_max), |view| (view.from, view.to));
         let (y_min, mut y_max) = y_view.map_or((y_min, y_max), |view| (view.from, view.to));
@@ -281,7 +294,7 @@ impl Store {
         let y_end = if y_log { y_max.ln() } else { y_max };
         let width = (x_end - x_start) / columns as f64;
         let height = (y_end - y_start) / rows as f64;
-        let mut grid = dokime_protocol::client::plots::ContourGrid {
+        let mut grid = ContourGrid {
             columns: columns as u32,
             rows: rows as u32,
             x_edges: (0..=columns)
@@ -329,8 +342,8 @@ impl Store {
                 z
             } else {
                 match reduction {
-                    v1::Reduction::Min => grid.values[index].min(z),
-                    v1::Reduction::Max => grid.values[index].max(z),
+                    Reduction::Min => grid.values[index].min(z),
+                    Reduction::Max => grid.values[index].max(z),
                     _ => grid.values[index] + (z - grid.values[index]) / counts[index] as f64,
                 }
             };
@@ -340,15 +353,13 @@ impl Store {
         Ok((grid, count))
     }
 
-    pub fn grid_window(
-        &self, request: KindWindow<'_>, definition: &v1::GridDefinition, reduction: v1::Reduction,
-    ) -> Result<(dokime_protocol::client::plots::GridFrames, u64)> {
-        let mut grouped = BTreeMap::<(String, String, String), (Value, Value, Value, f64, u64)>::new();
+    pub fn grid_window(&self, request: KindWindow<'_>, definition: &GridDefinition, reduction: Reduction) -> Result<(GridFrames, u64)> {
+        let mut grouped = BTreeMap::<(String, String, String), (ScalarValue, ScalarValue, ScalarValue, f64, u64)>::new();
         self.kind_values(&request, |row| {
             if missing(&row.x) || missing(&row.z) {
                 return Ok(());
             }
-            let frame = if request.group.is_none() { Value::Signed(row.time) } else { row.g };
+            let frame = if request.group.is_none() { ScalarValue::Signed(row.time) } else { row.g };
             let key = (text(row.x.clone()), text(row.z.clone()), text(frame.clone()));
             if !grouped.contains_key(&key) && grouped.len() >= request.limit {
                 return Err(Error::Data("narrow grid frames and cells"));
@@ -356,8 +367,8 @@ impl Store {
             let entry = grouped.entry(key).or_insert((row.x, row.z, frame, row.y, 0));
             entry.4 += 1;
             entry.3 = match reduction {
-                v1::Reduction::Min => entry.3.min(row.y),
-                v1::Reduction::Max => entry.3.max(row.y),
+                Reduction::Min => entry.3.min(row.y),
+                Reduction::Max => entry.3.max(row.y),
                 _ => entry.3 + (row.y - entry.3) / entry.4 as f64,
             };
             Ok(())
@@ -366,7 +377,7 @@ impl Store {
         if records.len() > request.limit {
             return Err(Error::Invalid("Read Grid Chart: Narrow the Window or Reduce the Number of Frames and Cells".into()));
         }
-        let axes = |declared: &[v1::GridAxisEntry], index: usize| -> Vec<v1::GridAxisEntry> {
+        let axes = |declared: &[GridAxisEntry], index: usize| -> Vec<GridAxisEntry> {
             if !declared.is_empty() {
                 let mut values = declared.to_vec();
                 values.sort_by_key(|entry| entry.order);
@@ -379,7 +390,7 @@ impl Store {
             values
                 .into_iter()
                 .enumerate()
-                .map(|(index, key)| v1::GridAxisEntry {
+                .map(|(index, key)| GridAxisEntry {
                     label: key.clone(),
                     key,
                     order: index as i32,
@@ -395,7 +406,7 @@ impl Store {
                 "Read Grid Chart: Narrow the Window or Reduce Declared Cells and Frames to Fit the Resolution".into(),
             ));
         }
-        let mut frames: BTreeMap<String, dokime_protocol::client::plots::GridFrame> = BTreeMap::new();
+        let mut frames: BTreeMap<String, GridFrame> = BTreeMap::new();
         let mut count = 0;
         for (row, column, frame, value, n) in records {
             let row = text(row);
@@ -409,10 +420,10 @@ impl Store {
                 .position(|axis| axis.key == column)
                 .ok_or_else(|| Error::Invalid("Read Grid Chart: Declare Every Observed Column".into()))?;
             let frame = match frame {
-                Value::Signed(time) if request.group.is_none() => instant(time),
+                ScalarValue::Signed(time) if request.group.is_none() => instant(time),
                 value => text(value),
             };
-            let output = frames.entry(frame.clone()).or_insert_with(|| dokime_protocol::client::plots::GridFrame {
+            let output = frames.entry(frame.clone()).or_insert_with(|| GridFrame {
                 instant: frame,
                 values: vec![0.0; rows.len() * columns.len()],
                 valid: vec![false; rows.len() * columns.len()],
@@ -424,7 +435,7 @@ impl Store {
             count += n as u64;
         }
         for highlight in &definition.highlights {
-            let field = |expression: Option<&v1::DataExpression>| -> Result<String> {
+            let field = |expression: Option<&DataExpression>| -> Result<String> {
                 match expression.and_then(|expression| expression.kind.as_ref()) {
                     Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == request.window.stream => {
                         Ok(reference.field.clone())
@@ -453,15 +464,16 @@ impl Store {
                 Ok(())
             })?;
             for (_, input) in highlights {
-                let (row, column, frame) = (input.x, input.z, if request.group.is_none() { Value::Signed(input.time) } else { input.g });
+                let (row, column, frame) =
+                    (input.x, input.z, if request.group.is_none() { ScalarValue::Signed(input.time) } else { input.g });
                 let frame = match frame {
-                    Value::Signed(time) if request.group.is_none() => instant(time),
+                    ScalarValue::Signed(time) if request.group.is_none() => instant(time),
                     value => text(value),
                 };
                 let row = rows.iter().position(|axis| axis.key == text(row.clone()));
                 let column = columns.iter().position(|axis| axis.key == text(column.clone()));
                 if let (Some(row), Some(column), Some(frame)) = (row, column, frames.get_mut(&frame)) {
-                    frame.highlights.push(dokime_protocol::client::plots::GridCell {
+                    frame.highlights.push(GridCell {
                         row: row as u32,
                         column: column as u32,
                         label: highlight.label.clone(),
@@ -470,7 +482,7 @@ impl Store {
             }
         }
         Ok((
-            dokime_protocol::client::plots::GridFrames {
+            GridFrames {
                 rows,
                 columns,
                 frames: frames.into_values().collect(),
@@ -479,9 +491,7 @@ impl Store {
             count,
         ))
     }
-    pub fn spectrum_window(
-        &self, request: KindWindow<'_>, options: &v1::PlotFftOptions,
-    ) -> Result<(dokime_protocol::client::plots::PlotColumn, u64)> {
+    pub fn spectrum_window(&self, request: KindWindow<'_>, options: &PlotFftOptions) -> Result<(PlotColumn, u64)> {
         let window = &request.window;
         let mut rows = Vec::new();
         self.numeric_values(*window, |_, time, value| {
@@ -498,23 +508,20 @@ impl Store {
             ));
         }
         if rows.len() < 2 {
-            return Ok((dokime_protocol::client::plots::PlotColumn::default(), rows.len() as u64));
+            return Ok((PlotColumn::default(), rows.len() as u64));
         }
         let sample_rate = options.sample_rate_hz.unwrap_or(1e9 / (rows[1].0 - rows[0].0) as f64);
         if !sample_rate.is_finite() || sample_rate <= 0.0 {
             return Err(Error::Invalid("Read Frequency Plot: Supply a Positive Sample Rate and Distinct Sample Times".into()));
         }
         let count = rows.len();
-        let mean = if options.detrend == v1::FftDetrend::None as i32 {
-            0.0
-        } else {
-            rows.iter().map(|(_, value)| value).sum::<f64>() / count as f64
-        };
+        let mean =
+            if options.detrend == FftDetrend::None as i32 { 0.0 } else { rows.iter().map(|(_, value)| value).sum::<f64>() / count as f64 };
         let weighted = rows
             .iter()
             .enumerate()
             .map(|(index, (_, value))| {
-                let weight = if options.window == v1::FftWindow::Rectangular as i32 {
+                let weight = if options.window == FftWindow::Rectangular as i32 {
                     1.0
                 } else {
                     0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / (count - 1) as f64).cos())
@@ -526,7 +533,7 @@ impl Store {
         if gain <= 0.0 {
             return Err(Error::Invalid("Read Frequency Plot: Select a Rectangular Window or Include More Samples".into()));
         }
-        let mut column = dokime_protocol::client::plots::PlotColumn::default();
+        let mut column = PlotColumn::default();
         for frequency in 0..=count / 2 {
             if frequency == 0 && !options.include_dc {
                 continue;
@@ -543,18 +550,18 @@ impl Store {
             }
             let scale = if frequency == 0 || frequency == count / 2 && count.is_multiple_of(2) { 1.0 } else { 2.0 };
             let amplitude = real.hypot(imag) * scale / gain;
-            let level = match v1::FrequencyLevelUnit::try_from(options.level_unit).unwrap_or(v1::FrequencyLevelUnit::Linear) {
-                v1::FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
-                v1::FrequencyLevelUnit::Dbu => 20.0 * (amplitude / std::f64::consts::SQRT_2 / 0.775).max(f64::MIN_POSITIVE).log10(),
-                v1::FrequencyLevelUnit::Dbm => 10.0 * (amplitude * amplitude / 100.0 / 0.001).max(f64::MIN_POSITIVE).log10(),
+            let level = match FrequencyLevelUnit::try_from(options.level_unit).unwrap_or(FrequencyLevelUnit::Linear) {
+                FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
+                FrequencyLevelUnit::Dbu => 20.0 * (amplitude / std::f64::consts::SQRT_2 / 0.775).max(f64::MIN_POSITIVE).log10(),
+                FrequencyLevelUnit::Dbm => 10.0 * (amplitude * amplitude / 100.0 / 0.001).max(f64::MIN_POSITIVE).log10(),
                 _ => amplitude,
             };
-            column.x.push(value(Value::Float(hz)));
-            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(level) });
+            column.x.push(value(ScalarValue::Float(hz)));
+            column.y.push(NullableNumber { value: Some(level) });
         }
         if column.y.len() > window.bins.get() {
             let width = column.y.len().div_ceil(window.bins.get());
-            let mut reduced = dokime_protocol::client::plots::PlotColumn::default();
+            let mut reduced = PlotColumn::default();
             for (index, chunk) in column.y.chunks(width).enumerate() {
                 let peak = chunk
                     .iter()
@@ -575,10 +582,10 @@ impl Store {
 struct Input {
     position: u64,
     time: i64,
-    x: Value,
+    x: ScalarValue,
     y: f64,
-    z: Value,
-    g: Value,
+    z: ScalarValue,
+    g: ScalarValue,
 }
 impl Store {
     fn kind_values(&self, request: &KindWindow<'_>, mut read: impl FnMut(Input) -> Result<()>) -> Result<()> {
@@ -598,7 +605,7 @@ impl Store {
                     continue;
                 };
                 let field = |field: Option<&str>| {
-                    field.map(|field| scalar::field(&batch, field, row)).transpose().map(|v| v.unwrap_or(Value::Null))
+                    field.map(|field| scalar::field(&batch, field, row)).transpose().map(|v| v.unwrap_or(ScalarValue::Null))
                 };
                 read(Input {
                     position: positions.value(row),
@@ -606,7 +613,7 @@ impl Store {
                     x: field(request.x)?,
                     y,
                     z: field(request.z)?,
-                    g: request.group.map(|f| scalar::field(&batch, f, row)).transpose()?.unwrap_or(Value::Text(String::new())),
+                    g: request.group.map(|f| scalar::field(&batch, f, row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
                 })?;
             }
             Ok(true)
@@ -618,14 +625,14 @@ impl Store {
 
 /* === Private Functions === */
 
-fn value(value: Value) -> v1::Value {
+fn value(value: ScalarValue) -> Value {
     scalar::wire(&value).expect("finite plot scalar")
 }
-fn text(value: Value) -> String {
+fn text(value: ScalarValue) -> String {
     scalar::text(&value)
 }
-fn missing(value: &Value) -> bool {
-    matches!(value, Value::Missing | Value::Null)
+fn missing(value: &ScalarValue) -> bool {
+    matches!(value, ScalarValue::Missing | ScalarValue::Null)
 }
 fn instant(at_ns: i64) -> String {
     prost_types::Timestamp {

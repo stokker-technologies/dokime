@@ -67,6 +67,8 @@ tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+num-bigint = { version = "0.5.1", features = ["serde"] }
+num-traits = { version = "0.2.19" }
 keyring = { version = "4.2.0" }
 regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
@@ -128,11 +130,12 @@ tonic-prost = { version = "0.14.8", default-features = false }
 tonic-prost-build = { version = "=0.14.8", default-features = false }
 
 # Storage
-rusqlite = { version = "0.41.1", features = ["bundled", "functions", "limits"] }
+rusqlite = { version = "0.41.1", features = ["bundled", "limits"] }
 
 # UI
 
 # Testing
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
 # === Workspace Lints === #
 

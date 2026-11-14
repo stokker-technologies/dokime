@@ -112,6 +112,10 @@ def main() -> None:
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     options = parser.parse_args()
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
+    if options.binary == "storage":
+        print(build(Path.cwd(), extra, ("--package", "dokime-runtime-next", "--bench", "storage")))
+        return
+    subprocess.run(["mise", "run", "build:typescript", "--profile", "dev"], check=True, creationflags=spawn_flags())
     selection = (
         (
             "--package",

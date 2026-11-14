@@ -26,7 +26,7 @@ use crate::{
     expressions::{self, Projection},
     scalar::{self, ScalarValue},
 };
-use dokime_protocol::v1;
+use dokime_protocol::v1::{self, DataExpression, FieldReference, PlotRequest};
 
 /* === Constants === */
 
@@ -41,7 +41,7 @@ pub struct PlotGroup {
     value: ScalarValue,
 }
 pub struct PlotSelection {
-    pub request: v1::PlotRequest,
+    pub request: PlotRequest,
     pub projected: BTreeSet<String>,
     pub labels: BTreeMap<String, String>,
 }
@@ -79,7 +79,7 @@ impl Store {
         }
         Ok(())
     }
-    pub fn plot_selection(&self, cut: &ExecutionCut, request: &v1::PlotRequest) -> Result<PlotSelection> {
+    pub fn plot_selection(&self, cut: &ExecutionCut, request: &PlotRequest) -> Result<PlotSelection> {
         let mut selected = request.clone();
         let grouping = request
             .series_by_expression
@@ -154,7 +154,7 @@ pub(crate) fn compare_groups(left: &str, right: &str) -> std::cmp::Ordering {
         _ => left.cmp(right),
     }
 }
-pub(crate) fn reference(expression: &v1::DataExpression) -> Option<(&v1::FieldReference, bool)> {
+pub(crate) fn reference(expression: &DataExpression) -> Option<(&FieldReference, bool)> {
     match expression.kind.as_ref()? {
         v1::data_expression::Kind::Stream(reference) => Some((reference, false)),
         v1::data_expression::Kind::Record(reference) => Some((reference, true)),

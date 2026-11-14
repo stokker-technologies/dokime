@@ -103,6 +103,34 @@ pub(crate) fn collect_garbage(root: &Path, connection: &Connection) -> Result<()
     Ok(())
 }
 
+pub(crate) fn verify_files(root: &Path, connection: &Connection, execution: &str) -> Result<()> {
+    use std::io::Read;
+    let mut query = connection.prepare("SELECT id,length,sha256 FROM telemetry_files WHERE execution=?1 ORDER BY id")?;
+    for row in
+        query.query_map([execution], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64, row.get::<_, Vec<u8>>(2)?)))?
+    {
+        let (id, length, expected) = row?;
+        let file = std::fs::File::open(path(root, &id)?)?;
+        if file.metadata()?.len() != length {
+            return Err(Error::Corrupt("stream file is shorter than its catalog"));
+        }
+        let mut file = file.take(length);
+        let mut hash = Sha256::new();
+        let mut buffer = [0u8; 64 * 1024];
+        loop {
+            let count = file.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if hash.finalize().as_slice() != expected {
+            return Err(Error::Corrupt("stream file digest differs"));
+        }
+    }
+    Ok(())
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

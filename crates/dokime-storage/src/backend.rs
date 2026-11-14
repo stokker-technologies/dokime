@@ -16,7 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Mutex};
+use std::{
+    collections::BTreeMap,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+};
 
 // Third Party Imports
 use arrow_array::{BooleanArray, StructArray, UInt64Array};
@@ -51,7 +55,30 @@ pub struct Backend {
     store: Store,
     execution: String,
     history: StoreHistory,
-    snapshots: Mutex<BTreeMap<Vec<u8>, (Store, crate::ReadCancellation)>>,
+    snapshots: Mutex<BTreeMap<Vec<u8>, Retained>>,
+}
+
+#[derive(Clone)]
+struct Retained {
+    store: Store,
+    _cancellation: Arc<crate::ReadCancellation>,
+    _lease: Arc<Lease>,
+}
+struct Lease {
+    pins: Arc<Mutex<BTreeMap<String, usize>>>,
+    execution: String,
+}
+impl Drop for Lease {
+    fn drop(&mut self) {
+        if let Ok(mut pins) = self.pins.lock() {
+            if let Some(count) = pins.get_mut(&self.execution) {
+                *count -= 1;
+                if *count == 0 {
+                    pins.remove(&self.execution);
+                }
+            }
+        }
+    }
 }
 
 /* === Enums === */
@@ -80,13 +107,10 @@ impl Backend {
             sequence: self.store.metadata(&self.execution).map_err(failure)?.frontier,
         })
     }
-    fn snapshot(&self, snapshot: &BackendSnapshot) -> harmos_storage::Result<Store> {
+    fn snapshot(&self, snapshot: &BackendSnapshot) -> harmos_storage::Result<Retained> {
         self.history.check(&snapshot.at.history).map_err(|e| failure(Error::Invalid(e.to_string())))?;
         let snapshots = self.snapshots.lock().map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?;
-        snapshots
-            .get(&snapshot.token)
-            .map(|(store, _)| store.clone())
-            .ok_or_else(|| failure(Error::Data("create a retained backend snapshot before reading")))
+        snapshots.get(&snapshot.token).cloned().ok_or_else(|| failure(Error::Data("create a retained backend snapshot before reading")))
     }
 }
 impl StorageBackend for Backend {
@@ -100,7 +124,7 @@ impl StorageBackend for Backend {
         Box::pin(async move { self.cursor() })
     }
     fn delete_session(&self) -> StorageFuture<'_, ()> {
-        Box::pin(async move { self.store.flush_samples().map_err(failure) })
+        Box::pin(async move { self.store.shutdown_samples().await.map_err(failure) })
     }
     fn create_snapshot<'a>(&'a self, at: &'a StorageCursor) -> StorageFuture<'a, BackendSnapshot> {
         Box::pin(async move {
@@ -109,11 +133,34 @@ impl StorageBackend for Backend {
             if at.sequence > store.metadata(&self.execution).map_err(failure)?.frontier {
                 return unsupported_error("Create Snapshot: Select a Saved Position");
             }
+            let connection = self.store.lock().map_err(failure)?;
+            let exists: bool = connection
+                .query_row("SELECT EXISTS(SELECT 1 FROM executions WHERE id=?1)", [&self.execution], |row| row.get(0))
+                .map_err(|e| failure(e.into()))?;
+            if !exists {
+                return unsupported_error("Create Snapshot: Select an Existing Execution");
+            }
+            *self
+                .store
+                .snapshot_pins
+                .lock()
+                .map_err(|_| failure(Error::Data("restart after the snapshot pin lock failed")))?
+                .entry(self.execution.clone())
+                .or_default() += 1;
+            let retained = Retained {
+                store,
+                _cancellation: Arc::new(cancel),
+                _lease: Arc::new(Lease {
+                    pins: self.store.snapshot_pins.clone(),
+                    execution: self.execution.clone(),
+                }),
+            };
+            drop(connection);
             let token = uuid::Uuid::now_v7().as_bytes().to_vec();
             self.snapshots
                 .lock()
                 .map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?
-                .insert(token.clone(), (store, cancel));
+                .insert(token.clone(), retained);
             Ok(BackendSnapshot { at: at.clone(), token })
         })
     }
@@ -139,7 +186,8 @@ impl StorageBackend for Backend {
         Box::pin(async move {
             cancel.check()?;
             let after = read.position(snapshot)?;
-            let store = self.snapshot(snapshot)?;
+            let retained = self.snapshot(snapshot)?;
+            let store = &retained.store;
             if read.source.kind != ColumnKind::Stream {
                 return unsupported_error("Read Arrow: Select a Frozen Product Stream; Object and Record Adoption Belongs to 0.H.5");
             }
@@ -229,6 +277,12 @@ impl StorageBackend for Backend {
                         let mut length = available.min(read.limits.rows.get());
                         while length > 1 && selected.slice(0, length).get_array_memory_size() > read.limits.bytes.get() {
                             length /= 2;
+                        }
+                        if selected.slice(0, length).get_array_memory_size() > read.limits.bytes.get() {
+                            return Err(Error::Data("increase the native Arrow response byte budget for this row"));
+                        }
+                        if batch.get_array_memory_size() > read.work.bytes.get() {
+                            return Err(Error::Data("increase the native Arrow work byte budget for this batch"));
                         }
                         let selected = selected.slice(0, length);
                         bytes_read = batch.get_array_memory_size();

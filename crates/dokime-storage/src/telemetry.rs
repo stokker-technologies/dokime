@@ -50,6 +50,8 @@ pub(crate) struct Telemetry {
     writers: BTreeMap<String, ipc::Writer>,
     codecs: BTreeMap<(String, String), Arc<Codec>>,
     running: bool,
+    closed: bool,
+    workers: Vec<tokio::task::JoinHandle<()>>,
 }
 struct Pending {
     codec: Arc<Codec>,
@@ -78,6 +80,8 @@ impl Telemetry {
             writers: BTreeMap::new(),
             codecs: BTreeMap::new(),
             running: false,
+            closed: false,
+            workers: Vec::new(),
         })
     }
 }

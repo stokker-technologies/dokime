@@ -22,7 +22,7 @@ use prost::Message;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::v1;
+use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Termination};
 
 /* === Constants === */
 
@@ -42,15 +42,15 @@ pub struct Execution {
     pub cycle: String,
 
     #[prost(message, optional, tag = "3")]
-    pub origin: Option<v1::Origin>,
+    pub origin: Option<Origin>,
 
     #[prost(bytes = "vec", tag = "4")]
     pub catalog: Vec<u8>,
 
     #[prost(message, optional, tag = "5")]
-    pub outcome: Option<v1::ExecutionOutcome>,
+    pub outcome: Option<ExecutionOutcome>,
 
-    #[prost(enumeration = "v1::Termination", tag = "6")]
+    #[prost(enumeration = "Termination", tag = "6")]
     pub termination: i32,
 }
 
@@ -156,11 +156,11 @@ impl ExecutionSnapshot {
             .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
-    pub fn progress(&self) -> Result<Vec<v1::ExecutionProgressValue>> {
+    pub fn progress(&self) -> Result<Vec<ExecutionProgressValue>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "progress")
-            .map(|entry| v1::ExecutionProgressValue::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| ExecutionProgressValue::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn step_contains(&self, step: &str, position: u64) -> bool {

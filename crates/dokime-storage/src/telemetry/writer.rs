@@ -44,7 +44,7 @@ use harmos_protocol::v1::Catalog;
 /* === Implementations === */
 
 impl Telemetry {
-    pub(super) fn codec(&mut self, connection: &Connection, execution: &str, stream: &str) -> Result<Arc<Codec>> {
+    pub(crate) fn codec(&mut self, connection: &Connection, execution: &str, stream: &str) -> Result<Arc<Codec>> {
         let key = (execution.to_owned(), stream.to_owned());
         if let Some(codec) = self.codecs.get(&key) {
             return Ok(codec.clone());
@@ -70,6 +70,9 @@ impl Store {
         let connection = self.lock()?;
         crate::store::require_open(&connection, execution)?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        if telemetry.closed {
+            return Err(Error::Data("open a storage session before publishing samples"));
+        }
         let mut prepared = BTreeMap::<String, (Arc<Codec>, Vec<Sample>)>::new();
         let mut position = crate::store::next_position(&connection, execution)?;
         let mut positions = Vec::with_capacity(samples.len());
@@ -124,19 +127,20 @@ impl Store {
     fn start_sample_flush(&self) -> Result<()> {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else { return Ok(()) };
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-        if telemetry.running || telemetry.pending.is_empty() {
+        if telemetry.closed || telemetry.running || telemetry.pending.is_empty() {
             return Ok(());
         }
         telemetry.running = true;
-        drop(telemetry);
         let store = self.clone();
-        runtime.spawn(async move {
+        let worker=runtime.spawn(async move {
+            let mut changes=store.changed.subscribe();
             loop {
                 let deadline = {
                     let mut telemetry = match store.telemetry.lock() {
                         Ok(t) => t,
                         Err(_) => return,
                     };
+                    if telemetry.closed{telemetry.running=false;return;}
                     match telemetry.pending.values().map(|pending| pending.started + telemetry.settings.flush_interval).min() {
                         Some(deadline) => deadline,
                         None => {
@@ -145,7 +149,7 @@ impl Store {
                         }
                     }
                 };
-                tokio::time::sleep_until(deadline).await;
+                tokio::select!{biased; _=tokio::time::sleep_until(deadline)=>{}, result=changes.changed()=>{if result.is_err(){return;}continue;}}
                 let worker = store.clone();
                 let result = tokio::task::spawn_blocking(move || worker.flush_samples()).await;
                 if !matches!(result, Ok(Ok(()))) {
@@ -157,11 +161,35 @@ impl Store {
                 }
             }
         });
+        telemetry.workers.retain(|worker| !worker.is_finished());
+        telemetry.workers.push(worker);
         Ok(())
+    }
+    pub async fn shutdown_samples(&self) -> Result<()> {
+        let mut result = self.flush_samples();
+        let workers = {
+            let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry shutdown lock failed"))?;
+            telemetry.closed = true;
+            telemetry.running = false;
+            std::mem::take(&mut telemetry.workers)
+        };
+        self.changed.send_modify(|revision| *revision += 1);
+        for worker in workers {
+            if let Err(error) = worker.await {
+                tracing::error!(%error,"Join Arrow Flush Worker Failed");
+                if result.is_ok() {
+                    result = Err(error.into());
+                }
+            }
+        }
+        result
     }
     pub fn flush_samples(&self) -> Result<()> {
         let mut connection = self.lock()?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        if telemetry.closed && !telemetry.pending.is_empty() {
+            return Err(Error::Data("reopen storage after its failed shutdown flush"));
+        }
         if telemetry.pending.is_empty() {
             return Ok(());
         }
@@ -176,7 +204,7 @@ impl Store {
                 let samples = pending.samples.clone();
                 let id = catalog::identifier(&execution, &stream, &codec.digest);
                 let path = catalog::path(root, &id)?;
-                if !telemetry.writers.contains_key(&id) {
+                if let std::collections::btree_map::Entry::Vacant(entry) = telemetry.writers.entry(id.clone()) {
                     let exists: bool =
                         transaction.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&id], |row| row.get(0))?;
                     let writer = if exists {
@@ -188,7 +216,7 @@ impl Store {
                     } else {
                         ipc::Writer::create(&path, codec.schema.clone())?
                     };
-                    telemetry.writers.insert(id.clone(), writer);
+                    entry.insert(writer);
                 }
                 let previews = telemetry.settings.previews;
                 let rows_per_batch = telemetry.settings.flush_rows.get();
@@ -203,17 +231,7 @@ impl Store {
                     let batch = codec.batch(samples)?;
                     let index = writer.append(&batch)?;
                     let checkpoint = writer.checkpoint();
-                    super::aggregates::append(
-                        &transaction,
-                        &id,
-                        index.offset,
-                        &batch,
-                        samples.first().unwrap().position,
-                        samples.last().unwrap().position,
-                        samples.iter().map(|s| s.source_ns).min().unwrap(),
-                        samples.iter().map(|s| s.source_ns).max().unwrap(),
-                        previews,
-                    )?;
+                    super::aggregates::append(&transaction, &id, index.offset, &batch, samples, previews)?;
                     transaction.execute(
                         "INSERT INTO telemetry_batches VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
                         params![

@@ -53,6 +53,7 @@ pub(crate) struct Bucket {
     pub(crate) count: u64,
     pub(crate) mean: f64,
     pub(crate) squares: f64,
+    pub(crate) scale: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -77,7 +78,8 @@ impl Bucket {
             max: point,
             count: 1,
             mean: point.value,
-            squares: point.value * point.value,
+            squares: if point.value == 0.0 { 0.0 } else { 1.0 },
+            scale: point.value.abs(),
         }
     }
 
@@ -96,8 +98,14 @@ impl Bucket {
             self.max = other.max;
         }
         let total = self.count + other.count;
-        self.mean += (other.mean - self.mean) * other.count as f64 / total as f64;
-        self.squares += other.squares;
+        let scale = self.scale.max(other.scale);
+        let a = if scale == 0.0 { 0.0 } else { self.scale / scale };
+        let b = if scale == 0.0 { 0.0 } else { other.scale / scale };
+        let left = if scale == 0.0 { 0.0 } else { self.mean / scale };
+        let right = if scale == 0.0 { 0.0 } else { other.mean / scale };
+        self.mean = (left + (right - left) * other.count as f64 / total as f64).clamp(-1.0, 1.0) * scale;
+        self.squares = self.squares * a * a + other.squares * b * b;
+        self.scale = scale;
         self.count = self.count.checked_add(other.count).ok_or(Error::Data("preview count overflow"))?;
         Ok(())
     }
@@ -182,7 +190,8 @@ impl Store {
                     min: b.min.value,
                     max: b.max.value,
                     mean: b.mean,
-                    sum_squares: b.squares,
+                    scaled_squares: b.squares,
+                    scale: b.scale,
                     first: b.first.value,
                     last: b.last.value,
                 })

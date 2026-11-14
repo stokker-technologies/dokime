@@ -22,12 +22,14 @@ use std::{collections::BTreeMap, num::NonZeroU128};
 use arrow_array::{RecordBatch, StructArray};
 use arrow_schema::DataType;
 use harmos_storage::query::scalar::ExactNumber;
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::{
-    Error, NumericWindow, Result, Store,
+    Error, NumericWindow, Result, Sample, Store,
     scalar::{self, ScalarValue},
 };
 
@@ -50,11 +52,13 @@ pub(crate) struct Moments {
     pub mean: f64,
     pub m2: f64,
     pub squares: f64,
+    pub scale: f64,
     pub min: ScalarValue,
     pub max: ScalarValue,
     pub first: ScalarValue,
     pub last: ScalarValue,
     pub total: Option<ExactNumber>,
+    integer_squares: Option<BigInt>,
 }
 
 /* === Enums === */
@@ -70,27 +74,69 @@ impl Moments {
             mean: 0.0,
             m2: 0.0,
             squares: 0.0,
+            scale: 0.0,
             min: ScalarValue::Missing,
             max: ScalarValue::Missing,
             first: ScalarValue::Missing,
             last: ScalarValue::Missing,
             total: Some(ExactNumber::new(false, 0, NonZeroU128::MIN)),
+            integer_squares: Some(BigInt::from(0)),
         }
     }
     fn push(&mut self, value: ScalarValue) -> Result<()> {
+        let integer = match value {
+            ScalarValue::Signed(value) => Some(i128::from(value)),
+            ScalarValue::Unsigned(value) => Some(i128::from(value)),
+            _ => None,
+        };
+        if let Some(integer) = integer {
+            if self.count > 0 && self.integer_squares.is_none() {
+                return Err(Error::Data("keep each numeric column's type stable"));
+            }
+            if self.count == 0 {
+                self.min = value.clone();
+                self.max = value.clone();
+                self.first = value.clone();
+            }
+            self.count += 1;
+            if value.compare(&self.min).map_err(|e| Error::Invalid(e.to_string()))?.is_lt() {
+                self.min = value.clone();
+            }
+            if value.compare(&self.max).map_err(|e| Error::Invalid(e.to_string()))?.is_gt() {
+                self.max = value.clone();
+            }
+            self.last = value;
+            let exact = ExactNumber::new(integer < 0, integer.unsigned_abs(), NonZeroU128::MIN);
+            self.total = Some(self.total.unwrap().checked_add(exact).map_err(|e| Error::Invalid(e.to_string()))?);
+            let integer = BigInt::from(integer);
+            *self.integer_squares.as_mut().unwrap() += &integer * &integer;
+            return Ok(());
+        }
         let Some(number) = scalar::number(&value).filter(|v| v.is_finite()) else {
             return Ok(());
         };
+        if self.count > 0 && self.integer_squares.is_some() {
+            return Err(Error::Data("keep each numeric column's type stable"));
+        }
+        self.integer_squares = None;
         if self.count == 0 {
             self.min = value.clone();
             self.max = value.clone();
             self.first = value.clone();
         }
+        let scale = self.scale.max(number.abs());
+        let factor = if scale == 0.0 { 0.0 } else { self.scale / scale };
+        let previous = if scale == 0.0 { 0.0 } else { self.mean / scale };
+        let normalized = if scale == 0.0 { 0.0 } else { number / scale };
+        self.m2 *= factor * factor;
+        self.squares *= factor * factor;
+        self.scale = scale;
         self.count += 1;
-        let delta = number - self.mean;
-        self.mean += delta / self.count as f64;
-        self.m2 += delta * (number - self.mean);
-        self.squares += number * number;
+        let delta = normalized - previous;
+        let mean = previous + delta / self.count as f64;
+        self.mean = mean.clamp(-1.0, 1.0) * scale;
+        self.m2 += delta * (normalized - mean);
+        self.squares += normalized * normalized;
         if value.compare(&self.min).map_err(|e| Error::Invalid(e.to_string()))?.is_lt() {
             self.min = value.clone();
         }
@@ -119,11 +165,23 @@ impl Moments {
             *self = other.clone();
             return Ok(());
         }
+        if self.integer_squares.is_some() != other.integer_squares.is_some() {
+            return Err(Error::Data("keep each numeric column's type stable"));
+        }
+        if let (Some(left), Some(right)) = (&mut self.integer_squares, &other.integer_squares) {
+            *left += right;
+        }
         let count = self.count + other.count;
-        let delta = other.mean - self.mean;
-        self.m2 += other.m2 + delta * delta * self.count as f64 * other.count as f64 / count as f64;
-        self.mean += delta * other.count as f64 / count as f64;
-        self.squares += other.squares;
+        let scale = self.scale.max(other.scale);
+        let a = if scale == 0.0 { 0.0 } else { self.scale / scale };
+        let b = if scale == 0.0 { 0.0 } else { other.scale / scale };
+        let left = if scale == 0.0 { 0.0 } else { self.mean / scale };
+        let right = if scale == 0.0 { 0.0 } else { other.mean / scale };
+        let delta = right - left;
+        self.m2 = self.m2 * a * a + other.m2 * b * b + delta * delta * self.count as f64 * other.count as f64 / count as f64;
+        self.mean = (left + delta * other.count as f64 / count as f64).clamp(-1.0, 1.0) * scale;
+        self.squares = self.squares * a * a + other.squares * b * b;
+        self.scale = scale;
         if other.min.compare(&self.min).map_err(|e| Error::Invalid(e.to_string()))?.is_lt() {
             self.min = other.min.clone();
         }
@@ -137,6 +195,41 @@ impl Moments {
             _ => None,
         };
         Ok(())
+    }
+    pub(crate) fn mean(&self) -> Result<f64> {
+        if self.count == 0 {
+            return Ok(0.0);
+        }
+        if let Some(total) = self.total {
+            return Ok(
+                scalar::number(&ScalarValue::Exact(total.divide(self.count as u128).map_err(|e| Error::Invalid(e.to_string()))?)).unwrap()
+            );
+        }
+        Ok(self.mean)
+    }
+    pub(crate) fn stddev(&self) -> Result<f64> {
+        if self.count == 0 {
+            return Ok(0.0);
+        }
+        if let (Some(squares), Some(total)) = (&self.integer_squares, self.total) {
+            let mut sum = BigInt::from(total.numerator);
+            if total.negative {
+                sum = -sum;
+            }
+            let numerator = squares * BigInt::from(self.count) - &sum * &sum;
+            let numerator = numerator.to_f64().ok_or(Error::Corrupt("integer variance exceeds its position bound"))?;
+            return Ok((numerator / self.count as f64 / self.count as f64).max(0.0).sqrt());
+        }
+        Ok((self.m2 / self.count as f64).clamp(0.0, 1.0).sqrt() * self.scale)
+    }
+    pub(crate) fn rms(&self) -> Result<f64> {
+        if self.count == 0 {
+            return Ok(0.0);
+        }
+        if let Some(squares) = &self.integer_squares {
+            return Ok((squares.to_f64().ok_or(Error::Corrupt("integer squares exceed their position bound"))? / self.count as f64).sqrt());
+        }
+        Ok((self.squares / self.count as f64).clamp(0.0, 1.0).sqrt() * self.scale)
     }
 }
 impl Store {
@@ -201,6 +294,10 @@ impl Store {
                         ScalarValue::Signed(v) => {
                             kind = Some(0);
                             (v as u64) ^ (1 << 63)
+                        }
+                        ScalarValue::Bool(v) => {
+                            kind = Some(1);
+                            u64::from(v)
                         }
                         ScalarValue::Unsigned(v) => {
                             kind = Some(1);
@@ -271,9 +368,12 @@ impl Store {
 /* === Private Functions === */
 
 pub(super) fn append(
-    connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, first: u64, last: u64, start: i64, end: i64,
-    settings: super::config::PreviewSettings,
+    connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, samples: &[Sample], settings: super::config::PreviewSettings,
 ) -> Result<()> {
+    let first = samples.first().ok_or(Error::Data("flush a nonempty sample batch"))?.position;
+    let last = samples.last().unwrap().position;
+    let start = samples.iter().map(|s| s.source_ns).min().unwrap();
+    let end = samples.iter().map(|s| s.source_ns).max().unwrap();
     let values = batch.column(1).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("summary values differ"))?;
     let mut fields = Vec::new();
     scalar_fields(values.fields(), "", &mut fields);

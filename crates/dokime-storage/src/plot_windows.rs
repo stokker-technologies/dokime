@@ -18,10 +18,21 @@
 // Standard Library Imports
 
 // Third Party Imports
+use arrow_array::RecordBatch;
 
 // Local Imports
 use crate::{NumericWindow, Result, Store};
-use dokime_protocol::v1;
+use dokime_protocol::v1::{self, Downsample, Value};
+
+use dokime_protocol::client::plots::NullableNumber;
+use dokime_protocol::client::plots::PlotBoxSummary;
+use dokime_protocol::client::plots::PlotColumn;
+use dokime_protocol::client::plots::PlotHistogramBin;
+use dokime_protocol::client::plots::PlotHistogramSeries;
+use dokime_protocol::client::plots::PlotHistogramStatistics;
+use dokime_protocol::client::plots::PlotSeriesSummary;
+
+use dokime_protocol::context::EvidenceStatisticsResponse;
 
 /* === Constants === */
 
@@ -39,26 +50,26 @@ use dokime_protocol::v1;
 
 impl Store {
     pub fn sampled_time_series_window(
-        &self, window: NumericWindow<'_>, technique: v1::Downsample, limit: usize,
-    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
+        &self, window: NumericWindow<'_>, technique: Downsample, limit: usize,
+    ) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         use arrow_array::{Float64Array, Int64Array, RecordBatch};
         use arrow_schema::{DataType, Field, Schema};
         use harmos_storage::query::{
             TableWriter,
             transform::{
                 FieldPath, Transform,
-                downsample::{Algorithm, Downsample},
+                downsample::{Algorithm, Downsample as EngineDownsample},
             },
         };
         use std::sync::Arc;
-        if limit == 0 || technique == v1::Downsample::Lttb && limit < 3 {
+        if limit == 0 || technique == Downsample::Lttb && limit < 3 {
             return Err(crate::Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
-        if !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
+        if !matches!(technique, Downsample::Raw | Downsample::Lttb) {
             return self.time_series_window(window);
         }
         let (_, summary, count) = self.time_series_window(window)?;
-        if technique == v1::Downsample::Raw && count > limit as u64 {
+        if technique == Downsample::Raw && count > limit as u64 {
             return Err(crate::Error::Data("narrow the raw plot window or select downsampling"));
         }
         let schema = Arc::new(Schema::new(vec![
@@ -74,7 +85,7 @@ impl Store {
         let table = writer.finish()?;
         let table = if count > limit as u64 {
             table.transform(
-                &Transform::Downsample(Downsample {
+                &Transform::Downsample(EngineDownsample {
                     max_rows: limit,
                     algorithm: Algorithm::Lttb,
                     axis: Some(FieldPath { fields: vec!["x".into()] }),
@@ -86,20 +97,20 @@ impl Store {
             table
         };
         let mut reader = table.reader()?;
-        let mut column = dokime_protocol::client::plots::PlotColumn::default();
+        let mut column = PlotColumn::default();
         while let Some(batch) = reader.next(&mut || Ok(()))? {
             let times = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
             let ys = batch.column(2).as_any().downcast_ref::<Float64Array>().unwrap();
             for row in 0..batch.num_rows() {
                 column.instants.push(instant(times.value(row)));
                 column.x.push(number(times.value(row) as f64 / 1e9));
-                column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(ys.value(row)) });
+                column.y.push(NullableNumber { value: Some(ys.value(row)) });
             }
         }
         let _ = std::marker::PhantomData::<RecordBatch>;
         Ok((column, summary, count))
     }
-    fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(arrow_array::RecordBatch) -> Result<()>) -> Result<()> {
+    fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(RecordBatch) -> Result<()>) -> Result<()> {
         use arrow_array::{Float64Array, Int64Array, RecordBatch};
         use std::sync::Arc;
         let mut times = Vec::new();
@@ -128,18 +139,18 @@ impl Store {
         }
         Ok(())
     }
-    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
+    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
         let moments = self.moments(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
         }
         let ranks = self.ranks(*window, moments.count, &[5, 50, 95, 99])?;
-        Ok(dokime_protocol::context::EvidenceStatisticsResponse {
+        Ok(EvidenceStatisticsResponse {
             count: moments.count,
             min: crate::scalar::number(&moments.min).unwrap(),
             max: crate::scalar::number(&moments.max).unwrap(),
-            mean: moments.mean,
-            stddev: (moments.m2 / moments.count as f64).max(0.0).sqrt(),
+            mean: moments.mean()?,
+            stddev: moments.stddev()?,
             median: crate::scalar::number(&ranks[&50]).unwrap(),
             p05: crate::scalar::number(&ranks[&5]).unwrap(),
             p95: crate::scalar::number(&ranks[&95]).unwrap(),
@@ -149,9 +160,7 @@ impl Store {
             resolved_at: None,
         })
     }
-    pub fn time_series_window(
-        &self, window: NumericWindow<'_>,
-    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
+    pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let count = bins.iter().map(|bin| bin.count).sum::<u64>();
         let mut points = Vec::with_capacity(bins.len() * 4);
@@ -164,24 +173,26 @@ impl Store {
                 }
             }
         }
-        let column = dokime_protocol::client::plots::PlotColumn {
+        let column = PlotColumn {
             x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
             instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-            y: points.iter().map(|(_, value)| dokime_protocol::client::plots::NullableNumber { value: Some(*value) }).collect(),
+            y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
         let mean = (count > 0).then(|| bins.iter().map(|bin| bin.mean * bin.count as f64 / count as f64).sum::<f64>());
-        let summary = dokime_protocol::client::plots::PlotSeriesSummary {
+        let scale = bins.iter().map(|bin| bin.scale).fold(0.0, f64::max);
+        let squares = bins.iter().map(|bin| if scale == 0.0 { 0.0 } else { bin.scaled_squares * (bin.scale / scale).powi(2) }).sum::<f64>();
+        let summary = PlotSeriesSummary {
             count,
             min: bins.iter().map(|bin| bin.min).reduce(f64::min),
             max: bins.iter().map(|bin| bin.max).reduce(f64::max),
             mean,
-            rms: (count > 0).then(|| (bins.iter().map(|bin| bin.sum_squares).sum::<f64>() / count as f64).sqrt()),
+            rms: (count > 0).then(|| (squares / count as f64).clamp(0.0, 1.0).sqrt() * scale),
             ..Default::default()
         };
         Ok((column, summary, count))
     }
-    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<dokime_protocol::client::plots::PlotHistogramSeries> {
+    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
         let statistics = self.numeric_statistics(&window)?;
         if statistics.count == 0 {
             return Ok(Default::default());
@@ -191,7 +202,7 @@ impl Store {
         }
         let width = if statistics.max == statistics.min { 1.0 } else { (statistics.max - statistics.min) / bins as f64 };
         let mut histogram = (0..bins)
-            .map(|index| dokime_protocol::client::plots::PlotHistogramBin {
+            .map(|index| PlotHistogramBin {
                 lower: statistics.min + index as f64 * width,
                 upper: statistics.min + (index + 1) as f64 * width,
                 count: 0,
@@ -201,10 +212,10 @@ impl Store {
             histogram[(((value - statistics.min) / width) as usize).min(bins - 1)].count += 1;
             Ok(())
         })?;
-        Ok(dokime_protocol::client::plots::PlotHistogramSeries {
+        Ok(PlotHistogramSeries {
             bins: histogram,
             count: statistics.count,
-            statistics: Some(dokime_protocol::client::plots::PlotHistogramStatistics {
+            statistics: Some(PlotHistogramStatistics {
                 mean: statistics.mean,
                 median: statistics.median,
                 std: statistics.stddev,
@@ -215,7 +226,7 @@ impl Store {
             ..Default::default()
         })
     }
-    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<dokime_protocol::client::plots::PlotBoxSummary> {
+    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<PlotBoxSummary> {
         let statistics = self.numeric_statistics(&window)?;
         if statistics.count == 0 {
             return Ok(Default::default());
@@ -240,7 +251,7 @@ impl Store {
             }
             Ok(())
         })?;
-        Ok(dokime_protocol::client::plots::PlotBoxSummary {
+        Ok(PlotBoxSummary {
             count: statistics.count,
             min: statistics.min,
             max: statistics.max,
@@ -259,8 +270,8 @@ impl Store {
 
 /* === Private Functions === */
 
-fn number(value: f64) -> v1::Value {
-    v1::Value {
+fn number(value: f64) -> Value {
+    Value {
         kind: Some(v1::value::Kind::Number(value)),
     }
 }

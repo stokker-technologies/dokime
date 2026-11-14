@@ -25,6 +25,8 @@ use rusqlite::params;
 // Local Imports
 use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
 
+use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -44,13 +46,13 @@ pub struct ExecutionCut {
 #[derive(Clone, PartialEq, Message)]
 pub struct StatisticsRead {
     #[prost(message, optional, tag = "1")]
-    pub request: Option<dokime_protocol::context::EvidenceStatisticsRequest>,
+    pub request: Option<EvidenceStatisticsRequest>,
 
     #[prost(uint64, repeated, tag = "2")]
     pub positions: Vec<u64>,
 
     #[prost(message, optional, tag = "3")]
-    pub response: Option<dokime_protocol::context::EvidenceStatisticsResponse>,
+    pub response: Option<EvidenceStatisticsResponse>,
 }
 
 /* === Enums === */
@@ -60,33 +62,15 @@ pub struct StatisticsRead {
 /* === Implementations === */
 
 impl Store {
-    pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
-        let rows = self.sample_page(execution, stream, after, through, NonZeroUsize::new(1).unwrap())?;
-        if rows.is_empty() {
-            return Ok(0);
-        }
-        let rows = self.sample_window(crate::SampleWindow {
-            execution,
-            streams: &[stream.into()],
-            after: &[(stream.into(), after)],
-            through,
-            start_ns: i64::MIN,
-            end_ns: i64::MAX,
-            latest: true,
-            limit: NonZeroUsize::MIN,
-        })?;
-        Ok(rows.last().map_or(0, |row| row.position))
-    }
     pub fn cached_statistics(
-        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
+        &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64,
     ) -> Result<Option<StatisticsRead>> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         let cache = self.statistics.lock().map_err(|_| Error::Invalid("Read Statistics: Restart After the Query Cache Failed".into()))?;
         Ok(cache.get(&key).filter(|(frontier, _)| *frontier == through).map(|(_, read)| read.clone()))
     }
     pub fn cache_statistics(
-        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
-        read: StatisticsRead,
+        &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64, read: StatisticsRead,
     ) -> Result<()> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         self.statistics
@@ -117,6 +101,7 @@ impl Store {
                 if store::digest(&connection, execution)? != seal {
                     return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
                 }
+                crate::telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
                 verified.insert(execution.into(), seal.clone());
             }
         }

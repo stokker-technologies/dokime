@@ -67,7 +67,8 @@ pub struct NumericBin {
     pub min: f64,
     pub max: f64,
     pub mean: f64,
-    pub sum_squares: f64,
+    pub scaled_squares: f64,
+    pub scale: f64,
     pub first: f64,
     pub last: f64,
 }
@@ -86,6 +87,19 @@ impl Store {
     }
 
     pub fn numeric_bounds(&self, execution: &str, stream: &str, field: &str, through: u64) -> Result<Option<(i64, i64)>> {
+        let window = NumericWindow {
+            execution,
+            stream,
+            field,
+            through,
+            after: 0,
+            start_ns: i64::MIN,
+            end_ns: i64::MAX,
+            bins: NonZeroUsize::MIN,
+        };
+        if let Some(bins) = self.preview_bins(window)? {
+            return Ok(bins.first().zip(bins.last()).map(|(first, last)| (first.start_ns, last.end_ns)));
+        }
         let mut bounds = None::<(i64, i64)>;
         self.numeric_values(
             NumericWindow {
@@ -144,7 +158,8 @@ impl Store {
                         min: value,
                         max: value,
                         mean: 0.0,
-                        sum_squares: 0.0,
+                        scaled_squares: 0.0,
+                        scale: 0.0,
                         first: value,
                         last: value,
                         first_ns: source_ns,
@@ -158,8 +173,13 @@ impl Store {
             });
             // Each Retained Input Row Is Examined Once; Only Requested Buckets Survive.
             bin.count += 1;
-            bin.mean += (value - bin.mean) / bin.count as f64;
-            bin.sum_squares += value * value;
+            let scale = bin.scale.max(value.abs());
+            let factor = if scale == 0.0 { 0.0 } else { bin.scale / scale };
+            let previous = if scale == 0.0 { 0.0 } else { bin.mean / scale };
+            let normalized = if scale == 0.0 { 0.0 } else { value / scale };
+            bin.mean = (previous + (normalized - previous) / bin.count as f64).clamp(-1.0, 1.0) * scale;
+            bin.scaled_squares = bin.scaled_squares * factor * factor + normalized * normalized;
+            bin.scale = scale;
             bin.start_ns = bin.start_ns.min(source_ns);
             bin.end_ns = bin.end_ns.max(source_ns);
             if value < bin.min {

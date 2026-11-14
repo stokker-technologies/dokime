@@ -28,7 +28,7 @@ use dokime_protocol::client::content::ArtifactsCreateRequest;
 use dokime_protocol::client::content::ArtifactsCreateResponse;
 use dokime_protocol::client::content::ExecutionFileMetadata;
 use dokime_protocol::client::content::ExecutionFileState;
-use dokime_protocol::v1;
+use dokime_protocol::v1::{ArtifactMetadata, ArtifactState};
 use prost_types::Timestamp;
 use std::io::Write;
 
@@ -89,12 +89,6 @@ pub struct ArchivedContentChunk {
     pub payload: Vec<u8>,
 }
 
-#[derive(Clone, PartialEq, Message)]
-pub struct CycleArchive {
-    #[prost(message, repeated, tag = "1")]
-    pub executions: Vec<crate::ExecutionArchive>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -132,7 +126,7 @@ impl Store {
             }
             let payload: Vec<u8> =
                 transaction.query_row("SELECT metadata FROM content_objects WHERE id=?1", [&identifier], |row| row.get(0))?;
-            (v1::ArtifactMetadata::decode(payload.as_slice())?, sequence as u64)
+            (ArtifactMetadata::decode(payload.as_slice())?, sequence as u64)
         } else {
             require_open(&transaction, execution)?;
             let (owner, length, sha256, phase): (String, i64, String, i32) =
@@ -162,14 +156,14 @@ impl Store {
                     "Create Artifact: Keep Its Original Published File Reference Within the Execution Scope".into(),
                 ));
             }
-            let artifact = v1::ArtifactMetadata {
+            let artifact = ArtifactMetadata {
                 artifact_id: identifier.clone(),
                 scope: Some(scope.clone()),
                 filename: request.filename.clone(),
                 content_type: Some(request.content_type.clone()),
                 size_bytes: length as u64,
                 sha256: sha256.clone(),
-                state: v1::ArtifactState::Complete as i32,
+                state: ArtifactState::Complete as i32,
                 created_at: Some(Timestamp {
                     seconds: now_ns.div_euclid(1_000_000_000),
                     nanos: now_ns.rem_euclid(1_000_000_000) as i32,
@@ -211,7 +205,7 @@ impl Store {
             }),
         })
     }
-    pub fn begin_artifact(&self, metadata: v1::ArtifactMetadata) -> Result<()> {
+    pub fn begin_artifact(&self, metadata: ArtifactMetadata) -> Result<()> {
         let execution = metadata
             .scope
             .as_ref()
@@ -259,7 +253,7 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
-    pub fn finish_artifact(&self, identifier: &str, expected_size: u64, expected_sha256: &str) -> Result<v1::ArtifactMetadata> {
+    pub fn finish_artifact(&self, identifier: &str, expected_size: u64, expected_sha256: &str) -> Result<ArtifactMetadata> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let (execution, length, metadata, phase): (String, u64, Vec<u8>, i32) = transaction.query_row(
@@ -269,7 +263,7 @@ impl Store {
         )?;
         require_open(&transaction, &execution)?;
         let digest = content_digest(&transaction, identifier)?;
-        let mut metadata = v1::ArtifactMetadata::decode(metadata.as_slice())?;
+        let mut metadata = ArtifactMetadata::decode(metadata.as_slice())?;
         if phase != 0
             || length != expected_size
             || length != metadata.size_bytes
@@ -279,7 +273,7 @@ impl Store {
             return Err(Error::Invalid("Complete Artifact: Match the Declared Length and SHA-256 Before Committing".into()));
         }
         metadata.sha256 = digest.clone();
-        metadata.state = v1::ArtifactState::Complete as i32;
+        metadata.state = ArtifactState::Complete as i32;
         transaction.execute(
             "UPDATE content_objects SET phase=2,sha256=?2,metadata=?3 WHERE id=?1",
             params![identifier, digest, metadata.encode_to_vec()],
@@ -369,13 +363,13 @@ impl Store {
         }
         Ok(bytes)
     }
-    pub fn artifacts_page(&self, after: &str, limit: usize) -> Result<Vec<v1::ArtifactMetadata>> {
+    pub fn artifacts_page(&self, after: &str, limit: usize) -> Result<Vec<ArtifactMetadata>> {
         let connection = self.lock()?;
         let mut statement =
             connection.prepare("SELECT metadata FROM content_objects WHERE artifact=1 AND phase=2 AND id>?1 ORDER BY id LIMIT ?2")?;
         statement
             .query_map(params![after, limit as i64], |row| row.get::<_, Vec<u8>>(0))?
-            .map(|row| Ok(v1::ArtifactMetadata::decode(row?.as_slice())?))
+            .map(|row| Ok(ArtifactMetadata::decode(row?.as_slice())?))
             .collect()
     }
     pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<ContentEntry>> {
@@ -383,6 +377,48 @@ impl Store {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) GROUP BY path) ORDER BY path LIMIT ?3")?;
         Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
+    }
+    pub fn write_cycle_archive(&self, cycle: &str, page: std::num::NonZeroUsize, output: &mut impl Write) -> Result<()> {
+        use std::io::{Read, Seek};
+        use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let mut archive = ZipWriter::new_stream(output);
+        let mut after = String::new();
+        let mut manifest = Vec::new();
+        loop {
+            let ids = self.cycle_execution_page(cycle, &after, page)?;
+            if ids.is_empty() {
+                break;
+            }
+            for id in ids {
+                after = id.clone();
+                let mut execution = tempfile::tempfile()?;
+                self.write_execution_archive(&id, &mut execution)?;
+                let size = execution.stream_position()?;
+                execution.rewind()?;
+                let member = format!("executions/{id}.zip");
+                crate::validate_execution_path(&member)?;
+                archive.start_file(&member, options)?;
+                let mut hash = Sha256::new();
+                let mut buffer = [0u8; 64 * 1024];
+                loop {
+                    let length = execution.read(&mut buffer)?;
+                    if length == 0 {
+                        break;
+                    }
+                    hash.update(&buffer[..length]);
+                    archive.write_all(&buffer[..length])?;
+                }
+                manifest.push(serde_json::json!({"path":member,"size":size,"sha256":hash.finalize().iter().map(|byte|format!("{byte:02x}")).collect::<String>()}));
+            }
+        }
+        if manifest.is_empty() {
+            return Err(Error::Data("select an existing cycle for export"));
+        }
+        archive.start_file("manifest.json", options)?;
+        serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"cycle":cycle,"executions":manifest}))?;
+        archive.finish()?;
+        Ok(())
     }
     pub fn write_execution_archive(&self, execution: &str, output: &mut impl Write) -> Result<()> {
         use std::io::{Read, Seek};
@@ -556,8 +592,8 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
         ..Default::default()
     };
     connection.execute(
-        "INSERT INTO evidence(execution,position,payload) VALUES(?1,?2,?3)",
-        params![execution, evidence.position as i64, evidence.encode_to_vec()],
+        "INSERT INTO evidence(execution,position,payload,kind) VALUES(?1,?2,?3,?4)",
+        params![execution, evidence.position as i64, evidence.encode_to_vec(), evidence.kind],
     )?;
     Ok(())
 }

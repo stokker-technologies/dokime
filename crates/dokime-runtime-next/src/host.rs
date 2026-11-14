@@ -30,6 +30,9 @@ use crate::{Cycle, Error, PlacementSettings, PluginProcess, Result, SchedulerClo
 use dokime_protocol::v1;
 use dokime_storage::{ExecutionSnapshot, Store};
 
+use dokime_storage::OutcomeCounts;
+use dokime_storage::StorageSettings;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -44,7 +47,7 @@ pub(crate) type RootLease = Arc<Mutex<Option<std::fs::File>>>;
 #[derive(Clone)]
 pub struct HostSettings {
     pub placement: PlacementSettings,
-    pub storage: dokime_storage::StorageSettings,
+    pub storage: StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
 }
 #[derive(Clone)]
@@ -247,9 +250,9 @@ impl Host {
     pub fn executions(&self) -> Result<Vec<String>> {
         Ok(self.store.identifiers()?)
     }
-    pub fn cycle_counts(&self, cycle: &str) -> Result<dokime_storage::OutcomeCounts> {
+    pub fn cycle_counts(&self, cycle: &str) -> Result<OutcomeCounts> {
         let outcomes = self.store.cycle_outcomes(cycle)?;
-        Ok(dokime_storage::OutcomeCounts::from_outcomes(&outcomes))
+        Ok(OutcomeCounts::from_outcomes(&outcomes))
     }
     pub fn plugin_entries(&self) -> Result<Vec<(String, crate::EntryState)>> {
         self.store
@@ -305,7 +308,7 @@ impl Host {
             }
             lock(&self.plugins)?.remove(&identifier);
         }
-        if let Err(error) = self.store.flush_samples() {
+        if let Err(error) = self.store.shutdown_samples().await {
             result = Err(error.into());
         }
         // Release the Root Once Owned Work Has Settled, Whatever Handles Remain

@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Close Arrow Storage: Join Its Flush Worker: {0}")]
+    Worker(#[from] tokio::task::JoinError),
+
     #[error("{0}")]
     NotFound(String),
 

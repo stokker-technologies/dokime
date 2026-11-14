@@ -23,7 +23,7 @@ use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
-use dokime_protocol::v1;
+use dokime_protocol::v1::CycleSummary;
 
 /* === Constants === */
 
@@ -82,7 +82,7 @@ impl Store {
     pub fn sample_count(&self) -> Result<u64> {
         Ok(self.lock()?.query_row("SELECT COALESCE(SUM(rows),0) FROM telemetry_batches", [], |row| row.get::<_, i64>(0))? as u64)
     }
-    pub fn save_cycle(&self, cycle: &v1::CycleSummary) -> Result<()> {
+    pub fn save_cycle(&self, cycle: &CycleSummary) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         transaction.execute(
@@ -93,22 +93,22 @@ impl Store {
         transaction.commit()?;
         Ok(())
     }
-    pub fn client_cycle(&self, id: &str) -> Result<Option<v1::CycleSummary>> {
+    pub fn client_cycle(&self, id: &str) -> Result<Option<CycleSummary>> {
         let payload: Option<Vec<u8>> =
             self.lock()?.query_row("SELECT payload FROM cycles WHERE id=?1", [id], |row| row.get(0)).optional()?;
-        Ok(payload.map(|payload| v1::CycleSummary::decode(payload.as_slice())).transpose()?)
+        Ok(payload.map(|payload| CycleSummary::decode(payload.as_slice())).transpose()?)
     }
-    pub fn client_cycles(&self) -> Result<Vec<v1::CycleSummary>> {
+    pub fn client_cycles(&self) -> Result<Vec<CycleSummary>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM cycles ORDER BY rowid")?;
         let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(payloads.iter().map(|payload| v1::CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
+        Ok(payloads.iter().map(|payload| CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
     }
     pub fn bind_executions(&self, cycle: &str, executions: &[(Execution, String)]) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM cycles WHERE id=?1", [cycle], |row| row.get(0))?;
-        if v1::CycleSummary::decode(payload.as_slice())?.sealed {
+        if CycleSummary::decode(payload.as_slice())?.sealed {
             return Err(Error::Invalid("Append Executions: Create a New Cycle; This Cycle Is Sealed".into()));
         }
         for (execution, case) in executions {

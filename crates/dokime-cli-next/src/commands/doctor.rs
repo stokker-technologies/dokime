@@ -114,12 +114,12 @@ pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -
                     let input = std::fs::File::open(path)?;
                     total = total.saturating_add(input.metadata()?.len());
                     if total > settings.retained_bytes.get() as u64 {
-                        return Err(crate::error::Error::Capacity("Raise retained_bytes to Diagnose This Database Copy".into()));
+                        return Err(crate::error::Error::Capacity("Raise retained_bytes to Diagnose This Storage Copy".into()));
                     }
                     let mut output = std::fs::File::create(copy.join(&name))?;
                     let copied = std::io::copy(&mut input.take(settings.retained_bytes.get() as u64 + 1), &mut output)?;
                     if copied > settings.retained_bytes.get() as u64 {
-                        return Err(crate::error::Error::Capacity("Database Copy Exceeds retained_bytes".into()));
+                        return Err(crate::error::Error::Capacity("Storage Copy Exceeds retained_bytes".into()));
                     }
                 }
             }

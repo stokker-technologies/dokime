@@ -53,6 +53,43 @@ pub struct BatchSelection<'a> {
 /* === Implementations === */
 
 impl Store {
+    pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
+        let connection = self.lock()?;
+        let (saved,partial):(u64,Option<u64>)=connection.query_row("SELECT COALESCE(MAX(CASE WHEN b.last_position<=?4 THEN b.last_position END),0),MIN(CASE WHEN b.last_position>?4 THEN b.first_position END) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.last_position>?3 AND b.first_position<=?4",params![execution,stream,after as i64,through.min(i64::MAX as u64) as i64],|row|Ok((row.get::<_,i64>(0)? as u64,row.get::<_,Option<i64>>(1)?.map(|v|v as u64))))?;
+        let telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
+        let pending = if self.cancelled.is_none() {
+            telemetry
+                .pending
+                .get(&(execution.into(), stream.into()))
+                .and_then(|p| p.samples.iter().filter(|s| s.position > after && s.position <= through).map(|s| s.position).max())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        drop(telemetry);
+        drop(connection);
+        let mut frontier = saved.max(pending);
+        if let Some(first) = partial {
+            self.read_batches(
+                BatchSelection {
+                    execution,
+                    stream,
+                    after: after.max(first.saturating_sub(1)),
+                    through,
+                    start_ns: i64::MIN,
+                    end_ns: i64::MAX,
+                },
+                &[],
+                |batch| {
+                    let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+                    let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+                    frontier = frontier.max(positions.values().iter().copied().max().unwrap_or(0));
+                    Ok(true)
+                },
+            )?;
+        }
+        Ok(frontier)
+    }
     pub fn read_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
@@ -107,6 +144,19 @@ impl Store {
         } else {
             columns.iter().map(|key| key.split('.').next().unwrap().to_owned()).collect::<Vec<_>>()
         };
+        for column in columns {
+            let mut kind = codec.schema.field(1).data_type();
+            for component in column.split('.') {
+                let DataType::Struct(fields) = kind else {
+                    return Err(Error::Data("select a scalar field path from the frozen stream"));
+                };
+                kind = fields
+                    .iter()
+                    .find(|f| f.name() == component)
+                    .ok_or(Error::Data("declare every projected column in the frozen stream"))?
+                    .data_type();
+            }
+        }
         let projection = ipc::Projection::new(codec.schema.clone(), &["position", "source_ns", "receipt_ns", "sequence"], &keys)?;
         let path = catalog::path(self.database.parent().unwrap(), &id)?;
         for index in indices {

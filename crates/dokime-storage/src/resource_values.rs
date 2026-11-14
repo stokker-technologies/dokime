@@ -214,8 +214,8 @@ impl Store {
             let position = crate::store::next_position(&transaction, execution)?;
             evidence.position = position;
             transaction.execute(
-                "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
-                params![execution, position as i64, evidence.encode_to_vec()],
+                "INSERT INTO evidence(execution,position,payload,kind) VALUES (?1,?2,?3,?4)",
+                params![execution, position as i64, evidence.encode_to_vec(), evidence.kind],
             )?;
             transaction.execute(
                 "INSERT INTO resource_values VALUES (?1,?2,?3,?4)",

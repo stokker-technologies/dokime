@@ -1575,6 +1575,7 @@ name = "dokime-runtime-next"
 version = "0.1.5"
 dependencies = [
  "async-trait",
+ "criterion",
  "dokime",
  "dokime-operations-next",
  "dokime-protocol",
@@ -1601,6 +1602,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "zeroize",
+ "zip",
 ]
 
 [[package]]
@@ -1616,6 +1618,8 @@ dependencies = [
  "flatbuffers",
  "harmos-protocol",
  "harmos-storage",
+ "num-bigint 0.5.1",
+ "num-traits",
  "prost",
  "prost-reflect",
  "prost-types",
@@ -3629,6 +3633,7 @@ checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]

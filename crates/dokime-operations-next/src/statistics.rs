@@ -21,11 +21,14 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos_protocol::v1 as h;
 use prost::Message;
-use prost_reflect::DescriptorPool;
+use prost_reflect::{DescriptorPool, Kind};
 
 // Local Imports
 use crate::{Error, Resources, Result};
 use dokime_storage::StatisticsRead;
+
+use dokime_storage::BatchSelection;
+use dokime_storage::NumericWindow;
 
 /* === Constants === */
 
@@ -77,6 +80,26 @@ pub async fn handle(
         descriptor.get_field_by_name(&request.field)
     }
     .ok_or_else(|| Error::Invalid("Select a Numeric Stream Column".into()))?;
+    if field.is_list()
+        || field.is_map()
+        || !matches!(
+            field.kind(),
+            Kind::Float
+                | Kind::Double
+                | Kind::Int32
+                | Kind::Sint32
+                | Kind::Sfixed32
+                | Kind::Uint32
+                | Kind::Fixed32
+                | Kind::Int64
+                | Kind::Sint64
+                | Kind::Sfixed64
+                | Kind::Uint64
+                | Kind::Fixed64
+        )
+    {
+        return Err(Error::Invalid("Select a Numeric Stream Column".into()));
+    }
     let page_size = NonZeroUsize::new(256).unwrap();
     let (after, through) = resources.store.step_range(&resources.execution, &request.step, snapshot.frontier, page_size)?;
     let start = after;
@@ -92,7 +115,7 @@ pub async fn handle(
     }
     let mut positions = Vec::new();
     resources.store.read_batches(
-        dokime_storage::BatchSelection {
+        BatchSelection {
             execution: &resources.execution,
             stream: &request.stream,
             after,
@@ -102,14 +125,20 @@ pub async fn handle(
         },
         &[field.name().into()],
         |batch| {
-            use arrow_array::{StructArray, UInt64Array};
+            use arrow_array::{Float64Array, StructArray, UInt64Array};
+            let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
+            if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>()) {
+                if column.values().iter().any(|v| !v.is_finite()) {
+                    return Err(dokime_storage::Error::Data("publish finite values before computing statistics"));
+                }
+            }
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let values = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             positions.extend(values.values().iter().copied());
             Ok(true)
         },
     )?;
-    let mut response = resources.store.numeric_statistics(&dokime_storage::NumericWindow {
+    let mut response = resources.store.numeric_statistics(&NumericWindow {
         execution: &resources.execution,
         stream: &request.stream,
         field: field.name(),

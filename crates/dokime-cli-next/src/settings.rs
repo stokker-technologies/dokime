@@ -32,6 +32,8 @@ use dokime_runtime_next::{
     services::{ClientSettings, WallClock},
 };
 
+use dokime_storage::StorageSettings;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -134,7 +136,7 @@ impl Settings {
         HostSettings {
             clock,
             placement: self.placement(),
-            storage: dokime_storage::StorageSettings {
+            storage: StorageSettings {
                 flush_rows: self.telemetry_rows,
                 flush_interval: Duration::from_millis(self.telemetry_interval_ms),
                 pending_bytes: self.telemetry_pending_bytes,

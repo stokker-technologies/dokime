@@ -21,10 +21,11 @@ pub(crate) use harmos_storage::query::scalar::{Agg, ScalarValue};
 
 // Third Party Imports
 use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
+use arrow_schema::DataType;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::v1::{self, Null, Value};
 
 /* === Constants === */
 
@@ -58,6 +59,9 @@ pub(crate) struct Column<'a> {
     parents: Vec<&'a ArrayRef>,
 }
 impl Column<'_> {
+    pub(crate) fn data_type(&self) -> &DataType {
+        self.array.data_type()
+    }
     pub(crate) fn value(&self, row: usize) -> Result<ScalarValue> {
         if self.array.is_null(row) || self.parents.iter().any(|a| a.is_null(row)) {
             return Ok(ScalarValue::Null);
@@ -94,7 +98,7 @@ pub(crate) fn number(value: &ScalarValue) -> Option<f64> {
         _ => None,
     }
 }
-pub(crate) fn from_wire(value: &v1::Value) -> Result<ScalarValue> {
+pub(crate) fn from_wire(value: &Value) -> Result<ScalarValue> {
     Ok(match value.kind.as_ref() {
         Some(v1::value::Kind::Null(_)) => ScalarValue::Null,
         Some(v1::value::Kind::Number(v)) if v.is_finite() => ScalarValue::Float(*v),
@@ -105,10 +109,10 @@ pub(crate) fn from_wire(value: &v1::Value) -> Result<ScalarValue> {
         _ => return Err(Error::Data("select a finite scalar value")),
     })
 }
-pub(crate) fn wire(value: &ScalarValue) -> Result<v1::Value> {
+pub(crate) fn wire(value: &ScalarValue) -> Result<Value> {
     let kind = match value {
-        ScalarValue::Missing | ScalarValue::Null => v1::value::Kind::Null(v1::Null {}),
-        ScalarValue::Float(v) => v1::value::Kind::Number(*v),
+        ScalarValue::Missing | ScalarValue::Null => v1::value::Kind::Null(Null {}),
+        ScalarValue::Float(v) if v.is_finite() => v1::value::Kind::Number(*v),
         ScalarValue::Signed(v) => v1::value::Kind::Integer(*v),
         ScalarValue::Unsigned(v) => v1::value::Kind::UnsignedInteger(*v),
         ScalarValue::Bool(v) => v1::value::Kind::Boolean(*v),
@@ -119,10 +123,17 @@ pub(crate) fn wire(value: &ScalarValue) -> Result<v1::Value> {
         ScalarValue::Exact(v) if v.denominator.get() == 1 && !v.negative && v.numerator <= u64::MAX as u128 => {
             v1::value::Kind::UnsignedInteger(v.numerator as u64)
         }
-        ScalarValue::Exact(_) => v1::value::Kind::Number(number(value).unwrap()),
+        ScalarValue::Exact(v) if v.denominator.get() > 1 && v.denominator.get().is_power_of_two() && v.numerator <= (1u128 << 53) => {
+            v1::value::Kind::Number(number(value).unwrap())
+        }
+        ScalarValue::Exact(_) => {
+            return Err(Error::Invalid(
+                "Read Document Value: This Exact Result Does Not Fit the Frozen Value Format; Select a Representable Statistic".into(),
+            ));
+        }
         _ => return Err(Error::Data("select a scalar value expressible by the product protocol")),
     };
-    Ok(v1::Value { kind: Some(kind) })
+    Ok(Value { kind: Some(kind) })
 }
 pub(crate) fn text(value: &ScalarValue) -> String {
     match value {

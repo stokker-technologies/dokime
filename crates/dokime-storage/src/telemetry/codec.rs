@@ -25,7 +25,7 @@ use arrow_array::{
 use arrow_buffer::{NullBuffer, OffsetBuffer, ScalarBuffer};
 use arrow_schema::{DataType, Field, Fields, Schema, SchemaRef};
 use prost::Message;
-use prost_reflect::{DynamicMessage, Kind, MessageDescriptor, ReflectMessage, Value};
+use prost_reflect::{DynamicMessage, Kind, MapKey, MessageDescriptor, ReflectMessage, Value};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -134,9 +134,6 @@ fn message_fields(descriptor: &MessageDescriptor, active: &mut Vec<String>) -> R
     let result = descriptor
         .fields()
         .map(|field| {
-            if field.is_map() {
-                return Err(Error::Data("stream map columns require an explicit entry list"));
-            }
             let kind = match field.kind() {
                 Kind::Bool => DataType::Boolean,
                 Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 | Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 | Kind::Enum(_) => {
@@ -148,7 +145,7 @@ fn message_fields(descriptor: &MessageDescriptor, active: &mut Vec<String>) -> R
                 Kind::Bytes => DataType::Binary,
                 Kind::Message(descriptor) => DataType::Struct(message_fields(&descriptor, active)?),
             };
-            let kind = if field.is_list() { DataType::List(Arc::new(Field::new("item", kind, false))) } else { kind };
+            let kind = if field.is_list() || field.is_map() { DataType::List(Arc::new(Field::new("item", kind, false))) } else { kind };
             Ok(Arc::new(Field::new(field.name(), kind, field.supports_presence())))
         })
         .collect::<Result<Fields>>();
@@ -189,7 +186,35 @@ fn column(kind: &DataType, values: &[Option<Value>]) -> Result<ArrayRef> {
                     .iter()
                     .map(|v| match v {
                         Some(Value::Message(m)) => m.descriptor().get_field_by_name(field.name()).and_then(|f| {
-                            if f.supports_presence() && !m.has_field(&f) { None } else { Some(m.get_field(&f).into_owned()) }
+                            if f.supports_presence() && !m.has_field(&f) {
+                                return None;
+                            }
+                            let value = m.get_field(&f).into_owned();
+                            if let Value::Map(map) = value {
+                                let Kind::Message(descriptor) = f.kind() else { unreachable!() };
+                                let mut entries = map.into_iter().collect::<Vec<_>>();
+                                entries.sort_by(|a, b| a.0.cmp(&b.0));
+                                return Some(Value::List(
+                                    entries
+                                        .into_iter()
+                                        .map(|(key, value)| {
+                                            let mut entry = DynamicMessage::new(descriptor.clone());
+                                            let key = match key {
+                                                MapKey::Bool(v) => Value::Bool(v),
+                                                MapKey::I32(v) => Value::I32(v),
+                                                MapKey::I64(v) => Value::I64(v),
+                                                MapKey::U32(v) => Value::U32(v),
+                                                MapKey::U64(v) => Value::U64(v),
+                                                MapKey::String(v) => Value::String(v),
+                                            };
+                                            entry.set_field_by_name("key", key);
+                                            entry.set_field_by_name("value", value);
+                                            Value::Message(entry)
+                                        })
+                                        .collect(),
+                                ));
+                            }
+                            Some(value)
                         }),
                         _ => None,
                     })
@@ -223,21 +248,40 @@ fn column(kind: &DataType, values: &[Option<Value>]) -> Result<ArrayRef> {
     })
 }
 fn message(descriptor: &MessageDescriptor, array: &StructArray, row: usize) -> Result<DynamicMessage> {
-    let mut message = DynamicMessage::new(descriptor.clone());
+    let mut decoded = DynamicMessage::new(descriptor.clone());
     for field in descriptor.fields() {
         let Some(array) = array.column_by_name(field.name()) else { continue };
         if array.is_null(row) {
             continue;
         }
-        if field.is_list() {
+        if field.is_map() {
+            let list = array.as_any().downcast_ref::<ListArray>().ok_or(Error::Corrupt("map entry list differs"))?.value(row);
+            let Kind::Message(descriptor) = field.kind() else { unreachable!() };
+            let mut entries = std::collections::HashMap::new();
+            for index in 0..list.len() {
+                let entry =
+                    message(&descriptor, list.as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("map entry differs"))?, index)?;
+                let key = match entry.get_field_by_name("key").unwrap().into_owned() {
+                    Value::Bool(v) => MapKey::Bool(v),
+                    Value::I32(v) => MapKey::I32(v),
+                    Value::I64(v) => MapKey::I64(v),
+                    Value::U32(v) => MapKey::U32(v),
+                    Value::U64(v) => MapKey::U64(v),
+                    Value::String(v) => MapKey::String(v),
+                    _ => return Err(Error::Corrupt("map key differs")),
+                };
+                entries.insert(key, entry.get_field_by_name("value").unwrap().into_owned());
+            }
+            decoded.set_field(&field, Value::Map(entries));
+        } else if field.is_list() {
             let list = array.as_any().downcast_ref::<ListArray>().ok_or(Error::Corrupt("list type differs"))?.value(row);
             let values = (0..list.len()).map(|index| value(&field.kind(), &list, index)).collect::<Result<Vec<_>>>()?;
-            message.set_field(&field, Value::List(values));
+            decoded.set_field(&field, Value::List(values));
         } else {
-            message.set_field(&field, value(&field.kind(), array, row)?);
+            decoded.set_field(&field, value(&field.kind(), array, row)?);
         }
     }
-    Ok(message)
+    Ok(decoded)
 }
 fn value(kind: &Kind, array: &ArrayRef, row: usize) -> Result<Value> {
     macro_rules! get {

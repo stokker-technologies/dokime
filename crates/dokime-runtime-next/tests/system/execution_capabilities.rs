@@ -66,7 +66,10 @@ async fn execution_capabilities() -> Result<(), Box<dyn std::error::Error>> {
         assert!(sealed.rerun && sealed.inspect && sealed.export);
         assert!(!sealed.start && !sealed.cancel);
         assert!(host.cancel(&execution).unwrap_err().to_string().to_lowercase().contains("cancel"));
-        let exported = ExecutionArchive::decode(host.export_execution(&execution)?.as_slice())?;
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(host.export_execution(&execution)?))?;
+        let mut metadata = Vec::new();
+        std::io::Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
+        let exported = ExecutionArchive::decode(metadata.as_slice())?;
         assert_eq!(exported.execution.as_ref().unwrap().identifier, execution);
 
         // Rerun Creates New Evidence and Preserves the Earlier Execution
@@ -143,7 +146,10 @@ async fn execution_capabilities() -> Result<(), Box<dyn std::error::Error>> {
         assert!(host.rerun("imported").await.is_err());
         assert!(host.cancel("imported").is_err());
         let imported_bytes = host.export_execution("imported")?;
-        let export = ExecutionArchive::decode(imported_bytes.as_slice())?;
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&imported_bytes))?;
+        let mut metadata = Vec::new();
+        std::io::Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
+        let export = ExecutionArchive::decode(metadata.as_slice())?;
         assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(v1::origin::Kind::Import(_))));
         let draft = store.read("draft")?;
         assert_eq!(draft.state, ExecutionState::Open);

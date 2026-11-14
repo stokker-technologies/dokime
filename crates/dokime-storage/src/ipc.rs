@@ -518,6 +518,9 @@ mod tests {
         let first = writer.append(&batch).unwrap();
         let second = writer.append(&batch).unwrap();
         let checkpoint = writer.checkpoint();
+        let mut corrupt = second.clone();
+        corrupt.sha256[0] ^= 1;
+        assert!(read_batch(&path, batch.schema(), &corrupt).is_err());
         assert_eq!(read_batch(&path, batch.schema(), &second).unwrap(), batch);
         // Simulate A Crash During The Next Write, Before A Footer Exists.
         drop(writer);

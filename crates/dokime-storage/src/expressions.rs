@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -42,6 +43,7 @@ use crate::{
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
+use dokime_protocol::v1::{Aggregate, DataExpression, FieldReference, FilterOperator, PlotFilter, RecordContracts};
 use dokime_protocol::{context::evidence::RecordsAppendRequest, v1};
 
 /* === Constants === */
@@ -58,9 +60,9 @@ type Source = (bool, String);
 pub(crate) struct Projection {
     pub cut: ExecutionCut,
     pub stream: String,
-    pub fields: BTreeMap<String, v1::DataExpression>,
-    pub filters: Vec<v1::PlotFilter>,
-    pub grouping: Option<v1::DataExpression>,
+    pub fields: BTreeMap<String, DataExpression>,
+    pub filters: Vec<PlotFilter>,
+    pub grouping: Option<DataExpression>,
     pub group: Option<ScalarValue>,
 }
 
@@ -69,6 +71,8 @@ pub(crate) struct Evaluation<'a> {
     cut: &'a ExecutionCut,
     source: Source,
     attached: BTreeMap<Source, String>,
+    intervals: BTreeMap<(String, String), String>,
+    aggregates: RefCell<BTreeMap<Vec<u8>, ScalarValue>>,
 }
 
 /* === Enums === */
@@ -78,6 +82,18 @@ pub(crate) struct Evaluation<'a> {
 /* === Implementations === */
 
 impl Store {
+    pub(crate) fn constant_expression(&self, cut: &ExecutionCut, expression: &DataExpression) -> Result<ScalarValue> {
+        let evaluation = Evaluation {
+            store: self,
+            cut,
+            source: (false, String::new()),
+            attached: BTreeMap::new(),
+            intervals: BTreeMap::new(),
+            aggregates: RefCell::new(BTreeMap::new()),
+        };
+        let batch = RecordBatch::try_from_iter(vec![("constant", Arc::new(UInt64Array::from(vec![0])) as ArrayRef)])?;
+        evaluation.value(expression, &batch, 0, 0)
+    }
     pub(crate) fn evaluated_batches(
         &self, window: NumericWindow<'_>, fields: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
@@ -85,6 +101,9 @@ impl Store {
         let Some(plan) = projection.filter(|p| p.cut.execution.identifier == window.execution && p.stream == window.stream) else {
             return self.read_batches(BatchSelection::from(window), fields, read);
         };
+        if plan.filters.is_empty() && plan.group.is_none() && !fields.iter().any(|field| plan.fields.contains_key(field)) {
+            return self.read_batches(BatchSelection::from(window), fields, read);
+        }
         let expressions = fields
             .iter()
             .map(|field| plan.fields.get(field).cloned().unwrap_or_else(|| reference(window.stream, field, false)))
@@ -92,45 +111,34 @@ impl Store {
         let mut inputs = expressions.clone();
         inputs.extend(plan.filters.iter().filter_map(|f| f.expression.clone()));
         inputs.extend(plan.grouping.clone());
-        self.evaluate(
-            &plan.cut,
-            (false, window.stream.into()),
-            window.after,
-            window.through,
-            window.start_ns,
-            window.end_ns,
-            &inputs,
-            |evaluation, batch| {
-                let mut columns = Vec::new();
-                for (field, expression) in fields.iter().zip(&expressions) {
-                    let values =
-                        (0..batch.num_rows()).map(|row| evaluation.value(expression, &batch, row, 0)).collect::<Result<Vec<_>>>()?;
-                    columns.push((Arc::new(Field::new(field, values_type(&values), true)), values_array(&values)?));
+        self.evaluate(&plan.cut, (false, window.stream.into()), BatchSelection::from(window), &inputs, |evaluation, batch| {
+            let mut columns = Vec::new();
+            for (field, expression) in fields.iter().zip(&expressions) {
+                let values = (0..batch.num_rows()).map(|row| evaluation.value(expression, &batch, row, 0)).collect::<Result<Vec<_>>>()?;
+                columns.push((Arc::new(Field::new(field, values_type(&values), true)), values_array(&values)?));
+            }
+            let mut keep = Vec::with_capacity(batch.num_rows());
+            for row in 0..batch.num_rows() {
+                let mut selected = true;
+                for filter in &plan.filters {
+                    selected &= evaluation.filter(filter, &batch, row)?;
                 }
-                let mut keep = Vec::with_capacity(batch.num_rows());
-                for row in 0..batch.num_rows() {
-                    let mut selected = true;
-                    for filter in &plan.filters {
-                        selected &= evaluation.filter(filter, &batch, row)?;
-                    }
-                    if let (Some(grouping), Some(group)) = (&plan.grouping, &plan.group) {
-                        selected &=
-                            evaluation.value(grouping, &batch, row, 0)?.compare(group).map_err(|e| Error::Invalid(e.to_string()))?.is_eq();
-                    }
-                    keep.push(Some(selected));
+                if let (Some(grouping), Some(group)) = (&plan.grouping, &plan.group) {
+                    selected &=
+                        evaluation.value(grouping, &batch, row, 0)?.compare(group).map_err(|e| Error::Invalid(e.to_string()))?.is_eq();
                 }
-                let values =
-                    if columns.is_empty() { StructArray::new_empty_fields(batch.num_rows(), None) } else { StructArray::from(columns) };
-                let output =
-                    RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", Arc::new(values) as ArrayRef)])?;
-                let output = filter_record_batch(&output, &BooleanArray::from(keep))?;
-                if output.num_rows() == 0 { Ok(true) } else { read(output) }
-            },
-        )
+                keep.push(Some(selected));
+            }
+            let values =
+                if columns.is_empty() { StructArray::new_empty_fields(batch.num_rows(), None) } else { StructArray::from(columns) };
+            let output = RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", Arc::new(values) as ArrayRef)])?;
+            let output = filter_record_batch(&output, &BooleanArray::from(keep))?;
+            if output.num_rows() == 0 { Ok(true) } else { read(output) }
+        })
     }
 
     pub(crate) fn evaluate(
-        &self, cut: &ExecutionCut, source: Source, after: u64, through: u64, start: i64, end: i64, expressions: &[v1::DataExpression],
+        &self, cut: &ExecutionCut, source: Source, selection: BatchSelection<'_>, expressions: &[DataExpression],
         mut read: impl FnMut(&Evaluation<'_>, RecordBatch) -> Result<bool>,
     ) -> Result<()> {
         let mut sources = BTreeMap::<Source, BTreeSet<String>>::new();
@@ -144,63 +152,84 @@ impl Store {
             cut,
             source: source.clone(),
             attached: BTreeMap::new(),
+            intervals: BTreeMap::new(),
+            aggregates: RefCell::new(BTreeMap::new()),
         };
-        if sources.is_empty() {
-            return self.source_batches(cut, &source, after, through, start, end, &fields, |batch| read(&evaluation, batch));
+        let mut intervals = BTreeSet::new();
+        for expression in expressions {
+            collect_intervals(expression, &mut intervals);
         }
-        let mut base = self.source_table(cut, &source, after, through, start, end, &fields)?;
+        if sources.is_empty() && intervals.is_empty() {
+            return self.source_batches(cut, &source, selection, &fields, |batch| read(&evaluation, batch));
+        }
+        let mut base = self.source_table(cut, &source, selection, &fields)?;
         for (other, fields) in sources {
-            let right = self.source_table(cut, &other, 0, through, i64::MIN, end, &fields.into_iter().collect::<Vec<_>>())?;
+            let right = self.source_table(
+                cut,
+                &other,
+                BatchSelection {
+                    after: 0,
+                    start_ns: i64::MIN,
+                    ..selection
+                },
+                &fields.into_iter().collect::<Vec<_>>(),
+            )?;
             let name = format!("_joined{}", evaluation.attached.len());
-            let mut fields = base.schema().fields().to_vec();
-            fields.push(Arc::new(Field::new(&name, DataType::Struct(right.schema().fields().clone()), true)));
-            let mut output = TableWriter::new(Arc::new(Schema::new(fields)))?;
-            let mut left_reader = base.reader()?;
-            let mut right_reader = right.reader()?;
-            let mut left_done = false;
-            let mut right_done = false;
-            let left = std::iter::from_fn(|| {
-                if left_done {
-                    return None;
-                }
-                match left_reader.next(&mut || Ok(())) {
-                    Ok(Some(b)) => Some(Ok(b)),
-                    Ok(None) => {
-                        left_done = true;
-                        None
-                    }
-                    Err(e) => {
-                        left_done = true;
-                        Some(Err(ArrowError::ExternalError(Box::new(e))))
-                    }
-                }
-            });
-            let right_input = std::iter::from_fn(|| {
-                if right_done {
-                    return None;
-                }
-                match right_reader.next(&mut || Ok(())) {
-                    Ok(Some(b)) => Some(Ok(b)),
-                    Ok(None) => {
-                        right_done = true;
-                        None
-                    }
-                    Err(e) => {
-                        right_done = true;
-                        Some(Err(ArrowError::ExternalError(Box::new(e))))
-                    }
-                }
-            });
-            ordered_merge::as_of(left, right_input, right.schema(), |batch, aligned| {
-                let mut fields = batch.schema().fields().to_vec();
-                fields.push(Arc::new(Field::new(&name, aligned.data_type().clone(), true)));
-                let mut columns = batch.columns().to_vec();
-                columns.push(Arc::new(aligned));
-                let joined = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
-                output.push(&joined, &mut || Ok(())).map_err(|e| ArrowError::ExternalError(Box::new(e)))
-            })?;
-            base = output.finish()?;
+            base = align(&base, &right, &name)?;
             evaluation.attached.insert(other, name);
+        }
+        for (current, previous) in intervals {
+            let current_table = self.source_table(
+                cut,
+                &(true, current.clone()),
+                BatchSelection {
+                    after: 0,
+                    start_ns: i64::MIN,
+                    ..selection
+                },
+                &[],
+            )?;
+            let previous_table = self.source_table(
+                cut,
+                &(true, previous.clone()),
+                BatchSelection {
+                    after: 0,
+                    start_ns: i64::MIN,
+                    ..selection
+                },
+                &[],
+            )?;
+            let paired = align(&current_table, &previous_table, "_previous")?;
+            let value_fields = arrow_schema::Fields::from(vec![Field::new("elapsed", DataType::Float64, true)]);
+            let schema = Arc::new(Schema::new(vec![
+                current_table.schema().field(0).clone(),
+                Field::new("values", DataType::Struct(value_fields.clone()), false),
+            ]));
+            let mut output = TableWriter::new(schema.clone())?;
+            let mut reader = paired.reader()?;
+            while let Some(batch) = reader.next(&mut || Ok(()))? {
+                let current_times = (FieldPath {
+                    fields: vec!["_storage".into(), "source_ns".into()],
+                })
+                .array(&batch)?;
+                let current_times = current_times.as_any().downcast_ref::<Int64Array>().unwrap();
+                let previous_times = FieldPath {
+                    fields: vec!["_previous".into(), "_storage".into(), "source_ns".into()],
+                };
+                let values = (0..batch.num_rows())
+                    .map(|row| {
+                        Ok(match previous_times.value(&batch, row)? {
+                            ScalarValue::Signed(previous) => Some((current_times.value(row) as i128 - previous as i128) as f64 / 1e9),
+                            _ => None,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let values = StructArray::new(value_fields.clone(), vec![Arc::new(Float64Array::from(values))], None);
+                output.push(&RecordBatch::try_new(schema.clone(), vec![batch.column(0).clone(), Arc::new(values)])?, &mut || Ok(()))?;
+            }
+            let name = format!("_interval{}", evaluation.intervals.len());
+            base = align(&base, &output.finish()?, &name)?;
+            evaluation.intervals.insert((current, previous), name);
         }
         let mut reader = base.reader()?;
         while let Some(batch) = reader.next(&mut || Ok(()))? {
@@ -212,11 +241,9 @@ impl Store {
         Ok(())
     }
 
-    fn source_table(
-        &self, cut: &ExecutionCut, source: &Source, after: u64, through: u64, start: i64, end: i64, fields: &[String],
-    ) -> Result<Table> {
+    fn source_table(&self, cut: &ExecutionCut, source: &Source, selection: BatchSelection<'_>, fields: &[String]) -> Result<Table> {
         let mut writer = None;
-        self.source_batches(cut, source, after, through, start, end, fields, |batch| {
+        self.source_batches(cut, source, selection, fields, |batch| {
             if writer.is_none() {
                 writer = Some(TableWriter::new(batch.schema())?);
             }
@@ -243,13 +270,22 @@ impl Store {
         Ok(table.transform(&Transform::Sort(Sort { keys }), &mut || Ok(()))?)
     }
     pub(crate) fn source_codec(&self, cut: &ExecutionCut, source: &Source) -> Result<Codec> {
+        if !source.0 {
+            let connection = self.lock()?;
+            let codec = self.telemetry.lock().map_err(|_| Error::Data("restart after the stream descriptor lock failed"))?.codec(
+                &connection,
+                &cut.execution.identifier,
+                &source.1,
+            )?;
+            return Ok(codec.as_ref().clone());
+        }
         let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
         let message = if source.0 {
             let contracts = catalog
                 .sections
                 .iter()
                 .filter(|s| s.r#type == "dokime.v1.RecordContracts")
-                .map(|s| v1::RecordContracts::decode(s.payload.as_slice()))
+                .map(|s| RecordContracts::decode(s.payload.as_slice()))
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             contracts
                 .into_iter()
@@ -265,9 +301,16 @@ impl Store {
         Codec::new(pool.get_message_by_name(&message).ok_or(Error::Data("restore the source row descriptor"))?)
     }
     fn source_batches(
-        &self, cut: &ExecutionCut, source: &Source, after: u64, through: u64, start: i64, end: i64, fields: &[String],
+        &self, cut: &ExecutionCut, source: &Source, selection: BatchSelection<'_>, fields: &[String],
         mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
+        let BatchSelection {
+            after,
+            through,
+            start_ns: start,
+            end_ns: end,
+            ..
+        } = selection;
         if !source.0 {
             return self.read_batches(
                 BatchSelection {
@@ -287,14 +330,14 @@ impl Store {
         loop {
             let bytes = {
                 let connection = self.lock()?;
-                let mut query=connection.prepare("SELECT payload FROM evidence WHERE execution=?1 AND position>?2 AND position<=?3 AND position IN (SELECT position FROM record_fields WHERE execution=?1 AND record=?4) ORDER BY position LIMIT ?5")?;
+                let mut query=connection.prepare("SELECT payload FROM evidence WHERE execution=?1 AND position>?2 AND position<=?3 AND kind=?4 ORDER BY position LIMIT ?5")?;
                 query
                     .query_map(
                         params![
                             cut.execution.identifier,
                             cursor as i64,
                             through.min(i64::MAX as u64) as i64,
-                            source.1,
+                            format!("record:{}", source.1),
                             self.storage_settings()?.flush_rows.get() as i64
                         ],
                         |row| row.get::<_, Vec<u8>>(0),
@@ -329,7 +372,7 @@ impl Store {
     }
 }
 impl Evaluation<'_> {
-    pub(crate) fn value(&self, expression: &v1::DataExpression, batch: &RecordBatch, row: usize, depth: usize) -> Result<ScalarValue> {
+    pub(crate) fn value(&self, expression: &DataExpression, batch: &RecordBatch, row: usize, depth: usize) -> Result<ScalarValue> {
         if depth > 32 {
             return Err(Error::Data("simplify expression nesting"));
         }
@@ -369,30 +412,38 @@ impl Evaluation<'_> {
                         let Some(Kind::Record(current)) = input.kind.as_ref() else {
                             return Err(Error::Data("select record occurrences for time between"));
                         };
-                        let current = self.source_time(&(true, current.identifier.clone()), batch, row)?;
-                        let previous = self.source_time(&(true, previous.clone()), batch, row)?;
-                        match (current, previous) {
-                            (Some(a), Some(b)) => ScalarValue::Float((a as i128 - b as i128) as f64 / 1e9),
-                            _ => ScalarValue::Missing,
-                        }
+                        let name = self
+                            .intervals
+                            .get(&(current.identifier.clone(), previous.clone()))
+                            .ok_or(Error::Data("bind the record interval"))?;
+                        (FieldPath {
+                            fields: vec![name.clone(), "values".into(), "elapsed".into()],
+                        })
+                        .value(batch, row)?
                     }
                     _ => return Err(Error::Data("select a declared transform")),
                 }
             }
             Some(Kind::Aggregate(aggregate)) => {
                 let input = aggregate.input.as_deref().ok_or(Error::Data("supply the aggregate input"))?;
-                self.store.reduce_expression(
+                let key = expression.encode_to_vec();
+                if let Some(value) = self.aggregates.borrow().get(&key) {
+                    return Ok(value.clone());
+                }
+                let value = self.store.reduce_expression(
                     self.cut,
                     input,
                     &[],
-                    v1::Aggregate::try_from(aggregate.kind).map_err(|_| Error::Data("select a declared reducer"))?,
+                    Aggregate::try_from(aggregate.kind).map_err(|_| Error::Data("select a declared reducer"))?,
                     aggregate.percentile,
-                )?
+                )?;
+                self.aggregates.borrow_mut().insert(key, value.clone());
+                value
             }
             _ => return Err(Error::Data("select an expression")),
         })
     }
-    fn field(&self, reference: &v1::FieldReference, record: bool, batch: &RecordBatch, row: usize) -> Result<ScalarValue> {
+    fn field(&self, reference: &FieldReference, record: bool, batch: &RecordBatch, row: usize) -> Result<ScalarValue> {
         let source = (record, reference.identifier.clone());
         let field = if reference.field.is_empty() {
             let codec = self.store.source_codec(self.cut, &source)?;
@@ -413,40 +464,28 @@ impl Evaluation<'_> {
         path.extend(field.split('.').map(str::to_owned));
         Ok(FieldPath { fields: path }.value(batch, row)?)
     }
-    fn source_time(&self, source: &Source, batch: &RecordBatch, row: usize) -> Result<Option<i64>> {
-        let mut path = if source == &self.source {
-            Vec::new()
-        } else {
-            vec![self.attached.get(source).ok_or(Error::Data("bind record intervals"))?.clone()]
-        };
-        path.extend(["_storage".into(), "source_ns".into()]);
-        Ok(match (FieldPath { fields: path }).value(batch, row)? {
-            ScalarValue::Signed(time) => Some(time),
-            _ => None,
-        })
-    }
-    pub(crate) fn filter(&self, filter: &v1::PlotFilter, batch: &RecordBatch, row: usize) -> Result<bool> {
+    pub(crate) fn filter(&self, filter: &PlotFilter, batch: &RecordBatch, row: usize) -> Result<bool> {
         let expression = filter.expression.as_ref().ok_or(Error::Data("supply the filter expression"))?;
         let left = self.value(expression, batch, row, 0)?;
-        let operator = v1::FilterOperator::try_from(filter.operator).map_err(|_| Error::Data("select a comparison"))?;
-        if operator == v1::FilterOperator::Exists {
+        let operator = FilterOperator::try_from(filter.operator).map_err(|_| Error::Data("select a comparison"))?;
+        if operator == FilterOperator::Exists {
             return Ok(!matches!(left, ScalarValue::Missing | ScalarValue::Null));
         }
         if matches!(left, ScalarValue::Missing | ScalarValue::Null) {
             return Ok(false);
         }
         let right = scalar::from_wire(filter.value.as_ref().ok_or(Error::Data("supply the comparison value"))?)?;
-        if operator == v1::FilterOperator::Contains {
+        if operator == FilterOperator::Contains {
             return Ok(scalar::text(&left).contains(&scalar::text(&right)));
         }
         let order = left.compare(&right).map_err(|e| Error::Invalid(e.to_string()))?;
         Ok(match operator {
-            v1::FilterOperator::Eq => order.is_eq(),
-            v1::FilterOperator::Ne => !order.is_eq(),
-            v1::FilterOperator::Gt => order.is_gt(),
-            v1::FilterOperator::Ge => !order.is_lt(),
-            v1::FilterOperator::Lt => order.is_lt(),
-            v1::FilterOperator::Le => !order.is_gt(),
+            FilterOperator::Eq => order.is_eq(),
+            FilterOperator::Ne => !order.is_eq(),
+            FilterOperator::Gt => order.is_gt(),
+            FilterOperator::Ge => !order.is_lt(),
+            FilterOperator::Lt => order.is_lt(),
+            FilterOperator::Le => !order.is_gt(),
             _ => false,
         })
     }
@@ -468,17 +507,87 @@ impl<'a> From<NumericWindow<'a>> for BatchSelection<'a> {
 
 /* === Private Functions === */
 
-pub(crate) fn reference(source: &str, field: &str, record: bool) -> v1::DataExpression {
-    let reference = v1::FieldReference {
+fn align(base: &Table, right: &Table, name: &str) -> Result<Table> {
+    let mut fields = base.schema().fields().to_vec();
+    fields.push(Arc::new(Field::new(name, DataType::Struct(right.schema().fields().clone()), true)));
+    let mut output = TableWriter::new(Arc::new(Schema::new(fields)))?;
+    let mut left_reader = base.reader()?;
+    let mut right_reader = right.reader()?;
+    let mut left_done = false;
+    let mut right_done = false;
+    let left = std::iter::from_fn(|| {
+        if left_done {
+            return None;
+        }
+        match left_reader.next(&mut || Ok(())) {
+            Ok(Some(b)) => Some(Ok(b)),
+            Ok(None) => {
+                left_done = true;
+                None
+            }
+            Err(e) => {
+                left_done = true;
+                Some(Err(ArrowError::ExternalError(Box::new(e))))
+            }
+        }
+    });
+    let right_input = std::iter::from_fn(|| {
+        if right_done {
+            return None;
+        }
+        match right_reader.next(&mut || Ok(())) {
+            Ok(Some(b)) => Some(Ok(b)),
+            Ok(None) => {
+                right_done = true;
+                None
+            }
+            Err(e) => {
+                right_done = true;
+                Some(Err(ArrowError::ExternalError(Box::new(e))))
+            }
+        }
+    });
+    ordered_merge::as_of(left, right_input, right.schema(), |batch, aligned| {
+        let mut fields = batch.schema().fields().to_vec();
+        fields.push(Arc::new(Field::new(name, aligned.data_type().clone(), true)));
+        let mut columns = batch.columns().to_vec();
+        columns.push(Arc::new(aligned));
+        let joined = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
+        output.push(&joined, &mut || Ok(())).map_err(|e| ArrowError::ExternalError(Box::new(e)))
+    })?;
+    return Ok(output.finish()?);
+}
+fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, String)>) {
+    match expression.kind.as_ref() {
+        Some(v1::data_expression::Kind::Transform(t)) => {
+            if let Some(input) = t.input.as_deref() {
+                if let (Some(v1::transform_expression::Kind::TimeBetween(previous)), Some(v1::data_expression::Kind::Record(current))) =
+                    (&t.kind, &input.kind)
+                {
+                    pairs.insert((current.identifier.clone(), previous.clone()));
+                }
+                collect_intervals(input, pairs);
+            }
+        }
+        Some(v1::data_expression::Kind::Aggregate(a)) => {
+            if let Some(input) = a.input.as_deref() {
+                collect_intervals(input, pairs);
+            }
+        }
+        _ => (),
+    }
+}
+pub(crate) fn reference(source: &str, field: &str, record: bool) -> DataExpression {
+    let reference = FieldReference {
         identifier: source.into(),
         field: field.into(),
     };
-    v1::DataExpression {
+    DataExpression {
         kind: Some(if record { v1::data_expression::Kind::Record(reference) } else { v1::data_expression::Kind::Stream(reference) }),
         ..Default::default()
     }
 }
-fn collect(expression: &v1::DataExpression, sources: &mut BTreeMap<Source, BTreeSet<String>>, depth: usize) -> Result<()> {
+fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<String>>, depth: usize) -> Result<()> {
     if depth > 32 {
         return Err(Error::Data("simplify expression nesting"));
     }
@@ -529,19 +638,19 @@ pub(crate) fn values_array(values: &[ScalarValue]) -> Result<ArrayRef> {
         _ => Arc::new(Float64Array::from(values.iter().map(scalar::number).collect::<Vec<_>>())),
     })
 }
-pub(crate) fn accumulator(kind: v1::Aggregate, percentile: f64) -> Result<Accumulator> {
-    use harmos_storage::Aggregate;
+pub(crate) fn accumulator(kind: Aggregate, percentile: f64) -> Result<Accumulator> {
+    use harmos_storage::Aggregate as EngineAggregate;
     let kind = match kind {
-        v1::Aggregate::Count => Aggregate::Count,
-        v1::Aggregate::Sum => Aggregate::Sum,
-        v1::Aggregate::Min => Aggregate::Min,
-        v1::Aggregate::Max => Aggregate::Max,
-        v1::Aggregate::Mean => Aggregate::Mean,
-        v1::Aggregate::Stddev => Aggregate::Std,
-        v1::Aggregate::Rms => Aggregate::Rms,
-        v1::Aggregate::Median => Aggregate::Median,
-        v1::Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
-            Aggregate::Percentile(percentile as u8)
+        Aggregate::Count => EngineAggregate::Count,
+        Aggregate::Sum => EngineAggregate::Sum,
+        Aggregate::Min => EngineAggregate::Min,
+        Aggregate::Max => EngineAggregate::Max,
+        Aggregate::Mean => EngineAggregate::Mean,
+        Aggregate::Stddev => EngineAggregate::Std,
+        Aggregate::Rms => EngineAggregate::Rms,
+        Aggregate::Median => EngineAggregate::Median,
+        Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
+            EngineAggregate::Percentile(percentile as u8)
         }
         _ => return Err(Error::Data("select a supported aggregate and an integer percentile from 0 to 100")),
     };
