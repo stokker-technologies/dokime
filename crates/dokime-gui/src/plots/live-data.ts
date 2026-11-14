@@ -147,7 +147,7 @@ export function useLivePlotPayloads({
       groupsRef.current.clear();
       pendingRef.current.clear();
     },
-    [nativeSession, enabled, requestScope, windowS, requestVisible, automatic],
+    [],
   );
 
   useEffect(() => {
@@ -211,7 +211,7 @@ export function useLivePlotPayloads({
           panelHeight: requestedWidths[plot.plot_id]?.[1] ?? undefined,
         }),
       );
-      desired.set(JSON.stringify([requests, refreshKey]), { plots, requests });
+      desired.set(JSON.stringify([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
     }
     for (const [key, dispose] of groupsRef.current) {
       if (desired.has(key)) continue;
@@ -474,7 +474,7 @@ export function useLivePlotPayloads({
         clearScheduledFlush(flushFrameRef, flushTimerRef);
       });
     }
-  }, [requestInputs, onRefreshChange, enabled, requestScope, windowS, requestVisible, nativeSession, automatic]);
+  }, [requestInputs, requestPlots, refreshKey, onRefreshChange, enabled, requestScope, windowS, requestVisible, nativeSession, automatic]);
 
   return state;
 }

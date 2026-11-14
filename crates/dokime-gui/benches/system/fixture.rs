@@ -397,7 +397,6 @@ fn document(count: usize) -> Document {
             cards,
             ..Default::default()
         }],
-        ..Default::default()
     }
 }
 

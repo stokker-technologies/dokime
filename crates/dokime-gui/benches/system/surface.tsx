@@ -203,13 +203,15 @@ function Surface({ session }: { session: ConnectedSession }) {
     observation.failedPlots = 0;
     observation.scene = ++nextScene;
     observation.previous.clear();
+    const backend = session.snapshot.connection.backend;
+    if (!backend) throw new Error("Read Benchmark Document: Connect Its Native Host");
     const document = await fetchNativeDocument(
       { ...session.identity, own: session.own },
       {
         cycleId: cycle,
         executionId: execution,
         documentId: `desktop-${count}`,
-        epoch: session.snapshot.connection.backend!.epoch,
+        epoch: backend.epoch,
       },
     );
     const plots = mapNativeDocument(document).cards.flatMap((card) => card.plots);
