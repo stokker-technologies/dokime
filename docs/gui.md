@@ -148,6 +148,9 @@ removal operation, preserving any earlier generator or user storage roots.
 Execution evidence reads use the execution and cycle identities. A planned case
 identity selects planning state; it does not filter an execution’s records or plots.
 
+Visible plot groups start independently in parallel. The next group prefetches
+once a visible group has data, so lookahead does not compete with the first read.
+
 Frozen descriptor inventories verify their digest in transport order, then resolve
 imports before constructing the desktop registry. Inventory order does not require
 dependencies to precede their consumers. Missing and cyclic imports refuse decoding.

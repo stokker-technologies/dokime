@@ -223,7 +223,7 @@ function plotStream() {
   };
 }
 
-async function mountPlotView(ids = ["pulse", "current"]) {
+async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   const animationFrame = vi
     .spyOn(globalThis.window, "requestAnimationFrame")
@@ -257,7 +257,7 @@ async function mountPlotView(ids = ["pulse", "current"]) {
     }),
   );
   const scope = { test_cycle_id: "cycle" };
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, true])) });
+  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
   const host = document.createElement("div");
   document.body.append(host);
@@ -539,6 +539,31 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
   await act(async () => view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }));
   await view.advance();
   assert.equal(view.states()["plot-64"].revision, 2);
+});
+
+test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", async () => {
+  vi.stubGlobal("IntersectionObserver", class {});
+  const ids = Array.from({ length: 65 }, (_, index) => `plot-${index}`);
+  const view = await mountPlotView(ids, [ids[0]]);
+  assert.equal(view.streams.length, 1);
+  const initial = snapshotEnvelopes(view.plots);
+  await act(async () => view.streams[0].push(...initial.slice(0, 32)));
+  await view.advance();
+  assert.deepEqual(
+    refreshFixture.watch.mock.calls.map((call) => call[1].length),
+    [32, 32],
+  );
+  const retained = view.states()[ids[0]];
+  await act(async () => useSummaryWindowStore.getState().setVisible(ids[32], true));
+  assert.equal(view.streams.length, 2);
+  await act(async () => view.streams[1].push(...initial.slice(32, 64)));
+  await view.advance();
+  assert.deepEqual(
+    refreshFixture.watch.mock.calls.map((call) => call[1].length),
+    [32, 32, 1],
+  );
+  assert.equal(view.states()[ids[0]], retained);
+  assert.equal(view.streams[0].cancel.mock.calls.length, 0);
 });
 
 test("Refresh Failure", async () => {
