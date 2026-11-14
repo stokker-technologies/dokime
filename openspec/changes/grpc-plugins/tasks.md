@@ -1,5 +1,25 @@
 # gRPC Plugins Tasks
 
+## Desktop Plot Documents
+
+The sole writer on `perf/desktop-plot-documents` owns this local-only repair.
+Inventory: desktop plot selection/visibility and bounded group lifecycle; native
+plot request and document adapters; host plot batch planning and trace boundaries;
+Arrow preview/tail reads and bounded frequency selection; the plot declaration
+and its generated consumers if a declaration is required; native/frontend/storage
+plot and document stories; desktop/storage benchmark observations and maintained
+architecture, GUI, authoring and tooling guidance. Existing storage and transport
+memory bounds, durability, history sizes and timing-free stories remain required.
+No specification lifecycle command or push is authorized for this work.
+
+- [x] Measure the current request-to-draw/refusal path and identify its largest costs.
+- [x] Select visible plots in bounded desktop groups, retaining independent cancellation and updates; close effect dependency and generation identity proof.
+- [x] Share identical plot reads within one host batch and remove redundant full-history work; retain numeric grid-frame keys through reduction and format only returned instants.
+- [x] Select bounded frequency input for long executions and preserve explicit author intent.
+- [x] Prove documents exceeding one watch and frequency plots over long history deterministically; preserve source instants and categorical coordinates at the native renderer handoff exposed by whole-document traversal.
+- [x] Update affected maintained guides and benchmark boundaries; review README impact. Existing README claims and links remain accurate.
+- [x] On source head `ae0cfada8`, pass format, Rust/TypeScript/repository checks and the workspace test compiler check through mise; pass 182 frontend unit, 119 frontend integration, two native desktop and 18 storage stories on Windows. Complete 34 drawn desktop cases with eight complete traversals and nine storage document measurements; retain the inclusive stage profile and exact boundaries in tooling guidance. `cmdkey /list` leaves no entry from these runs; the 13 pre-existing access entries are preserved. Hosted Linux proof is not claimed. Commits remain local.
+
 ## Storage Benchmark Boundaries
 
 This repair is owned by the sole writer on `fix/storage-bench-boundaries`;

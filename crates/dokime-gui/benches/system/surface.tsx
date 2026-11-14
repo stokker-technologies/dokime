@@ -1,13 +1,14 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useLayoutEffect, useState } from "react";
+import { Profiler, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { NativeSession } from "@/app/native-session/session";
+import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { commands } from "@/lib/desktop/commands";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import type { DocumentPlotType, DocumentViewPlot, RecordScope } from "@/lib/types";
+import type { DocumentViewPlot, RecordScope } from "@/lib/types";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import "@/styles.css";
@@ -37,10 +38,11 @@ type Observation = {
 };
 declare global {
   var __desktopBench: Observation;
-  var desktopCase: (count: number, condition: string, execution: string, cycle: string, from: number, to: number) => void;
+  var desktopCase: (count: number, condition: string, execution: string, cycle: string, from: number, to: number) => Promise<void>;
   var desktopBegin: (condition: string) => void;
   var desktopAction: (condition: string, from: number, to: number) => void;
   var desktopResult: (statusOnly?: boolean) => object;
+  var desktopInspect: (plotId: string) => { ready: boolean; error: boolean; drawn: boolean };
 }
 
 const observation: Observation = {
@@ -112,7 +114,6 @@ for (const method of [
   });
 }
 
-const kinds: DocumentPlotType[] = ["frequency_series", "xy", "trajectory", "contour", "grid_chart", "bar", "pie", "histogram", "box_plot"];
 let previousFrame = performance.now();
 let nextScene = 0;
 function presented(now: number) {
@@ -162,7 +163,11 @@ function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordS
     const started = performance.now();
     requestAnimationFrame(() => requestAnimationFrame(() => observation.sample("presentation_opportunity", performance.now() - started)));
   }, [states]);
-  return <LivePlotGroupGrid documentPlots={plots} liveStates={states} title="Mixed Plots" showGroupHeaders={false} />;
+  return (
+    <Profiler id="plots" onRender={(_id, _phase, duration) => observation.sample("frontend_state", duration)}>
+      <LivePlotGroupGrid documentPlots={plots} liveStates={states} title="Mixed Plots" showGroupHeaders={false} />
+    </Profiler>
+  );
 }
 
 function Surface({ session }: { session: ConnectedSession }) {
@@ -190,43 +195,26 @@ function Surface({ session }: { session: ConnectedSession }) {
     previousFrame = observation.started;
     observation.stallUntil = condition === "stalled" ? performance.now() + 1500 : 0;
   };
-  globalThis.desktopCase = (count, condition, execution, cycle, from, to) => {
+  globalThis.desktopCase = async (count, condition, execution, cycle, from, to) => {
+    window.scrollTo(0, 0);
     globalThis.desktopBegin(condition);
     observation.errors = [];
     observation.loadedPlots = 0;
     observation.failedPlots = 0;
     observation.scene = ++nextScene;
     observation.previous.clear();
-    const field = (name: string) => ({ source: { type: "telemetry", stream: "bench.pipeline", field: name }, transforms: [] });
-    const plots = Array.from(
-      { length: count },
-      (_, index): DocumentViewPlot => ({
-        plot_id: `desktop.plot.${index}`,
-        title: `Plot ${index + 1}`,
-        stream: "bench.pipeline",
-        plot_type: index < count - 9 ? "time_series" : kinds[index - count + 9],
-        style: "line",
-        x_scale: "linear",
-        y_scale: "linear",
-        x: index <= count - 9 ? "timestamp" : "y0",
-        y: ["y1"],
-        z_field: "y2",
-        z_stream: "bench.pipeline",
-        reduction: "mean",
-        render: "cells",
-        fft: { sample_rate_hz: 8, window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
-        histogram: { bins: 32 },
-        grid: {
-          row: field("y0"),
-          column: field("y2"),
-          frame: field("timestamp"),
-          rows: Array.from({ length: 8 }, (_, order) => ({ key: String(order), label: String(order), order })),
-          columns: Array.from({ length: 8 }, (_, order) => ({ key: String(order), label: String(order), order })),
-          highlights: [],
-          summary_label: "Value",
-        },
-      }),
+    const backend = session.snapshot.connection.backend;
+    if (!backend) throw new Error("Read Benchmark Document: Connect Its Native Host");
+    const document = await fetchNativeDocument(
+      { ...session.identity, own: session.own },
+      {
+        cycleId: cycle,
+        executionId: execution,
+        documentId: `desktop-${count}`,
+        epoch: backend.epoch,
+      },
     );
+    const plots = mapNativeDocument(document).cards.flatMap((card) => card.plots);
     const windows = Object.fromEntries(
       plots.map((plot) => [
         plot.plot_id,
@@ -272,6 +260,17 @@ function Surface({ session }: { session: ConnectedSession }) {
           elapsedMs: performance.now() - observation.started,
         }),
   });
+  globalThis.desktopInspect = (plotId) => {
+    const card = [...document.querySelectorAll<HTMLElement>("[data-bench-plot]")].find((card) => card.dataset.benchPlot === plotId);
+    if (!card) return { ready: false, error: false, drawn: false };
+    card.scrollIntoView({ block: "center" });
+    const canvases = [...card.querySelectorAll("canvas")];
+    return {
+      ready: card.dataset.benchReady === "true" && !card.querySelector('[data-testid="plot-placeholder"]'),
+      error: card.dataset.benchError === "true",
+      drawn: canvases.length === 0 || canvases.some((canvas) => canvasDraws.has(canvas)),
+    };
+  };
   return (
     <Connection.Provider value={session}>
       <QueryClientProvider client={session.queryClient}>

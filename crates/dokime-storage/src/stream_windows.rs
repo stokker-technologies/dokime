@@ -24,6 +24,8 @@ use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 // Local Imports
 use crate::{Error, Result, Store};
 
+use std::collections::BTreeMap;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -86,6 +88,7 @@ impl Store {
         Ok(statement.query_map([execution], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
     }
 
+    #[tracing::instrument(name = "plot.bounds", skip_all)]
     pub fn numeric_bounds(&self, execution: &str, stream: &str, field: &str, through: u64) -> Result<Option<(i64, i64)>> {
         let window = NumericWindow {
             execution,
@@ -145,7 +148,7 @@ impl Store {
         }
         let span = (i128::from(window.end_ns) - i128::from(window.start_ns) + 1).max(1);
         let width = ((span + window.bins.get() as i128 - 1) / window.bins.get() as i128).max(1);
-        let mut bins = std::collections::BTreeMap::<usize, (NumericBin, i64, i64)>::new();
+        let mut bins = BTreeMap::<usize, (NumericBin, i64, i64)>::new();
         self.numeric_values(window, |position, source_ns, value| {
             let position = position as i64;
             let index = ((i128::from(source_ns) - i128::from(window.start_ns)) / width) as usize;

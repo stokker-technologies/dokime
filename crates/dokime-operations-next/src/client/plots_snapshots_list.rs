@@ -16,18 +16,34 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
-use dokime_storage::NumericWindow;
+use crate::{
+    Error, Result,
+    client::{ClientSettings, Context},
+};
+use dokime_protocol::client::plots::{PlotEnvelope, SnapshotsListRequest, SnapshotsListResponse};
+use dokime_protocol::v1::{self, PlotRequest};
+use dokime_storage::{ExecutionCut, NumericWindow, Store};
+use harmos_protocol::v1::Catalog;
 use prost_reflect::DescriptorPool;
 use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
+use tokio::task;
+
+use dokime_protocol::client::plots::{
+    PlotAnalysis, PlotAnalysisResult, PlotBoxSummaryAnalysis, PlotCartesianMode, PlotFrame, PlotHistogramAnalysis, PlotMarker, PlotPayload,
+    PlotPayloadDiagnostics, PlotSeries, PlotSeriesSummary,
+};
+use dokime_protocol::v1::{
+    Aggregate, AxisScale, DataExpression, Downsample, PlotIntervalOptions, PlotKind, PlotWindow, Reduction, Value, XyInterval,
+};
+use harmos_protocol::v1::{History, OperationContract};
+use prost_reflect::Kind;
 
 /* === Constants === */
 
@@ -39,6 +55,16 @@ pub const ID: &str = "dokime.client.v1.plots.Snapshots/List";
 
 /* === Structs === */
 
+struct PlotRead<'a> {
+    store: &'a Store,
+    cut: &'a ExecutionCut,
+    maximum: usize,
+    now_ns: i64,
+    epoch: &'a str,
+    catalog: &'a Catalog,
+    pool: &'a DescriptorPool,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -47,29 +73,25 @@ pub const ID: &str = "dokime.client.v1.plots.Snapshots/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::plots::SnapshotsListRequest, dokime_protocol::client::plots::SnapshotsListResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    super::declaration::<SnapshotsListRequest, SnapshotsListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::client::plots::SnapshotsListRequest,
-) -> Result<dokime_protocol::client::plots::SnapshotsListResponse> {
+#[tracing::instrument(name = "plot.operation", skip_all)]
+pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
             "plots/{}",
-            super::views::hex(&super::paging::bytes(&dokime_protocol::client::plots::SnapshotsListRequest {
+            super::views::hex(&super::paging::bytes(&SnapshotsListRequest {
                 requests: request.requests.clone(),
                 ..Default::default()
             }))
         );
         let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
-            let mut reply = dokime_protocol::client::plots::SnapshotsListResponse::default();
-            for selected in request.requests {
-                reply.envelopes.push(query_one(context, selected).await?);
-            }
+            let reply = SnapshotsListResponse {
+                envelopes: query_batch(context, request.requests).await?,
+                ..Default::default()
+            };
             Ok(reply)
         })
         .await?;
@@ -77,7 +99,7 @@ pub async fn handle(
             super::views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
         super::bounded_reply(
             context,
-            dokime_protocol::client::plots::SnapshotsListResponse {
+            SnapshotsListResponse {
                 envelopes,
                 resolved_at: Some(cut),
                 next_page_token,
@@ -88,66 +110,142 @@ pub async fn handle(
 }
 
 /* === Private Functions === */
-pub(super) async fn query_one(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
+pub(super) async fn query_one(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
     if request.analysis.is_some() {
         return super::plot_analysis::query(context, request).await;
     }
     query_base(context, request).await
 }
-pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
+pub(super) async fn query_base(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
+    Ok(query_batch(context, vec![request]).await?.remove(0))
+}
+async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
+    if requests.iter().any(|request| request.analysis.is_some()) {
+        let mut output = Vec::new();
+        for request in requests {
+            output.push(Box::pin(query_one(context, request)).await?);
+        }
+        return Ok(output);
+    }
     let (store, _cancel_on_drop) = context.host.store().read_session()?;
     let context = context.clone();
-    tokio::task::spawn_blocking(move || {
-        let execution = super::projection::execution_scope(request.scope.as_ref())?;
-        let mut cut = store.metadata(execution)?;
-        if let Some(at) = &request.at {
-            let history = h::History {
-                store: context.host.identity().backend_id,
-                epoch: execution.into(),
-            };
-            if at.positions.len() != 1
-                || !at.revisions.is_empty()
-                || at.positions[0].history.as_ref() != Some(&history)
-                || at.positions[0].sequence > cut.frontier
-            {
-                return Err(Error::Invalid("Query Plot: Refresh the Document's Evidence Cut for This Backend".into()));
+    task::spawn_blocking(move || {
+        let mut executions = BTreeMap::new();
+        let mut selections = BTreeMap::<Vec<u8>, PlotEnvelope>::new();
+        let mut output = Vec::new();
+        for request in requests {
+            let execution = super::projection::execution_scope(request.scope.as_ref())?;
+            if !executions.contains_key(execution) {
+                let cut = store.metadata(execution)?;
+                let catalog = Catalog::decode(cut.execution.catalog.as_slice())?;
+                let pool = {
+                    let _span = tracing::info_span!("plot.schema").entered();
+                    DescriptorPool::from_file_descriptor_set(
+                        catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
+                    )
+                    .map_err(|error| Error::Invalid(error.to_string()))?
+                };
+                executions.insert(execution.to_owned(), (cut, catalog, pool));
             }
-            cut.frontier = at.positions[0].sequence;
+            let (cut, catalog, pool) = &executions[execution];
+            let mut cut = cut.clone();
+            if let Some(at) = &request.at {
+                let history = History {
+                    store: context.host.identity().backend_id,
+                    epoch: execution.into(),
+                };
+                if at.positions.len() != 1
+                    || !at.revisions.is_empty()
+                    || at.positions[0].history.as_ref() != Some(&history)
+                    || at.positions[0].sequence > cut.frontier
+                {
+                    return Err(Error::Invalid("Query Plot: Refresh the Document's Evidence Cut for This Backend".into()));
+                }
+                cut.frontier = at.positions[0].sequence;
+            }
+            let selection = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            let mut shape = request.clone();
+            shape.plot_id = None;
+            let key = shape.encode_to_vec();
+            if let Some(envelope) = selections.get(&key) {
+                let mut envelope = envelope.clone();
+                envelope.plot_id = request.plot_id.clone().unwrap_or_else(|| request.stream.clone());
+                envelope.selection = selection;
+                output.push(envelope);
+                continue;
+            }
+            let mut request = request;
+            loop {
+                let mut envelope = snapshot_prepared(
+                    PlotRead {
+                        store: &store,
+                        cut: &cut,
+                        maximum: context.settings.page_items,
+                        now_ns: context.host.now_ns(),
+                        epoch: &context.host.identity().epoch,
+                        catalog,
+                        pool,
+                    },
+                    &request,
+                )?;
+                envelope.selection = selection.clone();
+                if envelope.encoded_len().saturating_add(32) <= context.settings.message_bytes {
+                    selections.insert(key.clone(), envelope.clone());
+                    output.push(envelope);
+                    break;
+                }
+                let points = request.max_points.unwrap_or(context.settings.page_items as u64).min(context.settings.page_items as u64);
+                if points <= 4 || request.technique == Downsample::Raw as i32 {
+                    return Err(Error::Invalid(
+                        "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
+                    ));
+                }
+                request.max_points = Some((points / 2).max(4));
+            }
         }
-        let selection = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        let mut request = request;
-        loop {
-            let mut envelope =
-                snapshot_at(&store, &cut, &request, context.settings.page_items, context.host.now_ns(), &context.host.identity().epoch)?;
-            envelope.selection = selection.clone();
-            if envelope.encoded_len().saturating_add(32) <= context.settings.message_bytes {
-                return Ok(envelope);
-            }
-            let points = request.max_points.unwrap_or(context.settings.page_items as u64).min(context.settings.page_items as u64);
-            if points <= 4 || request.technique == v1::Downsample::Raw as i32 {
-                return Err(Error::Invalid(
-                    "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
-                ));
-            }
-            request.max_points = Some((points / 2).max(4));
-        }
+        Ok(output)
     })
     .await
     .map_err(|error| Error::Invalid(format!("Query Plot: Retry After the Query Worker Failed: {error}")))?
 }
+#[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
 pub fn snapshot_at(
-    store: &dokime_storage::Store, cut: &dokime_storage::ExecutionCut, request: &v1::PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
-) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
+    store: &Store, cut: &ExecutionCut, request: &PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
+) -> Result<PlotEnvelope> {
+    let catalog = Catalog::decode(cut.execution.catalog.as_slice())?;
+    let pool = DescriptorPool::from_file_descriptor_set(
+        catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
+    )
+    .map_err(|error| Error::Invalid(error.to_string()))?;
+    snapshot_prepared(
+        PlotRead {
+            store,
+            cut,
+            maximum,
+            now_ns,
+            epoch,
+            catalog: &catalog,
+            pool: &pool,
+        },
+        request,
+    )
+}
+#[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
+fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEnvelope> {
+    let PlotRead {
+        store,
+        cut,
+        maximum,
+        now_ns,
+        epoch,
+        catalog,
+        pool,
+    } = read;
     let execution = cut.execution.identifier.as_str();
     let original = request;
     let selection_key = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
     let selected = store.plot_selection(cut, request)?;
     let request = &selected.request;
-    let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
-    let pool = DescriptorPool::from_file_descriptor_set(
-        catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
-    )
-    .map_err(|error| Error::Invalid(error.to_string()))?;
     let stream = catalog
         .streams
         .iter()
@@ -169,7 +267,7 @@ pub fn snapshot_at(
                     return Err(Error::Invalid("Query Plot: Select Columns from One Stream".into()));
                 }
                 fields.push(reference.field.clone());
-                let reducer = v1::Aggregate::try_from(expression.kind)
+                let reducer = Aggregate::try_from(expression.kind)
                     .map_err(|_| Error::Invalid("Query Plot Aggregate: Select a Declared Reducer".into()))?;
                 if aggregate.is_some_and(|previous| previous != reducer) {
                     return Err(Error::Invalid("Query Plot Aggregate: Use One Reducer per Plot or Split the Series".into()));
@@ -200,7 +298,7 @@ pub fn snapshot_at(
         return Err(Error::Invalid("Query Plot: Select at Least One Numeric Field".into()));
     }
 
-    let technique = v1::Downsample::try_from(request.technique)
+    let technique = Downsample::try_from(request.technique)
         .map_err(|_| Error::Invalid("Query Plot: Select a Declared Downsampling Technique".into()))?;
     if request.max_points == Some(0) {
         return Err(Error::Invalid("Query Plot: Select a Positive Display Resolution".into()));
@@ -214,24 +312,23 @@ pub fn snapshot_at(
     if request.z_stream.as_ref().is_some_and(|selected| selected != &stream.id) {
         return Err(Error::Invalid("Query Plot: Select Coordinate Columns from One Stream".into()));
     }
-    if aggregate.is_some_and(|kind| {
-        !matches!(kind, v1::Aggregate::Count | v1::Aggregate::Sum | v1::Aggregate::Min | v1::Aggregate::Max | v1::Aggregate::Mean)
-    }) {
+    if aggregate.is_some_and(|kind| !matches!(kind, Aggregate::Count | Aggregate::Sum | Aggregate::Min | Aggregate::Max | Aggregate::Mean))
+    {
         return Err(Error::Invalid("Query Category Plot: Select Count, Sum, Min, Max or Mean".into()));
     }
     if request.panel_width == Some(0) || request.panel_height == Some(0) {
         return Err(Error::Invalid("Query Plot: Supply Positive Panel Dimensions".into()));
     }
-    let kind = v1::PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
+    let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
     if aggregate.is_some()
-        && (!matches!(kind, v1::PlotKind::Bar | v1::PlotKind::Pie)
+        && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
             || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(v1::data_expression::Kind::Aggregate(_)))))
     {
         return Err(Error::Invalid(
             "Query Plot Aggregate: Select Only Aggregate Expressions in a Bar or Pie Plot Until Other Aggregate Variants Are Served".into(),
         ));
     }
-    let field_reference = |expression: Option<&v1::DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
+    let field_reference = |expression: Option<&DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
             Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
             None => Ok(fallback.map(str::to_owned)),
@@ -244,16 +341,16 @@ pub fn snapshot_at(
     if request.hole.is_some_and(|hole| !hole.is_finite() || !(0.0..1.0).contains(&hole)) {
         return Err(Error::Invalid("Query Pie: Choose a Hole Fraction in [0, 1)".into()));
     }
-    if request.pareto && (kind != v1::PlotKind::Bar || request.arrangement.is_some() || group.is_some()) {
+    if request.pareto && (kind != PlotKind::Bar || request.arrangement.is_some() || group.is_some()) {
         return Err(Error::Invalid("Query Pareto: Select One Ungrouped Bar Series".into()));
     }
-    if request.arrangement.is_some() && (kind != v1::PlotKind::Bar || group.is_none()) {
+    if request.arrangement.is_some() && (kind != PlotKind::Bar || group.is_none()) {
         return Err(Error::Invalid("Query Grouped Bars: Select a Series Column".into()));
     }
-    if request.xy_interval.is_some() && (kind != v1::PlotKind::Xy || request.xy_interval != Some(v1::XyInterval::Sigma as i32)) {
+    if request.xy_interval.is_some() && (kind != PlotKind::Xy || request.xy_interval != Some(XyInterval::Sigma as i32)) {
         return Err(Error::Invalid("Query XY Intervals: Select Sigma on an XY Plot".into()));
     }
-    if fields.len() != 1 && (matches!(kind, v1::PlotKind::Pie | v1::PlotKind::Contour | v1::PlotKind::GridChart) || request.pareto) {
+    if fields.len() != 1 && (matches!(kind, PlotKind::Pie | PlotKind::Contour | PlotKind::GridChart) || request.pareto) {
         return Err(Error::Invalid("Query Plot: Select Exactly One Value Column for This Kind".into()));
     }
     let requested = request.max_points.unwrap_or(maximum as u64).max(4).min(maximum as u64) as usize;
@@ -265,26 +362,25 @@ pub fn snapshot_at(
         cut.frontier,
         NonZeroUsize::new(maximum).unwrap(),
     )?;
-    let (start_ns, end_ns) = if let Some(viewport) =
-        request.viewport.as_ref().filter(|_| matches!(kind, v1::PlotKind::TimeSeries | v1::PlotKind::Unspecified))
-    {
-        (ns(viewport.from)?, ns(viewport.to)?)
-    } else {
-        let bounds = store.numeric_bounds(execution, &stream.id, &fields[0], through)?.unwrap_or((0, 0));
-        if let Some(window_s) = request.window_s {
-            if !window_s.is_finite() || window_s < 0.0 {
-                return Err(Error::Invalid("Query Plot: Choose a Finite Nonnegative Time Window".into()));
-            }
-            (bounds.0.max(bounds.1.saturating_sub(ns(window_s)?)), bounds.1)
+    let (start_ns, end_ns) =
+        if let Some(viewport) = request.viewport.as_ref().filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified)) {
+            (ns(viewport.from)?, ns(viewport.to)?)
         } else {
-            bounds
-        }
-    };
+            let bounds = store.numeric_bounds(execution, &stream.id, &fields[0], through)?.unwrap_or((0, 0));
+            if let Some(window_s) = request.window_s {
+                if !window_s.is_finite() || window_s < 0.0 {
+                    return Err(Error::Invalid("Query Plot: Choose a Finite Nonnegative Time Window".into()));
+                }
+                (bounds.0.max(bounds.1.saturating_sub(ns(window_s)?)), bounds.1)
+            } else {
+                bounds
+            }
+        };
     if start_ns > end_ns {
         return Err(Error::Invalid("Query Plot: Choose Increasing Viewport Bounds".into()));
     }
     let resolution = ((i128::from(end_ns) - i128::from(start_ns) + 1 + bins.get() as i128 - 1) / bins.get() as i128).max(1) as u64;
-    let mut payload = dokime_protocol::client::plots::PlotPayload {
+    let mut payload = PlotPayload {
         stream: stream.id.clone(),
         x_key: x.clone().unwrap_or_else(|| "timestamp".into()),
         series_by: group.clone(),
@@ -292,14 +388,14 @@ pub fn snapshot_at(
         window_s: request.window_s,
         generated_at: super::projection::timestamp(now_ns).to_string(),
         bucket_width_s: Some(resolution as f64 / 1e9),
-        bucket_window: Some(v1::PlotWindow {
+        bucket_window: Some(PlotWindow {
             from: start_ns as f64 / 1e9,
             to: end_ns as f64 / 1e9,
         }),
         ..Default::default()
     };
-    let mut frame = dokime_protocol::client::plots::PlotFrame {
-        mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
+    let mut frame = PlotFrame {
+        mode: Some(PlotCartesianMode::Faceted as i32),
         ..Default::default()
     };
     let mut examined = 0;
@@ -318,9 +414,10 @@ pub fn snapshot_at(
         };
 
         let mut column_groups = None;
-        let count = if let Some(group_field) = group.as_deref().filter(|_| {
-            matches!(kind, v1::PlotKind::TimeSeries | v1::PlotKind::Unspecified | v1::PlotKind::Histogram | v1::PlotKind::BoxPlot)
-        }) {
+        let count = if let Some(group_field) = group
+            .as_deref()
+            .filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified | PlotKind::Histogram | PlotKind::BoxPlot))
+        {
             let groups = store.plot_group_values(window, group_field, (display / 4).max(1))?;
             let mut total = 0;
             let mut counts = Vec::new();
@@ -332,7 +429,7 @@ pub fn snapshot_at(
                     bins: NonZeroUsize::new((group_display / 4).max(1)).unwrap(),
                     ..window
                 };
-                let count = if kind == v1::PlotKind::Histogram {
+                let count = if kind == PlotKind::Histogram {
                     let mut histogram = store.histogram_window(
                         group_window,
                         request.histogram.as_ref().map_or(group_display, |options| options.bins as usize).clamp(1, group_display),
@@ -341,7 +438,7 @@ pub fn snapshot_at(
                     let count = histogram.count;
                     histograms.push(histogram);
                     count
-                } else if kind == v1::PlotKind::BoxPlot {
+                } else if kind == PlotKind::BoxPlot {
                     let mut summary = store.box_window(group_window, group_display.saturating_sub(1))?;
                     summary.key = format!("{field}/{label}");
                     summary.label = label.clone();
@@ -363,7 +460,7 @@ pub fn snapshot_at(
             store.select_plot_group(None)?;
             column_groups = Some(counts);
             total
-        } else if kind == v1::PlotKind::Histogram {
+        } else if kind == PlotKind::Histogram {
             let count = request
                 .histogram
                 .as_ref()
@@ -377,43 +474,40 @@ pub fn snapshot_at(
             let count = histogram.count;
             histograms.push(histogram);
             count
-        } else if kind == v1::PlotKind::BoxPlot {
+        } else if kind == PlotKind::BoxPlot {
             let mut summary = store.box_window(window, display.saturating_sub(1))?;
             summary.key = field.clone();
             summary.label = field.clone();
             let count = summary.count;
             boxes.push(summary);
             count
-        } else if matches!(
-            kind,
-            v1::PlotKind::Xy | v1::PlotKind::Trajectory | v1::PlotKind::Bar | v1::PlotKind::Pie | v1::PlotKind::Contour
-        ) {
+        } else if matches!(kind, PlotKind::Xy | PlotKind::Trajectory | PlotKind::Bar | PlotKind::Pie | PlotKind::Contour) {
             let x = x.as_deref().ok_or_else(|| Error::Invalid("Query Plot: Select an X Coordinate or Category Column".into()))?;
             let settings = dokime_storage::KindWindow {
                 window,
                 x: Some(x),
                 z: z.as_deref(),
                 group: group.as_deref(),
-                limit: if kind == v1::PlotKind::Contour {
+                limit: if kind == PlotKind::Contour {
                     display.min(bins.get().saturating_mul(request.panel_height.unwrap_or(display as u32) as usize))
                 } else {
                     display
                 },
             };
             if request.xy_interval.is_some() {
-                let options = request.interval.unwrap_or(v1::PlotIntervalOptions {
+                let options = request.interval.unwrap_or(PlotIntervalOptions {
                     bin_width: 1.0,
                     sigma: 1.0,
                     clip_to_observed: false,
                 });
                 let (analysis, count) = store.sigma_window(settings, options)?;
-                payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
-                    result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                payload.analysis = Some(PlotAnalysis {
+                    result: Some(PlotAnalysisResult {
                         kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(analysis)),
                     }),
                 });
                 count
-            } else if kind == v1::PlotKind::Contour {
+            } else if kind == PlotKind::Contour {
                 if z.is_none() {
                     return Err(Error::Invalid("Query Contour: Select a Numeric Z Column".into()));
                 }
@@ -421,19 +515,19 @@ pub fn snapshot_at(
                     settings,
                     request.viewport.as_ref(),
                     request.y_viewport.as_ref(),
-                    request.reduction.and_then(|value| v1::Reduction::try_from(value).ok()).unwrap_or(v1::Reduction::Mean),
-                    request.x_scale == v1::AxisScale::Log as i32,
-                    request.y_scale == v1::AxisScale::Log as i32,
+                    request.reduction.and_then(|value| Reduction::try_from(value).ok()).unwrap_or(Reduction::Mean),
+                    request.x_scale == AxisScale::Log as i32,
+                    request.y_scale == AxisScale::Log as i32,
                 )?;
-                payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
-                    result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+                payload.analysis = Some(PlotAnalysis {
+                    result: Some(PlotAnalysisResult {
                         kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid)),
                     }),
                 });
                 count
             } else {
-                let (mut series, count, groups) = if matches!(kind, v1::PlotKind::Bar | v1::PlotKind::Pie) {
-                    store.category_window(settings, aggregate, kind == v1::PlotKind::Pie || request.pareto)?
+                let (mut series, count, groups) = if matches!(kind, PlotKind::Bar | PlotKind::Pie) {
+                    store.category_window(settings, aggregate, kind == PlotKind::Pie || request.pareto)?
                 } else {
                     store.cartesian_window(settings)?
                 };
@@ -452,7 +546,7 @@ pub fn snapshot_at(
                 frame.series.extend(series.series);
                 count
             }
-        } else if kind == v1::PlotKind::GridChart {
+        } else if kind == PlotKind::GridChart {
             let grid =
                 request.grid.as_ref().ok_or_else(|| Error::Invalid("Query Grid Chart: Supply Row, Column and Frame Bindings".into()))?;
             let row = field_reference(grid.row.as_ref(), None)?;
@@ -460,7 +554,7 @@ pub fn snapshot_at(
             let instant = field_reference(grid.frame.as_ref(), None)?;
             let reduction = request
                 .reduction
-                .and_then(|value| v1::Reduction::try_from(value).ok())
+                .and_then(|value| Reduction::try_from(value).ok())
                 .ok_or_else(|| Error::Invalid("Query Grid Chart: Select an Explicit Reducer".into()))?;
             let (frames, count) = store.grid_window(
                 dokime_storage::KindWindow {
@@ -473,13 +567,13 @@ pub fn snapshot_at(
                 grid,
                 reduction,
             )?;
-            payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
-                result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
+            payload.analysis = Some(PlotAnalysis {
+                result: Some(PlotAnalysisResult {
                     kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(frames)),
                 }),
             });
             count
-        } else if kind == v1::PlotKind::FrequencySeries {
+        } else if kind == PlotKind::FrequencySeries {
             let options = request.fft.unwrap_or_default();
             let (column, count) = store.spectrum_window(
                 dokime_storage::KindWindow {
@@ -514,7 +608,7 @@ pub fn snapshot_at(
             let summary_window = NumericWindow { start_ns: from, end_ns: to, ..window };
             let stats = store.numeric_statistics(&summary_window)?;
             payload.summaries.retain(|summary| summary.series_id != field);
-            payload.summaries.push(dokime_protocol::client::plots::PlotSeriesSummary {
+            payload.summaries.push(PlotSeriesSummary {
                 series_id: field.clone(),
                 count: stats.count,
                 min: (stats.count > 0).then_some(stats.min),
@@ -529,7 +623,7 @@ pub fn snapshot_at(
         examined += count;
         if let Some(groups) = column_groups {
             for (group, raw_points) in groups {
-                payload.series.push(dokime_protocol::client::plots::PlotSeries {
+                payload.series.push(PlotSeries {
                     key: if group.is_empty() { field.clone() } else { format!("{field}/{group}") },
                     label: if group.is_empty() { field.clone() } else { group },
                     unit: request.unit.clone(),
@@ -539,7 +633,7 @@ pub fn snapshot_at(
                 });
             }
         } else {
-            payload.series.push(dokime_protocol::client::plots::PlotSeries {
+            payload.series.push(PlotSeries {
                 key: field.clone(),
                 label: field,
                 unit: request.unit.clone(),
@@ -549,30 +643,48 @@ pub fn snapshot_at(
             });
         }
     }
-    if kind == v1::PlotKind::Histogram {
-        payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
-            result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
-                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(
-                    dokime_protocol::client::plots::PlotHistogramAnalysis { series: histograms },
-                )),
+    if kind == PlotKind::Histogram {
+        payload.analysis = Some(PlotAnalysis {
+            result: Some(PlotAnalysisResult {
+                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(PlotHistogramAnalysis {
+                    series: histograms,
+                })),
             }),
         });
-    } else if kind == v1::PlotKind::BoxPlot {
-        payload.analysis = Some(dokime_protocol::client::plots::PlotAnalysis {
-            result: Some(dokime_protocol::client::plots::PlotAnalysisResult {
-                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(
-                    dokime_protocol::client::plots::PlotBoxSummaryAnalysis { series: boxes, total: examined },
-                )),
+    } else if kind == PlotKind::BoxPlot {
+        payload.analysis = Some(PlotAnalysis {
+            result: Some(PlotAnalysisResult {
+                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(PlotBoxSummaryAnalysis {
+                    series: boxes,
+                    total: examined,
+                })),
             }),
         });
     } else if payload.analysis.is_none() {
+        if matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified)
+            && let Some(first) = frame.series.first()
+            && frame.series.iter().all(|column| column.x == first.x)
+        {
+            frame.time = first
+                .x
+                .iter()
+                .map(|value| match value.kind {
+                    Some(v1::value::Kind::Number(value)) => Ok(value),
+                    _ => Err(Error::Invalid("Read Time Series: Restore Its Numeric Source-Time Axis".into())),
+                })
+                .collect::<Result<Vec<_>>>()?;
+            frame.mode = Some(PlotCartesianMode::Aligned as i32);
+            for column in &mut frame.series {
+                column.x.clear();
+            }
+        }
         payload.frame = Some(frame.clone());
     }
     if let Some(frame) = &mut payload.frame {
         frame.signature = Sha256::digest(frame.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
     }
     if !request.marker_record_types.is_empty() {
-        let mut markers = std::collections::BTreeMap::<u64, (dokime_protocol::client::plots::PlotMarker, u64)>::new();
+        let mut markers = BTreeMap::<u64, (PlotMarker, u64)>::new();
         let mut cursor = after;
         loop {
             let page = store.evidence_page(execution, cursor, through, NonZeroUsize::new(maximum).unwrap())?;
@@ -591,8 +703,8 @@ pub fn snapshot_at(
                     continue;
                 }
                 let bucket = ((evidence.source_ns as i128 - start_ns as i128).max(0) as u128 / resolution.max(1) as u128) as u64;
-                let marker = dokime_protocol::client::plots::PlotMarker {
-                    x: Some(v1::Value {
+                let marker = PlotMarker {
+                    x: Some(Value {
                         kind: Some(v1::value::Kind::Number(evidence.source_ns as f64 / 1e9)),
                     }),
                     label: kind.into(),
@@ -636,8 +748,8 @@ pub fn snapshot_at(
     } else {
         frame.point_count
     };
-    let temporal = matches!(kind, v1::PlotKind::Unspecified | v1::PlotKind::TimeSeries | v1::PlotKind::Xy | v1::PlotKind::Trajectory);
-    if !temporal || matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
+    let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
+    if !temporal || matches!(technique, Downsample::Raw | Downsample::Lttb) {
         payload.bucket_width_s = None;
     }
     if !temporal {
@@ -693,12 +805,12 @@ pub fn snapshot_at(
                 .map_or("Group".into(), |expression| expression.label.clone()),
         );
     }
-    Ok(dokime_protocol::client::plots::PlotEnvelope {
+    Ok(PlotEnvelope {
         plot_id: request.plot_id.clone().unwrap_or_else(|| stream.id.clone()),
         revision: cut.frontier,
         epoch: epoch.into(),
         selection: selection_key,
-        diagnostics: Some(dokime_protocol::client::plots::PlotPayloadDiagnostics {
+        diagnostics: Some(PlotPayloadDiagnostics {
             series_count: payload.series.len() as u64,
             point_count,
             raw_point_count: examined,
@@ -706,7 +818,7 @@ pub fn snapshot_at(
             max_points: display as u64,
             window_s: request.window_s,
             examined_rows: examined,
-            resolution_nanos: if temporal && !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) { resolution } else { 0 },
+            resolution_nanos: if temporal && !matches!(technique, Downsample::Raw | Downsample::Lttb) { resolution } else { 0 },
         }),
         payload: Some(payload),
         warnings: Vec::new(),
@@ -715,22 +827,22 @@ pub fn snapshot_at(
 
 /* === Private Functions === */
 
-fn numeric(kind: &prost_reflect::Kind) -> bool {
+fn numeric(kind: &Kind) -> bool {
     matches!(
         kind,
-        prost_reflect::Kind::Double
-            | prost_reflect::Kind::Float
-            | prost_reflect::Kind::Int32
-            | prost_reflect::Kind::Sint32
-            | prost_reflect::Kind::Sfixed32
-            | prost_reflect::Kind::Int64
-            | prost_reflect::Kind::Sint64
-            | prost_reflect::Kind::Sfixed64
-            | prost_reflect::Kind::Uint32
-            | prost_reflect::Kind::Fixed32
-            | prost_reflect::Kind::Uint64
-            | prost_reflect::Kind::Fixed64
-            | prost_reflect::Kind::Bool
+        Kind::Double
+            | Kind::Float
+            | Kind::Int32
+            | Kind::Sint32
+            | Kind::Sfixed32
+            | Kind::Int64
+            | Kind::Sint64
+            | Kind::Sfixed64
+            | Kind::Uint32
+            | Kind::Fixed32
+            | Kind::Uint64
+            | Kind::Fixed64
+            | Kind::Bool
     )
 }
 fn ns(seconds: f64) -> Result<i64> {

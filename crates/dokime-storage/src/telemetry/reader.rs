@@ -28,6 +28,8 @@ use rusqlite::params;
 use super::catalog;
 use crate::{Error, Result, Sample, SampleWindow, Store, ipc};
 
+use std::sync::atomic::Ordering;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -93,11 +95,17 @@ impl Store {
     pub fn read_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
+        self.ordered_batches(selection, columns, false, |batch, _| read(batch))
+    }
+    pub(crate) fn ordered_batches(
+        &self, selection: BatchSelection<'_>, columns: &[String], latest: bool, mut read: impl FnMut(RecordBatch, i64) -> Result<bool>,
+    ) -> Result<()> {
         let connection = self.lock()?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
         let codec = telemetry.codec(&connection, selection.execution, selection.stream)?;
         let id = catalog::identifier(selection.execution, selection.stream, &codec.digest);
-        let mut query=connection.prepare("SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256 FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE b.file=?1 AND f.schema_hash=?2 AND b.last_position>?3 AND b.first_position<=?4 AND b.start_ns<=?5 AND b.end_ns>=?6 ORDER BY b.first_position")?;
+        let order = if latest { "b.end_ns DESC,b.first_position DESC" } else { "b.first_position" };
+        let mut query=connection.prepare(&format!("SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.end_ns FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE b.file=?1 AND f.schema_hash=?2 AND b.last_position>?3 AND b.first_position<=?4 AND b.start_ns<=?5 AND b.end_ns>=?6 ORDER BY {order}"))?;
         let indices = query
             .query_map(
                 params![
@@ -108,7 +116,7 @@ impl Store {
                     selection.end_ns,
                     selection.start_ns
                 ],
-                catalog::index,
+                |row| Ok((catalog::index(row)?, row.get::<_, i64>(5)?)),
             )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         drop(query);
@@ -159,7 +167,31 @@ impl Store {
         }
         let projection = ipc::Projection::new(codec.schema.clone(), &["position", "source_ns", "receipt_ns", "sequence"], &keys)?;
         let path = catalog::path(self.database.parent().unwrap(), &id)?;
-        for index in indices {
+        let mut pending = Vec::new();
+        for rows in tail.chunks(self.storage_settings()?.flush_rows.get()) {
+            let batch = codec.batch(rows)?;
+            let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
+            let selected = values
+                .fields()
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| keys.contains(f.name()))
+                .map(|(i, f)| (f.clone(), values.column(i).clone()))
+                .collect::<Vec<_>>();
+            let values = if selected.is_empty() { StructArray::new_empty_fields(rows.len(), None) } else { StructArray::from(selected) };
+            let batch =
+                RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", std::sync::Arc::new(values) as _)])?;
+            pending.push((batch, rows.iter().map(|row| row.source_ns).max().unwrap()));
+        }
+        if latest {
+            for (batch, _) in pending.drain(..) {
+                self.check_read()?;
+                if !read(batch, i64::MAX)? {
+                    return Ok(());
+                }
+            }
+        }
+        for (index, end_ns) in indices {
             self.check_read()?;
             let batch = ipc::read_query_batch(&path, &index, &projection, maximum)?;
             let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("metadata layout differs"))?;
@@ -174,32 +206,20 @@ impl Store {
                 )
             }));
             let batch = filter_record_batch(&batch, &keep)?;
-            if batch.num_rows() > 0 && !read(batch)? {
+            if batch.num_rows() > 0 && !read(batch, end_ns)? {
                 return Ok(());
             }
         }
-        for rows in tail.chunks(self.storage_settings()?.flush_rows.get()) {
+        for (batch, end_ns) in pending {
             self.check_read()?;
-            let batch = codec.batch(rows)?;
-            let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
-            let selected = values
-                .fields()
-                .iter()
-                .enumerate()
-                .filter(|(_, f)| keys.contains(f.name()))
-                .map(|(i, f)| (f.clone(), values.column(i).clone()))
-                .collect::<Vec<_>>();
-            let values = if selected.is_empty() { StructArray::new_empty_fields(rows.len(), None) } else { StructArray::from(selected) };
-            let batch =
-                RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", std::sync::Arc::new(values) as _)])?;
-            if !read(batch)? {
+            if !read(batch, end_ns)? {
                 break;
             }
         }
         Ok(())
     }
     pub(crate) fn check_read(&self) -> Result<()> {
-        if self.cancelled.as_ref().is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+        if self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) {
             return Err(Error::Data("start a new read after cancelling the query"));
         }
         Ok(())

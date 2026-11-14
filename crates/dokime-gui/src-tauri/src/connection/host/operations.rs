@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::{client, v1};
 use dokime_sdk::client::v1 as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [124, 183, 67, 240, 154, 44, 97, 38, 112, 63, 155, 50, 62, 191, 154, 137, 145, 239, 76, 179, 31, 219, 174, 14, 86, 155, 91, 244, 90, 3, 142, 8];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [157, 152, 159, 59, 129, 127, 61, 26, 28, 113, 229, 29, 79, 57, 127, 237, 215, 112, 252, 113, 204, 100, 253, 249, 72, 121, 31, 50, 105, 0, 9, 198];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {

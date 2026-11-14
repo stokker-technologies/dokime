@@ -39,6 +39,15 @@ use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, serv
 use dokime_sdk::client::{ClientSettings, StorageTransferSettings};
 use dokime_sdk::{Result, clock::TimeSleepRequest, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
 
+use dokime_protocol::v1::{
+    AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind,
+    PlotRequest, PlotStyle, Reduction, Section,
+};
+
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+
 /* === Constants === */
 
 pub const ROWS: usize = 3 * 24 * 60 * 60 * 8;
@@ -159,7 +168,7 @@ impl Fixture {
                     origins: plan.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                     continue_automatically: true,
                     request_id: "bench-cycle".into(),
-                    metadata: Some(v1::Metadata {
+                    metadata: Some(Metadata {
                         label: "Pipeline Bench".into(),
                         ..Default::default()
                     }),
@@ -232,10 +241,10 @@ impl Fixture {
     pub async fn prepared(&self) {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = client::plots::SnapshotsWatchRequest {
-            requests: vec![v1::PlotRequest {
+            requests: vec![PlotRequest {
                 stream: "bench.pipeline".into(),
                 y_keys: vec!["y1".into()],
-                scope: Some(v1::EvidenceScope {
+                scope: Some(EvidenceScope {
                     execution_id: Some(self.execution.clone()),
                     ..Default::default()
                 }),
@@ -254,7 +263,7 @@ impl Fixture {
                 .filter_map(|update| update.envelope.as_ref())
                 .filter_map(|envelope| envelope.payload.as_ref())
                 .flat_map(|payload| &payload.series)
-                .any(|series| series.raw_points >= ROWS as u64)
+                .any(|series| series.raw_points >= rows() as u64)
             {
                 return;
             }
@@ -282,7 +291,9 @@ pub fn serve() -> Result<()> {
         })
         .step(Step::new("Capture", publish))
         .stream(stream)
-        .observer(observer);
+        .observer(observer)
+        .document(document(30))
+        .document(document(100));
     Plugin::new("desktop.benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
@@ -292,17 +303,112 @@ pub fn serve() -> Result<()> {
         .serve()
 }
 
+pub fn rows() -> usize {
+    std::env::var("DOKIME_DESKTOP_HISTORY_ROWS").ok().map(|value| value.parse().expect("Benchmark Row Count")).unwrap_or(ROWS)
+}
+pub fn sample_ns() -> i64 {
+    259_200_000_000_000 / rows() as i64
+}
+
 /* === Private Functions === */
+
+fn document(count: usize) -> Document {
+    let kinds = [
+        PlotKind::FrequencySeries,
+        PlotKind::Xy,
+        PlotKind::Trajectory,
+        PlotKind::Contour,
+        PlotKind::GridChart,
+        PlotKind::Bar,
+        PlotKind::Pie,
+        PlotKind::Histogram,
+        PlotKind::BoxPlot,
+    ];
+    let field = |name: &str| FieldReference::new("bench.pipeline").field(name);
+    let cards = (0..count)
+        .map(|index| {
+            let kind = if index < count - 9 { PlotKind::TimeSeries } else { kinds[index - count + 9] };
+            let plot = Plot {
+                metadata: Some(Metadata {
+                    identifier: format!("desktop.plot.{index}"),
+                    label: format!("Plot {}", index + 1),
+                    ..Default::default()
+                }),
+                kind: kind as i32,
+                style: PlotStyle::Line as i32,
+                x_scale: AxisScale::Linear as i32,
+                y_scale: AxisScale::Linear as i32,
+                x: Some(field(if index <= count - 9 { "timestamp" } else { "y0" })),
+                y: vec![if kind == PlotKind::Pie { field("y1").mean() } else { field("y1") }],
+                z: Some(field("y2")),
+                reduction: Some(Reduction::Mean as i32),
+                render: ContourRender::Cells as i32,
+                input_samples: (kind == PlotKind::FrequencySeries).then_some(512),
+                sample_rate_hz: (kind == PlotKind::FrequencySeries).then_some(1e9 / sample_ns() as f64),
+                histogram_bins: Some(32),
+                grid: (kind == PlotKind::GridChart).then(|| GridChart {
+                    row: Some(field("y0")),
+                    column: Some(field("y2")),
+                    frame: Some(field("timestamp")),
+                    rows: (0..8)
+                        .map(|index| GridAxisEntry {
+                            key: index.to_string(),
+                            label: index.to_string(),
+                            order: index,
+                            ..Default::default()
+                        })
+                        .collect(),
+                    columns: (0..8)
+                        .map(|index| GridAxisEntry {
+                            key: index.to_string(),
+                            label: index.to_string(),
+                            order: index,
+                            ..Default::default()
+                        })
+                        .collect(),
+                    summary_label: "Value".into(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            Card {
+                metadata: Some(Metadata {
+                    identifier: format!("card-{index}"),
+                    label: format!("Plot {}", index + 1),
+                    ..Default::default()
+                }),
+                body: Some(v1::card::Body::Plot(plot)),
+                ..Default::default()
+            }
+        })
+        .collect();
+    Document {
+        metadata: Some(Metadata {
+            identifier: format!("desktop-{count}"),
+            label: "Mixed Plots".into(),
+            ..Default::default()
+        }),
+        sections: vec![Section {
+            metadata: Some(Metadata {
+                identifier: "plots".into(),
+                label: "Mixed Plots".into(),
+                ..Default::default()
+            }),
+            cards,
+            ..Default::default()
+        }],
+    }
+}
 
 async fn publish(context: &Context) -> Result<()> {
     // Advance the Controlled Host Clock Through Real Observer Ticks.
     let mut sequence = 0;
     let mut first = 0;
-    let mut count = ROWS;
+    let mut count = rows();
     let mut late = false;
     loop {
-        context.get::<History>()?.next.store(first, std::sync::atomic::Ordering::SeqCst);
-        context.get::<History>()?.late.store(late, std::sync::atomic::Ordering::SeqCst);
+        context.get::<History>()?.next.store(first, Ordering::SeqCst);
+        context.get::<History>()?.late.store(late, Ordering::SeqCst);
         let chunks = count.div_ceil(4096);
         let ticks = if sequence == 0 { chunks - 1 } else { chunks };
         context.sleep(Duration::from_millis(ticks as u64 * 125)).await?;
@@ -315,22 +421,22 @@ async fn publish(context: &Context) -> Result<()> {
             })
             .await?;
         late = answer.action == "late";
-        first = if late { ROWS - 480 + (sequence - ROWS) % 400 } else { sequence };
+        first = if late { rows() - 480 + (sequence - rows()) % 400 } else { sequence };
         count = 8;
     }
 }
 
 #[derive(Default)]
 struct History {
-    next: std::sync::atomic::AtomicUsize,
-    late: std::sync::atomic::AtomicBool,
+    next: AtomicUsize,
+    late: AtomicBool,
 }
 
 async fn observe(context: &Context) -> Result<Row> {
     let history = context.get::<History>()?;
-    let index = history.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let late = history.late.load(std::sync::atomic::Ordering::SeqCst);
-    let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
+    let index = history.next.fetch_add(1, Ordering::SeqCst);
+    let late = history.late.load(Ordering::SeqCst);
+    let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns() + if late { 4 * sample_ns() } else { 0 };
     Ok(Row {
         timestamp: source_ns as f64 / 1_000_000_000.0,
         y0: (index % 8) as f64,
@@ -341,12 +447,14 @@ async fn observe(context: &Context) -> Result<Row> {
 
 pub fn samples(_stream: &str, first: u64, _at: &Timestamp) -> Vec<Sample> {
     let first = first as usize;
-    let count = if first < ROWS { (ROWS - first).min(4096) } else { 8 };
+    let history_rows = rows();
+    let sample_ns = sample_ns();
+    let count = if first < history_rows { (history_rows - first).min(4096) } else { 8 };
     let late = std::env::var_os("DOKIME_BENCH_MODE").and_then(|path| std::fs::read_to_string(path).ok()).is_some_and(|mode| mode == "late");
     (first..first + count)
         .map(|sequence| {
-            let index = if late { ROWS - 480 + (sequence - ROWS) % 400 } else { sequence };
-            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
+            let index = if late { history_rows - 480 + (sequence - history_rows) % 400 } else { sequence };
+            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns + if late { 4 * sample_ns } else { 0 };
             let row = Row {
                 timestamp: source_ns as f64 / 1_000_000_000.0,
                 y0: (index % 8) as f64,

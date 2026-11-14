@@ -13,6 +13,7 @@ const selected = new Map([
 // Instrument The Existing Owners Only In The Bench Bundle; Shipping Source Is Unchanged.
 await build({
   root,
+  resolve: { alias: { "react-dom/client": "react-dom/profiling" } },
   plugins: [
     {
       name: "desktop-bench-observation",
@@ -47,6 +48,15 @@ await build({
           try { return decodeBinary(...args); }
           finally { globalThis.__desktopBench?.sample('protobuf_decode', performance.now() - started); }
         };`;
+          source = source.replace(
+            'const reply = await invokeOwned<ArrayBuffer>(session, "rpc_stream_open",',
+            'const __opening = performance.now();\n  const reply = await invokeOwned<ArrayBuffer>(session, "rpc_stream_open",',
+          );
+          source = source.replace(
+            "const opened = responseBytes(session, reply, 16);",
+            `if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('client_open', performance.now() - __opening);
+            const opened = responseBytes(session, reply, 16);`,
+          );
           source = source.replace(
             "frames.push(new Uint8Array(message));",
             `frames.push(new Uint8Array(message));

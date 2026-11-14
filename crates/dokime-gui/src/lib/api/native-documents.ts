@@ -43,6 +43,7 @@ const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
 const DOCUMENTS_MATERIALIZED_BYTES = 33_554_432;
 const GUI_PLOT_TRANSFORMS = 32;
+const DOCUMENT_FRAME_PAGE_SIZE = 32;
 
 /* === Canonical Types === */
 
@@ -196,6 +197,7 @@ export async function fetchNativeDocument(
         structureOnly: request.structureOnly ?? false,
         cardIds: request.cardIds ?? [],
         pageToken,
+        maxFrames: DOCUMENT_FRAME_PAGE_SIZE,
         at,
       });
       const cut = required(reply.resolvedAt, "Read Document Cut");
@@ -530,6 +532,7 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
         }
       : null,
     fft: {
+      ...(fft?.inputSamples === undefined ? {} : { input_samples: fft.inputSamples }),
       ...(fft?.sampleRateHz === undefined ? {} : { sample_rate_hz: fft.sampleRateHz }),
       window: mapFftWindow(fft?.window),
       detrend: mapFftDetrend(fft?.detrend),

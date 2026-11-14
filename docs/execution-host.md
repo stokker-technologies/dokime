@@ -492,9 +492,17 @@ field indexes together. `stream_names` and `sample_window` read bounded pages;
 `contour_window`, `grid_window` and `spectrum_window` own plot reductions.
 Time-series windows examine each matching indexed row once and retain only the
 requested buckets. The reply states `examined_rows` and `resolution_nanos`.
-Frequency transforms require a source-time window within the configured input
-bound. Snapshot batches fit one configured message; Watch emits one plot per
-frame in request order, with no fixed plot-count ceiling.
+Frequency transforms select the latest declared `input_samples` within the source
+window; omission uses the configured transform input bound. An explicit count
+outside that bound refuses, while long history remains readable. Grid previews
+retain the newest complete frames fitting their axes and output resolution.
+Snapshot batches use retained pages within the configured message limit. The
+desktop groups visible plots into bounded requests; 32 is its per-request bound,
+with no document-size ceiling. Identical selections within a batch share work and
+frozen schema preparation. Aligned time-series replies use a packed shared time
+axis. Watch refreshes when selected saved evidence advances. Document reads return
+plot definitions, with optional frame-count and byte-bounded pages; plot queries
+perform their own validation when requested.
 
 `client_browses_execution_evidence`, `client_reads_bounded_telemetry`,
 `client_queries_plot_kinds` and `client_queries_plot_windows` are focused Rust SDK

@@ -138,6 +138,23 @@ its response and stable operation identifier. `.operation(...)` serves it;
 
 ## Host Calls and Evidence
 
+Frequency plots bound their input independently of the display resolution and
+FFT taper. For example, this declaration uses the latest 512 finite source samples
+even when the execution retains several days of history:
+
+```rust
+use dokime::{builders::Plot, v1::FieldReference};
+
+let spectrum = Plot::frequency_series(FieldReference::new("measurements").field("value"))
+    .input_samples(512)
+    .sample_rate_hz(8.0)
+    .message;
+```
+
+The count must fit the connected host's transform input bound. Python exposes
+`.input_samples(512)`, C++ exposes `.input_samples(512)` and C# exposes
+`.WithInputSamples(512)`. The absent declaration uses the host's bounded input.
+
 Generated Dokime messages bind through `dokime::host::Call<T>`:
 
 ```rust

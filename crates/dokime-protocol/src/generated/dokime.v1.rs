@@ -1429,6 +1429,10 @@ pub struct Plot {
     pub x_scale: i32,
     #[prost(enumeration = "AxisScale", tag = "24")]
     pub y_scale: i32,
+    /// Frequency input: latest N finite samples in source-time order, within filters.
+    /// Absent uses the host's bounded transform input. Larger requests are refused.
+    #[prost(uint32, optional, tag = "25")]
+    pub input_samples: ::core::option::Option<u32>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1531,6 +1535,10 @@ pub struct PlotFftOptions {
     pub min_frequency_hz: ::core::option::Option<f64>,
     #[prost(double, optional, tag = "7")]
     pub max_frequency_hz: ::core::option::Option<f64>,
+    /// Latest N finite source samples; independent of output resolution and taper.
+    /// Absent uses the host's bounded transform input. Must fit that input bound.
+    #[prost(uint32, optional, tag = "8")]
+    pub input_samples: ::core::option::Option<u32>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

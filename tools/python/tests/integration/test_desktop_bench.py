@@ -250,28 +250,30 @@ class DesktopBench(unittest.TestCase):
                 }
             )
             samples.append({**samples[0], "condition": "live", "outcome": "partial", "errors": ["plot_unavailable"]})
+            samples.append({**samples[0], "rows": 307200, "durationMs": 99})
             (home / "observations.json").write_text(json.dumps({"results": samples, "fixture": {"rows": 2_073_600}}))
             with patch.object(desktop_bench.policy, "execute", return_value="candidate"):
                 desktop_bench.collect(root, home, {}, 10, refresh=True, success=True)
             summary = json.loads((root / "target/benchmarks/benchmarks-rust-desktop.json").read_text())
             rows = {row["name"]: row for row in summary["benchmarks"]}
-            self.assertEqual(rows["desktop/30/warm/canvas_draw/p50"]["value"], 20)
-            self.assertEqual(rows["desktop/30/warm/canvas_draw/p95"]["value"], 37)
-            self.assertEqual(rows["desktop/30/warm/queueDepth/p50"]["value"], 0)
-            self.assertNotIn("desktop/100/warm/firstVisibleMs/p50", rows)
-            self.assertEqual(rows["desktop/100/warm/refusals"]["value"], 1)
-            self.assertEqual(rows["desktop/100/warm/refusals"]["failures"], ["limit_exceeded"])
-            partial = rows["desktop/30/live/refusals"]
+            self.assertEqual(rows["desktop/2073600/30/warm/canvas_draw/p50"]["value"], 20)
+            self.assertEqual(rows["desktop/307200/30/warm/durationMs/p50"]["value"], 99)
+            self.assertEqual(rows["desktop/2073600/30/warm/canvas_draw/p95"]["value"], 37)
+            self.assertEqual(rows["desktop/2073600/30/warm/queueDepth/p50"]["value"], 0)
+            self.assertNotIn("desktop/2073600/100/warm/firstVisibleMs/p50", rows)
+            self.assertEqual(rows["desktop/2073600/100/warm/refusals"]["value"], 1)
+            self.assertEqual(rows["desktop/2073600/100/warm/refusals"]["failures"], ["limit_exceeded"])
+            partial = rows["desktop/2073600/30/live/refusals"]
             self.assertEqual((partial["value"], partial["partial_samples"], partial["failures"]), (0, 1, ["plot_unavailable"]))
-            self.assertNotIn("desktop/30/warm/cpuSeconds/p50", rows)
-            self.assertIn("cpuSeconds", rows["desktop/30/warm/refusals"]["missing_measurements"])
+            self.assertNotIn("desktop/2073600/30/warm/cpuSeconds/p50", rows)
+            self.assertIn("cpuSeconds", rows["desktop/2073600/30/warm/refusals"]["missing_measurements"])
             nightly = root / "target/nightly-reports/desktop"
             nightly.mkdir(parents=True)
             (nightly / "benchmarks-rust-desktop.json").write_text(json.dumps(summary))
             published, _files = reports.collect(root)
-            painted = next(row for row in published["benchmarks"] if row["name"] == "desktop/30/warm/canvas_draw/p50")
+            painted = next(row for row in published["benchmarks"] if row["name"] == "desktop/2073600/30/warm/canvas_draw/p50")
             self.assertEqual((painted["unit"], painted["value"]), ("ms", 20))
-            refusal = next(row for row in published["benchmarks"] if row["name"] == "desktop/100/warm/refusals")
+            refusal = next(row for row in published["benchmarks"] if row["name"] == "desktop/2073600/100/warm/refusals")
             self.assertIn("physical_display_presentation", refusal["unavailable"])
             self.assertEqual((home / "dev.json").read_bytes(), (home / "new.json").read_bytes())
             previous = (home / "dev.json").read_bytes()
@@ -279,7 +281,7 @@ class DesktopBench(unittest.TestCase):
                 desktop_bench.collect(root, home, {}, 10, refresh=True, success=False)
             self.assertEqual((home / "dev.json").read_bytes(), previous)
             newer = json.loads((home / "new.json").read_text())
-            measured = next(row for row in newer["benchmarks"] if row["name"] == "desktop/30/warm/canvas_draw/p50")
+            measured = next(row for row in newer["benchmarks"] if row["name"] == "desktop/2073600/30/warm/canvas_draw/p50")
             self.assertEqual(measured["baseline_value"], 20)
 
 

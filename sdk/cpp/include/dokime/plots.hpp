@@ -10,6 +10,7 @@
 #pragma once
 
 // Standard Library Imports
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -76,6 +77,10 @@ struct Plot {
   }
   Plot &unit(std::string value) {
     message.set_unit(std::move(value));
+    return *this;
+  }
+  Plot &input_samples(std::uint32_t count) {
+    message.set_input_samples(count);
     return *this;
   }
   Plot &reduce(v1::Reduction value) {

@@ -34,6 +34,8 @@ use dokime_protocol::client::plots::PlotSeriesSummary;
 
 use dokime_protocol::context::EvidenceStatisticsResponse;
 
+use prost_types::Timestamp;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -139,8 +141,17 @@ impl Store {
         }
         Ok(())
     }
+    #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
-        let moments = self.moments(*window)?;
+        let moments = self.moments(if self.preview_bounds(*window)?.is_some() {
+            NumericWindow {
+                start_ns: i64::MIN,
+                end_ns: i64::MAX,
+                ..*window
+            }
+        } else {
+            *window
+        })?;
         if moments.count == 0 {
             return Ok(Default::default());
         }
@@ -160,6 +171,7 @@ impl Store {
             resolved_at: None,
         })
     }
+    #[tracing::instrument(name = "plot.preview", skip_all)]
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let count = bins.iter().map(|bin| bin.count).sum::<u64>();
@@ -276,7 +288,7 @@ fn number(value: f64) -> Value {
     }
 }
 fn instant(at_ns: i64) -> String {
-    prost_types::Timestamp {
+    Timestamp {
         seconds: at_ns.div_euclid(1_000_000_000),
         nanos: at_ns.rem_euclid(1_000_000_000) as i32,
     }
