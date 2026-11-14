@@ -8,9 +8,10 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/execution.proto";
-import "dokime/v1/metadata.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/host/v1/executions.proto";
+import "dokime/model/v1/execution.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/position.proto";
@@ -114,7 +115,7 @@ message CaseActions {
 // CaseDetail value owned by this resource.
 message CaseDetail {
   .dokime.host.v1.CaseSummary summary = 1;
-  .dokime.v1.Metadata suite = 2;
+  .dokime.model.v1.Metadata suite = 2;
   uint64 parameter_count = 3;
   uint64 generation_index = 4;
   .harmos.model.v1.ReadCut observed_cursor = 5;
@@ -123,22 +124,22 @@ message CaseDetail {
 // CaseParameter value owned by this resource.
 message CaseParameter {
   string name = 1;
-  .dokime.v1.Value value = 2;
+  .dokime.model.v1.Value value = 2;
 }
 
 // CaseSummary value owned by this resource.
 message CaseSummary {
   string case_id = 1;
   string template_id = 2;
-  .dokime.v1.Metadata metadata = 3;
+  .dokime.model.v1.Metadata metadata = 3;
   uint64 ordinal = 4;
   .dokime.host.v1.CaseStatus status = 5;
   optional string latest_execution_id = 6;
-  optional .dokime.v1.ExecutionState latest_execution_status = 7;
+  optional .dokime.host.v1.ExecutionState latest_execution_status = 7;
   uint32 attempt_count = 8;
   .dokime.host.v1.CaseActions actions = 9;
   string suite_id = 10;
-  .dokime.v1.ExecutionOutcome latest_execution_outcome = 11;
+  .dokime.host.v1.ExecutionOutcome latest_execution_outcome = 11;
 }
 
 // PlannedCase value owned by this resource.
@@ -146,10 +147,10 @@ message PlannedCase {
   string case_id = 1;
   string suite_id = 2;
   string template_id = 3;
-  .dokime.v1.Metadata metadata = 4;
+  .dokime.model.v1.Metadata metadata = 4;
   uint64 ordinal = 5;
   uint64 selection_index = 6;
-  .dokime.v1.Origin origin = 7;
+  .dokime.model.v1.Origin origin = 7;
 }
 
 // RegisteredSelection value owned by this resource.
@@ -181,7 +182,7 @@ message SelectedFile {
 message SelectedFileKind {
   oneof kind {
     string value = 1;
-    .dokime.v1.Null clear = 2;
+    .dokime.model.v1.Null clear = 2;
   }
 }
 
@@ -195,7 +196,7 @@ message SelectionPlan {
 
 // SelectionValues value owned by this resource.
 message SelectionValues {
-  repeated .dokime.v1.Value values = 1;
+  repeated .dokime.model.v1.Value values = 1;
 }
 
 // === Enums === //

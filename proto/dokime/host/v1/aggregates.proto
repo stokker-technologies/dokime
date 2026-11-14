@@ -8,8 +8,8 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/expressions.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/expressions.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 
@@ -53,7 +53,7 @@ message AggregateReply {
 
 // QueryAggregate value owned by this resource.
 message QueryAggregate {
-  .dokime.v1.Aggregate aggregate = 1;
+  .dokime.model.v1.Aggregate aggregate = 1;
   string column = 2;
   string alias = 3;
   optional double percentile = 4;
@@ -63,12 +63,12 @@ message QueryAggregate {
 message QueryFilter {
   string column = 1;
   .dokime.host.v1.QueryFilterOperator op = 2;
-  repeated .dokime.v1.Value values = 3;
+  repeated .dokime.model.v1.Value values = 3;
 }
 
 // QueryRow value owned by this resource.
 message QueryRow {
-  repeated .dokime.v1.Value values = 1;
+  repeated .dokime.model.v1.Value values = 1;
 }
 
 // === Enums === //

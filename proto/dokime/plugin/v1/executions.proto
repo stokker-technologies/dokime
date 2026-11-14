@@ -8,7 +8,7 @@ package dokime.plugin.v1;
 
 // === Imports === //
 
-import "dokime/v1/execution.proto";
+import "dokime/model/v1/execution.proto";
 
 // === Options === //
 
@@ -29,8 +29,8 @@ service Executions {
 // ExecutionsInitializeRequest for Executions.Initialize.
 message ExecutionsInitializeRequest {
   string execution = 1;
-  .dokime.v1.TestCase test_case = 2;
-  .dokime.v1.Origin origin = 3;
+  .dokime.model.v1.TestCase test_case = 2;
+  .dokime.model.v1.Origin origin = 3;
 }
 
 // ExecutionsInitializeResponse for Executions.Initialize.
@@ -41,9 +41,9 @@ message ExecutionsInitializeResponse {}
 // ExecutionsCleanupRequest for Executions.Cleanup.
 message ExecutionsCleanupRequest {
   string execution = 1;
-  .dokime.v1.Termination termination = 2;
-  .dokime.v1.TestCase test_case = 3;
-  .dokime.v1.Origin origin = 4;
+  .dokime.model.v1.Termination termination = 2;
+  .dokime.model.v1.TestCase test_case = 3;
+  .dokime.model.v1.Origin origin = 4;
 }
 
 // ExecutionsCleanupResponse for Executions.Cleanup.

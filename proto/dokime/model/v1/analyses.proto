@@ -4,17 +4,17 @@
 
 syntax = "proto3";
 
-package dokime.v1;
+package dokime.model.v1;
 
 // === Imports === //
 
-import "dokime/v1/metadata.proto";
-import "dokime/v1/parameters.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/parameters.proto";
+import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.V1";
+option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // === Services === //
 
@@ -23,21 +23,21 @@ option csharp_namespace = "Dokime.Protocol.V1";
 // === Resources === //
 
 // Analyses value owned by this resource.
-message Analyses { repeated .dokime.v1.Analysis analyses = 1; }
+message Analyses { repeated .dokime.model.v1.Analysis analyses = 1; }
 
 // Analysis value owned by this resource.
 message Analysis {
-  .dokime.v1.Metadata metadata = 1;
+  .dokime.model.v1.Metadata metadata = 1;
   uint32 version = 2;
-  repeated .dokime.v1.Parameter parameters = 3;
-  repeated .dokime.v1.AnalysisOutput outputs = 4;
+  repeated .dokime.model.v1.Parameter parameters = 3;
+  repeated .dokime.model.v1.AnalysisOutput outputs = 4;
   uint32 max_samples = 5;
   uint32 max_output_values = 6;
 }
 
 // AnalysisOutput value owned by this resource.
 message AnalysisOutput {
-  .dokime.v1.Metadata metadata = 1;
+  .dokime.model.v1.Metadata metadata = 1;
   string unit = 2;
   string axis = 3;
   string axis_unit = 4;
@@ -47,7 +47,7 @@ message AnalysisOutput {
 message AnalysisSelection {
   string id = 1;
   uint32 version = 2;
-  .dokime.v1.MapValue parameters = 3;
+  .dokime.model.v1.MapValue parameters = 3;
 }
 
 // AnalysisValues value owned by this resource.

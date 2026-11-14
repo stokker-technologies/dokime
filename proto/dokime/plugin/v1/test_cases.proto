@@ -8,8 +8,8 @@ package dokime.plugin.v1;
 
 // === Imports === //
 
-import "dokime/v1/execution.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/execution.proto";
+import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
@@ -29,11 +29,11 @@ service TestCases {
 message TestCasesMaterializeRequest {
   string template = 1;
   
-  map<string, .dokime.v1.Value> parameters = 2;
+  map<string, .dokime.model.v1.Value> parameters = 2;
 }
 
 // TestCasesMaterializeResponse for TestCases.Materialize.
-message TestCasesMaterializeResponse { .dokime.v1.TestCase test_case = 1; }
+message TestCasesMaterializeResponse { .dokime.model.v1.TestCase test_case = 1; }
 
 // === Resources === //
 

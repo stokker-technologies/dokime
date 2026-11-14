@@ -8,8 +8,8 @@ package dokime.host.v1.content;
 
 // === Imports === //
 
-import "dokime/v1/evidence.proto";
-import "dokime/v1/metadata.proto";
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/metadata.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/file.proto";
@@ -50,7 +50,7 @@ message ArtifactsGetRequest { string name = 1; .harmos.model.v1.ReadCut at = 90;
 
 // ArtifactsGetResponse for Artifacts.Get.
 message ArtifactsGetResponse {
-  .dokime.v1.ArtifactMetadata metadata = 1;
+  .dokime.model.v1.ArtifactMetadata metadata = 1;
   .harmos.model.v1.FileReference file = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
@@ -61,11 +61,11 @@ message ArtifactsGetResponse {
 message ArtifactsCreateRequest {
   string execution = 1;
   .harmos.model.v1.FileReference file = 2;
-  .dokime.v1.Metadata metadata = 3;
+  .dokime.model.v1.Metadata metadata = 3;
   string media_type = 4;
   string request_id = 5;
 
-.dokime.v1.Metadata metadata = 6;
+.dokime.model.v1.Metadata metadata = 6;
 }
 
 // ArtifactsCreateResponse for Artifacts.Create.
@@ -74,11 +74,11 @@ message ArtifactsCreateResponse { string name = 1; .harmos.model.v1.Receipt rece
 // === List === //
 
 // ArtifactsListRequest for Artifacts.List.
-message ArtifactsListRequest { .dokime.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
+message ArtifactsListRequest { .dokime.model.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
 
 // ArtifactsListResponse for Artifacts.List.
 message ArtifactsListResponse {
-  repeated .dokime.v1.ArtifactMetadata artifacts = 1;
+  repeated .dokime.model.v1.ArtifactMetadata artifacts = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
@@ -86,11 +86,11 @@ message ArtifactsListResponse {
 // === Watch === //
 
 // ArtifactsWatchRequest for Artifacts.Watch.
-message ArtifactsWatchRequest { .dokime.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
+message ArtifactsWatchRequest { .dokime.model.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
 
 // ArtifactsWatchResponse for Artifacts.Watch.
 message ArtifactsWatchResponse {
-  repeated .dokime.v1.ArtifactMetadata artifacts = 1;
+  repeated .dokime.model.v1.ArtifactMetadata artifacts = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;

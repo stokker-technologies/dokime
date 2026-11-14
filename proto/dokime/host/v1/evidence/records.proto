@@ -8,9 +8,9 @@ package dokime.host.v1.evidence;
 
 // === Imports === //
 
-import "dokime/v1/evidence.proto";
-import "dokime/v1/scalar.proto";
-import "dokime/v1/schemas.proto";
+import "dokime/host/v1/record_schemas.proto";
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
@@ -92,7 +92,7 @@ message RecordsWatchRequest {
   .dokime.host.v1.evidence.RecordScope scope = 1;
   string record_type = 2;
   repeated uint32 versions = 3;
-  .dokime.v1.Window between = 4;
+  .dokime.model.v1.Window between = 4;
   string step = 5;
   .dokime.host.v1.evidence.CapturedRecordSelection selection = 6;
   .harmos.model.v1.ReadCut at = 90;
@@ -102,7 +102,7 @@ message RecordsWatchRequest {
 // RecordsWatchResponse for Records.Watch.
 message RecordsWatchResponse {
   repeated .dokime.host.v1.evidence.CapturedRecord records = 1;
-  .dokime.v1.Schema schema = 2;
+  .dokime.host.v1.Schema schema = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
@@ -127,11 +127,11 @@ message CapturedRecord {
   string record_type = 4;
   uint32 schema_version = 5;
   string source = 6;
-  .dokime.v1.Severity severity = 7;
+  .dokime.model.v1.Severity severity = 7;
   optional string message = 8;
   .dokime.host.v1.evidence.CapturedRecordError error = 9;
-  .dokime.v1.Value details = 10;
-  .dokime.v1.EvidenceScope scope = 11;
+  .dokime.model.v1.Value details = 10;
+  .dokime.model.v1.EvidenceScope scope = 11;
   optional string related_sample_id = 12;
   optional string related_stream_id = 13;
   optional string related_artifact_id = 14;
@@ -166,10 +166,10 @@ message RecordScope {
 
 // CapturedRecordSelection value owned by this resource.
 message CapturedRecordSelection {
-  .dokime.v1.EvidenceScope scope = 1;
+  .dokime.model.v1.EvidenceScope scope = 1;
   repeated string record_types = 2;
   repeated string sources = 3;
-  repeated .dokime.v1.Severity severities = 4;
+  repeated .dokime.model.v1.Severity severities = 4;
 }
 
 // === Enums === //

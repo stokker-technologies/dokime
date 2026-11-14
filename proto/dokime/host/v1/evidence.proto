@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/file.proto";
 import "harmos/model/v1/position.proto";
@@ -96,7 +96,7 @@ message EvidenceSubject {
 // Output value owned by this resource.
 message Output {
   oneof kind {
-    .dokime.v1.Null log = 1;
+    .dokime.model.v1.Null log = 1;
     string artifact = 2;
   }
 }

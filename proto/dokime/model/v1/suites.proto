@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Suites Contracts
+
+syntax = "proto3";
+
+package dokime.model.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/documents.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/parameters.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Model.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Suites value owned by this resource.
+message Suites { repeated .dokime.model.v1.Suite suites = 1; }
+
+// Suite value owned by this resource.
+message Suite {
+  .dokime.model.v1.Metadata metadata = 1;
+  repeated .dokime.model.v1.TestCaseTemplate templates = 2;
+  repeated string tags = 3;
+  repeated .dokime.model.v1.Metadata parameter_groups = 4;
+}
+
+// TestCaseTemplate value owned by this resource.
+message TestCaseTemplate {
+  .dokime.model.v1.Metadata metadata = 1;
+  repeated .dokime.model.v1.Parameter parameters = 2;
+  repeated .dokime.model.v1.FileParameter files = 3;
+  repeated .dokime.model.v1.Document documents = 4;
+  repeated string tags = 5;
+  
+  string materialize = 6;
+  optional string initialize = 7;
+  optional string cleanup = 8;
+  repeated .dokime.model.v1.Metadata parameter_groups = 9;
+}
+
+// === Enums === //

@@ -4,15 +4,15 @@
 
 syntax = "proto3";
 
-package dokime.v1;
+package dokime.model.v1;
 
 // === Imports === //
 
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.V1";
+option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // === Services === //
 
@@ -24,14 +24,14 @@ option csharp_namespace = "Dokime.Protocol.V1";
 message DataExpression {
   string label = 1;
   oneof kind {
-    .dokime.v1.FieldReference stream = 2;
-    .dokime.v1.FieldReference record = 3;
+    .dokime.model.v1.FieldReference stream = 2;
+    .dokime.model.v1.FieldReference record = 3;
     string parameter = 4;
     string dimension = 5;
     string artifact = 6;
-    .dokime.v1.AggregateExpression aggregate = 7;
-    .dokime.v1.TransformExpression transform = 8;
-    .dokime.v1.Value literal = 9;
+    .dokime.model.v1.AggregateExpression aggregate = 7;
+    .dokime.model.v1.TransformExpression transform = 8;
+    .dokime.model.v1.Value literal = 9;
   }
 }
 
@@ -40,15 +40,15 @@ message FieldReference { string identifier = 1; string field = 2; }
 
 // AggregateExpression value owned by this resource.
 message AggregateExpression {
-  .dokime.v1.DataExpression input = 1;
-  .dokime.v1.Aggregate kind = 2;
+  .dokime.model.v1.DataExpression input = 1;
+  .dokime.model.v1.Aggregate kind = 2;
   
   double percentile = 3;
 }
 
 // TransformExpression value owned by this resource.
 message TransformExpression {
-  .dokime.v1.DataExpression input = 1;
+  .dokime.model.v1.DataExpression input = 1;
   oneof kind {
     string detail = 2;
     string time_between = 3;
@@ -59,7 +59,7 @@ message TransformExpression {
 }
 
 // DocumentFilter value owned by this resource.
-message DocumentFilter { .dokime.v1.DataExpression expression = 1; .dokime.v1.FilterOperator operator = 2; .dokime.v1.Value value = 3; }
+message DocumentFilter { .dokime.model.v1.DataExpression expression = 1; .dokime.model.v1.FilterOperator operator = 2; .dokime.model.v1.Value value = 3; }
 
 // === Enums === //
 
