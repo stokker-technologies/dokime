@@ -38,7 +38,7 @@ use tonic::{
 // Local Imports
 use super::TestResult;
 use dokime::client::CycleSummary;
-use dokime::{DiscoveredContract, DiscoveredOperation, Metadata, client::OperationsListResponse};
+use dokime::{DiscoveredContract, DiscoveredOperation, Metadata, OperationsListResponse};
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::CyclesCreateResponse;
 use dokime_protocol::host::ExecutionDetail;

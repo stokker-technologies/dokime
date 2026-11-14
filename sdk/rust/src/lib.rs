@@ -21,6 +21,7 @@ pub mod client;
 mod context;
 mod data;
 mod error;
+#[rustfmt::skip]
 mod host;
 mod message;
 mod operation;

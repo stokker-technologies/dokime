@@ -19,6 +19,10 @@ run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --package 
 description = "Run Focused Rust SDK Journeys"
 run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml --package dokime-rust-stories --test integration"
 
+[tasks."sdk:unit"]
+description = "Run Rust SDK Unit Tests"
+run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --lib --no-tests pass"
+
 [tasks."sdk:tree"]
 description = "Prove Protocol-Only SDK Product Dependencies"
 run = "python tools/dependency_tree.py"

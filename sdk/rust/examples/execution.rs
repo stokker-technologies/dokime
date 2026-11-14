@@ -24,7 +24,7 @@ use std::time::Duration;
 use dokime::RetryPolicy;
 use dokime::encoding::Message as EncodingMessage;
 use dokime::plugin::HostEvidenceStatisticsOptions;
-use dokime::{Classification, Plot, prelude::*};
+use dokime::{Classification, Plot, PlotKind, prelude::*};
 use dokime::{Document, FieldReference, Section, Severity, value::Kind};
 use prost_types::Duration as ProtoDuration;
 
@@ -76,8 +76,12 @@ struct Bench {
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("execution.reading", "Reading");
     let observer = Observer::new(&reading, read).every_ms(1000);
-    let document = Document::new("Execution Report")
-        .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.reading").field("value"))));
+    let plot = Plot {
+        kind: PlotKind::TimeSeries as i32,
+        y: vec![FieldReference::new("execution.reading").field("value")],
+        ..Default::default()
+    };
+    let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
     let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
     let template = Template::new("execution.capture", "Execution Capture")

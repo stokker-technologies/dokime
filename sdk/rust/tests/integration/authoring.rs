@@ -26,6 +26,7 @@ use prost::Message as _;
 use super::support::{TestResult, plugin::Process, reference};
 use dokime::Origin;
 use dokime::PluginRun;
+use dokime::Statistics;
 use dokime::Suites;
 use dokime::Termination;
 use dokime::Value;
@@ -313,7 +314,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         .reply(
             stats.call,
             EvidenceStatisticsResponse {
-                statistics: Some(dokime::plugin::Statistics {
+                statistics: Some(Statistics {
                     count: 2,
                     max: Some(Value { kind: Some(value::Kind::Number(84.0)) }),
                     min: Some(Value { kind: Some(value::Kind::Number(84.0)) }),
@@ -334,7 +335,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
                     record_type: "thermal.door".into(),
                     payload: record.1.payload,
 
-                    source_at: Some(at),
+                    timestamp: Some(at),
                     ..Default::default()
                 }),
                 records: Vec::new(),
