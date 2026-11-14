@@ -299,22 +299,31 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             read.extend(page.data);
         }
         assert_eq!(read, bytes);
-        // Follow a Growing File and Drain Its Final Append Before Completion.
-        store.register_execution_file(
-            "growing",
-            "content-a",
-            ExecutionFileMetadata {
-                relative_path: "growing.txt".into(),
-                state: ExecutionFileState::Streaming as i32,
-                ..Default::default()
-            },
-        )?;
-        store.append_content("growing", 0, b"first")?;
+        // Follow Host-Owned Appends and Drain the Final Chunk Before Completion.
+        let growing = uploads
+            .create(UploadsCreateRequest {
+                metadata: Some(FileMetadata {
+                    scope: Some("content-a".into()),
+                    ..Default::default()
+                }),
+                request_id: "growing/create".into(),
+            })
+            .await?
+            .into_inner();
+        let session = growing.production.unwrap().session.unwrap();
+        uploads
+            .append(UploadsAppendRequest {
+                session: Some(session.clone()),
+                offset: 0,
+                data: b"first".to_vec(),
+                request_id: "growing/first".into(),
+            })
+            .await?;
         let growing = file_client
             .get(FilesGetRequest {
                 file: Some(harmos_protocol::storage::FileReference {
-                    metadata: Some(harmos_protocol::storage::FileMetadata {
-                        id: "growing".into(),
+                    metadata: Some(FileMetadata {
+                        id: session.id.clone(),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -327,8 +336,22 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             file_client.watch(dokime_protocol::client::FilesWatchRequest { file: growing.file, offset: 0, at: None }).await?.into_inner();
         let first = watch.message().await?.unwrap().data.unwrap();
         assert_eq!(first.bytes, b"first");
-        store.append_content("growing", 5, b"last")?;
-        store.finish_execution_file("growing", false)?;
+        uploads
+            .append(UploadsAppendRequest {
+                session: Some(session.clone()),
+                offset: 5,
+                data: b"last".to_vec(),
+                request_id: "growing/last".into(),
+            })
+            .await?;
+        uploads
+            .publish(UploadsPublishRequest {
+                session: Some(session),
+                length: 9,
+                sha256: Sha256::digest(b"firstlast").to_vec(),
+                request_id: "growing/publish".into(),
+            })
+            .await?;
         let mut followed = first.bytes;
         let mut completed = false;
         while let Some(frame) = watch.message().await? {

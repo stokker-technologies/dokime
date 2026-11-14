@@ -75,7 +75,10 @@ impl ArtifactUploads {
             let production: files::UploadsCreateResponse =
                 context.execute(client.unary("/dokime.client.v1.files.Uploads/Create", request)).await?;
             writer.chunk_bytes = usize::try_from(production.chunk_bytes).map_err(|_| RpcError::LimitExceeded)?;
-            if writer.chunk_bytes < DESKTOP_UPLOAD_SLICE_BYTES as usize {
+            writer.chunk_bytes = writer
+                .chunk_bytes
+                .min(usize::try_from(production.message_bytes.saturating_sub(1024)).map_err(|_| RpcError::LimitExceeded)?);
+            if writer.chunk_bytes == 0 {
                 return Err(RpcError::LimitExceeded);
             }
             writer.request.session = production.production.and_then(|value| value.session);
@@ -115,22 +118,24 @@ impl ArtifactUploads {
             return Err(RpcError::InvalidAck);
         }
         upload.context.check()?;
-        let mut request = writer.request.clone();
-        request.data = bytes.clone();
-        request.request_id = format!("desktop-{generation}-{id}-{sequence}");
         let client = upload.context.client();
-        let reply: files::UploadsAppendResponse = tokio::select! {
-            biased;
-            _ = upload.cancel.cancelled() => return Err(RpcError::Cancelled),
-            reply = upload.context.execute(client.unary("/dokime.client.v1.files.Uploads/Append", request)) => reply?,
-        };
-        let production = reply.production.ok_or(RpcError::InvalidRequest)?;
-        let next = writer.request.offset.checked_add(bytes.len() as u64).ok_or(RpcError::LimitExceeded)?;
-        if production.length != next {
-            return Err(RpcError::InvalidAck);
+        for chunk in bytes.chunks(writer.chunk_bytes) {
+            let mut request = writer.request.clone();
+            request.data = chunk.to_vec();
+            request.request_id = format!("desktop-{generation}-{id}-{sequence}-{}", request.offset);
+            let reply: files::UploadsAppendResponse = tokio::select! {
+                biased;
+                _ = upload.cancel.cancelled() => return Err(RpcError::Cancelled),
+                reply = upload.context.execute(client.unary("/dokime.client.v1.files.Uploads/Append", request)) => reply?,
+            };
+            let production = reply.production.ok_or(RpcError::InvalidRequest)?;
+            let next = writer.request.offset.checked_add(chunk.len() as u64).ok_or(RpcError::LimitExceeded)?;
+            if production.length != next {
+                return Err(RpcError::InvalidAck);
+            }
+            writer.request.offset = next;
+            writer.request.session = production.session;
         }
-        writer.request.offset = next;
-        writer.request.session = production.session;
         writer.digest.update(&bytes);
         writer.next_sequence += 1;
         Ok(())

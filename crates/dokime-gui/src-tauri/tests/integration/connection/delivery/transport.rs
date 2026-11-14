@@ -55,7 +55,7 @@ pub struct Content(pub Service);
 pub struct Storage(pub Service);
 
 struct Metadata(Service);
-struct FileInformation(Service);
+struct FileInformation;
 
 struct Download(Service);
 
