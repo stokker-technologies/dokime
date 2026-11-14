@@ -172,9 +172,9 @@ function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordS
   const states = useLivePlotPayloads({ enabled: true, plots, scope, windowS: 259200 });
   useLayoutEffect(() => {
     const refused = (state: (typeof states)[string]) => state.status === "error" || Boolean(state.failure && !state.payload);
-    observation.errors = Object.values(states)
-      .filter(refused)
-      .map((state) => state.error ?? state.failure?.message ?? "Unknown plot failure");
+    observation.errors = Object.entries(states)
+      .filter(([, state]) => refused(state))
+      .map(([plotId, state]) => `${plotId}: ${state.error ?? state.failure?.message ?? "Plot Data Failed"}`);
     observation.loadedPlots = Object.values(states).filter((state) => state.payload && !refused(state)).length;
     observation.failedPlots = Object.values(states).filter(refused).length;
     const started = performance.now();
