@@ -518,7 +518,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 
 ## Remaining Source Policy Proof
 
-- [ ] Repair CI after the protocol face split: export declared preferences without
+- [x] Repair CI after the protocol face split: export declared preferences without
   host startup, preserve startup causes, move Python upload I/O off the event loop,
   include every face in the Python stub catalog, prepare standalone fixture jobs
   without frontend tools, and prove current release-profile desktop bundling.
