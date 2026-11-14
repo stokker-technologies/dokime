@@ -16,11 +16,15 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// === Requests and Responses === //
+// Host-only plugin operations with independent Protected lifecycle bindings.
+service Steps {
+  // Execute the Steps resource; admission and policy are owned by the executor.
+  rpc Execute(.dokime.plugin.v1.StepsExecuteRequest) returns (.dokime.plugin.v1.StepsExecuteResponse);
+}
 
-// === Resources === //
+// === Execute === //
 
-// StepsExecuteRequest value owned by this resource.
+// StepsExecuteRequest for Steps.Execute.
 message StepsExecuteRequest {
   string execution = 1;
   
@@ -31,7 +35,9 @@ message StepsExecuteRequest {
   .dokime.v1.Origin origin = 4;
 }
 
-// StepsExecuteResponse value owned by this resource.
+// StepsExecuteResponse for Steps.Execute.
 message StepsExecuteResponse {}
+
+// === Resources === //
 
 // === Enums === //

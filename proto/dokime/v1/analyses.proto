@@ -43,23 +43,6 @@ message AnalysisOutput {
   string axis_unit = 4;
 }
 
-// AnalysisRequest value owned by this resource.
-message AnalysisRequest {
-  .dokime.v1.AnalysisSamples samples = 1;
-  .dokime.v1.MapValue parameters = 2;
-}
-
-// AnalysisSamples value owned by this resource.
-message AnalysisSamples {
-  repeated double axis = 1;
-  repeated double values = 2;
-  string axis_unit = 3;
-  string unit = 4;
-}
-
-// AnalysisResponse value owned by this resource.
-message AnalysisResponse { repeated .dokime.v1.AnalysisValues outputs = 1; }
-
 // AnalysisSelection value owned by this resource.
 message AnalysisSelection {
   string id = 1;

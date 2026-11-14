@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Test Cases Contracts
+// TestCases Contracts
 
 syntax = "proto3";
 
@@ -17,18 +17,24 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// === Requests and Responses === //
+// Host-only plugin operations with independent Protected lifecycle bindings.
+service TestCases {
+  // Materialize the TestCases resource; admission and policy are owned by the executor.
+  rpc Materialize(.dokime.plugin.v1.TestCasesMaterializeRequest) returns (.dokime.plugin.v1.TestCasesMaterializeResponse);
+}
 
-// === Resources === //
+// === Materialize === //
 
-// TestCasesMaterializeRequest value owned by this resource.
+// TestCasesMaterializeRequest for TestCases.Materialize.
 message TestCasesMaterializeRequest {
   string template = 1;
   
   map<string, .dokime.v1.Value> parameters = 2;
 }
 
-// TestCasesMaterializeResponse value owned by this resource.
+// TestCasesMaterializeResponse for TestCases.Materialize.
 message TestCasesMaterializeResponse { .dokime.v1.TestCase test_case = 1; }
+
+// === Resources === //
 
 // === Enums === //
