@@ -25,10 +25,12 @@ use super::*;
 use dokime_protocol::{client, v1};
 use dokime_runtime_next::{ControlledClock, PlacementSettings};
 use dokime_sdk::client::v1::{self as library, access};
+use futures_util::FutureExt;
 use sha2::Digest;
 use sha2::Sha256;
 use std::error::Error as StdError;
 use std::ffi::OsString;
+use std::panic::{AssertUnwindSafe, resume_unwind};
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -246,7 +248,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
         let root = crate::test_support::tempdir()?;
         let mut owner = Connection::new(settings())?;
         let local = owner.start(root.path()).await?;
-        let result = async {
+        let result = AssertUnwindSafe(async {
             let request = local.request(access::ListenerGetRequest {})?;
             let current = local.execute(local.client().access.listener.get(request)).await?.into_inner();
             let mut value = current.value.ok_or("Get Listener: Missing Settings")?;
@@ -304,9 +306,14 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
             let request = local.request(library::StatusGetRequest {})?;
             local.execute(local.client().status.get(request)).await?;
             Ok::<_, Box<dyn StdError>>(())
-        }
+        })
+        .catch_unwind()
         .await;
         let closed = owner.close().await;
+        let result = match result {
+            Ok(result) => result,
+            Err(panic) => resume_unwind(panic),
+        };
         result?;
         closed?;
         Ok(())
