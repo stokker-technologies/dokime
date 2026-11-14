@@ -696,11 +696,12 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
+ "getrandom 0.4.3",
  "harmos-protocol",
  "harmos-sdk-derive",
  "prost",
@@ -716,7 +717,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -728,18 +729,20 @@ dependencies = [
  "sha2",
  "thiserror",
  "time",
+ "tracing",
 ]
 
 [[package]]
 name = "harmos-operations"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "futures-core",
  "futures-util",
  "getrandom 0.4.3",
  "harmos-domain",
  "harmos-protocol",
+ "harmos-query",
  "harmos-sdk-derive",
  "harmos-storage",
  "postcard",
@@ -758,7 +761,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -771,9 +774,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "harmos-query"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-ipc",
+ "arrow-schema",
+ "arrow-select",
+ "flatbuffers",
+ "harmos-domain",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "harmos-runtime"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "bytes",
  "futures-core",
@@ -782,6 +807,7 @@ dependencies = [
  "harmos-domain",
  "harmos-operations",
  "harmos-protocol",
+ "harmos-query",
  "harmos-sdk-derive",
  "harmos-storage",
  "heck",
@@ -801,6 +827,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-rustls",
+ "toml_edit",
  "tonic",
  "tonic-reflection",
  "tower",
@@ -812,7 +839,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -824,24 +851,21 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=81d32d3bc9ab3e2121746923712ec9508cee3ec7#81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+source = "git+https://github.com/stokker-technologies/harmos?rev=2124adafd52e1c50085521389c82720387edd46d#2124adafd52e1c50085521389c82720387edd46d"
 dependencies = [
  "arrow-array",
- "arrow-buffer",
  "arrow-data",
- "arrow-ipc",
  "arrow-schema",
  "arrow-select",
  "base64 0.23.1",
- "flatbuffers",
  "futures-util",
  "getrandom 0.4.3",
  "globset",
  "harmos-domain",
  "harmos-protocol",
+ "harmos-query",
  "notify",
  "postcard",
- "prost",
  "same-file",
  "serde",
  "serde_json",

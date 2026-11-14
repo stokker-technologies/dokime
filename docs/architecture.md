@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `81d32d3bc9ab3e2121746923712ec9508cee3ec7`, rather than
+[Cargo.toml](../Cargo.toml), `2124adafd52e1c50085521389c82720387edd46d`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 
@@ -574,6 +574,23 @@ The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
 existing root is migrated, reset or deleted. Diagnostics copy stream files too.
 
 ## SDK Build Ownership
+
+### Final Library Pin
+
+The definition pass pins Harmos at `2124adafd52e1c50085521389c82720387edd46d`.
+Consumer repairs follow the work lists in [Execution Host](execution-host.md).
+The pin and generated contracts do not establish consumer compilation.
+
+| Consumer | Required Change at This Pin |
+| --- | --- |
+| Operations and Runtime | Use model/host/plugin identities, effective callers and direct library Plugins, plugins.Settings and Time composition. |
+| Storage | Implement the native StorageBackend and StateBackend ports; register primary/state owners at assembly; replace the product ordered merge with harmos-query. |
+| Rust | Adopt the internal wire layout and public root/client/plugin barrels; use generated argument-based calls. |
+| Python | Resolve the pinned git dependency and regenerate private wire modules and typed client/context resources. |
+| C# | Build the local NuGet feed from the same immutable revision; use its generated public namespaces and call contexts. |
+| C++ | Fetch the same immutable source archive; compose the installed library types and generated resource tree. |
+| Command-Line Tool | Rename the candidate binary to dokime and adopt generated client calls and library plugin records. |
+| Desktop | Adopt the generated executor contracts and library plugin/settings records; preserve the concurrent plot/document repair. |
 
 Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build
 recipes. Repository host-fixture tooling calls those entry points; fixtures live

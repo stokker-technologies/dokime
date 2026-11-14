@@ -5,7 +5,7 @@ include(FetchContent)
 # The Current Protocol Pin Predates Harmos's Installable CMake Package.
 # Build Its Unmodified Sources Against Our One Manifest-Owned Dependency Graph.
 FetchContent_Declare(harmos
-  URL https://github.com/stokker-technologies/harmos/archive/81d32d3bc9ab3e2121746923712ec9508cee3ec7.tar.gz
+  URL https://github.com/stokker-technologies/harmos/archive/2124adafd52e1c50085521389c82720387edd46d.tar.gz
   SOURCE_SUBDIR unused DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(harmos)
 set(harmos_sdk "${harmos_SOURCE_DIR}/sdk/cpp")

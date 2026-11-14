@@ -37,7 +37,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision = "81d32d3bc9ab3e2121746923712ec9508cee3ec7"
+revision = "2124adafd52e1c50085521389c82720387edd46d"
 output = Path(__file__).resolve().parents[1] / "../../target/cs/reference"
 output.mkdir(parents=True, exist_ok=True)
 source = os.environ.get("HARMOS_SOURCE")

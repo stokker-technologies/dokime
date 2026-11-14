@@ -6,7 +6,7 @@ and a channel-owning client facade. It builds messages and any declared service
 stubs with `Grpc.Tools` directly from `proto/dokime/**/*.proto`; generated C#
 protobuf messages and service stubs are build outputs. Descriptor-derived resource
 wrappers in `sdk/csharp/src/Dokime/Generated/Resources.g.cs` and `ClientResources.g.cs` are committed
-and regenerated through `mise run generate -- --protocol`. The Harmos SDK is consumed as a local NuGet package built from revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
+and regenerated through `mise run generate -- --protocol`. The Harmos SDK is consumed as a local NuGet package built from revision `2124adafd52e1c50085521389c82720387edd46d`.
 
 ## Setup, Build, Test and Package
 
