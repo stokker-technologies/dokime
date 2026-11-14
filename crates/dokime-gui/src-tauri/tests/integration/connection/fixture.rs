@@ -141,8 +141,8 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                             contract: Some(DiscoveredContract {
                                 grpc: Some(Grpc {
                                     package: "harmos.host.v1".into(),
-                                    service: "Storage".into(),
-                                    method: "GetFileBytes".into(),
+                                    service: "Status".into(),
+                                    method: "Get".into(),
                                     ..Default::default()
                                 }),
                                 ..Default::default()
