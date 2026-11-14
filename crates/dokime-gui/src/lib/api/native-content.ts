@@ -102,7 +102,7 @@ export async function readNativeExecutionFileWindow(
   const item = await rpc.contentExecutionFilesGet(session, { parent: executionId, name: path });
   const file = required(item.file, "Read Execution File");
   const metadata = required(item.metadata, "Read Execution File Metadata");
-  const window = await rpc.storageGetFileBytes(session, { file, offset: BigInt(offset), maxBytes: BigInt(maxBytes), at: item.resolvedAt });
+  const window = await rpc.filesRead(session, { file, offset: BigInt(offset), maxBytes: BigInt(maxBytes) });
   if (window.totalLength !== file.length || cutKey(window.sha256) !== cutKey(file.sha256) || window.data.length > maxBytes)
     throw new Error("Read Execution File: Invalid Range or Digest");
   return {
@@ -133,14 +133,15 @@ export async function followNativeExecutionFile(
   const id = required(file.metadata, "Follow Execution File Metadata").id;
   if (identity && (identity.store !== history.store || identity.epoch !== history.epoch || identity.fileId !== id))
     throw new Error("Follow Execution File: Original Identity Changed");
-  const stream = await rpc.storageWatchFileBytes(session, {
-    source: { source: { case: "stored", value: file } },
-    start: { start: { case: "at", value: BigInt(offset) } },
+  const stream = await rpc.filesWatch(session, {
+    file,
+    offset: BigInt(offset),
   });
   return {
     cancel: () => stream.cancel(),
     async *[Symbol.asyncIterator]() {
       let length = offset;
+      let completed = false;
       const state = required(item.metadata, "Follow Execution File State").state;
       yield {
         kind: "metadata",
@@ -155,20 +156,24 @@ export async function followNativeExecutionFile(
         offset,
       } as ExecutionFileFollowEvent;
       for await (const frame of stream) {
-        const event = frame.event?.event;
-        if (event?.case === "data") {
-          const position = safeNumber(event.value.offset, "Follow File Offset");
+        const data = frame.data;
+        if (data) {
+          const position = safeNumber(data.offset, "Follow File Offset");
           if (position !== length) throw new Error("Follow Execution File: Noncontiguous Range");
-          yield { kind: "chunk", offset: position, data: event.value.bytes } as ExecutionFileFollowEvent;
-          length += event.value.bytes.length;
-        } else if (event?.case === "truncated" || event?.case === "replaced")
-          throw new Error("Follow Execution File: Content Changed; Reopen Its Metadata");
+          yield { kind: "chunk", offset: position, data: data.bytes } as ExecutionFileFollowEvent;
+          length += data.bytes.length;
+        }
+        if (frame.completion) completed = true;
+        if (frame.completion && frame.completion.bytes !== BigInt(length))
+          throw new Error("Follow Execution File: Invalid Terminal Length");
       }
+      if (!completed) throw new Error("Follow Execution File: Stream Closed Before Completion");
+      const finalFile = required((await rpc.filesGet(session, { file })).file, "Follow Finalized File");
       yield {
         kind: "terminal",
         phase: state === protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
         length,
-        sha256: [...file.sha256].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+        sha256: [...finalFile.sha256].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
       } as ExecutionFileFollowEvent;
     },
   };
@@ -192,7 +197,7 @@ export async function fetchNativeArtifactBytes(
 ): Promise<Uint8Array> {
   const reply = await rpc.contentArtifactsGet(session, { name: artifactId });
   const reference = required(reply.file, "Read Artifact File");
-  return readFileReference(session, reference, signal, reply.resolvedAt);
+  return readFileReference(session, reference, signal);
 }
 
 type NativeContentArtifact = Pick<ArtifactRecord, "artifact_id" | "group_id" | "label" | "path" | "scope">;
@@ -452,21 +457,23 @@ function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
 /** Bounded Library Range Reads, Pinned to One Returned Cut and Verified Digest. */
 export async function readFileReference(
   session: SessionIdentity,
-  file: NonNullable<Parameters<typeof rpc.storageGetFileBytes>[1]["file"]>,
+  file: NonNullable<Parameters<typeof rpc.filesRead>[1]["file"]>,
   signal?: AbortSignal,
-  at?: Parameters<typeof rpc.storageGetFileBytes>[1]["at"],
   maxBytes = NATIVE_CONTENT_BYTES,
 ): Promise<Uint8Array> {
   const length = safeNumber(required(file.length, "Read File Length"), "Read File Length");
   if (length > maxBytes || required(file.sha256, "Read File Digest").length !== 32)
     throw new Error("Read File: Content Exceeds Its Budget or Has No Digest");
+  const selected = await rpc.filesGet(session, { file });
+  let at = required(selected.resolvedAt, "Read File Cut");
+  const chunkBytes = safeNumber(selected.chunkBytes, "Read File Chunk Bound");
   const result = new Uint8Array(length);
   for (let offset = 0; offset < length; ) {
     if (!session.isCurrent() || signal?.aborted) throw new Error("Read File: Transfer Cancelled");
-    const reply = await rpc.storageGetFileBytes(session, {
+    const reply = await rpc.filesRead(session, {
       file,
       offset: BigInt(offset),
-      maxBytes: BigInt(Math.min(EXECUTION_FILE_WINDOW_BYTES, length - offset)),
+      maxBytes: BigInt(Math.min(EXECUTION_FILE_WINDOW_BYTES, chunkBytes, length - offset)),
       at,
     });
     const cut = required(reply.resolvedAt, "Read File Cut");
@@ -475,7 +482,7 @@ export async function readFileReference(
       reply.totalLength !== BigInt(length) ||
       cutKey(reply.sha256) !== cutKey(file.sha256) ||
       !reply.data.length ||
-      reply.data.length > Math.min(EXECUTION_FILE_WINDOW_BYTES, length - offset)
+      reply.data.length > Math.min(EXECUTION_FILE_WINDOW_BYTES, chunkBytes, length - offset)
     )
       throw new Error("Read File: Invalid Range, Digest or Retained Cut");
     at = cut;

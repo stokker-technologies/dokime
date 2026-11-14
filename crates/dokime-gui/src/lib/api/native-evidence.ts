@@ -14,7 +14,7 @@
 import { type createFileRegistry, fromBinary, ScalarType } from "@bufbuild/protobuf";
 import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
-import { executionSchemas } from "@/lib/host/schemas";
+import { executionSchemas, recordMessage } from "@/lib/host/schemas";
 import { required, cutKey } from "@/lib/rpc/canonical";
 import { Severity } from "@host/dokime/v1/evidence_pb.js";
 import { LogsAppendRequestSchema } from "@host/dokime/plugin/host/v1/evidence/logs_pb.js";
@@ -222,7 +222,7 @@ async function decodeRecords(session: SessionIdentity, records: CapturedRecord[]
     }
     const detail = required((await pending).execution, "Read Record Execution");
     const registry = await executionSchemas(session).get(session, detail);
-    const message = registry.getMessage(record.recordType);
+    const message = recordMessage(registry, record.recordType, detail.schemas?.records);
     if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
     return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
   });
@@ -263,13 +263,17 @@ function recordValue(value: unknown, scalar: ScalarType | undefined, depth: numb
 }
 
 /** Decode Immutable Evidence With Its Verified Frozen Registry. */
-export function decodeFrozenRecords(records: CapturedRecord[], registry?: ReturnType<typeof createFileRegistry>): HubRecord[] {
+export function decodeFrozenRecords(
+  records: CapturedRecord[],
+  registry?: ReturnType<typeof createFileRegistry>,
+  recordsBindings?: readonly { recordType: string; messageName: string }[],
+): HubRecord[] {
   return records.map((record) => {
     if (record.recordType === "dokime.log") {
       const log = fromBinary(LogsAppendRequestSchema, record.payload);
       return mapNativeRecord(record, { message: log.message, severity: log.severity });
     }
-    const message = registry?.getMessage(record.recordType);
+    const message = registry ? recordMessage(registry, record.recordType, recordsBindings) : undefined;
     if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
     return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
   });

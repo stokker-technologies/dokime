@@ -52,8 +52,8 @@ the WebView drives the same adapters. Native method availability comes from the
 SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
 catalog currently omits those bindings, so storage source changes remain disabled
 with a visible reason and a Host Request.
-Library `Storage.Capabilities` and `Storage.GetFileBytes` must be bound by the host
-for uploads and verified artifact/report delivery. A default execution document
+Product Files and Files.Uploads serve uploads and verified artifact/report delivery.
+Uploads.Create/Get/Resume and Files.Get return the chunk and message limits. A default execution document
 read must return the selected document identity in its header; an empty selector
 is not a valid header identity. The desktop rejects that response before accepting
 source cards or the evidence cut. Frozen record schemas must also retain each
@@ -81,8 +81,8 @@ relaxes those checks.
 `Executions.Schemas.Get` on a cache miss, verifies their digest and caches the
 registry by digest for the connection generation. Frozen record identifiers that
 differ from protobuf message names require a served record-to-message binding;
-the current `FrozenSchemas.records` projection omits that binding and those
-payloads fail explicitly. No current plugin registry substitutes for frozen data.
+`FrozenSchemas.records` and descriptor pages retain that `message_name` binding,
+which the decoder resolves against the frozen registry. No current plugin registry substitutes for frozen data.
 
 Native stories retain their disposable roots outside the test runtime. After
 owned tasks stop, including on assertion failure, the host fixture removes each
@@ -98,7 +98,7 @@ removal operation, preserving any earlier generator or user storage roots.
 | Control | Visible Reason |
 | --- | --- |
 | Screenshot, Photo and Record Audio | The host has no capture owner. |
-| Connected-Host Logos and Appearance Assets | Application content-source composition is pending; installer appearance remains native. |
+| Connected-Host Logos and Appearance Assets | A provider must publish each declared asset file; missing bytes are reported explicitly. |
 | Back Up and Reset, Reset Local Storage | The host has no preserving recovery operation. |
 | Plugin Check for Updates | The connected host does not publish its typed build target. File installation remains available. |
 | Storage Source Priority and Enablement | Product RPC bindings are absent from operation discovery. |
@@ -128,9 +128,9 @@ removal operation, preserving any earlier generator or user storage roots.
 | `desktop_settings_read`, `desktop_settings_update` | `Settings.Get`, `Settings.Set` with the exact returned revision |
 | `rpc` | Unary operation from the operation table below |
 | `rpc_stream_open`, `rpc_stream_send`, `rpc_stream_finish`, `rpc_stream_cancel`, `rpc_stream_ack` | SDK Watch/transfer lifetime, bounded native delivery and cancellation |
-| `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | Library file production, then `content.Artifacts.Create` |
-| `desktop_artifact_deliver` | Product metadata/reference reads, then library `Storage.GetFileBytes` |
-| `desktop_media_prepare`, `desktop_media_release` | `content.Artifacts.Get` / `content.ExecutionFiles.Get` followed by `Storage.GetFileBytes` plus native preview cache |
+| `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | Files.Uploads, then `content.Artifacts.Create` |
+| `desktop_artifact_deliver` | Product metadata/reference reads, then product `Files.Read` |
+| `desktop_media_prepare`, `desktop_media_release` | `content.Artifacts.Get` / `content.ExecutionFiles.Get` followed by `Files.Read` plus native preview cache |
 | `desktop_plugin_install_file` | `Plugins.Install` |
 | `desktop_plugin_release_check`, `desktop_plugin_release_install` | Missing typed host build target; both commands refuse before fetching or installing release candidates. Verified bundle file installation remains available. |
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
@@ -167,7 +167,7 @@ are rebuilt by their generators, never edited by hand.
 | `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
 | `Plugins` | Retained managed/remote installation calls remain until library composition; settings use `Plugins.Settings.Get/Set`. |
 | `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
-| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use library `Storage.GetFileBytes`. Uploads use library file production before artifact attachment. |
+| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use library file production before artifact attachment. |
 | Library `Status`, `Access`, `Storage`, `Invocations` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
 
 Report creation renders a preview without publication. Publish names the prepared

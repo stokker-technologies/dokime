@@ -126,8 +126,8 @@ that finishes without a pending prompt; it does not use polling sleeps.
 
 ## Read Reports and Recover
 
-The report commands use Reports.Create for a pure preview and library
-Storage.GetFileBytes for bounded ranges:
+The report commands use Reports.Create for a pure preview and product
+Files.Read for bounded ranges:
 
 ```sh
 dokime-next --remote operator.dokime-remote execution report EXECUTION --out execution.html
@@ -136,8 +136,8 @@ dokime-next --remote operator.dokime-remote cycle report CYCLE --out cycle.html
 
 They verify the returned cut, total length and SHA-256 before atomically saving
 the file, and refuse existing destinations. Rendering or downloading does not
-publish a report. The current host does not register Storage.GetFileBytes, so
-these downloads remain explicitly unavailable pending library content composition.
+publish a report. Files.Get returns the file metadata and its transfer limits;
+Files.Read returns a bounded chunk and its retained cut.
 Failed downloads leave no final output and preserve existing destinations.
 
 Losing a wait or connection leaves admitted work running. Reconnect to the same

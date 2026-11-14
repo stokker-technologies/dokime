@@ -8,6 +8,7 @@ import { LogoVariant } from "@host/dokime/client/v1/backend_pb.js";
 
 import type { SessionIdentity } from "./transport.js";
 
+import { readFileReference } from "@/lib/api/native-content";
 import { required } from "./canonical";
 type AppearanceSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendAppearance>>["appearance"]>>;
 
@@ -45,15 +46,24 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
       const variant = logoVariant(logo);
       if (variants.has(variant)) invalid();
       variants.add(variant);
+      const asset = required(logo.asset, "Read Appearance Asset");
+      if (asset.file) {
+        const bytes = await readFileReference(session, asset.file);
+        current(session);
+        const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: asset.contentType }));
+        const reference = required(asset.reference, "Read Appearance Asset Identity");
+        logos.push({ variant, url, plugin_id: reference.pluginId, asset_id: reference.assetId });
+      }
     }
     current(session);
     return {
       appearance,
       logos,
       dispose,
-      unavailableReason: appearance.logos.length
-        ? "Host logo assets are unavailable until the host supplies appearance content delivery."
-        : undefined,
+      unavailableReason:
+        appearance.logos.length !== logos.length
+          ? "Host logo assets are unavailable until the host supplies appearance content delivery."
+          : undefined,
     };
   } catch (error) {
     dispose();

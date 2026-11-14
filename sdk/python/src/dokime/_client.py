@@ -29,6 +29,7 @@ import grpc
 from _dokime_resources import (
     CyclesResource,
     ExecutionsResource,
+    FilesResource,
     PluginsResource,
     PromptsResource,
     ReportsResource,
@@ -60,6 +61,7 @@ class MissingServiceError(RuntimeError):
 
 
 class Client(Resource):
+    files: "Files"
     plugins: "Plugins"
     suites: "Suites"
     cycles: "Cycles"
@@ -80,6 +82,7 @@ class Client(Resource):
             for service in definition.service:
                 selected = descriptor_pool.Default().FindServiceByName(f"{definition.package}.{service.name}")
                 self._methods.extend(selected.methods)
+        self.files = Files(self)
         self.plugins = Plugins(self)
         self.suites = Suites(self)
         self.templates = Templates(self)
@@ -118,6 +121,56 @@ class Client(Resource):
             return
         self.closed = True
         await self.channel.close()
+
+
+class Files(FilesResource):
+    async def upload(self, path: str | Path) -> Message:
+        request_id = str(uuid4())
+        with Path(path).open("rb") as source:
+            created = await self._client.call(
+                message(
+                    "dokime.client.v1.files.UploadsCreateRequest",
+                    metadata={"expected_length": os.fstat(source.fileno()).st_size},
+                    request_id=f"{request_id}/create",
+                )
+            )
+            session = created.production.session
+            try:
+                if not 0 < created.chunk_bytes < created.message_bytes:
+                    raise ValueError("Upload File: Invalid Transfer Limits")
+                digest = hashlib.sha256()
+                offset = 0
+                while data := source.read(created.chunk_bytes):
+                    reply = await self._client.call(
+                        message(
+                            "dokime.client.v1.files.UploadsAppendRequest",
+                            session=session,
+                            offset=offset,
+                            data=data,
+                            request_id=f"{request_id}/append/{offset}",
+                        )
+                    )
+                    offset += len(data)
+                    if reply.production.length != offset:
+                        raise ValueError("Upload File: Invalid Accepted Offset")
+                    digest.update(data)
+                published = await self._client.call(
+                    message(
+                        "dokime.client.v1.files.UploadsPublishRequest",
+                        session=session,
+                        length=offset,
+                        sha256=digest.digest(),
+                        request_id=f"{request_id}/publish",
+                    )
+                )
+                if published.file.length != offset or published.file.sha256 != digest.digest():
+                    raise ValueError("Upload File: Published Length or SHA-256 Changed")
+                return published.file
+            except BaseException:
+                await self._client.call(
+                    message("dokime.client.v1.files.UploadsDeleteRequest", session=session, request_id=f"{request_id}/abandon")
+                )
+                raise
 
 
 class Plugins(PluginsResource):
@@ -279,11 +332,9 @@ class Reports(ReportsResource):
                 "dokime.client.v1.ReportsCreateRequest", subject={"execution": execution}, document_id=document, request_id=str(uuid4())
             )
         )
-        from harmos.v1.storage_pb2 import StorageGetFileBytesRequest
-
         data = bytearray()
         while True:
-            page = await self._client.storage.get_file_bytes(StorageGetFileBytesRequest(file=report.file, offset=len(data)))
+            page = await self._client.call(message("dokime.client.v1.FilesReadRequest", file=report.file, offset=len(data)))
             if page.total_length != report.file.length or page.sha256 != report.file.sha256:
                 raise RuntimeError("Download Report: File Identity Changed")
             if page.total_length < len(data) + len(page.data):

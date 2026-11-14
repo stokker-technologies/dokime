@@ -27,6 +27,14 @@ public sealed class FrozenSchemaCache
   private readonly Dictionary<ByteString, FileDescriptorSet> sets = new();
   private readonly SemaphoreSlim gate = new(1, 1);
 
+  public static string MessageName(Protocol.Client.V1.ExecutionDetail detail, string identity)
+  {
+    var schemas = detail.Schemas ?? throw new ArgumentException("Decode Evidence: Supply Frozen Bindings");
+    var name = schemas.Records.FirstOrDefault(record => record.RecordType == identity)?.MessageName
+      ?? schemas.Streams.FirstOrDefault(stream => stream.Stream == identity)?.MessageName;
+    return !string.IsNullOrEmpty(name) ? name : throw new InvalidDataException("Decode Evidence: Missing Frozen Binding");
+  }
+
   public async Task<FileDescriptorSet> GetAsync(Client client, Protocol.Client.V1.ExecutionDetail detail, CallOptions options = default)
   {
     var digest = detail.Schemas?.Digest ?? throw new ArgumentException("Read Schemas: Supply Frozen Schema Identities");
@@ -49,6 +57,8 @@ public sealed class FrozenSchemaCache
         var page = await call.ResponseAsync.ConfigureAwait(false);
         if (page.Digest != digest || page.ResolvedAt is null || (request.At is not null && !page.ResolvedAt.Equals(request.At)))
           throw new InvalidDataException("Read Schemas: Descriptor Digest or Read Cut Changed");
+        if (!page.Records.Equals(detail.Schemas.Records) || !page.Streams.Equals(detail.Schemas.Streams))
+          throw new InvalidDataException("Read Schemas: Frozen Message Bindings Changed");
         types.File.Add(page.Types_?.File ?? throw new InvalidDataException("Read Schemas: Missing Descriptor Page"));
         if (page.NextPageToken.Length == 0) break;
         if (!tokens.Add(page.NextPageToken)) throw new InvalidDataException("Read Schemas: Repeated Descriptor Page");

@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 from collections.abc import Sequence
+from hashlib import sha256
 from typing import Any
 from uuid import uuid4
 
@@ -90,7 +91,41 @@ HOST_OPERATIONS = tuple(
             "dokime.plugin.host.v1.DocumentsAppendPartsRequest",
             "dokime.plugin.host.v1.DocumentsAppendPartsResponse",
         ),
-        ("dokime.execution.artifact", "dokime.plugin.host.v1.content.PublishArtifact", "dokime.plugin.host.v1.content.ArtifactReceipt"),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Create",
+            "dokime.plugin.host.v1.files.UploadsCreateRequest",
+            "dokime.plugin.host.v1.files.UploadsCreateResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Get",
+            "dokime.plugin.host.v1.files.UploadsGetRequest",
+            "dokime.plugin.host.v1.files.UploadsGetResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Resume",
+            "dokime.plugin.host.v1.files.UploadsResumeRequest",
+            "dokime.plugin.host.v1.files.UploadsResumeResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Append",
+            "dokime.plugin.host.v1.files.UploadsAppendRequest",
+            "dokime.plugin.host.v1.files.UploadsAppendResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Publish",
+            "dokime.plugin.host.v1.files.UploadsPublishRequest",
+            "dokime.plugin.host.v1.files.UploadsPublishResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.files.Uploads/Delete",
+            "dokime.plugin.host.v1.files.UploadsDeleteRequest",
+            "dokime.plugin.host.v1.files.UploadsDeleteResponse",
+        ),
+        (
+            "dokime.plugin.host.v1.content.Artifacts/Create",
+            "dokime.plugin.host.v1.content.ArtifactsCreateRequest",
+            "dokime.plugin.host.v1.content.ArtifactsCreateResponse",
+        ),
         ("dokime.plugin.host.v1.Files/Capture", "dokime.plugin.host.v1.FilesCaptureRequest", "dokime.plugin.host.v1.FilesCaptureResponse"),
         (
             "dokime.plugin.host.v1.files.Captures/Start",
@@ -271,18 +306,51 @@ class Context:
             )
         )
 
-    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", replace: bool = False) -> Any:
-        from uuid import uuid4
-
+    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream") -> Any:
+        request_id = str(uuid4())
+        created = await self._call(
+            message(
+                "dokime.plugin.host.v1.files.UploadsCreateRequest",
+                metadata={"scope": self.execution, "media_type": mime, "expected_length": len(data)},
+                request_id=f"{request_id}/create",
+            )
+        )
+        session = created.production.session
+        try:
+            if not 0 < created.chunk_bytes < created.message_bytes:
+                raise ValueError("Publish Artifact: Invalid Upload Limits")
+            for offset in range(0, len(data), created.chunk_bytes):
+                await self._call(
+                    message(
+                        "dokime.plugin.host.v1.files.UploadsAppendRequest",
+                        session=session,
+                        offset=offset,
+                        data=data[offset : offset + created.chunk_bytes],
+                        request_id=f"{request_id}/append/{offset}",
+                    )
+                )
+            published = await self._call(
+                message(
+                    "dokime.plugin.host.v1.files.UploadsPublishRequest",
+                    session=session,
+                    length=len(data),
+                    sha256=sha256(data).digest(),
+                    request_id=f"{request_id}/publish",
+                )
+            )
+        except BaseException:
+            await self._call(
+                message("dokime.plugin.host.v1.files.UploadsDeleteRequest", session=session, request_id=f"{request_id}/abandon")
+            )
+            raise
         return await self._call(
             message(
-                "dokime.plugin.host.v1.content.PublishArtifact",
-                transfer_id=str(uuid4()),
-                name=name,
-                mime=mime,
-                data=data,
-                last=True,
-                replace=replace,
+                "dokime.plugin.host.v1.content.ArtifactsCreateRequest",
+                execution=self.execution,
+                file=published.file,
+                metadata={"identifier": name, "label": name},
+                media_type=mime,
+                request_id=f"{request_id}/attach",
             )
         )
 

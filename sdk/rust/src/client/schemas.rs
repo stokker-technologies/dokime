@@ -24,6 +24,7 @@ use std::{
 // Third Party Imports
 use harmos_protocol::v1::PageRequest;
 use prost::Message;
+use prost_reflect::{DescriptorPool, DynamicMessage};
 use prost_types::FileDescriptorSet;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Status};
@@ -53,6 +54,25 @@ pub struct FrozenSchemaCache {
 /* === Implementations === */
 
 impl FrozenSchemaCache {
+    /// Decode a Record Alias or Stream Identity Using Its Frozen Binding.
+    pub async fn decode(
+        &mut self, client: &Client, detail: &ExecutionDetail, identity: &str, payload: &[u8],
+    ) -> Result<DynamicMessage, Status> {
+        let types = self.get(client, detail).await?;
+        let schemas = detail.schemas.as_ref().ok_or_else(|| Status::invalid_argument("Decode Evidence: Supply Frozen Bindings"))?;
+        let name = schemas
+            .records
+            .iter()
+            .find(|record| record.record_type == identity)
+            .map(|record| record.message_name.as_str())
+            .or_else(|| schemas.streams.iter().find(|stream| stream.stream == identity).map(|stream| stream.message_name.as_str()))
+            .ok_or_else(|| Status::not_found("Decode Evidence: Select a Frozen Schema Identity"))?;
+        let pool = DescriptorPool::from_file_descriptor_set(types.as_ref().clone())
+            .map_err(|error| Status::data_loss(format!("Decode Evidence: Restore Frozen Descriptors: {error}")))?;
+        let message = pool.get_message_by_name(name).ok_or_else(|| Status::data_loss("Decode Evidence: Bound Message Is Missing"))?;
+        DynamicMessage::decode(message, payload).map_err(|error| Status::data_loss(format!("Decode Evidence: Invalid Payload: {error}")))
+    }
+
     /// Fetch Every Descriptor Page on a Miss; Reuse Equal Digests Across Executions.
     pub async fn get(&mut self, client: &Client, detail: &ExecutionDetail) -> Result<Arc<FileDescriptorSet>, Status> {
         let digest =
@@ -79,6 +99,9 @@ impl FrozenSchemaCache {
             let page = client.executions.schemas.get(client.request(Request::new(request.clone()))).await?.into_inner();
             if &page.digest != digest || page.resolved_at.is_none() || (request.at.is_some() && page.resolved_at != request.at) {
                 return Err(Status::data_loss("Read Schemas: Descriptor Digest or Read Cut Changed"));
+            }
+            if page.records != detail.schemas.as_ref().unwrap().records || page.streams != detail.schemas.as_ref().unwrap().streams {
+                return Err(Status::data_loss("Read Schemas: Frozen Message Bindings Changed"));
             }
             types.file.extend(page.types.ok_or_else(|| Status::data_loss("Read Schemas: Missing Descriptor Page"))?.file);
             if page.next_page_token.is_empty() {

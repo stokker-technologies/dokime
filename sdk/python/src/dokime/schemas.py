@@ -62,6 +62,8 @@ class FrozenSchemaCache:
                     raise ValueError("Read Schemas: Descriptor Digest or Read Cut Changed")
                 if not page.HasField("types"):
                     raise ValueError("Read Schemas: Missing Descriptor Page")
+                if page.records != detail.schemas.records or page.streams != detail.schemas.streams:
+                    raise ValueError("Read Schemas: Frozen Message Bindings Changed")
                 types.file.extend(page.types.file)
                 if not page.next_page_token:
                     break
@@ -92,8 +94,12 @@ class FrozenSchemaCache:
                     added.add(item.name)
                     del pending[item.name]
             self._pools[digest] = pool
+        bindings = {record.record_type: record.message_name for record in detail.schemas.records}
+        bindings.update({stream.stream: stream.message_name for stream in detail.schemas.streams})
+        if name not in bindings or not bindings[name]:
+            raise ValueError(f"Decode Evidence: Missing Frozen Binding {name}")
         try:
-            descriptor = self._pools[digest].FindMessageTypeByName(name)
+            descriptor = self._pools[digest].FindMessageTypeByName(bindings[name])
         except KeyError as error:
             raise ValueError(f"Decode Evidence: Unknown Frozen Message {name}") from error
         return message_factory.GetMessageClass(descriptor).FromString(payload)

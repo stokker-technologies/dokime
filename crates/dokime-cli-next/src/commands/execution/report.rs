@@ -23,6 +23,9 @@ use sha2::Digest;
 
 // Local Imports
 use dokime_protocol::client;
+use dokime_protocol::client::{FilesGetRequest, FilesReadRequest};
+use sha2::Sha256;
+use std::path::Path;
 
 /* === Constants === */
 
@@ -62,23 +65,28 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     };
     let report = client.reports.create(settings.request(request)).await?.into_inner();
     let reference = report.file.ok_or("Fetch Report: Missing File Reference")?;
-    let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
     let mut offset = 0;
-    let mut hash = sha2::Sha256::new();
-    let mut at = report.resolved_at;
+    let mut hash = Sha256::new();
+    let selected = client.files.get(settings.request(FilesGetRequest { file: Some(reference.clone()), at: None })).await?.into_inner();
+    let selected_file = selected.file.ok_or("Fetch Report: Missing Selected File")?;
+    if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
+        return Err("Fetch Report: Selected File Identity Changed".into());
+    }
+    let mut at = selected.resolved_at;
     while offset < reference.length {
-        let max_bytes = (settings.message_bytes.get().saturating_sub(1024) as u64).min(reference.length - offset);
+        let max_bytes = (settings.message_bytes.get().saturating_sub(1024) as u64).min(selected.chunk_bytes).min(selected.message_bytes.saturating_sub(1024)).min(reference.length - offset);
         if max_bytes == 0 {
             return Err(crate::error::Error::Capacity("Fetch Report: Increase message_bytes".into()));
         }
-        let request = dokime::client::v1::StorageGetFileBytesRequest {
+        let request = FilesReadRequest {
             file: Some(reference.clone()),
             offset,
             max_bytes,
             at: at.clone(),
         };
-        let page = client.storage.get_file_bytes(settings.request(request)).await?.into_inner();
+        let page = client.files.read(settings.request(request)).await?.into_inner();
         if page.total_length != reference.length
             || page.sha256 != reference.sha256
             || page.data.is_empty()

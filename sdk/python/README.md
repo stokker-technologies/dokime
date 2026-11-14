@@ -249,3 +249,7 @@ The async `Client` exposes the library resource root, including
 Use requests from the matching `harmos.v1.access` modules. Generic identity and
 health use `client.status.get`; logs, trace events and diagnostics are nested
 under that same root. Connection identity checks use the library's stable host ID.
+
+`await client.files.upload(path)` publishes a local file using the host's returned
+chunk/message limits and verifies its length/SHA-256. `FrozenSchemaCache.decode`
+accepts a frozen record or stream identity and resolves its `message_name` binding.

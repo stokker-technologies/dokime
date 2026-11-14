@@ -288,7 +288,7 @@ export async function fetchNativeCheckpointRecords(
   });
   if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Records: Retained Cut Changed");
   const registry = await executionSchemas(session).get(session, execution);
-  const decoded = decodeFrozenRecords(reply.records, registry);
+  const decoded = decodeFrozenRecords(reply.records, registry, execution.schemas?.records);
   return {
     records: reply.records.map((record, index) => ({ record, epoch: checkpoint.position.history.epoch, decoded: decoded[index] })),
     nextAfter: reply.nextPageToken || null,
@@ -394,7 +394,7 @@ export async function readNativeCheckpointOutput(
   const offset = options.offset ?? 0n;
   const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
   if (offset < 0n || maxBytes < 1 || maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES) throw new Error("Read Checkpoint File: Invalid Window");
-  const reply = await rpc.storageGetFileBytes(session, { file, offset, maxBytes: BigInt(maxBytes), at: item.resolvedAt });
+  const reply = await rpc.filesRead(session, { file, offset, maxBytes: BigInt(maxBytes) });
   if (reply.data.length > maxBytes || reply.totalLength !== file.length || cutKey(reply.sha256) !== cutKey(file.sha256))
     throw new Error("Read Checkpoint File: Invalid Range or Digest");
   return { ...required(item.metadata, "Read Checkpoint File Metadata"), offset, data: reply.data, observedSizeBytes: reply.totalLength };
@@ -415,7 +415,6 @@ export async function downloadNativeCheckpointArtifact(
     session,
     required(item.file, "Read Checkpoint Artifact File"),
     signal,
-    item.resolvedAt,
     NATIVE_CHECKPOINT_ARTIFACT_BYTES,
   );
   return { metadata, bytes };

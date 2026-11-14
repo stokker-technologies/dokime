@@ -201,18 +201,9 @@ function generateFrontend() {
     for (const service of file.service) {
       if (
         libraryFile &&
-        ![
-          "Status",
-          "Listener",
-          "Pairings",
-          "Certificates",
-          "Logs",
-          "TraceEvents",
-          "Diagnostics",
-          "CatalogEntries",
-          "Storage",
-          "Invocations",
-        ].includes(service.name)
+        !["Status", "Listener", "Pairings", "Certificates", "Logs", "TraceEvents", "Diagnostics", "CatalogEntries", "Invocations"].includes(
+          service.name,
+        )
       )
         continue;
       for (const method of service.method) {

@@ -22,7 +22,10 @@ use std::path::{Path, PathBuf};
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
 use dokime_protocol::client;
+use dokime_protocol::client::FilesReadRequest;
+use dokime_protocol::client::FilesReadResponse;
 use sha2::{Digest, Sha256};
+use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
 /* === Constants === */
@@ -209,15 +212,15 @@ pub(crate) async fn fetch_verified(
         destination.parent().ok_or_else(|| DeliveryError::local(DeliveryStage::Prepare, "Select a destination with a parent directory"))?;
     tokio::fs::create_dir_all(directory).await.map_err(write_error)?;
     let staged = tempfile::NamedTempFile::new_in(directory).map_err(write_error)?;
-    let mut file = tokio::fs::File::from_std(staged.reopen().map_err(write_error)?);
+    let mut file = File::from_std(staged.reopen().map_err(write_error)?);
     let mut digest = Sha256::new();
     let mut offset = 0;
     let mut at = None;
     while offset < reference.length {
-        let reply: dokime_sdk::client::v1::StorageGetFileBytesResponse = session
+        let reply: FilesReadResponse = session
             .unary(
-                "/harmos.v1.Storage/GetFileBytes",
-                dokime_sdk::client::v1::StorageGetFileBytesRequest {
+                "/dokime.client.v1.Files/Read",
+                FilesReadRequest {
                     file: Some(reference.clone()),
                     offset,
                     max_bytes: frame_bytes as u64,

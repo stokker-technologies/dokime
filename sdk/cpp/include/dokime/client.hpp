@@ -11,11 +11,11 @@
 
 /* === Imports === */
 
-#include "dokime/client/v1/content.grpc.pb.h"
 #include "dokime/client/v1/plugins.grpc.pb.h"
 #include "dokime/resources.hpp"
 #include "harmos/client.hpp"
 #include <functional>
+#include <filesystem>
 #include <grpcpp/grpcpp.h>
 #include <map>
 #include <stdexcept>
@@ -43,12 +43,19 @@ private:
   grpc::Status status_;
 };
 
+class Files : public resources::FilesResource {
+public:
+  explicit Files(std::shared_ptr<grpc::Channel> channel) : resources::FilesResource(std::move(channel)) {}
+  ::harmos::storage::v1::FileReference upload(const std::filesystem::path &path, const std::function<void(grpc::ClientContext &)> &configure = {});
+};
+
 class Client : public resources::Client {
 public:
-  explicit Client(std::shared_ptr<grpc::Channel> channel) : resources::Client(channel), channel_(std::move(channel)) {
+  explicit Client(std::shared_ptr<grpc::Channel> channel) : resources::Client(channel), files(channel), channel_(std::move(channel)) {
     if (!channel_)
       throw std::invalid_argument("Client Channel Is Required");
   }
+  Files files;
   static Client connect(std::string address, std::shared_ptr<grpc::ChannelCredentials> credentials = grpc::InsecureChannelCredentials());
   template <class Service> auto stub() const { return Service::NewStub(channel_); }
   const std::shared_ptr<grpc::Channel> &channel() const { return channel_; }
@@ -68,6 +75,7 @@ private:
 // Caller-Owned Cache; Confine It to One Thread or Synchronize Access.
 class FrozenSchemaCache {
 public:
+  static std::string message_name(const ::dokime::client::v1::ExecutionDetail &detail, const std::string &identity);
   std::shared_ptr<const google::protobuf::FileDescriptorSet> get(const Client &client, const ::dokime::client::v1::ExecutionDetail &detail,
                                                                  const std::function<void(grpc::ClientContext &)> &configure = {});
 

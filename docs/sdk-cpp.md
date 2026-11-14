@@ -202,3 +202,8 @@ and `dokime.plugin.host.v1.evidence.Traceability/Set` contracts. Get selects the
 Set replaces the whole entry with that revision and a caller-retained request ID.
 The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
 position-resolved history pages and a bounded durable change stream.
+
+`client.files.upload(path)` publishes a local file through Files.Uploads, using
+its returned transfer limits and verifying the published length and SHA-256.
+`FrozenSchemaCache::message_name(detail, identity)` resolves record and stream
+aliases to the fully qualified protobuf message in the frozen descriptors.

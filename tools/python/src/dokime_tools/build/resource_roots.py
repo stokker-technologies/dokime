@@ -119,7 +119,12 @@ def generate(check: bool = False) -> None:
             descriptors.file.append(file)
     # Ordinary Contracts Awaiting Direct Library Composition Stay Off SDK Roots.
     for file in descriptors.file:
-        if file.name in ("dokime/client/v1/plugins.proto", "dokime/client/v1/content.proto", "harmos/v1/storage.proto", "harmos/context/v1/storage.proto"):
+        if file.name in (
+            "dokime/client/v1/plugins.proto",
+            "dokime/client/v1/content.proto",
+            "harmos/v1/storage.proto",
+            "harmos/context/v1/storage.proto",
+        ):
             file.ClearField("service")
     methods = table(descriptors, generator["snake"])
     clients = [method for method in methods if method["face"] == "client"]

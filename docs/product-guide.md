@@ -74,8 +74,7 @@ list prints one response per page and continues with that page's retained cut;
 `--page-size` bounds each response.
 `execution show` accepts several execution IDs and `--schemas` fetches frozen
 descriptors through Executions.Schemas.Get once per digest within the command.
-The frozen record/stream metadata currently lacks the ID-to-message-name binding;
-automatic payload decoding therefore remains unavailable.
+Frozen record/stream metadata and every descriptor page carry each identity's fully qualified `message_name` binding for payload decoding.
 
 `plan preview/register --input-file` accepts canonical CasesCreateRequest JSON:
 `{"plan":{"selections":[{"suite_id":"SUITE","template_id":"TEMPLATE"}]},"request_id":"selection-1"}`.
@@ -87,12 +86,11 @@ are generated for a single command invocation. Whole-value metadata changes use
 the final Set request with Get's complete writable value, `expected_revision`
 and a retained `request_id`; raw delivery awaits the discovery registration above.
 
-Report commands prepare with Reports.Create, read bounded library Storage.GetFileBytes
+Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an
 existing file. Rendering and downloading do not publish a report. Product content
-byte delivery is currently refused as an unregistered Storage.GetFileBytes operation;
-it requires the library content-source composition recorded in the Operation Grammar
-library requests. The CLI does not duplicate that owner.
+byte delivery verifies the file length, SHA-256 and retained read cut;
+the product serves those resources over its current content store.
 
 The desktop embeds the same host and also attaches to a pinned remote host.
 Product packaging includes the portable desktop distribution and native Windows

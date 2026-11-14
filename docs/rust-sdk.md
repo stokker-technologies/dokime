@@ -164,7 +164,7 @@ the generated messages and their declared requirements.
 `dokime.plugin.host.v1.evidence.Records/Append` or
 `dokime.plugin.host.v1.Prompts/Create`. The retained, uncomposed settings, secret
 and artifact requirements remain `dokime.settings.read`, `dokime.secrets.read`
-and `dokime.execution.artifact`; their payloads now belong to plugin-host.
+and product file uploads; their payloads belong to plugin-host.
 Settings declarations and prompt definitions use shared `SettingsDeclarations`
 and `PromptDefinitions` messages.
 `ctx.sleep` and `ctx.now` require `dokime::clock::TimeSleepRequest` and `dokime::clock::TimeGetRequest`;
@@ -354,3 +354,8 @@ contracts. Get selects the execution and entry name and returns its revision;
 Set replaces the whole entry with that revision and a caller-retained request ID.
 The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
 position-resolved history pages and a bounded durable change stream.
+
+`client.files.upload(path).await?` publishes a local file through Files.Uploads
+with its returned limits and verified length/SHA-256. `FrozenSchemaCache::decode`
+resolves a record or stream identity through the execution's frozen `message_name`
+binding and decodes only against its captured descriptors.

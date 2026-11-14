@@ -135,7 +135,7 @@ var observed = await progress.ResponseAsync;
 resolve latest durable data once; reuse the returned `ResolvedAt` for a consistent
 read. Paged resources bind continuation tokens to their selection and cut. Watch
 gaps require explicit resynchronization. Downloads use bounded unary responses
-and ranged `client.Storage.GetFileBytes` reads; only watches use server streaming.
+and ranged `client.Files.Read` reads; only watches use server streaming.
 
 Execution details contain `Schemas.Digest` and display identities. Fetch frozen
 descriptors through `client.Executions.Schemas.Get` only when that digest is absent
@@ -218,3 +218,8 @@ contracts. Get selects the execution and entry name and returns its revision;
 Set replaces the whole entry with that revision and a caller-retained request ID.
 The client root exposes `client.Evidence.Traceability.Get` and `.Watch`, with scoped,
 position-resolved history pages and a bounded durable change stream.
+
+`await client.Files.UploadAsync(path)` publishes a local file through Files.Uploads,
+using the returned chunk/message limits and verifying its final length and SHA-256.
+Frozen schemas expose `MessageName` for each record and stream;
+`FrozenSchemaCache.MessageName(detail, identity)` resolves an alias for a decoder.
