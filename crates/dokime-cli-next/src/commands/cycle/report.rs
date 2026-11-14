@@ -76,7 +76,10 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     let mut at = selected.resolved_at;
     while offset < reference.length {
-        let max_bytes = (settings.message_bytes.get().saturating_sub(1024) as u64).min(selected.chunk_bytes).min(selected.message_bytes.saturating_sub(1024)).min(reference.length - offset);
+        let max_bytes = (settings.message_bytes.get().saturating_sub(1024) as u64)
+            .min(selected.chunk_bytes)
+            .min(selected.message_bytes.saturating_sub(1024))
+            .min(reference.length - offset);
         if max_bytes == 0 {
             return Err(crate::error::Error::Capacity("Fetch Report: Increase message_bytes".into()));
         }

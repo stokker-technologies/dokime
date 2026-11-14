@@ -252,8 +252,6 @@ impl Request for EffectsSetRequest {
     const ID: &'static str = "dokime.plugin.host.v1.Effects/Set";
 }
 
-
-
 /* === Public Functions === */
 
 /* === Private Functions === */

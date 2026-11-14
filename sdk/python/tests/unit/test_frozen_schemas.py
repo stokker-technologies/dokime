@@ -44,11 +44,15 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
         self.detail = message(
             "dokime.client.v1.ExecutionDetail",
             summary={"execution_id": "first"},
-            schemas={"digest": self.digest},
+            schemas={"digest": self.digest, "records": [{"record_type": "flag", "message_name": BoolValue.DESCRIPTOR.full_name}]},
             resolved_at={"sequence": 1},
         )
         self.reply = message(
-            "dokime.client.v1.executions.SchemasGetResponse", digest=self.digest, types=self.types, resolved_at=self.detail.resolved_at
+            "dokime.client.v1.executions.SchemasGetResponse",
+            digest=self.digest,
+            types=self.types,
+            records=self.detail.schemas.records,
+            resolved_at=self.detail.resolved_at,
         )
         self.get = AsyncMock(return_value=self.reply)
         self.client = SimpleNamespace(executions=SimpleNamespace(schemas=SimpleNamespace(get=self.get)))
@@ -65,11 +69,11 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
         request = self.get.await_args.args[0]
         self.assertEqual(request.name, "first")
         self.assertEqual(request.at, self.detail.resolved_at)
-        decoded = await cache.decode(self.client, self.detail, BoolValue.DESCRIPTOR.full_name, BoolValue(value=True).SerializeToString())
+        decoded = await cache.decode(self.client, self.detail, "flag", BoolValue(value=True).SerializeToString())
         self.assertEqual(decoded.SerializeToString(), BoolValue(value=True).SerializeToString())
 
     async def test_rejected_pages_do_not_poison_the_cache(self) -> None:
-        for change in ("digest", "cut", "missing", "bytes"):
+        for change in ("digest", "cut", "missing", "bindings", "bytes"):
             cache = dokime.FrozenSchemaCache()
             damaged = type(self.reply).FromString(self.reply.SerializeToString())
             if change == "digest":
@@ -78,6 +82,8 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
                 damaged.resolved_at.sequence = 2
             elif change == "missing":
                 damaged.ClearField("types")
+            elif change == "bindings":
+                damaged.records[0].message_name = "absent.Message"
             else:
                 damaged.types.file[0].package = "changed"
             self.get.return_value = damaged
@@ -94,6 +100,8 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
         row.field.add(name="flag", number=1, label=1, type=11, type_name=".google.protobuf.BoolValue")
         combined = descriptor_pb2.FileDescriptorSet(file=[consumer, self.types.file[0]])
         self.detail.schemas.digest = sha256(combined.SerializeToString()).digest()
+        self.detail.schemas.records[0].record_type = "reading"
+        self.detail.schemas.records[0].message_name = "example.Row"
         seen = []
 
         async def get(request):
@@ -103,13 +111,14 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
                 "dokime.client.v1.executions.SchemasGetResponse",
                 digest=self.detail.schemas.digest,
                 types={"file": [combined.file[index]]},
+                records=self.detail.schemas.records,
                 resolved_at=self.detail.resolved_at,
                 next_page_token="next" if index == 0 else "",
             )
 
         self.get.side_effect = get
         cache = dokime.FrozenSchemaCache()
-        decoded = await cache.decode(self.client, self.detail, "example.Row", b"\x0a\x02\x08\x01")
+        decoded = await cache.decode(self.client, self.detail, "reading", b"\x0a\x02\x08\x01")
         self.assertEqual(decoded.SerializeToString(), b"\x0a\x02\x08\x01")
         self.assertEqual([request.page.page_token for request in seen], ["", "next"])
         self.assertTrue(all(request.at == self.detail.resolved_at for request in seen))

@@ -26,6 +26,12 @@ use tonic::{Request, Response, Status, codegen::BoxFuture};
 use super::{Gate, HttpRequest, HttpResponse, Service};
 use dokime_protocol::{client, v1};
 use dokime_sdk::client::v1 as library;
+use std::convert::Infallible;
+use std::task::Context;
+use std::task::Poll;
+use tonic::server::Grpc;
+use tonic::server::NamedService;
+use tonic::server::UnaryService;
 
 /* === Constants === */
 
@@ -53,26 +59,26 @@ struct Download(Service);
 
 /* === Implementations === */
 
-impl tonic::server::NamedService for Content {
+impl NamedService for Content {
     const NAME: &'static str = "dokime.client.v1.content.Artifacts";
 }
-impl tonic::server::NamedService for Storage {
-    const NAME: &'static str = "harmos.v1.Storage";
+impl NamedService for Storage {
+    const NAME: &'static str = "dokime.client.v1.Files";
 }
 
 impl tonic::codegen::Service<HttpRequest> for Content {
     type Response = HttpResponse;
-    type Error = std::convert::Infallible;
+    type Error = Infallible;
     type Future = BoxFuture<HttpResponse, Self::Error>;
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
     fn call(&mut self, request: HttpRequest) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
                 "/dokime.client.v1.content.Artifacts/Get" => {
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Metadata(service), request).await
+                    Grpc::new(tonic_prost::ProstCodec::default()).unary(Metadata(service), request).await
                 }
                 _ => Status::unimplemented("Read Artifact: Fixture Route Is Unavailable").into_http(),
             })
@@ -82,25 +88,23 @@ impl tonic::codegen::Service<HttpRequest> for Content {
 
 impl tonic::codegen::Service<HttpRequest> for Storage {
     type Response = HttpResponse;
-    type Error = std::convert::Infallible;
+    type Error = Infallible;
     type Future = BoxFuture<HttpResponse, Self::Error>;
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
     fn call(&mut self, request: HttpRequest) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
-                "/harmos.v1.Storage/GetFileBytes" => {
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await
-                }
+                "/dokime.client.v1.Files/Read" => Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await,
                 _ => Status::unimplemented("Read File Bytes: Fixture Route Is Unavailable").into_http(),
             })
         })
     }
 }
 
-impl tonic::server::UnaryService<client::content::ArtifactsGetRequest> for Metadata {
+impl UnaryService<client::content::ArtifactsGetRequest> for Metadata {
     type Response = client::content::ArtifactsGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<client::content::ArtifactsGetRequest>) -> Self::Future {
@@ -131,10 +135,10 @@ impl tonic::server::UnaryService<client::content::ArtifactsGetRequest> for Metad
     }
 }
 
-impl tonic::server::UnaryService<library::StorageGetFileBytesRequest> for Download {
-    type Response = library::StorageGetFileBytesResponse;
+impl UnaryService<client::FilesReadRequest> for Download {
+    type Response = client::FilesReadResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<library::StorageGetFileBytesRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<client::FilesReadRequest>) -> Self::Future {
         let settings = self.0.download.lock().unwrap().clone();
         Box::pin(async move {
             let request = request.into_inner();
@@ -152,7 +156,7 @@ impl tonic::server::UnaryService<library::StorageGetFileBytesRequest> for Downlo
             if settings.corrupt && !data.is_empty() {
                 data[0] ^= 1;
             }
-            let mut reply = library::StorageGetFileBytesResponse {
+            let mut reply = client::FilesReadResponse {
                 data,
                 total_length: original.len() as u64,
                 sha256: Sha256::digest(&original).to_vec(),

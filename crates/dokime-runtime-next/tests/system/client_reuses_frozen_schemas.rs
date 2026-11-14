@@ -33,6 +33,7 @@ use dokime_protocol::client::{
     plugins_client::PluginsClient,
 };
 use dokime_runtime_next::PluginProcess;
+use tonic::Code;
 
 /* === Constants === */
 
@@ -101,7 +102,7 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         let types = cache.get(&client, &first).await?;
         let pool = DescriptorPool::from_file_descriptor_set((*types).clone())?;
         let message = pool.get_message_by_name("thermal.v1.Door").unwrap();
-        let door = DynamicMessage::decode(message.clone(), records[0].payload.as_slice())?;
+        let door = cache.decode(&client, &first, &records[0].record_type, records[0].payload.as_slice()).await?;
         assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));
 
         // Refuse Invalid Continuations and a Page Too Small for One Descriptor.
@@ -124,7 +125,7 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         assert!(schemas.get(request.clone()).await.is_err());
         request.name = executions[0].clone();
         request.page.as_mut().unwrap().max_bytes = 1;
-        assert_eq!(schemas.get(request).await.unwrap_err().code(), tonic::Code::ResourceExhausted);
+        assert_eq!(schemas.get(request).await.unwrap_err().code(), Code::ResourceExhausted);
 
         // Close the Host: A Second Execution Must Decode Without Another Fetch.
         process.close().await?;

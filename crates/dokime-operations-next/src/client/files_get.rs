@@ -22,6 +22,8 @@ use harmos_protocol::v1::OperationContract;
 
 /* === Constants === */
 
+pub const ID: &str = "dokime.client.v1.Files/Get";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -36,7 +38,6 @@ use harmos_protocol::v1::OperationContract;
 
 /* === Public Functions === */
 
-pub const ID: &str = "dokime.client.v1.Files/Get";
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<FilesGetRequest, FilesGetResponse>(ID, settings.read_timeout)
 }

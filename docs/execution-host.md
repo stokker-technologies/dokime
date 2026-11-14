@@ -671,14 +671,14 @@ library destination. These states do not claim that consumers compile.
 `dokime.v1` is shared vocabulary only. Clients call `dokime.client.v1`; plugins
 implement the independent Protected bindings using `dokime.plugin.v1` messages;
 plugins call the host through `dokime.plugin.host.v1` messages. The SDK object
-is still named `context`. Product plugin and plugin-host files declare no services:
-they use the pinned library Instance.Invoke carrier. Private bindings stay local.
+is still named `context`. Plugin lifecycle payloads use the pinned library
+Instance.Invoke carrier. Plugin-host Files declares its resource contracts; unary
+methods use invocation-scoped child calls. Private bindings stay local.
 
-The retained Plugins and Content services live in `client/v1/plugins.proto` and
-the product Files resources. They keep their existing methods and streaming shapes
-until direct library composition and are excluded from generated client roots.
-Pending settings, secret and artifact-transfer messages live with their plugin-host
-resources. The library vendoring, packages and generated references remain pinned.
+The retained Plugins service lives in `client/v1/plugins.proto` and stays excluded
+from generated client roots until direct library composition. Product Files and
+Files.Uploads are generated client resources. Pending settings and secret messages
+live with their plugin-host resources. The library vendoring and revision remain pinned.
 
 | Present Identity | Final Wire Identity or Lifecycle Binding | Request | Response | Boundary | State |
 | --- | --- | --- | --- | --- | --- |

@@ -21,6 +21,13 @@ use std::{fs, path::Path};
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::builders::Plot as PlotBuilder;
+use dokime_protocol::v1::PlotKind;
+use harmos_protocol::plugin::InstanceGetResponse;
+use prost_reflect::ReflectMessage;
+use prost_types::Duration;
+use prost_types::Timestamp;
+use std::error::Error;
 
 /* === Constants === */
 
@@ -44,7 +51,7 @@ use std::{fs, path::Path};
 
 #[test]
 fn retired_plot_kinds_require_explicit_replacements() {
-    use dokime_protocol::v1::PlotKind;
+    use PlotKind;
     for (name, number, replacement) in [
         ("GROUPED_BAR", 3, "BAR"),
         ("STACKED_BAR", 4, "BAR"),
@@ -82,7 +89,7 @@ fn retired_plot_kinds_require_explicit_replacements() {
 }
 
 #[test]
-fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
+fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
     // Regenerate Into Disposable Output.
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output_root = root.join("target/generated/rust/dokime-protocol");
@@ -91,8 +98,8 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
     crate::protocol::generate(&root, output.path())?;
 
     // Match the Vendored Contract to Its Published Type Owner.
-    use prost_reflect::ReflectMessage;
-    let published = harmos_protocol::plugin::InstanceGetResponse::default().descriptor().parent_file();
+    use ReflectMessage;
+    let published = InstanceGetResponse::default().descriptor().parent_file();
     let vendored = dokime_protocol::descriptor_pool().get_file_by_name(published.name()).expect("vendored Harmos source");
     let mut published = published.file_descriptor_proto().clone();
     let mut vendored = vendored.file_descriptor_proto().clone();
@@ -128,11 +135,10 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn typed_plot_builders_produce_canonical_document_messages() {
-    use dokime_protocol::builders::Plot;
     use dokime_protocol::v1::*;
     use prost::Message;
     let scan = FieldReference::new("scan");
-    let surface = Plot::contour(scan.field("temperature").scale(1.0))
+    let surface = PlotBuilder::contour(scan.field("temperature").scale(1.0))
         .x(scan.field("position_x"))
         .y(scan.field("position_y"))
         .label("Temperature Map")
@@ -143,7 +149,7 @@ fn typed_plot_builders_produce_canonical_document_messages() {
     assert_eq!(surface.y.len(), 1);
     let data_expression::Kind::Transform(transform) = surface.z.as_ref().unwrap().kind.as_ref().unwrap() else { panic!("typed scale") };
     assert_eq!(transform.kind, Some(transform_expression::Kind::Scale(1.0)));
-    let grid = Plot::grid_chart(scan.field("value"))
+    let grid = PlotBuilder::grid_chart(scan.field("value"))
         .row(scan.field("row_key"))
         .column(scan.field("column_key"))
         .frame(scan.field("timestamp"))
@@ -165,18 +171,21 @@ fn typed_plot_builders_produce_canonical_document_messages() {
     let document = Document::new("Scan").section(Section::new("Map").plot(surface).plot(grid));
     assert_eq!(Document::decode(document.encode_to_vec().as_slice()).unwrap(), document);
     let variants = [
-        Plot::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Grouped),
-        Plot::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Stacked),
-        Plot::bar(scan.field("value")).x(scan.field("category")).pareto(true),
-        Plot::pie(scan.field("value")).x(scan.field("category")).hole(0.5),
-        Plot::xy(scan.field("value")).x(scan.field("position")).interval(XyInterval::Sigma),
+        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Grouped),
+        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Stacked),
+        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).pareto(true),
+        PlotBuilder::pie(scan.field("value")).x(scan.field("category")).hole(0.5),
+        PlotBuilder::xy(scan.field("value")).x(scan.field("position")).interval(XyInterval::Sigma),
     ];
     assert_eq!(variants[0].arrangement, Some(BarArrangement::Grouped as i32));
     assert_eq!(variants[1].arrangement, Some(BarArrangement::Stacked as i32));
     assert!(variants[2].pareto);
     assert_eq!(variants[3].hole, Some(0.5));
     assert_eq!(variants[4].interval, Some(XyInterval::Sigma as i32));
-    assert_eq!(Plot::contour(scan.field("value")).id("stable").label("Temperature Map").metadata.as_ref().unwrap().identifier, "stable");
+    assert_eq!(
+        PlotBuilder::contour(scan.field("value")).id("stable").label("Temperature Map").metadata.as_ref().unwrap().identifier,
+        "stable"
+    );
 }
 
 #[test]
@@ -185,7 +194,7 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
     let pool = dokime_protocol::descriptor_pool();
     let mut methods = Vec::new();
     for service in pool.services().filter(|service| service.package_name().starts_with("dokime.")) {
-        assert!(service.package_name().starts_with("dokime.client.v1"));
+        assert!(service.package_name().starts_with("dokime.client.v1") || service.package_name().starts_with("dokime.plugin.host.v1"));
         assert_eq!(service.parent_file().services().count(), 1);
         assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", heck::AsSnakeCase(service.name())));
         for method in service.methods() {
@@ -199,7 +208,17 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
             assert_eq!(method.is_server_streaming(), method.name() == "Watch");
             if matches!(
                 method.name(),
-                "Get" | "List" | "Watch" | "Parameters" | "Steps" | "Schema" | "Analyses" | "Appearance" | "Statistics" | "Archive"
+                "Get"
+                    | "List"
+                    | "Read"
+                    | "Watch"
+                    | "Parameters"
+                    | "Steps"
+                    | "Schema"
+                    | "Analyses"
+                    | "Appearance"
+                    | "Statistics"
+                    | "Archive"
             ) {
                 assert!(method.input().get_field_by_name("at").unwrap().supports_presence());
                 assert!(method.output().get_field_by_name("resolved_at").is_some());
@@ -223,7 +242,9 @@ fn descriptors_separate_faces_and_use_resource_wrappers() {
     for message in
         pool.all_messages().filter(|message| message.package_name() == "dokime.v1" || message.package_name().starts_with("dokime.plugin."))
     {
-        assert_eq!(message.parent_file().services().count(), 0);
+        if message.package_name() == "dokime.v1" || message.package_name() == "dokime.plugin.v1" {
+            assert_eq!(message.parent_file().services().count(), 0);
+        }
     }
 }
 
@@ -271,7 +292,7 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
                 streams: vec!["measurement.samples".into()],
                 ..Default::default()
             }),
-            started_at: Some(prost_types::Timestamp { seconds: 1_700_000_000, nanos: 17 }),
+            started_at: Some(Timestamp { seconds: 1_700_000_000, nanos: 17 }),
         })),
     };
     let planned = CasesCreateResponse {
@@ -306,10 +327,10 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
 
 #[test]
 fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
+    use ReflectMessage;
     use dokime_protocol::{plugin, v1};
     use harmos_protocol::v1::{Catalog, OperationContract, OperationPolicy, Visibility};
     use prost::Message;
-    use prost_reflect::ReflectMessage;
 
     // Independent Dotted Bindings Share One Typed Step Payload Family.
     let mut catalog = Catalog::default();
@@ -320,7 +341,7 @@ fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
             response: plugin::StepsExecuteResponse::default().descriptor().full_name().into(),
             visibility: Visibility::Protected as i32,
             policy: Some(OperationPolicy {
-                timeout: Some(prost_types::Duration { seconds, nanos: 0 }),
+                timeout: Some(Duration { seconds, nanos: 0 }),
                 ..Default::default()
             }),
             ..Default::default()

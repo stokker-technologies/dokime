@@ -22,6 +22,8 @@ use harmos_protocol::v1::OperationContract;
 
 /* === Constants === */
 
+pub const ID: &str = "dokime.client.v1.files.Uploads/Publish";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -36,7 +38,6 @@ use harmos_protocol::v1::OperationContract;
 
 /* === Public Functions === */
 
-pub const ID: &str = "dokime.client.v1.files.Uploads/Publish";
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<UploadsPublishRequest, UploadsPublishResponse>(ID, settings.mutation_timeout)
 }

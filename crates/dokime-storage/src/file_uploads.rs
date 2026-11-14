@@ -7,7 +7,7 @@
  * ***
  */
 
-// Portable Content Names
+// File Uploads
 
 /* === Modules === */
 
@@ -43,29 +43,42 @@ use sha2::{Digest, Sha256};
 
 impl Store {
     pub fn create_file_upload(&self, request: UploadsCreateRequest, chunk_bytes: u64, message_bytes: u64) -> Result<UploadsCreateResponse> {
-        self.file_mutation("Files.Uploads/Create", &request.request_id, &request, |tx, receipt| {
-            let mut metadata = request.metadata.clone().ok_or_else(|| Error::Invalid("Create Upload: Supply File Metadata".into()))?;
-            if metadata.id.is_empty() {
-                metadata.id = format!("upload-{}", hex(&Sha256::digest(request.request_id.as_bytes())));
-            }
-            if let Some(scope) = metadata.scope.as_deref().filter(|scope| !scope.is_empty()) {
-                require_open(tx, scope)?;
-            }
-            tx.execute(
-                "INSERT INTO content_objects VALUES(?1,?2,?1,0,?3,0,'',1)",
-                params![metadata.id, metadata.scope.as_deref().unwrap_or_default(), Vec::<u8>::new()],
-            )?;
-            tx.execute("INSERT INTO file_uploads VALUES(?1,?2,1)", params![metadata.id, metadata.encode_to_vec()])?;
-            Ok(UploadsCreateResponse {
-                production: Some(FileProducer {
-                    session: Some(self.file_session(&metadata, 1)),
-                    length: 0,
-                }),
-                receipt: Some(receipt),
-                chunk_bytes,
-                message_bytes,
-            })
-        })
+        self.file_mutation(
+            &format!(
+                "Files.Uploads/Create/{}",
+                request.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref()).unwrap_or_default()
+            ),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let mut metadata = request.metadata.clone().ok_or_else(|| Error::Invalid("Create Upload: Supply File Metadata".into()))?;
+                if metadata.id.is_empty() {
+                    metadata.id = format!(
+                        "upload-{}",
+                        hex(&Sha256::digest(
+                            format!("{}/{}", metadata.scope.as_deref().unwrap_or_default(), request.request_id).as_bytes()
+                        ))
+                    );
+                }
+                if let Some(scope) = metadata.scope.as_deref().filter(|scope| !scope.is_empty()) {
+                    require_open(tx, scope)?;
+                }
+                tx.execute(
+                    "INSERT INTO content_objects VALUES(?1,?2,?1,0,?3,0,'',1)",
+                    params![metadata.id, metadata.scope.as_deref().unwrap_or_default(), Vec::<u8>::new()],
+                )?;
+                tx.execute("INSERT INTO file_uploads VALUES(?1,?2,1)", params![metadata.id, metadata.encode_to_vec()])?;
+                Ok(UploadsCreateResponse {
+                    production: Some(FileProducer {
+                        session: Some(self.file_session(&metadata, 1)),
+                        length: 0,
+                    }),
+                    receipt: Some(receipt),
+                    chunk_bytes,
+                    message_bytes,
+                })
+            },
+        )
     }
     pub fn file_upload(&self, file: &StagedFile) -> Result<(FileMetadata, FileProgress, u64)> {
         self.check_file_history(file.history.as_ref())?;
@@ -121,118 +134,146 @@ impl Store {
         bytes.map(|bytes| FileMetadata::decode(bytes.as_slice()).map_err(Error::from)).transpose()
     }
     pub fn resume_file_upload(&self, request: UploadsResumeRequest, chunk_bytes: u64, message_bytes: u64) -> Result<UploadsResumeResponse> {
-        self.file_mutation("Files.Uploads/Resume", &request.request_id, &request, |tx, receipt| {
-            let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Resume Upload: Supply Its Writer Session".into()))?;
-            let (metadata, progress, generation) = self.require_file_writer(tx, session)?;
-            let generation = generation
-                .checked_add(1)
-                .filter(|generation| *generation <= i64::MAX as u64)
-                .ok_or_else(|| Error::Invalid("Resume Upload: Start a New Upload".into()))?;
-            tx.execute("UPDATE file_uploads SET generation=?2 WHERE id=?1", params![session.id, generation as i64])?;
-            Ok(UploadsResumeResponse {
-                production: Some(FileProducer {
-                    session: Some(self.file_session(&metadata, generation)),
-                    length: progress.length,
-                }),
-                receipt: Some(receipt),
-                chunk_bytes,
-                message_bytes,
-            })
-        })
+        self.file_mutation(
+            &format!("Files.Uploads/Resume/{}", request.session.as_ref().map(|session| session.id.as_str()).unwrap_or_default()),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Resume Upload: Supply Its Writer Session".into()))?;
+                let (metadata, progress, generation) = self.require_file_writer(tx, session)?;
+                let generation = generation
+                    .checked_add(1)
+                    .filter(|generation| *generation <= i64::MAX as u64)
+                    .ok_or_else(|| Error::Invalid("Resume Upload: Start a New Upload".into()))?;
+                tx.execute("UPDATE file_uploads SET generation=?2 WHERE id=?1", params![session.id, generation as i64])?;
+                Ok(UploadsResumeResponse {
+                    production: Some(FileProducer {
+                        session: Some(self.file_session(&metadata, generation)),
+                        length: progress.length,
+                    }),
+                    receipt: Some(receipt),
+                    chunk_bytes,
+                    message_bytes,
+                })
+            },
+        )
     }
     pub fn append_file_upload(&self, request: UploadsAppendRequest, chunk_bytes: usize) -> Result<UploadsAppendResponse> {
-        self.file_mutation("Files.Uploads/Append", &request.request_id, &request, |tx, receipt| {
-            let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Append Upload: Supply Its Writer Session".into()))?;
-            let (_, progress, _) = self.require_file_writer(tx, session)?;
-            if request.offset != progress.length || request.data.is_empty() || request.data.len() > chunk_bytes {
-                return Err(Error::Invalid("Append Upload: Send One Bounded Chunk at the Accepted Offset".into()));
-            }
-            let length = progress
-                .length
-                .checked_add(request.data.len() as u64)
-                .filter(|length| *length <= i64::MAX as u64)
-                .ok_or_else(|| Error::Invalid("Append Upload: Keep Its Length Within the File Bound".into()))?;
-            // Existing Content Chunks Retain Their Store-Owned Bound.
-            for (index, bytes) in request.data.chunks(crate::CONTENT_CHUNK_BYTES).enumerate() {
-                let offset = request.offset + (index * crate::CONTENT_CHUNK_BYTES) as u64;
-                tx.execute("INSERT INTO content_chunks VALUES(?1,?2,?3)", params![session.id, offset as i64, bytes])?;
-            }
-            tx.execute("UPDATE content_objects SET length=?2 WHERE id=?1", params![session.id, length as i64])?;
-            Ok(UploadsAppendResponse {
-                production: Some(FileProducer { session: Some(session.clone()), length }),
-                receipt: Some(receipt),
-            })
-        })
+        self.file_mutation(
+            &format!("Files.Uploads/Append/{}", request.session.as_ref().map(|session| session.id.as_str()).unwrap_or_default()),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Append Upload: Supply Its Writer Session".into()))?;
+                let (_, progress, _) = self.require_file_writer(tx, session)?;
+                if request.offset != progress.length || request.data.is_empty() || request.data.len() > chunk_bytes {
+                    return Err(Error::Invalid("Append Upload: Send One Bounded Chunk at the Accepted Offset".into()));
+                }
+                let length = progress
+                    .length
+                    .checked_add(request.data.len() as u64)
+                    .filter(|length| *length <= i64::MAX as u64)
+                    .ok_or_else(|| Error::Invalid("Append Upload: Keep Its Length Within the File Bound".into()))?;
+                // Existing Content Chunks Retain Their Store-Owned Bound.
+                for (index, bytes) in request.data.chunks(crate::CONTENT_CHUNK_BYTES).enumerate() {
+                    let offset = request.offset + (index * crate::CONTENT_CHUNK_BYTES) as u64;
+                    tx.execute("INSERT INTO content_chunks VALUES(?1,?2,?3)", params![session.id, offset as i64, bytes])?;
+                }
+                tx.execute("UPDATE content_objects SET length=?2 WHERE id=?1", params![session.id, length as i64])?;
+                Ok(UploadsAppendResponse {
+                    production: Some(FileProducer { session: Some(session.clone()), length }),
+                    receipt: Some(receipt),
+                })
+            },
+        )
     }
     pub fn publish_file_upload(&self, request: UploadsPublishRequest) -> Result<UploadsPublishResponse> {
-        self.file_mutation("Files.Uploads/Publish", &request.request_id, &request, |tx, receipt| {
-            let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Publish Upload: Supply Its Writer Session".into()))?;
-            let (metadata, progress, _) = self.require_file_writer(tx, session)?;
-            let mut digest = Sha256::new();
-            let mut statement = tx.prepare("SELECT payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
-            for bytes in statement.query_map([&session.id], |row| row.get::<_, Vec<u8>>(0))? {
-                digest.update(bytes?);
-            }
-            let digest = digest.finalize().to_vec();
-            if request.length != progress.length
-                || request.sha256 != digest
-                || metadata.expected_length.is_some_and(|length| length != request.length)
-                || metadata.expected_sha256.as_ref().is_some_and(|expected| expected != &digest)
-            {
-                return Err(Error::Invalid("Publish Upload: Match Its Length and SHA-256".into()));
-            }
-            tx.execute("UPDATE content_objects SET phase=2,sha256=?2 WHERE id=?1", params![session.id, hex(&digest)])?;
-            let position = receipt.durable_at.as_ref().expect("file mutation has a durable position");
-            let file = FileReference {
-                metadata: Some(metadata.clone()),
-                length: request.length,
-                sha256: digest,
-                position: Some(StorageCursor {
-                    history: Some(StoreHistory {
-                        store: self.identity.to_string(),
-                        epoch: metadata.scope.clone().filter(|scope| !scope.is_empty()).unwrap_or_else(|| "files".into()),
+        self.file_mutation(
+            &format!("Files.Uploads/Publish/{}", request.session.as_ref().map(|session| session.id.as_str()).unwrap_or_default()),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Publish Upload: Supply Its Writer Session".into()))?;
+                let (metadata, progress, _) = self.require_file_writer(tx, session)?;
+                let mut digest = Sha256::new();
+                let mut statement = tx.prepare("SELECT payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
+                for bytes in statement.query_map([&session.id], |row| row.get::<_, Vec<u8>>(0))? {
+                    digest.update(bytes?);
+                }
+                let digest = digest.finalize().to_vec();
+                if request.length != progress.length
+                    || request.sha256 != digest
+                    || metadata.expected_length.is_some_and(|length| length != request.length)
+                    || metadata.expected_sha256.as_ref().is_some_and(|expected| expected != &digest)
+                {
+                    return Err(Error::Invalid("Publish Upload: Match Its Length and SHA-256".into()));
+                }
+                tx.execute("UPDATE content_objects SET phase=2,sha256=?2 WHERE id=?1", params![session.id, hex(&digest)])?;
+                let position = receipt.durable_at.as_ref().expect("file mutation has a durable position");
+                let file = FileReference {
+                    metadata: Some(metadata.clone()),
+                    length: request.length,
+                    sha256: digest,
+                    position: Some(StorageCursor {
+                        history: Some(StoreHistory {
+                            store: self.identity.to_string(),
+                            epoch: metadata.scope.clone().filter(|scope| !scope.is_empty()).unwrap_or_else(|| "files".into()),
+                        }),
+                        sequence: position.sequence,
                     }),
-                    sequence: position.sequence,
-                }),
-            };
-            Ok(UploadsPublishResponse { file: Some(file), receipt: Some(receipt) })
-        })
+                };
+                Ok(UploadsPublishResponse { file: Some(file), receipt: Some(receipt) })
+            },
+        )
     }
     pub fn delete_file_upload(&self, request: UploadsDeleteRequest) -> Result<UploadsDeleteResponse> {
-        self.file_mutation("Files.Uploads/Delete", &request.request_id, &request, |tx, receipt| {
-            let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Delete Upload: Supply Its Writer Session".into()))?;
-            let (_, mut progress, _) = self.require_file_writer(tx, session)?;
-            tx.execute("DELETE FROM content_chunks WHERE object=?1", [&session.id])?;
-            tx.execute("UPDATE content_objects SET phase=3 WHERE id=?1", [&session.id])?;
-            progress.phase = FilePhase::Abandoned as i32;
-            Ok(UploadsDeleteResponse {
-                production: Some(progress),
-                receipt: Some(receipt),
-            })
-        })
+        self.file_mutation(
+            &format!("Files.Uploads/Delete/{}", request.session.as_ref().map(|session| session.id.as_str()).unwrap_or_default()),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let session = request.session.as_ref().ok_or_else(|| Error::Invalid("Delete Upload: Supply Its Writer Session".into()))?;
+                let (_, mut progress, _) = self.require_file_writer(tx, session)?;
+                tx.execute("DELETE FROM content_chunks WHERE object=?1", [&session.id])?;
+                tx.execute("UPDATE content_objects SET phase=3 WHERE id=?1", [&session.id])?;
+                progress.phase = FilePhase::Abandoned as i32;
+                Ok(UploadsDeleteResponse {
+                    production: Some(progress),
+                    receipt: Some(receipt),
+                })
+            },
+        )
     }
     pub fn delete_file(&self, request: FilesDeleteRequest) -> Result<FilesDeleteResponse> {
-        self.file_mutation("Files/Delete", &request.request_id, &request, |tx, receipt| {
-            let file = request.file.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Reference".into()))?;
-            let id = &file.metadata.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Identity".into()))?.id;
-            let (metadata, progress, _) = upload(tx, id)?;
-            if file.position.as_ref().and_then(|position| position.history.as_ref()).is_none_or(|history| {
-                history.store != self.identity.as_ref()
-                    || history.epoch != metadata.scope.as_deref().filter(|scope| !scope.is_empty()).unwrap_or("files")
-            }) {
-                return Err(Error::Invalid("Delete File: Use Its Original Store Reference".into()));
-            }
-            if progress.phase != FilePhase::Finished as i32 {
-                return Err(Error::Invalid("Delete File: Select Published Content".into()));
-            }
-            if let Some(scope) = metadata.scope.as_deref().filter(|scope| !scope.is_empty()) {
-                require_open(tx, scope)?;
-            }
-            tx.execute("DELETE FROM content_chunks WHERE object=?1", [id])?;
-            tx.execute("DELETE FROM file_uploads WHERE id=?1", [id])?;
-            tx.execute("DELETE FROM content_objects WHERE id=?1", [id])?;
-            Ok(FilesDeleteResponse { receipt: Some(receipt) })
-        })
+        self.file_mutation(
+            &format!(
+                "Files/Delete/{}",
+                request.file.as_ref().and_then(|file| file.metadata.as_ref()).map(|metadata| metadata.id.as_str()).unwrap_or_default()
+            ),
+            &request.request_id,
+            &request,
+            |tx, receipt| {
+                let file = request.file.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Reference".into()))?;
+                let id = &file.metadata.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Identity".into()))?.id;
+                let (metadata, progress, _) = upload(tx, id)?;
+                if file.position.as_ref().and_then(|position| position.history.as_ref()).is_none_or(|history| {
+                    history.store != self.identity.as_ref()
+                        || history.epoch != metadata.scope.as_deref().filter(|scope| !scope.is_empty()).unwrap_or("files")
+                }) {
+                    return Err(Error::Invalid("Delete File: Use Its Original Store Reference".into()));
+                }
+                if progress.phase != FilePhase::Finished as i32 {
+                    return Err(Error::Invalid("Delete File: Select Published Content".into()));
+                }
+                if let Some(scope) = metadata.scope.as_deref().filter(|scope| !scope.is_empty()) {
+                    require_open(tx, scope)?;
+                }
+                tx.execute("DELETE FROM content_chunks WHERE object=?1", [id])?;
+                tx.execute("DELETE FROM file_uploads WHERE id=?1", [id])?;
+                tx.execute("DELETE FROM content_objects WHERE id=?1", [id])?;
+                Ok(FilesDeleteResponse { receipt: Some(receipt) })
+            },
+        )
     }
     pub fn file_read_cut(&self) -> Result<ReadCut> {
         let connection = self.lock()?;

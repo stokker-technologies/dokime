@@ -26,6 +26,8 @@ use tonic::Status;
 
 /* === Constants === */
 
+pub const ID: &str = "dokime.client.v1.Files/Watch";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -40,12 +42,12 @@ use tonic::Status;
 
 /* === Public Functions === */
 
-pub const ID: &str = "dokime.client.v1.Files/Watch";
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<FilesWatchRequest, FilesWatchResponse>(ID, settings.watch_timeout)
 }
 pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<super::Output<FilesWatchResponse>> {
     let mut storage = context.host.store().subscribe();
+    let mut runtime = context.host.changes();
     let first = super::files_get::handle(
         context,
         FilesGetRequest {
@@ -79,8 +81,16 @@ pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<sup
                     offset += size;
                 }
                 let id = super::files_transfer::identifier(Some(file))?;
-                let finished = context.host.temporary_report(id)?.is_some()
-                    || context.host.store().content(id)?.phase != ExecutionFileState::Streaming;
+                let current = if context.host.temporary_report(id)?.is_some() { None } else { Some(context.host.store().content(id)?) };
+                if current.as_ref().is_some_and(|entry| entry.phase == ExecutionFileState::Interrupted) {
+                    return Err(crate::Error::Cancelled("Watch File: Production Was Abandoned; Select Published Content".into()));
+                }
+                // Drain a Final Append Before Sending Completion.
+                if current.as_ref().is_some_and(|entry| entry.length > offset) {
+                    selected = super::files_get::handle(&context, FilesGetRequest { file: request.file.clone(), at: None }).await?;
+                    continue;
+                }
+                let finished = current.is_none_or(|entry| entry.phase != ExecutionFileState::Streaming);
                 if finished {
                     let response = FilesWatchResponse {
                         data: None,
@@ -90,7 +100,10 @@ pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<sup
                     let _ = sender.send(Ok(response)).await;
                     return Ok(());
                 }
-                tokio::select! { _ = sender.closed() => return Ok(()), changed = storage.changed() => if changed.is_err() { return Ok(()); } }
+                if context.host.shutting_down() {
+                    return Ok(());
+                }
+                tokio::select! { _ = sender.closed() => return Ok(()), changed = storage.changed() => if changed.is_err() { return Ok(()); }, changed = runtime.changed() => if changed.is_err() { return Ok(()); } }
                 selected = super::files_get::handle(&context, FilesGetRequest { file: request.file.clone(), at: None }).await?;
             }
         };

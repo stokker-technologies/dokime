@@ -250,7 +250,15 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         assert_eq!(reports.create(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
         drop(reports);
 
-        let content = dokime_protocol::client::content_client::ContentClient::new(channel.clone());
+        let mut file_bytes = dokime_protocol::client::files_client::FilesClient::new(channel.clone());
+        assert_eq!(
+            file_bytes.read(dokime_protocol::client::FilesReadRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(dokime_protocol::client::FilesReadRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(file_bytes.read(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        drop(file_bytes);
         assert_eq!(
             dokime_protocol::client::content::artifacts_client::ArtifactsClient::new(channel.clone())
                 .list(dokime_protocol::client::content::ArtifactsListRequest::default())
@@ -269,7 +277,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
                 .artifacts
                 .is_empty()
         );
-        drop(content);
 
         let notes = dokime_protocol::client::evidence::notes_client::NotesClient::new(channel.clone());
         assert_eq!(

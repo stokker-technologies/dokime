@@ -27,7 +27,7 @@ use dokime_runtime_next::{ControlledClock, PlacementSettings};
 use dokime_sdk::client::v1::{self as library, access};
 use sha2::Digest;
 use sha2::Sha256;
-use std::error::Error;
+use std::error::Error as StdError;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
@@ -86,7 +86,7 @@ fn settings() -> ConnectionSettings {
 /* === Tests === */
 
 #[test]
-fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn Error>> {
+fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         // Start the Embedded Host and Read Its Ready SDK Identity
         let root = crate::test_support::tempdir()?;
@@ -123,7 +123,7 @@ fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> Result<(), Box<dyn Error>> {
+fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         // A Foreign Root Must Stay Byte-for-Byte Available for Backup
         let existing = crate::test_support::tempdir()?;
@@ -150,7 +150,7 @@ fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> 
 }
 
 #[test]
-fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn Error>> {
+fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         // Observe Current State Through the SDK Watch Transport
         let root = crate::test_support::tempdir()?;
@@ -240,7 +240,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn Erro
 }
 
 #[test]
-fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn Error>> {
+fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         // Enable an Isolated Authenticated Listener Through the SDK Root
         let root = crate::test_support::tempdir()?;
@@ -308,7 +308,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn Erro
 }
 
 #[test]
-fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
+fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
             .map(PathBuf::from)
@@ -623,7 +623,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>>
             assert_eq!(exported.size_bytes, reference.length);
             assert_eq!(std::fs::read(destination)?, bytes);
             active.disconnect().map_err(|error| format!("{error:?}"))?;
-            Ok::<(), Box<dyn Error>>(())
+            Ok::<(), Box<dyn StdError>>(())
         }
         .await;
         let host_close = owner.close().await;
@@ -636,7 +636,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>>
 }
 
 #[test]
-fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Box<dyn Error>> {
+fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         use crate::connection::ConnectionSession;
         use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
@@ -718,7 +718,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
 }
 
 #[test]
-fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), Box<dyn Error>> {
+fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
         use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, backend::Backend};
@@ -751,7 +751,7 @@ fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), 
 }
 
 #[test]
-fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<dyn Error>> {
+fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
         use crate::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
@@ -783,7 +783,7 @@ fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<d
 }
 
 #[test]
-fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn Error>> {
+fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn StdError>> {
     crate::test_support::run(async {
         use library::status;
         use sha2::{Digest, Sha256};

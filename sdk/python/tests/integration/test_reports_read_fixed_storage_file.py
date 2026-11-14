@@ -36,8 +36,8 @@ from dokime.v1 import message
 class ReportStory(unittest.IsolatedAsyncioTestCase):
     async def test_preview_reads_verified_bytes_and_refuses_changed_files(self) -> None:
         report_rpc = import_module("dokime.client.v1.reports_pb2_grpc")
-        storage_rpc = import_module("harmos.v1.storage_pb2_grpc")
-        storage_wire = import_module("harmos.v1.storage_pb2")
+        storage_rpc = import_module("dokime.client.v1.files_pb2_grpc")
+        storage_wire = import_module("dokime.client.v1.files_pb2")
         data = bytes(range(7))
         digest = sha256(data).digest()
         mode = ["valid"]
@@ -52,8 +52,8 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
                 published.append(request)
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Publish Report: Unexpected Mutation")
 
-        class Storage(storage_rpc.StorageServicer):
-            async def GetFileBytes(self, request, context):
+        class Files(storage_rpc.FilesServicer):
+            async def Read(self, request, context):
                 offsets.append(request.offset)
                 chunk = data[request.offset : request.offset + 2]
                 reply_digest = digest
@@ -63,11 +63,11 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
                     chunk = bytes([255]) * len(chunk)
                 elif mode[0] == "gap":
                     chunk = b""
-                return storage_wire.StorageGetFileBytesResponse(data=chunk, total_length=len(data), sha256=reply_digest)
+                return storage_wire.FilesReadResponse(data=chunk, total_length=len(data), sha256=reply_digest)
 
         server = grpc.aio.server()
         report_rpc.add_ReportsServicer_to_server(Reports(), server)
-        storage_rpc.add_StorageServicer_to_server(Storage(), server)
+        storage_rpc.add_FilesServicer_to_server(Files(), server)
         port = server.add_insecure_port("127.0.0.1:0")
         await server.start()
         self.addAsyncCleanup(server.stop, None)

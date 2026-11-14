@@ -14,8 +14,8 @@
 #include "dokime/client/v1/plugins.grpc.pb.h"
 #include "dokime/resources.hpp"
 #include "harmos/client.hpp"
-#include <functional>
 #include <filesystem>
+#include <functional>
 #include <grpcpp/grpcpp.h>
 #include <map>
 #include <stdexcept>
@@ -46,7 +46,8 @@ private:
 class Files : public resources::FilesResource {
 public:
   explicit Files(std::shared_ptr<grpc::Channel> channel) : resources::FilesResource(std::move(channel)) {}
-  ::harmos::storage::v1::FileReference upload(const std::filesystem::path &path, const std::function<void(grpc::ClientContext &)> &configure = {});
+  ::harmos::storage::v1::FileReference upload(const std::filesystem::path &path,
+                                              const std::function<void(grpc::ClientContext &)> &configure = {});
 };
 
 class Client : public resources::Client {

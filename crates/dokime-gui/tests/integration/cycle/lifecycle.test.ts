@@ -514,10 +514,13 @@ test("Artifact Ranges Require a Stable Cut and Verified Digest", async () => {
   let corrupt = false;
   fixture.extra.mockImplementation(async (path, request) => {
     if (path === "/dokime.client.v1.content.Artifacts/Get") return { file: { length: 4n, sha256: digest }, resolvedAt: at };
-    assert.equal(path, "/harmos.v1.Storage/GetFileBytes");
-    assert.equal(request.offset, 0n);
-    assert.equal(request.maxBytes, 4n);
-    return { data: corrupt ? new Uint8Array([4, 3, 2, 1]) : data, totalLength: 4n, sha256: digest, resolvedAt: at };
+    if (path === "/dokime.client.v1.Files/Get")
+      return { file: { length: 4n, sha256: digest }, chunkBytes: 2n, messageBytes: 1024n, resolvedAt: at };
+    assert.equal(path, "/dokime.client.v1.Files/Read");
+    assert.ok(request.offset === 0n || request.offset === 2n);
+    assert.equal(request.maxBytes, 2n);
+    const selected = corrupt ? new Uint8Array([4, 3, 2, 1]) : data;
+    return { data: selected.slice(Number(request.offset), Number(request.offset) + 2), totalLength: 4n, sha256: digest, resolvedAt: at };
   });
   const owned = { ...session, own: () => () => undefined };
   assert.deepEqual(await fetchNativeArtifactBytes(owned, "attachment"), data);

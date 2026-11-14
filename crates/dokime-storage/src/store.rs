@@ -191,7 +191,6 @@ impl Store {
         let identity = if identity_path.exists() {
             std::fs::read_to_string(&identity_path)?
         } else {
-            use Write;
             let identity = uuid::Uuid::now_v7().to_string();
             let mut file = OpenOptions::new().write(true).create_new(true).open(identity_path)?;
             file.write_all(identity.as_bytes())?;

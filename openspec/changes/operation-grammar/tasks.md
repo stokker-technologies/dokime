@@ -82,8 +82,8 @@ Final full validation is separate from source completion.
 ## Consumer Story Repairs
 
 - [x] R1 Define product Files and Files.Uploads on client and plugin-host boundaries and additive frozen protobuf message bindings; regenerate protocol and SDK roots.
-- [ ] R2 Serve Files over the existing content store, populate schema bindings and selected document headers, and advertise product bindings where the pinned library permits it.
-- [ ] R3 Move command-line, desktop and four SDK file and schema consumers to the product resources.
+- [x] R2 Serve client Files and plugin-host unary Files over the existing content store, populate schema bindings and selected document headers; inspect pinned discovery and record its missing external-service registration and child-stream APIs in the mapping guide. Plugin-host Watch and discovery are blocked by those library capabilities, not implemented or claimed as passing.
+- [x] R3 Move command-line, desktop and four SDK file and schema consumers to product resources; remove the old artifact-transfer operation, tables, fixture paths and appearance download declaration. SDK upload conveniences remain one call.
 - [ ] R4 Prove the named consumer and host stories, generation stability and requested final checks; report upstream refusals without weakening checks.
 
 ## Architecture Proof Obligations
