@@ -15,6 +15,8 @@
 
 /* === Imports === */
 
+use dokime::client::FilesWatchOptions;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -231,7 +233,17 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             request_id: Some("resumable-file".into()),
             ..Default::default()
         };
-        let created = client.files.uploads.create_with(metadata.clone(), options.clone()).await?;
+        let created = client
+            .files
+            .uploads
+            .create_with(
+                metadata.clone(),
+                FilesUploadsCreateOptions {
+                    request_id: options.request_id.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(client.files.uploads.create_with(metadata, options).await?, created);
         let original = created.upload.unwrap();
         let split = bytes.len().min(created.chunk_bytes as usize).min(17);
@@ -240,7 +252,19 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             request_id: Some("first-chunk".into()),
             ..Default::default()
         };
-        let first = client.files.uploads.append_with(original.clone(), 0, first_bytes.clone(), options.clone()).await?;
+        let first = client
+            .files
+            .uploads
+            .append_with(
+                original.clone(),
+                0,
+                first_bytes.clone(),
+                FilesUploadsAppendOptions {
+                    request_id: options.request_id.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(client.files.uploads.append_with(original.clone(), 0, first_bytes.clone(), options).await?, first);
         let mut changed = first_bytes;
         changed[0] ^= 1;
@@ -289,7 +313,17 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             ..Default::default()
         };
         let digest = Sha256::digest(&bytes).to_vec();
-        let published = uploads.publish_with(upload.clone(), bytes.len() as u64, digest.clone(), options.clone()).await?;
+        let published = uploads
+            .publish_with(
+                upload.clone(),
+                bytes.len() as u64,
+                digest.clone(),
+                FilesUploadsPublishOptions {
+                    request_id: options.request_id.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(uploads.publish_with(upload, bytes.len() as u64, digest, options).await?, published);
         let selected = file_client.get(published.upload.unwrap()).await?;
         let reference = selected.file.clone().unwrap();
@@ -307,7 +341,15 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
         assert_eq!(read, bytes);
 
         // Watch Immutable Published Content in Order Through Its Final Completion
-        let mut watch = file_client.watch(reference.clone(), 0).await?;
+        let mut watch = file_client
+            .watch_with(
+                0,
+                FilesWatchOptions {
+                    file: Some(reference.clone()),
+                    ..Default::default()
+                },
+            )
+            .await?;
         let mut followed = Vec::new();
         let mut completed = false;
         while let Some(frame) = watch.next().await? {

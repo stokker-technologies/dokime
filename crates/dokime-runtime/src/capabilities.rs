@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Result, execution_manager::ExecutionManager, host::lock};
-use dokime_protocol::model;
 use dokime_storage::ExecutionState;
 
 /* === Constants === */

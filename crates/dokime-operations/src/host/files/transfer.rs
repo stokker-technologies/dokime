@@ -47,12 +47,6 @@ pub(crate) async fn chunk_bytes(context: &Context) -> Result<usize> {
     }
     Ok(maximum)
 }
-pub(crate) fn identifier(file: Option<&FileReference>) -> Result<&str> {
-    file.and_then(|file| file.metadata.as_ref())
-        .map(|metadata| metadata.id.as_str())
-        .filter(|id| !id.is_empty())
-        .ok_or_else(|| Error::Invalid("Access File: Supply Its Identity".into()))
-}
 pub(crate) fn authorize(context: &Context, file: &FileReference) -> Result<()> {
     if let Some(caller) = &context.caller {
         let metadata = file.metadata.as_ref().ok_or_else(|| Error::Permission("Access File: Supply Its Scoped Reference".into()))?;

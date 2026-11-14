@@ -15,6 +15,8 @@
 
 /* === Imports === */
 
+use dokime::client::EvidenceRecordsWatchOptions;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -167,11 +169,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
             .list_with(
                 ((request.clone()).scope).unwrap_or_default(),
                 (request.clone()).record_type,
-                (request.clone()).versions,
-                ((request.clone()).between).unwrap_or_default(),
-                (request.clone()).step,
-                ((request.clone()).selection).unwrap_or_default(),
                 EvidenceRecordsListOptions {
+                    versions: Some((request.clone()).versions),
+                    between: Some(((request.clone()).between).unwrap_or_default()),
+                    step: Some((request.clone()).step),
+                    selection: Some(((request.clone()).selection).unwrap_or_default()),
                     at: (request.clone()).at,
                     page: (request.clone()).page,
                     ..Default::default()
@@ -188,11 +190,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((request.clone()).scope).unwrap_or_default(),
                     (request.clone()).record_type,
-                    (request.clone()).versions,
-                    ((request.clone()).between).unwrap_or_default(),
-                    (request.clone()).step,
-                    ((request.clone()).selection).unwrap_or_default(),
                     EvidenceRecordsListOptions {
+                        versions: Some((request.clone()).versions),
+                        between: Some(((request.clone()).between).unwrap_or_default()),
+                        step: Some((request.clone()).step),
+                        selection: Some(((request.clone()).selection).unwrap_or_default()),
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         ..Default::default()
@@ -214,11 +216,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((foreign.clone()).scope).unwrap_or_default(),
                     (foreign.clone()).record_type,
-                    (foreign.clone()).versions,
-                    ((foreign.clone()).between).unwrap_or_default(),
-                    (foreign.clone()).step,
-                    ((foreign.clone()).selection).unwrap_or_default(),
                     EvidenceRecordsListOptions {
+                        versions: Some((foreign.clone()).versions),
+                        between: Some(((foreign.clone()).between).unwrap_or_default()),
+                        step: Some((foreign.clone()).step),
+                        selection: Some(((foreign.clone()).selection).unwrap_or_default()),
                         at: (foreign.clone()).at,
                         page: (foreign.clone()).page,
                         ..Default::default()
@@ -236,11 +238,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((changed.clone()).scope).unwrap_or_default(),
                     (changed.clone()).record_type,
-                    (changed.clone()).versions,
-                    ((changed.clone()).between).unwrap_or_default(),
-                    (changed.clone()).step,
-                    ((changed.clone()).selection).unwrap_or_default(),
                     EvidenceRecordsListOptions {
+                        versions: Some((changed.clone()).versions),
+                        between: Some(((changed.clone()).between).unwrap_or_default()),
+                        step: Some((changed.clone()).step),
+                        selection: Some(((changed.clone()).selection).unwrap_or_default()),
                         at: (changed.clone()).at,
                         page: (changed.clone()).page,
                         ..Default::default()
@@ -256,11 +258,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((tiny.clone()).scope).unwrap_or_default(),
                     (tiny.clone()).record_type,
-                    (tiny.clone()).versions,
-                    ((tiny.clone()).between).unwrap_or_default(),
-                    (tiny.clone()).step,
-                    ((tiny.clone()).selection).unwrap_or_default(),
                     EvidenceRecordsListOptions {
+                        versions: Some((tiny.clone()).versions),
+                        between: Some(((tiny.clone()).between).unwrap_or_default()),
+                        step: Some((tiny.clone()).step),
+                        selection: Some(((tiny.clone()).selection).unwrap_or_default()),
                         at: (tiny.clone()).at,
                         page: (tiny.clone()).page,
                         ..Default::default()
@@ -275,16 +277,19 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
             .evidence
             .records
             .clone()
-            .list(
+            .list_with(
                 Default::default(),
                 String::new(),
-                Default::default(),
-                Default::default(),
-                String::new(),
-                EvidenceCapturedRecordSelection {
-                    record_types: vec!["dokime.log".into()],
-                    severities: vec![Severity::Warning as i32],
-                    ..selection.clone()
+                EvidenceRecordsListOptions {
+                    versions: Some(Default::default()),
+                    between: Some(Default::default()),
+                    step: Some(String::new()),
+                    selection: Some(EvidenceCapturedRecordSelection {
+                        record_types: vec!["dokime.log".into()],
+                        severities: vec![Severity::Warning as i32],
+                        ..selection.clone()
+                    }),
+                    ..Default::default()
                 },
             )
             .await?;
@@ -299,7 +304,17 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
                 .evidence
                 .records
                 .clone()
-                .watch(Default::default(), String::new(), Default::default(), Default::default(), String::new(), selection.clone())
+                .watch_with(
+                    Default::default(),
+                    String::new(),
+                    EvidenceRecordsWatchOptions {
+                        versions: Some(Default::default()),
+                        between: Some(Default::default()),
+                        step: Some(String::new()),
+                        selection: Some(selection.clone()),
+                        ..Default::default()
+                    },
+                )
                 .await?;
         let mut watched = Vec::new();
         while let Some(frame) = watch.next().await? {
@@ -320,11 +335,11 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
             .list_with(
                 Default::default(),
                 String::new(),
-                Default::default(),
-                Default::default(),
-                String::new(),
-                selection,
                 EvidenceRecordsListOptions {
+                    versions: Some(Default::default()),
+                    between: Some(Default::default()),
+                    step: Some(String::new()),
+                    selection: Some(selection),
                     at: first.resolved_at.clone(),
                     page: Some(PageRequest { page_size: 3, ..Default::default() }),
                     ..Default::default()

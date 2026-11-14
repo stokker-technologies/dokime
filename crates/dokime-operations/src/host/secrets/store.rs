@@ -183,19 +183,6 @@ pub(crate) fn availability(store: &Store, identifier: &str) -> Result<bool> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     Ok(catalog.entries.iter().any(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier)))
 }
-pub(crate) fn read_secret(store: &Store, id: &str) -> Result<Vec<u8>> {
-    identifier(id)?;
-    let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
-    let slot = catalog
-        .entries
-        .iter()
-        .find(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == id))
-        .ok_or_else(|| invalid("Set the Named Secret Before Reading It"))?;
-    let entry = keyring::Entry::new(SERVICE, &format!("{}:{}", catalog.host_id, slot.slot)).map_err(|_| unavailable())?;
-    let secret = Zeroizing::new(entry.get_password().map_err(credential_read_error)?);
-    value(&secret)?;
-    Ok(secret.as_bytes().to_vec())
-}
 
 /* === Private Functions === */
 

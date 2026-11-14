@@ -15,6 +15,16 @@
 
 /* === Imports === */
 
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
+use dokime::Client;
+use dokime::client::PluginsListOptions;
+use dokime_runtime::PluginProcess;
+use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginState, PluginValue};
+use std::error::Error;
+use tonic::transport::Endpoint;
+
 /* === Constants === */
 
 /* === Macros === */

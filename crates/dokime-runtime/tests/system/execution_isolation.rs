@@ -101,7 +101,7 @@ impl Instance for ScopeProbe {
         use harmos_protocol::plugin::instance_invoke_request::Frame as Input;
         use harmos_protocol::plugin::instance_invoke_response::Frame as Output;
         use harmos_protocol::plugin::response::Result as InvocationResult;
-        use harmos_protocol::plugin::{ChildRequest, InstanceInvokeResponse, Response};
+        use harmos_protocol::plugin::{ChildRequest, InstanceInvokeResponse, Response as WireResponse};
         use tokio::sync::mpsc;
         use tokio_stream::wrappers::ReceiverStream;
 
@@ -269,7 +269,7 @@ impl Instance for ScopeProbe {
                 }),
             };
             let frame = InstanceInvokeResponse {
-                frame: Some(Output::Response(Response { result: Some(result) })),
+                frame: Some(Output::Response(WireResponse { result: Some(result) })),
             };
             let _ = send.send(Ok(frame)).await;
         });

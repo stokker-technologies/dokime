@@ -369,7 +369,7 @@ impl DesktopSession {
                     message: error.to_string(),
                     diagnostics: None,
                 })?;
-                let options = SettingsGetOptions { context };
+                let options = SettingsGetOptions { context, ..Default::default() };
                 let snapshot = session.execute(session.client().settings.get_with(options)).await.map_err(|error| Error::Startup {
                     message: error.to_string(),
                     diagnostics: None,

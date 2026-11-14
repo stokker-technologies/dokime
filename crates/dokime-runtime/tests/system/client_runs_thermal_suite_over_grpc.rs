@@ -15,6 +15,10 @@
 
 /* === Imports === */
 
+use dokime::client::EvidenceSamplesListOptions;
+
+use dokime::client::EvidenceRecordsListOptions;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -189,16 +193,9 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         let records = client
             .evidence
             .records
-            .list(
-                EvidenceRecordScope {
+            .list_with(EvidenceRecordScope {
                     kind: Some(RecordScopeKind::Execution(execution_id.clone())),
-                },
-                String::new(),
-                Vec::new(),
-                Default::default(),
-                String::new(),
-                Default::default(),
-            )
+                }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
             .await?;
         assert!(!records.records.is_empty());
         let mut schema_cache = FrozenSchemaCache::default();
@@ -209,20 +206,10 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         let samples = client
             .evidence
             .samples
-            .list(
-                EvidenceScope {
+            .list_with(EvidenceScope {
                     execution_id: Some(execution_id.clone()),
                     ..Default::default()
-                },
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Default::default(),
-                Default::default(),
-                false,
-            )
+                }, Vec::new(), EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
             .await?;
         let raw = samples
             .samples
@@ -299,16 +286,9 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let records = client
                 .evidence
                 .records
-                .list(
-                    EvidenceRecordScope {
+                .list_with(EvidenceRecordScope {
                         kind: Some(RecordScopeKind::Execution(id.clone())),
-                    },
-                    String::new(),
-                    Vec::new(),
-                    Default::default(),
-                    String::new(),
-                    Default::default(),
-                )
+                    }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
                 .await?;
             assert_eq!(records.records.len(), 1);
             let record = &records.records[0];
@@ -333,16 +313,9 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             client
                 .evidence
                 .records
-                .list(
-                    EvidenceRecordScope {
+                .list_with(EvidenceRecordScope {
                         kind: Some(RecordScopeKind::Execution(execution_id.clone()))
-                    },
-                    String::new(),
-                    Vec::new(),
-                    Default::default(),
-                    String::new(),
-                    Default::default()
-                )
+                    }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
                 .await?
                 .records,
             records.records
@@ -351,20 +324,10 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             client
                 .evidence
                 .samples
-                .list(
-                    EvidenceScope {
+                .list_with(EvidenceScope {
                         execution_id: Some(execution_id),
                         ..Default::default()
-                    },
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Default::default(),
-                    Default::default(),
-                    false
-                )
+                    }, Vec::new(), EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
                 .await?
                 .samples,
             samples.samples

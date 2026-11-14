@@ -406,7 +406,7 @@ async fn observe_plugins(
     use harmos_runtime::operations::StreamSettings;
     loop {
         let mut watch = operations.download_protobuf::<Watch>(
-            PluginsWatchRequest { at: None },
+            PluginsWatchRequest { name: None, at: None },
             StreamSettings {
                 items: NonZeroUsize::new(settings.stream_buffer).unwrap(),
                 bytes: NonZeroUsize::new(settings.message_bytes).unwrap(),
@@ -416,7 +416,11 @@ async fn observe_plugins(
             let event = tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => {
-                    watch.cancel_and_settle().await?;
+                    watch.request_cancel();
+                    match watch.join().await {
+                        Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                        Err(source) => return Err(source.into()),
+                    }
                     return Ok(());
                 }
                 event = watch.next() => event?,
@@ -425,14 +429,22 @@ async fn observe_plugins(
                 return Err(Error::Invalid("Observe Plugins: Reopen the Closed Plugin Watch".into()));
             };
             let Some(context) = context.upgrade() else {
-                watch.cancel_and_settle().await?;
+                watch.request_cancel();
+                match watch.join().await {
+                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                    Err(source) => return Err(source.into()),
+                }
                 return Ok(());
             };
             context.host.refresh_plugin_states().await?;
             dokime_operations::host::plugins::secrets::reconcile(&context).await?;
             context.host.signal_change();
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
-                watch.cancel_and_settle().await?;
+                watch.request_cancel();
+                match watch.join().await {
+                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                    Err(source) => return Err(source.into()),
+                }
                 break;
             }
         }

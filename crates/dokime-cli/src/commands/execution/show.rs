@@ -88,13 +88,17 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                     let options = ExecutionsSchemasGetOptions {
                         context: settings.context()?,
                         at: at.clone(),
-                        page: Some(PageRequest { page_size: 1, page_token }),
+                        page: Some(PageRequest {
+                            page_size: 1,
+                            page_token,
+                            ..Default::default()
+                        }),
                     };
                     let page = client.executions.schemas.get_with(&name, options).await?;
                     if page.digest != identities.digest || page.resolved_at.is_none() || (at.is_some() && page.resolved_at != at) {
                         return Err("Read Schemas: Frozen Schema Identity or Retained Cut Changed".into());
                     }
-                    for file in page.files {
+                    for file in page.types.unwrap_or_default().file {
                         let file = DynamicMessage::decode(file_descriptor.clone(), file.encode_to_vec().as_slice())?;
                         files.push(Value::Message(file));
                     }

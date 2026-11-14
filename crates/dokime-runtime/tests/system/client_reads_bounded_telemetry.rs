@@ -127,14 +127,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((request.clone()).scope).unwrap_or_default(),
                     (request.clone()).streams,
-                    (request.clone()).versions,
-                    (request.clone()).fields,
-                    (request.clone()).sources,
-                    (request.clone()).signals,
-                    ((request.clone()).between).unwrap_or_default(),
-                    ((request.clone()).bucket).unwrap_or_default(),
-                    (request.clone()).latest,
                     EvidenceSamplesListOptions {
+                        versions: Some((request.clone()).versions),
+                        fields: Some((request.clone()).fields),
+                        sources: Some((request.clone()).sources),
+                        signals: Some((request.clone()).signals),
+                        between: Some(((request.clone()).between).unwrap_or_default()),
+                        bucket: Some(((request.clone()).bucket).unwrap_or_default()),
+                        latest: Some((request.clone()).latest),
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         ..Default::default()
@@ -165,19 +165,22 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
             samples.iter().map(|sample| sample.row.clone()).collect::<Vec<_>>()
         );
         let page = telemetry
-            .list(
+            .list_with(
                 (scope.clone()).unwrap_or_default(),
                 Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Window {
-                    start: Some(Timestamp { seconds: 90, nanos: 0 }),
-                    end: Some(Timestamp { seconds: 92, nanos: 0 }),
+                EvidenceSamplesListOptions {
+                    versions: Some(Default::default()),
+                    fields: Some(Default::default()),
+                    sources: Some(Default::default()),
+                    signals: Some(Default::default()),
+                    between: Some(Window {
+                        start: Some(Timestamp { seconds: 90, nanos: 0 }),
+                        end: Some(Timestamp { seconds: 92, nanos: 0 }),
+                    }),
+                    bucket: Some(Default::default()),
+                    latest: Some(Default::default()),
+                    ..Default::default()
                 },
-                Default::default(),
-                Default::default(),
             )
             .await?;
         assert_eq!(
@@ -194,14 +197,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
             .list_with(
                 (scope.clone()).unwrap_or_default(),
                 Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                true,
                 EvidenceSamplesListOptions {
+                    versions: Some(Default::default()),
+                    fields: Some(Default::default()),
+                    sources: Some(Default::default()),
+                    signals: Some(Default::default()),
+                    between: Some(Default::default()),
+                    bucket: Some(Default::default()),
+                    latest: Some(true),
                     page: Some(PageRequest { page_size: 3, ..Default::default() }),
                     ..Default::default()
                 },
@@ -224,14 +227,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((changed.clone()).scope).unwrap_or_default(),
                     (changed.clone()).streams,
-                    (changed.clone()).versions,
-                    (changed.clone()).fields,
-                    (changed.clone()).sources,
-                    (changed.clone()).signals,
-                    ((changed.clone()).between).unwrap_or_default(),
-                    ((changed.clone()).bucket).unwrap_or_default(),
-                    (changed.clone()).latest,
                     EvidenceSamplesListOptions {
+                        versions: Some((changed.clone()).versions),
+                        fields: Some((changed.clone()).fields),
+                        sources: Some((changed.clone()).sources),
+                        signals: Some((changed.clone()).signals),
+                        between: Some(((changed.clone()).between).unwrap_or_default()),
+                        bucket: Some(((changed.clone()).bucket).unwrap_or_default()),
+                        latest: Some((changed.clone()).latest),
                         at: (changed.clone()).at,
                         page: (changed.clone()).page,
                         ..Default::default()
@@ -244,14 +247,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
             .watch_with(
                 (scope.clone()).unwrap_or_default(),
                 Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
                 EvidenceSamplesWatchOptions {
+                    versions: Some(Default::default()),
+                    fields: Some(Default::default()),
+                    sources: Some(Default::default()),
+                    signals: Some(Default::default()),
+                    between: Some(Default::default()),
+                    bucket: Some(Default::default()),
+                    latest: Some(Default::default()),
                     page: Some(PageRequest { page_size: 127, ..Default::default() }),
                     ..Default::default()
                 },
@@ -277,14 +280,14 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
             .list_with(
                 (scope).unwrap_or_default(),
                 vec!["sensor".into()],
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
                 EvidenceSamplesListOptions {
+                    versions: Some(Default::default()),
+                    fields: Some(Default::default()),
+                    sources: Some(Default::default()),
+                    signals: Some(Default::default()),
+                    between: Some(Default::default()),
+                    bucket: Some(Default::default()),
+                    latest: Some(Default::default()),
                     at: first.resolved_at.clone(),
                     page: Some(PageRequest { page_size: 137, ..Default::default() }),
                     ..Default::default()

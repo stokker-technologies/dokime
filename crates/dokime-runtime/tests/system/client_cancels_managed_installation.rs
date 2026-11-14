@@ -15,6 +15,17 @@
 
 /* === Imports === */
 
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
+use dokime::Client;
+use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginValue};
+use sha2::{Digest, Sha256};
+use std::error::Error;
+use std::io::ErrorKind;
+use tokio::{io::AsyncReadExt, net::TcpListener};
+use tonic::transport::Endpoint;
+
 /* === Constants === */
 
 /* === Macros === */

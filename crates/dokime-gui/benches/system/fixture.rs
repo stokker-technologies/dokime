@@ -24,7 +24,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::model::Sample;
+use harmos_protocol::plugin::Sample;
 use prost::Message;
 use prost_types::Timestamp;
 use serde_json::Value;
@@ -32,7 +32,6 @@ use tokio_stream::StreamExt;
 
 // Local Imports
 
-use dokime_sdk::PlotRequest;
 use dokime_sdk::client::PluginPlacement;
 use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
@@ -49,6 +48,7 @@ use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
 use dokime_sdk as model;
+use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::CasesCreateResponse;
 use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::ExecutionsListResponse;
@@ -57,13 +57,13 @@ use dokime_sdk::client::PromptsAnswersCreateResponse;
 use dokime_sdk::client::PromptsListResponse;
 use dokime_sdk::client::RegisteredSelection;
 use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::{ClientSettings, StorageTransferSettings};
+use dokime_sdk::client::{ClientSettings, PlotsPlotRequest};
 use dokime_sdk::plugin::HostOperation;
 use dokime_sdk::{Result, prelude::*};
 
 use dokime_sdk::{
-    AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind,
-    PlotRequest, PlotStyle, Reduction, Section,
+    AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind, PlotStyle,
+    Reduction, Section,
 };
 
 use std::sync::atomic::AtomicBool;
@@ -273,7 +273,7 @@ impl Fixture {
     pub async fn prepared(&self) {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = SnapshotsWatchRequest {
-            requests: vec![PlotRequest {
+            requests: vec![PlotsPlotRequest {
                 stream: "bench.pipeline".into(),
                 y_keys: vec!["y1".into()],
                 scope: Some(EvidenceScope {

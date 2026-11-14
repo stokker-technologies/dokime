@@ -291,7 +291,9 @@ fn condition_met(condition: &EvidenceCondition, snapshot: &ExecutionSnapshot) ->
                 StreamMatchOperator::Lt => compare(value, target) == Some(Ordering::Less),
                 StreamMatchOperator::Le => matches!(compare(value, target), Some(Ordering::Less | Ordering::Equal)),
                 StreamMatchOperator::Within => match (&value.kind, &target.kind, stream.tolerance) {
-                    (Some(Kind::Number(value)), Some(Kind::Number(target)), Some(tolerance)) => (value - target).abs() <= tolerance,
+                    (Some(ValueKind::Number(value)), Some(ValueKind::Number(target)), Some(tolerance)) => {
+                        (value - target).abs() <= tolerance
+                    }
                     _ => false,
                 },
                 _ => return Err(Error::Invalid("Answer Prompt: Repair the Stream Condition Operator".into())),

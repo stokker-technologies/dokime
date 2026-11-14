@@ -30,7 +30,7 @@ use dokime_protocol::host::BackendAppearanceResponse;
 use dokime_protocol::host::ThemeModePolicy;
 use harmos_protocol::host::PluginState;
 
-use dokime_storage::Error as StorageError;
+use dokime_protocol::host::FilesGetRequest;
 
 use harmos_protocol::model::OperationContract;
 
@@ -88,17 +88,15 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
                         if reference.plugin_id != plugin.name {
                             return Err(Error::Invalid("Read Appearance: Keep Assets with Their Declaring Provider".into()));
                         }
-                        match context.host.store().file_reference(&reference.asset_id) {
-                            Ok(file) => {
-                                if crate::host::views::hex(&file.sha256) != reference.sha256 || file.length != asset.size_bytes {
-                                    return Err(Error::Invalid("Read Appearance: Publish the Declared Asset Length and SHA-256".into()));
-                                }
-                                asset.file = Some(file);
+                        if let Some(file) = asset.file.clone() {
+                            let file = crate::host::files::get::handle(context, FilesGetRequest { file: Some(file), at: None })
+                                .await?
+                                .file
+                                .ok_or_else(|| Error::Precondition("Read Appearance: Return the Published Asset Reference".into()))?;
+                            if crate::host::views::hex(&file.sha256) != reference.sha256 || file.length != asset.size_bytes {
+                                return Err(Error::Invalid("Read Appearance: Publish the Declared Asset Length and SHA-256".into()));
                             }
-                            Err(StorageError::NotFound(_)) => {
-                                asset.file = None;
-                            }
-                            Err(error) => return Err(error.into()),
+                            asset.file = Some(file);
                         }
                     }
                     appearance = Some(snapshot);

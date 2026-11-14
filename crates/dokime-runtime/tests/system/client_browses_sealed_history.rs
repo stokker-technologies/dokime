@@ -240,17 +240,17 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             .list_with(
                 Default::default(),
                 String::new(),
-                Default::default(),
-                Default::default(),
-                String::new(),
-                EvidenceCapturedRecordSelection {
-                    scope: Some(EvidenceScope {
-                        execution_id: Some(identifier.clone()),
+                EvidenceRecordsListOptions {
+                    versions: Some(Default::default()),
+                    between: Some(Default::default()),
+                    step: Some(String::new()),
+                    selection: Some(EvidenceCapturedRecordSelection {
+                        scope: Some(EvidenceScope {
+                            execution_id: Some(identifier.clone()),
+                            ..Default::default()
+                        }),
                         ..Default::default()
                     }),
-                    ..Default::default()
-                },
-                EvidenceRecordsListOptions {
                     page: Some(PageRequest { page_size: 1, ..Default::default() }),
                     ..Default::default()
                 },
@@ -273,14 +273,14 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 .list_with(
                     ((request.clone()).scope).unwrap_or_default(),
                     (request.clone()).streams,
-                    (request.clone()).versions,
-                    (request.clone()).fields,
-                    (request.clone()).sources,
-                    (request.clone()).signals,
-                    ((request.clone()).between).unwrap_or_default(),
-                    ((request.clone()).bucket).unwrap_or_default(),
-                    (request.clone()).latest,
                     EvidenceSamplesListOptions {
+                        versions: Some((request.clone()).versions),
+                        fields: Some((request.clone()).fields),
+                        sources: Some((request.clone()).sources),
+                        signals: Some((request.clone()).signals),
+                        between: Some(((request.clone()).between).unwrap_or_default()),
+                        bucket: Some(((request.clone()).bucket).unwrap_or_default()),
+                        latest: Some((request.clone()).latest),
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         ..Default::default()

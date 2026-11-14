@@ -15,6 +15,8 @@
 
 /* === Imports === */
 
+use dokime::client::EvidenceRecordsListOptions;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -91,15 +93,18 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
     let records = client
         .evidence
         .records
-        .list(
+        .list_with(
             EvidenceRecordScope {
                 kind: Some(RecordScopeKind::Execution(cycle[0].clone())),
             },
             String::new(),
-            Vec::new(),
-            Default::default(),
-            String::new(),
-            Default::default(),
+            EvidenceRecordsListOptions {
+                versions: Some(Vec::new()),
+                between: Some(Default::default()),
+                step: Some(String::new()),
+                selection: Some(Default::default()),
+                ..Default::default()
+            },
         )
         .await?;
     assert_eq!(records.records.len(), 1);
@@ -128,7 +133,14 @@ async fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Res
             name: Some("secret_reader".into()),
             ..Default::default()
         };
-        let before = client.plugins.secrets.list_with(options.clone()).await?;
+        let before = client
+            .plugins
+            .secrets
+            .list_with(PluginsSecretsListOptions {
+                name: options.name.clone(),
+                ..Default::default()
+            })
+            .await?;
         let binding = PluginsSecretBindingValue {
             identifier: "secrets.owned".into(),
             secret: "unavailable.secret".into(),
@@ -142,7 +154,14 @@ async fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Res
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = Client::from_channel(channel, support::client_settings())?;
-        let reopened = client.plugins.secrets.list_with(options.clone()).await?;
+        let reopened = client
+            .plugins
+            .secrets
+            .list_with(PluginsSecretsListOptions {
+                name: options.name.clone(),
+                ..Default::default()
+            })
+            .await?;
         assert_eq!(reopened.bindings, saved.bindings);
         assert_eq!(reopened.revision, saved.revision);
 
@@ -151,10 +170,27 @@ async fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Res
         changes.next().await?.ok_or("Observe Plugin Secrets: Missing Opening")?;
         let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
         client.plugins.delete(entry.name, entry.revision).await?;
-        assert!(client.plugins.secrets.list_with(options.clone()).await.is_err());
+        assert!(
+            client
+                .plugins
+                .secrets
+                .list_with(PluginsSecretsListOptions {
+                    name: options.name.clone(),
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
         client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
         loop {
-            let current = client.plugins.secrets.list_with(options.clone()).await?;
+            let current = client
+                .plugins
+                .secrets
+                .list_with(PluginsSecretsListOptions {
+                    name: options.name.clone(),
+                    ..Default::default()
+                })
+                .await?;
             if current.bindings.iter().all(|binding| binding.secret.is_empty()) {
                 assert!(current.bindings.iter().all(|binding| !binding.available));
                 break;
@@ -223,7 +259,7 @@ async fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
             let initial = secrets.list().await?;
             secrets
                 .set_with(
-                    identifier.into(),
+                    identifier,
                     SecretWritable {
                         metadata: Some(Metadata {
                             identifier: identifier.into(),
@@ -239,7 +275,7 @@ async fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                     },
                 )
                 .await?;
-            let actual = secrets.get(identifier.into()).await?;
+            let actual = secrets.get(identifier).await?;
             assert_eq!(actual.value.unwrap().value.as_deref(), Some("fixture-secret-value"));
         }
 

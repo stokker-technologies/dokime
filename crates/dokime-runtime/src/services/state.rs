@@ -29,7 +29,7 @@ use tokio::sync::watch;
 use crate::Host;
 use dokime_operations::{
     Error, Result,
-    host::{Host as ClientHost, Progress, StartedCycle},
+    host::{Host as ClientHost, Progress, RunAction, StartedCycle},
 };
 use dokime_storage::Store;
 
@@ -105,7 +105,6 @@ impl ClientHost for State {
         })
     }
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()> {
-        use dokime_operations::host::RunAction;
         match action {
             RunAction::Cancel => self.host.cancel(execution),
             RunAction::Pause => self.host.pause_execution(execution, true),

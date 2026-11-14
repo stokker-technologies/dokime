@@ -37,11 +37,11 @@ use tokio::runtime::Runtime;
 use super::sample_carrier::Producer;
 use dokime::plugin::HostOperation;
 use dokime::prelude::*;
+use dokime_protocol::builders::Plot;
 use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
-use dokime_protocol::model::Plot;
 use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, RenderSettings, services};
 use dokime_storage::storage_defaults;
 
@@ -176,12 +176,12 @@ pub fn serve() -> Result<()> {
     Plugin::new("storage.benchmark", "1.0.0")
         .suite(Suite::new("storage.benchmark", "Storage Benchmark").template(template).template(export))
         .stream(Stream::<Pulse>::new("spectrum", "Spectrum"))
-        .record(Record::<Produced>::new("produced", "Produced"))
         .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
         .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::EvidenceRecordsAppend)
         .requires_host(HostOperation::TimeGet)
         .requires_host(HostOperation::TimeSleep)
+        .record(Record::<Produced>::new("produced", "Produced"))
         .remote()
         .serve()
 }

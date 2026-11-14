@@ -75,6 +75,7 @@ async fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
+        assert_eq!(entry.name, "thermal");
 
         // Read Suites, Templates, Record Contracts and Stream Rows
         let suites = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?

@@ -133,7 +133,6 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn Error>> {
         store.seal("kinds")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
         let plots = Client::from_channel(channel, super::support::client_settings())?.plots.snapshots.clone();
         let scope = Some(EvidenceScope {
             execution_id: Some("kinds".into()),

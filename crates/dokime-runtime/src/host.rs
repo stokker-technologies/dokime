@@ -38,7 +38,6 @@ use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
-use dokime_protocol::model;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Suites;
 use dokime_protocol::model::Value;

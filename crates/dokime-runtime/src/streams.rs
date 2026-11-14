@@ -21,8 +21,11 @@ use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
 use harmos_protocol::{
-    model::{Declarations, SamplesSelection, Tick},
-    plugin::{InstanceSamplesRequest, InstanceSamplesResponse, instance_client::InstanceClient, instance_samples_request::Frame},
+    model::Declarations,
+    plugin::{
+        InstanceSamplesRequest, InstanceSamplesResponse, SamplesSelection, Tick, instance_client::InstanceClient,
+        instance_samples_request::Frame,
+    },
 };
 use prost_types::Timestamp;
 use tokio::sync::{
@@ -217,13 +220,12 @@ mod tests {
     use crate::{ControlledClock, PlacementSettings};
     use dokime_operations::Clock;
     use dokime_protocol::host::plots::PlotDomain;
-    use dokime_protocol::model;
     use dokime_storage::{Execution, SampleWindow, Store};
     use harmos_protocol::{
-        model::{Declarations, Sample, StreamDeclaration},
+        model::{Declarations, StreamDeclaration},
         plugin::{
             InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
-            InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
+            InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse, Sample,
             instance_client::InstanceClient,
             instance_samples_request::Frame,
             instance_server::{Instance, InstanceServer},
@@ -277,7 +279,7 @@ mod tests {
                             }
                         })
                         .collect();
-                    if sender.send(Ok(InstanceSamplesResponse { samples })).await.is_err() {
+                    if sender.send(Ok(InstanceSamplesResponse { samples, frame: None })).await.is_err() {
                         break;
                     }
                 }

@@ -124,10 +124,7 @@ async fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
         }
         let shell = observation.get().await?.overview.unwrap();
         assert_eq!(shell.test_suite_count, 1);
-        assert_eq!(
-            shell.cycle_summaries[0].cycle_id,
-            client.executions.get(identifier.clone()).await?.execution.unwrap().summary.unwrap().cycle_id
-        );
+        assert_eq!(shell.cycle_summaries[0].cycle_id, client.executions.get(identifier.clone()).await?.execution.unwrap().cycle_id);
         assert_eq!(shell.evidence_counts.unwrap().prompts, 1);
         let traceability = Client::from_channel(channel, super::support::client_settings())?
             .evidence

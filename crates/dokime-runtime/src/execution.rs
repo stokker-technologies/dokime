@@ -33,7 +33,6 @@ use crate::{
     streams::ExecutionTime,
 };
 use dokime_operations::Resources;
-use dokime_protocol::model;
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 
 /* === Constants === */

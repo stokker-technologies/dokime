@@ -15,6 +15,30 @@
 
 /* === Imports === */
 
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
+use dokime::Client;
+use dokime::client::PluginsSettingsSetOptions;
+use dokime::client::SettingsSetOptions;
+use dokime::plugin::Plugin;
+use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
+use harmos_protocol::model::setting_value::Value as SettingKind;
+use harmos_protocol::model::{SettingDeclaration, SettingValue, SettingValues, SettingsDeclarations};
+use harmos_protocol::plugin::instance_server::{Instance, InstanceServer};
+use harmos_protocol::plugin::{
+    InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
+    InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
+};
+use prost_types::Timestamp;
+use std::{collections::HashMap, error::Error, path::Path};
+use tokio::net::TcpListener;
+use tokio_stream::{Empty, wrappers::TcpListenerStream};
+use tonic::{
+    Code, Request, Response, Status, Streaming,
+    transport::{Endpoint, Server},
+};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -109,7 +133,17 @@ async fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             request_id: Some("preferences".into()),
             ..Default::default()
         };
-        let saved = client.settings.set_with(value.clone(), before.revision.clone(), options.clone()).await?;
+        let saved = client
+            .settings
+            .set_with(
+                value.clone(),
+                before.revision.clone(),
+                SettingsSetOptions {
+                    request_id: options.request_id.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(saved.value, Some(value.clone()));
         assert_ne!(saved.revision, before.revision);
         assert_eq!(client.settings.set_with(value.clone(), before.revision.clone(), options).await?, saved);

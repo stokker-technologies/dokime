@@ -24,7 +24,6 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::{Error, Result, execution_manager::ExecutionManager, host::lock};
-use dokime_protocol::model;
 
 /* === Constants === */
 

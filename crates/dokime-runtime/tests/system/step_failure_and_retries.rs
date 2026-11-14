@@ -104,8 +104,8 @@ async fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                 assert_eq!(latest.positions, read.positions);
                 let first_cut = read.response.as_ref().unwrap().resolved_at.as_ref().unwrap();
                 let latest_cut = latest.response.as_ref().unwrap().resolved_at.as_ref().unwrap();
-                assert_eq!(latest_cut.history, first_cut.history);
-                assert!(latest_cut.sequence > first_cut.sequence);
+                assert_eq!(latest_cut.positions[0].history, first_cut.positions[0].history);
+                assert!(latest_cut.positions[0].sequence > first_cut.positions[0].sequence);
                 latest.response.as_mut().unwrap().resolved_at = Some(first_cut.clone());
                 assert_eq!(latest.response, read.response);
                 assert_eq!(read.request.as_ref().unwrap().step, "measure");
@@ -116,7 +116,7 @@ async fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                     .map(|sample| sample.position)
                     .collect::<Vec<_>>();
                 assert_eq!(read.positions, positions);
-                assert_eq!(read.response.as_ref().unwrap().count, positions.len() as u64);
+                assert_eq!(read.response.as_ref().unwrap().statistics.as_ref().unwrap().count, positions.len() as u64);
                 assert!(positions.len() < snapshot.samples.len());
                 let boundary =
                     snapshot.evidence.iter().find(|evidence| evidence.kind == "step:start" && evidence.step == "measure").unwrap();

@@ -209,7 +209,7 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
         }),
     };
     let read = StatisticsRead {
-        request: Some(request),
+        request: Some(request.clone()),
         positions,
         response: Some(response.clone()),
     };

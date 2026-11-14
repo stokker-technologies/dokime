@@ -136,7 +136,7 @@ impl Instance for Carrier {
                         let Some(at) = tick.at else { break };
                         let samples = generate(&stream, sequence, &at);
                         sequence += samples.len() as u64;
-                        Ok(InstanceSamplesResponse { samples })
+                        Ok(InstanceSamplesResponse { samples, frame: None })
                     }
                     Ok(_) => Err(Status::invalid_argument("Sample Benchmark: Open a Stream and Supply Timestamped Ticks")),
                     Err(error) => Err(error),

@@ -15,6 +15,8 @@
 
 /* === Imports === */
 
+use dokime::client::EvidenceRecordsListOptions;
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -114,30 +116,36 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         let records = client
             .evidence
             .records
-            .list(
+            .list_with(
                 EvidenceRecordScope {
                     kind: Some(RecordScopeKind::Execution(executions[0].clone())),
                 },
                 String::new(),
-                Vec::new(),
-                Default::default(),
-                String::new(),
-                Default::default(),
+                EvidenceRecordsListOptions {
+                    versions: Some(Vec::new()),
+                    between: Some(Default::default()),
+                    step: Some(String::new()),
+                    selection: Some(Default::default()),
+                    ..Default::default()
+                },
             )
             .await?
             .records;
         let second_records = client
             .evidence
             .records
-            .list(
+            .list_with(
                 EvidenceRecordScope {
                     kind: Some(RecordScopeKind::Execution(executions[1].clone())),
                 },
                 String::new(),
-                Vec::new(),
-                Default::default(),
-                String::new(),
-                Default::default(),
+                EvidenceRecordsListOptions {
+                    versions: Some(Vec::new()),
+                    between: Some(Default::default()),
+                    step: Some(String::new()),
+                    selection: Some(Default::default()),
+                    ..Default::default()
+                },
             )
             .await?
             .records;

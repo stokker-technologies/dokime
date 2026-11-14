@@ -254,7 +254,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             commands
                 .create_with(
                     repeated.clone(),
-                    command.into(),
+                    command,
                     ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::RunStep as i32)?,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(command.into()),
@@ -274,7 +274,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             client.prompts.answers.create(question.clone(), "yes", MapValue::default(), true).await?;
             questions.push(question);
             loop {
-                let saved = commands.get(command.into(), repeated.clone()).await?.command.unwrap();
+                let saved = commands.get(command, repeated.clone()).await?.command.unwrap();
                 if saved.phase == ExecutionsExecutionCommandPhase::Completed as i32 {
                     break;
                 }

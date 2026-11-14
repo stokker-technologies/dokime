@@ -54,10 +54,10 @@ use dokime::client::DocumentsGetOptions;
 use dokime::client::ExecutionOutcome;
 use dokime::client::PlotsPlotDomain;
 use dokime::client::PlotsPlotSettingsValue;
+use dokime::client::PlotsSettingsSetOptions;
 use dokime::client::ReportSubject;
 use dokime::client::ReportsCreateOptions;
 use dokime::client::ReportsPublishOptions;
-use dokime::client::SettingsSetOptions;
 use dokime::encoding::Message;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::builders::Plot as BuildersPlot;
@@ -353,15 +353,18 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             cycle_id: "documents".into(),
             execution_id: "documents-a".into(),
         };
-        let current = preferences.get().await?;
+        let current = preferences.get(scope.clone(), "measurements", "trend").await?;
         preferences
             .set_with(
+                scope.clone(),
+                "measurements",
+                "trend",
                 PlotsPlotSettingsValue {
                     display_points: Some(32),
                     downsample: Downsample::MinMax as i32,
                 },
                 current.revision,
-                SettingsSetOptions {
+                PlotsSettingsSetOptions {
                     request_id: Some("plot-settings".into()),
                     ..Default::default()
                 },
@@ -378,12 +381,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             .get_with(
                 ((request.clone()).scope).unwrap_or_default(),
                 (request.clone()).document_id,
-                (request.clone()).structure_only,
-                (request.clone()).card_ids,
-                (request.clone()).page_token,
-                (request.clone()).max_bytes,
-                (request.clone()).max_frames,
                 DocumentsGetOptions {
+                    structure_only: Some((request.clone()).structure_only),
+                    card_ids: Some((request.clone()).card_ids),
+                    page_token: Some((request.clone()).page_token),
+                    max_bytes: Some((request.clone()).max_bytes),
+                    max_frames: Some((request.clone()).max_frames),
                     at: (request.clone()).at,
                     ..Default::default()
                 },
@@ -404,12 +407,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 .get_with(
                     ((request.clone()).scope).unwrap_or_default(),
                     (request.clone()).document_id,
-                    (request.clone()).structure_only,
-                    (request.clone()).card_ids,
-                    (request.clone()).page_token,
-                    (request.clone()).max_bytes,
-                    (request.clone()).max_frames,
                     DocumentsGetOptions {
+                        structure_only: Some((request.clone()).structure_only),
+                        card_ids: Some((request.clone()).card_ids),
+                        page_token: Some((request.clone()).page_token),
+                        max_bytes: Some((request.clone()).max_bytes),
+                        max_frames: Some((request.clone()).max_frames),
                         at: (request.clone()).at,
                         ..Default::default()
                     },
@@ -564,12 +567,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             .get_with(
                 scope.clone(),
                 "measurements",
-                Default::default(),
-                Default::default(),
-                String::new(),
-                Default::default(),
-                Default::default(),
                 DocumentsGetOptions {
+                    structure_only: Some(Default::default()),
+                    card_ids: Some(Default::default()),
+                    page_token: Some(String::new()),
+                    max_bytes: Some(Default::default()),
+                    max_frames: Some(Default::default()),
                     at: first.resolved_at.clone(),
                     ..Default::default()
                 },
@@ -588,12 +591,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 .get_with(
                     ((structure.clone()).scope).unwrap_or_default(),
                     (structure.clone()).document_id,
-                    (structure.clone()).structure_only,
-                    (structure.clone()).card_ids,
-                    (structure.clone()).page_token,
-                    (structure.clone()).max_bytes,
-                    (structure.clone()).max_frames,
                     DocumentsGetOptions {
+                        structure_only: Some((structure.clone()).structure_only),
+                        card_ids: Some((structure.clone()).card_ids),
+                        page_token: Some((structure.clone()).page_token),
+                        max_bytes: Some((structure.clone()).max_bytes),
+                        max_frames: Some((structure.clone()).max_frames),
                         at: (structure.clone()).at,
                         ..Default::default()
                     },
@@ -710,12 +713,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 .get_with(
                     ((cycle_request.clone()).scope).unwrap_or_default(),
                     (cycle_request.clone()).document_id,
-                    (cycle_request.clone()).structure_only,
-                    (cycle_request.clone()).card_ids,
-                    (cycle_request.clone()).page_token,
-                    (cycle_request.clone()).max_bytes,
-                    (cycle_request.clone()).max_frames,
                     DocumentsGetOptions {
+                        structure_only: Some((cycle_request.clone()).structure_only),
+                        card_ids: Some((cycle_request.clone()).card_ids),
+                        page_token: Some((cycle_request.clone()).page_token),
+                        max_bytes: Some((cycle_request.clone()).max_bytes),
+                        max_frames: Some((cycle_request.clone()).max_frames),
                         at: (cycle_request.clone()).at,
                         ..Default::default()
                     },

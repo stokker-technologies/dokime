@@ -23,12 +23,12 @@ use crate::{Error, Result};
 use arrow_array::{Array, BinaryArray, StringArray, StructArray};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
+use harmos_query::columnar::ColumnKind;
 use harmos_runtime::Identified;
 use harmos_runtime::builtins::storage::{ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
 use harmos_runtime::builtins::storage::{
     GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome,
 };
-use harmos_runtime::storage::query::columnar::ColumnKind;
 use harmos_runtime::storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
 use prost::Message;
 use std::num::NonZeroUsize;

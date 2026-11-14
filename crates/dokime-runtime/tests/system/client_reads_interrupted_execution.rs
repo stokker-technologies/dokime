@@ -120,22 +120,11 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .evidence
             .samples
             .clone()
-            .list_with(
-                ((request.clone()).scope).unwrap_or_default(),
-                (request.clone()).streams,
-                (request.clone()).versions,
-                (request.clone()).fields,
-                (request.clone()).sources,
-                (request.clone()).signals,
-                ((request.clone()).between).unwrap_or_default(),
-                ((request.clone()).bucket).unwrap_or_default(),
-                (request.clone()).latest,
-                EvidenceSamplesListOptions {
+            .list_with(((request.clone()).scope).unwrap_or_default(), (request.clone()).streams, EvidenceSamplesListOptions { versions: Some((request.clone()).versions), fields: Some((request.clone()).fields), sources: Some((request.clone()).sources), signals: Some((request.clone()).signals), between: Some(((request.clone()).between).unwrap_or_default()), bucket: Some(((request.clone()).bucket).unwrap_or_default()), latest: Some((request.clone()).latest),
                     at: (request.clone()).at,
                     page: (request.clone()).page,
                     ..Default::default()
-                },
-            )
+                })
             .await?;
         assert!(!samples.samples.is_empty());
         drop(progress);
@@ -164,22 +153,11 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
                 .evidence
                 .samples
                 .clone()
-                .list_with(
-                    ((request.clone()).scope).unwrap_or_default(),
-                    (request.clone()).streams,
-                    (request.clone()).versions,
-                    (request.clone()).fields,
-                    (request.clone()).sources,
-                    (request.clone()).signals,
-                    ((request.clone()).between).unwrap_or_default(),
-                    ((request.clone()).bucket).unwrap_or_default(),
-                    (request.clone()).latest,
-                    EvidenceSamplesListOptions {
+                .list_with(((request.clone()).scope).unwrap_or_default(), (request.clone()).streams, EvidenceSamplesListOptions { versions: Some((request.clone()).versions), fields: Some((request.clone()).fields), sources: Some((request.clone()).sources), signals: Some((request.clone()).signals), between: Some(((request.clone()).between).unwrap_or_default()), bucket: Some(((request.clone()).bucket).unwrap_or_default()), latest: Some((request.clone()).latest),
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         ..Default::default()
-                    }
-                )
+                    })
                 .await?
                 .samples,
             samples.samples
@@ -200,7 +178,7 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .list()
             .await?;
         assert_eq!(saved.entries.len(), 1);
-        assert_eq!(saved.entries[0].entry, entry.name);
+        assert_eq!(saved.entries[0].name, entry.name);
         assert_eq!(saved.entries[0].state, PluginState::Unavailable as i32);
         assert_eq!(saved.entries[0].description, entry.description);
         let mut progress =

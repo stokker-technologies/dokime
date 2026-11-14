@@ -1513,6 +1513,8 @@ dependencies = [
  "dokime-protocol",
  "dokime-storage",
  "harmos-protocol",
+ "harmos-query",
+ "harmos-runtime",
  "keyring",
  "prost",
  "prost-reflect",

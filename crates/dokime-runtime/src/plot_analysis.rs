@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Host, Result, dispatch::Dispatch};
-use dokime_protocol::model;
 use tokio_util::sync::CancellationToken;
 
 /* === Constants === */

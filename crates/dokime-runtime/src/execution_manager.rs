@@ -31,7 +31,6 @@ use tokio_util::sync::CancellationToken;
 // Local Imports
 use crate::{Cycle, Error, HostSettings, Result, host::lock, plugin::Entry, prompts::PromptManager};
 use dokime_operations::host::{Context, Progress};
-use dokime_protocol::model;
 use dokime_storage::{ExecutionState, Store};
 
 /* === Constants === */

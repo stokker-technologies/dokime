@@ -63,6 +63,7 @@ pub async fn desktop_settings_read(
     let client = client(&owner, &connection, scope).await?;
     let options = SettingsGetOptions {
         context: client.call_options().map_err(command_error)?,
+        ..Default::default()
     };
     let snapshot = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let snapshot = with_listener(&client, snapshot).await?;
@@ -83,6 +84,7 @@ pub async fn desktop_settings_update(
         SettingsSetRequest::decode(update.as_slice()).map_err(|error| SettingsCommandError::Validation { message: error.to_string() })?;
     let options = SettingsGetOptions {
         context: client.call_options().map_err(command_error)?,
+        ..Default::default()
     };
     let current = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let previous = current.value.as_ref().ok_or_else(|| SettingsCommandError::Validation {
@@ -116,6 +118,7 @@ pub async fn desktop_settings_update(
     let options = SettingsSetOptions {
         request_id: Some(update.request_id),
         context: client.call_options().map_err(command_error)?,
+        ..Default::default()
     };
     let saved = client.execute(client.client().settings.set_with(value, update.expected_revision, options)).await.map_err(command_error)?;
     let saved = with_listener(
@@ -157,6 +160,7 @@ async fn with_listener(client: &Session, mut snapshot: SettingsGetResponse) -> R
     use dokime_sdk::client::AccessListenerGetOptions;
     let options = AccessListenerGetOptions {
         context: client.call_options().map_err(command_error)?,
+        ..Default::default()
     };
     let listener = client.execute(client.client().access.listener.get_with(options)).await.map_err(command_error)?;
     let value = listener.value.ok_or_else(|| SettingsCommandError::Validation {

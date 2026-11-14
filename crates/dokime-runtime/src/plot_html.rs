@@ -29,7 +29,6 @@ use dokime_protocol::host::plots::GridFrames;
 use dokime_protocol::host::plots::PlotEnvelope;
 use dokime_protocol::host::plots::PlotFrame;
 use dokime_protocol::host::plots::PlotPayload;
-use dokime_protocol::model;
 use dokime_protocol::model::Plot;
 use dokime_protocol::model::Value;
 

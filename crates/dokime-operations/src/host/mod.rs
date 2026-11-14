@@ -211,13 +211,12 @@ impl Context {
     }
 
     pub async fn storage<O: NativeOperation<Endpoints = ()>>(&self, request: O::Request) -> Result<O::Response> {
-        let operations = match &self.caller {
-            Some(caller) => {
-                self.operations.with_scope(caller.execution.clone()).map_err(|source| Error::Permission(format!("{}: {source}", O::ID)))?
-            }
-            None => self.operations.clone(),
-        };
-        operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
+        if let Some(caller) = &self.caller {
+            let operations =
+                self.operations.with_scope(caller.execution.clone()).map_err(|source| Error::Permission(format!("{}: {source}", O::ID)))?;
+            return operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)));
+        }
+        self.operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
     }
 }
 

@@ -72,7 +72,6 @@ pub struct ConnectionSettings {
 #[derive(Clone)]
 pub struct Session {
     client: Box<Client>,
-    channel: tonic::transport::Channel,
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
     identity: StatusGetResponse,
@@ -83,7 +82,6 @@ pub struct Session {
     stream_buffer: usize,
     read_timeout: Duration,
     watch_timeout: Duration,
-    mutation_timeout: Duration,
 }
 
 /// The Desktop Owns Only The Host It Embeds, Never An Attached Host.
@@ -195,39 +193,6 @@ impl Session {
 
     pub(crate) async fn input_raw(&self, path: &str, receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
         operations::input(self, path, receiver).await
-    }
-
-    async fn input<Q, R>(&self, path: &'static str, mut receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error>
-    where
-        Q: Message + Default + Send + Sync + 'static,
-        R: Message + Default + Send + Sync + 'static,
-    {
-        let (sender, input) = tokio::sync::mpsc::channel(self.stream_buffer);
-        let feed = async move {
-            while let Some(bytes) = receiver.recv().await {
-                let value = Q::decode(bytes.as_slice()).map_err(|error| Status::invalid_argument(format!("{path}: {error}")))?;
-                sender.send(value).await.map_err(|_| Status::cancelled(format!("{path}: Host Closed Input")))?;
-            }
-            Ok::<_, Error>(())
-        };
-        let consume = async {
-            let mut client = tonic::client::Grpc::new(self.channel.clone())
-                .max_encoding_message_size(crate::rpc::protocol::FRAME_BYTES as usize)
-                .max_decoding_message_size(crate::rpc::protocol::FRAME_BYTES as usize);
-            client.ready().await.map_err(|error| Status::unavailable(format!("{path}: {error}")))?;
-            let mut request = self.request(tokio_stream::wrappers::ReceiverStream::new(input))?;
-            request.set_timeout(self.mutation_timeout);
-            let reply: tonic::Response<R> = self
-                .execute(client.client_streaming(
-                    request,
-                    path.parse().expect("Generated Input Path"),
-                    tonic_prost::ProstCodec::<Q, R>::default(),
-                ))
-                .await?;
-            Ok::<_, Error>(reply.into_inner().encode_to_vec())
-        };
-        let (_, response) = tokio::try_join!(feed, consume)?;
-        Ok(response)
     }
 
     pub(crate) fn read_timeout(&self) -> Duration {
@@ -373,13 +338,9 @@ impl Session {
             )?;
         }
         let channel = transport.connect().await?;
-        let mut client = Client::from_channel(channel.clone(), settings.client)?;
-        if let Some(pairing) = &pairing {
-            client = client.authorization(pairing.authorization()?);
-        }
+        let client = Client::from_channel(channel.clone(), settings.client)?;
         let mut session = Self {
             client: Box::new(client),
-            channel,
             pairing,
             endpoint: endpoint.to_owned(),
             identity: Default::default(),
@@ -390,7 +351,6 @@ impl Session {
             stream_buffer: settings.client.input_items.get(),
             read_timeout: settings.services.read_timeout,
             watch_timeout: settings.services.watch_timeout,
-            mutation_timeout: settings.services.mutation_timeout,
         };
         let options = StatusGetOptions { context: session.call_options()? };
         let reply = session.client.status.get_with(options).await?;
@@ -405,7 +365,10 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
-        let options = BackendOverviewGetOptions { context: session.call_options()? };
+        let options = BackendOverviewGetOptions {
+            context: session.call_options()?,
+            ..Default::default()
+        };
         let overview = session.client.backend.overview.get_with(options).await?;
         session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
         let mut methods = std::collections::BTreeSet::new();

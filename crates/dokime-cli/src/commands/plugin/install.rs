@@ -107,7 +107,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                 .await?;
             offset += size as u64;
             upload = reply.upload.ok_or("Install Plugin: Missing Accepted Upload")?;
-            if upload.length != offset {
+            if upload.accepted_length != offset {
                 return Err("Install Plugin: Accepted Offset Changed".into());
             }
             digest.update(&buffer[..size]);

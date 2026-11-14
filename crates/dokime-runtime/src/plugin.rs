@@ -30,7 +30,6 @@ use tonic::transport::Channel;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::model;
 
 /* === Constants === */
 

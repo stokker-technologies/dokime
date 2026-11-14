@@ -70,7 +70,7 @@ pub async fn handle(context: &Context, request: HealthEventsListRequest) -> Resu
             let mut items = Vec::new();
             if include_global {
                 for plugin in context.host.plugins().await? {
-                    if matches!(PluginState::try_from(plugin.state), Ok(PluginState::Disabled | PluginState::Ready)) {
+                    if matches!(PluginState::try_from(plugin.state), Ok(PluginState::Stopped | PluginState::Ready)) {
                         continue;
                     }
                     items.push(HealthItem {

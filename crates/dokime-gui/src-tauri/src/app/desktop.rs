@@ -44,6 +44,7 @@ use tauri_plugin_opener::OpenerExt;
 // ***
 use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
+use dokime_sdk::client::AccessListenerGetOptions;
 
 /* === Constants === */
 

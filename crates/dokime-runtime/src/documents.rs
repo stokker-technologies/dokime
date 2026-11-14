@@ -38,7 +38,6 @@ use dokime_operations::host::HostIdentity;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportMetadata;
 use dokime_protocol::host::ReportSubject;
-use dokime_protocol::model;
 use dokime_protocol::model::Document;
 use dokime_protocol::model::Plot;
 use dokime_protocol::model::PlotFilter;

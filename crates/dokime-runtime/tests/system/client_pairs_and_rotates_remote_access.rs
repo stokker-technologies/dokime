@@ -49,14 +49,13 @@ use dokime_protocol::host::FilesReadRequest;
 use dokime_protocol::host::PromptDefinitionsListRequest;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::SettingsGetRequest;
+use dokime_protocol::host::SettingsSetRequest;
 use dokime_protocol::host::backend::OverviewGetRequest;
 use dokime_protocol::host::content::ArtifactsListRequest;
 use dokime_protocol::host::evidence::NotesListRequest;
 use dokime_protocol::host::evidence::RecordsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
-use dokime_protocol::host::plots::SettingsSetRequest;
 use harmos_protocol::host::PluginsListRequest;
-use harmos_protocol::host::StatusGetRequest;
 use harmos_protocol::model::StorageTransferSettings;
 use std::error::Error;
 use std::num::NonZeroUsize;
@@ -114,13 +113,12 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let channel = Endpoint::from_shared(first.endpoint.clone())?.tls_config(tls)?.connect().await?;
         let backend = Client::from_channel(channel.clone(), limits)?;
         assert_eq!(backend.status.get().await.unwrap_err().code(), Code::Unauthenticated);
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
         let identity = backend
             .status
             .get_with(StatusGetOptions {
-                context: context_request.clone(),
+                context: context_request,
                 ..Default::default()
             })
             .await?
@@ -140,7 +138,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             settings
                 .get_with(SettingsGetOptions {
                     at: (request.clone()).at,
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 })
                 .await?
@@ -195,7 +193,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 (request.clone()).source_cycle,
                 CyclesCreateOptions {
                     request_id: Some((request.clone()).request_id),
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 },
             )
@@ -217,7 +215,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     (request.clone()).validate_only,
                     CasesCreateOptions {
                         request_id: Some((request.clone()).request_id),
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -248,7 +246,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             .clone()
             .get_with(BackendOverviewGetOptions {
                 at: (request.clone()).at,
-                context: context_request.clone(),
+                context: context_request,
                 ..Default::default()
             })
             .await?;
@@ -275,7 +273,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     (request.clone()).parent,
                     PromptDefinitionsListOptions {
                         at: (request.clone()).at,
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -300,7 +298,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 CyclesListOptions {
                     at: (request.clone()).at,
                     page: (request.clone()).page,
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 },
             )
@@ -314,7 +312,17 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 .evidence
                 .records
                 .clone()
-                .list(Default::default(), String::new(), Default::default(), Default::default(), String::new(), Default::default())
+                .list_with(
+                    Default::default(),
+                    String::new(),
+                    EvidenceRecordsListOptions {
+                        versions: Some(Default::default()),
+                        between: Some(Default::default()),
+                        step: Some(String::new()),
+                        selection: Some(Default::default()),
+                        ..Default::default()
+                    }
+                )
                 .await
                 .unwrap_err()
                 .code(),
@@ -330,14 +338,14 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             .list_with(
                 ((request.clone()).scope).unwrap_or_default(),
                 (request.clone()).record_type,
-                (request.clone()).versions,
-                ((request.clone()).between).unwrap_or_default(),
-                (request.clone()).step,
-                ((request.clone()).selection).unwrap_or_default(),
                 EvidenceRecordsListOptions {
+                    versions: Some((request.clone()).versions),
+                    between: Some(((request.clone()).between).unwrap_or_default()),
+                    step: Some((request.clone()).step),
+                    selection: Some(((request.clone()).selection).unwrap_or_default()),
                     at: (request.clone()).at,
                     page: (request.clone()).page,
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 },
             )
@@ -350,16 +358,19 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 .evidence
                 .samples
                 .clone()
-                .list(
+                .list_with(
                     Default::default(),
                     Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default()
+                    EvidenceSamplesListOptions {
+                        versions: Some(Default::default()),
+                        fields: Some(Default::default()),
+                        sources: Some(Default::default()),
+                        signals: Some(Default::default()),
+                        between: Some(Default::default()),
+                        bucket: Some(Default::default()),
+                        latest: Some(Default::default()),
+                        ..Default::default()
+                    }
                 )
                 .await
                 .unwrap_err()
@@ -377,17 +388,17 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 .list_with(
                     ((request.clone()).scope).unwrap_or_default(),
                     (request.clone()).streams,
-                    (request.clone()).versions,
-                    (request.clone()).fields,
-                    (request.clone()).sources,
-                    (request.clone()).signals,
-                    ((request.clone()).between).unwrap_or_default(),
-                    ((request.clone()).bucket).unwrap_or_default(),
-                    (request.clone()).latest,
                     EvidenceSamplesListOptions {
+                        versions: Some((request.clone()).versions),
+                        fields: Some((request.clone()).fields),
+                        sources: Some((request.clone()).sources),
+                        signals: Some((request.clone()).signals),
+                        between: Some(((request.clone()).between).unwrap_or_default()),
+                        bucket: Some(((request.clone()).bucket).unwrap_or_default()),
+                        latest: Some((request.clone()).latest),
                         at: (request.clone()).at,
                         page: (request.clone()).page,
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -411,7 +422,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             .clone()
             .list_with(AnalysesListOptions {
                 at: (request.clone()).at,
-                context: context_request.clone(),
+                context: context_request,
                 ..Default::default()
             })
             .await?;
@@ -429,7 +440,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     (request.clone()).expected_revision,
                     SettingsSetOptions {
                         request_id: Some((request.clone()).request_id),
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -453,7 +464,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     ReportsCreateOptions {
                         at: (request.clone()).at,
                         request_id: Some((request.clone()).request_id),
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -480,7 +491,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     (request.clone()).max_bytes,
                     FilesReadOptions {
                         at: (request.clone()).at,
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -514,7 +525,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     ContentArtifactsListOptions {
                         at: (request.clone()).at,
                         page: (request.clone()).page,
-                        context: context_request.clone(),
+                        context: context_request,
                         ..Default::default()
                     }
                 )
@@ -547,7 +558,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 EvidenceNotesListOptions {
                     at: (request.clone()).at,
                     page: (request.clone()).page,
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 },
             )
@@ -558,26 +569,24 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let second = remote.access.pairings.create("Replacement Desktop").await?;
         let listed = remote.access.pairings.list_with(AccessPairingsListOptions { at: None, ..Default::default() }).await?;
         assert_eq!(listed.pairings.len(), 2);
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
         backend
             .status
             .get_with(StatusGetOptions {
-                context: context_request.clone(),
+                context: context_request,
                 ..Default::default()
             })
             .await?;
         remote.access.pairings.delete(first.pairing.as_ref().unwrap().id.clone()).await?;
         assert_ne!(second.credential, first.credential);
-        let old = StatusGetRequest {};
         let mut context_old = CallOptions::default();
         context_old.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
         assert_eq!(
             backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_old.clone(),
+                    context: context_old,
                     ..Default::default()
                 })
                 .await
@@ -585,14 +594,13 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 .code(),
             Code::Unauthenticated
         );
-        let current = StatusGetRequest {};
         let mut context_current = CallOptions::default();
         context_current.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(
             backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_current.clone(),
+                    context: context_current,
                     ..Default::default()
                 })
                 .await?
@@ -618,14 +626,13 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(second.pinned_certificate_pem.clone()));
         let channel = Endpoint::from_shared(address)?.tls_config(tls)?.connect().await?;
         let backend = Client::from_channel(channel.clone(), limits)?;
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(
             backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 })
                 .await?
@@ -640,14 +647,13 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         // Rotate Live Trust; Existing Connections Survive but Revoked Credentials Cannot Authorize
         let rotated = remote.access.certificates.create().await?;
         assert_ne!(rotated, second.pinned_certificate_pem);
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(
             backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 })
                 .await
@@ -656,14 +662,13 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             Code::Unauthenticated
         );
         let fresh = remote.access.pairings.create("Rotated Desktop").await?;
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
         assert_eq!(
             backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 })
                 .await?
@@ -677,14 +682,13 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(fresh.pinned_certificate_pem));
         let fresh_channel = Endpoint::from_shared(fresh.endpoint)?.tls_config(tls)?.connect().await?;
         let fresh_backend = Client::from_channel(fresh_channel, limits)?;
-        let request = StatusGetRequest {};
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
         assert_eq!(
             fresh_backend
                 .status
                 .get_with(StatusGetOptions {
-                    context: context_request.clone(),
+                    context: context_request,
                     ..Default::default()
                 })
                 .await?
