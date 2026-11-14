@@ -171,7 +171,7 @@ impl tonic::server::UnaryService<OperationsListRequest> for Discover {
                     ..Default::default()
                 })
                 .collect();
-            Ok(Response::new(OperationsListResponse { operations, ..Default::default() }))
+            Ok(Response::new(OperationsListResponse { operations }))
         })
     }
 }
