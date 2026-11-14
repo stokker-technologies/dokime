@@ -326,6 +326,14 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [execution_outcomes.rs](../crates/dokime-runtime-next/tests/system/execution_outcomes.rs).
     **Status:** landed in the additive host.
 
+    Statistics replies include their resolved read position. Compare complete replies
+    only at the same returned position; equal measurements at later positions do not
+    imply equal provenance. Cached statistics retain the position actually returned
+    in each read's audit evidence. `step_failure_and_retries` guards a pinned repeated
+    read and a later read over the same samples, alongside recovered and exhausted
+    retries. Runtime observation may publish Connecting before Ready; consumers wait
+    for the state they need rather than assuming the first update completed admission.
+
 19. **Rendering Does Not Publish.** Render a fixed execution snapshot into temporary
     output without mutating evidence or publishing; explicit publication freezes the
     document/HTML durably and never changes the execution verdict or seal.

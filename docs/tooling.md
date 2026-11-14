@@ -128,9 +128,11 @@ Python environment or place TEMP/TMP inside a checkout.
 ## Hosted Validation
 
 Pull requests and Nightly retain native Linux and Windows host/SDK validation.
-PR host fixtures select Rust/Python; Nightly adds C#/C++ equivalence. All local
-host stories are available by target. Dev pushes run quick checks/builds; PRs run
-stories. Full validation belongs to hosted CI and Nightly after combined source
+PR host fixtures select Rust/Python; Nightly runs the same core host lane without
+depending on C#/C++ fixture builds, and retains their equivalence stories in a
+separate lane on both platforms. All local host stories are available by target.
+Dev pushes run quick checks/builds; PRs run stories. Full validation belongs to
+hosted CI and Nightly after combined source
 closure. Local work uses focused proof and never substitutes Windows for Linux.
 Nightly publication depends on packages; its final report appends suite outcomes.
 Release publication requires separately authorized exact-commit green evidence.

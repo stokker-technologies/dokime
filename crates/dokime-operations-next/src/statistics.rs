@@ -19,12 +19,14 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::v1::{Catalog, OperationContract};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, Value};
+use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::{Error, Resources, Result};
+use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
 use dokime_storage::StatisticsRead;
 
 /* === Constants === */
@@ -45,20 +47,18 @@ pub const ID: &str = "dokime.plugin.host.v1.Evidence/Statistics";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<dokime_protocol::context::EvidenceStatisticsRequest, dokime_protocol::context::EvidenceStatisticsResponse>(
+pub fn declaration() -> Result<OperationContract> {
+    crate::declaration::<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(
         ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
+        FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(
-    resources: &Resources, request: dokime_protocol::context::EvidenceStatisticsRequest,
-) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
+pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let mut snapshot = resources.store.cut(&resources.execution)?;
     let resolved_at = resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at;
     snapshot.frontier = resolved_at.sequence;
-    let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+    let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let stream = catalog
         .streams
         .iter()
@@ -85,8 +85,9 @@ pub async fn handle(
     key.field = field.name().into();
     if let Some(mut read) = resources.store.cached_statistics(&resources.execution, &key, start, frontier)? {
         read.request = Some(request);
-        let mut response = read.response.clone().unwrap_or_default();
+        let response = read.response.get_or_insert_default();
         response.resolved_at = Some(resolved_at);
+        let response = response.clone();
         resources.evidence("read:statistics", read.encode_to_vec(), None)?;
         return Ok(response);
     }
@@ -117,7 +118,7 @@ pub async fn handle(
         }
     }
     if values.is_empty() {
-        let response = dokime_protocol::context::EvidenceStatisticsResponse {
+        let response = EvidenceStatisticsResponse {
             resolved_at: Some(resolved_at),
             ..Default::default()
         };
@@ -142,7 +143,7 @@ pub async fn handle(
         let high = index.ceil() as usize;
         values[low] + (values[high] - values[low]) * index.fract()
     };
-    let response = dokime_protocol::context::EvidenceStatisticsResponse {
+    let response = EvidenceStatisticsResponse {
         resolved_at: Some(resolved_at),
         count,
         min: values[0],
