@@ -28,6 +28,8 @@ from statistics import median
 # Local Imports
 from .. import policy, temporary
 from ..ci import bootstrap
+from ..build import paths
+from ..release import reports
 from . import policy as test_policy
 
 # Type Checking Imports
@@ -164,6 +166,12 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
     rows = []
     for (history_rows, count, condition), samples in groups.items():
         prefix = f"desktop/{history_rows}/{count}/{condition}"
+        boundary = (
+            "Document request through bounded native delivery and visible draw; host and desktop reopen excluded; OS cache uncontrolled"
+            if condition in {"cold", "warm"}
+            else "Prepared view: producer handoff or named action through native delivery and visible draw; no publication durability barrier"
+        )
+        qualified = reports.identity("rust/desktop", paths.target(), prefix, boundary, state=condition)
         metrics = {}
         for sample in samples:
             for stage, values in sample["backendStages"].items():
@@ -198,7 +206,7 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
                 rows.append(
                     {
                         "name": name,
-                        "suite": "rust/desktop",
+                        **qualified,
                         "unit": unit,
                         "value": value,
                         "baseline_value": baselines.get((name, unit)),
@@ -211,7 +219,7 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
         rows.append(
             {
                 "name": f"{prefix}/refusals",
-                "suite": "rust/desktop",
+                **qualified,
                 "unit": "cases",
                 "value": refusal_count,
                 "baseline_value": None,
@@ -247,6 +255,42 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
                 "fixture": samples[0].get("fixture", current["fixture"]),
             }
         )
+    completion_path = home / "completion.json"
+    completion = json.loads(completion_path.read_text(encoding="utf-8")) if completion_path.is_file() else {}
+    if not success:
+        reason = (
+            completion.get("failure")
+            or "; ".join(completion.get("errors", []))
+            or "Native desktop benchmark exited without completing measurements"
+        )
+        for history_rows in (2_073_600, 307_200, 1_536_000, 3_072_000):
+            conditions = (
+                ("cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled")
+                if history_rows == 2_073_600
+                else ("cold", "warm", "live")
+            )
+            for count in (30, 100):
+                for condition in conditions:
+                    if (history_rows, count, condition) in groups and completion.get("measuring") != f"{history_rows}/{count}/{condition}":
+                        continue
+                    case = f"desktop/{history_rows}/{count}/{condition}"
+                    rows.append(
+                        {
+                            "name": case,
+                            **reports.identity(
+                                "rust/desktop",
+                                paths.target(),
+                                case,
+                                "Document request or prepared-view action through visible draw",
+                                state=condition,
+                            ),
+                            "status": "not_measured",
+                            "reason": reason,
+                            "value": None,
+                            "baseline_value": None,
+                            "revision": revision,
+                        }
+                    )
     summary = {
         "benchmarks": rows,
         "identity": identity,

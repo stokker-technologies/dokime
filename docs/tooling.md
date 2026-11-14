@@ -151,6 +151,11 @@ baseline promotion. Omit it for the unchanged Criterion sampling configuration.
 Case identities distinguish preview reads, full scans, store admission and runtime
 publication; their baselines must never be interchanged. Benches record durations
 and refusals; stories assert deterministic behavior, never timing or sampled load.
+Nightly identities include the lane, native platform, owning harness, case and state.
+The report inventory retains every metric and its timed boundary; release notes
+list each case and boundary, including cases without baselines. Unmeasured desktop
+cases retain their failure reason with no numeric value. Native Criterion output
+and case boundaries remain in each harness's `run.log`.
 
 Warm queries use an already queried store. Cold queries include `Store::open` and
 the first query through that new store, with independent codec/query state. They

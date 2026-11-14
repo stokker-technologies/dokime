@@ -12,6 +12,7 @@
 # Standard Library Imports
 import json
 import math
+import re
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
@@ -19,6 +20,7 @@ from xml.etree import ElementTree
 # Third Party Imports
 # Local Imports
 from .. import policy
+from ..build import paths
 
 # Type Checking Imports
 
@@ -33,7 +35,9 @@ from .. import policy
 # === Public Functions === #
 
 
-def measurements(rows: list[tuple[str, float, float | None]], suite: str, revision: str, threshold: float) -> dict:
+def measurements(
+    rows: list[tuple[str, float, float | None]], suite: str, revision: str, threshold: float, *, boundaries: dict[str, str] | None = None
+) -> dict:
     """Preserve Every Native Measurement And Its Pre-Run Baseline."""
     benchmarks = []
     for name, value, baseline in rows:
@@ -42,7 +46,12 @@ def measurements(rows: list[tuple[str, float, float | None]], suite: str, revisi
         benchmarks.append(
             {
                 "name": name,
-                "suite": suite,
+                **identity(
+                    suite,
+                    paths.target(),
+                    name,
+                    (boundaries or {}).get(name, "Native timed iteration; fixture preparation follows the owning harness"),
+                ),
                 "unit": "ns",
                 "value": value,
                 "baseline_value": baseline,
@@ -51,6 +60,16 @@ def measurements(rows: list[tuple[str, float, float | None]], suite: str, revisi
             }
         )
     return {"benchmarks": benchmarks}
+
+
+def identity(lane: str, platform: str, case: str, boundary: str, *, state: str | None = None) -> dict:
+    """Qualify Measurements At Their Producer, Independently Of Artifact Names."""
+    if state is None:
+        parts = re.split(r"[/_]", case)
+        state = next(
+            (part for part in parts if part in {"cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled"}), "default"
+        )
+    return {"suite": f"{lane}/{platform}/{state}", "lane": lane, "platform": platform, "case": case, "state": state, "boundary": boundary}
 
 
 def collect(directory: Path) -> tuple[dict, list[Path]]:
@@ -79,9 +98,12 @@ def collect(directory: Path) -> tuple[dict, list[Path]]:
                 )
         except (ValueError, KeyError, ElementTree.ParseError) as error:
             errors.append({"report": path.relative_to(source).as_posix(), "error": str(error)})
-    identities = [(row["suite"], row["name"]) for row in benchmarks]
-    if len(identities) != len(set(identities)):
-        raise policy.ToolError("duplicate benchmark identity in nightly reports")
+    identities = set()
+    for row in benchmarks:
+        key = (row["suite"], row["name"])
+        if key in identities:
+            raise policy.ToolError(f"duplicate benchmark identity in nightly reports: {key!r}")
+        identities.add(key)
     return {"coverage": coverage, "benchmarks": benchmarks, "errors": errors}, files
 
 
@@ -109,7 +131,24 @@ def table(summary: dict, results: dict, url: str) -> str:
         lines.append(f"| Coverage / {row['language']} | {row['line_percent']:.2f}% |")
     if not summary["coverage"]:
         lines.append("| Coverage | Unavailable; see suite results |")
+    cases = {}
     for row in summary["benchmarks"]:
+        case = row.get("case", row["name"])
+        key = (row["suite"], case)
+        cases.setdefault(key, []).append(row)
+    for (suite, case), rows in sorted(cases.items()):
+        name = f"Benchmark / {suite} / {case}".replace("|", "\\|").replace("\n", " ")
+        boundary = rows[0].get("boundary", "Boundary unavailable in producer report")
+        measured = sum(row.get("status") != "not_measured" for row in rows)
+        missing = [row["reason"] for row in rows if row.get("status") == "not_measured"]
+        result = f"{measured} measurements; {boundary}" if measured else f"Not measured: {'; '.join(missing)}; {boundary}"
+        if measured and missing:
+            result += f"; Not measured: {'; '.join(missing)}"
+        result = result.replace("|", "\\|").replace("\n", " ")
+        lines.append(f"| {name} | {result} |")
+    for row in summary["benchmarks"]:
+        if row.get("status") == "not_measured":
+            continue
         baseline = row["baseline_value"]
         if baseline is None or baseline <= 0:
             continue
