@@ -43,9 +43,10 @@ use dokime_protocol::host::evidence::{
 };
 use dokime_protocol::host::executions::{ProgressGetRequest, ProgressSetRequest};
 use dokime_protocol::host::files::{
-    UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsGetRequest, UploadsPublishRequest, UploadsResumeRequest,
+    CapturesStartRequest, CapturesStopRequest, UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsGetRequest,
+    UploadsPublishRequest, UploadsResumeRequest,
 };
-use dokime_protocol::host::{FilesDeleteRequest, FilesGetRequest, FilesReadRequest};
+use dokime_protocol::host::{FilesCaptureRequest, FilesDeleteRequest, FilesGetRequest, FilesReadRequest};
 use harmos_runtime::Failure;
 use prost_types::FileDescriptorSet;
 use std::sync::OnceLock;
@@ -197,12 +198,16 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
         host::files::uploads::delete::ID => {
             Ok(host::files::uploads::delete::handle(&context, UploadsDeleteRequest::decode(payload)?).await?.encode_to_vec())
         }
-        "dokime.host.v1.Files/Capture"
-        | "dokime.host.v1.files.Captures/Start"
-        | "dokime.host.v1.files.Captures/Stop"
-        | "dokime.host.v1.Effects/Create"
-        | "dokime.host.v1.Effects/Get"
-        | "dokime.host.v1.Effects/Set" => {
+        host::files::capture::ID => {
+            Ok(host::files::capture::handle(&context, FilesCaptureRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::captures::start::ID => {
+            Ok(host::files::captures::start::handle(&context, CapturesStartRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::captures::stop::ID => {
+            Ok(host::files::captures::stop::handle(&context, CapturesStopRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        "dokime.host.v1.Effects/Create" | "dokime.host.v1.Effects/Get" | "dokime.host.v1.Effects/Set" => {
             Err(Error::Unimplemented(format!("{}: Capture and Effects Engines Are Not Implemented", request.operation)))
         }
         _ => Err(Error::Invalid(format!("{}: Connect the Requested Operation Provider", request.operation))),

@@ -33,6 +33,8 @@ use crate::{Error, Resources, Result};
 const OPERATIONS: &[&str] = &[
     crate::host::content::artifacts::create::ID,
     crate::host::files::capture::ID,
+    crate::host::files::captures::start::ID,
+    crate::host::files::captures::stop::ID,
     crate::host::backend::overview::watch::ID,
     crate::host::cases::watch::ID,
     crate::host::content::artifacts::watch::ID,
@@ -433,6 +435,8 @@ pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operati
     registration = registration.entry(factory::<crate::host::secrets::watch::Operation>(settings.watch_timeout)?);
     registration = registration.entry(factory::<crate::host::content::artifacts::create::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::files::capture::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::files::captures::start::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::files::captures::stop::Operation>(settings.mutation_timeout)?);
     Ok(registration)
 }
 

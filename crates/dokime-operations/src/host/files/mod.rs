@@ -12,6 +12,7 @@
 /* === Modules === */
 
 pub mod capture;
+pub mod captures;
 pub mod delete;
 pub mod get;
 pub mod read;

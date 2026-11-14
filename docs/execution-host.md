@@ -1726,6 +1726,10 @@ and source chain. Direct hosts use
 assembly. Assembly owns the backend lease, and closure refuses further backend
 calls before releasing it.
 
+Files.Capture and files.Captures.Start/Stop register through those canonical
+adapters and enforce their plugin-only callers before returning an unimplemented
+refusal naming the action. Their capture engines remain absent.
+
 Uploads.Create assigns an omitted file ID from its mutation identity. Plugin
 mutation identities include the trusted execution scope, so equal request IDs in
 different executions remain independent; retrying one request retains its file ID.

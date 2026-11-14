@@ -129,20 +129,6 @@ impl dokime_protocol::host::effects_server::Effects for Services {
     }
 }
 
-#[tonic::async_trait]
-impl dokime_protocol::host::files::captures_server::Captures for Services {
-    async fn start(
-        &self, _request: tonic::Request<dokime_protocol::host::files::CapturesStartRequest>,
-    ) -> std::result::Result<tonic::Response<dokime_protocol::host::files::CapturesStartResponse>, tonic::Status> {
-        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.files.Captures/Start")))
-    }
-    async fn stop(
-        &self, _request: tonic::Request<dokime_protocol::host::files::CapturesStopRequest>,
-    ) -> std::result::Result<tonic::Response<dokime_protocol::host::files::CapturesStopResponse>, tonic::Status> {
-        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.files.Captures/Stop")))
-    }
-}
-
 /* === Public Functions === */
 
 /// Compose Declared Defaults Without Opening Storage, Credentials or Transports.
@@ -369,11 +355,6 @@ fn register_services(manager: &GrpcManager, settings: &ClientSettings) -> Result
     let services = Services;
     manager.register_service(
         dokime_protocol::host::effects_server::EffectsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        dokime_protocol::host::files::captures_server::CapturesServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

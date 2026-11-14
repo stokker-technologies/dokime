@@ -104,10 +104,16 @@ async fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Res
     let direct = client.cycles.get(cycle.cycle_id.clone()).await?;
     assert_eq!(direct.cycle.as_ref().map(|cycle| &cycle.cycle_id), Some(&cycle.cycle_id));
 
-    let id = "dokime.host.v1.evidence.Records/Append";
-    let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == id).ok_or("Find Record Append Contract")?;
-    let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
-    assert_eq!(refused.code(), Code::PermissionDenied);
+    for id in [
+        "dokime.host.v1.evidence.Records/Append",
+        "dokime.host.v1.Files/Capture",
+        "dokime.host.v1.files.Captures/Start",
+        "dokime.host.v1.files.Captures/Stop",
+    ] {
+        let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == id).ok_or("Find Plugin-Only Contract")?;
+        let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
+        assert_eq!(refused.code(), Code::PermissionDenied);
+    }
     server.close().await?;
     Ok(())
 }
