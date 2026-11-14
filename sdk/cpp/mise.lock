@@ -3,48 +3,48 @@
 lockfile_version = 4
 
 [[tools.cmake]]
-version = "4.1.2"
+version = "4.2.8"
 backend = "aqua:Kitware/CMake"
-specifiers = ["4.1.2"]
+specifiers = ["4.2.8"]
 
 [tools.cmake."platforms.linux-arm64"]
-checksum = "sha256:0634996f918b3bab11f45522899c81c987b09c9a64d15f6a0d2bb51c42099534"
+checksum = "sha256:a7f1974cc46ac494a0e02833f9ecaff394aafdc2729fbe751e829dbbe322c313"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-linux-aarch64.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954804"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-linux-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544489667"
 
 [tools.cmake."platforms.linux-arm64-musl"]
-checksum = "sha256:0634996f918b3bab11f45522899c81c987b09c9a64d15f6a0d2bb51c42099534"
+checksum = "sha256:a7f1974cc46ac494a0e02833f9ecaff394aafdc2729fbe751e829dbbe322c313"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-linux-aarch64.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954804"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-linux-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544489667"
 
 [tools.cmake."platforms.linux-x64"]
-checksum = "sha256:773cc679c3a7395413bd096523f8e5d6c39f8718af4e12eb4e4195f72f35e4ab"
+checksum = "sha256:fdc99bf2cc077f3a7dc783bc1a064fcb3d1deb806add09a355814ccff6e40914"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-linux-x86_64.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954823"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544490052"
 
 [tools.cmake."platforms.linux-x64-musl"]
-checksum = "sha256:773cc679c3a7395413bd096523f8e5d6c39f8718af4e12eb4e4195f72f35e4ab"
+checksum = "sha256:fdc99bf2cc077f3a7dc783bc1a064fcb3d1deb806add09a355814ccff6e40914"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-linux-x86_64.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954823"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544490052"
 
 [tools.cmake."platforms.macos-arm64"]
-checksum = "sha256:3be85f5b999e327b1ac7d804cbc9acd767059e9f603c42ec2765f6ab68fbd367"
+checksum = "sha256:e1c46a8a27153a15a0c24eece25e3d54e71396828c904a15e4ea0fa899fab861"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-macos-universal.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954851"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-macos-universal.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544490632"
 
 [tools.cmake."platforms.macos-x64"]
-checksum = "sha256:3be85f5b999e327b1ac7d804cbc9acd767059e9f603c42ec2765f6ab68fbd367"
+checksum = "sha256:e1c46a8a27153a15a0c24eece25e3d54e71396828c904a15e4ea0fa899fab861"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-macos-universal.tar.gz"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954851"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-macos-universal.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544490632"
 
 [tools.cmake."platforms.windows-x64"]
-checksum = "sha256:82730741149681597510a4bc7095da1460b472dac24eaf9c23ad7440f47753ab"
+checksum = "sha256:d33720a4e03114ae7c964c184e88f68a640be419f973bf4fb685f0900d1864ee"
 checksum_source = "mise-versions"
-url = "https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-windows-x86_64.zip"
-url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/298954995"
+url = "https://github.com/Kitware/CMake/releases/download/v4.2.8/cmake-4.2.8-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/544493468"

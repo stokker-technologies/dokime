@@ -124,7 +124,7 @@ def main() -> None:
         if args.fresh:
             command += ["--fresh"]
         if os.name == "nt":
-            command += ["-G", "Visual Studio 17 2022", "-A", "x64"]
+            command += ["-A", "x64"]
         if args.harmos_source:
             command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
         if args.harmos_cache:
@@ -187,7 +187,7 @@ def main() -> None:
         else:
             command += [f"-DFETCHCONTENT_SOURCE_DIR_DOKIME={root}"]
         if os.name == "nt":
-            command += ["-G", "Visual Studio 17 2022", "-A", "x64"]
+            command += ["-A", "x64"]
         if args.harmos_source:
             command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
         if args.harmos_cache:

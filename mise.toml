@@ -112,6 +112,10 @@ run = "{{vars.tools}} dokime_tools.ci.tasks test"
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
+[tasks.bench]
+description = "Measure Built Benchmarks"
+run = "{{vars.tools}} dokime_tools.ci.tasks bench"
+
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
@@ -323,11 +327,10 @@ description = "Test System Python"
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--prepared"
-flag "--artifacts <artifacts>" help="Use an Explicit Native Fixture Root"
 flag "--select <select>" help="Run Matching System Stories"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category system -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category system {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:coverage"]
@@ -406,7 +409,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
   "{{vars.tools}} dokime_tools.test.archive --install-wheels --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features dokime-gui/testing",
 ]
 
 [tasks."test:rust:acceptance"]
@@ -417,7 +420,10 @@ flag "--profile <profile>" default="dev"
 flag "--prepared"
 flag "--select <select>"
 '''
-run = '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}'''
+run = [
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}''',
+]
 
 [tasks."bench:rust:system"]
 hide = true
@@ -474,7 +480,7 @@ flag "--prepared"
 flag "--select <select>"
 '''
 run = [
-  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
@@ -489,7 +495,7 @@ flag "--prepared"
 flag "--select <select>"
 '''
 run = [
-  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --generate{% endif %}",
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   '''{% if usage.prepared and not usage.select %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
   '''{% if not usage.prepared or usage.select %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]

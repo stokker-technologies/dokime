@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
@@ -50,7 +51,10 @@ class DesktopBench(unittest.TestCase):
             "os._exit(int(sys.argv[2]))"
         )
         rules = run.policy.load(Path.cwd())
-        with tempfile.TemporaryDirectory() as temporary:
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(desktop_bench, "credentials", side_effect=lambda environment: nullcontext(environment)),
+        ):
             directory = Path(temporary)
             for language in ("rust", "python", "typescript"):
                 for failed in (False, True):
