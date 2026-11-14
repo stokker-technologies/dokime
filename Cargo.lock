@@ -1506,6 +1506,7 @@ dependencies = [
 name = "dokime-operations-next"
 version = "0.1.5"
 dependencies = [
+ "arrow-array",
  "async-trait",
  "base64 0.23.1",
  "dokime-protocol",
@@ -1574,6 +1575,7 @@ name = "dokime-runtime-next"
 version = "0.1.5"
 dependencies = [
  "async-trait",
+ "criterion",
  "dokime",
  "dokime-operations-next",
  "dokime-protocol",
@@ -1600,6 +1602,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "zeroize",
+ "zip",
 ]
 
 [[package]]
@@ -1607,19 +1610,30 @@ name = "dokime-storage"
 version = "0.1.5"
 dependencies = [
  "arrow-array",
+ "arrow-buffer",
  "arrow-ipc",
  "arrow-schema",
+ "arrow-select",
  "dokime-protocol",
+ "flatbuffers",
  "harmos-protocol",
+ "harmos-storage",
+ "num-bigint 0.5.1",
+ "num-traits",
+ "postcard",
  "prost",
  "prost-reflect",
  "prost-types",
  "rusqlite",
+ "serde",
+ "serde_json",
  "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
+ "zip",
 ]
 
 [[package]]
@@ -3620,6 +3634,7 @@ checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]

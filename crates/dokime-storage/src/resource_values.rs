@@ -16,10 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::v1::{History, Position, Receipt};
 use prost::Message;
+use rusqlite::Connection;
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
@@ -133,7 +135,7 @@ impl Store {
         Ok(())
     }
 
-    pub fn resource_events(&self, execution: &str, after: u64, through: u64, limit: std::num::NonZeroUsize) -> Result<Vec<Evidence>> {
+    pub fn resource_events(&self, execution: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Evidence>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT e.payload FROM resource_values v JOIN evidence e ON e.execution=v.execution AND e.position=v.position WHERE v.execution=?1 AND v.position>?2 AND v.position<=?3 ORDER BY v.position LIMIT ?4")?;
         let bytes = statement
@@ -148,7 +150,7 @@ impl Store {
         bytes.map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).transpose()
     }
 
-    pub fn execution_identifier_page(&self, cycle: Option<&str>, after: &str, maximum: std::num::NonZeroUsize) -> Result<Vec<String>> {
+    pub fn execution_identifier_page(&self, cycle: Option<&str>, after: &str, maximum: NonZeroUsize) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let sql = if cycle.is_some() {
             "SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3"
@@ -187,6 +189,7 @@ impl Store {
         }
         let fingerprint = digest.finalize().to_vec();
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -213,8 +216,8 @@ impl Store {
             let position = crate::store::next_position(&transaction, execution)?;
             evidence.position = position;
             transaction.execute(
-                "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
-                params![execution, position as i64, evidence.encode_to_vec()],
+                "INSERT INTO evidence(execution,position,payload,kind) VALUES (?1,?2,?3,?4)",
+                params![execution, position as i64, evidence.encode_to_vec(), evidence.kind],
             )?;
             transaction.execute(
                 "INSERT INTO resource_values VALUES (?1,?2,?3,?4)",
@@ -252,14 +255,12 @@ impl Store {
 
 /* === Private Functions === */
 
-fn resolve_value(
-    connection: &rusqlite::Connection, identity: &str, execution: &str, resource: &str, at: Option<&Position>,
-) -> Result<ResourceValue> {
+fn resolve_value(connection: &Connection, identity: &str, execution: &str, resource: &str, at: Option<&Position>) -> Result<ResourceValue> {
     let state: i32 = connection
         .query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))
         .optional()?
         .ok_or_else(|| Error::NotFound(format!("Get {resource}: Select an Existing Execution")))?;
-    let frontier = crate::store::next_position(connection, execution)?.saturating_sub(1);
+    let frontier = crate::store::saved_position(connection, execution)?;
     let history = History {
         store: identity.to_owned(),
         epoch: execution.into(),

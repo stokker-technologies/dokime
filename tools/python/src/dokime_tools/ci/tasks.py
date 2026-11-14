@@ -312,6 +312,11 @@ def main(arguments: list[str] | None = None) -> int:
                         tasks.append((f"test:{language}:{layer}", options))
     elif args.operation == "bench":
         layers = [args.layer] if args.layer else ["unit", "integration", "system"]
+        if args.binary == "storage":
+            if args.language not in (None, "rust") or args.refresh_baseline:
+                parser.error("storage benchmarks use Rust and native Criterion output; baseline promotion is separate")
+            layers = []
+            tasks = [("bench:rust:storage", ["--select", args.select] if args.select else [])]
         if "acceptance" in layers:
             parser.error("bench layers are unit, integration and system")
         for language in [args.language] if args.language else ["rust"]:

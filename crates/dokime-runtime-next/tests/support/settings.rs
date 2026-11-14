@@ -43,6 +43,7 @@ pub const SYSTEM_HANG_GUARD: Duration = Duration::from_secs(600);
 
 pub fn settings() -> HostSettings {
     HostSettings {
+        storage: dokime_storage::storage_defaults(),
         placement: PlacementSettings {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_secs(1),

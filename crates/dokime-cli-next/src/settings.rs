@@ -25,12 +25,20 @@ use std::{
 
 // Third Party Imports
 use serde::Deserialize;
+use tonic::Request;
+use tonic::service::Interceptor;
+use tonic::transport::Channel;
 
 // Local Imports
+use crate::Result;
+use dokime::Client;
+use dokime::client::ClientSettings as RpcClientSettings;
 use dokime_runtime_next::{
     ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
 };
+
+use dokime_runtime_next::{StorageSettings, storage_defaults};
 
 /* === Constants === */
 
@@ -51,6 +59,10 @@ pub(crate) struct Settings {
     #[serde(skip)]
     pub pairing: Option<crate::commands::pairing::File>,
     pub storage: Option<PathBuf>,
+    pub telemetry_rows: NonZeroUsize,
+    pub telemetry_interval_ms: u64,
+    pub telemetry_pending_bytes: NonZeroUsize,
+    pub telemetry_query_bytes: NonZeroUsize,
     pub connect_timeout_s: u64,
     pub read_timeout_s: u64,
     pub mutation_timeout_s: u64,
@@ -77,6 +89,10 @@ impl Default for Settings {
             remote: None,
             pairing: None,
             storage: None,
+            telemetry_rows: storage_defaults().flush_rows,
+            telemetry_interval_ms: storage_defaults().flush_interval.as_millis() as u64,
+            telemetry_pending_bytes: storage_defaults().pending_bytes,
+            telemetry_query_bytes: storage_defaults().query_bytes,
             connect_timeout_s: 30,
             read_timeout_s: 30,
             mutation_timeout_s: 30,
@@ -93,7 +109,7 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn load(path: Option<&Path>) -> crate::Result<Self> {
+    pub fn load(path: Option<&Path>) -> Result<Self> {
         let settings: Self = match path {
             Some(path) => toml::from_str(&std::fs::read_to_string(path)?)?,
             None => Self::default(),
@@ -104,6 +120,7 @@ impl Settings {
             settings.mutation_timeout_s,
             settings.watch_timeout_s,
             settings.stop_grace_s,
+            settings.telemetry_interval_ms,
         ]
         .contains(&0)
         {
@@ -122,7 +139,17 @@ impl Settings {
     }
     pub fn host(&self, controlled: bool) -> HostSettings {
         let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
-        HostSettings { clock, placement: self.placement() }
+        HostSettings {
+            clock,
+            placement: self.placement(),
+            storage: StorageSettings {
+                flush_rows: self.telemetry_rows,
+                flush_interval: Duration::from_millis(self.telemetry_interval_ms),
+                pending_bytes: self.telemetry_pending_bytes,
+                query_bytes: self.telemetry_query_bytes,
+                previews: storage_defaults().previews,
+            },
+        }
     }
     pub fn services(&self) -> ClientSettings {
         ClientSettings {
@@ -135,7 +162,7 @@ impl Settings {
             stream_buffer: self.stream_buffer.get(),
         }
     }
-    pub fn client(&self) -> dokime::client::ClientSettings {
+    pub fn client(&self) -> RpcClientSettings {
         dokime::client::ClientSettings {
             transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
             retained_bytes: self.retained_bytes,
@@ -144,14 +171,14 @@ impl Settings {
             input_bytes: self.message_bytes,
         }
     }
-    pub fn request<T>(&self, value: T) -> tonic::Request<T> {
+    pub fn request<T>(&self, value: T) -> Request<T> {
         let mut request = tonic::Request::new(value);
         if let Some(pairing) = &self.pairing {
             request.metadata_mut().insert("authorization", pairing.authorization().expect("Validated Pairing Key"));
         }
         request
     }
-    pub async fn sdk(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<dokime::Client> {
+    pub async fn sdk(&self, endpoint: Option<String>, streaming: bool) -> Result<Client> {
         let channel = self.channel(endpoint, streaming).await?;
         let mut client = dokime::Client::from_channel(channel, self.client())?;
         if let Some(pairing) = &self.pairing {
@@ -159,7 +186,7 @@ impl Settings {
         }
         Ok(client)
     }
-    pub fn request_id(&self, supplied: Option<String>) -> crate::Result<String> {
+    pub fn request_id(&self, supplied: Option<String>) -> Result<String> {
         if let Some(value) = supplied {
             if value.is_empty() {
                 return Err(crate::error::Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
@@ -169,7 +196,7 @@ impl Settings {
         let nonce = tempfile::Builder::new().prefix("dokime-request-").tempfile()?;
         Ok(nonce.path().file_name().unwrap().to_string_lossy().into_owned())
     }
-    pub fn interceptor(&self) -> impl tonic::service::Interceptor + Clone + use<> {
+    pub fn interceptor(&self) -> impl Interceptor + Clone + use<> {
         let authorization = self.pairing.as_ref().map(|pairing| pairing.authorization().expect("Validated Pairing Key"));
         move |mut request: tonic::Request<()>| {
             if let Some(authorization) = &authorization {
@@ -178,7 +205,7 @@ impl Settings {
             Ok(request)
         }
     }
-    pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<tonic::transport::Channel> {
+    pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> Result<Channel> {
         if let Some(pairing) = &self.pairing {
             return pairing.channel(self, streaming).await;
         }

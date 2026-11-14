@@ -23,7 +23,9 @@ use prost::Message;
 use rusqlite::params;
 
 // Local Imports
-use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store, streams};
+use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
+
+use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
 
 /* === Constants === */
 
@@ -44,13 +46,13 @@ pub struct ExecutionCut {
 #[derive(Clone, PartialEq, Message)]
 pub struct StatisticsRead {
     #[prost(message, optional, tag = "1")]
-    pub request: Option<dokime_protocol::context::EvidenceStatisticsRequest>,
+    pub request: Option<EvidenceStatisticsRequest>,
 
     #[prost(uint64, repeated, tag = "2")]
     pub positions: Vec<u64>,
 
     #[prost(message, optional, tag = "3")]
-    pub response: Option<dokime_protocol::context::EvidenceStatisticsResponse>,
+    pub response: Option<EvidenceStatisticsResponse>,
 }
 
 /* === Enums === */
@@ -60,25 +62,15 @@ pub struct StatisticsRead {
 /* === Implementations === */
 
 impl Store {
-    pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
-        let connection = self.lock()?;
-        let frontier: i64 = connection.query_row(
-            "SELECT COALESCE(MAX(position),0) FROM samples WHERE execution=?1 AND stream=?2 AND position>?3 AND position<=?4",
-            params![execution, stream, position(after)?, position(through)?],
-            |row| row.get(0),
-        )?;
-        Ok(frontier as u64)
-    }
     pub fn cached_statistics(
-        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
+        &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64,
     ) -> Result<Option<StatisticsRead>> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         let cache = self.statistics.lock().map_err(|_| Error::Invalid("Read Statistics: Restart After the Query Cache Failed".into()))?;
         Ok(cache.get(&key).filter(|(frontier, _)| *frontier == through).map(|(_, read)| read.clone()))
     }
     pub fn cache_statistics(
-        &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
-        read: StatisticsRead,
+        &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64, read: StatisticsRead,
     ) -> Result<()> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         self.statistics
@@ -109,10 +101,11 @@ impl Store {
                 if store::digest(&connection, execution)? != seal {
                     return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
                 }
+                crate::telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
                 verified.insert(execution.into(), seal.clone());
             }
         }
-        let frontier = store::next_position(&connection, execution)?.saturating_sub(1);
+        let frontier = store::saved_position(&connection, execution)?;
         Ok(ExecutionCut {
             execution: Execution::decode(payload.as_slice())?,
             state,
@@ -121,16 +114,16 @@ impl Store {
         })
     }
     pub fn sample_page(&self, execution: &str, stream: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Sample>> {
-        let connection = self.lock()?;
-        let mut statement = connection.prepare(
-            "SELECT payload FROM samples WHERE execution=?1 AND stream=?2 AND position>?3 AND position<=?4 ORDER BY position LIMIT ?5",
-        )?;
-        let bytes = statement
-            .query_map(params![execution, stream, position(after)?, position(through)?, position(limit.get() as u64)?], |row| {
-                row.get::<_, Vec<u8>>(0)
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        bytes.into_iter().map(|bytes| streams::decode(stream.into(), bytes)).collect()
+        self.sample_window(crate::SampleWindow {
+            execution,
+            streams: &[stream.into()],
+            after: &[(stream.into(), after)],
+            through,
+            start_ns: i64::MIN,
+            end_ns: i64::MAX,
+            latest: false,
+            limit,
+        })
     }
     pub fn evidence_page(&self, execution: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Evidence>> {
         let connection = self.lock()?;

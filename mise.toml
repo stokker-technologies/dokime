@@ -108,13 +108,13 @@ run = "{{vars.tools}} dokime_tools.ci.tasks build"
 description = "Test Layers or Focused Targets"
 run = "{{vars.tools}} dokime_tools.ci.tasks test"
 
+[tasks.bench]
+description = "Measure Prepared Benchmark Workloads"
+run = "{{vars.tools}} dokime_tools.ci.tasks bench"
+
 [tasks.package]
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
-
-[tasks.bench]
-description = "Measure Built Benchmarks"
-run = "{{vars.tools}} dokime_tools.ci.tasks bench"
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
@@ -290,10 +290,7 @@ run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 hide = true
 description = "Build Native Desktop Benchmarks and Matching Hosts"
 usage = 'flag "--binary <binary>"'
-run = [
-  { task = "build:typescript --profile dev" },
-  "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}",
-]
+run = "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}"
 
 [tasks."test:python"]
 hide = true
@@ -424,6 +421,12 @@ run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language rust{% else %}{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust{% if usage.select %} -- -E "{{usage.select}}"{% endif %}{% endif %}''',
 ]
+
+[tasks."bench:rust:storage"]
+hide = true
+description = "Measure Prepared Arrow Storage Benchmarks"
+usage = 'flag "--select <select>"'
+run = "{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --select {{usage.select}}{% endif %}"
 
 [tasks."bench:rust:system"]
 hide = true

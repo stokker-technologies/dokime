@@ -18,11 +18,21 @@
 // Standard Library Imports
 
 // Third Party Imports
+use arrow_array::RecordBatch;
 
 // Local Imports
 use crate::{NumericWindow, Result, Store};
-use dokime_protocol::v1;
-use rusqlite::params;
+use dokime_protocol::v1::{self, Downsample, Value};
+
+use dokime_protocol::client::plots::NullableNumber;
+use dokime_protocol::client::plots::PlotBoxSummary;
+use dokime_protocol::client::plots::PlotColumn;
+use dokime_protocol::client::plots::PlotHistogramBin;
+use dokime_protocol::client::plots::PlotHistogramSeries;
+use dokime_protocol::client::plots::PlotHistogramStatistics;
+use dokime_protocol::client::plots::PlotSeriesSummary;
+
+use dokime_protocol::context::EvidenceStatisticsResponse;
 
 /* === Constants === */
 
@@ -40,173 +50,117 @@ use rusqlite::params;
 
 impl Store {
     pub fn sampled_time_series_window(
-        &self, window: NumericWindow<'_>, technique: v1::Downsample, limit: usize,
-    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
-        if limit == 0 || technique == v1::Downsample::Lttb && limit < 3 {
-            return Err(crate::Error::Invalid("Query Sampled Plot: Supply a Positive Raw Limit or at Least Three LTTB Vertices".into()));
+        &self, window: NumericWindow<'_>, technique: Downsample, limit: usize,
+    ) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
+        use arrow_array::{Float64Array, Int64Array, RecordBatch};
+        use arrow_schema::{DataType, Field, Schema};
+        use harmos_storage::query::{
+            TableWriter,
+            transform::{
+                FieldPath, Transform,
+                downsample::{Algorithm, Downsample as EngineDownsample},
+            },
+        };
+        use std::sync::Arc;
+        if limit == 0 || technique == Downsample::Lttb && limit < 3 {
+            return Err(crate::Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
-        if !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
+        if !matches!(technique, Downsample::Raw | Downsample::Lttb) {
             return self.time_series_window(window);
         }
         let (_, summary, count) = self.time_series_window(window)?;
-        if technique == v1::Downsample::Raw && count > limit as u64 {
-            return Err(crate::Error::Invalid(
-                "Query Raw Plot: Narrow the Viewport, Raise Display Points or Select a Downsampling Technique".into(),
-            ));
+        if technique == Downsample::Raw && count > limit as u64 {
+            return Err(crate::Error::Data("narrow the raw plot window or select downsampling"));
         }
-        let connection = self.lock()?;
-        let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
-        let parameters = params![
-            window.execution,
-            window.stream,
-            window.field,
-            window.start_ns,
-            window.end_ns,
-            window.after as i64,
-            window.through as i64
-        ];
-        let mut points = Vec::<(i64, f64)>::with_capacity(limit);
-        if count <= limit as u64 {
-            let mut query = connection
-                .prepare(&format!("SELECT source_ns,number FROM sample_fields WHERE {condition} ORDER BY source_ns,position LIMIT ?8"))?;
-            points = query
-                .query_map(
-                    params![
-                        window.execution,
-                        window.stream,
-                        window.field,
-                        window.start_ns,
-                        window.end_ns,
-                        window.after as i64,
-                        window.through as i64,
-                        limit as i64
-                    ],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("time", DataType::Int64, false),
+            Field::new("x", DataType::Float64, false),
+            Field::new("y", DataType::Float64, false),
+        ]));
+        let mut writer = TableWriter::new(schema.clone())?;
+        self.read_numeric_batches(window, |batch| {
+            writer.push(&batch, &mut || Ok(()))?;
+            Ok(())
+        })?;
+        let table = writer.finish()?;
+        let table = if count > limit as u64 {
+            table.transform(
+                &Transform::Downsample(EngineDownsample {
+                    max_rows: limit,
+                    algorithm: Algorithm::Lttb,
+                    axis: Some(FieldPath { fields: vec!["x".into()] }),
+                    value: Some(FieldPath { fields: vec!["y".into()] }),
+                }),
+                &mut || Ok(()),
+            )?
         } else {
-            // Rank and reduce inside SQLite; only one candidate and two averages cross each bucket boundary.
-            connection.execute_batch("DROP TABLE IF EXISTS temp.plot_lttb")?;
-            connection.execute(&format!("CREATE TEMP TABLE plot_lttb AS SELECT ROW_NUMBER() OVER (ORDER BY source_ns,position)-1 ordinal,source_ns,number FROM sample_fields WHERE {condition}"), parameters)?;
-            connection.execute_batch("CREATE UNIQUE INDEX temp.plot_lttb_ordinal ON plot_lttb(ordinal)")?;
-            let mut previous: (i64, f64) =
-                connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal=0", [], |row| Ok((row.get(0)?, row.get(1)?)))?;
-            points.push(previous);
-            let width = (count - 2) as f64 / (limit - 2) as f64;
-            for bucket in 0..limit - 2 {
-                let average_start = (((bucket + 1) as f64 * width).floor() as i64 + 1).min(count as i64 - 1);
-                let average_end = (((bucket + 2) as f64 * width).floor() as i64 + 1).min(count as i64);
-                let (average_x, average_y): (f64, f64) = connection.query_row(
-                    "SELECT AVG((source_ns-?3)/1000000000.0),AVG(number) FROM plot_lttb WHERE ordinal>=?1 AND ordinal<?2",
-                    params![average_start, average_end, window.start_ns],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )?;
-                let start = (bucket as f64 * width).floor() as i64 + 1;
-                let end = (((bucket + 1) as f64 * width).floor() as i64 + 1).min(count as i64 - 1);
-                let previous_x = (previous.0 as i128 - window.start_ns as i128) as f64 / 1e9;
-                previous = connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal>=?1 AND ordinal<?2 ORDER BY ABS((?3-?4)*(number-?5)-(?3-(source_ns-?7)/1000000000.0)*(?6-?5)) DESC,ordinal LIMIT 1", params![start,end,previous_x,average_x,previous.1,average_y,window.start_ns], |row| Ok((row.get(0)?,row.get(1)?)))?;
-                points.push(previous);
-            }
-            points.push(connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal=?1", [count as i64 - 1], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })?);
-            connection.execute_batch("DROP TABLE temp.plot_lttb")?;
-        }
-        Ok((
-            dokime_protocol::client::plots::PlotColumn {
-                x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
-                instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-                y: points.iter().map(|(_, value)| dokime_protocol::client::plots::NullableNumber { value: Some(*value) }).collect(),
-                ..Default::default()
-            },
-            summary,
-            count,
-        ))
-    }
-    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
-        let connection = self.lock()?;
-        let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
-        let parameters = params![
-            window.execution,
-            window.stream,
-            window.field,
-            window.start_ns,
-            window.end_ns,
-            window.after as i64,
-            window.through as i64
-        ];
-        let (count, min, max, mean, squares): (i64, Option<f64>, Option<f64>, Option<f64>, Option<f64>) = connection.query_row(
-            &format!("SELECT COUNT(*),MIN(number),MAX(number),AVG(number),SUM(number*number) FROM sample_fields WHERE {condition}"),
-            parameters,
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-        )?;
-        if count == 0 {
-            return Ok(dokime_protocol::context::EvidenceStatisticsResponse::default());
-        }
-        let mean = mean.unwrap();
-        let variance: f64 = connection.query_row(
-            &format!("SELECT AVG((number-?8)*(number-?8)) FROM sample_fields WHERE {condition}"),
-            params![
-                window.execution,
-                window.stream,
-                window.field,
-                window.start_ns,
-                window.end_ns,
-                window.after as i64,
-                window.through as i64,
-                mean
-            ],
-            |row| row.get(0),
-        )?;
-        let percentile = |rank: f64| -> Result<f64> {
-            let index = rank * (count - 1) as f64;
-            let values = connection
-                .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"))?
-                .query_map(
-                    params![
-                        window.execution,
-                        window.stream,
-                        window.field,
-                        window.start_ns,
-                        window.end_ns,
-                        window.after as i64,
-                        window.through as i64,
-                        index.floor() as i64
-                    ],
-                    |row| row.get::<_, f64>(0),
-                )?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            Ok(values[0] + (values.get(1).copied().unwrap_or(values[0]) - values[0]) * index.fract())
+            table
         };
-        let first = connection.query_row(
-            &format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY position LIMIT 1"),
-            parameters,
-            |row| row.get(0),
-        )?;
-        let last = connection.query_row(
-            &format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY position DESC LIMIT 1"),
-            parameters,
-            |row| row.get(0),
-        )?;
-        let _ = squares;
-        Ok(dokime_protocol::context::EvidenceStatisticsResponse {
+        let mut reader = table.reader()?;
+        let mut column = PlotColumn::default();
+        while let Some(batch) = reader.next(&mut || Ok(()))? {
+            let times = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+            let ys = batch.column(2).as_any().downcast_ref::<Float64Array>().unwrap();
+            for row in 0..batch.num_rows() {
+                column.instants.push(instant(times.value(row)));
+                column.x.push(number(times.value(row) as f64 / 1e9));
+                column.y.push(NullableNumber { value: Some(ys.value(row)) });
+            }
+        }
+        let _ = std::marker::PhantomData::<RecordBatch>;
+        Ok((column, summary, count))
+    }
+    fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(RecordBatch) -> Result<()>) -> Result<()> {
+        use arrow_array::{Float64Array, Int64Array, RecordBatch};
+        use std::sync::Arc;
+        let mut times = Vec::new();
+        let mut values = Vec::new();
+        let rows = self.storage_settings()?.flush_rows.get();
+        self.numeric_values(window, |_, time, value| {
+            times.push(time);
+            values.push(value);
+            if times.len() >= rows {
+                let xs = times.iter().map(|time| (*time as i128 - window.start_ns as i128) as f64 / 1e9).collect::<Vec<_>>();
+                read(RecordBatch::try_from_iter(vec![
+                    ("time", Arc::new(Int64Array::from(std::mem::take(&mut times))) as _),
+                    ("x", Arc::new(Float64Array::from(xs)) as _),
+                    ("y", Arc::new(Float64Array::from(std::mem::take(&mut values))) as _),
+                ])?)?;
+            }
+            Ok(())
+        })?;
+        if !times.is_empty() {
+            let xs = times.iter().map(|time| (*time as i128 - window.start_ns as i128) as f64 / 1e9).collect::<Vec<_>>();
+            read(RecordBatch::try_from_iter(vec![
+                ("time", Arc::new(Int64Array::from(times)) as _),
+                ("x", Arc::new(Float64Array::from(xs)) as _),
+                ("y", Arc::new(Float64Array::from(values)) as _),
+            ])?)?;
+        }
+        Ok(())
+    }
+    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
+        let moments = self.moments(*window)?;
+        if moments.count == 0 {
+            return Ok(Default::default());
+        }
+        let ranks = self.ranks(*window, moments.count, &[5, 50, 95, 99])?;
+        Ok(EvidenceStatisticsResponse {
+            count: moments.count,
+            min: crate::scalar::number(&moments.min).unwrap(),
+            max: crate::scalar::number(&moments.max).unwrap(),
+            mean: moments.mean()?,
+            stddev: moments.stddev()?,
+            median: crate::scalar::number(&ranks[&50]).unwrap(),
+            p05: crate::scalar::number(&ranks[&5]).unwrap(),
+            p95: crate::scalar::number(&ranks[&95]).unwrap(),
+            p99: crate::scalar::number(&ranks[&99]).unwrap(),
+            first: crate::scalar::number(&moments.first).unwrap(),
+            last: crate::scalar::number(&moments.last).unwrap(),
             resolved_at: None,
-            count: count as u64,
-            min: min.unwrap(),
-            max: max.unwrap(),
-            mean,
-            stddev: variance.max(0.0).sqrt(),
-            median: percentile(0.5)?,
-            p05: percentile(0.05)?,
-            p95: percentile(0.95)?,
-            p99: percentile(0.99)?,
-            first,
-            last,
         })
     }
-    pub fn time_series_window(
-        &self, window: NumericWindow<'_>,
-    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
+    pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let count = bins.iter().map(|bin| bin.count).sum::<u64>();
         let mut points = Vec::with_capacity(bins.len() * 4);
@@ -219,136 +173,85 @@ impl Store {
                 }
             }
         }
-        let column = dokime_protocol::client::plots::PlotColumn {
+        let column = PlotColumn {
             x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
             instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-            y: points.iter().map(|(_, value)| dokime_protocol::client::plots::NullableNumber { value: Some(*value) }).collect(),
+            y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
         let mean = (count > 0).then(|| bins.iter().map(|bin| bin.mean * bin.count as f64 / count as f64).sum::<f64>());
-        let summary = dokime_protocol::client::plots::PlotSeriesSummary {
+        let scale = bins.iter().map(|bin| bin.scale).fold(0.0, f64::max);
+        let squares = bins.iter().map(|bin| if scale == 0.0 { 0.0 } else { bin.scaled_squares * (bin.scale / scale).powi(2) }).sum::<f64>();
+        let summary = PlotSeriesSummary {
             count,
             min: bins.iter().map(|bin| bin.min).reduce(f64::min),
             max: bins.iter().map(|bin| bin.max).reduce(f64::max),
             mean,
-            rms: (count > 0).then(|| (bins.iter().map(|bin| bin.sum_squares).sum::<f64>() / count as f64).sqrt()),
+            rms: (count > 0).then(|| (squares / count as f64).clamp(0.0, 1.0).sqrt() * scale),
             ..Default::default()
         };
         Ok((column, summary, count))
     }
-    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<dokime_protocol::client::plots::PlotHistogramSeries> {
+    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
         let statistics = self.numeric_statistics(&window)?;
-        let count = statistics.count;
-        if count == 0 {
-            return Ok(dokime_protocol::client::plots::PlotHistogramSeries::default());
+        if statistics.count == 0 {
+            return Ok(Default::default());
+        }
+        if bins == 0 {
+            return Err(crate::Error::Data("supply at least one histogram bin"));
         }
         let width = if statistics.max == statistics.min { 1.0 } else { (statistics.max - statistics.min) / bins as f64 };
-        let connection = self.lock()?;
-        let mut query = connection.prepare("SELECT MIN(CAST((number-?8)/?9 AS INTEGER),?10),COUNT(*) FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL GROUP BY 1 ORDER BY 1")?;
         let mut histogram = (0..bins)
-            .map(|index| dokime_protocol::client::plots::PlotHistogramBin {
+            .map(|index| PlotHistogramBin {
                 lower: statistics.min + index as f64 * width,
                 upper: statistics.min + (index + 1) as f64 * width,
                 count: 0,
             })
             .collect::<Vec<_>>();
-        for entry in query.query_map(
-            params![
-                window.execution,
-                window.stream,
-                window.field,
-                window.start_ns,
-                window.end_ns,
-                window.after as i64,
-                window.through as i64,
-                statistics.min,
-                width,
-                (bins - 1) as i64
-            ],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
-        )? {
-            let (index, count) = entry?;
-            histogram[index as usize].count = count as u64;
-        }
-        Ok(dokime_protocol::client::plots::PlotHistogramSeries {
+        self.numeric_values(window, |_, _, value| {
+            histogram[(((value - statistics.min) / width) as usize).min(bins - 1)].count += 1;
+            Ok(())
+        })?;
+        Ok(PlotHistogramSeries {
             bins: histogram,
-            count,
-            statistics: Some(dokime_protocol::client::plots::PlotHistogramStatistics {
+            count: statistics.count,
+            statistics: Some(PlotHistogramStatistics {
                 mean: statistics.mean,
                 median: statistics.median,
                 std: statistics.stddev,
-                rms: (statistics.stddev * statistics.stddev + statistics.mean * statistics.mean).sqrt(),
+                rms: statistics.mean.hypot(statistics.stddev),
                 min: statistics.min,
                 max: statistics.max,
             }),
             ..Default::default()
         })
     }
-    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<dokime_protocol::client::plots::PlotBoxSummary> {
+    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<PlotBoxSummary> {
         let statistics = self.numeric_statistics(&window)?;
         if statistics.count == 0 {
-            return Ok(dokime_protocol::client::plots::PlotBoxSummary::default());
+            return Ok(Default::default());
         }
-        let connection = self.lock()?;
-        let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
-        let quantile = |fraction: f64| -> Result<f64> {
-            let index = fraction * (statistics.count - 1) as f64;
-            let values = connection
-                .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"))?
-                .query_map(
-                    params![
-                        window.execution,
-                        window.stream,
-                        window.field,
-                        window.start_ns,
-                        window.end_ns,
-                        window.after as i64,
-                        window.through as i64,
-                        index.floor() as i64
-                    ],
-                    |row| row.get::<_, f64>(0),
-                )?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            Ok(values[0] + (values.get(1).copied().unwrap_or(values[0]) - values[0]) * index.fract())
-        };
-        let q1 = quantile(0.25)?;
-        let q3 = quantile(0.75)?;
+        let ranks = self.ranks(window, statistics.count, &[25, 75])?;
+        let (q1, q3) = (crate::scalar::number(&ranks[&25]).unwrap(), crate::scalar::number(&ranks[&75]).unwrap());
         let lower = q1 - 1.5 * (q3 - q1);
         let upper = q3 + 1.5 * (q3 - q1);
-        let (lower_whisker, upper_whisker) = connection.query_row(
-            &format!("SELECT MIN(number),MAX(number) FROM sample_fields WHERE {condition} AND number>=?8 AND number<=?9"),
-            params![
-                window.execution,
-                window.stream,
-                window.field,
-                window.start_ns,
-                window.end_ns,
-                window.after as i64,
-                window.through as i64,
-                lower,
-                upper
-            ],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        let outliers = connection
-            .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} AND (number<?8 OR number>?9) ORDER BY number LIMIT ?10"))?
-            .query_map(
-                params![
-                    window.execution,
-                    window.stream,
-                    window.field,
-                    window.start_ns,
-                    window.end_ns,
-                    window.after as i64,
-                    window.through as i64,
-                    lower,
-                    upper,
-                    maximum_outliers as i64
-                ],
-                |row| row.get(0),
-            )?
-            .collect::<std::result::Result<_, _>>()?;
-        Ok(dokime_protocol::client::plots::PlotBoxSummary {
+        let mut lower_whisker = f64::INFINITY;
+        let mut upper_whisker = f64::NEG_INFINITY;
+        let mut outliers = Vec::<f64>::new();
+        self.numeric_values(window, |_, _, value| {
+            if value >= lower && value <= upper {
+                lower_whisker = lower_whisker.min(value);
+                upper_whisker = upper_whisker.max(value);
+            } else if maximum_outliers > 0 {
+                let at = outliers.partition_point(|other| other.total_cmp(&value).is_lt());
+                if at < maximum_outliers {
+                    outliers.insert(at, value);
+                    outliers.truncate(maximum_outliers);
+                }
+            }
+            Ok(())
+        })?;
+        Ok(PlotBoxSummary {
             count: statistics.count,
             min: statistics.min,
             max: statistics.max,
@@ -367,8 +270,8 @@ impl Store {
 
 /* === Private Functions === */
 
-fn number(value: f64) -> v1::Value {
-    v1::Value {
+fn number(value: f64) -> Value {
+    Value {
         kind: Some(v1::value::Kind::Number(value)),
     }
 }

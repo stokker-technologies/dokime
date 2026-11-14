@@ -19,11 +19,13 @@
 
 // Third Party Imports
 use prost::Message;
+use prost_types::Timestamp;
 use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
-use dokime_protocol::v1;
+use dokime_protocol::client::executions::ExecutionCommandReceipt;
+use dokime_protocol::v1::CycleSummary;
 
 /* === Constants === */
 
@@ -53,7 +55,7 @@ impl Store {
             last.map(|bytes| crate::Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
         ))
     }
-    pub fn interrupt_commands(&self, at: prost_types::Timestamp) -> Result<()> {
+    pub fn interrupt_commands(&self, at: Timestamp) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let mut statement = transaction.prepare("SELECT payload FROM commands")?;
@@ -80,9 +82,9 @@ impl Store {
         Ok(())
     }
     pub fn sample_count(&self) -> Result<u64> {
-        Ok(self.lock()?.query_row("SELECT COUNT(*) FROM samples", [], |row| row.get::<_, i64>(0))? as u64)
+        Ok(self.lock()?.query_row("SELECT COALESCE(SUM(rows),0) FROM telemetry_batches", [], |row| row.get::<_, i64>(0))? as u64)
     }
-    pub fn save_cycle(&self, cycle: &v1::CycleSummary) -> Result<()> {
+    pub fn save_cycle(&self, cycle: &CycleSummary) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         transaction.execute(
@@ -93,22 +95,22 @@ impl Store {
         transaction.commit()?;
         Ok(())
     }
-    pub fn client_cycle(&self, id: &str) -> Result<Option<v1::CycleSummary>> {
+    pub fn client_cycle(&self, id: &str) -> Result<Option<CycleSummary>> {
         let payload: Option<Vec<u8>> =
             self.lock()?.query_row("SELECT payload FROM cycles WHERE id=?1", [id], |row| row.get(0)).optional()?;
-        Ok(payload.map(|payload| v1::CycleSummary::decode(payload.as_slice())).transpose()?)
+        Ok(payload.map(|payload| CycleSummary::decode(payload.as_slice())).transpose()?)
     }
-    pub fn client_cycles(&self) -> Result<Vec<v1::CycleSummary>> {
+    pub fn client_cycles(&self) -> Result<Vec<CycleSummary>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM cycles ORDER BY rowid")?;
         let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(payloads.iter().map(|payload| v1::CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
+        Ok(payloads.iter().map(|payload| CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
     }
     pub fn bind_executions(&self, cycle: &str, executions: &[(Execution, String)]) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM cycles WHERE id=?1", [cycle], |row| row.get(0))?;
-        if v1::CycleSummary::decode(payload.as_slice())?.sealed {
+        if CycleSummary::decode(payload.as_slice())?.sealed {
             return Err(Error::Invalid("Append Executions: Create a New Cycle; This Cycle Is Sealed".into()));
         }
         for (execution, case) in executions {
@@ -156,14 +158,14 @@ impl Store {
         }
         Ok(())
     }
-    pub fn command(&self, request: &str, id: &str) -> Result<Option<dokime_protocol::client::executions::ExecutionCommandReceipt>> {
+    pub fn command(&self, request: &str, id: &str) -> Result<Option<ExecutionCommandReceipt>> {
         let payload: Option<Vec<u8>> = self
             .lock()?
             .query_row("SELECT payload FROM commands WHERE request=?1 AND id=?2", params![request, id], |row| row.get(0))
             .optional()?;
         Ok(payload.map(|payload| dokime_protocol::client::executions::ExecutionCommandReceipt::decode(payload.as_slice())).transpose()?)
     }
-    pub fn save_command(&self, receipt: &dokime_protocol::client::executions::ExecutionCommandReceipt) -> Result<()> {
+    pub fn save_command(&self, receipt: &ExecutionCommandReceipt) -> Result<()> {
         self.lock()?.execute(
             "INSERT INTO commands VALUES (?1,?2,?3) ON CONFLICT(request,id) DO UPDATE SET payload=excluded.payload",
             params![receipt.execution_id, receipt.command_id, receipt.encode_to_vec()],

@@ -11,8 +11,10 @@
 
 /* === Modules === */
 
+mod fixture;
 mod report_integrity;
 mod resource_positions;
+mod telemetry;
 
 /* === Re-Exports === */
 

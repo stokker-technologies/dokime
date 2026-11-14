@@ -16,10 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use prost::Message;
 use rusqlite::params;
+use tokio::sync::watch::Receiver;
 
 // Local Imports
 use crate::{Evidence, Execution, ExecutionCut, ExecutionState, Result, Store};
@@ -56,10 +58,10 @@ impl Store {
             execution: Execution::decode(payload.as_slice())?,
             state,
             seal,
-            frontier: crate::store::next_position(&connection, execution)?.saturating_sub(1),
+            frontier: crate::store::saved_position(&connection, execution)?,
         })
     }
-    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+    pub fn subscribe(&self) -> Receiver<u64> {
         self.changed.subscribe()
     }
     pub fn execution_evidence_frontier(&self, execution: &str) -> Result<u64> {
@@ -75,9 +77,7 @@ impl Store {
     pub fn evidence_frontier(&self) -> Result<u64> {
         Ok(self.lock()?.query_row("SELECT COALESCE(MAX(rowid),0) FROM evidence", [], |row| row.get::<_, i64>(0))? as u64)
     }
-    pub fn evidence_entries(
-        &self, after: u64, through: u64, limit: std::num::NonZeroUsize, latest: bool,
-    ) -> Result<Vec<(u64, String, Evidence)>> {
+    pub fn evidence_entries(&self, after: u64, through: u64, limit: NonZeroUsize, latest: bool) -> Result<Vec<(u64, String, Evidence)>> {
         let connection = self.lock()?;
         let order = if latest { "DESC" } else { "ASC" };
         let mut query = connection.prepare(&format!(

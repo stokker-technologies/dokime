@@ -103,6 +103,7 @@ dokime = { path = "../../sdk/rust" }
 # Utilities
 
 # Serialization
+zip = { workspace = true }
 # Cryptography
 sha2 = { workspace = true }
 
@@ -124,6 +125,7 @@ tempfile = { workspace = true }
 # UI
 
 # Testing
+criterion = { workspace = true }
 
 # === Target Dependencies === #
 
@@ -134,6 +136,11 @@ name = "system"
 path = "tests/system/main.rs"
 
 # === Bench Targets === #
+
+[[bench]]
+name = "storage"
+path = "benches/storage.rs"
+harness = false
 
 # === Example Targets === #
 

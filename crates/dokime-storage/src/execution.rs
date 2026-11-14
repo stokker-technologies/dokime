@@ -22,7 +22,8 @@ use prost::Message;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::v1;
+use dokime_protocol::context::evidence::LogsAppendRequest;
+use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Termination};
 
 /* === Constants === */
 
@@ -42,15 +43,15 @@ pub struct Execution {
     pub cycle: String,
 
     #[prost(message, optional, tag = "3")]
-    pub origin: Option<v1::Origin>,
+    pub origin: Option<Origin>,
 
     #[prost(bytes = "vec", tag = "4")]
     pub catalog: Vec<u8>,
 
     #[prost(message, optional, tag = "5")]
-    pub outcome: Option<v1::ExecutionOutcome>,
+    pub outcome: Option<ExecutionOutcome>,
 
-    #[prost(enumeration = "v1::Termination", tag = "6")]
+    #[prost(enumeration = "Termination", tag = "6")]
     pub termination: i32,
 }
 
@@ -119,35 +120,17 @@ pub struct ExecutionArchive {
     #[prost(message, repeated, tag = "2")]
     pub evidence: Vec<Evidence>,
 
-    #[prost(message, repeated, tag = "3")]
-    pub samples: Vec<Sample>,
-
     #[prost(bytes = "vec", tag = "4")]
     pub seal: Vec<u8>,
 
     #[prost(bytes = "vec", repeated, tag = "5")]
     pub reports: Vec<Vec<u8>>,
 
-    #[prost(message, repeated, tag = "6")]
-    pub sample_batches: Vec<SampleBatch>,
-
     #[prost(message, repeated, tag = "7")]
     pub content: Vec<crate::ArchivedContent>,
 
     #[prost(message, repeated, tag = "8")]
     pub content_chunks: Vec<crate::ArchivedContentChunk>,
-}
-
-#[derive(Clone, PartialEq, Message)]
-pub struct SampleBatch {
-    #[prost(uint64, tag = "1")]
-    pub position: u64,
-
-    #[prost(string, tag = "2")]
-    pub stream: String,
-
-    #[prost(bytes = "vec", tag = "3")]
-    pub payload: Vec<u8>,
 }
 
 /* === Enums === */
@@ -167,18 +150,18 @@ impl ExecutionSnapshot {
     pub fn records(&self, kind: &str) -> Vec<&Evidence> {
         self.evidence.iter().filter(|entry| entry.kind == format!("record:{kind}")).collect()
     }
-    pub fn logs(&self) -> Result<Vec<dokime_protocol::context::evidence::LogsAppendRequest>> {
+    pub fn logs(&self) -> Result<Vec<LogsAppendRequest>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "log")
             .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
-    pub fn progress(&self) -> Result<Vec<v1::ExecutionProgressValue>> {
+    pub fn progress(&self) -> Result<Vec<ExecutionProgressValue>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "progress")
-            .map(|entry| v1::ExecutionProgressValue::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| ExecutionProgressValue::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn step_contains(&self, step: &str, position: u64) -> bool {

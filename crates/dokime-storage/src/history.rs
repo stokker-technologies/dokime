@@ -24,7 +24,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 // Local Imports
 use crate::{Error, Execution, Result, Store};
 use dokime_protocol::client::ExecutionsDeleteResponse;
-use dokime_protocol::v1;
+use dokime_protocol::v1::{CyclePhase, CycleStatus, CycleSummary, ResultStatus, ResultSummary};
 use harmos_protocol::v1::History;
 
 /* === Constants === */
@@ -45,7 +45,7 @@ impl Store {
     pub fn history_frontier(&self) -> Result<u64> {
         Ok(self.lock()?.query_row("SELECT COALESCE(MAX(sequence),0) FROM cycle_history", [], |row| row.get::<_, i64>(0))? as u64)
     }
-    pub fn saved_cycles(&self, through: u64) -> Result<Vec<(u64, v1::CycleSummary)>> {
+    pub fn saved_cycles(&self, through: u64) -> Result<Vec<(u64, CycleSummary)>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT h.sequence,h.payload FROM cycle_history h JOIN (SELECT cycle,MAX(sequence) AS sequence FROM cycle_history WHERE sequence<=?1 GROUP BY cycle) latest ON h.sequence=latest.sequence ORDER BY h.sequence")?;
         let rows = statement
@@ -54,15 +54,15 @@ impl Store {
                 |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
             )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-        rows.into_iter().map(|(sequence, payload)| Ok((sequence as u64, v1::CycleSummary::decode(payload.as_slice())?))).collect()
+        rows.into_iter().map(|(sequence, payload)| Ok((sequence as u64, CycleSummary::decode(payload.as_slice())?))).collect()
     }
-    pub fn sealed_cycle(&self, execution: &str) -> Result<(u64, v1::CycleSummary)> {
+    pub fn sealed_cycle(&self, execution: &str) -> Result<(u64, CycleSummary)> {
         let (sequence, payload): (i64, Vec<u8>) = self.lock()?.query_row(
             "SELECT sequence,payload FROM cycle_history WHERE execution=?1 ORDER BY sequence LIMIT 1",
             [execution],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
-        Ok((sequence as u64, v1::CycleSummary::decode(payload.as_slice())?))
+        Ok((sequence as u64, CycleSummary::decode(payload.as_slice())?))
     }
     pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<ExecutionsDeleteResponse>> {
         let saved: Option<(String, Vec<u8>)> = self
@@ -81,6 +81,15 @@ impl Store {
         &self, request: &str, execution: &str, expected: &[u8], response: &ExecutionsDeleteResponse,
     ) -> Result<()> {
         let mut connection = self.lock()?;
+        if self
+            .snapshot_pins
+            .lock()
+            .map_err(|_| Error::Data("restart after the snapshot pin lock failed"))?
+            .get(execution)
+            .is_some_and(|count| *count > 0)
+        {
+            return Err(Error::Data("release retained Arrow snapshots before deleting this execution"));
+        }
         let transaction = connection.transaction()?;
         let (state, seal): (i32, Vec<u8>) =
             transaction.query_row("SELECT state,seal FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))?;
@@ -94,15 +103,22 @@ impl Store {
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
         transaction.execute("DELETE FROM record_fields WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM sample_fields WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM sample_batches WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM reports WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM read_positions WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_requests WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_values WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM attempts WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM evidence WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM samples WHERE execution=?1", [execution])?;
+        transaction.execute("INSERT INTO telemetry_garbage SELECT id FROM telemetry_files WHERE execution=?1", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_previews WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_summaries WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_checkpoints WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_batches WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction.execute("DELETE FROM telemetry_files WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM streams WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM bindings WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM executions WHERE id=?1", [execution])?;
@@ -115,6 +131,7 @@ impl Store {
         };
         transaction.execute("UPDATE administration SET payload=?1 WHERE id='evidence-read-history'", [history.encode_to_vec()])?;
         transaction.commit()?;
+        crate::telemetry::catalog::collect_garbage(self.database.parent().unwrap(), &connection)?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
@@ -128,21 +145,21 @@ pub(crate) fn capture_cycle(connection: &Connection, id: &str, execution: &str) 
         return Ok(());
     }
     let payload: Option<Vec<u8>> = connection.query_row("SELECT payload FROM cycles WHERE id=?1", [id], |row| row.get(0)).optional()?;
-    let mut cycle = payload.map(|payload| v1::CycleSummary::decode(payload.as_slice())).transpose()?.unwrap_or_else(|| v1::CycleSummary {
+    let mut cycle = payload.map(|payload| CycleSummary::decode(payload.as_slice())).transpose()?.unwrap_or_else(|| CycleSummary {
         cycle_id: id.into(),
         ..Default::default()
     });
     let total: i64 = connection.query_row("SELECT COUNT(*) FROM executions WHERE cycle=?1", [id], |row| row.get(0))?;
     cycle.execution_count = total as u64;
     cycle.case_count = connection.query_row("SELECT COUNT(DISTINCT COALESCE(NULLIF(b.case_id,''),e.id)) FROM executions e LEFT JOIN bindings b ON b.execution=e.id WHERE e.cycle=?1", [id], |row| row.get::<_,i64>(0))? as u64;
-    cycle.phase = if cycle.sealed { v1::CyclePhase::Sealed } else { v1::CyclePhase::Active } as i32;
-    cycle.status = if total == completed { v1::CycleStatus::Completed } else { v1::CycleStatus::Running } as i32;
+    cycle.phase = if cycle.sealed { CyclePhase::Sealed } else { CyclePhase::Active } as i32;
+    cycle.status = if total == completed { CycleStatus::Completed } else { CycleStatus::Running } as i32;
     let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1")?;
     let payloads = statement.query_map([id], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
     let executions: Vec<_> = payloads.iter().map(|payload| Execution::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?;
     let counts = crate::OutcomeCounts::from_outcomes(executions.iter().filter_map(|execution| execution.outcome.as_ref()));
-    cycle.result = Some(v1::ResultSummary {
-        status: counts.verdict.map_or(v1::ResultStatus::Pending as i32, |status| status as i32),
+    cycle.result = Some(ResultSummary {
+        status: counts.verdict.map_or(ResultStatus::Pending as i32, |status| status as i32),
         not_evaluated: counts.not_evaluated as u32,
         declared: counts.declared as u32,
         ..Default::default()
