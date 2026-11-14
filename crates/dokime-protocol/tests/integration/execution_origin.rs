@@ -22,8 +22,8 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::dokime::plugin::v1::*;
-use dokime_protocol::v1::*;
+use dokime_protocol::model::{Import, ImportSource, Metadata, Origin, PluginRun, Step, Termination, TestCase, origin};
+use dokime_protocol::plugin::{CriteriaEvaluateRequest, ExecutionsCleanupRequest, ExecutionsInitializeRequest, StepsExecuteRequest};
 
 /* === Constants === */
 
