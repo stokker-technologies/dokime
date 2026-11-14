@@ -2322,7 +2322,18 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
     assert.ok(update.kind !== "pending");
     assert.equal(update.payload.cartesian, null);
     const plot = documentPlotSpec({
-      plot: { plot_id: kind, title: "Values", stream: "values", plot_type: kind, y: ["value"], arrangement: "grouped" },
+      plot: {
+        plot_id: kind,
+        title: "Values",
+        stream: "values",
+        plot_type: kind,
+        y: ["value"],
+        arrangement: "grouped",
+        style: "line",
+        x_scale: "linear",
+        y_scale: "linear",
+        fft: null,
+      },
       payload: update.payload,
     });
     const host = document.createElement("div");
