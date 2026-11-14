@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
 use prost::Message;
 use sha2::{Digest, Sha256};
 
@@ -29,6 +28,19 @@ use dokime_protocol::host::plots::PlotCartesianMode;
 use dokime_protocol::host::plots::PlotEnvelope;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::model::Value;
+
+use dokime_protocol::host::plots::AnalysisComputation;
+use dokime_protocol::host::plots::AnalysisEvidence;
+use dokime_protocol::host::plots::AnalysisSeries;
+use dokime_protocol::model::Analyses;
+use dokime_protocol::model::Downsample;
+use dokime_protocol::model::PlotKind;
+use dokime_protocol::model::ValueType;
+use dokime_protocol::model::parameter_expression::Kind as ParameterExpressionKind;
+use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::plugin::AnalysesComputeRequest;
+use dokime_protocol::plugin::AnalysisSamples;
+use harmos_protocol::host::PluginState;
 
 /* === Constants === */
 
@@ -47,10 +59,8 @@ use dokime_protocol::model::Value;
 /* === Public Functions === */
 
 pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
-    if !matches!(
-        dokime_protocol::model::PlotKind::try_from(request.plot_type),
-        Ok(dokime_protocol::model::PlotKind::Unspecified | dokime_protocol::model::PlotKind::TimeSeries)
-    ) || request.x_key.as_ref().is_some_and(|key| key != "timestamp")
+    if !matches!(PlotKind::try_from(request.plot_type), Ok(PlotKind::Unspecified | PlotKind::TimeSeries))
+        || request.x_key.as_ref().is_some_and(|key| key != "timestamp")
         || request.max_points == Some(0)
     {
         return Err(Error::Invalid("Query Analysis: Select a Time-Series Source and Positive Display Resolution".into()));
@@ -69,8 +79,8 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
         return Err(Error::Invalid("Query Analysis: Select Raw Numeric Fields Without Grouping or Derived Expressions".into()));
     }
     let mut providers = Vec::new();
-    for plugin in context.host.plugins()? {
-        if plugin.state != harmos_protocol::host::PluginState::Ready as i32 {
+    for plugin in context.host.plugins().await? {
+        if plugin.state != PluginState::Ready as i32 {
             continue;
         }
         let Some(description) = plugin.description else {
@@ -80,11 +90,11 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
             if section.r#type != "dokime.model.v1.Analyses" {
                 continue;
             }
-            for definition in dokime_protocol::model::Analyses::decode(section.payload.as_slice())?.analyses {
+            for definition in Analyses::decode(section.payload.as_slice())?.analyses {
                 if definition.metadata.as_ref().is_some_and(|metadata| metadata.identifier == selection.id)
                     && definition.version == selection.version
                 {
-                    providers.push((description.id.clone(), definition));
+                    providers.push((plugin.name.clone(), definition));
                 }
             }
         }
@@ -107,7 +117,7 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
     for parameter in &definition.parameters {
         let key = parameter.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
         if !parameters.values.contains_key(key)
-            && let Some(dokime_protocol::model::parameter_expression::Kind::Literal(value)) =
+            && let Some(ParameterExpressionKind::Literal(value)) =
                 parameter.expression.as_ref().and_then(|expression| expression.kind.as_ref())
         {
             parameters.values.insert(key.into(), value.clone());
@@ -122,17 +132,17 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
             continue;
         };
         let kind = match value.kind {
-            Some(dokime_protocol::model::value::Kind::Boolean(_)) => dokime_protocol::model::ValueType::Boolean,
-            Some(dokime_protocol::model::value::Kind::Integer(_)) => dokime_protocol::model::ValueType::Integer,
-            Some(dokime_protocol::model::value::Kind::UnsignedInteger(_)) => dokime_protocol::model::ValueType::UnsignedInteger,
-            Some(dokime_protocol::model::value::Kind::Number(_)) => dokime_protocol::model::ValueType::Number,
-            Some(dokime_protocol::model::value::Kind::Text(_)) => dokime_protocol::model::ValueType::Text,
+            Some(ValueKind::Boolean(_)) => ValueType::Boolean,
+            Some(ValueKind::Integer(_)) => ValueType::Integer,
+            Some(ValueKind::UnsignedInteger(_)) => ValueType::UnsignedInteger,
+            Some(ValueKind::Number(_)) => ValueType::Number,
+            Some(ValueKind::Text(_)) => ValueType::Text,
             _ => return Err(Error::Invalid(format!("Query Analysis: Supply a Scalar Value for {key}"))),
         };
         let numeric = match value.kind {
-            Some(dokime_protocol::model::value::Kind::Number(value)) => Some(value),
-            Some(dokime_protocol::model::value::Kind::Integer(value)) => Some(value as f64),
-            Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => Some(value as f64),
+            Some(ValueKind::Number(value)) => Some(value),
+            Some(ValueKind::Integer(value)) => Some(value as f64),
+            Some(ValueKind::UnsignedInteger(value)) => Some(value as f64),
             _ => None,
         };
         if kind as i32 != parameter.r#type
@@ -150,7 +160,7 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
     }
     let mut raw = request.clone();
     raw.analysis = None;
-    raw.technique = dokime_protocol::model::Downsample::Raw as i32;
+    raw.technique = Downsample::Raw as i32;
     raw.max_points = Some(input_limit as u64);
     let mut envelope = crate::host::plots::snapshots::list::query_base(context, raw).await?;
     let payload = envelope.payload.as_mut().ok_or_else(|| Error::Invalid("Query Analysis: Capture Its Raw Source Window".into()))?;
@@ -192,8 +202,8 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
                 "Query Analysis: Narrow the Window or Select Fewer Columns to Fit the Aggregate Input Bound".into(),
             ));
         }
-        let call = dokime_protocol::plugin::AnalysesComputeRequest {
-            samples: Some(dokime_protocol::plugin::AnalysisSamples {
+        let call = AnalysesComputeRequest {
+            samples: Some(AnalysisSamples {
                 axis: axis.clone(),
                 values,
                 axis_unit: "s".into(),
@@ -242,7 +252,7 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
             display_count += output.display_indices.len();
             outputs.push(output);
         }
-        computed.push(dokime_protocol::host::plots::AnalysisSeries {
+        computed.push(AnalysisSeries {
             key: series.key.clone(),
             label: series.label.clone(),
             origin: Some(crate::host::projection::timestamp((origin * 1e9) as i64).to_string()),
@@ -252,10 +262,10 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
             outputs,
         });
     }
-    payload.computed = Some(dokime_protocol::host::plots::AnalysisComputation {
+    payload.computed = Some(AnalysisComputation {
         definition: Some(definition),
         selection: Some(selection),
-        source: Some(dokime_protocol::host::plots::AnalysisEvidence {
+        source: Some(AnalysisEvidence {
             store: context.host.identity().backend_id,
             epoch: crate::host::projection::execution_scope(request.scope.as_ref())?.into(),
             position: envelope.revision,
@@ -286,7 +296,7 @@ pub(crate) async fn query(context: &Context, request: PlotRequest) -> Result<Plo
 
 fn number(value: &Value) -> Result<f64> {
     match value.kind {
-        Some(dokime_protocol::model::value::Kind::Number(value)) => Ok(value),
+        Some(ValueKind::Number(value)) => Ok(value),
         _ => Err(Error::Invalid("Query Analysis: Select a Numeric Source-Time Axis".into())),
     }
 }

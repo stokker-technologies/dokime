@@ -54,10 +54,7 @@ pub const ID: &str = "dokime.host.v1.plots.Snapshots/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::plots::SnapshotsWatchRequest, dokime_protocol::host::plots::SnapshotsWatchResponse>(
-        ID,
-        settings.watch_timeout,
-    )
+    crate::host::declaration::<SnapshotsWatchRequest, SnapshotsWatchResponse>(ID, settings.watch_timeout)
 }
 pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {

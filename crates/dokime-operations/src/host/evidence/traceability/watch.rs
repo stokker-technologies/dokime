@@ -28,6 +28,11 @@ use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_protocol::host::evidence::TraceabilityWatchRequest;
 use dokime_protocol::host::evidence::TraceabilityWatchResponse;
 
+use harmos_protocol::model::OperationContract;
+
+use crate::Error;
+use crate::host::ClientSettings;
+
 /* === Constants === */
 
 pub const ID: &str = "dokime.host.v1.evidence.Traceability/Watch";
@@ -46,19 +51,19 @@ pub const ID: &str = "dokime.host.v1.evidence.Traceability/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<harmos_protocol::model::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<TraceabilityWatchRequest, TraceabilityWatchResponse>(ID, settings.watch_timeout)
 }
 
 pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Result<Output<TraceabilityWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         if request.page.as_ref().is_some_and(|page| !page.page_token.is_empty()) {
-            return Err(crate::Error::Invalid("Watch Traceability: Open a Watch with a Read Cut and No Page Token".into()));
+            return Err(Error::Invalid("Watch Traceability: Open a Watch with a Read Cut and No Page Token".into()));
         }
         let mut changes = context.host.store().subscribe();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
         let terminal =
-            sender.clone().reserve_owned().await.map_err(|_| crate::Error::Invalid("Watch Traceability: Reconnect the Observer".into()))?;
+            sender.clone().reserve_owned().await.map_err(|_| Error::Invalid("Watch Traceability: Reconnect the Observer".into()))?;
         let context = context.clone();
         tokio::spawn(async move {
             let work = async {
@@ -74,6 +79,7 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
                             &context,
                             TraceabilityGetRequest {
                                 scope: request.scope.clone(),
+                                entry: None,
                                 page: Some(page.clone()),
                                 at: at.clone(),
                             },

@@ -18,13 +18,21 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
 use sha2::Digest;
+
+use dokime_protocol::host::evidence::SampleRow;
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::evidence::SamplesListResponse;
+use dokime_protocol::host::evidence::sample_row::Kind as SampleRowKind;
+use dokime_protocol::model::origin::Kind as OriginKind;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
 
@@ -44,15 +52,10 @@ pub const ID: &str = "dokime.host.v1.evidence.Samples/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::evidence::SamplesListRequest, dokime_protocol::host::evidence::SamplesListResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SamplesListRequest, SamplesListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::evidence::SamplesListRequest,
-) -> Result<dokime_protocol::host::evidence::SamplesListResponse> {
+pub async fn handle(context: &Context, request: SamplesListRequest) -> Result<SamplesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let identifier = crate::host::projection::execution_scope(request.scope.as_ref())?;
         let store = context.host.store();
@@ -71,7 +74,7 @@ pub async fn handle(
         let position = store.resource_value(identifier, "progress", supplied)?.resolved_at;
         let mut cut = cut;
         cut.frontier = position.sequence;
-        let resolved_at = h::ReadCut {
+        let resolved_at = ReadCut {
             positions: vec![position],
             revisions: Vec::new(),
         };
@@ -132,7 +135,7 @@ pub async fn handle(
             after.entry(stream.clone()).and_modify(|value| *value = (*value).max(step_after)).or_insert(step_after);
         }
         let source = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-            Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => run.plugin.clone(),
+            Some(OriginKind::PluginRun(run)) => run.plugin.clone(),
             _ => "import".into(),
         };
         let source_matches =
@@ -216,13 +219,8 @@ pub async fn handle(
                 serde_json::to_string(&after).map_err(|error| Error::Invalid(format!("List Samples: Encode Continuation: {error}")))?
             )
         };
-        Ok(dokime_protocol::host::evidence::SamplesListResponse {
-            samples: samples
-                .into_iter()
-                .map(|sample| dokime_protocol::host::evidence::SampleRow {
-                    kind: Some(dokime_protocol::host::evidence::sample_row::Kind::Raw(sample)),
-                })
-                .collect(),
+        Ok(SamplesListResponse {
+            samples: samples.into_iter().map(|sample| SampleRow { kind: Some(SampleRowKind::Raw(sample)) }).collect(),
             schema: None,
             resolved_at: Some(resolved_at),
             next_page_token,

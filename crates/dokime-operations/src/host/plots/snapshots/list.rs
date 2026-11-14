@@ -30,7 +30,6 @@ use dokime_protocol::host::plots::PlotEnvelope;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsListResponse;
-use dokime_protocol::model;
 use dokime_storage::{ExecutionCut, NumericWindow, Store};
 use harmos_protocol::model::Declarations;
 use prost_reflect::DescriptorPool;
@@ -61,6 +60,14 @@ use dokime_protocol::model::Value;
 use dokime_protocol::model::XyInterval;
 use harmos_protocol::model::{History, OperationContract};
 use prost_reflect::Kind;
+
+use dokime_protocol::host::plots::plot_analysis_result::Kind as PlotAnalysisResultKind;
+use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
+use dokime_protocol::model::value::Kind as ValueKind;
+
+use dokime_protocol::host::plots::PlotColumn;
+use harmos_runtime::storage::query::scalar::{ExactNumber, ScalarValue};
+use std::num::NonZeroU128;
 
 /* === Constants === */
 
@@ -279,13 +286,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let mut aggregate = None;
     for expression in &request.y_expressions {
         match expression.kind.as_ref() {
-            Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => {
-                fields.push(reference.field.clone())
-            }
-            Some(dokime_protocol::model::data_expression::Kind::Aggregate(expression)) => {
-                let Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) =
-                    expression.input.as_ref().and_then(|input| input.kind.as_ref())
-                else {
+            Some(DataExpressionKind::Stream(reference)) if reference.identifier == stream.id => fields.push(reference.field.clone()),
+            Some(DataExpressionKind::Aggregate(expression)) => {
+                let Some(DataExpressionKind::Stream(reference)) = expression.input.as_ref().and_then(|input| input.kind.as_ref()) else {
                     return Err(Error::Invalid("Query Plot: Aggregate a Numeric Stream Column".into()));
                 };
                 if reference.identifier != stream.id {
@@ -347,10 +350,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
-            || request
-                .y_expressions
-                .iter()
-                .any(|expression| !matches!(expression.kind, Some(dokime_protocol::model::data_expression::Kind::Aggregate(_)))))
+            || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(DataExpressionKind::Aggregate(_)))))
     {
         return Err(Error::Invalid(
             "Query Plot Aggregate: Select Only Aggregate Expressions in a Bar or Pie Plot Until Other Aggregate Variants Are Served".into(),
@@ -358,9 +358,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     let field_reference = |expression: Option<&DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
-            Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => {
-                Ok(Some(reference.field.clone()))
-            }
+            Some(DataExpressionKind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
             None => Ok(fallback.map(str::to_owned)),
             _ => Err(Error::Invalid("Query Plot: Select Coordinate Columns from the Requested Stream".into())),
         }
@@ -533,7 +531,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let (analysis, count) = store.sigma_window(settings, options)?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(analysis)),
+                        kind: Some(PlotAnalysisResultKind::SigmaInterval(analysis)),
                     }),
                 });
                 count
@@ -551,7 +549,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 )?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid)),
+                        kind: Some(PlotAnalysisResultKind::Contour(grid)),
                     }),
                 });
                 count
@@ -563,12 +561,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 };
                 if request.pareto {
                     for column in &mut series.series {
-                        let mut indices = (0..column.y.len()).collect::<Vec<_>>();
-                        indices.sort_by(|left, right| {
-                            column.y[*right].value.unwrap_or_default().total_cmp(&column.y[*left].value.unwrap_or_default())
-                        });
-                        column.x = indices.iter().map(|index| column.x[*index].clone()).collect();
-                        column.y = indices.iter().map(|index| column.y[*index]).collect();
+                        order_categories(column)?;
                     }
                 }
                 column_groups = Some(groups);
@@ -599,7 +592,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             )?;
             payload.analysis = Some(PlotAnalysis {
                 result: Some(PlotAnalysisResult {
-                    kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(frames)),
+                    kind: Some(PlotAnalysisResultKind::GridChart(frames)),
                 }),
             });
             count
@@ -676,18 +669,13 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if kind == PlotKind::Histogram {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(PlotHistogramAnalysis {
-                    series: histograms,
-                })),
+                kind: Some(PlotAnalysisResultKind::Histogram(PlotHistogramAnalysis { series: histograms })),
             }),
         });
     } else if kind == PlotKind::BoxPlot {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(PlotBoxSummaryAnalysis {
-                    series: boxes,
-                    total: examined,
-                })),
+                kind: Some(PlotAnalysisResultKind::BoxPlot(PlotBoxSummaryAnalysis { series: boxes, total: examined })),
             }),
         });
     } else if payload.analysis.is_none() {
@@ -699,7 +687,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 .x
                 .iter()
                 .map(|value| match value.kind {
-                    Some(dokime_protocol::model::value::Kind::Number(value)) => Ok(value),
+                    Some(ValueKind::Number(value)) => Ok(value),
                     _ => Err(Error::Invalid("Read Time Series: Restore Its Numeric Source-Time Axis".into())),
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -735,7 +723,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let bucket = ((evidence.source_ns as i128 - start_ns as i128).max(0) as u128 / resolution.max(1) as u128) as u64;
                 let marker = PlotMarker {
                     x: Some(Value {
-                        kind: Some(dokime_protocol::model::value::Kind::Number(evidence.source_ns as f64 / 1e9)),
+                        kind: Some(ValueKind::Number(evidence.source_ns as f64 / 1e9)),
                     }),
                     label: kind.into(),
                     record_type: kind.into(),
@@ -760,19 +748,11 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
-                histogram.series.iter().map(|series| series.bins.len() as u64).sum()
-            }
-            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
-                boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum()
-            }
-            dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
-            dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(grid) => {
-                grid.frames.iter().map(|frame| frame.values.len() as u64).sum()
-            }
-            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(sigma) => {
-                sigma.series.iter().map(|series| series.bins.len() as u64).sum()
-            }
+            PlotAnalysisResultKind::Histogram(histogram) => histogram.series.iter().map(|series| series.bins.len() as u64).sum(),
+            PlotAnalysisResultKind::BoxPlot(boxes) => boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum(),
+            PlotAnalysisResultKind::Contour(grid) => grid.values.len() as u64,
+            PlotAnalysisResultKind::GridChart(grid) => grid.frames.iter().map(|frame| frame.values.len() as u64).sum(),
+            PlotAnalysisResultKind::SigmaInterval(sigma) => sigma.series.iter().map(|series| series.bins.len() as u64).sum(),
             _ => 0,
         }
     } else {
@@ -800,18 +780,18 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if let Some(analysis) = payload.analysis.as_mut().and_then(|analysis| analysis.result.as_mut()).and_then(|result| result.kind.as_mut())
     {
         match analysis {
-            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+            PlotAnalysisResultKind::Histogram(histogram) => {
                 for series in &mut histogram.series {
                     series.key = label(&series.key);
                 }
             }
-            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            PlotAnalysisResultKind::BoxPlot(boxes) => {
                 for series in &mut boxes.series {
                     series.key = label(&series.key);
                     series.label = label(&series.label);
                 }
             }
-            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            PlotAnalysisResultKind::SigmaInterval(interval) => {
                 for series in &mut interval.series {
                     series.key = label(&series.key);
                 }
@@ -857,6 +837,50 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
 
 /* === Private Functions === */
 
+fn order_categories(column: &mut PlotColumn) -> Result<()> {
+    if column.totals.len() != column.y.len() || column.x.len() != column.y.len() {
+        return Err(Error::Invalid("Order Pareto Categories: Retain One Exact Total per Category".into()));
+    }
+    let totals = column
+        .totals
+        .iter()
+        .map(|value| {
+            let total = match value.kind.as_ref() {
+                Some(ValueKind::Integer(value)) => ScalarValue::Signed(*value),
+                Some(ValueKind::UnsignedInteger(value)) => ScalarValue::Unsigned(*value),
+                Some(ValueKind::Number(value)) => ScalarValue::Float(*value),
+                Some(ValueKind::Exact(value)) => {
+                    let numerator = value
+                        .numerator
+                        .parse()
+                        .map_err(|source| Error::Invalid(format!("Order Pareto Categories: Read the Exact Numerator: {source}")))?;
+                    let denominator = value
+                        .denominator
+                        .parse::<u128>()
+                        .ok()
+                        .and_then(NonZeroU128::new)
+                        .ok_or_else(|| Error::Invalid("Order Pareto Categories: Supply a Positive Exact Denominator".into()))?;
+                    ScalarValue::Exact(ExactNumber::new(value.negative, numerator, denominator))
+                }
+                _ => return Err(Error::Invalid("Order Pareto Categories: Retain Numeric Totals".into())),
+            };
+            total.check().map_err(|source| Error::Invalid(format!("Order Pareto Categories: {source}")))?;
+            Ok(total)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if let Some(first) = totals.first() {
+        for total in &totals {
+            first.compare(total).map_err(|source| Error::Invalid(format!("Order Pareto Categories: {source}")))?;
+        }
+    }
+    let mut indices = (0..totals.len()).collect::<Vec<_>>();
+    indices.sort_by(|left, right| totals[*right].compare(&totals[*left]).unwrap());
+    column.x = indices.iter().map(|index| column.x[*index].clone()).collect();
+    column.y = indices.iter().map(|index| column.y[*index]).collect();
+    column.totals = indices.iter().map(|index| column.totals[*index].clone()).collect();
+    Ok(())
+}
+
 fn numeric(kind: &Kind) -> bool {
     matches!(
         kind,
@@ -884,3 +908,55 @@ fn ns(seconds: f64) -> Result<i64> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{PlotColumn, Value, ValueKind, order_categories};
+    use dokime_protocol::host::plots::NullableNumber;
+
+    #[test]
+    fn pareto_orders_exact_totals_above_float_precision_with_their_categories() {
+        let mut column = PlotColumn {
+            x: vec![
+                Value {
+                    kind: Some(ValueKind::Text("small".into())),
+                },
+                Value {
+                    kind: Some(ValueKind::Text("large".into())),
+                },
+            ],
+            y: vec![NullableNumber { value: Some(9_007_199_254_740_992.0) }; 2],
+            totals: vec![
+                Value {
+                    kind: Some(ValueKind::UnsignedInteger(9_007_199_254_740_992)),
+                },
+                Value {
+                    kind: Some(ValueKind::UnsignedInteger(9_007_199_254_740_993)),
+                },
+            ],
+            ..Default::default()
+        };
+        let expected = column.x[1].clone();
+        order_categories(&mut column).unwrap();
+        assert_eq!(column.x[0], expected);
+        assert_eq!(column.totals[0].kind, Some(ValueKind::UnsignedInteger(9_007_199_254_740_993)));
+    }
+
+    #[test]
+    fn pareto_refuses_misaligned_or_nonfinite_totals_before_reordering() {
+        let mut column = PlotColumn {
+            x: vec![Value::default()],
+            y: vec![NullableNumber { value: Some(1.0) }],
+            ..Default::default()
+        };
+        let before = column.clone();
+        assert!(order_categories(&mut column).is_err());
+        assert_eq!(column, before);
+        column.totals = vec![Value {
+            kind: Some(ValueKind::Number(f64::INFINITY)),
+        }];
+        assert!(order_categories(&mut column).is_err());
+        assert_eq!(column.x, before.x);
+        assert_eq!(column.y, before.y);
+    }
+}

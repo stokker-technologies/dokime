@@ -18,11 +18,18 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
+use harmos_protocol::host::PluginState;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+
+use dokime_protocol::host::evidence::HealthEventsListRequest;
+use dokime_protocol::host::evidence::HealthEventsListResponse;
+use dokime_protocol::host::evidence::HealthItem;
+use dokime_protocol::model::Severity;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -42,15 +49,10 @@ pub const ID: &str = "dokime.host.v1.evidence.HealthEvents/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<
-        dokime_protocol::host::evidence::HealthEventsListRequest,
-        dokime_protocol::host::evidence::HealthEventsListResponse,
-    >(ID, settings.read_timeout)
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<HealthEventsListRequest, HealthEventsListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::evidence::HealthEventsListRequest,
-) -> Result<dokime_protocol::host::evidence::HealthEventsListResponse> {
+pub async fn handle(context: &Context, request: HealthEventsListRequest) -> Result<HealthEventsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
@@ -67,34 +69,22 @@ pub async fn handle(
             let include_global = request.selection.as_ref().is_none_or(|selection| selection.owner.is_none() || selection.include_context);
             let mut items = Vec::new();
             if include_global {
-                let disabled: Vec<_> = context
-                    .host
-                    .installations()?
-                    .into_iter()
-                    .filter(|installation| installation.state == harmos_protocol::host::PluginState::Disabled as i32)
-                    .map(|installation| installation.install_id)
-                    .collect();
-                for plugin in context.host.plugins()? {
-                    if disabled.contains(&plugin.entry) {
+                for plugin in context.host.plugins().await? {
+                    if matches!(PluginState::try_from(plugin.state), Ok(PluginState::Disabled | PluginState::Ready)) {
                         continue;
                     }
-                    if plugin.state == harmos_protocol::host::PluginState::Ready as i32 {
-                        continue;
-                    }
-                    items.push(dokime_protocol::host::evidence::HealthItem {
-                        health_item_id: plugin.entry,
-                        message: if plugin.reason.is_empty() {
-                            "Start or Reload the Plugin to Restore Its Services".into()
-                        } else {
-                            plugin.reason
-                        },
-                        severity: dokime_protocol::model::Severity::Failure as i32,
+                    items.push(HealthItem {
+                        health_item_id: plugin.name,
+                        message: plugin
+                            .failure
+                            .map_or_else(|| "Start or Reload the Plugin to Restore Its Services".into(), |failure| failure.message),
+                        severity: Severity::Failure as i32,
                         ..Default::default()
                     });
                 }
             }
             items.sort_by(|left, right| left.health_item_id.cmp(&right.health_item_id));
-            Ok(dokime_protocol::host::evidence::HealthEventsListResponse { events: items, ..Default::default() })
+            Ok(HealthEventsListResponse { events: items, ..Default::default() })
         })
         .await?;
         let (items, next_page_token) = crate::host::views::page(
@@ -104,7 +94,7 @@ pub async fn handle(
             context.settings.page_items,
             context.settings.message_bytes,
         )?;
-        Ok(dokime_protocol::host::evidence::HealthEventsListResponse {
+        Ok(HealthEventsListResponse {
             events: items,
             resolved_at: Some(cut),
             next_page_token,

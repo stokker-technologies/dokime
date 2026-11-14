@@ -18,10 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Result, host::Context};
+
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::evidence::SamplesWatchRequest;
+use dokime_protocol::host::evidence::SamplesWatchResponse;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::Failure;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,19 +48,14 @@ pub const ID: &str = "dokime.host.v1.evidence.Samples/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::evidence::SamplesWatchRequest, dokime_protocol::host::evidence::SamplesWatchResponse>(
-        ID,
-        settings.watch_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SamplesWatchRequest, SamplesWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::evidence::SamplesWatchRequest,
-) -> Result<crate::host::Output<dokime_protocol::host::evidence::SamplesWatchResponse>> {
+pub async fn handle(context: &Context, request: SamplesWatchRequest) -> Result<crate::host::Output<SamplesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::host::evidence::SamplesListRequest {
+        let mut selection = SamplesListRequest {
             scope: request.scope,
             streams: request.streams,
             versions: request.versions,
@@ -76,7 +78,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = dokime_protocol::host::evidence::SamplesWatchResponse {
+                    let response = SamplesWatchResponse {
                         samples: page.samples,
                         schema: page.schema,
                         resolved_at: cut.clone(),
@@ -110,8 +112,8 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::host::evidence::SamplesWatchResponse {
-                                    resync_required: Some(h::Failure {
+                                .send(Ok(SamplesWatchResponse {
+                                    resync_required: Some(Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),
                                         ..Default::default()

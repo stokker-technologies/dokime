@@ -25,9 +25,14 @@ use crate::{
 use dokime_protocol::host::evidence::RecordsListRequest;
 use dokime_protocol::host::evidence::RecordsWatchRequest;
 use dokime_protocol::host::evidence::RecordsWatchResponse;
-use harmos_protocol::model as h;
 
 // Local Imports
+
+use dokime_protocol::host::evidence::record_scope::Kind as RecordScopeKind;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::Failure;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,7 +52,7 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<RecordsWatchRequest, RecordsWatchResponse>(ID, settings.watch_timeout)
 }
 
@@ -94,7 +99,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         .and_then(|selection| selection.scope.as_ref())
                         .and_then(|scope| scope.execution_id.as_deref())
                         .or_else(|| match selection.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
-                            Some(dokime_protocol::host::evidence::record_scope::Kind::Execution(id)) => Some(id.as_str()),
+                            Some(RecordScopeKind::Execution(id)) => Some(id.as_str()),
                             _ => None,
                         });
                     if execution.is_some_and(|id| {
@@ -119,7 +124,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                     Err(error) => {
                         let _ = sender
                             .send(Ok(RecordsWatchResponse {
-                                resync_required: Some(h::Failure {
+                                resync_required: Some(Failure {
                                     code: "resync_required".into(),
                                     message: format!("Watch Records: {error}"),
                                     ..Default::default()

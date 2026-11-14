@@ -18,10 +18,18 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
+use crate::host::storage::administration;
 use crate::{Result, host::Context};
+use dokime_protocol::host::evidence::OperatorNote;
+use prost::Message;
+
+use dokime_protocol::host::evidence::NotesListRequest;
+use dokime_protocol::host::evidence::NotesListResponse;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +49,10 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::evidence::NotesListRequest, dokime_protocol::host::evidence::NotesListResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<NotesListRequest, NotesListResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::evidence::NotesListRequest,
-) -> Result<dokime_protocol::host::evidence::NotesListResponse> {
+pub async fn handle(context: &Context, request: NotesListRequest) -> Result<NotesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let selection = request.selection.clone().unwrap_or_default();
@@ -57,23 +60,25 @@ pub async fn handle(
         let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             let store = context.host.store();
             let scope = selection.owner.as_ref().map(|owner| store.note_owner(owner)).transpose()?;
+            let (entries, _) = administration::scan(context, "note:", None).await?;
             let mut notes = Vec::new();
-            let mut after = String::new();
-            loop {
-                let page = store.notes_page(
-                    scope.as_ref().and_then(|scope| scope.cycle_id.as_deref()),
-                    scope.as_ref().and_then(|scope| scope.execution_id.as_deref()),
-                    selection.include_context,
-                    &after,
-                    context.settings.page_items,
-                )?;
-                if page.is_empty() {
-                    break;
+            for entry in entries {
+                let note = OperatorNote::decode(entry.payload.as_slice())?;
+                if let Some(selected) = &scope {
+                    let matches = note.scope.as_ref().is_some_and(|actual| {
+                        selected.cycle_id.as_ref().is_none_or(|cycle| actual.cycle_id.as_ref() == Some(cycle))
+                            && selected.execution_id.as_ref().is_none_or(|execution| {
+                                actual.execution_id.as_ref() == Some(execution)
+                                    || selection.include_context && actual.execution_id.is_none()
+                            })
+                    });
+                    if !matches {
+                        continue;
+                    }
                 }
-                after = page.last().unwrap().note_id.clone();
-                notes.extend(page);
+                notes.push(note);
             }
-            Ok(dokime_protocol::host::evidence::NotesListResponse { notes, ..Default::default() })
+            Ok(NotesListResponse { notes, ..Default::default() })
         })
         .await?;
         let (notes, next_page_token) = crate::host::views::page(
@@ -85,7 +90,7 @@ pub async fn handle(
         )?;
         crate::host::bounded_reply(
             context,
-            dokime_protocol::host::evidence::NotesListResponse {
+            NotesListResponse {
                 notes,
                 resolved_at: Some(cut),
                 next_page_token,

@@ -21,10 +21,21 @@
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::model;
 use dokime_storage::{ExecutionCut, Store};
 use prost::Message;
 use sha2::{Digest, Sha256};
+
+use dokime_protocol::host::DocumentRepeatInstance;
+use dokime_protocol::host::DocumentRepeatSelection;
+use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
+use dokime_protocol::model::Document;
+use dokime_protocol::model::DocumentFilter;
+use dokime_protocol::model::FilterOperator;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::Section;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
+use dokime_protocol::model::value::Kind as ValueKind;
 
 /* === Constants === */
 
@@ -35,8 +46,8 @@ use sha2::{Digest, Sha256};
 /* === Structs === */
 
 pub struct Expansion {
-    pub document: dokime_protocol::model::Document,
-    pub frames: Vec<dokime_protocol::host::document_frame_frame::Kind>,
+    pub document: Document,
+    pub frames: Vec<DocumentFrameFrameKind>,
     pub next: Option<usize>,
 }
 struct Reader<'a> {
@@ -47,7 +58,7 @@ struct Reader<'a> {
     remaining: usize,
     visited: usize,
     more: bool,
-    frames: Vec<dokime_protocol::host::document_frame_frame::Kind>,
+    frames: Vec<DocumentFrameFrameKind>,
 }
 
 /* === Enums === */
@@ -57,10 +68,7 @@ struct Reader<'a> {
 /* === Implementations === */
 
 impl Reader<'_> {
-    fn section(
-        &mut self, section: &dokime_protocol::model::Section, filters: &[dokime_protocol::model::PlotFilter], path: &str, suffix: &str,
-        depth: usize,
-    ) -> Result<Vec<dokime_protocol::model::Section>> {
+    fn section(&mut self, section: &Section, filters: &[PlotFilter], path: &str, suffix: &str, depth: usize) -> Result<Vec<Section>> {
         if depth > 32 {
             return Err(Error::Invalid("Expand Document: Reduce Section Nesting to 32 Levels".into()));
         }
@@ -78,13 +86,11 @@ impl Reader<'_> {
                 let (values, total) =
                     self.store.document_distinct(self.cut, expression, repeat.order_by.as_ref(), filters, offset, self.page_size)?;
                 if offset == 0 {
-                    selection_frame = Some(dokime_protocol::host::document_frame_frame::Kind::RepeatSelection(
-                        dokime_protocol::host::DocumentRepeatSelection {
-                            node_id: selection.clone(),
-                            instance_count: total,
-                            pending: false,
-                        },
-                    ));
+                    selection_frame = Some(DocumentFrameFrameKind::RepeatSelection(DocumentRepeatSelection {
+                        node_id: selection.clone(),
+                        instance_count: total,
+                        pending: false,
+                    }));
                 }
                 if values.is_empty() {
                     break;
@@ -92,9 +98,9 @@ impl Reader<'_> {
                 for value in values {
                     let key = Sha256::digest(value.encode_to_vec()).iter().take(16).map(|byte| format!("{byte:02x}")).collect::<String>();
                     let next_suffix = format!("{suffix}.{key}");
-                    let filter = dokime_protocol::model::PlotFilter {
+                    let filter = PlotFilter {
                         expression: Some(expression.clone()),
-                        operator: dokime_protocol::model::FilterOperator::Eq as i32,
+                        operator: FilterOperator::Eq as i32,
                         value: Some(value.clone()),
                     };
                     let mut inherited = filters.to_vec();
@@ -106,14 +112,10 @@ impl Reader<'_> {
                     let label = display(&value);
                     metadata.label = repeat.label_template.replace("{value}", &label);
                     let field = match expression.kind.as_ref() {
-                        Some(
-                            dokime_protocol::model::data_expression::Kind::Stream(reference)
-                            | dokime_protocol::model::data_expression::Kind::Record(reference),
-                        ) => Some(reference.field.as_str()),
-                        Some(
-                            dokime_protocol::model::data_expression::Kind::Parameter(key)
-                            | dokime_protocol::model::data_expression::Kind::Dimension(key),
-                        ) => Some(key.as_str()),
+                        Some(DataExpressionKind::Stream(reference) | DataExpressionKind::Record(reference)) => {
+                            Some(reference.field.as_str())
+                        }
+                        Some(DataExpressionKind::Parameter(key) | DataExpressionKind::Dimension(key)) => Some(key.as_str()),
                         _ => None,
                     };
                     if let Some(field) = field {
@@ -122,15 +124,13 @@ impl Reader<'_> {
                     instance.metadata = Some(metadata);
                     let sections = self.section(&instance, &inherited, path, &next_suffix, depth + 1)?;
                     if !sections.is_empty() {
-                        self.frames.push(dokime_protocol::host::document_frame_frame::Kind::RepeatInstance(
-                            dokime_protocol::host::DocumentRepeatInstance {
-                                selection_id: selection.clone(),
-                                ordinal: offset as u64,
-                                suffix: next_suffix.trim_start_matches('.').into(),
-                                node_id: format!("{path}{next_suffix}"),
-                                filter: Some(filter),
-                            },
-                        ));
+                        self.frames.push(DocumentFrameFrameKind::RepeatInstance(DocumentRepeatInstance {
+                            selection_id: selection.clone(),
+                            ordinal: offset as u64,
+                            suffix: next_suffix.trim_start_matches('.').into(),
+                            node_id: format!("{path}{next_suffix}"),
+                            filter: Some(filter),
+                        }));
                     }
                     output.extend(sections);
                     offset += 1;
@@ -170,7 +170,7 @@ impl Reader<'_> {
                     metadata.identifier = format!("{path}.card-{index}");
                 }
                 metadata.identifier.push_str(suffix);
-                card.filters.extend(filters.iter().map(|filter| dokime_protocol::model::DocumentFilter {
+                card.filters.extend(filters.iter().map(|filter| DocumentFilter {
                     expression: filter.expression.clone(),
                     operator: filter.operator,
                     value: filter.value.clone(),
@@ -196,9 +196,7 @@ impl Reader<'_> {
 
 /* === Public Functions === */
 
-pub fn expand(
-    store: &Store, cut: &ExecutionCut, document: &dokime_protocol::model::Document, offset: usize, page_size: usize,
-) -> Result<Expansion> {
+pub fn expand(store: &Store, cut: &ExecutionCut, document: &Document, offset: usize, page_size: usize) -> Result<Expansion> {
     let mut reader = Reader {
         store,
         cut,
@@ -231,13 +229,13 @@ pub fn expand(
 
 /* === Private Functions === */
 
-fn display(value: &dokime_protocol::model::Value) -> String {
+fn display(value: &Value) -> String {
     match &value.kind {
-        Some(dokime_protocol::model::value::Kind::Number(value)) => value.to_string(),
-        Some(dokime_protocol::model::value::Kind::Integer(value)) => value.to_string(),
-        Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => value.to_string(),
-        Some(dokime_protocol::model::value::Kind::Text(value)) => value.clone(),
-        Some(dokime_protocol::model::value::Kind::Boolean(value)) => value.to_string(),
+        Some(ValueKind::Number(value)) => value.to_string(),
+        Some(ValueKind::Integer(value)) => value.to_string(),
+        Some(ValueKind::UnsignedInteger(value)) => value.to_string(),
+        Some(ValueKind::Text(value)) => value.clone(),
+        Some(ValueKind::Boolean(value)) => value.to_string(),
         _ => String::new(),
     }
 }

@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::model;
 
 use dokime_protocol::host::PlotPresentation;
 use dokime_protocol::host::PlotReferenceBand;
@@ -37,6 +36,9 @@ use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::PlotHistogramOptions;
 use dokime_protocol::model::PlotKind;
 use dokime_storage::{ExecutionCut, Store};
+
+use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
+use dokime_protocol::model::value::Kind as ValueKind;
 
 /* === Constants === */
 
@@ -118,9 +120,9 @@ pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<Pl
         };
         let value = store.document_value(cut, expression)?;
         let value = match value.kind {
-            Some(dokime_protocol::model::value::Kind::Number(value)) => value,
-            Some(dokime_protocol::model::value::Kind::Integer(value)) => value as f64,
-            Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => value as f64,
+            Some(ValueKind::Number(value)) => value,
+            Some(ValueKind::Integer(value)) => value as f64,
+            Some(ValueKind::UnsignedInteger(value)) => value as f64,
             _ => return Err(Error::Invalid("Render Plot Reference: Select a Numeric Scalar".into())),
         };
         Ok(Some(PlotReferenceValue { constant: Some(value), expression: None }))
@@ -162,9 +164,9 @@ pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<Pl
 
 fn stream(expression: &DataExpression) -> Option<String> {
     match expression.kind.as_ref()? {
-        dokime_protocol::model::data_expression::Kind::Stream(reference) => Some(reference.identifier.clone()),
-        dokime_protocol::model::data_expression::Kind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),
-        dokime_protocol::model::data_expression::Kind::Transform(value) => value.input.as_ref().and_then(|input| stream(input)),
+        DataExpressionKind::Stream(reference) => Some(reference.identifier.clone()),
+        DataExpressionKind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),
+        DataExpressionKind::Transform(value) => value.input.as_ref().and_then(|input| stream(input)),
         _ => None,
     }
 }

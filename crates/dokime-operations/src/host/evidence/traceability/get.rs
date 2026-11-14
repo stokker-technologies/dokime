@@ -19,7 +19,6 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 use sha2::{Digest, Sha256};
 
@@ -27,7 +26,15 @@ use sha2::{Digest, Sha256};
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_protocol::host::evidence::TraceabilityGetResponse;
-use dokime_protocol::model;
+
+use dokime_protocol::host::evidence::TraceabilitySnapshot;
+use dokime_protocol::model::EvidenceScope;
+use dokime_protocol::model::TraceabilityEntry;
+
+use crate::host::ClientSettings;
+use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
 
@@ -47,7 +54,7 @@ pub const ID: &str = "dokime.host.v1.evidence.Traceability/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<TraceabilityGetRequest, TraceabilityGetResponse>(ID, settings.read_timeout)
 }
 
@@ -55,8 +62,20 @@ pub async fn handle(context: &Context, request: TraceabilityGetRequest) -> Resul
     crate::host::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
 }
 
-pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, after: Option<&h::ReadCut>) -> Result<TraceabilityGetResponse> {
-    let scope = request.scope.unwrap_or_default();
+pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, after: Option<&ReadCut>) -> Result<TraceabilityGetResponse> {
+    let mut scope = request.scope.unwrap_or_default();
+    if context.caller.is_some() {
+        let execution = context.resolve_execution(scope.execution_id.as_deref(), ID)?.to_owned();
+        scope.execution_id = Some(execution);
+    } else if scope.execution_id.is_none() && scope.cycle_id.is_none() {
+        return Err(Error::Invalid("Get Traceability: Select an Execution or Cycle".into()));
+    }
+    if request.entry.as_ref().is_some_and(|entry| entry.is_empty()) {
+        return Err(Error::Invalid("Get Traceability: Select a Nonempty Entry Name".into()));
+    }
+    if request.entry.is_some() && scope.execution_id.is_none() {
+        return Err(Error::Invalid("Get Traceability: Select an Execution for the Named Entry".into()));
+    }
     if scope.session_id.as_ref().is_some_and(|session| session != &context.host.identity().epoch) {
         return Err(Error::Precondition("Get Traceability: Resynchronize with the Current Runtime Epoch".into()));
     }
@@ -102,7 +121,7 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                     continue;
                 }
                 let position = reader.resource_value(&id, "traceability", None)?.resolved_at;
-                cut_bytes += h::ReadCut {
+                cut_bytes += ReadCut {
                     positions: vec![position.clone()],
                     revisions: Vec::new(),
                 }
@@ -116,7 +135,7 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                 break;
             }
         }
-        h::ReadCut { positions, revisions: Vec::new() }
+        ReadCut { positions, revisions: Vec::new() }
     };
     cut.positions.sort_by(|left, right| {
         left.history.as_ref().map(|history| &history.epoch).cmp(&right.history.as_ref().map(|history| &history.epoch))
@@ -148,6 +167,9 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
     let mut digest = Sha256::new();
     digest.update(scope.encode_to_vec());
     digest.update(cut.encode_to_vec());
+    if let Some(entry) = &request.entry {
+        digest.update(entry.as_bytes());
+    }
     if let Some(after) = after {
         digest.update(after.encode_to_vec());
     }
@@ -173,6 +195,12 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
         resolved_at: Some(cut.clone()),
         ..Default::default()
     };
+    if let Some(entry) = &request.entry {
+        let execution = scope.execution_id.as_deref().unwrap();
+        let saved = reader.resource_value(execution, &format!("traceability/{entry}"), cut.positions.first())?;
+        response.value = (!saved.payload.is_empty()).then(|| TraceabilityEntry::decode(saved.payload.as_slice())).transpose()?;
+        response.revision = saved.revision;
+    }
     let mut examined = 0;
     let mut continuation = start;
     let mut more = false;
@@ -218,13 +246,13 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                 continuation = Some((index, event.position));
                 continue;
             }
-            let row = dokime_protocol::host::evidence::TraceabilitySnapshot {
+            let row = TraceabilitySnapshot {
                 traceability_id: format!("{id}/{:020}", event.position),
                 scope: Some(actual),
                 created_at: Some(crate::host::projection::timestamp(event.receipt_ns)),
-                entries: vec![dokime_protocol::model::TraceabilityEntry::decode(event.payload.as_slice())?],
+                entries: vec![TraceabilityEntry::decode(event.payload.as_slice())?],
                 revision: event.position.to_be_bytes().to_vec(),
-                resolved_at: Some(h::Position {
+                resolved_at: Some(Position {
                     history: position.history.clone(),
                     sequence: event.position,
                 }),
@@ -264,7 +292,7 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
 
 /* === Private Functions === */
 
-fn matches_scope(wanted: &dokime_protocol::model::EvidenceScope, actual: &dokime_protocol::model::EvidenceScope) -> bool {
+fn matches_scope(wanted: &EvidenceScope, actual: &EvidenceScope) -> bool {
     wanted.step_id.as_ref().is_none_or(|value| actual.step_id.as_ref() == Some(value))
         && wanted.case_id.as_ref().is_none_or(|value| actual.case_id.as_ref() == Some(value))
         && wanted.criterion_id.as_ref().is_none_or(|value| actual.criterion_id.as_ref() == Some(value))

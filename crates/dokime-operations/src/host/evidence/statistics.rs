@@ -23,13 +23,16 @@ use arrow_array::{Float64Array, StructArray, UInt64Array};
 use harmos_protocol::model::{Declarations, OperationContract};
 use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
-use prost_types::FileDescriptorSet;
 
 // Local Imports
-use crate::{Error, Resources, Result};
+use crate::{
+    Error, Result,
+    host::{ClientSettings, Context},
+};
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
 use dokime_storage::{BatchSelection, Error as StorageError, NumericWindow, StatisticsRead};
+use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
 
@@ -49,21 +52,28 @@ pub const ID: &str = "dokime.host.v1.Evidence/Statistics";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(
-        ID,
-        FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
+pub async fn handle(context: &Context, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async { read(context, request) }).await
+}
+
+fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
     let selected = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
-    let execution = resources.resolve_execution(selected, ID)?;
-    resources.check_action_scope(execution, ID)?;
-    let mut snapshot = resources.store.cut(&resources.execution)?;
-    let resolved_at = resources
-        .store
-        .resource_value(&resources.execution, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?
-        .resolved_at;
+    let execution = context.resolve_execution(selected, ID)?;
+    if let Some(caller) = &context.caller {
+        caller.check_action_scope(execution, ID)?;
+    }
+    let store = context.host.store();
+    if request.at.as_ref().is_some_and(|at| at.positions.len() != 1 || !at.revisions.is_empty()) {
+        return Err(Error::Invalid("Compute Statistics: Supply Its Returned Execution Cut".into()));
+    }
+    if !request.outputs.is_empty() {
+        return Err(Error::Invalid("Compute Statistics: Output Publication Is Not Implemented; Read the Typed Statistics Payload".into()));
+    }
+    let mut snapshot = store.cut(execution)?;
+    let resolved_at = store.resource_value(execution, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?.resolved_at;
     snapshot.frontier = resolved_at.sequence;
     let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
     let stream = catalog
@@ -104,32 +114,65 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
     {
         return Err(Error::Invalid("Select a Numeric Stream Column".into()));
     }
-    let page_size = NonZeroUsize::new(256).unwrap();
-    let (after, through) = resources.store.step_range(&resources.execution, &request.step, snapshot.frontier, page_size)?;
+    let scope = request.scope.as_ref();
+    if scope.is_some_and(|scope| scope.cycle_id.as_ref().is_some_and(|cycle| cycle != &snapshot.execution.cycle)) {
+        return Err(Error::Invalid("Compute Statistics: Select the Execution's Cycle".into()));
+    }
+    if scope.is_some_and(|scope| {
+        scope.session_id.is_some() || scope.case_id.is_some() || scope.criterion_id.is_some() || scope.origin.is_some()
+    }) {
+        return Err(Error::Invalid("Compute Statistics: Select Execution, Cycle and Step Scopes".into()));
+    }
+    let scope_step = scope.and_then(|scope| scope.step_id.as_deref()).unwrap_or_default();
+    if !request.step.is_empty() && !scope_step.is_empty() && request.step != scope_step {
+        return Err(Error::Invalid("Compute Statistics: Keep Both Step Selections Consistent".into()));
+    }
+    let step = if request.step.is_empty() { scope_step } else { &request.step };
+    let start_ns = request
+        .between
+        .as_ref()
+        .and_then(|window| window.start.as_ref())
+        .map(crate::resources::timestamp_ns)
+        .transpose()?
+        .unwrap_or(i64::MIN);
+    let end_ns = request
+        .between
+        .as_ref()
+        .and_then(|window| window.end.as_ref())
+        .map(crate::resources::timestamp_ns)
+        .transpose()?
+        .unwrap_or(i64::MAX);
+    if start_ns > end_ns {
+        return Err(Error::Invalid("Compute Statistics: Choose Increasing Source-Time Bounds".into()));
+    }
+    let page_size = NonZeroUsize::new(context.settings.page_items).unwrap();
+    let (after, through) = store.step_range(execution, step, snapshot.frontier, page_size)?;
     let start = after;
-    let frontier = resources.store.sample_frontier(&resources.execution, &request.stream, after, through)?;
+    let frontier = store.sample_frontier(execution, &request.stream, after, through)?;
     let mut key = request.clone();
     key.field = field.name().into();
-    if let Some(mut read) = resources.store.cached_statistics(&resources.execution, &key, start, frontier)? {
+    if let Some(mut read) = store.cached_statistics(execution, &key, start, frontier)? {
         read.request = Some(request);
         let response = read.response.get_or_insert_default();
-        response.resolved_at = Some(harmos_protocol::model::ReadCut {
+        response.resolved_at = Some(ReadCut {
             positions: vec![resolved_at],
             revisions: Vec::new(),
         });
         let response = response.clone();
-        resources.evidence("read:statistics", read.encode_to_vec(), None)?;
+        if let Some(caller) = &context.caller {
+            caller.evidence("read:statistics", read.encode_to_vec(), None)?;
+        }
         return Ok(response);
     }
     let mut positions = Vec::new();
-    resources.store.read_batches(
+    store.read_batches(
         BatchSelection {
-            execution: &resources.execution,
+            execution: execution,
             stream: &request.stream,
             after,
             through,
-            start_ns: i64::MIN,
-            end_ns: i64::MAX,
+            start_ns,
+            end_ns,
         },
         &[field.name().into()],
         |batch| {
@@ -145,19 +188,23 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
             Ok(true)
         },
     )?;
-    let statistics = resources.store.numeric_statistics(&NumericWindow {
-        execution: &resources.execution,
+    let mut statistics = store.numeric_statistics(&NumericWindow {
+        execution: execution,
         stream: &request.stream,
         field: field.name(),
         after,
         through,
-        start_ns: i64::MIN,
-        end_ns: i64::MAX,
+        start_ns,
+        end_ns,
         bins: NonZeroUsize::MIN,
     })?;
+    if !request.versions.is_empty() && !request.versions.contains(&1) {
+        statistics = Default::default();
+        positions.clear();
+    }
     let response = EvidenceStatisticsResponse {
         statistics: Some(statistics),
-        resolved_at: Some(harmos_protocol::model::ReadCut {
+        resolved_at: Some(ReadCut {
             positions: vec![resolved_at],
             revisions: Vec::new(),
         }),
@@ -167,8 +214,10 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
         positions,
         response: Some(response.clone()),
     };
-    resources.store.cache_statistics(&resources.execution, &key, start, frontier, read.clone())?;
-    resources.evidence("read:statistics", read.encode_to_vec(), None)?;
+    store.cache_statistics(execution, &key, start, frontier, read.clone())?;
+    if let Some(caller) = &context.caller {
+        caller.evidence("read:statistics", read.encode_to_vec(), None)?;
+    }
     Ok(response)
 }
 
