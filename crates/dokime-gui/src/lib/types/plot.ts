@@ -91,6 +91,7 @@ export type DocumentFftWindow = "hann" | "rectangular";
 export type DocumentFftDetrend = "none" | "mean";
 
 export type DocumentFftOptions = {
+  input_samples?: number | null;
   sample_rate_hz?: number | null;
   window: DocumentFftWindow;
   detrend: DocumentFftDetrend;

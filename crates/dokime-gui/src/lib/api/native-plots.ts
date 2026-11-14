@@ -53,7 +53,7 @@ import {
   nativeValueToJson,
   recordScopeFromNative,
 } from "@/lib/host/values";
-import { NativeApiLimitError, NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber } from "./native-values";
+import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
 /* === Canonical Types === */
 
@@ -79,6 +79,7 @@ const PlotRequestSchema = protocolV1Plots.PlotRequestSchema;
 type PlotWatchPage = Wire<protocolClientV1PlotsSnapshots.SnapshotsWatchResponse>;
 type PlotStreamUpdate = PlotWatchPage["updates"][number];
 type PlotStreamKind = PlotStreamUpdate["kind"];
+type PlotTypes = ReadonlyMap<string, DocumentPlotType | null | undefined>;
 
 /* === Constants === */
 
@@ -224,6 +225,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
       ? {}
       : {
           fft: {
+            inputSamples: input.fft.input_samples ?? undefined,
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
             window: input.fft.window === "rectangular" ? protocolV1Plots.FftWindow.RECTANGULAR : protocolV1Plots.FftWindow.HANN,
             detrend: input.fft.detrend === "none" ? protocolV1Plots.FftDetrend.NONE : protocolV1Plots.FftDetrend.MEAN,
@@ -288,6 +290,7 @@ export async function fetchNativePlotPayloads(
   try {
     const envelopes: NativePlotPayloadEnvelope[] = [];
     const nativeRequests = requests.map(toNativePlotRequest);
+    const plotTypes: PlotTypes = new Map(requests.map((request) => [request.plotId ?? request.stream, request.plotType]));
     let at: Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["resolvedAt"];
     let token = "";
     const seen = new Set<string>();
@@ -295,13 +298,13 @@ export async function fetchNativePlotPayloads(
       const response = await rpc.plotsSnapshotsList(session, {
         requests: nativeRequests,
         at,
-        page: { pageSize: NATIVE_PAGE_SIZE, pageToken: token },
+        page: { pageSize: NATIVE_PLOT_MAX_REQUESTS, pageToken: token },
       });
       ensureActive(session, options.signal);
       const resolved = required(response.resolvedAt, "Read Plot Snapshots: Missing Read Cut");
       if (at && cutKey(at) !== cutKey(resolved)) throw new Error("Read Plot Snapshots: Read Cut Changed");
       at = resolved;
-      envelopes.push(...response.envelopes.map(mapNativePlotEnvelope));
+      envelopes.push(...response.envelopes.map((envelope) => mapNativePlotEnvelope(envelope, plotTypes.get(envelope.plotId))));
       token = response.nextPageToken;
       if (!token) return envelopes;
       if (seen.has(token)) throw new Error("Read Plot Snapshots: Repeated Continuation");
@@ -326,6 +329,7 @@ export async function openNativePlotStream(
   boundedRequestCount(requests.length, "Plots.Watch");
   ensureActive(session, options.signal);
   const nativeRequests = requests.map((request) => toNativePlotRequest(request));
+  const plotTypes: PlotTypes = new Map(requests.map((request) => [request.plotId ?? request.stream, request.plotType]));
 
   let source: Awaited<ReturnType<typeof rpc.plotsSnapshotsWatch>> | null = null;
   try {
@@ -370,7 +374,7 @@ export async function openNativePlotStream(
           return { done: true, value: undefined };
         }
         ensureActive(session, options.signal);
-        return { done: false, value: mapNativePlotWatchPage(result.value) };
+        return { done: false, value: mapNativePlotWatchPage(result.value, plotTypes) };
       } catch (error) {
         await cancel().catch(() => undefined);
         throw normalizeCancellation(error, session, options.signal);
@@ -389,7 +393,7 @@ export async function openNativePlotStream(
 }
 
 /** Map one protobuf envelope into the payload family used by the renderer. */
-export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
+export function mapNativePlotEnvelope(envelope: PlotEnvelope, plotType?: DocumentPlotType | null): NativePlotPayloadEnvelope {
   if (!envelope.payload) throw new Error("Native plot envelope has no payload.");
   if (!envelope.diagnostics) throw new Error("Native plot envelope has no diagnostics.");
   return {
@@ -397,7 +401,7 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
     revision: safeNumber(envelope.revision, "Plots envelope revision"),
     epoch: requiredText(envelope.epoch, "plot runtime epoch"),
     selection: requiredText(envelope.selection, "plot selection"),
-    payload: mapNativePlotPayload(envelope.payload),
+    payload: mapNativePlotPayload(envelope.payload, plotType),
     diagnostics: mapNativePlotDiagnostics(envelope.diagnostics),
     warnings: [...envelope.warnings],
   };
@@ -410,13 +414,13 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
  * may carry no payload or diagnostics; it maps to an empty payload
  * with its warnings rather than ending the whole stream on a mapping throw.
  */
-export function mapNativePlotWatchPage(frame: PlotWatchPage): NativePlotStreamMessage {
+export function mapNativePlotWatchPage(frame: PlotWatchPage, plotTypes?: PlotTypes): NativePlotStreamMessage {
   if (frame.resyncRequired) throw new Error("Watch Plot Snapshots: Resynchronization Required");
   if (frame.updates.length === 0) throw new Error("Native plot revision has no updates.");
-  return { updates: frame.updates.map(mapNativePlotStreamUpdate) };
+  return { updates: frame.updates.map((update) => mapNativePlotStreamUpdate(update, plotTypes?.get(update.envelope?.plotId ?? ""))) };
 }
 
-function mapNativePlotStreamUpdate(frame: PlotStreamUpdate): NativePlotStreamUpdate {
+function mapNativePlotStreamUpdate(frame: PlotStreamUpdate, plotType?: DocumentPlotType | null): NativePlotStreamUpdate {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
   if (frame.kind === protocolClientV1PlotsSnapshots.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
@@ -425,20 +429,20 @@ function mapNativePlotStreamUpdate(frame: PlotStreamUpdate): NativePlotStreamUpd
   const kind = plotStreamKind(frame.kind);
   if (kind === "error") {
     return {
-      ...mapNativePlotErrorEnvelope(frame.envelope),
+      ...mapNativePlotErrorEnvelope(frame.envelope, plotType),
       kind,
     };
   }
-  const envelope = mapNativePlotEnvelope(frame.envelope);
+  const envelope = mapNativePlotEnvelope(frame.envelope, plotType);
   return {
     ...envelope,
     kind,
   };
 }
 
-function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
+function mapNativePlotErrorEnvelope(envelope: PlotEnvelope, plotType?: DocumentPlotType | null): NativePlotPayloadEnvelope {
   if (envelope.payload && envelope.diagnostics) {
-    return mapNativePlotEnvelope(envelope);
+    return mapNativePlotEnvelope(envelope, plotType);
   }
   return {
     plot_id: envelope.plotId,
@@ -446,7 +450,7 @@ function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEn
     epoch: envelope.epoch,
     selection: envelope.selection,
     payload: envelope.payload
-      ? mapNativePlotPayload(envelope.payload)
+      ? mapNativePlotPayload(envelope.payload, plotType)
       : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
     ...(envelope.diagnostics ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) } : {}),
     warnings: envelope.warnings.length ? [...envelope.warnings] : ["Plot stream returned an error."],
@@ -605,7 +609,8 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
 
 /* === Response mapping === */
 
-function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
+function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlotType | null): PlotPayload {
+  const points = plotType === "trajectory" || plotType === "bar" || plotType === "pie";
   return {
     stream: payload.stream,
     x_key: payload.xKey,
@@ -613,8 +618,11 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     context: payload.context ? { value: nativeValueToJson(payload.context) } : {},
     series: payload.series.map((series, index) => {
       const metadata = mapNativePlotSeries(series);
-      if (payload.frame?.mode) return metadata;
+      if (payload.frame?.mode && !points) return metadata;
       const column = payload.frame?.series[index];
+      if (column && (column.x.length !== column.y.length || (plotType === "trajectory" && column.instants.length !== column.y.length))) {
+        throw new Error("Read Plot Columns: Restore Matching Coordinates and Source Instants");
+      }
       return {
         ...metadata,
         points: (column?.x ?? []).map((x, row) => ({
@@ -627,7 +635,7 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     }),
     analysis: mapNativePlotAnalysis(payload.analysis),
     computed: mapNativeComputation(payload.computed),
-    cartesian: mapNativeCartesianFrame(payload.frame),
+    cartesian: points ? null : mapNativeCartesianFrame(payload.frame),
     markers: payload.markers.map(mapNativePlotMarker),
     max_points: safeNumber(payload.maxPoints, "Plots payload max_points"),
     window_s: payload.windowS ?? null,

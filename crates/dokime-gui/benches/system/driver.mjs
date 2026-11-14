@@ -41,6 +41,7 @@ let epoch = 0;
 let warmReady;
 let continuousReady;
 let resizeWidth = 1920;
+let historyRows = 2073600;
 
 async function command(line) {
   if (host.failure) throw host.failure;
@@ -183,6 +184,7 @@ async function startNative(mode) {
       TMPDIR: nativeTemporary,
       DOKIME_DESKTOP_BENCH_FIXTURES: nativeRoot,
       DOKIME_DESKTOP_BENCH_RESTORE: restored,
+      DOKIME_DESKTOP_HISTORY_ROWS: String(historyRows),
     },
     stdio: ["pipe", "pipe", "inherit"],
     detached: process.platform !== "win32",
@@ -241,7 +243,7 @@ async function startNative(mode) {
   await resourceBoundary(Date.now());
   await writeFile(
     join(output, "fixture.json"),
-    JSON.stringify({ ...fixture, native, rowsPerSecond: 8, historyDays: 3, kinds: 10 }, null, 2),
+    JSON.stringify({ ...fixture, native, rowsPerSecond: fixture.sample_rate_hz, historyDays: 3, kinds: 10 }, null, 2),
   );
 }
 
@@ -251,7 +253,15 @@ try {
   await startNative("active");
   process.stdout.write("ready\n");
   for await (const line of createInterface({ input: process.stdin })) {
-    const [countText, condition, repetitions] = line.split(" ");
+    const [rowsText, countText, condition, repetitions] = line.split(" ");
+    if (Number(rowsText) !== historyRows) {
+      await closeNative();
+      nativeRoot = undefined;
+      seedRoot = undefined;
+      backendMode = undefined;
+      historyRows = Number(rowsText);
+      await startNative("active");
+    }
     const count = Number(countText);
     let elapsed = 0;
     for (let iteration = 0; iteration < Number(repetitions); iteration++) {
@@ -259,7 +269,7 @@ try {
       const desired = ["cold", "warm"].includes(condition) ? "saved" : "active";
       if (condition === "cold" || backendMode !== desired) await startNative(desired);
       if (condition === "warm" && warmReady !== count) {
-        await desktop.execute("desktopCase(...arguments)", [
+        await desktop.execute("return desktopCase(...arguments)", [
           count,
           "warm",
           fixture.execution,
@@ -277,11 +287,11 @@ try {
       const operations = [];
       const to = fixture.end_s + 600;
       const from = fixture.origin_s;
-      const continuous = count === 30 && ["live", "late", "stalled"].includes(condition);
+      const continuous = ["live", "late", "stalled"].includes(condition);
       const retained = continuous && continuousReady === `${count}/${condition}`;
-      if (!retained) await desktop.execute("desktopCase(...arguments)", [count, "warm", fixture.execution, fixture.cycle, from, to]);
+      if (!retained) await desktop.execute("return desktopCase(...arguments)", [count, "warm", fixture.execution, fixture.cycle, from, to]);
       // Live And Late Publications Cross The Same Runtime Admission And Save Path.
-      if (count === 30 && ["live", "late", "stalled", "zoom", "resize", "navigation"].includes(condition)) {
+      if (["live", "late", "stalled", "zoom", "resize", "navigation"].includes(condition)) {
         const initial = retained ? await desktop.execute("return desktopResult(true)") : await waitDrawing(count, "prepare");
         if (initial.loadedPlots > 0) {
           continuousReady = continuous && initial.loadedPlots === count ? `${count}/${condition}` : undefined;
@@ -332,15 +342,6 @@ try {
           }
         }
       }
-      if (count === 100 && ["live", "late", "stalled"].includes(condition)) {
-        operations.push(await command(condition === "late" ? "late" : "live"));
-        if (condition === "stalled") {
-          for (let batch = 0; batch < 12; batch++) {
-            operations.push(await command("live"));
-            await delay(100);
-          }
-        }
-      }
       if (condition === "resize") {
         resizeWidth = resizeWidth === 1920 ? 1600 : 1920;
         await desktop.resize(resizeWidth, 1000);
@@ -362,6 +363,7 @@ try {
       const boundary = resources.findLast((sample) => sample.epoch === epoch && sample.time_ms <= resourceStart);
       if (boundary) samples.unshift(boundary);
       results.push({
+        rows: historyRows,
         count,
         condition,
         iteration,
@@ -379,10 +381,32 @@ try {
         resourceWindowMs: samples.length > 1 ? samples.at(-1).time_ms - samples[0].time_ms : null,
       });
       await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));
-      const capture = `${count}-${condition}`;
+      const capture = `${historyRows}-${count}-${condition}`;
       if (!captured.has(capture)) {
         await desktop.screenshot(capture);
         captured.add(capture);
+      }
+      // Traverse Every Plot Outside the Timing Boundary, Including All Mixed Kinds.
+      if (condition === "navigation" || (historyRows !== 2073600 && condition === "cold")) {
+        await command("drain");
+        const traversalStarted = performance.now();
+        for (let index = 0; index < count; index++) {
+          const deadline = performance.now() + DRAW_WAIT_MS;
+          while (true) {
+            const plot = await desktop.execute("return desktopInspect(arguments[0])", [`desktop.plot.${index}`]);
+            if (!plot) throw new Error(`Draw Document ${historyRows}/${count}/Plot ${index}: Native Window Closed Before Drawing`);
+            if (plot.error)
+              throw new Error(
+                `Draw Document ${historyRows}/${count}/Plot ${index}: ${JSON.stringify(await desktop.execute("return desktopResult()"))}`,
+              );
+            if (plot.ready && plot.drawn) break;
+            if (performance.now() > deadline) throw new Error(`Draw Document ${historyRows}/${count}/Plot ${index}: No Completed Drawing`);
+            await delay(25);
+          }
+        }
+        results.at(-1).verifiedPlots = count;
+        results.at(-1).traversalMs = performance.now() - traversalStarted;
+        results.at(-1).traversalBackendStages = (await command("drain")).stages;
       }
     }
     await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));

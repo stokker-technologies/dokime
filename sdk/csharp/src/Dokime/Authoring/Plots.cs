@@ -43,6 +43,7 @@ public static class PlotOptions
   public static Plot SeriesBy(this Plot plot, DataExpression value) { plot.SeriesBy = value.Clone(); return plot; }
   public static Plot WithLabel(this Plot plot, Metadata metadata) { plot.Metadata = metadata.Clone(); return plot; }
   public static Plot WithUnit(this Plot plot, string unit) { plot.Unit = unit; return plot; }
+  public static Plot WithInputSamples(this Plot plot, uint count) { plot.InputSamples = count; return plot; }
   public static Plot Reduce(this Plot plot, Reduction reduction) { plot.Reduction = reduction; return plot; }
   public static Plot Render(this Plot plot, ContourRender render) { plot.Render = render; return plot; }
   public static Plot Arrange(this Plot plot, BarArrangement arrangement) { plot.Arrangement = arrangement; return plot; }

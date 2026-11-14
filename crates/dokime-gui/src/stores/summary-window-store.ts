@@ -25,6 +25,8 @@ type SummaryWindowStore = {
   windows: Readonly<Record<string, SummaryWindow>>;
   widths: Readonly<Record<string, number>>;
   heights: Readonly<Record<string, number>>;
+  visible: Readonly<Record<string, boolean>>;
+  setVisible: (plotId: string, visible: boolean | null) => void;
   setPanelSize: (plotId: string, size: { width: number; height: number } | null) => void;
   setPanelWidth: (plotId: string, width: number | null) => void;
   setSummaryWindow: (plotId: string, window: SummaryWindow | null) => void;
@@ -36,6 +38,15 @@ export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
   windows: {},
   widths: {},
   heights: {},
+  visible: {},
+  setVisible: (plotId, shown) =>
+    set((state) => {
+      if (state.visible[plotId] === (shown ?? undefined)) return state;
+      const visible = { ...state.visible };
+      if (shown === null) delete visible[plotId];
+      else visible[plotId] = shown;
+      return { visible };
+    }),
   setPanelSize: (plotId, size) =>
     set((state) => {
       if (state.widths[plotId] === size?.width && state.heights[plotId] === size?.height) return state;

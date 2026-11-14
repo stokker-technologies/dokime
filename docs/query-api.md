@@ -26,6 +26,27 @@ Documents bind plots and summaries to a fixed execution frontier, with bounded
 repeat pages and stable card identities. Report rendering produces temporary HTML;
 publication is explicit and binds exact frozen document/evidence bytes.
 
+`Documents.Get` and `Documents.Watch` accept `max_frames` alongside `max_bytes`.
+Zero uses the host's item bound. Pages contain complete frames; their joined
+sequence retains the same structure, evidence cut and completion counters. A
+document read returns plot declarations without executing those plots. The desktop
+then requests its visible selections in independent batches of at most 32 plots.
+Within one batch, identical selections share a read and frozen schema preparation;
+their plot identities, fingerprints and fixed cuts remain independent.
+
+Frequency plots declare `Plot.input_samples`, projected into
+`PlotRequest.fft.input_samples`. The selected input is the latest N finite samples
+in source-time/position order within its filters and requested source window.
+Omitting N uses the host's bounded transform input. A count below two or above that
+bound fails with an action; a multi-day source alone is never a refusal. `fft.window`
+still names the taper, and `max_points` still controls display resolution.
+
+Grid previews retain the latest complete frames fitting the rows, columns and
+display resolution. Numeric frame expressions use source-time seconds and return
+timestamp instants. Source counts include the examined history, so a bounded
+preview does not present a truncated source as complete evidence. A grid whose
+single frame exceeds the resolution still requires fewer rows or columns.
+
 ## Remaining Contract Work
 
 Returned-position retention, durable snapshot/follow semantics, replay receipts,

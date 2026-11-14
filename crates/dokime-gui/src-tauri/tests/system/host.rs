@@ -27,9 +27,19 @@ use tokio_stream::StreamExt;
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+use dokime_protocol::client::document_binding_result::Kind as BindingKind;
+use dokime_protocol::client::document_frame_frame::Kind as FrameKind;
+use dokime_protocol::client::plots::{
+    PlotDomain, SnapshotsListRequest, SnapshotsListResponse, SnapshotsWatchRequest, SnapshotsWatchResponse,
+};
+use dokime_protocol::client::{DocumentsGetRequest, DocumentsGetResponse, DocumentsWatchRequest, DocumentsWatchResponse};
+use dokime_protocol::v1::{Card, Document, DocumentScope, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_protocol::{client, v1};
 use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache, StorageTransferSettings};
+use dokime_storage::{Execution, Sample, Store};
+use harmos_protocol::v1::{Catalog, Section as CatalogSection, StreamDeclaration};
+use prost_types::FileDescriptorSet;
 
 /* === Constants === */
 
@@ -83,6 +93,211 @@ fn settings() -> ConnectionSettings {
 }
 
 /* === Tests === */
+
+#[test]
+fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Result<(), Box<dyn StdError>> {
+    dokime_gui::test_support::run(async {
+        // Freeze a Large Authored Document and Three Days of Evidence.
+        let root = dokime_gui::test_support::tempdir()?;
+        let store = Store::open(root.path())?;
+        let plots = (0..65)
+            .map(|index| Plot {
+                metadata: Some(v1::Metadata {
+                    identifier: format!("plot-{index}"),
+                    label: format!("Plot {index}"),
+                    ..Default::default()
+                }),
+                kind: if index == 64 { PlotKind::FrequencySeries } else { PlotKind::TimeSeries } as i32,
+                y: vec![v1::FieldReference::new("wave").field("min")],
+                input_samples: (index == 64).then_some(16),
+                sample_rate_hz: (index == 64).then_some(1.0),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        let document = Document {
+            metadata: Some(v1::Metadata {
+                identifier: "large".into(),
+                label: "Large Document".into(),
+                ..Default::default()
+            }),
+            sections: vec![Section {
+                cards: plots
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, plot)| Card {
+                        metadata: Some(v1::Metadata {
+                            identifier: format!("card-{index}"),
+                            ..Default::default()
+                        }),
+                        body: Some(v1::card::Body::Plot(plot)),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let catalog = Catalog {
+            types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
+            streams: vec![StreamDeclaration {
+                id: "wave".into(),
+                row: "dokime.client.v1.plots.PlotDomain".into(),
+                ..Default::default()
+            }],
+            sections: vec![CatalogSection {
+                r#type: "dokime.v1.Suites".into(),
+                payload: Suites {
+                    suites: vec![Suite {
+                        templates: vec![TestCaseTemplate {
+                            documents: vec![document],
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }],
+                }
+                .encode_to_vec(),
+            }],
+            ..Default::default()
+        };
+        store.create(&Execution {
+            identifier: "long".into(),
+            cycle: "cycle".into(),
+            catalog: catalog.encode_to_vec(),
+            origin: Some(v1::Origin {
+                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            }),
+            ..Default::default()
+        })?;
+        store.open_stream("long", "wave")?;
+        let samples = (0..2048)
+            .map(|index| Sample {
+                stream: "wave".into(),
+                source_ns: if index < 2032 { index * 120_000_000_000 } else { (259_200 + index - 2032) * 1_000_000_000 },
+                sequence: index as u64 + 1,
+                row: PlotDomain {
+                    min: [0.0, 1.0, 0.0, -1.0][index as usize % 4],
+                    max: 0.0,
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("long", &samples)?;
+        store.close_streams("long")?;
+        store.close("long", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.seal("long")?;
+        drop(store);
+
+        // Assemble the Entire Document Without Rendering Invisible Plot Payloads.
+        let mut owner = Connection::new(settings())?;
+        let result = async {
+            let session = owner.start(root.path()).await?;
+            let scope = DocumentScope {
+                cycle_id: "cycle".into(),
+                execution_id: "long".into(),
+            };
+            let mut request = DocumentsGetRequest {
+                scope: Some(scope.clone()),
+                document_id: "large".into(),
+                max_frames: 32,
+                ..Default::default()
+            };
+            let mut requests = Vec::new();
+            let mut completed = false;
+            loop {
+                let reply: DocumentsGetResponse = session.unary("/dokime.client.v1.Documents/Get", request.clone()).await?;
+                for frame in reply.frames {
+                    match frame.frame.and_then(|frame| frame.kind) {
+                        Some(FrameKind::Binding(binding)) => {
+                            if let Some(BindingKind::Plot(plot)) = binding.result.and_then(|result| result.kind) {
+                                requests.push(plot.request.ok_or("Read Document: Missing Plot Selection")?);
+                            }
+                        }
+                        Some(FrameKind::Completion(_)) => completed = true,
+                        _ => (),
+                    }
+                }
+                if reply.next_page_token.is_empty() {
+                    break;
+                }
+                request.page_token = reply.next_page_token;
+                request.at = reply.resolved_at;
+            }
+            assert!(completed);
+            assert_eq!(requests.len(), 65);
+
+            // Read Independent Visible Groups Through the Native Watch Adapter.
+            for group in requests.chunks(32) {
+                let mut watch = session
+                    .watch_raw(
+                        "/dokime.client.v1.plots.Snapshots/Watch",
+                        &SnapshotsWatchRequest {
+                            requests: group.to_vec(),
+                            ..Default::default()
+                        }
+                        .encode_to_vec(),
+                    )
+                    .await?;
+                let mut received = Vec::new();
+                while let Some(frame) = watch.next().await {
+                    let frame = SnapshotsWatchResponse::decode(frame?.as_slice())?;
+                    assert!(frame.resync_required.is_none());
+                    received.extend(frame.updates.into_iter().map(|update| update.envelope.unwrap()));
+                }
+                assert_eq!(received.len(), group.len());
+                for (envelope, request) in received.iter().zip(group) {
+                    assert_eq!(Some(&envelope.plot_id), request.plot_id.as_ref());
+                    assert!(envelope.payload.is_some());
+                }
+            }
+            let mut frequency = requests.pop().unwrap();
+            frequency.fft.as_mut().unwrap().window = FftWindow::Rectangular as i32;
+            let response: SnapshotsListResponse = session
+                .unary(
+                    "/dokime.client.v1.plots.Snapshots/List",
+                    SnapshotsListRequest {
+                        requests: vec![frequency],
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(response.envelopes[0].diagnostics.as_ref().unwrap().examined_rows, 16);
+            let column = &response.envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap().series[0];
+            let peak = column.y.iter().enumerate().max_by(|(_, a), (_, b)| a.value.unwrap().total_cmp(&b.value.unwrap())).unwrap().0;
+            assert_eq!(column.x[peak].kind, Some(v1::value::Kind::Number(0.25)));
+
+            // A Saved Document Watch Completes With the Same Plot Definitions.
+            let mut watch = session
+                .watch_raw(
+                    "/dokime.client.v1.Documents/Watch",
+                    &DocumentsWatchRequest {
+                        scope: Some(scope),
+                        document_id: "large".into(),
+                        max_frames: 32,
+                        ..Default::default()
+                    }
+                    .encode_to_vec(),
+                )
+                .await?;
+            let mut completed = false;
+            while let Some(frame) = watch.next().await {
+                let frame = DocumentsWatchResponse::decode(frame?.as_slice())?;
+                assert!(frame.resync_required.is_none());
+                completed |= frame
+                    .frames
+                    .iter()
+                    .any(|frame| matches!(frame.frame.as_ref().and_then(|frame| frame.kind.as_ref()), Some(FrameKind::Completion(_))));
+            }
+            assert!(completed);
+            Ok::<(), Box<dyn StdError>>(())
+        }
+        .await;
+        let closed = owner.close().await;
+        result?;
+        closed?;
+        Ok(())
+    })
+}
 
 #[test]
 fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>> {

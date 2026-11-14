@@ -33,6 +33,9 @@ message Plot {
   .dokime.v1.PlotStyle style = 22;
   .dokime.v1.AxisScale x_scale = 23;
   .dokime.v1.AxisScale y_scale = 24;
+  // Frequency input: latest N finite samples in source-time order, within filters.
+  // Absent uses the host's bounded transform input. Larger requests are refused.
+  optional uint32 input_samples = 25;
 }
 
 enum PlotStyle {
@@ -180,6 +183,9 @@ message PlotFftOptions {
   bool include_dc = 5;
   optional double min_frequency_hz = 6;
   optional double max_frequency_hz = 7;
+  // Latest N finite source samples; independent of output resolution and taper.
+  // Absent uses the host's bounded transform input. Must fit that input bound.
+  optional uint32 input_samples = 8;
 }
 
 message PlotFilter {
