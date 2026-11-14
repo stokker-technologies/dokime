@@ -16,21 +16,29 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// === Requests and Responses === //
+// Host-only plugin operations with independent Protected lifecycle bindings.
+service Executions {
+  // Initialize the Executions resource; admission and policy are owned by the executor.
+  rpc Initialize(.dokime.plugin.v1.ExecutionsInitializeRequest) returns (.dokime.plugin.v1.ExecutionsInitializeResponse);
+  // Cleanup the Executions resource; admission and policy are owned by the executor.
+  rpc Cleanup(.dokime.plugin.v1.ExecutionsCleanupRequest) returns (.dokime.plugin.v1.ExecutionsCleanupResponse);
+}
 
-// === Resources === //
+// === Initialize === //
 
-// ExecutionsInitializeRequest value owned by this resource.
+// ExecutionsInitializeRequest for Executions.Initialize.
 message ExecutionsInitializeRequest {
   string execution = 1;
   .dokime.v1.TestCase test_case = 2;
   .dokime.v1.Origin origin = 3;
 }
 
-// ExecutionsInitializeResponse value owned by this resource.
+// ExecutionsInitializeResponse for Executions.Initialize.
 message ExecutionsInitializeResponse {}
 
-// ExecutionsCleanupRequest value owned by this resource.
+// === Cleanup === //
+
+// ExecutionsCleanupRequest for Executions.Cleanup.
 message ExecutionsCleanupRequest {
   string execution = 1;
   .dokime.v1.Termination termination = 2;
@@ -38,7 +46,9 @@ message ExecutionsCleanupRequest {
   .dokime.v1.Origin origin = 4;
 }
 
-// ExecutionsCleanupResponse value owned by this resource.
+// ExecutionsCleanupResponse for Executions.Cleanup.
 message ExecutionsCleanupResponse {}
+
+// === Resources === //
 
 // === Enums === //

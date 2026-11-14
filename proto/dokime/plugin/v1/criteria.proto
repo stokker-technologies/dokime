@@ -16,11 +16,15 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// === Requests and Responses === //
+// Host-only plugin operations with independent Protected lifecycle bindings.
+service Criteria {
+  // Evaluate the Criteria resource; admission and policy are owned by the executor.
+  rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse);
+}
 
-// === Resources === //
+// === Evaluate === //
 
-// CriteriaEvaluateRequest value owned by this resource.
+// CriteriaEvaluateRequest for Criteria.Evaluate.
 message CriteriaEvaluateRequest {
   string execution = 1;
   
@@ -29,9 +33,11 @@ message CriteriaEvaluateRequest {
   .dokime.v1.Origin origin = 4;
 }
 
-// CriteriaEvaluateResponse value owned by this resource.
+// CriteriaEvaluateResponse for Criteria.Evaluate.
 message CriteriaEvaluateResponse {
   bool passed = 1;
 }
+
+// === Resources === //
 
 // === Enums === //
