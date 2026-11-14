@@ -109,10 +109,23 @@ async fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Res
         "dokime.host.v1.Files/Capture",
         "dokime.host.v1.files.Captures/Start",
         "dokime.host.v1.files.Captures/Stop",
+        "dokime.host.v1.Effects/Create",
+        "dokime.host.v1.Effects/Get",
+        "dokime.host.v1.Effects/Set",
     ] {
         let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == id).ok_or("Find Plugin-Only Contract")?;
         let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
         assert_eq!(refused.code(), Code::PermissionDenied);
+    }
+    for id in [
+        "dokime.host.v1.Aggregates/Get",
+        "dokime.host.v1.media.Captures/Create",
+        "dokime.host.v1.media.Captures/Get",
+        "dokime.host.v1.media.Captures/Stop",
+    ] {
+        let contract = client.operations.get(id).await?.contract.ok_or("Discover Unsupported Operation: Missing Contract")?;
+        let refused = client.invocations.create(id, contract.fingerprint, Vec::new()).await.unwrap_err();
+        assert_eq!(refused.code(), Code::Unimplemented);
     }
     server.close().await?;
     Ok(())

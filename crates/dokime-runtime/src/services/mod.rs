@@ -12,11 +12,9 @@
 /* === Modules === */
 
 mod access_credentials;
-mod aggregates;
 mod bundles;
 mod clock;
 mod composition;
-mod media_captures;
 mod state;
 mod status;
 
@@ -31,7 +29,7 @@ pub use dokime_operations::host::ClientSettings;
 use std::{net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
-use harmos_runtime::{grpc::GrpcManager, services::status::Status};
+use harmos_runtime::services::status::Status;
 
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
@@ -56,8 +54,6 @@ use tokio::task::JoinHandle;
 
 /* === Structs === */
 
-#[derive(Clone)]
-struct Services;
 pub struct Server {
     endpoint: SocketAddr,
     host: Host,
@@ -107,25 +103,6 @@ impl Drop for Server {
         if let Some(task) = self.status_task.take() {
             task.abort();
         }
-    }
-}
-
-#[tonic::async_trait]
-impl dokime_protocol::host::effects_server::Effects for Services {
-    async fn create(
-        &self, _request: tonic::Request<dokime_protocol::host::EffectsCreateRequest>,
-    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsCreateResponse>, tonic::Status> {
-        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Create")))
-    }
-    async fn get(
-        &self, _request: tonic::Request<dokime_protocol::host::EffectsGetRequest>,
-    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsGetResponse>, tonic::Status> {
-        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Get")))
-    }
-    async fn set(
-        &self, _request: tonic::Request<dokime_protocol::host::EffectsSetRequest>,
-    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsSetResponse>, tonic::Status> {
-        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Set")))
     }
 }
 
@@ -188,7 +165,6 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let mut changes = context.host.changes();
     let weak_host = Arc::downgrade(&context.host);
     let plugin_context = Arc::downgrade(&context);
-    register_services(runtime.grpc(), &settings)?;
     runtime
         .grpc()
         .configure_access(composition::access_settings(&settings), Arc::new(access_credentials::Store::new(host.store.clone(), backend_id)))
@@ -348,27 +324,6 @@ async fn observe_plugins(
             }
         }
     }
-}
-
-fn register_services(manager: &GrpcManager, settings: &ClientSettings) -> Result<()> {
-    let message_bytes = settings.message_bytes;
-    let services = Services;
-    manager.register_service(
-        dokime_protocol::host::effects_server::EffectsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        dokime_protocol::host::aggregates_server::AggregatesServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        dokime_protocol::host::media::captures_server::CapturesServer::new(services)
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    Ok(())
 }
 
 /* === Tests === */

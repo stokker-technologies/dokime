@@ -46,6 +46,7 @@ use dokime_protocol::host::files::{
     CapturesStartRequest, CapturesStopRequest, UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsGetRequest,
     UploadsPublishRequest, UploadsResumeRequest,
 };
+use dokime_protocol::host::{EffectsCreateRequest, EffectsGetRequest, EffectsSetRequest};
 use dokime_protocol::host::{FilesCaptureRequest, FilesDeleteRequest, FilesGetRequest, FilesReadRequest};
 use harmos_runtime::Failure;
 use prost_types::FileDescriptorSet;
@@ -207,9 +208,11 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
         host::files::captures::stop::ID => {
             Ok(host::files::captures::stop::handle(&context, CapturesStopRequest::decode(payload)?).await?.encode_to_vec())
         }
-        "dokime.host.v1.Effects/Create" | "dokime.host.v1.Effects/Get" | "dokime.host.v1.Effects/Set" => {
-            Err(Error::Unimplemented(format!("{}: Capture and Effects Engines Are Not Implemented", request.operation)))
+        host::effects::create::ID => {
+            Ok(host::effects::create::handle(&context, EffectsCreateRequest::decode(payload)?).await?.encode_to_vec())
         }
+        host::effects::get::ID => Ok(host::effects::get::handle(&context, EffectsGetRequest::decode(payload)?).await?.encode_to_vec()),
+        host::effects::set::ID => Ok(host::effects::set::handle(&context, EffectsSetRequest::decode(payload)?).await?.encode_to_vec()),
         _ => Err(Error::Invalid(format!("{}: Connect the Requested Operation Provider", request.operation))),
     }
 }

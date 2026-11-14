@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod aggregates;
 pub mod analyses;
 pub mod backend;
 pub mod cases;
@@ -18,10 +19,12 @@ pub mod catalog_inventory;
 pub mod content;
 pub mod cycles;
 pub mod documents;
+pub mod effects;
 pub mod evidence;
 pub mod execution_state;
 pub mod executions;
 pub mod files;
+pub mod media;
 pub mod paging;
 pub mod planning;
 pub mod plots;

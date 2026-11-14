@@ -31,6 +31,14 @@ use crate::{Error, Resources, Result};
 /* === Constants === */
 
 const OPERATIONS: &[&str] = &[
+    crate::host::aggregates::get::ID,
+    crate::host::effects::create::ID,
+    crate::host::effects::get::ID,
+    crate::host::effects::set::ID,
+    crate::host::media::captures::create::ID,
+    crate::host::media::captures::get::ID,
+    crate::host::media::captures::stop::ID,
+    crate::host::media::captures::watch::ID,
     crate::host::content::artifacts::create::ID,
     crate::host::files::capture::ID,
     crate::host::files::captures::start::ID,
@@ -437,6 +445,14 @@ pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operati
     registration = registration.entry(factory::<crate::host::files::capture::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::files::captures::start::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::files::captures::stop::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::aggregates::get::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::effects::create::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::effects::get::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::effects::set::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::media::captures::create::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::media::captures::get::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::media::captures::stop::Operation>(settings.mutation_timeout)?);
+    registration = registration.entry(factory::<crate::host::media::captures::watch::Operation>(settings.watch_timeout)?);
     Ok(registration)
 }
 

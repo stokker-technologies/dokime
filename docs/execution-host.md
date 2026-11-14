@@ -1729,6 +1729,9 @@ calls before releasing it.
 Files.Capture and files.Captures.Start/Stop register through those canonical
 adapters and enforce their plugin-only callers before returning an unimplemented
 refusal naming the action. Their capture engines remain absent.
+The same registration owns the unsupported Effects, media.Captures and Aggregates
+operations. Direct and encoded calls share their refusals; no handwritten runtime
+service duplicates those declarations.
 
 Uploads.Create assigns an omitted file ID from its mutation identity. Plugin
 mutation identities include the trusted execution scope, so equal request IDs in
