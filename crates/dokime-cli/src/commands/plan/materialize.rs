@@ -20,10 +20,12 @@ use std::{collections::HashMap, path::PathBuf};
 
 // Third Party Imports
 use prost::Message;
+use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::client;
-use dokime_protocol::v1;
+use dokime::Value;
+use dokime::client::{CasesCreateOptions, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
+use dokime_protocol::host::CasesCreateRequest;
 
 /* === Constants === */
 
@@ -63,32 +65,32 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let mut parameters: HashMap<String, Vec<v1::Value>> = HashMap::new();
+    let client = settings.sdk(endpoint).await?;
+    let mut parameters: HashMap<String, Vec<Value>> = HashMap::new();
     if let Some(path) = args.parameters {
         let input: HashMap<String, Vec<serde_json::Value>> = serde_json::from_slice(&std::fs::read(path)?)?;
-        let descriptor = dokime_protocol::descriptor_pool().get_message_by_name("dokime.v1.Value").unwrap();
+        let descriptor = Value::default().descriptor();
         for (name, values) in input {
             let mut converted = Vec::new();
             for value in values {
                 let message = prost_reflect::DynamicMessage::deserialize(descriptor.clone(), value)?;
-                converted.push(message.transcode_to::<v1::Value>()?);
+                converted.push(message.transcode_to::<Value>()?);
             }
             parameters.insert(name, converted);
         }
     }
-    let request = client::CasesCreateRequest {
+    let request = CasesCreateRequest {
         request_id: settings.request_id(args.request_id)?,
         validate_only: false,
-        plan: Some(client::SelectionPlan {
-            selections: vec![client::RegisteredSelection {
+        plan: Some(SelectionPlan {
+            selections: vec![RegisteredSelection {
                 suite_id: args.suite,
                 template_id: args.template,
                 parameters: parameters
                     .into_iter()
-                    .map(|(key, values)| client::RegisteredSelectionParametersEntry {
+                    .map(|(key, values)| RegisteredSelectionParametersEntry {
                         key,
-                        value: Some(client::SelectionValues { values }),
+                        value: Some(SelectionValues { values }),
                     })
                     .collect(),
                 ..Default::default()
@@ -96,7 +98,17 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             ..Default::default()
         }),
     };
-    let value = client.cases.create(settings.request(request)).await?.into_inner();
+    let value = client
+        .cases
+        .create_with(
+            request.plan.unwrap_or_default(),
+            request.validate_only,
+            CasesCreateOptions {
+                context: settings.context()?,
+                request_id: Some(request.request_id),
+            },
+        )
+        .await?;
     let bytes = value.encode_to_vec();
     if bytes.len() > settings.retained_bytes.get() {
         return Err(crate::error::Error::Capacity("Materialize Cases: Increase retained_bytes or Select Fewer Cases".into()));

@@ -49,10 +49,10 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
         let project = directory.path().join("first-rust");
         super::run(&["new", project.to_str().unwrap(), "--lang", "rust"]).await?;
         let built_project = super::fixtures().join("rust");
-        assert_eq!(std::fs::read(project.join("src/main.rs"))?, std::fs::read(built_project.join("src/main.rs"))?);
+        assert_eq!(std::fs::read(project.join("test/src/main.rs"))?, std::fs::read(built_project.join("test/src/main.rs"))?);
 
         // Bundle the Executable Built From Those Exact Starter Sources
-        let executable = super::fixtures().join(format!("dokime-starter{}", std::env::consts::EXE_SUFFIX));
+        let executable = super::fixtures().join(format!("dokime-example-test{}", std::env::consts::EXE_SUFFIX));
         let bundle = directory.path().join("first.dokime");
         super::run(&["plugin", "bundle", "--executable", executable.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
         super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
@@ -78,7 +78,7 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
             let installation: serde_json::Value = serde_json::from_str(
                 &super::run(&["--endpoint", &endpoint, "plugin", "install", bundle.to_str().unwrap(), "--json"]).await?,
             )?;
-            let entry = installation["plugin"]["entry"].as_str().ok_or("Install Plugin: Missing Managed Entry")?;
+            let entry = installation["entry"]["name"].as_str().ok_or("Install Plugin: Missing Managed Entry")?;
             let suites: serde_json::Value =
                 serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
             let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
@@ -174,7 +174,7 @@ async fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn st
                 .unwrap_or_else(|| super::root().join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" }));
             remote_plugin = Some(
                 tokio::process::Command::from(dokime_runtime::process::command(python))
-                    .arg(project.join("main.py"))
+                    .arg(project.join("test/main.py"))
                     .args(["--address", "127.0.0.1:0"])
                     .current_dir(&project)
                     .stdout(Stdio::piped())

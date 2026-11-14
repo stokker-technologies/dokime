@@ -23,7 +23,8 @@ use prost::Message;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::{CyclesCreateOptions, ExecutionBinding};
+use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Constants === */
 
@@ -69,7 +70,7 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
 
                 // Serve the New Plugin and Add Its Remote Entry
                 remote_plugin = Some(if language == "rust" {
-                    let executable = super::fixtures().join(format!("dokime-starter{}", std::env::consts::EXE_SUFFIX));
+                    let executable = super::fixtures().join(format!("dokime-example-test{}", std::env::consts::EXE_SUFFIX));
                     super::command()
                         .args(["plugin", "dev", "--executable"])
                         .arg(executable)
@@ -82,7 +83,7 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                         .map(std::path::PathBuf::from)
                         .unwrap_or_else(|| super::root().join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" }));
                     tokio::process::Command::from(dokime_runtime::process::command(python))
-                        .arg(project.join("main.py"))
+                        .arg(project.join("test/main.py"))
                         .args(["--address", "127.0.0.1:0"])
                         .current_dir(&project)
                         .stdin(Stdio::piped())
@@ -134,7 +135,7 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                 // Await the Prompt Event and Answer It From the Command Line
                 super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", execution, "--json"]).await?;
                 super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "yes", "--accepted"]).await?;
-                super::run(&["--endpoint", &endpoint, "execution", "watch", execution]).await?;
+                super::run(&["--endpoint", &endpoint, "execution", "wait", execution]).await?;
                 let detail: serde_json::Value =
                     serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", execution, "--json"]).await?)?;
                 assert!(!detail["execution"]["seal"].as_str().unwrap_or_default().is_empty());
@@ -152,33 +153,31 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                 // Prepare a Manual Cycle From the Same Frozen Cases
                 let channel = tonic::transport::Endpoint::from_shared(endpoint.clone())?.connect().await?;
                 let sdk = dokime::Client::from_channel(channel, super::client_settings())?;
-                let frozen = client::CasesCreateResponse::decode(std::fs::read(&cases)?.as_slice())?;
+                let frozen = CasesCreateResponse::decode(std::fs::read(&cases)?.as_slice())?;
+                let origins = frozen.cases.iter().map(|case| case.origin.clone().unwrap()).collect();
                 let manual_reply = sdk
                     .cycles
-                    .create(tonic::Request::new(client::CyclesCreateRequest {
-                        origins: frozen.cases.iter().map(|case| case.origin.clone().unwrap()).collect(),
-                        continue_automatically: false,
-                        request_id: "manual".into(),
-                        ..Default::default()
-                    }))
-                    .await?
-                    .into_inner();
+                    .create_with(
+                        origins,
+                        Default::default(),
+                        false,
+                        "",
+                        CyclesCreateOptions {
+                            request_id: Some("manual".into()),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
                 let manual = manual_reply.cycle.unwrap();
-                let manual_executions = sdk
-                    .executions
-                    .list(tonic::Request::new(client::ExecutionsListRequest {
-                        parent: manual.cycle_id.clone(),
-                        ..Default::default()
-                    }))
-                    .await?
-                    .into_inner();
+                let manual_executions =
+                    sdk.executions.list(manual.cycle_id.clone(), Default::default(), Default::default(), Default::default()).await?;
 
                 // Append Another Explicit Binding From the Command Line
                 let appended = "019a0000-0000-7000-8000-000000000002";
-                let request = client::ExecutionsCreateRequest {
+                let request = ExecutionsCreateRequest {
                     parent: manual.cycle_id.clone(),
                     request_id: "append".into(),
-                    executions: vec![client::ExecutionBinding {
+                    executions: vec![ExecutionBinding {
                         execution_id: appended.into(),
                         case_id: frozen.cases[0].case_id.clone(),
                     }],
@@ -236,27 +235,12 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
 
                 // Seal the Completed Cycle and Rerun Its Frozen Origins
                 super::run(&["--endpoint", &endpoint, "cycle", "seal", &manual.cycle_id]).await?;
-                assert!(
-                    sdk.cycles
-                        .get(tonic::Request::new(client::CyclesGetRequest { name: manual.cycle_id.clone(), at: None }))
-                        .await?
-                        .into_inner()
-                        .cycle
-                        .unwrap()
-                        .sealed
-                );
+                assert!(sdk.cycles.get(manual.cycle_id.clone()).await?.cycle.unwrap().sealed);
                 let rerun: serde_json::Value =
                     serde_json::from_str(&super::run(&["--endpoint", &endpoint, "cycle", "rerun", &manual.cycle_id, "--json"]).await?)?;
                 let rerun_id = rerun["cycle"]["cycle_id"].as_str().ok_or("Rerun Cycle: Missing Cycle")?;
                 assert_ne!(rerun_id, manual.cycle_id);
-                let rerun_executions = sdk
-                    .executions
-                    .list(tonic::Request::new(client::ExecutionsListRequest {
-                        parent: rerun_id.into(),
-                        ..Default::default()
-                    }))
-                    .await?
-                    .into_inner();
+                let rerun_executions = sdk.executions.list(rerun_id, Default::default(), Default::default(), Default::default()).await?;
                 assert_eq!(rerun_executions.executions.len(), 2);
                 for execution in rerun_executions.executions {
                     let id = execution.summary.unwrap().execution_id;

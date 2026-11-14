@@ -37,7 +37,7 @@ use crate::settings::Settings;
 
 #[derive(clap::Args)]
 pub(crate) struct StorageArgs {
-    #[arg(long, alias = "data-root")]
+    #[arg(long)]
     storage: Option<PathBuf>,
 
     #[arg(long)]

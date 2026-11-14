@@ -20,7 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::PluginsCreateOptions;
+use dokime::client::plugin_placement::Kind;
+use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
 
 /* === Constants === */
 
@@ -47,9 +49,23 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
-    let value = client.add(client::AddRemotePlugin { url: args.url }).await?.into_inner();
+    let description = dokime_runtime::describe_plugin(&args.url, &settings.placement()).await?;
+    let client = settings.sdk(endpoint).await?;
+    let placement = PluginPlacement {
+        kind: Some(Kind::Remote(PluginRemote { url: args.url })),
+    };
+    let value = client
+        .plugins
+        .create_with(
+            description.id,
+            placement,
+            PluginValue { enabled: true },
+            PluginsCreateOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     crate::output::print(&value, args.json)
 }
 

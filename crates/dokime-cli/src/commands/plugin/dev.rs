@@ -21,7 +21,9 @@ use std::{io::Write, path::PathBuf};
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::plugin_placement::Kind;
+use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
+use dokime::client::{PluginsCreateOptions, PluginsDeleteOptions};
 
 /* === Constants === */
 
@@ -50,10 +52,25 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let mut registered = None;
     let result: crate::Result<()> = async {
         if endpoint.is_some() || settings.pairing.is_some() {
-            let channel = settings.channel(endpoint, false).await?;
-            let mut client = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
-            let entry = client.add(client::AddRemotePlugin { url: process.endpoint().into() }).await?.into_inner();
-            registered = Some((client, entry.entry));
+            let description = process.describe().await?;
+            let client = settings.sdk(endpoint).await?;
+            let placement = PluginPlacement {
+                kind: Some(Kind::Remote(PluginRemote { url: process.endpoint().into() })),
+            };
+            let created = client
+                .plugins
+                .create_with(
+                    description.id,
+                    placement,
+                    PluginValue { enabled: true },
+                    PluginsCreateOptions {
+                        context: settings.context()?,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let entry = created.entry.ok_or("Develop Plugin: Missing Registered Entry")?;
+            registered = Some((client, entry));
         }
         println!("{}", process.endpoint());
         std::io::stdout().flush()?;
@@ -70,7 +87,9 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     .await;
     let removed = match registered {
-        Some((mut client, entry)) => client.remove(client::RemovePlugin { entry }).await.map(|_| ()),
+        Some((client, entry)) => {
+            client.plugins.delete_with(entry.name, entry.revision, PluginsDeleteOptions { context: settings.context()? }).await.map(|_| ())
+        }
         None => Ok(()),
     };
     let closed = process.close().await;

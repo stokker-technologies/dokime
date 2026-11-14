@@ -33,6 +33,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
+use dokime::{ClientSettings, StorageTransferSettings};
 
 /* === Constants === */
 
@@ -113,13 +114,13 @@ fn command() -> tokio::process::Command {
     command
 }
 
-fn client_settings() -> dokime::ClientSettings {
-    dokime::ClientSettings {
-        transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
-        retained_bytes: std::num::NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
-        message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+fn client_settings() -> ClientSettings {
+    ClientSettings {
+        transfer: StorageTransferSettings::default(),
+        retained_bytes: std::num::NonZeroUsize::new(68 * 1024 * 1024).unwrap(),
+        message_bytes: std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
         input_items: std::num::NonZeroUsize::new(8).unwrap(),
-        input_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+        input_bytes: std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
     }
 }
 

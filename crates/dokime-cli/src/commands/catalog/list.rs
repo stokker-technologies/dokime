@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::SuitesListOptions;
 
 /* === Constants === */
 
@@ -45,8 +45,17 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let value = client.suites.list(settings.request(client::SuitesListRequest::default())).await?.into_inner();
+    let client = settings.sdk(endpoint).await?;
+    let value = client
+        .suites
+        .list_with(
+            "",
+            SuitesListOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     crate::output::print(&value, args.json)
 }
 

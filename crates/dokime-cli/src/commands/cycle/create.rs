@@ -22,7 +22,8 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::CyclesCreateOptions;
+use dokime_protocol::host::CasesCreateResponse;
 
 /* === Constants === */
 
@@ -56,17 +57,15 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     if std::fs::metadata(&args.cases)?.len() > settings.retained_bytes.get() as u64 {
         return Err(crate::error::Error::Capacity("Start Cycle: Select a Smaller Case File".into()));
     }
-    let cases = client::CasesCreateResponse::decode(std::fs::read(args.cases)?.as_slice())?;
+    let cases = CasesCreateResponse::decode(std::fs::read(args.cases)?.as_slice())?;
     let origins =
         cases.cases.into_iter().map(|case| case.origin.ok_or("Start Cycle: Case Has No Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::CyclesCreateRequest {
-        origins,
-        continue_automatically: true,
-        request_id: settings.request_id(args.request_id)?,
-        ..Default::default()
+    let client = settings.sdk(endpoint).await?;
+    let options = CyclesCreateOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.create(settings.request(request)).await?.into_inner();
+    let value = client.cycles.create_with(origins, Default::default(), true, "", options).await?;
     crate::output::print(&value, args.json)
 }
 

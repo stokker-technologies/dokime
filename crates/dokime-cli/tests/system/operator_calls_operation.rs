@@ -48,7 +48,16 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
         let host = super::HostProcess::start().await?;
         let list: serde_json::Value =
             serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "operation", "list", "--json"]).await?)?;
-        let id = "harmos.v1.Status/Get";
+        let operations = list["operations"].as_array().unwrap();
+        let product = operations
+            .iter()
+            .find(|entry| entry["contract"]["id"] == "dokime.host.v1.Cycles/Create")
+            .ok_or("Discover Product Cycles.Create")?;
+        assert_eq!(product["contract"]["callers"], "CLIENTS");
+        let shared =
+            operations.iter().find(|entry| entry["contract"]["id"] == "dokime.host.v1.Files/Read").ok_or("Discover Product Files.Read")?;
+        assert_eq!(shared["contract"]["callers"], "ALL");
+        let id = "harmos.host.v1.Status/Get";
         assert!(list["operations"].as_array().unwrap().iter().any(|entry| entry["contract"]["id"] == id));
         let reply: serde_json::Value =
             serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "operation", "call", id, "--json", "{}"]).await?)?;
@@ -77,7 +86,7 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
                 &host.endpoint,
                 "operation",
                 "call",
-                "dokime.client.v1.Cycles/Create",
+                "dokime.host.v1.Cycles/Create",
                 "--json",
                 r#"{"request_id":"metadata-cycle"}"#,
             ])
@@ -86,7 +95,7 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
         let name = created["cycle"]["cycle_id"].as_str().unwrap();
         let input = serde_json::json!({"name": name}).to_string();
         let current: serde_json::Value = serde_json::from_str(
-            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Get", "--json", &input]).await?,
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.host.v1.Cycles/Get", "--json", &input]).await?,
         )?;
         let mut value = current["value"].clone();
         value["label"] = "Recorded Metadata".into();
@@ -94,11 +103,11 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
             serde_json::json!({"name": name, "value": value, "expected_revision": current["revision"], "request_id":"metadata-set"});
         let input = request.to_string();
         let updated: serde_json::Value = serde_json::from_str(
-            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input]).await?,
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.host.v1.Cycles/Set", "--json", &input]).await?,
         )?;
         assert_eq!(updated["value"], value);
         let replayed: serde_json::Value = serde_json::from_str(
-            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input]).await?,
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.host.v1.Cycles/Set", "--json", &input]).await?,
         )?;
         assert_eq!(replayed, updated);
         let mut stale = request;
@@ -106,7 +115,7 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
         stale["value"]["label"] = "Stale Write".into();
         let input = stale.to_string();
         let refused = super::command()
-            .args(["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input])
+            .args(["--endpoint", &host.endpoint, "operation", "call", "dokime.host.v1.Cycles/Set", "--json", &input])
             .output()
             .await?;
         assert!(!refused.status.success());
@@ -116,7 +125,7 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
                 &host.endpoint,
                 "operation",
                 "call",
-                "dokime.client.v1.Cycles/Get",
+                "dokime.host.v1.Cycles/Get",
                 "--json",
                 &serde_json::json!({"name":name}).to_string(),
             ])

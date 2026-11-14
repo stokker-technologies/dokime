@@ -16,46 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
 
 // Third Party Imports
+use reqwest::Client as HttpClient;
+use serde_json::Value;
 
 // Local Imports
+use crate::settings::Settings;
 
 /* === Constants === */
 
-const RUST: &[(&str, &[u8])] = &[
-    (".gitattributes", include_bytes!("../../../../sdk/rust/starter/.gitattributes")),
-    ("Cargo.toml", include_bytes!("../../../../sdk/rust/starter/Cargo.toml")),
-    ("src/main.rs", include_bytes!("../../../../sdk/rust/starter/src/main.rs")),
-    ("mise.toml", include_bytes!("../../../../sdk/rust/starter/mise.toml")),
-    (".gitignore", include_bytes!("../../../../sdk/rust/starter/.gitignore")),
-];
-const PYTHON: &[(&str, &[u8])] = &[
-    (".gitattributes", include_bytes!("../../../../sdk/python/examples/starter/.gitattributes")),
-    (".gitignore", include_bytes!("../../../../sdk/python/examples/starter/.gitignore")),
-    ("main.py", include_bytes!("../../../../sdk/python/examples/starter/main.py")),
-    ("suite.py", include_bytes!("../../../../sdk/python/examples/starter/suite.py")),
-    ("pyproject.toml", include_bytes!("../../../../sdk/python/examples/starter/pyproject.toml")),
-    ("mise.toml", include_bytes!("../../../../sdk/python/examples/starter/mise.toml")),
-    ("tests/host.py", include_bytes!("../../../../sdk/tests/fixtures/python/starter/host.py")),
-    ("tests/test_capture.py", include_bytes!("../../../../sdk/tests/fixtures/python/starter/test_capture.py")),
-];
-const CSHARP: &[(&str, &[u8])] = &[
-    ("Starter.csproj", include_bytes!("../../../../sdk/csharp/starter/Starter.csproj")),
-    ("Program.cs", include_bytes!("../../../../sdk/csharp/starter/Program.cs")),
-    ("mise.toml", include_bytes!("../../../../sdk/csharp/starter/mise.toml")),
-    (".gitignore", include_bytes!("../../../../sdk/csharp/starter/.gitignore")),
-    ("packages.lock.json", include_bytes!("../../../../sdk/csharp/starter/packages.lock.json")),
-];
-const CPP: &[(&str, &[u8])] = &[
-    ("CMakeLists.txt", include_bytes!("../../../../sdk/cpp/starter/CMakeLists.txt")),
-    ("CMakePresets.json", include_bytes!("../../../../sdk/cpp/starter/CMakePresets.json")),
-    ("main.cpp", include_bytes!("../../../../sdk/cpp/starter/main.cpp")),
-    ("mise.toml", include_bytes!("../../../../sdk/cpp/starter/mise.toml")),
-    ("vcpkg.json", include_bytes!("../../../../sdk/cpp/starter/vcpkg.json")),
-    (".gitignore", include_bytes!("../../../../sdk/cpp/starter/.gitignore")),
-];
+include!(concat!(env!("OUT_DIR"), "/examples.rs"));
 
 /* === Macros === */
 
@@ -93,9 +65,7 @@ enum Language {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let name = args.path.file_name().and_then(|value| value.to_str()).ok_or("Create Project: Supply a UTF-8 Directory Name")?;
-    let name = serde_json::to_string(name)?;
+pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
     let files = match args.lang {
         Language::Rust => RUST,
         Language::Python => PYTHON,
@@ -114,8 +84,8 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             Some(digest) => digest,
             None => {
                 let _ = rustls::crypto::ring::default_provider().install_default();
-                reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(30))
+                HttpClient::builder()
+                    .timeout(Duration::from_secs(settings.read_timeout_s))
                     .build()?
                     .get(format!("{url}.sha256"))
                     .send()
@@ -132,22 +102,19 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("Create C++ Project: Supply the Published 64-Digit SHA-256".into());
         }
-        let source = CPP.iter().find(|(name, _)| *name == "CMakePresets.json").unwrap().1;
-        let mut value: serde_json::Value = serde_json::from_slice(source)?;
-        value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_URL"] = url.into();
-        value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_SHA256"] = digest.into();
-        presets = Some(serde_json::to_vec_pretty(&value)?);
+        presets = Some((url, digest));
     }
     fs::create_dir(&args.path)?;
     let result = (|| -> crate::Result<()> {
         for (relative, bytes) in files {
             let destination = args.path.join(relative);
             fs::create_dir_all(destination.parent().unwrap())?;
-            if *relative == "pyproject.toml" || *relative == "Cargo.toml" {
-                let source = std::str::from_utf8(bytes)?;
-                fs::write(destination, source.replacen("\"dokime-starter\"", &name, 1))?;
-            } else if *relative == "CMakePresets.json" {
-                fs::write(destination, presets.as_ref().unwrap())?;
+            if relative.ends_with("/CMakePresets.json") {
+                let (url, digest) = presets.as_ref().ok_or("Create C++ Project: Missing SDK Coordinates")?;
+                let mut value: Value = serde_json::from_slice(bytes)?;
+                value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_URL"] = url.clone().into();
+                value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_SHA256"] = digest.clone().into();
+                fs::write(destination, serde_json::to_vec_pretty(&value)?)?;
             } else {
                 fs::write(destination, bytes)?;
             }

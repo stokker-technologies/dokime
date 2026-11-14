@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::{ExecutionsProgressWatchOptions, PromptsListOptions};
 
 /* === Constants === */
 
@@ -47,21 +47,45 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, true).await?;
-    let request = client::PromptsListRequest {
-        execution_id: Some(args.execution.clone()),
-        pending_only: true,
-        ..Default::default()
-    };
-    let pending = client.prompts.list(settings.request(request.clone())).await?.into_inner();
+    let client = settings.sdk(endpoint).await?;
+    let pending = client
+        .prompts
+        .list_with(
+            &args.execution,
+            true,
+            PromptsListOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     if let Some(prompt) = pending.prompts.first() {
         return crate::output::print(prompt, args.json);
     }
-    let progress = client::executions::ProgressWatchRequest { name: args.execution, at: None };
-    let mut events = client.executions.progress.watch(settings.request(progress)).await?;
+    let mut events = client
+        .executions
+        .progress
+        .watch_with(
+            &args.execution,
+            ExecutionsProgressWatchOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     while let Some(frame) = events.next().await? {
         if frame.phase == "prompt" || frame.finished {
-            let pending = client.prompts.list(settings.request(request.clone())).await?.into_inner();
+            let pending = client
+                .prompts
+                .list_with(
+                    &args.execution,
+                    true,
+                    PromptsListOptions {
+                        context: settings.context()?,
+                        ..Default::default()
+                    },
+                )
+                .await?;
             if let Some(prompt) = pending.prompts.first() {
                 return crate::output::print(prompt, args.json);
             }

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bundle Any Native harmos.v1 Executable Without Compiling
+// Bundle Any Native Plugin Executable Without Compiling
 
 /* === Modules === */
 
@@ -56,7 +56,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    // Freeze the Declared Identity and Catalog From the Native Executable
+    // Freeze the Declared Identity and Declarations From the Native Executable
     let executable = std::fs::canonicalize(&args.executable)?;
     let binary = read(&executable, FILE_BYTES)?;
     let mut process = PluginProcess::start(&executable, false, &settings.placement()).await?;
@@ -64,12 +64,12 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     let closed = process.close().await;
     let description = description?;
     closed?;
-    if description.id.is_empty() || description.catalog.is_none() {
-        return Err("Bundle Plugin: Executable Must Describe Its Identity and Catalog".into());
+    if description.id.is_empty() || description.declarations.is_none() {
+        return Err("Bundle Plugin: Executable Must Describe Its Identity and Declarations".into());
     }
     let name = executable.file_name().and_then(|name| name.to_str()).ok_or("Bundle Plugin: Supply a UTF-8 Executable Filename")?;
     let path = format!("bin/{name}");
-    let catalog = description.encode_to_vec();
+    let declarations = description.encode_to_vec();
     let compatibility = serde_json::to_vec(&serde_json::json!({"schema":1,"requires_dokime":format!("={}", env!("CARGO_PKG_VERSION"))}))?;
     let target = match (std::env::consts::ARCH, std::env::consts::OS) {
         ("x86_64", "windows") => "x86_64-pc-windows-msvc",
@@ -82,7 +82,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     let manifest = serde_json::json!({"schema":1,"identity":{"name":description.id,"version":description.version,"description":"",
         "package":{"authors":[],"license":null,"repository":null,"homepage":null,"documentation":null,"keywords":[],"categories":[]}},
         "files":[{"path":path,"size":binary.len(),"sha256":digest(&binary),"executable":{"facility":"sidecar","target":target,"registrations":[]}},
-            {"path":"description.pb","size":catalog.len(),"sha256":digest(&catalog)},
+            {"path":"description.pb","size":declarations.len(),"sha256":digest(&declarations)},
             {"path":"dokime.json","size":compatibility.len(),"sha256":digest(&compatibility)}]});
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut output = tempfile::NamedTempFile::new_in(parent)?;
@@ -91,7 +91,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     for (path, bytes, mode) in [
         ("manifest.json", bytes.as_slice(), 0o644),
         (path.as_str(), binary.as_slice(), 0o755),
-        ("description.pb", catalog.as_slice(), 0o644),
+        ("description.pb", declarations.as_slice(), 0o644),
         ("dokime.json", compatibility.as_slice(), 0o644),
     ] {
         let mut header = tar::Header::new_ustar();

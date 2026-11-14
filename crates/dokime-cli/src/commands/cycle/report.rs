@@ -22,8 +22,9 @@ use std::{io::Write, path::PathBuf};
 use sha2::Digest;
 
 // Local Imports
-use dokime_protocol::client;
-use dokime_protocol::client::{FilesGetRequest, FilesReadRequest};
+use dokime::client::FilesGetOptions;
+use dokime::client::report_subject::Kind;
+use dokime::client::{FilesReadOptions, ReportSubject, ReportsCreateOptions};
 use sha2::Sha256;
 use std::path::Path;
 
@@ -55,21 +56,29 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::ReportsCreateRequest {
-        subject: Some(client::ReportSubject {
-            kind: Some(client::report_subject::Kind::Cycle(args.cycle)),
-        }),
-        request_id: settings.request_id(args.request_id)?,
+    let client = settings.sdk(endpoint).await?;
+    let subject = ReportSubject { kind: Some(Kind::Cycle(args.cycle)) };
+    let options = ReportsCreateOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
         ..Default::default()
     };
-    let report = client.reports.create(settings.request(request)).await?.into_inner();
+    let report = client.reports.create_with(subject, "", options).await?;
     let reference = report.file.ok_or("Fetch Report: Missing File Reference")?;
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
     let mut offset = 0;
     let mut hash = Sha256::new();
-    let selected = client.files.get(settings.request(FilesGetRequest { file: Some(reference.clone()), at: None })).await?.into_inner();
+    let selected = client
+        .files
+        .get_with(
+            reference.clone(),
+            FilesGetOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     let selected_file = selected.file.ok_or("Fetch Report: Missing Selected File")?;
     if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
         return Err("Fetch Report: Selected File Identity Changed".into());
@@ -83,13 +92,18 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         if max_bytes == 0 {
             return Err(crate::error::Error::Capacity("Fetch Report: Increase message_bytes".into()));
         }
-        let request = FilesReadRequest {
-            file: Some(reference.clone()),
-            offset,
-            max_bytes,
-            at: at.clone(),
-        };
-        let page = client.files.read(settings.request(request)).await?.into_inner();
+        let page = client
+            .files
+            .read_with(
+                reference.clone(),
+                offset,
+                max_bytes,
+                FilesReadOptions {
+                    context: settings.context()?,
+                    at: at.clone(),
+                },
+            )
+            .await?;
         if page.total_length != reference.length
             || page.sha256 != reference.sha256
             || page.data.is_empty()

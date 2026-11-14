@@ -66,3 +66,31 @@ pub(crate) fn print<T: ReflectMessage>(value: &T, json: bool) -> crate::Result<(
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::value;
+    use dokime::value::Kind;
+    use dokime::{ExactNumber, Value};
+
+    #[test]
+    fn output_preserves_wide_integers_and_exact_rationals() -> crate::Result<()> {
+        let integer = Value {
+            kind: Some(Kind::UnsignedInteger(u64::MAX)),
+        };
+        let encoded = value(&integer)?;
+        assert_eq!(encoded["unsigned_integer"], u64::MAX.to_string());
+
+        let exact = ExactNumber {
+            negative: true,
+            numerator: "18446744073709551617".into(),
+            denominator: "3".into(),
+        };
+        let rational = Value { kind: Some(Kind::Exact(exact.clone())) };
+        let encoded = value(&rational)?;
+        assert_eq!(encoded["exact"]["negative"], exact.negative);
+        assert_eq!(encoded["exact"]["numerator"], exact.numerator);
+        assert_eq!(encoded["exact"]["denominator"], exact.denominator);
+        Ok(())
+    }
+}

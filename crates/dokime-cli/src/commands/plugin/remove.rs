@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::{PluginsDeleteOptions, PluginsGetOptions};
 
 /* === Constants === */
 
@@ -47,9 +47,20 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
-    let value = client.remove(client::RemovePlugin { entry: args.entry }).await?.into_inner();
+    let client = settings.sdk(endpoint).await?;
+    let entry = client
+        .plugins
+        .get_with(
+            &args.entry,
+            PluginsGetOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?
+        .entry
+        .ok_or("Remove Plugin: Missing Entry")?;
+    let value = client.plugins.delete_with(entry.name, entry.revision, PluginsDeleteOptions { context: settings.context()? }).await?;
     crate::output::print(&value, args.json)
 }
 

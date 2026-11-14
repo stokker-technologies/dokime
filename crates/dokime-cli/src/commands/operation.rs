@@ -23,6 +23,8 @@ use prost::Message;
 use prost::bytes::{Buf, BufMut};
 
 // Local Imports
+use dokime::client::{InvocationsCreateOptions, OperationsGetOptions, OperationsListOptions};
+use dokime::{Callers, DiscoveredOperation, Visibility};
 
 /* === Constants === */
 
@@ -119,17 +121,16 @@ impl Command {
 /* === Public Functions === */
 
 pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::Client::from_channel(channel, settings.client())?;
-    if let Some(pairing) = &settings.pairing {
-        client = client.authorization(pairing.authorization()?);
-    }
+    let client = settings.sdk(endpoint).await?;
     match command {
         Command::Call { operation, json, input_file } => {
             let discovered = find(&client, &operation, &settings).await?;
             let contract = discovered.contract.ok_or("Operation Has No Contract")?;
-            if contract.visibility != dokime::client::v1::Visibility::Public as i32 {
+            if contract.visibility != Visibility::Public as i32 {
                 return Err(tonic::Status::permission_denied(format!("{operation}: Public Visibility Required")).into());
+            }
+            if !matches!(Callers::try_from(contract.callers), Ok(Callers::Clients | Callers::All)) {
+                return Err(tonic::Status::permission_denied(format!("{operation}: Client Caller Required")).into());
             }
             let protobuf = contract.protobuf.ok_or_else(|| format!("{operation}: No Protobuf Contract Is Available"))?;
             if protobuf.input.is_some() || protobuf.output.is_some() {
@@ -166,13 +167,16 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
                     .await?
                     .into_inner()
             } else {
-                let request = dokime::client::v1::InvocationsInvokeRequest {
-                    operation: operation.clone(),
-                    fingerprint: contract.fingerprint,
-                    payload: request.encode_to_vec(),
-                };
-                let reply = client.invocations.invoke(settings.request(request)).await?.into_inner();
-                WireMessage(reply.payload)
+                let payload = client
+                    .invocations
+                    .create_with(
+                        operation.clone(),
+                        contract.fingerprint,
+                        request.encode_to_vec(),
+                        InvocationsCreateOptions { context: settings.context()? },
+                    )
+                    .await?;
+                WireMessage(payload)
             };
             if reply.0.len() > settings.retained_bytes.get() {
                 return Err(crate::error::Error::Capacity(format!("{operation}: Response Exceeds retained_bytes")));
@@ -200,34 +204,23 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
             Ok(())
         }
         Command::List { json } => {
-            let request = dokime::client::CatalogEntriesListRequest {
-                kind: dokime::client::CatalogKind::Operations as i32,
-                ..Default::default()
-            };
-            let reply = client.catalog_entries.list(settings.request(request)).await?.into_inner();
-            crate::output::print(&reply, json)
+            let operations = client.operations.list_with(OperationsListOptions { context: settings.context()? }).await?;
+            let operations = operations.iter().map(crate::output::value).collect::<crate::Result<Vec<_>>>()?;
+            let value = serde_json::json!({"operations": operations});
+            if json {
+                println!("{}", serde_json::to_string(&value)?);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            }
+            Ok(())
         }
     }
 }
 
 /* === Private Functions === */
 
-async fn find(
-    client: &dokime::Client, operation: &str, settings: &crate::settings::Settings,
-) -> crate::Result<dokime::client::DiscoveredOperation> {
-    let reply = client
-        .catalog_entries
-        .list(settings.request(dokime::client::CatalogEntriesListRequest {
-            kind: dokime::client::CatalogKind::Operations as i32,
-            ..Default::default()
-        }))
-        .await?
-        .into_inner();
-    reply
-        .operations
-        .into_iter()
-        .find(|entry| entry.contract.as_ref().is_some_and(|contract| contract.id == operation))
-        .ok_or_else(|| tonic::Status::not_found(format!("{operation}: Discover an Admitted Operation With operation list")).into())
+async fn find(client: &dokime::Client, operation: &str, settings: &crate::settings::Settings) -> crate::Result<DiscoveredOperation> {
+    Ok(client.operations.get_with(operation, OperationsGetOptions { context: settings.context()? }).await?)
 }
 
 fn shape(message: prost_reflect::MessageDescriptor) -> serde_json::Value {

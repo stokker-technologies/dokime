@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::ExecutionsStopOptions;
 
 /* === Constants === */
 
@@ -50,12 +50,12 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::ExecutionsStopRequest {
-        name: args.execution,
-        request_id: settings.request_id(args.request_id)?,
+    let client = settings.sdk(endpoint).await?;
+    let options = ExecutionsStopOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.executions.stop(settings.request(request)).await?.into_inner();
+    let value = client.executions.stop_with(args.execution, options).await?;
     crate::output::print(&value, args.json)
 }
 

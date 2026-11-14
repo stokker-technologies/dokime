@@ -74,7 +74,7 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
         super::run(&["--remote", path.to_str().unwrap(), "catalog", "list", "--json"]).await?;
         super::run(&["--remote", path.to_str().unwrap(), "execution", "list", "--json"]).await?;
         let call: serde_json::Value = serde_json::from_str(
-            &super::run(&["--remote", path.to_str().unwrap(), "operation", "call", "harmos.v1.Status/Get", "--json", "{}"]).await?,
+            &super::run(&["--remote", path.to_str().unwrap(), "operation", "call", "harmos.host.v1.Status/Get", "--json", "{}"]).await?,
         )?;
         assert_eq!(call["status"]["identity"], status["status"]["identity"]);
         let environment = super::command().env("DOKIME_REMOTE", &path).args(["status", "--json"]).output().await?;
@@ -82,7 +82,7 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
 
         // Register an Owned Development Plugin Through the Pairing Connection
         use tokio::io::{AsyncBufReadExt, BufReader};
-        let executable = super::fixtures().join(format!("dokime-starter{}", std::env::consts::EXE_SUFFIX));
+        let executable = super::fixtures().join(format!("dokime-example-plugin{}", std::env::consts::EXE_SUFFIX));
         let mut plugin = super::command()
             .args(["--remote", path.to_str().unwrap(), "plugin", "dev", "--executable"])
             .arg(executable)
@@ -94,12 +94,12 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
         let endpoint = lines.next_line().await?.ok_or("Development Plugin Did Not Announce Readiness")?;
         let entries: serde_json::Value =
             serde_json::from_str(&super::run(&["--remote", path.to_str().unwrap(), "plugin", "list", "--json"]).await?)?;
-        assert!(entries["plugins"].as_array().unwrap().iter().any(|entry| entry["remote"]["url"] == endpoint));
+        assert!(entries["entries"].as_array().unwrap().iter().any(|entry| entry["placement"]["remote"]["url"] == endpoint));
         drop(plugin.stdin.take());
         assert!(plugin.wait().await?.success());
         let entries: serde_json::Value =
             serde_json::from_str(&super::run(&["--remote", path.to_str().unwrap(), "plugin", "list", "--json"]).await?)?;
-        assert!(entries.get("plugins").and_then(serde_json::Value::as_array).is_none_or(Vec::is_empty));
+        assert!(entries.get("entries").and_then(serde_json::Value::as_array).is_none_or(Vec::is_empty));
 
         // Continue Past an Endpoint With Different TLS Trust
         let other = super::HostProcess::start().await?;
@@ -143,7 +143,8 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
 
         // Revoke This Pairing Through Access and Observe Its Next Connection Fail
         let request = serde_json::json!({"name": exported["pairing_id"]}).to_string();
-        super::run(&["--endpoint", &host.endpoint, "operation", "call", "harmos.v1.access.Pairings/Delete", "--json", &request]).await?;
+        super::run(&["--endpoint", &host.endpoint, "operation", "call", "harmos.host.v1.access.Pairings/Delete", "--json", &request])
+            .await?;
         let refused = super::command().args(["--remote", path.to_str().unwrap(), "status", "--json"]).output().await?;
         assert_eq!(refused.status.code(), Some(3));
         assert!(!String::from_utf8(refused.stderr)?.contains(&key));

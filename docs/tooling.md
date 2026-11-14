@@ -15,7 +15,7 @@ mise run test -- --package dokime-runtime --target system --story storage_root_a
 mise run test -- --package dokime-protocol --target integration
 mise run test -- --changed crates/dokime-runtime/tests/system/manager_lifecycles.rs --plan
 mise run format
-mise run check -- --language rust
+mise run check -- --language rust --package dokime-cli
 mise run check -- --language python
 mise run check -- --language typescript
 mise run check -- --repository
@@ -27,6 +27,27 @@ selects a test, `--story` selects a module, and `--filterset` takes a nextest ex
 An empty selection fails. Clippy runs through lint/check, never build/test.
 After source closure, `mise run build -- --cargo check --workspace --tests --locked`
 runs the explicit workspace compiler proof through the same task owner.
+
+## Command-Line Operations
+
+The CLI builds as package `dokime-cli`, executable `dokime`. Discovery uses the
+composed `Operations.List/Get` catalog, including effective callers. Dynamic calls
+use the discovered descriptors and preserve protobuf JSON integer strings and
+exact rational fields. They add no mutation retries. Plugin bundles upload through
+`Files.Uploads` before library `Plugins.Create` records the plugin's own name.
+`plugin remove NAME` reads the current entry revision before deletion.
+
+```sh
+dokime --endpoint http://127.0.0.1:7000 operation list --json
+dokime --endpoint http://127.0.0.1:7000 plugin secrets list NAME --json
+dokime --endpoint http://127.0.0.1:7000 plugin secrets set NAME --bindings bindings.json --json
+dokime --endpoint http://127.0.0.1:7000 plugin secrets delete NAME declared-secret --json
+```
+
+The binding file is a JSON object mapping declared identifiers to stored secret
+names; it never contains secret values. Set replaces the complete binding map at
+the revision returned by List. Delete removes only the named bindings. Revision
+conflicts retain the action and cause and require an explicit retry.
 
 ## Fixtures and Stories
 
@@ -51,7 +72,11 @@ and uses Ninja with the native MSVC environment. Cached dependency builds resolv
 generators through the same Protobuf/gRPC package targets as uncached builds.
 Fixtures are exported under
 `target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
-Rust starter built through its own mise task. Stories never compile plugins.
+Rust plugin and test examples built through their own mise tasks. `dokime new` embeds both
+`examples/plugin` and `examples/test` directly (`examples/Plugin` and
+`examples/Test` for C#); SDK example journeys prove their behavior. CLI scaffold
+stories verify the embedded files and preserve existing destinations. Stories
+never compile plugins.
 
 `HARMOS_SOURCE` may select an existing checkout when preparing the C# dependency
 feed. C++ uses its pinned vcpkg checkout in mise's machine cache and FetchContent

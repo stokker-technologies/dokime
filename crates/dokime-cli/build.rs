@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    env,
+    env, fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -48,6 +48,7 @@ const UNKNOWN: &str = "unknown";
 /* === Private Functions === */
 
 fn main() {
+    embed_examples();
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
@@ -61,6 +62,58 @@ fn main() {
     let revision = declared.or_else(|| checkout(&manifest)).unwrap_or_else(|| UNKNOWN.to_owned());
     println!("cargo:rustc-env=DOKIME_SOURCE_REVISION={revision}");
     println!("cargo:rustc-env=DOKIME_BUILD_CHANNEL={}", channel());
+}
+
+fn embed_examples() {
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
+    let repository = manifest.join("../..");
+    let mut source = String::new();
+    for (name, language, examples) in
+        [("RUST", "rust", "examples"), ("PYTHON", "python", "examples"), ("CSHARP", "csharp", "examples"), ("CPP", "cpp", "examples")]
+    {
+        source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
+        for example in ["plugin", "test"] {
+            let folder = if language == "csharp" { if example == "plugin" { "Plugin" } else { "Test" } } else { example };
+            let root = repository.join("sdk").join(language).join(examples).join(folder);
+            println!("cargo:rerun-if-changed={}", root.display());
+            let mut pending = vec![root.clone()];
+            while let Some(directory) = pending.pop() {
+                let mut entries = fs::read_dir(&directory)
+                    .unwrap_or_else(|error| panic!("Embed {language} {example} Example: {error}"))
+                    .map(|entry| entry.expect("Read example entry"))
+                    .collect::<Vec<_>>();
+                entries.sort_by_key(|entry| entry.file_name());
+                for entry in entries {
+                    let path = entry.path();
+                    let kind = entry.file_type().expect("Read example file type");
+                    if kind.is_dir() {
+                        let name = entry.file_name();
+                        if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__"].iter().any(|excluded| name == *excluded) {
+                            pending.push(path);
+                        }
+                        continue;
+                    }
+                    if !kind.is_file() {
+                        panic!("Embed Example: Expected a Regular File at {}", path.display());
+                    }
+                    let relative = path
+                        .strip_prefix(&root)
+                        .expect("Example file remains below its root")
+                        .to_str()
+                        .expect("Example path is UTF-8")
+                        .replace('\\', "/");
+                    let destination = format!("{folder}/{relative}");
+                    source.push_str(&format!(
+                        "({destination:?}, include_bytes!({:?})),\n",
+                        path.canonicalize().expect("Resolve example file")
+                    ));
+                }
+            }
+        }
+        source.push_str("];\n");
+    }
+    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo supplies the build output directory"));
+    fs::write(output.join("examples.rs"), source).expect("Embed SDK examples");
 }
 
 // The publishers' own distinctions: stable tags run the release workflow, the nightly workflow publishes nightly.

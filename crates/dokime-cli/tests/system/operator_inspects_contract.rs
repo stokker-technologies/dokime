@@ -49,7 +49,7 @@ async fn operator_inspects_contract() -> Result<(), Box<dyn std::error::Error>> 
         let listed: serde_json::Value =
             serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "operation", "list", "--json"]).await?)?;
         let operations = listed["operations"].as_array().unwrap();
-        let selected = operations.iter().find(|entry| entry["contract"]["id"] == "harmos.v1.Status/Get").unwrap();
+        let selected = operations.iter().find(|entry| entry["contract"]["id"] == "harmos.host.v1.Status/Get").unwrap();
         let id = selected["contract"]["id"].as_str().unwrap();
 
         // Read Identity, Visibility, Shapes and Policy From That Same Contract

@@ -51,26 +51,12 @@ async fn operator_discovers_operations() -> Result<(), Box<dyn std::error::Error
 
         // Compare the Complete Discovery With the Client Catalog
         let channel = tonic::transport::Endpoint::from_shared(host.endpoint.clone())?.connect().await?;
-        let settings = dokime::client::ClientSettings {
-            transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
-            retained_bytes: std::num::NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
-            message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            input_items: std::num::NonZeroUsize::new(8).unwrap(),
-            input_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-        };
-        let client = dokime::Client::from_channel(channel, settings)?;
-        let reply = client
-            .catalog_entries
-            .list(tonic::Request::new(dokime::client::CatalogEntriesListRequest {
-                kind: dokime::client::CatalogKind::Operations as i32,
-                ..Default::default()
-            }))
-            .await?
-            .into_inner();
+        let client = dokime::Client::from_channel(channel, super::client_settings())?;
+        let reply = client.operations.list().await?;
         let actual = listed["operations"].as_array().ok_or("List Operations: Missing Operations")?;
-        assert_eq!(actual.len(), reply.operations.len());
+        assert_eq!(actual.len(), reply.len());
         assert!(!actual.is_empty());
-        for (actual, expected) in actual.iter().zip(reply.operations) {
+        for (actual, expected) in actual.iter().zip(reply) {
             assert_eq!(actual["contract"]["id"], expected.contract.unwrap().id);
         }
 

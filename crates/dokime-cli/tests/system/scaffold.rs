@@ -7,7 +7,7 @@
  * ***
  */
 
-// Generate Every Authoritative SDK Starter and Preserve Existing Work
+// Generate Every Authoritative SDK Example and Preserve Existing Work
 
 /* === Modules === */
 
@@ -43,13 +43,13 @@
 async fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::timeout(super::HANG_GUARD, async {
         let directory = super::credentials::tempdir()?;
-        for (language, folder, file) in [
-            ("rust", "sdk/rust/starter", "src/main.rs"),
-            ("python", "sdk/python/examples/starter", "suite.py"),
-            ("csharp", "sdk/csharp/starter", "Program.cs"),
-            ("cpp", "sdk/cpp/starter", "main.cpp"),
+        for (language, examples, folders) in [
+            ("rust", "sdk/rust/examples", ["plugin", "test"]),
+            ("python", "sdk/python/examples", ["plugin", "test"]),
+            ("csharp", "sdk/csharp/examples", ["Plugin", "Test"]),
+            ("cpp", "sdk/cpp/examples", ["plugin", "test"]),
         ] {
-            // Generate the SDK's Own Starter
+            // Generate Both SDK Examples Without Running Their Journeys Twice
             let project = directory.path().join(language);
             let mut arguments = vec!["new", project.to_str().unwrap(), "--lang", language];
             if language == "cpp" {
@@ -61,20 +61,33 @@ async fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), B
                 ]);
             }
             super::run(&arguments).await?;
-            assert_eq!(std::fs::read(project.join(file))?, std::fs::read(super::root().join(folder).join(file))?);
-            if language == "python" {
-                for file in ["host.py", "test_capture.py"] {
-                    assert_eq!(
-                        std::fs::read(project.join("tests").join(file))?,
-                        std::fs::read(super::root().join("sdk/tests/fixtures/python/starter").join(file))?
-                    );
+            for folder in folders {
+                let root = super::root().join(examples).join(folder);
+                let mut pending = vec![root.clone()];
+                while let Some(directory) = pending.pop() {
+                    for entry in std::fs::read_dir(directory)? {
+                        let entry = entry?;
+                        let path = entry.path();
+                        if entry.file_type()?.is_dir() {
+                            if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__"]
+                                .iter()
+                                .any(|name| entry.file_name() == *name)
+                            {
+                                pending.push(path);
+                            }
+                            continue;
+                        }
+                        let destination = project.join(folder).join(path.strip_prefix(&root)?);
+                        if path.file_name().is_some_and(|name| name == "CMakePresets.json") {
+                            let presets: serde_json::Value = serde_json::from_slice(&std::fs::read(destination)?)?;
+                            let coordinates = &presets["configurePresets"][0]["cacheVariables"];
+                            assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
+                            assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);
+                        } else {
+                            assert_eq!(std::fs::read(destination)?, std::fs::read(path)?);
+                        }
+                    }
                 }
-            }
-            if language == "cpp" {
-                let presets: serde_json::Value = serde_json::from_slice(&std::fs::read(project.join("CMakePresets.json"))?)?;
-                let coordinates = &presets["configurePresets"][0]["cacheVariables"];
-                assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
-                assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);
             }
 
             // Preserve the Existing Project on a Repeated Invocation

@@ -18,6 +18,7 @@ mod inspect;
 mod install;
 mod list;
 mod remove;
+mod secrets;
 
 /* === Re-Exports === */
 
@@ -42,6 +43,7 @@ mod remove;
 #[derive(clap::Subcommand)]
 pub(crate) enum Command {
     Remove(remove::Args),
+    Secrets(secrets::Args),
     List(list::Args),
     Bundle(bundle::Args),
     Dev(dev::Args),
@@ -64,6 +66,7 @@ impl Command {
             Self::Install(_) => "Install Plugin",
             Self::List(_) => "List Plugins",
             Self::Remove(_) => "Remove Plugin",
+            Self::Secrets(_) => "Manage Plugin Secrets",
         }
     }
 }
@@ -73,6 +76,7 @@ impl Command {
 pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     match command {
         Command::Remove(args) => remove::run(args, endpoint, settings).await,
+        Command::Secrets(args) => secrets::run(args, endpoint, settings).await,
         Command::List(args) => list::run(args, endpoint, settings).await,
         Command::Bundle(args) => bundle::run(args, endpoint, settings).await,
         Command::Dev(args) => dev::run(args, endpoint, settings).await,

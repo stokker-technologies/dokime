@@ -46,7 +46,6 @@ pub(crate) enum Command {
     Start(start::Args),
     Stop(stop::Args),
 
-    #[command(alias = "watch")]
     Wait(wait::Args),
 
     Report(report::Args),

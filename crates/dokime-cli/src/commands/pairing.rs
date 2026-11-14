@@ -23,10 +23,11 @@ use std::{
 };
 
 // Third Party Imports
-use dokime::client::v1::{self, access};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
+use dokime::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions};
+use dokime::client::{CallOptions, StatusGetOptions};
 
 /* === Constants === */
 
@@ -127,8 +128,7 @@ impl File {
         value.set_sensitive(true);
         Ok(value)
     }
-    pub async fn channel(&self, settings: &crate::settings::Settings, streaming: bool) -> crate::Result<tonic::transport::Channel> {
-        let timeout = if streaming { settings.watch_timeout_s } else { settings.mutation_timeout_s.max(settings.read_timeout_s) };
+    pub async fn channel(&self, settings: &crate::settings::Settings) -> crate::Result<tonic::transport::Channel> {
         let mut failures = Vec::new();
         for endpoint in &self.endpoints {
             let result: crate::Result<_> = async {
@@ -137,13 +137,12 @@ impl File {
                 let channel = tonic::transport::Endpoint::from_shared(endpoint.clone())?
                     .tls_config(tls)?
                     .connect_timeout(Duration::from_secs(settings.connect_timeout_s))
-                    .timeout(Duration::from_secs(timeout))
                     .connect()
                     .await?;
                 let client = dokime::Client::from_channel(channel.clone(), settings.client())?;
-                let mut request = tonic::Request::new(v1::StatusGetRequest {});
-                request.metadata_mut().insert("authorization", self.authorization()?);
-                let reply = client.status.get(request).await?.into_inner();
+                let mut context = CallOptions::default();
+                context.metadata.insert("authorization", self.authorization()?);
+                let reply = client.status.get_with(StatusGetOptions { context }).await?;
                 let identity = reply.status.and_then(|status| status.identity).ok_or("Host Did Not Report Its Identity")?;
                 if identity.host_id != self.backend_identifier {
                     return Err("Pairing Backend Identity Differs; Export a Pairing From the Intended Host".into());
@@ -172,32 +171,23 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
     }
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut output = tempfile::NamedTempFile::new_in(parent)?;
-    let channel = settings.channel(endpoint, false).await?;
-    let client = dokime::Client::from_channel(channel, settings.client())?;
+    let client = settings.sdk(endpoint).await?;
 
     // Enable the Saved Listener Before Requesting Remote Access
-    let current = client.access.listener.get(settings.request(access::ListenerGetRequest {})).await?.into_inner();
+    let current = client.access.listener.get_with(AccessListenerGetOptions { context: settings.context()? }).await?;
     let mut value = current.value.ok_or("Host Did Not Report Listener Settings")?;
     if !value.enabled {
         value.enabled = true;
-        client
-            .access
-            .listener
-            .set(settings.request(access::ListenerSetRequest {
-                value: Some(value),
-                expected_revision: current.revision,
-            }))
-            .await?;
+        client.access.listener.set_with(value, current.revision, AccessListenerSetOptions { context: settings.context()? }).await?;
     }
     let identity = client
         .status
-        .get(settings.request(v1::StatusGetRequest {}))
+        .get_with(StatusGetOptions { context: settings.context()? })
         .await?
-        .into_inner()
         .status
         .and_then(|status| status.identity)
         .ok_or("Host Did Not Report Its Identity")?;
-    let created = client.access.pairings.create(settings.request(access::PairingsCreateRequest { label: args.label })).await?.into_inner();
+    let created = client.access.pairings.create_with(args.label, AccessPairingsCreateOptions { context: settings.context()? }).await?;
     let pairing = created.pairing.as_ref().ok_or("Host Did Not Report the Created Pairing")?;
     let file = File {
         version: 1,
@@ -220,7 +210,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Ok(())
     })();
     if let Err(error) = result {
-        client.access.pairings.delete(settings.request(access::PairingsDeleteRequest { name: pairing.id.clone() })).await?;
+        client.access.pairings.delete_with(pairing.id.clone(), AccessPairingsDeleteOptions { context: settings.context()? }).await?;
         return Err(error);
     }
     if args.json {

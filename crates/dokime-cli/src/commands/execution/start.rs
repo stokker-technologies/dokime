@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::{ExecutionMode, ExecutionsStartOptions};
 
 /* === Constants === */
 
@@ -50,13 +50,12 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::ExecutionsStartRequest {
-        name: args.execution,
-        request_id: settings.request_id(args.request_id)?,
-        mode: client::ExecutionMode::Automatic as i32,
+    let client = settings.sdk(endpoint).await?;
+    let options = ExecutionsStartOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.executions.start(settings.request(request)).await?.into_inner();
+    let value = client.executions.start_with(args.execution, ExecutionMode::Automatic, options).await?;
     crate::output::print(&value, args.json)
 }
 

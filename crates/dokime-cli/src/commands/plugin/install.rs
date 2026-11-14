@@ -19,11 +19,17 @@
 use std::path::PathBuf;
 
 // Third Party Imports
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::FileMetadata;
+use dokime::client::PluginsCreateOptions;
+use dokime::client::plugin_placement::Kind;
+use dokime::client::{
+    FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginManaged,
+    PluginPlacement, PluginValue,
+};
 
 /* === Constants === */
 
@@ -50,85 +56,118 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    super::bundle::inspect(&args.bundle)?;
+    let manifest = super::bundle::inspect(&args.bundle)?;
+    let name = manifest["identity"]["name"].as_str().ok_or("Install Plugin: Missing Bundle Identity")?;
+    let client = settings.sdk(endpoint).await?;
     let mut file = tokio::fs::File::open(&args.bundle).await?;
-    let size = file.metadata().await?.len();
-    let mut digest = sha2::Sha256::new();
-    let chunk_bytes = settings
-        .message_bytes
-        .get()
-        .checked_sub(1024)
-        .filter(|size| *size > 0)
-        .ok_or("Install Plugin: Increase message_bytes Above 1024")?;
-    let mut buffer = vec![0u8; chunk_bytes.min(64 * 1024)];
-    loop {
-        let count = file.read(&mut buffer).await?;
-        if count == 0 {
-            break;
-        }
-        digest.update(&buffer[..count]);
-    }
-    use tokio::io::AsyncSeekExt;
-    file.rewind().await?;
-    let header = client::InstallPluginHeader {
-        size_bytes: size,
-        sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect(),
+    let length = file.metadata().await?.len();
+    let identity = settings.request_id(None)?;
+    let metadata = FileMetadata {
+        expected_length: Some(length),
+        ..Default::default()
     };
-    let (sender, receiver) = tokio::sync::mpsc::channel(settings.stream_buffer.get());
-    let producer = tokio::spawn(async move {
-        sender
-            .send(client::PluginsInstallInput {
-                value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
-            })
-            .await?;
-        let frame = client::InstallPluginFrame {
-            frame: Some(client::InstallPluginFrameFrame {
-                kind: Some(client::install_plugin_frame_frame::Kind::Header(header)),
-            }),
-        };
-        sender
-            .send(client::PluginsInstallInput {
-                value: Some(client::plugins_install_input::Value::Item(frame)),
-            })
-            .await?;
+    let created = client
+        .files
+        .uploads
+        .create_with(
+            metadata,
+            FilesUploadsCreateOptions {
+                request_id: Some(format!("{identity}/create")),
+                context: settings.context()?,
+            },
+        )
+        .await?;
+    let mut upload = created.upload.ok_or("Install Plugin: Missing Upload")?;
+    let work: crate::Result<_> = async {
+        let maximum = created
+            .chunk_bytes
+            .min(created.message_bytes.saturating_sub(1024))
+            .min(settings.message_bytes.get().saturating_sub(1024) as u64);
+        let maximum = usize::try_from(maximum).ok().filter(|size| *size > 0).ok_or("Install Plugin: Invalid Transfer Bounds")?;
+        let mut buffer = vec![0; maximum];
+        let mut digest = Sha256::new();
         let mut offset = 0;
         loop {
-            let count = file.read(&mut buffer).await?;
-            if count == 0 {
+            let size = file.read(&mut buffer).await?;
+            if size == 0 {
                 break;
             }
-            let chunk = client::InstallPluginChunk { offset, data: buffer[..count].to_vec() };
-            let frame = client::InstallPluginFrame {
-                frame: Some(client::InstallPluginFrameFrame {
-                    kind: Some(client::install_plugin_frame_frame::Kind::Chunk(chunk)),
-                }),
-            };
-            sender
-                .send(client::PluginsInstallInput {
-                    value: Some(client::plugins_install_input::Value::Item(frame)),
-                })
+            let reply = client
+                .files
+                .uploads
+                .append_with(
+                    upload.clone(),
+                    offset,
+                    buffer[..size].to_vec(),
+                    FilesUploadsAppendOptions {
+                        request_id: Some(format!("{identity}/append/{offset}")),
+                        context: settings.context()?,
+                    },
+                )
                 .await?;
-            offset += count as u64;
+            offset += size as u64;
+            upload = reply.upload.ok_or("Install Plugin: Missing Accepted Upload")?;
+            if upload.length != offset {
+                return Err("Install Plugin: Accepted Offset Changed".into());
+            }
+            digest.update(&buffer[..size]);
         }
-        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-    });
-    let channel = settings.channel(endpoint, false).await?;
-    let response = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor())
-        .max_encoding_message_size(settings.message_bytes.get())
-        .max_decoding_message_size(settings.message_bytes.get())
-        .install(tokio_stream::wrappers::ReceiverStream::new(receiver))
-        .await;
-    match response {
-        Ok(response) => {
-            producer.await??;
-            crate::output::print(&response.into_inner(), args.json)
+        if offset != length {
+            return Err("Install Plugin: Bundle Length Changed During Upload".into());
         }
-        Err(error) => {
-            producer.abort();
-            let _ = producer.await;
-            Err(error.into())
+        let digest = digest.finalize().to_vec();
+        let published = client
+            .files
+            .uploads
+            .publish_with(
+                upload.clone(),
+                length,
+                digest.clone(),
+                FilesUploadsPublishOptions {
+                    request_id: Some(format!("{identity}/publish")),
+                    context: settings.context()?,
+                },
+            )
+            .await?;
+        let content = published.upload.ok_or("Install Plugin: Missing Published Content")?;
+        if content.length != length || content.sha256 != digest {
+            return Err("Install Plugin: Published Content Identity Changed".into());
         }
+        Ok(content)
     }
+    .await;
+    if work.is_err() {
+        client
+            .files
+            .uploads
+            .delete_with(
+                upload,
+                FilesUploadsDeleteOptions {
+                    request_id: Some(format!("{identity}/abandon")),
+                    context: settings.context()?,
+                },
+            )
+            .await
+            .map_err(|cause| format!("Install Plugin: {work:?}; Abandon Upload: {cause}"))?;
+    }
+    let content = work?;
+    let sha256 = content.sha256.clone();
+    let placement = PluginPlacement {
+        kind: Some(Kind::Managed(PluginManaged { content: Some(content), sha256 })),
+    };
+    let value = client
+        .plugins
+        .create_with(
+            name,
+            placement,
+            PluginValue { enabled: true },
+            PluginsCreateOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
+    crate::output::print(&value, args.json)
 }
 
 /* === Private Functions === */

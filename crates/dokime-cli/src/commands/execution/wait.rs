@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::ExecutionsProgressWatchOptions;
 
 /* === Constants === */
 
@@ -47,10 +47,18 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, true).await?;
-    let client = dokime::Client::from_channel(channel, settings.client())?;
-    let request = client::executions::ProgressWatchRequest { name: args.execution, at: None };
-    let mut stream = client.executions.progress.watch(settings.request(request)).await?;
+    let client = settings.sdk(endpoint).await?;
+    let mut stream = client
+        .executions
+        .progress
+        .watch_with(
+            args.execution,
+            ExecutionsProgressWatchOptions {
+                context: settings.context()?,
+                ..Default::default()
+            },
+        )
+        .await?;
     let mut terminal = false;
     while let Some(frame) = stream.next().await? {
         if terminal {

@@ -26,13 +26,12 @@ use std::{
 // Third Party Imports
 use serde::Deserialize;
 use tonic::Request;
-use tonic::service::Interceptor;
 use tonic::transport::Channel;
 
 // Local Imports
 use crate::Result;
-use dokime::Client;
-use dokime::client::ClientSettings as RpcClientSettings;
+use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
+use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
     ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
@@ -99,7 +98,7 @@ impl Default for Settings {
             watch_timeout_s: 3600,
             reconnect_delay_ms: 25,
             stop_grace_s: 30,
-            message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            message_bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             stream_buffer: NonZeroUsize::new(8).unwrap(),
             max_cases: NonZeroUsize::new(1000).unwrap(),
@@ -163,8 +162,8 @@ impl Settings {
         }
     }
     pub fn client(&self) -> RpcClientSettings {
-        dokime::client::ClientSettings {
-            transfer: dokime::client::StorageTransferSettings { chunk_bytes: Some(1024) },
+        RpcClientSettings {
+            transfer: StorageTransferSettings::default(),
             retained_bytes: self.retained_bytes,
             message_bytes: self.message_bytes,
             input_items: self.stream_buffer,
@@ -178,14 +177,18 @@ impl Settings {
         }
         request
     }
-    pub async fn sdk(&self, endpoint: Option<String>, streaming: bool) -> Result<Client> {
-        let channel = self.channel(endpoint, streaming).await?;
-        let mut client = dokime::Client::from_channel(channel, self.client())?;
-        if let Some(pairing) = &self.pairing {
-            client = client.authorization(pairing.authorization()?);
-        }
-        Ok(client)
+    pub async fn sdk(&self, endpoint: Option<String>) -> Result<Client> {
+        let channel = self.channel(endpoint).await?;
+        Ok(Client::from_channel(channel, self.client())?)
     }
+    pub fn context(&self) -> Result<CallOptions> {
+        let mut context = CallOptions::default();
+        if let Some(pairing) = &self.pairing {
+            context.metadata.insert("authorization", pairing.authorization()?);
+        }
+        Ok(context)
+    }
+
     pub fn request_id(&self, supplied: Option<String>) -> Result<String> {
         if let Some(value) = supplied {
             if value.is_empty() {
@@ -196,26 +199,15 @@ impl Settings {
         let nonce = tempfile::Builder::new().prefix("dokime-request-").tempfile()?;
         Ok(nonce.path().file_name().unwrap().to_string_lossy().into_owned())
     }
-    pub fn interceptor(&self) -> impl Interceptor + Clone + use<> {
-        let authorization = self.pairing.as_ref().map(|pairing| pairing.authorization().expect("Validated Pairing Key"));
-        move |mut request: tonic::Request<()>| {
-            if let Some(authorization) = &authorization {
-                request.metadata_mut().insert("authorization", authorization.clone());
-            }
-            Ok(request)
-        }
-    }
-    pub async fn channel(&self, endpoint: Option<String>, streaming: bool) -> Result<Channel> {
+    pub async fn channel(&self, endpoint: Option<String>) -> Result<Channel> {
         if let Some(pairing) = &self.pairing {
-            return pairing.channel(self, streaming).await;
+            return pairing.channel(self).await;
         }
         let endpoint = endpoint.ok_or_else(|| {
             crate::error::Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into())
         })?;
-        let timeout = if streaming { self.watch_timeout_s } else { self.mutation_timeout_s.max(self.read_timeout_s) };
         let channel = tonic::transport::Endpoint::from_shared(endpoint)?
             .connect_timeout(Duration::from_secs(self.connect_timeout_s))
-            .timeout(Duration::from_secs(timeout))
             .connect()
             .await?;
         Ok(channel)

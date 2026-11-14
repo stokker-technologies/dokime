@@ -112,7 +112,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings
         settings.pairing = settings.remote.as_deref().map(pairing::File::read).transpose()?;
     }
     match command {
-        Command::New(args) => new::run(args).await,
+        Command::New(args) => new::run(args, settings).await,
         Command::Server(args) => server::run(args, endpoint, settings).await,
         Command::Plugin(command) => plugin::run(command, endpoint, settings).await,
         Command::Proto(command) => proto::run(command),

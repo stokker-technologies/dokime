@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::CyclesSealOptions;
 
 /* === Constants === */
 
@@ -50,12 +50,12 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::CyclesSealRequest {
-        name: args.cycle,
-        request_id: settings.request_id(args.request_id)?,
+    let client = settings.sdk(endpoint).await?;
+    let options = CyclesSealOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.seal(settings.request(request)).await?.into_inner();
+    let value = client.cycles.seal_with(args.cycle, options).await?;
     crate::output::print(&value, args.json)
 }
 

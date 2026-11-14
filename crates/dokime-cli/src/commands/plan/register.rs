@@ -23,7 +23,8 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::CasesCreateOptions;
+use dokime_protocol::host::CasesCreateRequest;
 
 /* === Constants === */
 
@@ -61,16 +62,26 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     if bytes.len() > settings.retained_bytes.get() {
         return Err(crate::error::Error::Capacity("Register Selection: Select a Smaller Request".into()));
     }
-    let descriptor = client::CasesCreateRequest::default().descriptor();
+    let descriptor = CasesCreateRequest::default().descriptor();
     let mut json = serde_json::Deserializer::from_slice(&bytes);
     let message = prost_reflect::DynamicMessage::deserialize(descriptor, &mut json)?;
     json.end()?;
-    let mut request = message.transcode_to::<client::CasesCreateRequest>()?;
+    let mut request = message.transcode_to::<CasesCreateRequest>()?;
     request.validate_only = false;
 
     // Let the Host Own Validation and Registration
-    let client = settings.sdk(endpoint, false).await?;
-    let reply = client.cases.create(settings.request(request)).await?.into_inner();
+    let client = settings.sdk(endpoint).await?;
+    let reply = client
+        .cases
+        .create_with(
+            request.plan.ok_or("Register Selection: Supply a Selection Plan")?,
+            request.validate_only,
+            CasesCreateOptions {
+                context: settings.context()?,
+                request_id: (!request.request_id.is_empty()).then_some(request.request_id),
+            },
+        )
+        .await?;
     if let Some(path) = args.out {
         let bytes = reply.encode_to_vec();
         if bytes.len() > settings.retained_bytes.get() {

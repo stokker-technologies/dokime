@@ -48,7 +48,8 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins, hosts Dokime and
-controls a running host. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
+controls a running host. `dokime new` embeds the SDK's `plugin` and `test` examples
+(`Plugin` and `Test` for C#). See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
 #### Examples
 
@@ -65,7 +66,7 @@ Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
 #### Examples
 
-The [Python starter](sdk/python/examples/starter/) serves a suite with an
+The [Python test example](sdk/python/examples/test/) serves a suite with an
 operator question, confirmation record and criterion:
 
 ```sh
@@ -86,8 +87,8 @@ mise -C sdk/rust run sdk:build
 mise -C sdk/rust run sdk:test
 ```
 
-The [thermal suite](sdk/rust/examples/thermal.rs) composes ordinary values with
-`use dokime::prelude::*;`.
+The [plugin example](sdk/rust/examples/plugin/) uses the public `dokime` and
+`dokime::plugin` barrels.
 
 ### C#
 
@@ -115,7 +116,7 @@ mise -C sdk/cpp run test
 
 ## Quick Start
 
-Build `dokime-cli`, create a [starter](docs/product-guide.md#examples), and
+Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
 managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and

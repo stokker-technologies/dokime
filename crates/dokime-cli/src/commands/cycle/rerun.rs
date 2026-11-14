@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::client;
+use dokime::client::CyclesCreateOptions;
 
 /* === Constants === */
 
@@ -50,14 +50,12 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let client = settings.sdk(endpoint, false).await?;
-    let request = client::CyclesCreateRequest {
-        source_cycle: args.cycle,
-        continue_automatically: true,
-        request_id: settings.request_id(args.request_id)?,
-        ..Default::default()
+    let client = settings.sdk(endpoint).await?;
+    let options = CyclesCreateOptions {
+        context: settings.context()?,
+        request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.create(settings.request(request)).await?.into_inner();
+    let value = client.cycles.create_with(Vec::new(), Default::default(), true, args.cycle, options).await?;
     crate::output::print(&value, args.json)
 }
 
