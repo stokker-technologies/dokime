@@ -7,6 +7,9 @@ Separation by audience locked by the owner on 2026-11-12
 Three visibility levels locked by the owner on 2026-11-12
 Paging, SDK packaging, transfers and durable lag amended by the owner on 2026-11-13
 
+The paging scope and default unary transfer limits in the operation contracts
+were amended by the owner on 2026-11-13.
+
 Target decisions are Owner.
 Current-source observations are not target decisions.
 See proposal.md for the decision register and motivation.

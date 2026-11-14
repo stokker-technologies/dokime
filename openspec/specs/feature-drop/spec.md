@@ -5,24 +5,6 @@ Define the native execution, persistence, reporting and operator workflows deliv
 
 ## Requirements
 
-### Requirement: Single Plugin Dependency Surface
-
-Native Dokime plugin consumers SHALL enable only `dokime/plugin-sidecar` for their authoring surface. That feature SHALL enable native runtime support and derives; `plugin` SHALL alias it. Entry-library consumers SHALL resolve Harmos APIs and generated implementation paths through Dokime re-exports, without a direct Harmos dependency.
-
-#### Scenario: Independent Plugin Consumer
-
-- **WHEN** a fresh starter or renamed entry-library consumer enables `plugin-sidecar` without declaring Harmos
-- **THEN** plugin declarations and generated code compile, and native plugin packaging can read the resulting catalog.
-
-### Requirement: Coherent Operator Workflows
-
-The desktop SHALL implement every numbered feature-drop requirement using consistent live and frozen-report components where their contracts agree.
-
-#### Scenario: Execution with Prompts and Frozen Evidence
-
-- **WHEN** an operator runs a planned cycle, answers execution prompts and opens its report
-- **THEN** controls reflect the correct lifecycle, prompts belong to their execution, every planned member is present, and labels, units, markers and plots retain their meaning.
-
 ### Requirement: Bounded Native Delivery and Runtime Work
 
 Native delivery and runtime updates SHALL avoid redundant full payload/state work while preserving durability, cancellation and wire limits.

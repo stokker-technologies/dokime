@@ -29,10 +29,3 @@ Queries SHALL select streams by id and column, omit absent columns, and isolate 
 #### Scenario: Ambiguous Evidence
 - **WHEN** two different stored definitions share one key
 - **THEN** reading refuses to choose one and explains that a fresh storage root is required
-
-### Requirement: Terminal Finalization Presentation
-Finalization failure SHALL persist and settle through the same terminal state path as success. GUI errors SHALL name a useful action and SHALL NOT offer futile retry. Steps SHALL follow the frozen plan order.
-
-#### Scenario: Failed Report Survives Reload
-- **WHEN** background finalization fails and the execution is read again after reload
-- **THEN** Control and sidebar show a terminal outcome with a useful action and no finalizing spinner

@@ -6,42 +6,6 @@ Documents hold tens of plots over millions of samples, executions run for days,
 and several clients watch one backend. Refresh must scale with changed, visible
 dependencies rather than the whole document or selected history.
 
-The read-only research report `r4-invalidation.md` (2026-11-11) and the measurements
-in `../plot-pipeline/tasks.md`, task 1.1, establish the current behavior:
-
-- One viewport, width or settings change restarts the workspace watch in
-  `crates/dokime-gui/src/plots/live-data.ts`. All uses independent unary calls.
-  The GUI and server refuse timed workspaces above 32 requests. Selected cards
-  remain live off screen; there is no screen-intersection priority.
-- The grouped 30-plot diagnostic delivered 597,259 drawing-body bytes, 21,428
-  retained points and 30 reduction warnings. A shared message budget lowers
-  density as plots are added, despite unchanged panel widths.
-- Windows medians per 30 independent watches were 2.172 s / 1,596,238 bytes for
-  six-hour snapshots and 76.018 ms / 40,888 bytes for 30-second zooms. Protobuf
-  decode plus native-frame adaptation took 11.186 ms; retained delta application
-  took 7.230 ms. The fixture has 259,200 sample rows and 7,776,000 numeric values,
-  not millions of sample rows. Canvas paint, independent statistics completion,
-  Linux and the historical pre-pipeline comparison remain unmeasured.
-- Measurement exposed two repaired defects: history-wide resolution discovery
-  and per-bucket inflater allocation. The original Windows snapshot medians
-  were 6.537 s and 3.283 s respectively. Wide windows still decode every selected
-  base-resolution bucket before reducing to panel width. Repeated measurement
-  must expose such regressions before they become an operator report.
-- `crates/dokime-runtime/src/runtime/query/plots/mod.rs` selects dirty plots by
-  stream name before scope, fields and filters; statistics requery unchanged
-  eligible plots. Deduplication stops at one grouped query, so separate watches
-  and clients repeat query, comparison and encoding work.
-- Document invalidation in `crates/dokime-gui/src/app/live/use-runtime-stream.ts`
-  follows state changes with a five-second throttle, not saved telemetry. A
-  sample-only interval can leave cards stale; query staleTime is not polling.
-- `crates/dokime-runtime/src/plot/payload/spilled/{mod,series}.rs` and
-  `crates/dokime-runtime/src/plot/stored.rs` can collect the full selection before
-  frame reduction. A bounded wire frame does not bound query peak memory.
-
-These are present-source observations, not claims that the pending gRPC crate
-layout or cleaned kind catalog has landed. No definite navigation watch leak
-was found. Existing bounded transport and per-watch backpressure remain useful.
-
 ## What Changes
 
 Implement **after `plot-kinds` lands**, because both changes edit plot code.

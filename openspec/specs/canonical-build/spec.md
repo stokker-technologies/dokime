@@ -24,16 +24,6 @@ Build, test, bench, fixture and focused compilation tasks SHALL NOT run Clippy i
 - **THEN** the lint task runs Clippy with warnings denied
 - **AND** ordinary compilation does not run Clippy
 
-### Requirement: Compatibility Coverage
-
-All provider CI pipelines SHALL use only canonical configurations. The explicit local extended suite SHALL retain declared all-features, no-default-features and cross-target compatibility checks and necessary fault-injection cases.
-
-#### Scenario: Explicit Extended Validation
-
-- **WHEN** an operator explicitly requests local extended validation
-- **THEN** all declared compatibility configurations and instrumented cases remain available
-- **AND** ordinary CI and installer tasks do not select them implicitly
-
 ### Requirement: Pipeline Build Cost
 
 Warm-cache provider pipelines SHALL finish within 45 minutes, targeting 30 minutes. Tests Build SHALL take no longer than Product Build for the same candidate, native platform and profile. Relocated fixture or starter work SHALL remain visible in total critical-path accounting. A breach SHALL trigger phase-level investigation of compilation, feature selection and test structure; required coverage SHALL NOT be removed silently.
