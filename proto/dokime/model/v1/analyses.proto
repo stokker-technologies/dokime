@@ -14,7 +14,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -23,7 +23,9 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // === Resources === //
 
 // Analyses value owned by this resource.
-message Analyses { repeated .dokime.model.v1.Analysis analyses = 1; }
+message Analyses {
+  repeated .dokime.model.v1.Analysis analyses = 1;
+}
 
 // Analysis value owned by this resource.
 message Analysis {

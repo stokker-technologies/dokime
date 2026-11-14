@@ -12,7 +12,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -36,13 +36,16 @@ message DataExpression {
 }
 
 // FieldReference value owned by this resource.
-message FieldReference { string identifier = 1; string field = 2; }
+message FieldReference {
+  string identifier = 1;
+  string field = 2;
+}
 
 // AggregateExpression value owned by this resource.
 message AggregateExpression {
   .dokime.model.v1.DataExpression input = 1;
   .dokime.model.v1.Aggregate kind = 2;
-  
+
   double percentile = 3;
 }
 
@@ -59,7 +62,11 @@ message TransformExpression {
 }
 
 // DocumentFilter value owned by this resource.
-message DocumentFilter { .dokime.model.v1.DataExpression expression = 1; .dokime.model.v1.FilterOperator operator = 2; .dokime.model.v1.Value value = 3; }
+message DocumentFilter {
+  .dokime.model.v1.DataExpression expression = 1;
+  .dokime.model.v1.FilterOperator operator = 2;
+  .dokime.model.v1.Value value = 3;
+}
 
 // === Enums === //
 

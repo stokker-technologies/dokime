@@ -14,7 +14,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -23,7 +23,9 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // === Resources === //
 
 // PromptDefinitions value owned by this resource.
-message PromptDefinitions { repeated .dokime.model.v1.Prompt prompts = 1; }
+message PromptDefinitions {
+  repeated .dokime.model.v1.Prompt prompts = 1;
+}
 
 // Prompt value owned by this resource.
 message Prompt {
@@ -41,7 +43,9 @@ message Prompt {
 }
 
 // PromptValues value owned by this resource.
-message PromptValues { map<string, .dokime.model.v1.Value> values = 1; }
+message PromptValues {
+  map<string, .dokime.model.v1.Value> values = 1;
+}
 
 // PromptField value owned by this resource.
 message PromptField {
@@ -75,7 +79,10 @@ message PromptAction {
 }
 
 // AnswerRule value owned by this resource.
-message AnswerRule { .dokime.model.v1.AnswerPredicate predicate = 1; string message = 2; }
+message AnswerRule {
+  .dokime.model.v1.AnswerPredicate predicate = 1;
+  string message = 2;
+}
 
 // AnswerPredicate value owned by this resource.
 message AnswerPredicate {
@@ -88,7 +95,11 @@ message AnswerPredicate {
 }
 
 // AnswerBinaryPredicate value owned by this resource.
-message AnswerBinaryPredicate { .dokime.model.v1.AnswerOperator operator = 1; .dokime.model.v1.AnswerPredicate left = 2; .dokime.model.v1.AnswerPredicate right = 3; }
+message AnswerBinaryPredicate {
+  .dokime.model.v1.AnswerOperator operator = 1;
+  .dokime.model.v1.AnswerPredicate left = 2;
+  .dokime.model.v1.AnswerPredicate right = 3;
+}
 
 // === Enums === //
 

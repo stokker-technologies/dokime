@@ -16,20 +16,20 @@ mod host;
 mod schemas;
 #[rustfmt::skip]
 mod resources;
+#[rustfmt::skip]
+mod types;
 
 /* === Re-Exports === */
+
+pub use harmos::client::{CallOptions, ClientTransport, Watching};
+pub use resources::*;
+pub use types::*;
 
 pub use schemas::FrozenSchemaCache;
 
 pub use host::{Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates};
 
 pub use harmos::client::{ClientSettings, Input, Method, NoItems, Running};
-pub use harmos_protocol::storage::StorageTransferSettings;
-pub use harmos_protocol::v1;
-pub use harmos_protocol::v1::{
-    CatalogEntriesListRequest, CatalogEntriesListResponse, CatalogKind, DiscoveredContract, DiscoveredOperation, PageRequest,
-};
-
 /* === Imports === */
 
 // Standard Library Imports

@@ -12,7 +12,7 @@ import "dokime/model/v1/metadata.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -21,19 +21,26 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // === Resources === //
 
 // RecordContracts value owned by this resource.
-message RecordContracts { repeated .dokime.model.v1.RecordContract records = 1; }
+message RecordContracts {
+  repeated .dokime.model.v1.RecordContract records = 1;
+}
 
 // RecordContract value owned by this resource.
 message RecordContract {
   .dokime.model.v1.Metadata metadata = 1;
-  
+
   string message = 2;
 }
 
 // Listeners value owned by this resource.
-message Listeners { repeated .dokime.model.v1.RecordListener listeners = 1; }
+message Listeners {
+  repeated .dokime.model.v1.RecordListener listeners = 1;
+}
 
 // RecordListener value owned by this resource.
-message RecordListener { string operation = 1; string record = 2; }
+message RecordListener {
+  string operation = 1;
+  string record = 2;
+}
 
 // === Enums === //

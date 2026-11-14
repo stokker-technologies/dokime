@@ -55,7 +55,7 @@ if source:
             "archive",
             "--format=zip",
             revision,
-            "sdk/csharp/Harmos",
+            "sdk/csharp/src/Harmos",
             "sdk/csharp/Directory.Build.props",
             "proto",
         ]
@@ -70,7 +70,7 @@ else:
         for member in files.getmembers():
             relative = Path(*Path(member.name).parts[1:])
             if (
-                relative.as_posix().startswith(("sdk/csharp/Harmos/", "proto/"))
+                relative.as_posix().startswith(("sdk/csharp/src/Harmos/", "proto/"))
                 or relative.as_posix() == "sdk/csharp/Directory.Build.props"
             ):
                 member.name = str(relative)

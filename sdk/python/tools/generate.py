@@ -34,8 +34,7 @@ def main() -> None:
             f"-I{protocols}",
             f"-I{Path(grpc_tools.__file__).parent / '_proto'}",
             f"--python_out={output}",
-            f"--mypy_out=quiet:{output}",
-            f"--mypy_grpc_out=quiet:{output}",
+            f"--pyi_out={output}",
             f"--grpc_python_out={output}",
             f"--descriptor_set_out={output / 'surface.pb'}",
             "--include_imports",
@@ -49,14 +48,20 @@ def main() -> None:
         for path in (output / "dokime").rglob("*"):
             if not path.is_file():
                 continue
-            target = source / path.relative_to(output / "dokime")
+            target = source / "_wire" / path.relative_to(output / "dokime")
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, target)
+            text = path.read_text(encoding="utf-8")
+            for owner in ("dokime", "harmos"):
+                for executor in ("model", "host", "plugin"):
+                    text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
+                    text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
+                    text = text.replace(f"'{owner}.{executor}.", f"'{owner}._wire.{executor}.")
+            target.write_text(text, encoding="utf-8", newline="\n")
             (target.parent / "py.typed").touch()
             (target.parent / "__init__.py").touch(exist_ok=True)
-        shutil.copyfile(output / "surface.pb", source / "v1/surface.pb")
+        shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
         manifest = {p.relative_to(protocols).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in protocols.rglob("*.proto")}
-        (source / "v1/sources.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        (source / "_wire/sources.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 # === Entry Point === #

@@ -15,12 +15,11 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="sdk/csharp/Harmos/**/*.cs" />
+    <Compile Include="sdk/csharp/src/Harmos/**/*.cs" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
     <PackageReference Include="Google.Protobuf" Version="3.36.2" />
     <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
     <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
-    <Protobuf Include="proto/harmos/**/*.proto" Exclude="proto/harmos/v1/guest.proto" ProtoRoot="proto" GrpcServices="Both" />
   </ItemGroup>
 </Project>

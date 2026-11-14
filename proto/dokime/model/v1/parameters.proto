@@ -13,7 +13,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -64,22 +64,42 @@ message ParameterExpression {
 }
 
 // ParameterExpressions value owned by this resource.
-message ParameterExpressions { repeated .dokime.model.v1.ParameterExpression values = 1; }
+message ParameterExpressions {
+  repeated .dokime.model.v1.ParameterExpression values = 1;
+}
 
 // IntegerRange value owned by this resource.
-message IntegerRange { sint64 start = 1; sint64 stop = 2; sint64 step = 3; }
+message IntegerRange {
+  sint64 start = 1;
+  sint64 stop = 2;
+  sint64 step = 3;
+}
 
 // NumberRange value owned by this resource.
-message NumberRange { double start = 1; double stop = 2; double step = 3; }
+message NumberRange {
+  double start = 1;
+  double stop = 2;
+  double step = 3;
+}
 
 // LinearSpace value owned by this resource.
-message LinearSpace { double start = 1; double stop = 2; uint64 count = 3; }
+message LinearSpace {
+  double start = 1;
+  double stop = 2;
+  uint64 count = 3;
+}
 
 // DynamicDefault value owned by this resource.
-message DynamicDefault { .dokime.model.v1.DynamicDefaultKey key = 1; .dokime.model.v1.ParameterExpression fallback = 2; }
+message DynamicDefault {
+  .dokime.model.v1.DynamicDefaultKey key = 1;
+  .dokime.model.v1.ParameterExpression fallback = 2;
+}
 
 // ParameterUnary value owned by this resource.
-message ParameterUnary { .dokime.model.v1.ParameterUnaryOperator operator = 1; .dokime.model.v1.ParameterExpression value = 2; }
+message ParameterUnary {
+  .dokime.model.v1.ParameterUnaryOperator operator = 1;
+  .dokime.model.v1.ParameterExpression value = 2;
+}
 
 // ParameterBinary value owned by this resource.
 message ParameterBinary {
@@ -106,7 +126,10 @@ enum DynamicDefaultKey {
 }
 
 // ParameterUnaryOperator choices.
-enum ParameterUnaryOperator { PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0; PARAMETER_UNARY_OPERATOR_NEGATE = 1; }
+enum ParameterUnaryOperator {
+  PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0;
+  PARAMETER_UNARY_OPERATOR_NEGATE = 1;
+}
 
 // ParameterBinaryOperator choices.
 enum ParameterBinaryOperator {

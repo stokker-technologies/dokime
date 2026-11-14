@@ -9,17 +9,22 @@ package dokime.plugin.v1;
 // === Imports === //
 
 import "dokime/model/v1/execution.proto";
+import "harmos/model/v1/callers.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+option csharp_namespace = "Dokime.Plugins";
 
 // === Services === //
 
 // Host-only plugin operations with independent Protected lifecycle bindings.
+// CLIENTS identifies the host as this executor's transport client; application
+// clients never connect to or receive these methods in their resource tree.
 service Criteria {
   // Evaluate the Criteria resource; admission and policy are owned by the executor.
-  rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse);
+  rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
 
 // === Evaluate === //
@@ -27,7 +32,7 @@ service Criteria {
 // CriteriaEvaluateRequest for Criteria.Evaluate.
 message CriteriaEvaluateRequest {
   string execution = 1;
-  
+
   string criterion = 2;
   .dokime.model.v1.TestCase test_case = 3;
   .dokime.model.v1.Origin origin = 4;

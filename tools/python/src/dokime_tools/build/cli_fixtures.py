@@ -134,9 +134,7 @@ def build(profile: str, language: str = "rust") -> None:
                 wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
                 with (project / "pyproject.toml").open("a", encoding="utf-8") as manifest:
                     manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
-                environment["DOKIME_TEST_HOST"] = str(
-                    paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}"
-                )
+                environment["DOKIME_TEST_HOST"] = str(paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}")
                 subprocess.run(
                     ["mise", "-C", str(project), "run", "build"],
                     cwd=root,

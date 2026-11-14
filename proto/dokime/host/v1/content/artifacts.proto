@@ -19,13 +19,17 @@ import "harmos/model/v1/receipt.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Host.V1.ContentResources";
+option csharp_namespace = "Dokime.Clients.ContentResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
 
 // === Services === //
 
-// Host operations with explicit caller admission.
+// Owns the Artifacts resource on the host; callers are checked before handler admission.
 service Artifacts {
-  // Get the Artifacts resource; admission and policy are owned by the executor.
+  // Read the Artifacts resource; admission and policy are owned by the executor.
   rpc Get(.dokime.host.v1.content.ArtifactsGetRequest) returns (.dokime.host.v1.content.ArtifactsGetResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
@@ -37,7 +41,7 @@ service Artifacts {
   rpc List(.dokime.host.v1.content.ArtifactsListRequest) returns (.dokime.host.v1.content.ArtifactsListResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-  // Watch the Artifacts resource; admission and policy are owned by the executor.
+  // Observe durable changes to the Artifacts resource; admission and policy are owned by the executor.
   rpc Watch(.dokime.host.v1.content.ArtifactsWatchRequest) returns (stream .dokime.host.v1.content.ArtifactsWatchResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
@@ -46,7 +50,10 @@ service Artifacts {
 // === Get === //
 
 // ArtifactsGetRequest for Artifacts.Get.
-message ArtifactsGetRequest { string name = 1; .harmos.model.v1.ReadCut at = 90; }
+message ArtifactsGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
 
 // ArtifactsGetResponse for Artifacts.Get.
 message ArtifactsGetResponse {
@@ -58,23 +65,31 @@ message ArtifactsGetResponse {
 // === Create === //
 
 // ArtifactsCreateRequest for Artifacts.Create.
+// Clients supply scope; a plugin may omit it and is restricted to its own execution. Metadata is retained alongside the published file.
 message ArtifactsCreateRequest {
-  string execution = 1;
-  .harmos.model.v1.FileReference file = 2;
-  .dokime.model.v1.Metadata metadata = 3;
-  string media_type = 4;
+  .harmos.model.v1.FileReference file = 1;
+  optional .dokime.model.v1.ArtifactScope scope = 2;
+  string filename = 3;
+  string content_type = 4;
   string request_id = 5;
 
-.dokime.model.v1.Metadata metadata = 6;
+  optional .dokime.model.v1.Metadata metadata = 6;
 }
 
 // ArtifactsCreateResponse for Artifacts.Create.
-message ArtifactsCreateResponse { string name = 1; .harmos.model.v1.Receipt receipt = 2; }
+message ArtifactsCreateResponse {
+  .dokime.model.v1.ArtifactMetadata artifact = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
 
 // === List === //
 
 // ArtifactsListRequest for Artifacts.List.
-message ArtifactsListRequest { .dokime.model.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
+message ArtifactsListRequest {
+  .dokime.model.v1.ArtifactScope scope = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
 
 // ArtifactsListResponse for Artifacts.List.
 message ArtifactsListResponse {
@@ -86,7 +101,11 @@ message ArtifactsListResponse {
 // === Watch === //
 
 // ArtifactsWatchRequest for Artifacts.Watch.
-message ArtifactsWatchRequest { .dokime.model.v1.ArtifactScope scope = 1; .harmos.model.v1.ReadCut at = 90; .harmos.model.v1.PageRequest page = 91; }
+message ArtifactsWatchRequest {
+  .dokime.model.v1.ArtifactScope scope = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
 
 // ArtifactsWatchResponse for Artifacts.Watch.
 message ArtifactsWatchResponse {

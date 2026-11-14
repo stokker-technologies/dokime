@@ -1562,10 +1562,8 @@ name = "dokime-protocol-generator"
 version = "0.1.5"
 dependencies = [
  "heck 0.5.0",
- "prost",
  "prost-build",
  "prost-reflect",
- "prost-types",
  "protoc-bin-vendored",
  "tempfile",
  "tonic-prost-build",
@@ -1617,7 +1615,9 @@ dependencies = [
  "arrow-select",
  "dokime-protocol",
  "flatbuffers",
+ "harmos-domain",
  "harmos-protocol",
+ "harmos-query",
  "harmos-storage",
  "num-bigint 0.5.1",
  "num-traits",

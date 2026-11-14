@@ -13,6 +13,7 @@
 
 mod error;
 pub mod host;
+pub mod plugin;
 mod resources;
 
 /* === Re-Exports === */

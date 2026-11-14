@@ -11,14 +11,20 @@
 
 /* === Modules === */
 
+#[rustfmt::skip]
+mod exports;
+mod wire {
+    pub(crate) use dokime_protocol::{host, model, plugin};
+}
+
 pub mod client;
 mod context;
 mod data;
 mod error;
-pub mod host;
+mod host;
 mod message;
 mod operation;
-mod plugin;
+pub mod plugin;
 pub mod prelude;
 mod prompt;
 mod record;
@@ -32,17 +38,14 @@ pub use client::{Client, ClientSettings};
 pub use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
-pub use dokime_protocol::{builders, dokime as protocol, v1};
+pub use dokime_protocol::builders;
 pub use error::{Error, Result};
-pub use harmos::clock;
+pub use exports::*;
 pub use harmos::{Classification, Failure, OperationPolicy, OperationRequest, Publisher, Visibility};
 pub use operation::Operation;
 pub use plugin::{CatalogTypes, Plugin};
-pub use prompt::Prompt;
 pub use record::Record;
 pub use stream::{Observer, Stream};
-pub use suite::Suite;
-pub use template::{Criterion, Step, Template};
 
 /* === Imports === */
 
@@ -80,6 +83,12 @@ impl<T: harmos::Message> Message for T {}
 #[doc(hidden)]
 pub mod encoding {
     /* === Modules === */
+
+#[rustfmt::skip]
+mod exports;
+    mod wire {
+        pub(crate) use dokime_protocol::{host, model, plugin};
+    }
 
     /* === Re-Exports === */
 

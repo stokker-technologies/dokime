@@ -14,7 +14,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -48,8 +48,7 @@ message Plot {
   .dokime.model.v1.PlotStyle style = 22;
   .dokime.model.v1.AxisScale x_scale = 23;
   .dokime.model.v1.AxisScale y_scale = 24;
-  
-  
+
   optional uint32 input_samples = 25;
 }
 
@@ -80,7 +79,11 @@ message GridChart {
 }
 
 // ReferenceLine value owned by this resource.
-message ReferenceLine { .dokime.model.v1.DataExpression value = 1; string label = 2; string color = 3; }
+message ReferenceLine {
+  .dokime.model.v1.DataExpression value = 1;
+  string label = 2;
+  string color = 3;
+}
 
 // ReferenceBand value owned by this resource.
 message ReferenceBand {
@@ -112,8 +115,7 @@ message PlotFftOptions {
   bool include_dc = 5;
   optional double min_frequency_hz = 6;
   optional double max_frequency_hz = 7;
-  
-  
+
   optional uint32 input_samples = 8;
 }
 
@@ -186,10 +188,7 @@ enum XyInterval {
 // PlotKind choices.
 enum PlotKind {
   reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
-  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",
-      "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP",
-      "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
-      "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
+  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT", "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP", "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY", "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
   PLOT_KIND_UNSPECIFIED = 0;
   PLOT_KIND_TIME_SERIES = 1;
   PLOT_KIND_BAR = 2;

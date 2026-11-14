@@ -15,25 +15,29 @@ import "harmos/model/v1/receipt.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Host.V1.FilesResources";
+option csharp_namespace = "Dokime.Clients.FilesResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
 
 // === Services === //
 
-// Host operations with explicit caller admission.
+// Owns the Uploads resource on the host; callers are checked before handler admission.
 service Uploads {
   // Create the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
   rpc Create(.dokime.host.v1.files.UploadsCreateRequest) returns (.dokime.host.v1.files.UploadsCreateResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
-  // Get the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
+  // Read the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
   rpc Get(.dokime.host.v1.files.UploadsGetRequest) returns (.dokime.host.v1.files.UploadsGetResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
-  // Resume the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
+  // Resume fenced production for the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
   rpc Resume(.dokime.host.v1.files.UploadsResumeRequest) returns (.dokime.host.v1.files.UploadsResumeResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
-  // Append the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
+  // Append immutable values to the Uploads resource; plugin selectors default to and are restricted to trusted caller identity.
   rpc Append(.dokime.host.v1.files.UploadsAppendRequest) returns (.dokime.host.v1.files.UploadsAppendResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
@@ -57,7 +61,7 @@ message UploadsCreateRequest {
 
 // UploadsCreateResponse for Uploads.Create.
 message UploadsCreateResponse {
-  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.model.v1.Upload upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
   uint64 chunk_bytes = 3;
   uint64 message_bytes = 4;
@@ -67,16 +71,14 @@ message UploadsCreateResponse {
 
 // UploadsGetRequest for Uploads.Get.
 message UploadsGetRequest {
-  .harmos.storage.v1.StagedFile file = 1;
-  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.Upload upload = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
 }
 
 // UploadsGetResponse for Uploads.Get.
 message UploadsGetResponse {
-  .harmos.storage.v1.FileProgress production = 1;
-  uint64 writer_generation = 2;
-  uint64 accepted_length = 3;
-  uint64 durable_length = 4;
+  .harmos.model.v1.Upload upload = 1;
+
   uint64 chunk_bytes = 5;
   uint64 message_bytes = 6;
   .harmos.model.v1.ReadCut resolved_at = 90;
@@ -86,13 +88,13 @@ message UploadsGetResponse {
 
 // UploadsResumeRequest for Uploads.Resume.
 message UploadsResumeRequest {
-  .harmos.storage.v1.FileSession session = 1;
+  .harmos.model.v1.Upload upload = 1;
   string request_id = 2;
 }
 
 // UploadsResumeResponse for Uploads.Resume.
 message UploadsResumeResponse {
-  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.model.v1.Upload upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
   uint64 chunk_bytes = 3;
   uint64 message_bytes = 4;
@@ -102,7 +104,7 @@ message UploadsResumeResponse {
 
 // UploadsAppendRequest for Uploads.Append.
 message UploadsAppendRequest {
-  .harmos.storage.v1.FileSession session = 1;
+  .harmos.model.v1.Upload upload = 1;
   uint64 offset = 2;
   bytes data = 3;
   string request_id = 4;
@@ -110,7 +112,7 @@ message UploadsAppendRequest {
 
 // UploadsAppendResponse for Uploads.Append.
 message UploadsAppendResponse {
-  .harmos.storage.v1.FileProducer production = 1;
+  .harmos.model.v1.Upload upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
 
@@ -118,7 +120,7 @@ message UploadsAppendResponse {
 
 // UploadsPublishRequest for Uploads.Publish.
 message UploadsPublishRequest {
-  .harmos.storage.v1.FileSession session = 1;
+  .harmos.model.v1.Upload upload = 1;
   uint64 length = 2;
   bytes sha256 = 3;
   string request_id = 4;
@@ -126,7 +128,7 @@ message UploadsPublishRequest {
 
 // UploadsPublishResponse for Uploads.Publish.
 message UploadsPublishResponse {
-  .harmos.model.v1.FileReference file = 1;
+  .harmos.model.v1.FileReference upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
 
@@ -134,13 +136,13 @@ message UploadsPublishResponse {
 
 // UploadsDeleteRequest for Uploads.Delete.
 message UploadsDeleteRequest {
-  .harmos.storage.v1.FileSession session = 1;
+  .harmos.model.v1.Upload upload = 1;
   string request_id = 2;
 }
 
 // UploadsDeleteResponse for Uploads.Delete.
 message UploadsDeleteResponse {
-  .harmos.storage.v1.FileProgress production = 1;
+  .harmos.model.v1.Upload upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
 

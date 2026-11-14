@@ -10,17 +10,22 @@ package dokime.plugin.v1;
 
 import "dokime/model/v1/analyses.proto";
 import "dokime/model/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+option csharp_namespace = "Dokime.Plugins";
 
 // === Services === //
 
 // Host-only plugin operations with independent Protected lifecycle bindings.
+// CLIENTS identifies the host as this executor's transport client; application
+// clients never connect to or receive these methods in their resource tree.
 service Analyses {
   // Compute the Analyses resource; admission and policy are owned by the executor.
-  rpc Compute(.dokime.plugin.v1.AnalysesComputeRequest) returns (.dokime.plugin.v1.AnalysesComputeResponse);
+  rpc Compute(.dokime.plugin.v1.AnalysesComputeRequest) returns (.dokime.plugin.v1.AnalysesComputeResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
 
 // === Compute === //
@@ -32,7 +37,9 @@ message AnalysesComputeRequest {
 }
 
 // AnalysesComputeResponse for Analyses.Compute.
-message AnalysesComputeResponse { repeated .dokime.model.v1.AnalysisValues outputs = 1; }
+message AnalysesComputeResponse {
+  repeated .dokime.model.v1.AnalysisValues outputs = 1;
+}
 
 // === Resources === //
 

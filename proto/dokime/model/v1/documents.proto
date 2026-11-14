@@ -15,7 +15,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -24,7 +24,10 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // === Resources === //
 
 // Document value owned by this resource.
-message Document { .dokime.model.v1.Metadata metadata = 1; repeated .dokime.model.v1.Section sections = 2; }
+message Document {
+  .dokime.model.v1.Metadata metadata = 1;
+  repeated .dokime.model.v1.Section sections = 2;
+}
 
 // Section value owned by this resource.
 message Section {
@@ -35,7 +38,11 @@ message Section {
 }
 
 // SectionRepeat value owned by this resource.
-message SectionRepeat { .dokime.model.v1.DataExpression value = 1; string label_template = 2; .dokime.model.v1.DataExpression order_by = 3; }
+message SectionRepeat {
+  .dokime.model.v1.DataExpression value = 1;
+  string label_template = 2;
+  .dokime.model.v1.DataExpression order_by = 3;
+}
 
 // Card value owned by this resource.
 message Card {
@@ -52,19 +59,33 @@ message Card {
 }
 
 // CardLayout value owned by this resource.
-message CardLayout { uint32 columns = 1; uint32 rows = 2; sint32 order = 3; }
+message CardLayout {
+  uint32 columns = 1;
+  uint32 rows = 2;
+  sint32 order = 3;
+}
 
 // Table value owned by this resource.
-message Table { repeated .dokime.model.v1.TableRow rows = 1; }
+message Table {
+  repeated .dokime.model.v1.TableRow rows = 1;
+}
 
 // TableRow value owned by this resource.
-message TableRow { map<string, .dokime.model.v1.Value> cells = 1; }
+message TableRow {
+  map<string, .dokime.model.v1.Value> cells = 1;
+}
 
 // Summary value owned by this resource.
-message Summary { repeated .dokime.model.v1.SummaryTile tiles = 1; }
+message Summary {
+  repeated .dokime.model.v1.SummaryTile tiles = 1;
+}
 
 // SummaryTile value owned by this resource.
-message SummaryTile { .dokime.model.v1.Metadata metadata = 1; .dokime.model.v1.DataExpression value = 2; string unit = 3; }
+message SummaryTile {
+  .dokime.model.v1.Metadata metadata = 1;
+  .dokime.model.v1.DataExpression value = 2;
+  string unit = 3;
+}
 
 // === Enums === //
 

@@ -25,7 +25,6 @@ pub mod files;
 pub mod paging;
 pub mod planning;
 pub mod plots;
-pub mod plugins;
 pub mod projection;
 pub mod prompt_definitions;
 pub mod prompts;

@@ -4,7 +4,7 @@ file(GLOB_RECURSE protocols CONFIGURE_DEPENDS "${DOKIME_PROTO_ROOT}/dokime/*.pro
 add_library(dokime_protocol STATIC)
 dokime_protocol(dokime_protocol "${DOKIME_PROTO_ROOT}" "${DOKIME_GENERATED}" ${protocols})
 target_link_libraries(dokime_protocol PUBLIC Harmos::Cpp)
-add_library(dokime_cpp STATIC src/plugin.cpp src/context.cpp src/client.cpp)
+add_library(dokime_cpp STATIC src/plugin.cpp src/context.cpp src/client.cpp src/generated/host.cpp)
 add_library(Dokime::Cpp ALIAS dokime_cpp)
 set_target_properties(dokime_cpp PROPERTIES EXPORT_NAME Cpp)
 target_compile_features(dokime_cpp PUBLIC cxx_std_20)

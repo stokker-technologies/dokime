@@ -16,6 +16,5 @@
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Grpc.Net.Client" />
     <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
-    <Protobuf Include="$(RepoRoot)proto/dokime/**/*.proto" ProtoRoot="$(RepoRoot)proto" AdditionalImportDirs="$(RepoRoot)proto" GrpcServices="Both" />
   </ItemGroup>
 </Project>

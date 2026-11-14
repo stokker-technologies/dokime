@@ -12,7 +12,7 @@ import "google/protobuf/timestamp.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -39,10 +39,14 @@ message Value {
 message Null {}
 
 // ValueList value owned by this resource.
-message ValueList { repeated .dokime.model.v1.Value values = 1; }
+message ValueList {
+  repeated .dokime.model.v1.Value values = 1;
+}
 
 // MapValue value owned by this resource.
-message MapValue { map<string, .dokime.model.v1.Value> values = 1; }
+message MapValue {
+  map<string, .dokime.model.v1.Value> values = 1;
+}
 
 // === Enums === //
 

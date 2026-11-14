@@ -13,7 +13,7 @@ import "google/protobuf/timestamp.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -32,10 +32,15 @@ message EvidenceCondition {
 }
 
 // EvidenceConditions value owned by this resource.
-message EvidenceConditions { repeated .dokime.model.v1.EvidenceCondition conditions = 1; }
+message EvidenceConditions {
+  repeated .dokime.model.v1.EvidenceCondition conditions = 1;
+}
 
 // RecordMatch value owned by this resource.
-message RecordMatch { string kind = 1; map<string, .dokime.model.v1.Value> fields = 2; }
+message RecordMatch {
+  string kind = 1;
+  map<string, .dokime.model.v1.Value> fields = 2;
+}
 
 // StreamMatch value owned by this resource.
 message StreamMatch {

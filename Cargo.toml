@@ -56,6 +56,8 @@ dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 # Git
 harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
 harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
+harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
+harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
 harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
 harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "2124adafd52e1c50085521389c82720387edd46d" }
 

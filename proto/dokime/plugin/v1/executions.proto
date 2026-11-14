@@ -9,19 +9,26 @@ package dokime.plugin.v1;
 // === Imports === //
 
 import "dokime/model/v1/execution.proto";
+import "harmos/model/v1/callers.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+option csharp_namespace = "Dokime.Plugins";
 
 // === Services === //
 
 // Host-only plugin operations with independent Protected lifecycle bindings.
+// CLIENTS identifies the host as this executor's transport client; application
+// clients never connect to or receive these methods in their resource tree.
 service Executions {
   // Initialize the Executions resource; admission and policy are owned by the executor.
-  rpc Initialize(.dokime.plugin.v1.ExecutionsInitializeRequest) returns (.dokime.plugin.v1.ExecutionsInitializeResponse);
+  rpc Initialize(.dokime.plugin.v1.ExecutionsInitializeRequest) returns (.dokime.plugin.v1.ExecutionsInitializeResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
   // Cleanup the Executions resource; admission and policy are owned by the executor.
-  rpc Cleanup(.dokime.plugin.v1.ExecutionsCleanupRequest) returns (.dokime.plugin.v1.ExecutionsCleanupResponse);
+  rpc Cleanup(.dokime.plugin.v1.ExecutionsCleanupRequest) returns (.dokime.plugin.v1.ExecutionsCleanupResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
 
 // === Initialize === //

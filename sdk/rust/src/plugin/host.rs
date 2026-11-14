@@ -1,0 +1,1023 @@
+// @generated from protocol descriptors; do not edit.
+use crate::{Context, Error, OperationPolicy, Plugin, Result};
+use dokime_protocol::host::BackendEnvironmentRequest;
+use dokime_protocol::host::BackendEnvironmentResponse;
+use dokime_protocol::host::DocumentsAppendPartsRequest;
+use dokime_protocol::host::DocumentsAppendPartsResponse;
+use dokime_protocol::host::EffectWritable;
+use dokime_protocol::host::EffectsCreateRequest;
+use dokime_protocol::host::EffectsCreateResponse;
+use dokime_protocol::host::EffectsGetRequest;
+use dokime_protocol::host::EffectsGetResponse;
+use dokime_protocol::host::EffectsSetRequest;
+use dokime_protocol::host::EffectsSetResponse;
+use dokime_protocol::host::EvidenceStatisticsRequest;
+use dokime_protocol::host::EvidenceStatisticsResponse;
+use dokime_protocol::host::FilesDeleteRequest;
+use dokime_protocol::host::FilesDeleteResponse;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesGetResponse;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::FilesReadResponse;
+use dokime_protocol::host::FilesWatchRequest;
+use dokime_protocol::host::FilesWatchResponse;
+use dokime_protocol::host::Output;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::SecretsGetRequest;
+use dokime_protocol::host::SecretsGetResponse;
+use dokime_protocol::host::evidence::CapturedRecordSelection;
+use dokime_protocol::host::evidence::LogsAppendRequest;
+use dokime_protocol::host::evidence::LogsAppendResponse;
+use dokime_protocol::host::evidence::RecordScope;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::evidence::RecordsAppendResponse;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsListResponse;
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityGetResponse;
+use dokime_protocol::host::evidence::TraceabilitySetRequest;
+use dokime_protocol::host::evidence::TraceabilitySetResponse;
+use dokime_protocol::host::executions::ProgressGetRequest;
+use dokime_protocol::host::executions::ProgressGetResponse;
+use dokime_protocol::host::executions::ProgressSetRequest;
+use dokime_protocol::host::executions::ProgressSetResponse;
+use dokime_protocol::host::files::CaptureMode;
+use dokime_protocol::host::files::CapturesStartRequest;
+use dokime_protocol::host::files::CapturesStartResponse;
+use dokime_protocol::host::files::CapturesStopRequest;
+use dokime_protocol::host::files::CapturesStopResponse;
+use dokime_protocol::host::files::UploadsAppendRequest;
+use dokime_protocol::host::files::UploadsAppendResponse;
+use dokime_protocol::host::files::UploadsCreateRequest;
+use dokime_protocol::host::files::UploadsCreateResponse;
+use dokime_protocol::host::files::UploadsDeleteRequest;
+use dokime_protocol::host::files::UploadsDeleteResponse;
+use dokime_protocol::host::files::UploadsGetRequest;
+use dokime_protocol::host::files::UploadsGetResponse;
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsPublishResponse;
+use dokime_protocol::host::files::UploadsResumeRequest;
+use dokime_protocol::host::files::UploadsResumeResponse;
+use dokime_protocol::model::Card;
+use dokime_protocol::model::EvidenceScope;
+use dokime_protocol::model::ExecutionProgressValue;
+use dokime_protocol::model::FileSource;
+use dokime_protocol::model::Prompt;
+use dokime_protocol::model::Section;
+use dokime_protocol::model::Severity;
+use dokime_protocol::model::TraceabilityEntry;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::Window;
+use harmos_protocol::host::InvocationsCancelRequest;
+use harmos_protocol::host::InvocationsCancelResponse;
+use harmos_protocol::host::InvocationsGetRequest;
+use harmos_protocol::host::InvocationsGetResponse;
+use harmos_protocol::host::InvocationsWatchRequest;
+use harmos_protocol::host::InvocationsWatchResponse;
+use harmos_protocol::host::TimeGetRequest;
+use harmos_protocol::host::TimeGetResponse;
+use harmos_protocol::host::TimeSleepRequest;
+use harmos_protocol::host::TimeSleepResponse;
+use harmos_protocol::host::plugins::SettingsListRequest;
+use harmos_protocol::host::plugins::SettingsListResponse;
+use harmos_protocol::model::FileMetadata;
+use harmos_protocol::model::FileReference;
+use harmos_protocol::model::InstanceState;
+use harmos_protocol::model::PageRequest;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::ReadCut;
+use harmos_protocol::model::Receipt;
+use harmos_protocol::model::Upload;
+use prost_types::Duration;
+use prost_types::Timestamp;
+use std::num::NonZeroUsize;
+pub enum HostOperation {
+    BackendEnvironment,
+    DocumentsAppendParts,
+    EffectsCreate,
+    EffectsGet,
+    EffectsSet,
+    EvidenceLogsAppend,
+    EvidenceRecordsList,
+    EvidenceRecordsAppend,
+    EvidenceTraceabilityGet,
+    EvidenceTraceabilitySet,
+    EvidenceStatistics,
+    ExecutionsProgressGet,
+    ExecutionsProgressSet,
+    FilesCapturesStart,
+    FilesCapturesStop,
+    FilesUploadsCreate,
+    FilesUploadsGet,
+    FilesUploadsResume,
+    FilesUploadsAppend,
+    FilesUploadsPublish,
+    FilesUploadsDelete,
+    FilesGet,
+    FilesRead,
+    FilesWatch,
+    FilesDelete,
+    PromptsCreate,
+    SecretsGet,
+    InvocationsGet,
+    InvocationsCancel,
+    InvocationsWatch,
+    PluginsSettingsList,
+    TimeGet,
+    TimeSleep,
+}
+impl Plugin {
+    pub fn requires_host(self, operation: HostOperation) -> Self {
+        match operation {
+            HostOperation::BackendEnvironment => self.requires::<BackendEnvironmentRequest>(),
+            HostOperation::DocumentsAppendParts => self.requires::<DocumentsAppendPartsRequest>(),
+            HostOperation::EffectsCreate => self.requires::<EffectsCreateRequest>(),
+            HostOperation::EffectsGet => self.requires::<EffectsGetRequest>(),
+            HostOperation::EffectsSet => self.requires::<EffectsSetRequest>(),
+            HostOperation::EvidenceLogsAppend => self.requires::<LogsAppendRequest>(),
+            HostOperation::EvidenceRecordsList => self.requires::<RecordsListRequest>(),
+            HostOperation::EvidenceRecordsAppend => self.requires::<RecordsAppendRequest>(),
+            HostOperation::EvidenceTraceabilityGet => self.requires::<TraceabilityGetRequest>(),
+            HostOperation::EvidenceTraceabilitySet => self.requires::<TraceabilitySetRequest>(),
+            HostOperation::EvidenceStatistics => self.requires::<EvidenceStatisticsRequest>(),
+            HostOperation::ExecutionsProgressGet => self.requires::<ProgressGetRequest>(),
+            HostOperation::ExecutionsProgressSet => self.requires::<ProgressSetRequest>(),
+            HostOperation::FilesCapturesStart => self.requires::<CapturesStartRequest>(),
+            HostOperation::FilesCapturesStop => self.requires::<CapturesStopRequest>(),
+            HostOperation::FilesUploadsCreate => self.requires::<UploadsCreateRequest>(),
+            HostOperation::FilesUploadsGet => self.requires::<UploadsGetRequest>(),
+            HostOperation::FilesUploadsResume => self.requires::<UploadsResumeRequest>(),
+            HostOperation::FilesUploadsAppend => self.requires::<UploadsAppendRequest>(),
+            HostOperation::FilesUploadsPublish => self.requires::<UploadsPublishRequest>(),
+            HostOperation::FilesUploadsDelete => self.requires::<UploadsDeleteRequest>(),
+            HostOperation::FilesGet => self.requires::<FilesGetRequest>(),
+            HostOperation::FilesRead => self.requires::<FilesReadRequest>(),
+            HostOperation::FilesWatch => self.requires::<FilesWatchRequest>(),
+            HostOperation::FilesDelete => self.requires::<FilesDeleteRequest>(),
+            HostOperation::PromptsCreate => self.requires::<PromptsCreateRequest>(),
+            HostOperation::SecretsGet => self.requires::<SecretsGetRequest>(),
+            HostOperation::InvocationsGet => self.requires::<InvocationsGetRequest>(),
+            HostOperation::InvocationsCancel => self.requires::<InvocationsCancelRequest>(),
+            HostOperation::InvocationsWatch => self.requires::<InvocationsWatchRequest>(),
+            HostOperation::PluginsSettingsList => self.requires::<SettingsListRequest>(),
+            HostOperation::TimeGet => self.requires::<TimeGetRequest>(),
+            HostOperation::TimeSleep => self.requires::<TimeSleepRequest>(),
+        }
+    }
+}
+impl Context {
+    pub fn host(&self) -> HostRoot {
+        HostRoot::new(self.clone())
+    }
+}
+#[derive(Clone)]
+pub struct HostRoot {
+    pub backend: HostBackendResource,
+    pub documents: HostDocumentsResource,
+    pub effects: HostEffectsResource,
+    pub evidence: HostEvidenceResource,
+    pub executions: HostExecutionsResource,
+    pub files: HostFilesResource,
+    pub invocations: HostInvocationsResource,
+    pub plugins: HostPluginsResource,
+    pub prompts: HostPromptsResource,
+    pub secrets: HostSecretsResource,
+    pub time: HostTimeResource,
+}
+impl HostRoot {
+    fn new(context: Context) -> Self {
+        Self {
+            backend: HostBackendResource::new(context.clone()),
+            documents: HostDocumentsResource::new(context.clone()),
+            effects: HostEffectsResource::new(context.clone()),
+            evidence: HostEvidenceResource::new(context.clone()),
+            executions: HostExecutionsResource::new(context.clone()),
+            files: HostFilesResource::new(context.clone()),
+            invocations: HostInvocationsResource::new(context.clone()),
+            plugins: HostPluginsResource::new(context.clone()),
+            prompts: HostPromptsResource::new(context.clone()),
+            secrets: HostSecretsResource::new(context.clone()),
+            time: HostTimeResource::new(context.clone()),
+        }
+    }
+}
+#[derive(Default)]
+pub struct HostBackendEnvironmentOptions {
+    pub at: Option<Position>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostDocumentsAppendPartsOptions {
+    pub subsection: Option<Section>,
+    pub card: Option<Card>,
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEffectsCreateOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEffectsGetOptions {
+    pub at: Option<Position>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEffectsSetOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceLogsAppendOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceRecordsListOptions {
+    pub scope: Option<RecordScope>,
+    pub at: Option<ReadCut>,
+    pub page: Option<PageRequest>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceRecordsAppendOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceTraceabilityGetOptions {
+    pub scope: Option<EvidenceScope>,
+    pub page: Option<PageRequest>,
+    pub at: Option<ReadCut>,
+    pub entry: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceTraceabilitySetOptions {
+    pub name: Option<String>,
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostEvidenceStatisticsOptions {
+    pub scope: Option<EvidenceScope>,
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostExecutionsProgressGetOptions {
+    pub name: Option<String>,
+    pub at: Option<Position>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostExecutionsProgressSetOptions {
+    pub name: Option<String>,
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesCapturesStartOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesCapturesStopOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsCreateOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsGetOptions {
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsResumeOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsAppendOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsPublishOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesUploadsDeleteOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesGetOptions {
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesReadOptions {
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostFilesWatchOptions {
+    pub at: Option<ReadCut>,
+}
+pub struct HostFilesWatch {
+    incoming: crate::context::Watching<FilesWatchResponse>,
+}
+impl HostFilesWatch {
+    pub async fn next(&mut self) -> Result<Option<FilesWatchResponse>> {
+        let Some(response) = self.incoming.next().await? else {
+            return Ok(None);
+        };
+        Ok(Some(response))
+    }
+}
+#[derive(Default)]
+pub struct HostFilesDeleteOptions {
+    pub request_id: Option<String>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostPromptsCreateOptions {
+    pub definition: Option<Prompt>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostSecretsGetOptions {
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostInvocationsGetOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostInvocationsCancelOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostInvocationsWatchOptions {}
+pub struct HostInvocationsWatch {
+    incoming: crate::context::Watching<InvocationsWatchResponse>,
+}
+impl HostInvocationsWatch {
+    pub async fn next(&mut self) -> Result<Option<InstanceState>> {
+        let Some(response) = self.incoming.next().await? else {
+            return Ok(None);
+        };
+        response.invocation.map(Some).ok_or_else(|| Error::Invalid("Read InvocationsWatch: Missing Payload".into()))
+    }
+}
+#[derive(Default)]
+pub struct HostPluginsSettingsListOptions {
+    pub name: Option<String>,
+    pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostTimeGetOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostTimeSleepOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Clone)]
+pub struct HostBackendResource {
+    context: Context,
+}
+impl HostBackendResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn environment(&self) -> Result<BackendEnvironmentResponse> {
+        self.environment_with(HostBackendEnvironmentOptions::default()).await
+    }
+    pub async fn environment_with(&self, options: HostBackendEnvironmentOptions) -> Result<BackendEnvironmentResponse> {
+        let request = BackendEnvironmentRequest { at: options.at };
+        let response: BackendEnvironmentResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostDocumentsResource {
+    context: Context,
+}
+impl HostDocumentsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn append_parts(&self, execution: String, document: String, section: String) -> Result<Receipt> {
+        self.append_parts_with(execution, document, section, HostDocumentsAppendPartsOptions::default()).await
+    }
+    pub async fn append_parts_with(
+        &self, execution: String, document: String, section: String, options: HostDocumentsAppendPartsOptions,
+    ) -> Result<Receipt> {
+        let request = DocumentsAppendPartsRequest {
+            part: match (options.subsection, options.card) {
+                (Some(value), None) => Some(dokime_protocol::host::documents_append_parts_request::Part::Subsection(value)),
+                (None, Some(value)) => Some(dokime_protocol::host::documents_append_parts_request::Part::Card(value)),
+                _ => return Err(Error::Invalid("Choose Exactly One part Variant".into())),
+            },
+            execution,
+            document,
+            section,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: DocumentsAppendPartsResponse = self.context.call_with(request, options.policy).await?;
+        response.receipt.ok_or_else(|| Error::Invalid("Read DocumentsAppendParts: Missing Payload".into()))
+    }
+}
+#[derive(Clone)]
+pub struct HostEffectsResource {
+    context: Context,
+}
+impl HostEffectsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(
+        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String,
+    ) -> Result<EffectsCreateResponse> {
+        self.create_with(resource, inverse_operation, inverse, description, HostEffectsCreateOptions::default()).await
+    }
+    pub async fn create_with(
+        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String, options: HostEffectsCreateOptions,
+    ) -> Result<EffectsCreateResponse> {
+        let request = EffectsCreateRequest {
+            resource,
+            inverse_operation,
+            inverse,
+            description,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: EffectsCreateResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn get(&self, name: String) -> Result<EffectsGetResponse> {
+        self.get_with(name, HostEffectsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, name: String, options: HostEffectsGetOptions) -> Result<EffectsGetResponse> {
+        let request = EffectsGetRequest { name, at: options.at };
+        let response: EffectsGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn set(&self, name: String, value: EffectWritable, expected_revision: Vec<u8>) -> Result<EffectsSetResponse> {
+        self.set_with(name, value, expected_revision, HostEffectsSetOptions::default()).await
+    }
+    pub async fn set_with(
+        &self, name: String, value: EffectWritable, expected_revision: Vec<u8>, options: HostEffectsSetOptions,
+    ) -> Result<EffectsSetResponse> {
+        let request = EffectsSetRequest {
+            name,
+            value: Some(value),
+            expected_revision,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: EffectsSetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostEvidenceResource {
+    context: Context,
+    pub logs: HostEvidenceLogsResource,
+    pub records: HostEvidenceRecordsResource,
+    pub traceability: HostEvidenceTraceabilityResource,
+}
+impl HostEvidenceResource {
+    fn new(context: Context) -> Self {
+        Self {
+            logs: HostEvidenceLogsResource::new(context.clone()),
+            records: HostEvidenceRecordsResource::new(context.clone()),
+            traceability: HostEvidenceTraceabilityResource::new(context.clone()),
+            context,
+        }
+    }
+    pub async fn statistics(
+        &self, stream: String, versions: Vec<u32>, between: Window, outputs: Vec<Output>, field: String, step: String,
+    ) -> Result<EvidenceStatisticsResponse> {
+        self.statistics_with(stream, versions, between, outputs, field, step, HostEvidenceStatisticsOptions::default()).await
+    }
+    pub async fn statistics_with(
+        &self, stream: String, versions: Vec<u32>, between: Window, outputs: Vec<Output>, field: String, step: String,
+        options: HostEvidenceStatisticsOptions,
+    ) -> Result<EvidenceStatisticsResponse> {
+        let request = EvidenceStatisticsRequest {
+            scope: options.scope,
+            stream,
+            versions,
+            between: Some(between),
+            outputs: Some(outputs),
+            field,
+            step,
+            at: options.at,
+        };
+        let response: EvidenceStatisticsResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostEvidenceLogsResource {
+    context: Context,
+}
+impl HostEvidenceLogsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn append(&self, execution: String, severity: Severity, message: String, at: Timestamp) -> Result<Receipt> {
+        self.append_with(execution, severity, message, at, HostEvidenceLogsAppendOptions::default()).await
+    }
+    pub async fn append_with(
+        &self, execution: String, severity: Severity, message: String, at: Timestamp, options: HostEvidenceLogsAppendOptions,
+    ) -> Result<Receipt> {
+        let request = LogsAppendRequest {
+            execution,
+            severity: severity as i32,
+            message,
+            at: Some(at),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: LogsAppendResponse = self.context.call_with(request, options.policy).await?;
+        response.receipt.ok_or_else(|| Error::Invalid("Read EvidenceLogsAppend: Missing Payload".into()))
+    }
+}
+#[derive(Clone)]
+pub struct HostEvidenceRecordsResource {
+    context: Context,
+}
+impl HostEvidenceRecordsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn list(
+        &self, record_type: String, versions: Vec<u32>, between: Window, step: String, selection: CapturedRecordSelection,
+    ) -> Result<RecordsListResponse> {
+        self.list_with(record_type, versions, between, step, selection, HostEvidenceRecordsListOptions::default()).await
+    }
+    pub async fn list_with(
+        &self, record_type: String, versions: Vec<u32>, between: Window, step: String, selection: CapturedRecordSelection,
+        options: HostEvidenceRecordsListOptions,
+    ) -> Result<RecordsListResponse> {
+        let request = RecordsListRequest {
+            scope: options.scope,
+            record_type,
+            versions,
+            between: Some(between),
+            step,
+            selection: Some(selection),
+            at: options.at,
+            page: options.page,
+        };
+        let response: RecordsListResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn append(&self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp) -> Result<RecordsAppendResponse> {
+        self.append_with(execution, kind, payload, source_at, HostEvidenceRecordsAppendOptions::default()).await
+    }
+    pub async fn append_with(
+        &self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp, options: HostEvidenceRecordsAppendOptions,
+    ) -> Result<RecordsAppendResponse> {
+        let request = RecordsAppendRequest {
+            execution,
+            kind,
+            payload,
+            source_at: Some(source_at),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: RecordsAppendResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostEvidenceTraceabilityResource {
+    context: Context,
+}
+impl HostEvidenceTraceabilityResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self) -> Result<TraceabilityGetResponse> {
+        self.get_with(HostEvidenceTraceabilityGetOptions::default()).await
+    }
+    pub async fn get_with(&self, options: HostEvidenceTraceabilityGetOptions) -> Result<TraceabilityGetResponse> {
+        let request = TraceabilityGetRequest {
+            scope: options.scope,
+            page: options.page,
+            at: options.at,
+            entry: options.entry,
+        };
+        let response: TraceabilityGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn set(&self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String) -> Result<TraceabilitySetResponse> {
+        self.set_with(value, expected_revision, entry, HostEvidenceTraceabilitySetOptions::default()).await
+    }
+    pub async fn set_with(
+        &self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String, options: HostEvidenceTraceabilitySetOptions,
+    ) -> Result<TraceabilitySetResponse> {
+        let request = TraceabilitySetRequest {
+            name: options.name,
+            value: Some(value),
+            expected_revision,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+            entry,
+        };
+        let response: TraceabilitySetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostExecutionsResource {
+    pub progress: HostExecutionsProgressResource,
+}
+impl HostExecutionsResource {
+    fn new(context: Context) -> Self {
+        Self {
+            progress: HostExecutionsProgressResource::new(context.clone()),
+        }
+    }
+}
+#[derive(Clone)]
+pub struct HostExecutionsProgressResource {
+    context: Context,
+}
+impl HostExecutionsProgressResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self) -> Result<ProgressGetResponse> {
+        self.get_with(HostExecutionsProgressGetOptions::default()).await
+    }
+    pub async fn get_with(&self, options: HostExecutionsProgressGetOptions) -> Result<ProgressGetResponse> {
+        let request = ProgressGetRequest { name: options.name, at: options.at };
+        let response: ProgressGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn set(&self, value: ExecutionProgressValue, expected_revision: Vec<u8>) -> Result<ProgressSetResponse> {
+        self.set_with(value, expected_revision, HostExecutionsProgressSetOptions::default()).await
+    }
+    pub async fn set_with(
+        &self, value: ExecutionProgressValue, expected_revision: Vec<u8>, options: HostExecutionsProgressSetOptions,
+    ) -> Result<ProgressSetResponse> {
+        let request = ProgressSetRequest {
+            name: options.name,
+            value: Some(value),
+            expected_revision,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: ProgressSetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostFilesResource {
+    context: Context,
+    pub captures: HostFilesCapturesResource,
+    pub uploads: HostFilesUploadsResource,
+}
+impl HostFilesResource {
+    fn new(context: Context) -> Self {
+        Self {
+            captures: HostFilesCapturesResource::new(context.clone()),
+            uploads: HostFilesUploadsResource::new(context.clone()),
+            context,
+        }
+    }
+    pub async fn get(&self, file: FileReference) -> Result<FilesGetResponse> {
+        self.get_with(file, HostFilesGetOptions::default()).await
+    }
+    pub async fn get_with(&self, file: FileReference, options: HostFilesGetOptions) -> Result<FilesGetResponse> {
+        let request = FilesGetRequest { file: Some(file), at: options.at };
+        let response: FilesGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn read(&self, file: FileReference, offset: u64, max_bytes: u64) -> Result<FilesReadResponse> {
+        self.read_with(file, offset, max_bytes, HostFilesReadOptions::default()).await
+    }
+    pub async fn read_with(
+        &self, file: FileReference, offset: u64, max_bytes: u64, options: HostFilesReadOptions,
+    ) -> Result<FilesReadResponse> {
+        let request = FilesReadRequest {
+            file: Some(file),
+            offset,
+            max_bytes,
+            at: options.at,
+        };
+        let response: FilesReadResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn watch(&self, file: FileReference, offset: u64, max_item_bytes: NonZeroUsize) -> Result<HostFilesWatch> {
+        self.watch_with(file, offset, max_item_bytes, HostFilesWatchOptions::default()).await
+    }
+    pub async fn watch_with(
+        &self, file: FileReference, offset: u64, max_item_bytes: NonZeroUsize, options: HostFilesWatchOptions,
+    ) -> Result<HostFilesWatch> {
+        let request = FilesWatchRequest { file: Some(file), offset, at: options.at };
+        Ok(HostFilesWatch {
+            incoming: self.context.watch(request, max_item_bytes).await?,
+        })
+    }
+    pub async fn delete(&self, file: FileReference) -> Result<Receipt> {
+        self.delete_with(file, HostFilesDeleteOptions::default()).await
+    }
+    pub async fn delete_with(&self, file: FileReference, options: HostFilesDeleteOptions) -> Result<Receipt> {
+        let request = FilesDeleteRequest {
+            file: Some(file),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: FilesDeleteResponse = self.context.call_with(request, options.policy).await?;
+        response.receipt.ok_or_else(|| Error::Invalid("Read FilesDelete: Missing Payload".into()))
+    }
+}
+#[derive(Clone)]
+pub struct HostFilesCapturesResource {
+    context: Context,
+}
+impl HostFilesCapturesResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn start(&self, source: FileSource, output: String, mode: CaptureMode) -> Result<u64> {
+        self.start_with(source, output, mode, HostFilesCapturesStartOptions::default()).await
+    }
+    pub async fn start_with(
+        &self, source: FileSource, output: String, mode: CaptureMode, options: HostFilesCapturesStartOptions,
+    ) -> Result<u64> {
+        let request = CapturesStartRequest {
+            source: Some(source),
+            output,
+            mode: Some(mode),
+        };
+        let response: CapturesStartResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response.capture_id)
+    }
+    pub async fn stop(&self, capture_id: u64) -> Result<CapturesStopResponse> {
+        self.stop_with(capture_id, HostFilesCapturesStopOptions::default()).await
+    }
+    pub async fn stop_with(&self, capture_id: u64, options: HostFilesCapturesStopOptions) -> Result<CapturesStopResponse> {
+        let request = CapturesStopRequest { capture_id };
+        let response: CapturesStopResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostFilesUploadsResource {
+    context: Context,
+}
+impl HostFilesUploadsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(&self, metadata: FileMetadata) -> Result<UploadsCreateResponse> {
+        self.create_with(metadata, HostFilesUploadsCreateOptions::default()).await
+    }
+    pub async fn create_with(&self, metadata: FileMetadata, options: HostFilesUploadsCreateOptions) -> Result<UploadsCreateResponse> {
+        let request = UploadsCreateRequest {
+            metadata: Some(metadata),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: UploadsCreateResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn get(&self, upload: Upload) -> Result<UploadsGetResponse> {
+        self.get_with(upload, HostFilesUploadsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, upload: Upload, options: HostFilesUploadsGetOptions) -> Result<UploadsGetResponse> {
+        let request = UploadsGetRequest { upload: Some(upload), at: options.at };
+        let response: UploadsGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn resume(&self, upload: Upload) -> Result<UploadsResumeResponse> {
+        self.resume_with(upload, HostFilesUploadsResumeOptions::default()).await
+    }
+    pub async fn resume_with(&self, upload: Upload, options: HostFilesUploadsResumeOptions) -> Result<UploadsResumeResponse> {
+        let request = UploadsResumeRequest {
+            upload: Some(upload),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: UploadsResumeResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>) -> Result<UploadsAppendResponse> {
+        self.append_with(upload, offset, data, HostFilesUploadsAppendOptions::default()).await
+    }
+    pub async fn append_with(
+        &self, upload: Upload, offset: u64, data: Vec<u8>, options: HostFilesUploadsAppendOptions,
+    ) -> Result<UploadsAppendResponse> {
+        let request = UploadsAppendRequest {
+            upload: Some(upload),
+            offset,
+            data,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: UploadsAppendResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn publish(&self, upload: Upload, length: u64, sha256: Vec<u8>) -> Result<UploadsPublishResponse> {
+        self.publish_with(upload, length, sha256, HostFilesUploadsPublishOptions::default()).await
+    }
+    pub async fn publish_with(
+        &self, upload: Upload, length: u64, sha256: Vec<u8>, options: HostFilesUploadsPublishOptions,
+    ) -> Result<UploadsPublishResponse> {
+        let request = UploadsPublishRequest {
+            upload: Some(upload),
+            length,
+            sha256,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: UploadsPublishResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn delete(&self, upload: Upload) -> Result<UploadsDeleteResponse> {
+        self.delete_with(upload, HostFilesUploadsDeleteOptions::default()).await
+    }
+    pub async fn delete_with(&self, upload: Upload, options: HostFilesUploadsDeleteOptions) -> Result<UploadsDeleteResponse> {
+        let request = UploadsDeleteRequest {
+            upload: Some(upload),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+        };
+        let response: UploadsDeleteResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostInvocationsResource {
+    context: Context,
+}
+impl HostInvocationsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self, instance: u64) -> Result<InstanceState> {
+        self.get_with(instance, HostInvocationsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, instance: u64, options: HostInvocationsGetOptions) -> Result<InstanceState> {
+        let request = InvocationsGetRequest { instance };
+        let response: InvocationsGetResponse = self.context.call_with(request, options.policy).await?;
+        response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsGet: Missing Payload".into()))
+    }
+    pub async fn cancel(&self, instance: u64, reason: String) -> Result<InstanceState> {
+        self.cancel_with(instance, reason, HostInvocationsCancelOptions::default()).await
+    }
+    pub async fn cancel_with(&self, instance: u64, reason: String, options: HostInvocationsCancelOptions) -> Result<InstanceState> {
+        let request = InvocationsCancelRequest { instance, reason };
+        let response: InvocationsCancelResponse = self.context.call_with(request, options.policy).await?;
+        response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsCancel: Missing Payload".into()))
+    }
+    pub async fn watch(&self, instance: u64, max_item_bytes: NonZeroUsize) -> Result<HostInvocationsWatch> {
+        self.watch_with(instance, max_item_bytes, HostInvocationsWatchOptions::default()).await
+    }
+    pub async fn watch_with(
+        &self, instance: u64, max_item_bytes: NonZeroUsize, options: HostInvocationsWatchOptions,
+    ) -> Result<HostInvocationsWatch> {
+        let request = InvocationsWatchRequest { instance };
+        Ok(HostInvocationsWatch {
+            incoming: self.context.watch(request, max_item_bytes).await?,
+        })
+    }
+}
+#[derive(Clone)]
+pub struct HostPluginsResource {
+    pub settings: HostPluginsSettingsResource,
+}
+impl HostPluginsResource {
+    fn new(context: Context) -> Self {
+        Self {
+            settings: HostPluginsSettingsResource::new(context.clone()),
+        }
+    }
+}
+#[derive(Clone)]
+pub struct HostPluginsSettingsResource {
+    context: Context,
+}
+impl HostPluginsSettingsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn list(&self) -> Result<SettingsListResponse> {
+        self.list_with(HostPluginsSettingsListOptions::default()).await
+    }
+    pub async fn list_with(&self, options: HostPluginsSettingsListOptions) -> Result<SettingsListResponse> {
+        let request = SettingsListRequest { name: options.name, at: options.at };
+        let response: SettingsListResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostPromptsResource {
+    context: Context,
+}
+impl HostPromptsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(
+        &self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>,
+    ) -> Result<PromptsCreateResponse> {
+        self.create_with(prompt, prompt_type, values, HostPromptsCreateOptions::default()).await
+    }
+    pub async fn create_with(
+        &self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>, options: HostPromptsCreateOptions,
+    ) -> Result<PromptsCreateResponse> {
+        let request = PromptsCreateRequest {
+            prompt,
+            prompt_type,
+            values,
+            definition: options.definition,
+        };
+        let response: PromptsCreateResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostSecretsResource {
+    context: Context,
+}
+impl HostSecretsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self, name: String) -> Result<SecretsGetResponse> {
+        self.get_with(name, HostSecretsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, name: String, options: HostSecretsGetOptions) -> Result<SecretsGetResponse> {
+        let request = SecretsGetRequest { name, at: options.at };
+        let response: SecretsGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostTimeResource {
+    context: Context,
+}
+impl HostTimeResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self) -> Result<Timestamp> {
+        self.get_with(HostTimeGetOptions::default()).await
+    }
+    pub async fn get_with(&self, options: HostTimeGetOptions) -> Result<Timestamp> {
+        let request = TimeGetRequest {};
+        let response: TimeGetResponse = self.context.call_with(request, options.policy).await?;
+        response.now.ok_or_else(|| Error::Invalid("Read TimeGet: Missing Payload".into()))
+    }
+    pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse> {
+        self.sleep_with(duration, HostTimeSleepOptions::default()).await
+    }
+    pub async fn sleep_with(&self, duration: Duration, options: HostTimeSleepOptions) -> Result<TimeSleepResponse> {
+        let request = TimeSleepRequest { duration: Some(duration) };
+        let response: TimeSleepResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}

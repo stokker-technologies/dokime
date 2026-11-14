@@ -23,40 +23,29 @@ import "harmos/model/v1/receipt.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Host.V1";
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
 
 // === Services === //
 
-// Host operations with explicit caller admission.
+// Owns the Documents resource on the host; callers are checked before handler admission.
 service Documents {
-  // AppendParts the Documents resource; admission and policy are owned by the executor.
-  rpc AppendParts(.dokime.host.v1.DocumentsAppendPartsRequest) returns (.dokime.host.v1.DocumentsAppendPartsResponse) {
-    option (harmos.model.v1.callers) = PLUGINS;
-  }
-  // Get the Documents resource; admission and policy are owned by the executor.
+  // Read the Documents resource; admission and policy are owned by the executor.
   rpc Get(.dokime.host.v1.DocumentsGetRequest) returns (.dokime.host.v1.DocumentsGetResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-  // Watch the Documents resource; admission and policy are owned by the executor.
+  // Observe durable changes to the Documents resource; admission and policy are owned by the executor.
   rpc Watch(.dokime.host.v1.DocumentsWatchRequest) returns (stream .dokime.host.v1.DocumentsWatchResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
+  // Append document parts to the Documents resource; admission and policy are owned by the executor.
+  rpc AppendParts(.dokime.host.v1.DocumentsAppendPartsRequest) returns (.dokime.host.v1.DocumentsAppendPartsResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
 }
-
-// === AppendParts === //
-
-// DocumentsAppendPartsRequest for Documents.AppendParts.
-message DocumentsAppendPartsRequest {
-  string execution = 1;
-  string document = 2;
-  
-  string section = 3;
-  oneof part { .dokime.model.v1.Section subsection = 4; .dokime.model.v1.Card card = 5; }
-  string request_id = 20;
-}
-
-// DocumentsAppendPartsResponse for Documents.AppendParts.
-message DocumentsAppendPartsResponse { .harmos.model.v1.Receipt receipt = 1; }
 
 // === Get === //
 
@@ -68,10 +57,9 @@ message DocumentsGetRequest {
   repeated string card_ids = 4;
   string page_token = 5;
   uint64 max_bytes = 6;
-  
-  
+
   uint32 max_frames = 7;
-  .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.ReadCut at = 90;
 }
 
 // DocumentsGetResponse for Documents.Get.
@@ -91,9 +79,9 @@ message DocumentsWatchRequest {
   repeated string card_ids = 4;
   string page_token = 5;
   uint64 max_bytes = 6;
-  
+
   uint32 max_frames = 7;
-  .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.ReadCut at = 90;
 }
 
 // DocumentsWatchResponse for Documents.Watch.
@@ -102,6 +90,26 @@ message DocumentsWatchResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === AppendParts === //
+
+// DocumentsAppendPartsRequest for Documents.AppendParts.
+message DocumentsAppendPartsRequest {
+  string execution = 1;
+  string document = 2;
+
+  string section = 3;
+  oneof part {
+    .dokime.model.v1.Section subsection = 4;
+    .dokime.model.v1.Card card = 5;
+  }
+  string request_id = 20;
+}
+
+// DocumentsAppendPartsResponse for Documents.AppendParts.
+message DocumentsAppendPartsResponse {
+  .harmos.model.v1.Receipt receipt = 1;
 }
 
 // === Resources === //
@@ -196,12 +204,12 @@ message DocumentFrameFrame {
     .dokime.host.v1.DocumentRepeatSelection repeat_selection = 12;
     .dokime.host.v1.DocumentRepeatInstance repeat_instance = 13;
     .dokime.host.v1.DocumentSectionIdentity section_identity = 14;
-    
+
     .dokime.host.v1.DocumentCompletion structure_complete = 15;
-    
+
     string card_complete = 16;
     bool expansion_complete = 17;
-    
+
     .dokime.host.v1.DocumentEvidenceCut evidence_cut = 18;
     string section_removal = 19;
     string artifact_cut = 20;

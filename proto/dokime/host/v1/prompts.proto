@@ -19,17 +19,17 @@ import "harmos/model/v1/position.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Host.V1";
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
 
 // === Services === //
 
-// Host operations with explicit caller admission.
+// Owns the Prompts resource on the host; callers are checked before handler admission.
 service Prompts {
-  // Create the Prompts resource; admission and policy are owned by the executor.
-  rpc Create(.dokime.host.v1.PromptsCreateRequest) returns (.dokime.host.v1.PromptsCreateResponse) {
-    option (harmos.model.v1.callers) = PLUGINS;
-  }
-  // Get the Prompts resource; admission and policy are owned by the executor.
+  // Read the Prompts resource; admission and policy are owned by the executor.
   rpc Get(.dokime.host.v1.PromptsGetRequest) returns (.dokime.host.v1.PromptsGetResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
@@ -37,41 +37,29 @@ service Prompts {
   rpc List(.dokime.host.v1.PromptsListRequest) returns (.dokime.host.v1.PromptsListResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-  // Watch the Prompts resource; admission and policy are owned by the executor.
+  // Observe durable changes to the Prompts resource; admission and policy are owned by the executor.
   rpc Watch(.dokime.host.v1.PromptsWatchRequest) returns (stream .dokime.host.v1.PromptsWatchResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-}
-
-// === Create === //
-
-// PromptsCreateRequest for Prompts.Create.
-message PromptsCreateRequest {
-  string prompt = 1;
-  string prompt_type = 2;
-  map<string, .dokime.model.v1.Value> values = 3;
-  
-  
-  .dokime.model.v1.Prompt definition = 4;
-}
-
-// PromptsCreateResponse for Prompts.Create.
-message PromptsCreateResponse {
-  string prompt = 1;
-  string action = 2;
-  map<string, .dokime.model.v1.Value> values = 3;
-  string responder = 4;
-  .google.protobuf.Timestamp submitted_at = 5;
-  bool accepted = 6;
+  // Create the Prompts resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.PromptsCreateRequest) returns (.dokime.host.v1.PromptsCreateResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
 }
 
 // === Get === //
 
 // PromptsGetRequest for Prompts.Get.
-message PromptsGetRequest { string name = 1; .harmos.model.v1.ReadCut at = 90; }
+message PromptsGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
 
 // PromptsGetResponse for Prompts.Get.
-message PromptsGetResponse { .dokime.host.v1.PromptView prompt = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+message PromptsGetResponse {
+  .dokime.host.v1.PromptView prompt = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
 
 // === List === //
 
@@ -81,8 +69,8 @@ message PromptsListRequest {
   optional string cycle_id = 2;
   optional string execution_id = 3;
   bool pending_only = 4;
-  .harmos.model.v1.ReadCut at = 90;
-  .harmos.model.v1.PageRequest page = 91;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
 }
 
 // PromptsListResponse for Prompts.List.
@@ -100,8 +88,8 @@ message PromptsWatchRequest {
   optional string cycle_id = 2;
   optional string execution_id = 3;
   bool pending_only = 4;
-  .harmos.model.v1.ReadCut at = 90;
-  .harmos.model.v1.PageRequest page = 91;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
 }
 
 // PromptsWatchResponse for Prompts.Watch.
@@ -110,6 +98,27 @@ message PromptsWatchResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Create === //
+
+// PromptsCreateRequest for Prompts.Create.
+message PromptsCreateRequest {
+  string prompt = 1;
+  string prompt_type = 2;
+  map<string, .dokime.model.v1.Value> values = 3;
+
+  optional .dokime.model.v1.Prompt definition = 4;
+}
+
+// PromptsCreateResponse for Prompts.Create.
+message PromptsCreateResponse {
+  string prompt = 1;
+  string action = 2;
+  map<string, .dokime.model.v1.Value> values = 3;
+  string responder = 4;
+  .google.protobuf.Timestamp submitted_at = 5;
+  bool accepted = 6;
 }
 
 // === Resources === //

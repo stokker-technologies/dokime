@@ -10,17 +10,22 @@ package dokime.plugin.v1;
 
 import "dokime/model/v1/execution.proto";
 import "dokime/model/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+option csharp_namespace = "Dokime.Plugins";
 
 // === Services === //
 
 // Host-only plugin operations with independent Protected lifecycle bindings.
+// CLIENTS identifies the host as this executor's transport client; application
+// clients never connect to or receive these methods in their resource tree.
 service TestCases {
   // Materialize the TestCases resource; admission and policy are owned by the executor.
-  rpc Materialize(.dokime.plugin.v1.TestCasesMaterializeRequest) returns (.dokime.plugin.v1.TestCasesMaterializeResponse);
+  rpc Materialize(.dokime.plugin.v1.TestCasesMaterializeRequest) returns (.dokime.plugin.v1.TestCasesMaterializeResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
 
 // === Materialize === //
@@ -28,12 +33,14 @@ service TestCases {
 // TestCasesMaterializeRequest for TestCases.Materialize.
 message TestCasesMaterializeRequest {
   string template = 1;
-  
+
   map<string, .dokime.model.v1.Value> parameters = 2;
 }
 
 // TestCasesMaterializeResponse for TestCases.Materialize.
-message TestCasesMaterializeResponse { .dokime.model.v1.TestCase test_case = 1; }
+message TestCasesMaterializeResponse {
+  .dokime.model.v1.TestCase test_case = 1;
+}
 
 // === Resources === //
 

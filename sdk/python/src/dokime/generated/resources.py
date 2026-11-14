@@ -1,922 +1,4367 @@
-"""Typed Resources Generated From the Frozen Descriptor Table."""
+# @generated from protocol descriptors; do not edit.
+"""Typed Client Resources."""
 
-from collections.abc import AsyncIterator, Awaitable
-from typing import Protocol, cast
+from collections.abc import AsyncGenerator, Sequence
+from uuid import uuid4
 
-import harmos.v1.access.certificates_pb2 as wire_35
-import harmos.v1.access.listener_pb2 as wire_36
-import harmos.v1.access.pairings_pb2 as wire_37
-import harmos.v1.catalog_entries_pb2 as wire_38
-import harmos.v1.invocations_pb2 as wire_39
-import harmos.v1.plugins_pb2 as wire_40
-import harmos.v1.status.diagnostics_pb2 as wire_41
-import harmos.v1.status.logs_pb2 as wire_42
-import harmos.v1.status.trace_events_pb2 as wire_43
-import harmos.v1.status_pb2 as wire_44
-import harmos.v1.time_pb2 as wire_45
-from google.protobuf import descriptor_pool
-from google.protobuf.descriptor import MethodDescriptor
-from google.protobuf.message import Message
+from google.protobuf.duration_pb2 import Duration
+from google.protobuf.timestamp_pb2 import Timestamp
+from grpc import CallCredentials
+from grpc.aio import AioRpcError, Channel
+from harmos import Client as LibraryClient
+from harmos._client_transport import Metadata as CallMetadata
+from harmos._client_transport import call_error, stream, unary
+from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateRequest as AccessCertificatesCreateRequest
+from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateResponse as AccessCertificatesCreateResponse
+from harmos._wire.host.v1.access.listener_pb2 import ListenerGetRequest as AccessListenerGetRequest
+from harmos._wire.host.v1.access.listener_pb2 import ListenerGetResponse as AccessListenerGetResponse
+from harmos._wire.host.v1.access.listener_pb2 import ListenerSetRequest as AccessListenerSetRequest
+from harmos._wire.host.v1.access.listener_pb2 import ListenerSetResponse as AccessListenerSetResponse
+from harmos._wire.host.v1.access.listener_pb2 import ListenerValue as AccessListenerValue
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsCreateRequest as AccessPairingsCreateRequest
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsCreateResponse as AccessPairingsCreateResponse
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsDeleteRequest as AccessPairingsDeleteRequest
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsDeleteResponse as AccessPairingsDeleteResponse
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsListRequest as AccessPairingsListRequest
+from harmos._wire.host.v1.access.pairings_pb2 import PairingsListResponse as AccessPairingsListResponse
+from harmos._wire.host.v1.invocations_pb2 import (
+    InvocationsCancelRequest,
+    InvocationsCancelResponse,
+    InvocationsCreateRequest,
+    InvocationsCreateResponse,
+    InvocationsGetRequest,
+    InvocationsGetResponse,
+    InvocationsWatchRequest,
+    InvocationsWatchResponse,
+)
+from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest as PluginsSettingsListRequest
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse as PluginsSettingsListResponse
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsSetRequest as PluginsSettingsSetRequest
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsSetResponse as PluginsSettingsSetResponse
+from harmos._wire.host.v1.plugins_pb2 import (
+    PluginEntry,
+    PluginPlacement,
+    PluginsCreateRequest,
+    PluginsCreateResponse,
+    PluginsDeleteRequest,
+    PluginsDeleteResponse,
+    PluginsGetRequest,
+    PluginsGetResponse,
+    PluginsListRequest,
+    PluginsListResponse,
+    PluginsReplaceRequest,
+    PluginsReplaceResponse,
+    PluginsRestartRequest,
+    PluginsRestartResponse,
+    PluginsSetRequest,
+    PluginsSetResponse,
+    PluginsWatchRequest,
+    PluginsWatchResponse,
+    PluginValue,
+)
+from harmos._wire.host.v1.schemas_pb2 import SchemaDescription, SchemasListRequest, SchemasListResponse
+from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest as StatusDiagnosticsGetRequest
+from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetResponse as StatusDiagnosticsGetResponse
+from harmos._wire.host.v1.status.logs_pb2 import LogsListRequest as StatusLogsListRequest
+from harmos._wire.host.v1.status.logs_pb2 import LogsListResponse as StatusLogsListResponse
+from harmos._wire.host.v1.status.logs_pb2 import LogsWatchRequest as StatusLogsWatchRequest
+from harmos._wire.host.v1.status.logs_pb2 import LogsWatchResponse as StatusLogsWatchResponse
+from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsListRequest as StatusTraceEventsListRequest
+from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsListResponse as StatusTraceEventsListResponse
+from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsWatchRequest as StatusTraceEventsWatchRequest
+from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsWatchResponse as StatusTraceEventsWatchResponse
+from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse, StatusWatchRequest, StatusWatchResponse
+from harmos._wire.host.v1.streams_pb2 import StreamIdentity, StreamsListRequest, StreamsListResponse
+from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
+from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
+from harmos._wire.model.v1.invocation_pb2 import InstanceState
+from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
+from harmos._wire.model.v1.page_pb2 import PageRequest
+from harmos._wire.model.v1.position_pb2 import Position, ReadCut
+from harmos._wire.model.v1.receipt_pb2 import Receipt
+from harmos._wire.model.v1.setting_pb2 import SettingValues
+from harmos.client import AccessCertificatesResource as LibraryAccessCertificatesResource
+from harmos.client import AccessListenerResource as LibraryAccessListenerResource
+from harmos.client import AccessPairingsResource as LibraryAccessPairingsResource
+from harmos.client import AccessResource as LibraryAccessResource
+from harmos.client import InvocationsResource as LibraryInvocationsResource
+from harmos.client import OperationsResource as LibraryOperationsResource
+from harmos.client import PluginsResource as LibraryPluginsResource
+from harmos.client import PluginsSettingsResource as LibraryPluginsSettingsResource
+from harmos.client import SchemasResource as LibrarySchemasResource
+from harmos.client import StatusDiagnosticsResource as LibraryStatusDiagnosticsResource
+from harmos.client import StatusLogsResource as LibraryStatusLogsResource
+from harmos.client import StatusResource as LibraryStatusResource
+from harmos.client import StatusTraceEventsResource as LibraryStatusTraceEventsResource
+from harmos.client import StreamsResource as LibraryStreamsResource
+from harmos.client import TimeResource as LibraryTimeResource
 
-import dokime.client.v1.aggregates_pb2 as wire_0
-import dokime.client.v1.analyses_pb2 as wire_1
-import dokime.client.v1.backend.overview_pb2 as wire_2
-import dokime.client.v1.backend_pb2 as wire_3
-import dokime.client.v1.cases_pb2 as wire_4
-import dokime.client.v1.content.artifacts_pb2 as wire_5
-import dokime.client.v1.content.execution_files_pb2 as wire_6
-import dokime.client.v1.cycles_pb2 as wire_7
-import dokime.client.v1.documents_pb2 as wire_8
-import dokime.client.v1.evidence.health_events_pb2 as wire_9
-import dokime.client.v1.evidence.notes_pb2 as wire_10
-import dokime.client.v1.evidence.records_pb2 as wire_11
-import dokime.client.v1.evidence.samples_pb2 as wire_12
-import dokime.client.v1.evidence.traceability_pb2 as wire_13
-import dokime.client.v1.evidence_pb2 as wire_14
-import dokime.client.v1.executions.commands_pb2 as wire_15
-import dokime.client.v1.executions.progress_pb2 as wire_16
-import dokime.client.v1.executions.schemas_pb2 as wire_17
-import dokime.client.v1.executions_pb2 as wire_18
-import dokime.client.v1.files.uploads_pb2 as wire_19
-import dokime.client.v1.files_pb2 as wire_20
-import dokime.client.v1.media.captures_pb2 as wire_21
-import dokime.client.v1.plots.settings_pb2 as wire_22
-import dokime.client.v1.plots.snapshots_pb2 as wire_23
-import dokime.client.v1.plugins.settings_pb2 as wire_24
-import dokime.client.v1.prompt_definitions_pb2 as wire_25
-import dokime.client.v1.prompts.answers_pb2 as wire_26
-import dokime.client.v1.prompts_pb2 as wire_27
-import dokime.client.v1.record_schemas_pb2 as wire_28
-import dokime.client.v1.reports_pb2 as wire_29
-import dokime.client.v1.secrets_pb2 as wire_30
-import dokime.client.v1.settings_pb2 as wire_31
-import dokime.client.v1.storage.sources_pb2 as wire_32
-import dokime.client.v1.stream_schemas_pb2 as wire_33
-import dokime.client.v1.suites_pb2 as wire_34
+from dokime._wire.host.v1.aggregates_pb2 import AggregatesGetRequest, AggregatesGetResponse, QueryAggregate, QueryFilter, QuerySource
+from dokime._wire.host.v1.analyses_pb2 import AnalysesListRequest, AnalysesListResponse
+from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetRequest as BackendOverviewGetRequest
+from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetResponse as BackendOverviewGetResponse
+from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchRequest as BackendOverviewWatchRequest
+from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchResponse as BackendOverviewWatchResponse
+from dokime._wire.host.v1.backend_pb2 import BackendAppearanceRequest, BackendAppearanceResponse
+from dokime._wire.host.v1.cases_pb2 import (
+    CasesCreateRequest,
+    CasesCreateResponse,
+    CasesDeleteRequest,
+    CasesDeleteResponse,
+    CasesGetRequest,
+    CasesGetResponse,
+    CasesListRequest,
+    CasesListResponse,
+    CasesParametersRequest,
+    CasesParametersResponse,
+    CasesWatchRequest,
+    CasesWatchResponse,
+    SelectionPlan,
+)
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest as ContentArtifactsCreateRequest
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse as ContentArtifactsCreateResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsGetRequest as ContentArtifactsGetRequest
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsGetResponse as ContentArtifactsGetResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsListRequest as ContentArtifactsListRequest
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsListResponse as ContentArtifactsListResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsWatchRequest as ContentArtifactsWatchRequest
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsWatchResponse as ContentArtifactsWatchResponse
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesGetRequest as ContentExecutionFilesGetRequest
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesGetResponse as ContentExecutionFilesGetResponse
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesListRequest as ContentExecutionFilesListRequest
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesListResponse as ContentExecutionFilesListResponse
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesWatchRequest as ContentExecutionFilesWatchRequest
+from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesWatchResponse as ContentExecutionFilesWatchResponse
+from dokime._wire.host.v1.cycles_pb2 import (
+    CycleFilter,
+    CycleOrder,
+    CyclesCreateRequest,
+    CyclesCreateResponse,
+    CycleSelection,
+    CyclesGetRequest,
+    CyclesGetResponse,
+    CyclesListRequest,
+    CyclesListResponse,
+    CyclesSealRequest,
+    CyclesSealResponse,
+    CyclesSetRequest,
+    CyclesSetResponse,
+    CyclesWatchRequest,
+    CyclesWatchResponse,
+    CycleWritable,
+)
+from dokime._wire.host.v1.documents_pb2 import (
+    DocumentScope,
+    DocumentsGetRequest,
+    DocumentsGetResponse,
+    DocumentsWatchRequest,
+    DocumentsWatchResponse,
+)
+from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsListRequest as EvidenceHealthEventsListRequest
+from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsListResponse as EvidenceHealthEventsListResponse
+from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsWatchRequest as EvidenceHealthEventsWatchRequest
+from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsWatchResponse as EvidenceHealthEventsWatchResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import AnnotationOwner as EvidenceAnnotationOwner
+from dokime._wire.host.v1.evidence.notes_pb2 import AnnotationSelection as EvidenceAnnotationSelection
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesCreateRequest as EvidenceNotesCreateRequest
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesCreateResponse as EvidenceNotesCreateResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesGetRequest as EvidenceNotesGetRequest
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesGetResponse as EvidenceNotesGetResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesListRequest as EvidenceNotesListRequest
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesListResponse as EvidenceNotesListResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesSetRequest as EvidenceNotesSetRequest
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesSetResponse as EvidenceNotesSetResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesWatchRequest as EvidenceNotesWatchRequest
+from dokime._wire.host.v1.evidence.notes_pb2 import NotesWatchResponse as EvidenceNotesWatchResponse
+from dokime._wire.host.v1.evidence.notes_pb2 import NoteWritable as EvidenceNoteWritable
+from dokime._wire.host.v1.evidence.records_pb2 import CapturedRecordSelection as EvidenceCapturedRecordSelection
+from dokime._wire.host.v1.evidence.records_pb2 import RecordScope as EvidenceRecordScope
+from dokime._wire.host.v1.evidence.records_pb2 import RecordsListRequest as EvidenceRecordsListRequest
+from dokime._wire.host.v1.evidence.records_pb2 import RecordsListResponse as EvidenceRecordsListResponse
+from dokime._wire.host.v1.evidence.records_pb2 import RecordsWatchRequest as EvidenceRecordsWatchRequest
+from dokime._wire.host.v1.evidence.records_pb2 import RecordsWatchResponse as EvidenceRecordsWatchResponse
+from dokime._wire.host.v1.evidence.samples_pb2 import BucketRequest as EvidenceBucketRequest
+from dokime._wire.host.v1.evidence.samples_pb2 import SamplesListRequest as EvidenceSamplesListRequest
+from dokime._wire.host.v1.evidence.samples_pb2 import SamplesListResponse as EvidenceSamplesListResponse
+from dokime._wire.host.v1.evidence.samples_pb2 import SamplesWatchRequest as EvidenceSamplesWatchRequest
+from dokime._wire.host.v1.evidence.samples_pb2 import SamplesWatchResponse as EvidenceSamplesWatchResponse
+from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetRequest as EvidenceTraceabilityGetRequest
+from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetResponse as EvidenceTraceabilityGetResponse
+from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityWatchRequest as EvidenceTraceabilityWatchRequest
+from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityWatchResponse as EvidenceTraceabilityWatchResponse
+from dokime._wire.host.v1.evidence_pb2 import (
+    EvidenceArchiveRequest,
+    EvidenceArchiveResponse,
+    EvidenceStatisticsRequest,
+    EvidenceStatisticsResponse,
+    EvidenceSubject,
+    Output,
+)
+from dokime._wire.host.v1.executions.commands_pb2 import CommandsCreateRequest as ExecutionsCommandsCreateRequest
+from dokime._wire.host.v1.executions.commands_pb2 import CommandsCreateResponse as ExecutionsCommandsCreateResponse
+from dokime._wire.host.v1.executions.commands_pb2 import CommandsGetRequest as ExecutionsCommandsGetRequest
+from dokime._wire.host.v1.executions.commands_pb2 import CommandsGetResponse as ExecutionsCommandsGetResponse
+from dokime._wire.host.v1.executions.commands_pb2 import ExecutionCommandAction as ExecutionsExecutionCommandAction
+from dokime._wire.host.v1.executions.progress_pb2 import ProgressGetRequest as ExecutionsProgressGetRequest
+from dokime._wire.host.v1.executions.progress_pb2 import ProgressGetResponse as ExecutionsProgressGetResponse
+from dokime._wire.host.v1.executions.progress_pb2 import ProgressWatchRequest as ExecutionsProgressWatchRequest
+from dokime._wire.host.v1.executions.progress_pb2 import ProgressWatchResponse as ExecutionsProgressWatchResponse
+from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest as ExecutionsSchemasGetRequest
+from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetResponse as ExecutionsSchemasGetResponse
+from dokime._wire.host.v1.executions_pb2 import (
+    ExecutionBinding,
+    ExecutionFilter,
+    ExecutionMode,
+    ExecutionOrder,
+    ExecutionParameterSet,
+    ExecutionsCancelRequest,
+    ExecutionsCancelResponse,
+    ExecutionsCreateRequest,
+    ExecutionsCreateResponse,
+    ExecutionsDeleteRequest,
+    ExecutionsDeleteResponse,
+    ExecutionSelection,
+    ExecutionsGetRequest,
+    ExecutionsGetResponse,
+    ExecutionsListRequest,
+    ExecutionsListResponse,
+    ExecutionsParametersRequest,
+    ExecutionsParametersResponse,
+    ExecutionsSetRequest,
+    ExecutionsSetResponse,
+    ExecutionsStartRequest,
+    ExecutionsStartResponse,
+    ExecutionsStepsRequest,
+    ExecutionsStepsResponse,
+    ExecutionsStopRequest,
+    ExecutionsStopResponse,
+    ExecutionsWatchRequest,
+    ExecutionsWatchResponse,
+    ExecutionWritable,
+)
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsAppendRequest as FilesUploadsAppendRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsAppendResponse as FilesUploadsAppendResponse
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsCreateRequest as FilesUploadsCreateRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsCreateResponse as FilesUploadsCreateResponse
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsDeleteRequest as FilesUploadsDeleteRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsDeleteResponse as FilesUploadsDeleteResponse
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsGetRequest as FilesUploadsGetRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsGetResponse as FilesUploadsGetResponse
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsPublishRequest as FilesUploadsPublishRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsPublishResponse as FilesUploadsPublishResponse
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsResumeRequest as FilesUploadsResumeRequest
+from dokime._wire.host.v1.files.uploads_pb2 import UploadsResumeResponse as FilesUploadsResumeResponse
+from dokime._wire.host.v1.files_pb2 import (
+    FilesDeleteRequest,
+    FilesDeleteResponse,
+    FilesGetRequest,
+    FilesGetResponse,
+    FilesReadRequest,
+    FilesReadResponse,
+    FilesWatchRequest,
+    FilesWatchResponse,
+)
+from dokime._wire.host.v1.media.captures_pb2 import CaptureKind as MediaCaptureKind
+from dokime._wire.host.v1.media.captures_pb2 import CapturesCreateRequest as MediaCapturesCreateRequest
+from dokime._wire.host.v1.media.captures_pb2 import CapturesCreateResponse as MediaCapturesCreateResponse
+from dokime._wire.host.v1.media.captures_pb2 import CapturesGetRequest as MediaCapturesGetRequest
+from dokime._wire.host.v1.media.captures_pb2 import CapturesGetResponse as MediaCapturesGetResponse
+from dokime._wire.host.v1.media.captures_pb2 import CapturesStopRequest as MediaCapturesStopRequest
+from dokime._wire.host.v1.media.captures_pb2 import CapturesStopResponse as MediaCapturesStopResponse
+from dokime._wire.host.v1.media.captures_pb2 import CapturesWatchRequest as MediaCapturesWatchRequest
+from dokime._wire.host.v1.media.captures_pb2 import CapturesWatchResponse as MediaCapturesWatchResponse
+from dokime._wire.host.v1.media.captures_pb2 import RecordingAudio as MediaRecordingAudio
+from dokime._wire.host.v1.plots.settings_pb2 import PlotSettingsValue as PlotsPlotSettingsValue
+from dokime._wire.host.v1.plots.settings_pb2 import SettingsGetRequest as PlotsSettingsGetRequest
+from dokime._wire.host.v1.plots.settings_pb2 import SettingsGetResponse as PlotsSettingsGetResponse
+from dokime._wire.host.v1.plots.settings_pb2 import SettingsSetRequest as PlotsSettingsSetRequest
+from dokime._wire.host.v1.plots.settings_pb2 import SettingsSetResponse as PlotsSettingsSetResponse
+from dokime._wire.host.v1.plots.snapshots_pb2 import PlotRequest as PlotsPlotRequest
+from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListRequest as PlotsSnapshotsListRequest
+from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListResponse as PlotsSnapshotsListResponse
+from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchRequest as PlotsSnapshotsWatchRequest
+from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchResponse as PlotsSnapshotsWatchResponse
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretBindingValue as PluginsSecretBindingValue
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsDeleteRequest as PluginsSecretsDeleteRequest
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsDeleteResponse as PluginsSecretsDeleteResponse
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListRequest as PluginsSecretsListRequest
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListResponse as PluginsSecretsListResponse
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsSetRequest as PluginsSecretsSetRequest
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsSetResponse as PluginsSecretsSetResponse
+from dokime._wire.host.v1.prompt_definitions_pb2 import (
+    PromptDefinitionsGetRequest,
+    PromptDefinitionsGetResponse,
+    PromptDefinitionsListRequest,
+    PromptDefinitionsListResponse,
+)
+from dokime._wire.host.v1.prompts.answers_pb2 import AnswersCreateRequest as PromptsAnswersCreateRequest
+from dokime._wire.host.v1.prompts.answers_pb2 import AnswersCreateResponse as PromptsAnswersCreateResponse
+from dokime._wire.host.v1.prompts_pb2 import (
+    PromptsGetRequest,
+    PromptsGetResponse,
+    PromptsListRequest,
+    PromptsListResponse,
+    PromptsWatchRequest,
+    PromptsWatchResponse,
+)
+from dokime._wire.host.v1.record_schemas_pb2 import (
+    RecordSchemasGetRequest,
+    RecordSchemasGetResponse,
+    RecordSchemasListRequest,
+    RecordSchemasListResponse,
+)
+from dokime._wire.host.v1.reports_pb2 import (
+    ReportsCreateRequest,
+    ReportsCreateResponse,
+    ReportsGetRequest,
+    ReportsGetResponse,
+    ReportsPublishRequest,
+    ReportsPublishResponse,
+    ReportSubject,
+)
+from dokime._wire.host.v1.secrets_pb2 import (
+    SecretImportChoice,
+    SecretsDeleteRequest,
+    SecretsDeleteResponse,
+    SecretsExportRequest,
+    SecretsExportResponse,
+    SecretsGetRequest,
+    SecretsGetResponse,
+    SecretsImportRequest,
+    SecretsImportResponse,
+    SecretsListRequest,
+    SecretsListResponse,
+    SecretsSetRequest,
+    SecretsSetResponse,
+    SecretsWatchRequest,
+    SecretsWatchResponse,
+    SecretWritable,
+)
+from dokime._wire.host.v1.settings_pb2 import (
+    ApplicationSettings,
+    SettingsGetRequest,
+    SettingsGetResponse,
+    SettingsSchemaRequest,
+    SettingsSchemaResponse,
+    SettingsSetRequest,
+    SettingsSetResponse,
+)
+from dokime._wire.host.v1.storage.sources_pb2 import SourcesGetRequest as StorageSourcesGetRequest
+from dokime._wire.host.v1.storage.sources_pb2 import SourcesGetResponse as StorageSourcesGetResponse
+from dokime._wire.host.v1.storage.sources_pb2 import SourcesSetRequest as StorageSourcesSetRequest
+from dokime._wire.host.v1.storage.sources_pb2 import SourcesSetResponse as StorageSourcesSetResponse
+from dokime._wire.host.v1.storage.sources_pb2 import StorageSources as StorageStorageSources
+from dokime._wire.host.v1.stream_schemas_pb2 import (
+    StreamSchemasGetRequest,
+    StreamSchemasGetResponse,
+    StreamSchemasListRequest,
+    StreamSchemasListResponse,
+)
+from dokime._wire.host.v1.suites_pb2 import SuitesGetRequest, SuitesGetResponse, SuitesListRequest, SuitesListResponse
+from dokime._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Window
+from dokime._wire.model.v1.execution_pb2 import Origin
+from dokime._wire.model.v1.metadata_pb2 import Metadata
+from dokime._wire.model.v1.scalar_pb2 import MapValue
 
 
-class Caller(Protocol):
-    def call(
-        self, request: Message, *, method: MethodDescriptor, timeout: float | None = None
-    ) -> Awaitable[Message] | AsyncIterator[Message]: ...
-
-
-class AccessCertificatesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class AccessCertificatesResource(LibraryAccessCertificatesResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
     async def create(
-        self, request: wire_35.CertificatesCreateRequest, *, timeout: float | None = None
-    ) -> wire_35.CertificatesCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Certificates").methods_by_name["Create"]
-        return await cast(Awaitable[wire_35.CertificatesCreateResponse], self._client.call(request, method=method, timeout=timeout))
+        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+    ) -> str:
+        request = AccessCertificatesCreateRequest()
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Certificates/Create",
+            request,
+            AccessCertificatesCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.certificates.create",
+        )
+        return response.certificate_pem
 
 
-class AccessListenerResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class AccessListenerResource(LibraryAccessListenerResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def get(self, request: wire_36.ListenerGetRequest, *, timeout: float | None = None) -> wire_36.ListenerGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Listener").methods_by_name["Get"]
-        return await cast(Awaitable[wire_36.ListenerGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+    ) -> AccessListenerGetResponse:
+        request = AccessListenerGetRequest()
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Listener/Get",
+            request,
+            AccessListenerGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.listener.get",
+        )
+        return response
 
-    async def set(self, request: wire_36.ListenerSetRequest, *, timeout: float | None = None) -> wire_36.ListenerSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Listener").methods_by_name["Set"]
-        return await cast(Awaitable[wire_36.ListenerSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        value: AccessListenerValue,
+        expected_revision: bytes,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AccessListenerSetResponse:
+        request = AccessListenerSetRequest(value=value, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Listener/Set",
+            request,
+            AccessListenerSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.listener.set",
+        )
+        return response
 
 
-class AccessPairingsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class AccessPairingsResource(LibraryAccessPairingsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def create(self, request: wire_37.PairingsCreateRequest, *, timeout: float | None = None) -> wire_37.PairingsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Pairings").methods_by_name["Create"]
-        return await cast(Awaitable[wire_37.PairingsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        label: str,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AccessPairingsCreateResponse:
+        request = AccessPairingsCreateRequest(label=label)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Pairings/Create",
+            request,
+            AccessPairingsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.pairings.create",
+        )
+        return response
 
-    async def delete(self, request: wire_37.PairingsDeleteRequest, *, timeout: float | None = None) -> wire_37.PairingsDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Pairings").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_37.PairingsDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AccessPairingsListResponse:
+        request = AccessPairingsListRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Pairings/List",
+            request,
+            AccessPairingsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.pairings.list",
+        )
+        return response
 
-    async def list(self, request: wire_37.PairingsListRequest, *, timeout: float | None = None) -> wire_37.PairingsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.access.Pairings").methods_by_name["List"]
-        return await cast(Awaitable[wire_37.PairingsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def delete(
+        self,
+        name: str,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AccessPairingsDeleteResponse:
+        request = AccessPairingsDeleteRequest(name=name)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.access.Pairings/Delete",
+            request,
+            AccessPairingsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="access.pairings.delete",
+        )
+        return response
 
 
 class BackendOverviewResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_2.OverviewGetRequest, *, timeout: float | None = None) -> wire_2.OverviewGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.backend.Overview").methods_by_name["Get"]
-        return await cast(Awaitable[wire_2.OverviewGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> BackendOverviewGetResponse:
+        request = BackendOverviewGetRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.backend.Overview/Get",
+            request,
+            BackendOverviewGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="backend.overview.get",
+        )
+        return response
 
-    def watch(self, request: wire_2.OverviewWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_2.OverviewWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.backend.Overview").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_2.OverviewWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[BackendOverviewWatchResponse]:
+        request = BackendOverviewWatchRequest(at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.backend.Overview/Watch",
+            request,
+            BackendOverviewWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("backend.overview.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class ContentArtifactsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_5.ArtifactsCreateRequest, *, timeout: float | None = None) -> wire_5.ArtifactsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.Artifacts").methods_by_name["Create"]
-        return await cast(Awaitable[wire_5.ArtifactsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ContentArtifactsGetResponse:
+        request = ContentArtifactsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.content.Artifacts/Get",
+            request,
+            ContentArtifactsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="content.artifacts.get",
+        )
+        return response
 
-    async def get(self, request: wire_5.ArtifactsGetRequest, *, timeout: float | None = None) -> wire_5.ArtifactsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.Artifacts").methods_by_name["Get"]
-        return await cast(Awaitable[wire_5.ArtifactsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        file: FileReference,
+        filename: str,
+        content_type: str,
+        *,
+        scope: ArtifactScope | None = None,
+        request_id: str | None = None,
+        metadata: Metadata | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ContentArtifactsCreateResponse:
+        request = ContentArtifactsCreateRequest(
+            file=file,
+            scope=scope,
+            filename=filename,
+            content_type=content_type,
+            request_id=request_id if request_id is not None else str(uuid4()),
+            metadata=metadata,
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.content.Artifacts/Create",
+            request,
+            ContentArtifactsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="content.artifacts.create",
+        )
+        return response
 
-    async def list(self, request: wire_5.ArtifactsListRequest, *, timeout: float | None = None) -> wire_5.ArtifactsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.Artifacts").methods_by_name["List"]
-        return await cast(Awaitable[wire_5.ArtifactsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        scope: ArtifactScope,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ContentArtifactsListResponse:
+        request = ContentArtifactsListRequest(scope=scope, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.content.Artifacts/List",
+            request,
+            ContentArtifactsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="content.artifacts.list",
+        )
+        return response
 
-    def watch(self, request: wire_5.ArtifactsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_5.ArtifactsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.Artifacts").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_5.ArtifactsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        scope: ArtifactScope,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[ContentArtifactsWatchResponse]:
+        request = ContentArtifactsWatchRequest(scope=scope, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.content.Artifacts/Watch",
+            request,
+            ContentArtifactsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("content.artifacts.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class ContentExecutionFilesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_6.ExecutionFilesGetRequest, *, timeout: float | None = None) -> wire_6.ExecutionFilesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.ExecutionFiles").methods_by_name["Get"]
-        return await cast(Awaitable[wire_6.ExecutionFilesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        parent: str,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ContentExecutionFilesGetResponse:
+        request = ContentExecutionFilesGetRequest(parent=parent, name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.content.ExecutionFiles/Get",
+            request,
+            ContentExecutionFilesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="content.execution_files.get",
+        )
+        return response
 
-    async def list(self, request: wire_6.ExecutionFilesListRequest, *, timeout: float | None = None) -> wire_6.ExecutionFilesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.ExecutionFiles").methods_by_name["List"]
-        return await cast(Awaitable[wire_6.ExecutionFilesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ContentExecutionFilesListResponse:
+        request = ContentExecutionFilesListRequest(parent=parent, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.content.ExecutionFiles/List",
+            request,
+            ContentExecutionFilesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="content.execution_files.list",
+        )
+        return response
 
-    def watch(
-        self, request: wire_6.ExecutionFilesWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_6.ExecutionFilesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.content.ExecutionFiles").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_6.ExecutionFilesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[ContentExecutionFilesWatchResponse]:
+        request = ContentExecutionFilesWatchRequest(parent=parent, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.content.ExecutionFiles/Watch",
+            request,
+            ContentExecutionFilesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("content.execution_files.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class EvidenceHealthEventsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def list(self, request: wire_9.HealthEventsListRequest, *, timeout: float | None = None) -> wire_9.HealthEventsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.HealthEvents").methods_by_name["List"]
-        return await cast(Awaitable[wire_9.HealthEventsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        selection: EvidenceAnnotationSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceHealthEventsListResponse:
+        request = EvidenceHealthEventsListRequest(selection=selection, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.HealthEvents/List",
+            request,
+            EvidenceHealthEventsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.health_events.list",
+        )
+        return response
 
-    def watch(
-        self, request: wire_9.HealthEventsWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_9.HealthEventsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.HealthEvents").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_9.HealthEventsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        selection: EvidenceAnnotationSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[EvidenceHealthEventsWatchResponse]:
+        request = EvidenceHealthEventsWatchRequest(selection=selection, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.evidence.HealthEvents/Watch",
+            request,
+            EvidenceHealthEventsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("evidence.health_events.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class EvidenceNotesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_10.NotesCreateRequest, *, timeout: float | None = None) -> wire_10.NotesCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Notes").methods_by_name["Create"]
-        return await cast(Awaitable[wire_10.NotesCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceNotesGetResponse:
+        request = EvidenceNotesGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Notes/Get",
+            request,
+            EvidenceNotesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.notes.get",
+        )
+        return response
 
-    async def get(self, request: wire_10.NotesGetRequest, *, timeout: float | None = None) -> wire_10.NotesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Notes").methods_by_name["Get"]
-        return await cast(Awaitable[wire_10.NotesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        value: EvidenceNoteWritable,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceNotesSetResponse:
+        request = EvidenceNotesSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Notes/Set",
+            request,
+            EvidenceNotesSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.notes.set",
+        )
+        return response
 
-    async def list(self, request: wire_10.NotesListRequest, *, timeout: float | None = None) -> wire_10.NotesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Notes").methods_by_name["List"]
-        return await cast(Awaitable[wire_10.NotesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        selection: EvidenceAnnotationSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceNotesListResponse:
+        request = EvidenceNotesListRequest(selection=selection, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Notes/List",
+            request,
+            EvidenceNotesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.notes.list",
+        )
+        return response
 
-    async def set(self, request: wire_10.NotesSetRequest, *, timeout: float | None = None) -> wire_10.NotesSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Notes").methods_by_name["Set"]
-        return await cast(Awaitable[wire_10.NotesSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        selection: EvidenceAnnotationSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[EvidenceNotesWatchResponse]:
+        request = EvidenceNotesWatchRequest(selection=selection, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.evidence.Notes/Watch",
+            request,
+            EvidenceNotesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("evidence.notes.watch", error) from error
+        finally:
+            call.cancel()
 
-    def watch(self, request: wire_10.NotesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_10.NotesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Notes").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_10.NotesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        owner: EvidenceAnnotationOwner,
+        value: EvidenceNoteWritable,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceNotesCreateResponse:
+        request = EvidenceNotesCreateRequest(owner=owner, value=value, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Notes/Create",
+            request,
+            EvidenceNotesCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.notes.create",
+        )
+        return response
 
 
 class EvidenceRecordsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def list(self, request: wire_11.RecordsListRequest, *, timeout: float | None = None) -> wire_11.RecordsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Records").methods_by_name["List"]
-        return await cast(Awaitable[wire_11.RecordsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        scope: EvidenceRecordScope,
+        record_type: str,
+        versions: Sequence[int],
+        between: Window,
+        step: str,
+        selection: EvidenceCapturedRecordSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceRecordsListResponse:
+        request = EvidenceRecordsListRequest(
+            scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Records/List",
+            request,
+            EvidenceRecordsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.records.list",
+        )
+        return response
 
-    def watch(self, request: wire_11.RecordsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_11.RecordsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Records").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_11.RecordsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        scope: EvidenceRecordScope,
+        record_type: str,
+        versions: Sequence[int],
+        between: Window,
+        step: str,
+        selection: EvidenceCapturedRecordSelection,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[EvidenceRecordsWatchResponse]:
+        request = EvidenceRecordsWatchRequest(
+            scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
+        )
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.evidence.Records/Watch",
+            request,
+            EvidenceRecordsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("evidence.records.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class EvidenceSamplesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def list(self, request: wire_12.SamplesListRequest, *, timeout: float | None = None) -> wire_12.SamplesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Samples").methods_by_name["List"]
-        return await cast(Awaitable[wire_12.SamplesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        scope: EvidenceScope,
+        streams: Sequence[str],
+        versions: Sequence[int],
+        fields: Sequence[str],
+        sources: Sequence[str],
+        signals: Sequence[str],
+        between: Window,
+        bucket: EvidenceBucketRequest,
+        latest: bool,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceSamplesListResponse:
+        request = EvidenceSamplesListRequest(
+            scope=scope,
+            streams=streams,
+            versions=versions,
+            fields=fields,
+            sources=sources,
+            signals=signals,
+            between=between,
+            bucket=bucket,
+            latest=latest,
+            at=at,
+            page=page,
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Samples/List",
+            request,
+            EvidenceSamplesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.samples.list",
+        )
+        return response
 
-    def watch(self, request: wire_12.SamplesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_12.SamplesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Samples").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_12.SamplesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        scope: EvidenceScope,
+        streams: Sequence[str],
+        versions: Sequence[int],
+        fields: Sequence[str],
+        sources: Sequence[str],
+        signals: Sequence[str],
+        between: Window,
+        bucket: EvidenceBucketRequest,
+        latest: bool,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[EvidenceSamplesWatchResponse]:
+        request = EvidenceSamplesWatchRequest(
+            scope=scope,
+            streams=streams,
+            versions=versions,
+            fields=fields,
+            sources=sources,
+            signals=signals,
+            between=between,
+            bucket=bucket,
+            latest=latest,
+            at=at,
+            page=page,
+        )
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.evidence.Samples/Watch",
+            request,
+            EvidenceSamplesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("evidence.samples.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class EvidenceTraceabilityResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_13.TraceabilityGetRequest, *, timeout: float | None = None) -> wire_13.TraceabilityGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Traceability").methods_by_name["Get"]
-        return await cast(Awaitable[wire_13.TraceabilityGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        scope: EvidenceScope,
+        *,
+        page: PageRequest | None = None,
+        at: ReadCut | None = None,
+        entry: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceTraceabilityGetResponse:
+        request = EvidenceTraceabilityGetRequest(scope=scope, page=page, at=at, entry=entry)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.evidence.Traceability/Get",
+            request,
+            EvidenceTraceabilityGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.traceability.get",
+        )
+        return response
 
-    def watch(
-        self, request: wire_13.TraceabilityWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_13.TraceabilityWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.evidence.Traceability").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_13.TraceabilityWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        scope: EvidenceScope,
+        *,
+        page: PageRequest | None = None,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[EvidenceTraceabilityWatchResponse]:
+        request = EvidenceTraceabilityWatchRequest(scope=scope, page=page, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.evidence.Traceability/Watch",
+            request,
+            EvidenceTraceabilityWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("evidence.traceability.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class ExecutionsCommandsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_15.CommandsCreateRequest, *, timeout: float | None = None) -> wire_15.CommandsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.executions.Commands").methods_by_name["Create"]
-        return await cast(Awaitable[wire_15.CommandsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        parent: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsCommandsGetResponse:
+        request = ExecutionsCommandsGetRequest(name=name, parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.executions.Commands/Get",
+            request,
+            ExecutionsCommandsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.commands.get",
+        )
+        return response
 
-    async def get(self, request: wire_15.CommandsGetRequest, *, timeout: float | None = None) -> wire_15.CommandsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.executions.Commands").methods_by_name["Get"]
-        return await cast(Awaitable[wire_15.CommandsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        parent: str,
+        command_id: str,
+        action: ExecutionsExecutionCommandAction,
+        *,
+        request_id: str | None = None,
+        step_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsCommandsCreateResponse:
+        request = ExecutionsCommandsCreateRequest(
+            parent=parent,
+            request_id=request_id if request_id is not None else str(uuid4()),
+            command_id=command_id,
+            action=action,
+            step_id=step_id,
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.executions.Commands/Create",
+            request,
+            ExecutionsCommandsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.commands.create",
+        )
+        return response
 
 
 class ExecutionsProgressResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_16.ProgressGetRequest, *, timeout: float | None = None) -> wire_16.ProgressGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.executions.Progress").methods_by_name["Get"]
-        return await cast(Awaitable[wire_16.ProgressGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsProgressGetResponse:
+        request = ExecutionsProgressGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.executions.Progress/Get",
+            request,
+            ExecutionsProgressGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.progress.get",
+        )
+        return response
 
-    def watch(self, request: wire_16.ProgressWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_16.ProgressWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.executions.Progress").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_16.ProgressWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[ExecutionsProgressWatchResponse]:
+        request = ExecutionsProgressWatchRequest(name=name, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.executions.Progress/Watch",
+            request,
+            ExecutionsProgressWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("executions.progress.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class ExecutionsSchemasResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_17.SchemasGetRequest, *, timeout: float | None = None) -> wire_17.SchemasGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.executions.Schemas").methods_by_name["Get"]
-        return await cast(Awaitable[wire_17.SchemasGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsSchemasGetResponse:
+        request = ExecutionsSchemasGetRequest(name=name, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.executions.Schemas/Get",
+            request,
+            ExecutionsSchemasGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.schemas.get",
+        )
+        return response
 
 
 class FilesUploadsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def append(self, request: wire_19.UploadsAppendRequest, *, timeout: float | None = None) -> wire_19.UploadsAppendResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Append"]
-        return await cast(Awaitable[wire_19.UploadsAppendResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        metadata: FileMetadata,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsCreateResponse:
+        request = FilesUploadsCreateRequest(metadata=metadata, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Create",
+            request,
+            FilesUploadsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.create",
+        )
+        return response
 
-    async def create(self, request: wire_19.UploadsCreateRequest, *, timeout: float | None = None) -> wire_19.UploadsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Create"]
-        return await cast(Awaitable[wire_19.UploadsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        upload: Upload,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsGetResponse:
+        request = FilesUploadsGetRequest(upload=upload, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Get",
+            request,
+            FilesUploadsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.get",
+        )
+        return response
 
-    async def delete(self, request: wire_19.UploadsDeleteRequest, *, timeout: float | None = None) -> wire_19.UploadsDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_19.UploadsDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    async def resume(
+        self,
+        upload: Upload,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsResumeResponse:
+        request = FilesUploadsResumeRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Resume",
+            request,
+            FilesUploadsResumeResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.resume",
+        )
+        return response
 
-    async def get(self, request: wire_19.UploadsGetRequest, *, timeout: float | None = None) -> wire_19.UploadsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Get"]
-        return await cast(Awaitable[wire_19.UploadsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def append(
+        self,
+        upload: Upload,
+        offset: int,
+        data: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsAppendResponse:
+        request = FilesUploadsAppendRequest(
+            upload=upload, offset=offset, data=data, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Append",
+            request,
+            FilesUploadsAppendResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.append",
+        )
+        return response
 
-    async def publish(self, request: wire_19.UploadsPublishRequest, *, timeout: float | None = None) -> wire_19.UploadsPublishResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Publish"]
-        return await cast(Awaitable[wire_19.UploadsPublishResponse], self._client.call(request, method=method, timeout=timeout))
+    async def publish(
+        self,
+        upload: Upload,
+        length: int,
+        sha256: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsPublishResponse:
+        request = FilesUploadsPublishRequest(
+            upload=upload, length=length, sha256=sha256, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Publish",
+            request,
+            FilesUploadsPublishResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.publish",
+        )
+        return response
 
-    async def resume(self, request: wire_19.UploadsResumeRequest, *, timeout: float | None = None) -> wire_19.UploadsResumeResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.files.Uploads").methods_by_name["Resume"]
-        return await cast(Awaitable[wire_19.UploadsResumeResponse], self._client.call(request, method=method, timeout=timeout))
+    async def delete(
+        self,
+        upload: Upload,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesUploadsDeleteResponse:
+        request = FilesUploadsDeleteRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.files.Uploads/Delete",
+            request,
+            FilesUploadsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.uploads.delete",
+        )
+        return response
 
 
 class MediaCapturesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_21.CapturesCreateRequest, *, timeout: float | None = None) -> wire_21.CapturesCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.media.Captures").methods_by_name["Create"]
-        return await cast(Awaitable[wire_21.CapturesCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        scope: ArtifactScope,
+        kind: MediaCaptureKind,
+        audio: MediaRecordingAudio,
+        *,
+        input: int | None = None,
+        camera: int | None = None,
+        display: int | None = None,
+        maximum_seconds: int | None = None,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> MediaCapturesCreateResponse:
+        request = MediaCapturesCreateRequest(
+            scope=scope,
+            kind=kind,
+            input=input,
+            camera=camera,
+            display=display,
+            audio=audio,
+            maximum_seconds=maximum_seconds,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.media.Captures/Create",
+            request,
+            MediaCapturesCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="media.captures.create",
+        )
+        return response
 
-    async def get(self, request: wire_21.CapturesGetRequest, *, timeout: float | None = None) -> wire_21.CapturesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.media.Captures").methods_by_name["Get"]
-        return await cast(Awaitable[wire_21.CapturesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> MediaCapturesGetResponse:
+        request = MediaCapturesGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.media.Captures/Get",
+            request,
+            MediaCapturesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="media.captures.get",
+        )
+        return response
 
-    async def stop(self, request: wire_21.CapturesStopRequest, *, timeout: float | None = None) -> wire_21.CapturesStopResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.media.Captures").methods_by_name["Stop"]
-        return await cast(Awaitable[wire_21.CapturesStopResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[MediaCapturesWatchResponse]:
+        request = MediaCapturesWatchRequest(name=name, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.media.Captures/Watch",
+            request,
+            MediaCapturesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("media.captures.watch", error) from error
+        finally:
+            call.cancel()
 
-    def watch(self, request: wire_21.CapturesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_21.CapturesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.media.Captures").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_21.CapturesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def stop(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> MediaCapturesStopResponse:
+        request = MediaCapturesStopRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.media.Captures/Stop",
+            request,
+            MediaCapturesStopResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="media.captures.stop",
+        )
+        return response
 
 
 class PlotsSettingsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_22.SettingsGetRequest, *, timeout: float | None = None) -> wire_22.SettingsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plots.Settings").methods_by_name["Get"]
-        return await cast(Awaitable[wire_22.SettingsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        scope: DocumentScope,
+        document_id: str,
+        plot_id: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PlotsSettingsGetResponse:
+        request = PlotsSettingsGetRequest(scope=scope, document_id=document_id, plot_id=plot_id, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plots.Settings/Get",
+            request,
+            PlotsSettingsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plots.settings.get",
+        )
+        return response
 
-    async def set(self, request: wire_22.SettingsSetRequest, *, timeout: float | None = None) -> wire_22.SettingsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plots.Settings").methods_by_name["Set"]
-        return await cast(Awaitable[wire_22.SettingsSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        scope: DocumentScope,
+        document_id: str,
+        plot_id: str,
+        value: PlotsPlotSettingsValue,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PlotsSettingsSetResponse:
+        request = PlotsSettingsSetRequest(
+            scope=scope,
+            document_id=document_id,
+            plot_id=plot_id,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plots.Settings/Set",
+            request,
+            PlotsSettingsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plots.settings.set",
+        )
+        return response
 
 
 class PlotsSnapshotsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def list(self, request: wire_23.SnapshotsListRequest, *, timeout: float | None = None) -> wire_23.SnapshotsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plots.Snapshots").methods_by_name["List"]
-        return await cast(Awaitable[wire_23.SnapshotsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        requests: Sequence[PlotsPlotRequest],
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PlotsSnapshotsListResponse:
+        request = PlotsSnapshotsListRequest(requests=requests, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plots.Snapshots/List",
+            request,
+            PlotsSnapshotsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plots.snapshots.list",
+        )
+        return response
 
-    def watch(
-        self, request: wire_23.SnapshotsWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_23.SnapshotsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plots.Snapshots").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_23.SnapshotsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        requests: Sequence[PlotsPlotRequest],
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[PlotsSnapshotsWatchResponse]:
+        request = PlotsSnapshotsWatchRequest(requests=requests, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.plots.Snapshots/Watch",
+            request,
+            PlotsSnapshotsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("plots.snapshots.watch", error) from error
+        finally:
+            call.cancel()
 
 
-class PluginsSettingsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class PluginsSecretsResource:
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_24.SettingsGetRequest, *, timeout: float | None = None) -> wire_24.SettingsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plugins.Settings").methods_by_name["Get"]
-        return await cast(Awaitable[wire_24.SettingsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        name: str | None = None,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSecretsListResponse:
+        request = PluginsSecretsListRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plugins.Secrets/List",
+            request,
+            PluginsSecretsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.secrets.list",
+        )
+        return response
 
-    async def set(self, request: wire_24.SettingsSetRequest, *, timeout: float | None = None) -> wire_24.SettingsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.plugins.Settings").methods_by_name["Set"]
-        return await cast(Awaitable[wire_24.SettingsSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        bindings: Sequence[PluginsSecretBindingValue],
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSecretsSetResponse:
+        request = PluginsSecretsSetRequest(
+            name=name,
+            bindings=bindings,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plugins.Secrets/Set",
+            request,
+            PluginsSecretsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.secrets.set",
+        )
+        return response
+
+    async def delete(
+        self,
+        name: str,
+        identifiers: Sequence[str],
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> Receipt:
+        request = PluginsSecretsDeleteRequest(
+            name=name,
+            identifiers=identifiers,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plugins.Secrets/Delete",
+            request,
+            PluginsSecretsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.secrets.delete",
+        )
+        if not response.HasField("receipt"):
+            raise ValueError("Read Secrets.Delete: Missing Payload")
+        return response.receipt
+
+
+class PluginsSettingsResource(LibraryPluginsSettingsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+
+    async def list(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSettingsListResponse:
+        request = PluginsSettingsListRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.plugins.Settings/List",
+            request,
+            PluginsSettingsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.settings.list",
+        )
+        return response
+
+    async def set(
+        self,
+        name: str,
+        value: SettingValues,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSettingsSetResponse:
+        request = PluginsSettingsSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.plugins.Settings/Set",
+            request,
+            PluginsSettingsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.settings.set",
+        )
+        return response
 
 
 class PromptsAnswersResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_26.AnswersCreateRequest, *, timeout: float | None = None) -> wire_26.AnswersCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.prompts.Answers").methods_by_name["Create"]
-        return await cast(Awaitable[wire_26.AnswersCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        parent: str,
+        action: str,
+        values: MapValue,
+        accepted: bool,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PromptsAnswersCreateResponse:
+        request = PromptsAnswersCreateRequest(
+            parent=parent,
+            action=action,
+            values=values,
+            accepted=accepted,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.prompts.Answers/Create",
+            request,
+            PromptsAnswersCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="prompts.answers.create",
+        )
+        return response
 
 
-class StatusDiagnosticsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class StatusDiagnosticsResource(LibraryStatusDiagnosticsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def get(self, request: wire_41.DiagnosticsGetRequest, *, timeout: float | None = None) -> wire_41.DiagnosticsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.status.Diagnostics").methods_by_name["Get"]
-        return await cast(Awaitable[wire_41.DiagnosticsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        offset: int,
+        max_bytes: int,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StatusDiagnosticsGetResponse:
+        request = StatusDiagnosticsGetRequest(name=name, offset=offset, max_bytes=max_bytes)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.status.Diagnostics/Get",
+            request,
+            StatusDiagnosticsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="status.diagnostics.get",
+        )
+        return response
 
 
-class StatusLogsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class StatusLogsResource(LibraryStatusLogsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def list(self, request: wire_42.LogsListRequest, *, timeout: float | None = None) -> wire_42.LogsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.status.Logs").methods_by_name["List"]
-        return await cast(Awaitable[wire_42.LogsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: Position | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StatusLogsListResponse:
+        request = StatusLogsListRequest(at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.status.Logs/List",
+            request,
+            StatusLogsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="status.logs.list",
+        )
+        return response
 
-    def watch(self, request: wire_42.LogsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_42.LogsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.status.Logs").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_42.LogsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        max_bytes: int,
+        max_events: int,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[StatusLogsWatchResponse]:
+        request = StatusLogsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
+        call = stream(
+            self._channel,
+            "/harmos.host.v1.status.Logs/Watch",
+            request,
+            StatusLogsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("status.logs.watch", error) from error
+        finally:
+            call.cancel()
 
 
-class StatusTraceEventsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class StatusTraceEventsResource(LibraryStatusTraceEventsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def list(self, request: wire_43.TraceEventsListRequest, *, timeout: float | None = None) -> wire_43.TraceEventsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.status.TraceEvents").methods_by_name["List"]
-        return await cast(Awaitable[wire_43.TraceEventsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: Position | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StatusTraceEventsListResponse:
+        request = StatusTraceEventsListRequest(at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.status.TraceEvents/List",
+            request,
+            StatusTraceEventsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="status.trace_events.list",
+        )
+        return response
 
-    def watch(
-        self, request: wire_43.TraceEventsWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_43.TraceEventsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.status.TraceEvents").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_43.TraceEventsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        max_bytes: int,
+        max_events: int,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[StatusTraceEventsWatchResponse]:
+        request = StatusTraceEventsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
+        call = stream(
+            self._channel,
+            "/harmos.host.v1.status.TraceEvents/Watch",
+            request,
+            StatusTraceEventsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("status.trace_events.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class StorageSourcesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_32.SourcesGetRequest, *, timeout: float | None = None) -> wire_32.SourcesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.storage.Sources").methods_by_name["Get"]
-        return await cast(Awaitable[wire_32.SourcesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StorageSourcesGetResponse:
+        request = StorageSourcesGetRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.storage.Sources/Get",
+            request,
+            StorageSourcesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="storage.sources.get",
+        )
+        return response
 
-    async def set(self, request: wire_32.SourcesSetRequest, *, timeout: float | None = None) -> wire_32.SourcesSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.storage.Sources").methods_by_name["Set"]
-        return await cast(Awaitable[wire_32.SourcesSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        value: StorageStorageSources,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StorageSourcesSetResponse:
+        request = StorageSourcesSetRequest(
+            value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.storage.Sources/Set",
+            request,
+            StorageSourcesSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="storage.sources.set",
+        )
+        return response
 
 
-class AccessResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.certificates = AccessCertificatesResource(client)
-        self.listener = AccessListenerResource(client)
-        self.pairings = AccessPairingsResource(client)
+class AccessResource(LibraryAccessResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+        self._composed_certificates = AccessCertificatesResource(channel)
+        self._composed_listener = AccessListenerResource(channel)
+        self._composed_pairings = AccessPairingsResource(channel)
+
+    @property
+    def certificates(self) -> AccessCertificatesResource:
+        return self._composed_certificates
+
+    @property
+    def listener(self) -> AccessListenerResource:
+        return self._composed_listener
+
+    @property
+    def pairings(self) -> AccessPairingsResource:
+        return self._composed_pairings
 
 
 class AggregatesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_0.AggregatesGetRequest, *, timeout: float | None = None) -> wire_0.AggregatesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Aggregates").methods_by_name["Get"]
-        return await cast(Awaitable[wire_0.AggregatesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        source: QuerySource,
+        filters: Sequence[QueryFilter],
+        group_by: Sequence[str],
+        aggregates: Sequence[QueryAggregate],
+        limit: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AggregatesGetResponse:
+        request = AggregatesGetRequest(source=source, filters=filters, group_by=group_by, aggregates=aggregates, limit=limit, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Aggregates/Get",
+            request,
+            AggregatesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="aggregates.get",
+        )
+        return response
 
 
 class AnalysesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def list(self, request: wire_1.AnalysesListRequest, *, timeout: float | None = None) -> wire_1.AnalysesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Analyses").methods_by_name["List"]
-        return await cast(Awaitable[wire_1.AnalysesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AnalysesListResponse:
+        request = AnalysesListRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Analyses/List",
+            request,
+            AnalysesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="analyses.list",
+        )
+        return response
 
 
 class BackendResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.overview = BackendOverviewResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_overview = BackendOverviewResource(channel)
+
+    @property
+    def overview(self) -> BackendOverviewResource:
+        return self._composed_overview
 
     async def appearance(
-        self, request: wire_3.BackendAppearanceRequest, *, timeout: float | None = None
-    ) -> wire_3.BackendAppearanceResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Backend").methods_by_name["Appearance"]
-        return await cast(Awaitable[wire_3.BackendAppearanceResponse], self._client.call(request, method=method, timeout=timeout))
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> BackendAppearanceResponse:
+        request = BackendAppearanceRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Backend/Appearance",
+            request,
+            BackendAppearanceResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="backend.appearance",
+        )
+        return response
 
 
 class CasesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_4.CasesCreateRequest, *, timeout: float | None = None) -> wire_4.CasesCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["Create"]
-        return await cast(Awaitable[wire_4.CasesCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        plan: SelectionPlan,
+        validate_only: bool,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CasesCreateResponse:
+        request = CasesCreateRequest(
+            plan=plan, validate_only=validate_only, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cases/Create",
+            request,
+            CasesCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cases.create",
+        )
+        return response
 
-    async def delete(self, request: wire_4.CasesDeleteRequest, *, timeout: float | None = None) -> wire_4.CasesDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_4.CasesDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CasesGetResponse:
+        request = CasesGetRequest(name=name, parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cases/Get",
+            request,
+            CasesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cases.get",
+        )
+        return response
 
-    async def get(self, request: wire_4.CasesGetRequest, *, timeout: float | None = None) -> wire_4.CasesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["Get"]
-        return await cast(Awaitable[wire_4.CasesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CasesListResponse:
+        request = CasesListRequest(parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cases/List",
+            request,
+            CasesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cases.list",
+        )
+        return response
 
-    async def list(self, request: wire_4.CasesListRequest, *, timeout: float | None = None) -> wire_4.CasesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["List"]
-        return await cast(Awaitable[wire_4.CasesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[CasesWatchResponse]:
+        request = CasesWatchRequest(parent=parent, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Cases/Watch",
+            request,
+            CasesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("cases.watch", error) from error
+        finally:
+            call.cancel()
 
-    async def parameters(self, request: wire_4.CasesParametersRequest, *, timeout: float | None = None) -> wire_4.CasesParametersResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["Parameters"]
-        return await cast(Awaitable[wire_4.CasesParametersResponse], self._client.call(request, method=method, timeout=timeout))
+    async def delete(
+        self,
+        name: str,
+        parent: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> Receipt:
+        request = CasesDeleteRequest(name=name, parent=parent, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cases/Delete",
+            request,
+            CasesDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cases.delete",
+        )
+        if not response.HasField("receipt"):
+            raise ValueError("Read Cases.Delete: Missing Payload")
+        return response.receipt
 
-    def watch(self, request: wire_4.CasesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_4.CasesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cases").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_4.CasesWatchResponse], self._client.call(request, method=method, timeout=timeout))
-
-
-class CatalogEntriesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-
-    async def list(self, request: wire_38.CatalogEntriesListRequest, *, timeout: float | None = None) -> wire_38.CatalogEntriesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.CatalogEntries").methods_by_name["List"]
-        return await cast(Awaitable[wire_38.CatalogEntriesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def parameters(
+        self,
+        name: str,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CasesParametersResponse:
+        request = CasesParametersRequest(name=name, parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cases/Parameters",
+            request,
+            CasesParametersResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cases.parameters",
+        )
+        return response
 
 
 class ContentResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.artifacts = ContentArtifactsResource(client)
-        self.execution_files = ContentExecutionFilesResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_artifacts = ContentArtifactsResource(channel)
+        self._composed_execution_files = ContentExecutionFilesResource(channel)
+
+    @property
+    def artifacts(self) -> ContentArtifactsResource:
+        return self._composed_artifacts
+
+    @property
+    def execution_files(self) -> ContentExecutionFilesResource:
+        return self._composed_execution_files
 
 
 class CyclesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_7.CyclesCreateRequest, *, timeout: float | None = None) -> wire_7.CyclesCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["Create"]
-        return await cast(Awaitable[wire_7.CyclesCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CyclesGetResponse:
+        request = CyclesGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cycles/Get",
+            request,
+            CyclesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cycles.get",
+        )
+        return response
 
-    async def get(self, request: wire_7.CyclesGetRequest, *, timeout: float | None = None) -> wire_7.CyclesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["Get"]
-        return await cast(Awaitable[wire_7.CyclesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        value: CycleWritable,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CyclesSetResponse:
+        request = CyclesSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cycles/Set",
+            request,
+            CyclesSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cycles.set",
+        )
+        return response
 
-    async def list(self, request: wire_7.CyclesListRequest, *, timeout: float | None = None) -> wire_7.CyclesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["List"]
-        return await cast(Awaitable[wire_7.CyclesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        selection: CycleSelection,
+        filter: CycleFilter,
+        order: CycleOrder,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CyclesListResponse:
+        request = CyclesListRequest(selection=selection, filter=filter, order=order, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cycles/List",
+            request,
+            CyclesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cycles.list",
+        )
+        return response
 
-    async def seal(self, request: wire_7.CyclesSealRequest, *, timeout: float | None = None) -> wire_7.CyclesSealResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["Seal"]
-        return await cast(Awaitable[wire_7.CyclesSealResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        selection: CycleSelection,
+        filter: CycleFilter,
+        order: CycleOrder,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[CyclesWatchResponse]:
+        request = CyclesWatchRequest(selection=selection, filter=filter, order=order, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Cycles/Watch",
+            request,
+            CyclesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("cycles.watch", error) from error
+        finally:
+            call.cancel()
 
-    async def set(self, request: wire_7.CyclesSetRequest, *, timeout: float | None = None) -> wire_7.CyclesSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["Set"]
-        return await cast(Awaitable[wire_7.CyclesSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        origins: Sequence[Origin],
+        metadata: Metadata,
+        continue_automatically: bool,
+        source_cycle: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CyclesCreateResponse:
+        request = CyclesCreateRequest(
+            origins=origins,
+            metadata=metadata,
+            continue_automatically=continue_automatically,
+            source_cycle=source_cycle,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cycles/Create",
+            request,
+            CyclesCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cycles.create",
+        )
+        return response
 
-    def watch(self, request: wire_7.CyclesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_7.CyclesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Cycles").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_7.CyclesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def seal(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> CyclesSealResponse:
+        request = CyclesSealRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Cycles/Seal",
+            request,
+            CyclesSealResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="cycles.seal",
+        )
+        return response
 
 
 class DocumentsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_8.DocumentsGetRequest, *, timeout: float | None = None) -> wire_8.DocumentsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Documents").methods_by_name["Get"]
-        return await cast(Awaitable[wire_8.DocumentsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        scope: DocumentScope,
+        document_id: str,
+        structure_only: bool,
+        card_ids: Sequence[str],
+        page_token: str,
+        max_bytes: int,
+        max_frames: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> DocumentsGetResponse:
+        request = DocumentsGetRequest(
+            scope=scope,
+            document_id=document_id,
+            structure_only=structure_only,
+            card_ids=card_ids,
+            page_token=page_token,
+            max_bytes=max_bytes,
+            max_frames=max_frames,
+            at=at,
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Documents/Get",
+            request,
+            DocumentsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="documents.get",
+        )
+        return response
 
-    def watch(self, request: wire_8.DocumentsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_8.DocumentsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Documents").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_8.DocumentsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        scope: DocumentScope,
+        document_id: str,
+        structure_only: bool,
+        card_ids: Sequence[str],
+        page_token: str,
+        max_bytes: int,
+        max_frames: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[DocumentsWatchResponse]:
+        request = DocumentsWatchRequest(
+            scope=scope,
+            document_id=document_id,
+            structure_only=structure_only,
+            card_ids=card_ids,
+            page_token=page_token,
+            max_bytes=max_bytes,
+            max_frames=max_frames,
+            at=at,
+        )
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Documents/Watch",
+            request,
+            DocumentsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("documents.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class EvidenceResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.health_events = EvidenceHealthEventsResource(client)
-        self.notes = EvidenceNotesResource(client)
-        self.records = EvidenceRecordsResource(client)
-        self.samples = EvidenceSamplesResource(client)
-        self.traceability = EvidenceTraceabilityResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_health_events = EvidenceHealthEventsResource(channel)
+        self._composed_notes = EvidenceNotesResource(channel)
+        self._composed_records = EvidenceRecordsResource(channel)
+        self._composed_samples = EvidenceSamplesResource(channel)
+        self._composed_traceability = EvidenceTraceabilityResource(channel)
 
-    async def archive(self, request: wire_14.EvidenceArchiveRequest, *, timeout: float | None = None) -> wire_14.EvidenceArchiveResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Evidence").methods_by_name["Archive"]
-        return await cast(Awaitable[wire_14.EvidenceArchiveResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def health_events(self) -> EvidenceHealthEventsResource:
+        return self._composed_health_events
+
+    @property
+    def notes(self) -> EvidenceNotesResource:
+        return self._composed_notes
+
+    @property
+    def records(self) -> EvidenceRecordsResource:
+        return self._composed_records
+
+    @property
+    def samples(self) -> EvidenceSamplesResource:
+        return self._composed_samples
+
+    @property
+    def traceability(self) -> EvidenceTraceabilityResource:
+        return self._composed_traceability
 
     async def statistics(
-        self, request: wire_14.EvidenceStatisticsRequest, *, timeout: float | None = None
-    ) -> wire_14.EvidenceStatisticsResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Evidence").methods_by_name["Statistics"]
-        return await cast(Awaitable[wire_14.EvidenceStatisticsResponse], self._client.call(request, method=method, timeout=timeout))
+        self,
+        scope: EvidenceScope,
+        stream: str,
+        versions: Sequence[int],
+        between: Window,
+        outputs: Sequence[Output],
+        field: str,
+        step: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceStatisticsResponse:
+        request = EvidenceStatisticsRequest(
+            scope=scope, stream=stream, versions=versions, between=between, outputs=outputs, field=field, step=step, at=at
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Evidence/Statistics",
+            request,
+            EvidenceStatisticsResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.statistics",
+        )
+        return response
+
+    async def archive(
+        self,
+        subject: EvidenceSubject,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> EvidenceArchiveResponse:
+        request = EvidenceArchiveRequest(subject=subject, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Evidence/Archive",
+            request,
+            EvidenceArchiveResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="evidence.archive",
+        )
+        return response
 
 
 class ExecutionsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.commands = ExecutionsCommandsResource(client)
-        self.progress = ExecutionsProgressResource(client)
-        self.schemas = ExecutionsSchemasResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_commands = ExecutionsCommandsResource(channel)
+        self._composed_progress = ExecutionsProgressResource(channel)
+        self._composed_schemas = ExecutionsSchemasResource(channel)
 
-    async def cancel(self, request: wire_18.ExecutionsCancelRequest, *, timeout: float | None = None) -> wire_18.ExecutionsCancelResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Cancel"]
-        return await cast(Awaitable[wire_18.ExecutionsCancelResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def commands(self) -> ExecutionsCommandsResource:
+        return self._composed_commands
 
-    async def create(self, request: wire_18.ExecutionsCreateRequest, *, timeout: float | None = None) -> wire_18.ExecutionsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Create"]
-        return await cast(Awaitable[wire_18.ExecutionsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def progress(self) -> ExecutionsProgressResource:
+        return self._composed_progress
 
-    async def delete(self, request: wire_18.ExecutionsDeleteRequest, *, timeout: float | None = None) -> wire_18.ExecutionsDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_18.ExecutionsDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def schemas(self) -> ExecutionsSchemasResource:
+        return self._composed_schemas
 
-    async def get(self, request: wire_18.ExecutionsGetRequest, *, timeout: float | None = None) -> wire_18.ExecutionsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Get"]
-        return await cast(Awaitable[wire_18.ExecutionsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsGetResponse:
+        request = ExecutionsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Get",
+            request,
+            ExecutionsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.get",
+        )
+        return response
 
-    async def list(self, request: wire_18.ExecutionsListRequest, *, timeout: float | None = None) -> wire_18.ExecutionsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["List"]
-        return await cast(Awaitable[wire_18.ExecutionsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        value: ExecutionWritable,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsSetResponse:
+        request = ExecutionsSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Set",
+            request,
+            ExecutionsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.set",
+        )
+        return response
+
+    async def list(
+        self,
+        parent: str,
+        selection: ExecutionSelection,
+        filter: ExecutionFilter,
+        order: ExecutionOrder,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsListResponse:
+        request = ExecutionsListRequest(parent=parent, selection=selection, filter=filter, order=order, at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/List",
+            request,
+            ExecutionsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.list",
+        )
+        return response
+
+    async def watch(
+        self,
+        parent: str,
+        selection: ExecutionSelection,
+        filter: ExecutionFilter,
+        order: ExecutionOrder,
+        *,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[ExecutionsWatchResponse]:
+        request = ExecutionsWatchRequest(parent=parent, selection=selection, filter=filter, order=order, at=at, page=page)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Executions/Watch",
+            request,
+            ExecutionsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("executions.watch", error) from error
+        finally:
+            call.cancel()
+
+    async def create(
+        self,
+        parent: str,
+        executions: Sequence[ExecutionBinding],
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsCreateResponse:
+        request = ExecutionsCreateRequest(
+            parent=parent, executions=executions, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Create",
+            request,
+            ExecutionsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.create",
+        )
+        return response
+
+    async def start(
+        self,
+        name: str,
+        mode: ExecutionMode,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsStartResponse:
+        request = ExecutionsStartRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()), mode=mode)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Start",
+            request,
+            ExecutionsStartResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.start",
+        )
+        return response
+
+    async def stop(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsStopResponse:
+        request = ExecutionsStopRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Stop",
+            request,
+            ExecutionsStopResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.stop",
+        )
+        return response
+
+    async def cancel(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsCancelResponse:
+        request = ExecutionsCancelRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Cancel",
+            request,
+            ExecutionsCancelResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.cancel",
+        )
+        return response
+
+    async def delete(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsDeleteResponse:
+        request = ExecutionsDeleteRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Delete",
+            request,
+            ExecutionsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.delete",
+        )
+        return response
 
     async def parameters(
-        self, request: wire_18.ExecutionsParametersRequest, *, timeout: float | None = None
-    ) -> wire_18.ExecutionsParametersResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Parameters"]
-        return await cast(Awaitable[wire_18.ExecutionsParametersResponse], self._client.call(request, method=method, timeout=timeout))
+        self,
+        name: str,
+        set: ExecutionParameterSet,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsParametersResponse:
+        request = ExecutionsParametersRequest(name=name, set=set, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Parameters",
+            request,
+            ExecutionsParametersResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.parameters",
+        )
+        return response
 
-    async def set(self, request: wire_18.ExecutionsSetRequest, *, timeout: float | None = None) -> wire_18.ExecutionsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Set"]
-        return await cast(Awaitable[wire_18.ExecutionsSetResponse], self._client.call(request, method=method, timeout=timeout))
-
-    async def start(self, request: wire_18.ExecutionsStartRequest, *, timeout: float | None = None) -> wire_18.ExecutionsStartResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Start"]
-        return await cast(Awaitable[wire_18.ExecutionsStartResponse], self._client.call(request, method=method, timeout=timeout))
-
-    async def steps(self, request: wire_18.ExecutionsStepsRequest, *, timeout: float | None = None) -> wire_18.ExecutionsStepsResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Steps"]
-        return await cast(Awaitable[wire_18.ExecutionsStepsResponse], self._client.call(request, method=method, timeout=timeout))
-
-    async def stop(self, request: wire_18.ExecutionsStopRequest, *, timeout: float | None = None) -> wire_18.ExecutionsStopResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Stop"]
-        return await cast(Awaitable[wire_18.ExecutionsStopResponse], self._client.call(request, method=method, timeout=timeout))
-
-    def watch(
-        self, request: wire_18.ExecutionsWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_18.ExecutionsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Executions").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_18.ExecutionsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def steps(
+        self,
+        name: str,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsStepsResponse:
+        request = ExecutionsStepsRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Steps",
+            request,
+            ExecutionsStepsResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.steps",
+        )
+        return response
 
 
 class FilesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.uploads = FilesUploadsResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_uploads = FilesUploadsResource(channel)
 
-    async def delete(self, request: wire_20.FilesDeleteRequest, *, timeout: float | None = None) -> wire_20.FilesDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Files").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_20.FilesDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def uploads(self) -> FilesUploadsResource:
+        return self._composed_uploads
 
-    async def get(self, request: wire_20.FilesGetRequest, *, timeout: float | None = None) -> wire_20.FilesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Files").methods_by_name["Get"]
-        return await cast(Awaitable[wire_20.FilesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        file: FileReference,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesGetResponse:
+        request = FilesGetRequest(file=file, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Files/Get",
+            request,
+            FilesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.get",
+        )
+        return response
 
-    async def read(self, request: wire_20.FilesReadRequest, *, timeout: float | None = None) -> wire_20.FilesReadResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Files").methods_by_name["Read"]
-        return await cast(Awaitable[wire_20.FilesReadResponse], self._client.call(request, method=method, timeout=timeout))
+    async def read(
+        self,
+        file: FileReference,
+        offset: int,
+        max_bytes: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> FilesReadResponse:
+        request = FilesReadRequest(file=file, offset=offset, max_bytes=max_bytes, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Files/Read",
+            request,
+            FilesReadResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.read",
+        )
+        return response
 
-    def watch(self, request: wire_20.FilesWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_20.FilesWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Files").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_20.FilesWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        file: FileReference,
+        offset: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[FilesWatchResponse]:
+        request = FilesWatchRequest(file=file, offset=offset, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Files/Watch",
+            request,
+            FilesWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("files.watch", error) from error
+        finally:
+            call.cancel()
+
+    async def delete(
+        self,
+        file: FileReference,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> Receipt:
+        request = FilesDeleteRequest(file=file, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Files/Delete",
+            request,
+            FilesDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="files.delete",
+        )
+        if not response.HasField("receipt"):
+            raise ValueError("Read Files.Delete: Missing Payload")
+        return response.receipt
 
 
-class InvocationsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class InvocationsResource(LibraryInvocationsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def cancel(self, request: wire_39.InvocationsCancelRequest, *, timeout: float | None = None) -> wire_39.InvocationsCancelResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Invocations").methods_by_name["Cancel"]
-        return await cast(Awaitable[wire_39.InvocationsCancelResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        operation: str,
+        fingerprint: bytes,
+        payload: bytes,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> bytes:
+        request = InvocationsCreateRequest(operation=operation, fingerprint=fingerprint, payload=payload)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Invocations/Create",
+            request,
+            InvocationsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="invocations.create",
+        )
+        return response.payload
 
-    async def get(self, request: wire_39.InvocationsGetRequest, *, timeout: float | None = None) -> wire_39.InvocationsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Invocations").methods_by_name["Get"]
-        return await cast(Awaitable[wire_39.InvocationsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        instance: int,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> InstanceState:
+        request = InvocationsGetRequest(instance=instance)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Invocations/Get",
+            request,
+            InvocationsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="invocations.get",
+        )
+        if not response.HasField("invocation"):
+            raise ValueError("Read Invocations.Get: Missing Payload")
+        return response.invocation
 
-    async def invoke(self, request: wire_39.InvocationsInvokeRequest, *, timeout: float | None = None) -> wire_39.InvocationsInvokeResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Invocations").methods_by_name["Invoke"]
-        return await cast(Awaitable[wire_39.InvocationsInvokeResponse], self._client.call(request, method=method, timeout=timeout))
+    async def cancel(
+        self,
+        instance: int,
+        reason: str,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> InstanceState:
+        request = InvocationsCancelRequest(instance=instance, reason=reason)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Invocations/Cancel",
+            request,
+            InvocationsCancelResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="invocations.cancel",
+        )
+        if not response.HasField("invocation"):
+            raise ValueError("Read Invocations.Cancel: Missing Payload")
+        return response.invocation
 
-    def watch(
-        self, request: wire_39.InvocationsWatchRequest, *, timeout: float | None = None
-    ) -> AsyncIterator[wire_39.InvocationsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Invocations").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_39.InvocationsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        instance: int,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[InstanceState]:
+        request = InvocationsWatchRequest(instance=instance)
+        call = stream(
+            self._channel,
+            "/harmos.host.v1.Invocations/Watch",
+            request,
+            InvocationsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                if not response.HasField("invocation"):
+                    raise ValueError("Read Invocations.Watch: Missing Payload")
+                yield response.invocation
+        except AioRpcError as error:
+            raise call_error("invocations.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class MediaResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.captures = MediaCapturesResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_captures = MediaCapturesResource(channel)
+
+    @property
+    def captures(self) -> MediaCapturesResource:
+        return self._composed_captures
+
+
+class OperationsResource(LibraryOperationsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+
+    async def list(
+        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+    ) -> list[DiscoveredOperation]:
+        request = OperationsListRequest()
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Operations/List",
+            request,
+            OperationsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="operations.list",
+        )
+        return list(response.operations)
+
+    async def get(
+        self,
+        id: str,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> DiscoveredOperation:
+        request = OperationsGetRequest(id=id)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Operations/Get",
+            request,
+            OperationsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="operations.get",
+        )
+        if not response.HasField("operation"):
+            raise ValueError("Read Operations.Get: Missing Payload")
+        return response.operation
 
 
 class PlotsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.settings = PlotsSettingsResource(client)
-        self.snapshots = PlotsSnapshotsResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_settings = PlotsSettingsResource(channel)
+        self._composed_snapshots = PlotsSnapshotsResource(channel)
+
+    @property
+    def settings(self) -> PlotsSettingsResource:
+        return self._composed_settings
+
+    @property
+    def snapshots(self) -> PlotsSnapshotsResource:
+        return self._composed_snapshots
 
 
-class PluginsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.settings = PluginsSettingsResource(client)
+class PluginsResource(LibraryPluginsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+        self._composed_secrets = PluginsSecretsResource(channel)
+        self._composed_settings = PluginsSettingsResource(channel)
 
-    async def create(self, request: wire_40.PluginsCreateRequest, *, timeout: float | None = None) -> wire_40.PluginsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Create"]
-        return await cast(Awaitable[wire_40.PluginsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def secrets(self) -> PluginsSecretsResource:
+        return self._composed_secrets
 
-    async def delete(self, request: wire_40.PluginsDeleteRequest, *, timeout: float | None = None) -> wire_40.PluginsDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_40.PluginsDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def settings(self) -> PluginsSettingsResource:
+        return self._composed_settings
 
-    async def get(self, request: wire_40.PluginsGetRequest, *, timeout: float | None = None) -> wire_40.PluginsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Get"]
-        return await cast(Awaitable[wire_40.PluginsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsGetResponse:
+        request = PluginsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Get",
+            request,
+            PluginsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.get",
+        )
+        return response
 
-    async def list(self, request: wire_40.PluginsListRequest, *, timeout: float | None = None) -> wire_40.PluginsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["List"]
-        return await cast(Awaitable[wire_40.PluginsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsListResponse:
+        request = PluginsListRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/List",
+            request,
+            PluginsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.list",
+        )
+        return response
 
-    async def restart(self, request: wire_40.PluginsRestartRequest, *, timeout: float | None = None) -> wire_40.PluginsRestartResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Restart"]
-        return await cast(Awaitable[wire_40.PluginsRestartResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        *,
+        name: str | None = None,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[PluginsWatchResponse]:
+        request = PluginsWatchRequest(name=name, at=at)
+        call = stream(
+            self._channel,
+            "/harmos.host.v1.Plugins/Watch",
+            request,
+            PluginsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("plugins.watch", error) from error
+        finally:
+            call.cancel()
 
-    async def set(self, request: wire_40.PluginsSetRequest, *, timeout: float | None = None) -> wire_40.PluginsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Set"]
-        return await cast(Awaitable[wire_40.PluginsSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        name: str,
+        placement: PluginPlacement,
+        value: PluginValue,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsCreateResponse:
+        request = PluginsCreateRequest(
+            request_id=request_id if request_id is not None else str(uuid4()), name=name, placement=placement, value=value
+        )
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Create",
+            request,
+            PluginsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.create",
+        )
+        return response
 
-    def watch(self, request: wire_40.PluginsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_40.PluginsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Plugins").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_40.PluginsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        value: PluginValue,
+        expected_revision: bytes,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSetResponse:
+        request = PluginsSetRequest(name=name, value=value, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Set",
+            request,
+            PluginsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.set",
+        )
+        return response
+
+    async def delete(
+        self,
+        name: str,
+        expected_revision: bytes,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> Receipt:
+        request = PluginsDeleteRequest(name=name, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Delete",
+            request,
+            PluginsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.delete",
+        )
+        if not response.HasField("receipt"):
+            raise ValueError("Read Plugins.Delete: Missing Payload")
+        return response.receipt
+
+    async def restart(
+        self,
+        name: str,
+        expected_revision: bytes,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginEntry:
+        request = PluginsRestartRequest(name=name, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Restart",
+            request,
+            PluginsRestartResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.restart",
+        )
+        if not response.HasField("entry"):
+            raise ValueError("Read Plugins.Restart: Missing Payload")
+        return response.entry
+
+    async def replace(
+        self,
+        name: str,
+        placement: PluginPlacement,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsReplaceResponse:
+        request = PluginsReplaceRequest(
+            name=name,
+            placement=placement,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Plugins/Replace",
+            request,
+            PluginsReplaceResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.replace",
+        )
+        return response
 
 
 class PromptDefinitionsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
     async def get(
-        self, request: wire_25.PromptDefinitionsGetRequest, *, timeout: float | None = None
-    ) -> wire_25.PromptDefinitionsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.PromptDefinitions").methods_by_name["Get"]
-        return await cast(Awaitable[wire_25.PromptDefinitionsGetResponse], self._client.call(request, method=method, timeout=timeout))
+        self,
+        name: str,
+        parent: str,
+        schema_version: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PromptDefinitionsGetResponse:
+        request = PromptDefinitionsGetRequest(name=name, parent=parent, schema_version=schema_version, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.PromptDefinitions/Get",
+            request,
+            PromptDefinitionsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="prompt_definitions.get",
+        )
+        return response
 
     async def list(
-        self, request: wire_25.PromptDefinitionsListRequest, *, timeout: float | None = None
-    ) -> wire_25.PromptDefinitionsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.PromptDefinitions").methods_by_name["List"]
-        return await cast(Awaitable[wire_25.PromptDefinitionsListResponse], self._client.call(request, method=method, timeout=timeout))
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PromptDefinitionsListResponse:
+        request = PromptDefinitionsListRequest(parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.PromptDefinitions/List",
+            request,
+            PromptDefinitionsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="prompt_definitions.list",
+        )
+        return response
 
 
 class PromptsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.answers = PromptsAnswersResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_answers = PromptsAnswersResource(channel)
 
-    async def get(self, request: wire_27.PromptsGetRequest, *, timeout: float | None = None) -> wire_27.PromptsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Prompts").methods_by_name["Get"]
-        return await cast(Awaitable[wire_27.PromptsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def answers(self) -> PromptsAnswersResource:
+        return self._composed_answers
 
-    async def list(self, request: wire_27.PromptsListRequest, *, timeout: float | None = None) -> wire_27.PromptsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Prompts").methods_by_name["List"]
-        return await cast(Awaitable[wire_27.PromptsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PromptsGetResponse:
+        request = PromptsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Prompts/Get",
+            request,
+            PromptsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="prompts.get",
+        )
+        return response
 
-    def watch(self, request: wire_27.PromptsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_27.PromptsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Prompts").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_27.PromptsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        pending_only: bool,
+        *,
+        cycle_id: str | None = None,
+        execution_id: str | None = None,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PromptsListResponse:
+        request = PromptsListRequest(
+            parent=parent, cycle_id=cycle_id, execution_id=execution_id, pending_only=pending_only, at=at, page=page
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Prompts/List",
+            request,
+            PromptsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="prompts.list",
+        )
+        return response
+
+    async def watch(
+        self,
+        parent: str,
+        pending_only: bool,
+        *,
+        cycle_id: str | None = None,
+        execution_id: str | None = None,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[PromptsWatchResponse]:
+        request = PromptsWatchRequest(
+            parent=parent, cycle_id=cycle_id, execution_id=execution_id, pending_only=pending_only, at=at, page=page
+        )
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Prompts/Watch",
+            request,
+            PromptsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("prompts.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class RecordSchemasResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_28.RecordSchemasGetRequest, *, timeout: float | None = None) -> wire_28.RecordSchemasGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.RecordSchemas").methods_by_name["Get"]
-        return await cast(Awaitable[wire_28.RecordSchemasGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        parent: str,
+        schema_version: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> RecordSchemasGetResponse:
+        request = RecordSchemasGetRequest(name=name, parent=parent, schema_version=schema_version, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.RecordSchemas/Get",
+            request,
+            RecordSchemasGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="record_schemas.get",
+        )
+        return response
 
-    async def list(self, request: wire_28.RecordSchemasListRequest, *, timeout: float | None = None) -> wire_28.RecordSchemasListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.RecordSchemas").methods_by_name["List"]
-        return await cast(Awaitable[wire_28.RecordSchemasListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> RecordSchemasListResponse:
+        request = RecordSchemasListRequest(parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.RecordSchemas/List",
+            request,
+            RecordSchemasListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="record_schemas.list",
+        )
+        return response
 
 
 class ReportsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def create(self, request: wire_29.ReportsCreateRequest, *, timeout: float | None = None) -> wire_29.ReportsCreateResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Reports").methods_by_name["Create"]
-        return await cast(Awaitable[wire_29.ReportsCreateResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        subject: ReportSubject,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ReportsGetResponse:
+        request = ReportsGetRequest(subject=subject, name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Reports/Get",
+            request,
+            ReportsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="reports.get",
+        )
+        return response
 
-    async def get(self, request: wire_29.ReportsGetRequest, *, timeout: float | None = None) -> wire_29.ReportsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Reports").methods_by_name["Get"]
-        return await cast(Awaitable[wire_29.ReportsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def create(
+        self,
+        subject: ReportSubject,
+        document_id: str,
+        *,
+        at: ReadCut | None = None,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ReportsCreateResponse:
+        request = ReportsCreateRequest(
+            subject=subject, document_id=document_id, at=at, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Reports/Create",
+            request,
+            ReportsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="reports.create",
+        )
+        return response
 
-    async def publish(self, request: wire_29.ReportsPublishRequest, *, timeout: float | None = None) -> wire_29.ReportsPublishResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Reports").methods_by_name["Publish"]
-        return await cast(Awaitable[wire_29.ReportsPublishResponse], self._client.call(request, method=method, timeout=timeout))
+    async def publish(
+        self,
+        name: str,
+        subject: ReportSubject,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ReportsPublishResponse:
+        request = ReportsPublishRequest(
+            name=name,
+            subject=subject,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Reports/Publish",
+            request,
+            ReportsPublishResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="reports.publish",
+        )
+        return response
+
+
+class SchemasResource(LibrarySchemasResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+
+    async def list(
+        self,
+        *,
+        schema: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> list[SchemaDescription]:
+        request = SchemasListRequest(schema=schema)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Schemas/List",
+            request,
+            SchemasListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="schemas.list",
+        )
+        return list(response.schemas)
 
 
 class SecretsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def delete(self, request: wire_30.SecretsDeleteRequest, *, timeout: float | None = None) -> wire_30.SecretsDeleteResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Delete"]
-        return await cast(Awaitable[wire_30.SecretsDeleteResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsGetResponse:
+        request = SecretsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/Get",
+            request,
+            SecretsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.get",
+        )
+        return response
 
-    async def export(self, request: wire_30.SecretsExportRequest, *, timeout: float | None = None) -> wire_30.SecretsExportResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Export"]
-        return await cast(Awaitable[wire_30.SecretsExportResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        name: str,
+        value: SecretWritable,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsSetResponse:
+        request = SecretsSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/Set",
+            request,
+            SecretsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.set",
+        )
+        return response
 
-    async def get(self, request: wire_30.SecretsGetRequest, *, timeout: float | None = None) -> wire_30.SecretsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Get"]
-        return await cast(Awaitable[wire_30.SecretsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsListResponse:
+        request = SecretsListRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/List",
+            request,
+            SecretsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.list",
+        )
+        return response
 
-    async def import_(self, request: wire_30.SecretsImportRequest, *, timeout: float | None = None) -> wire_30.SecretsImportResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Import"]
-        return await cast(Awaitable[wire_30.SecretsImportResponse], self._client.call(request, method=method, timeout=timeout))
+    async def watch(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[SecretsWatchResponse]:
+        request = SecretsWatchRequest(at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Secrets/Watch",
+            request,
+            SecretsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("secrets.watch", error) from error
+        finally:
+            call.cancel()
 
-    async def list(self, request: wire_30.SecretsListRequest, *, timeout: float | None = None) -> wire_30.SecretsListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["List"]
-        return await cast(Awaitable[wire_30.SecretsListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def delete(
+        self,
+        names: Sequence[str],
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsDeleteResponse:
+        request = SecretsDeleteRequest(
+            names=names, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/Delete",
+            request,
+            SecretsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.delete",
+        )
+        return response
 
-    async def set(self, request: wire_30.SecretsSetRequest, *, timeout: float | None = None) -> wire_30.SecretsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Set"]
-        return await cast(Awaitable[wire_30.SecretsSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def export(
+        self,
+        names: Sequence[str],
+        generation: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsExportResponse:
+        request = SecretsExportRequest(names=names, generation=generation, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/Export",
+            request,
+            SecretsExportResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.export",
+        )
+        return response
 
-    def watch(self, request: wire_30.SecretsWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_30.SecretsWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Secrets").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_30.SecretsWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    async def import_(
+        self,
+        data: bytes,
+        choices: Sequence[SecretImportChoice],
+        generation: int,
+        validate_only: bool,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SecretsImportResponse:
+        request = SecretsImportRequest(
+            data=data,
+            choices=choices,
+            generation=generation,
+            validate_only=validate_only,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Secrets/Import",
+            request,
+            SecretsImportResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="secrets.import",
+        )
+        return response
 
 
 class SettingsResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_31.SettingsGetRequest, *, timeout: float | None = None) -> wire_31.SettingsGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Settings").methods_by_name["Get"]
-        return await cast(Awaitable[wire_31.SettingsGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SettingsGetResponse:
+        request = SettingsGetRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Settings/Get",
+            request,
+            SettingsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="settings.get",
+        )
+        return response
 
-    async def schema(self, request: wire_31.SettingsSchemaRequest, *, timeout: float | None = None) -> wire_31.SettingsSchemaResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Settings").methods_by_name["Schema"]
-        return await cast(Awaitable[wire_31.SettingsSchemaResponse], self._client.call(request, method=method, timeout=timeout))
+    async def set(
+        self,
+        value: ApplicationSettings,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SettingsSetResponse:
+        request = SettingsSetRequest(
+            value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Settings/Set",
+            request,
+            SettingsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="settings.set",
+        )
+        return response
 
-    async def set(self, request: wire_31.SettingsSetRequest, *, timeout: float | None = None) -> wire_31.SettingsSetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Settings").methods_by_name["Set"]
-        return await cast(Awaitable[wire_31.SettingsSetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def schema(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SettingsSchemaResponse:
+        request = SettingsSchemaRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Settings/Schema",
+            request,
+            SettingsSchemaResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="settings.schema",
+        )
+        return response
 
 
-class StatusResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.diagnostics = StatusDiagnosticsResource(client)
-        self.logs = StatusLogsResource(client)
-        self.trace_events = StatusTraceEventsResource(client)
+class StatusResource(LibraryStatusResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+        self._composed_diagnostics = StatusDiagnosticsResource(channel)
+        self._composed_logs = StatusLogsResource(channel)
+        self._composed_trace_events = StatusTraceEventsResource(channel)
 
-    async def get(self, request: wire_44.StatusGetRequest, *, timeout: float | None = None) -> wire_44.StatusGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Status").methods_by_name["Get"]
-        return await cast(Awaitable[wire_44.StatusGetResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def diagnostics(self) -> StatusDiagnosticsResource:
+        return self._composed_diagnostics
 
-    def watch(self, request: wire_44.StatusWatchRequest, *, timeout: float | None = None) -> AsyncIterator[wire_44.StatusWatchResponse]:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Status").methods_by_name["Watch"]
-        return cast(AsyncIterator[wire_44.StatusWatchResponse], self._client.call(request, method=method, timeout=timeout))
+    @property
+    def logs(self) -> StatusLogsResource:
+        return self._composed_logs
+
+    @property
+    def trace_events(self) -> StatusTraceEventsResource:
+        return self._composed_trace_events
+
+    async def get(
+        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+    ) -> StatusGetResponse:
+        request = StatusGetRequest()
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Status/Get",
+            request,
+            StatusGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="status.get",
+        )
+        return response
+
+    async def watch(
+        self,
+        *,
+        at: Position | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[StatusWatchResponse]:
+        request = StatusWatchRequest(at=at)
+        call = stream(
+            self._channel,
+            "/harmos.host.v1.Status/Watch",
+            request,
+            StatusWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("status.watch", error) from error
+        finally:
+            call.cancel()
 
 
 class StorageResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.sources = StorageSourcesResource(client)
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+        self._composed_sources = StorageSourcesResource(channel)
+
+    @property
+    def sources(self) -> StorageSourcesResource:
+        return self._composed_sources
 
 
 class StreamSchemasResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_33.StreamSchemasGetRequest, *, timeout: float | None = None) -> wire_33.StreamSchemasGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.StreamSchemas").methods_by_name["Get"]
-        return await cast(Awaitable[wire_33.StreamSchemasGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        parent: str,
+        schema_version: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StreamSchemasGetResponse:
+        request = StreamSchemasGetRequest(name=name, parent=parent, schema_version=schema_version, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.StreamSchemas/Get",
+            request,
+            StreamSchemasGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="stream_schemas.get",
+        )
+        return response
 
-    async def list(self, request: wire_33.StreamSchemasListRequest, *, timeout: float | None = None) -> wire_33.StreamSchemasListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.StreamSchemas").methods_by_name["List"]
-        return await cast(Awaitable[wire_33.StreamSchemasListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> StreamSchemasListResponse:
+        request = StreamSchemasListRequest(parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.StreamSchemas/List",
+            request,
+            StreamSchemasListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="stream_schemas.list",
+        )
+        return response
+
+
+class StreamsResource(LibraryStreamsResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+
+    async def list(
+        self,
+        *,
+        schema: str | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> list[StreamIdentity]:
+        request = StreamsListRequest(schema=schema)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Streams/List",
+            request,
+            StreamsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="streams.list",
+        )
+        return list(response.streams)
 
 
 class SuitesResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
 
-    async def get(self, request: wire_34.SuitesGetRequest, *, timeout: float | None = None) -> wire_34.SuitesGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Suites").methods_by_name["Get"]
-        return await cast(Awaitable[wire_34.SuitesGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self,
+        name: str,
+        parent: str,
+        schema_version: int,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SuitesGetResponse:
+        request = SuitesGetRequest(name=name, parent=parent, schema_version=schema_version, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Suites/Get",
+            request,
+            SuitesGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="suites.get",
+        )
+        return response
 
-    async def list(self, request: wire_34.SuitesListRequest, *, timeout: float | None = None) -> wire_34.SuitesListResponse:
-        method = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Suites").methods_by_name["List"]
-        return await cast(Awaitable[wire_34.SuitesListResponse], self._client.call(request, method=method, timeout=timeout))
+    async def list(
+        self,
+        parent: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SuitesListResponse:
+        request = SuitesListRequest(parent=parent, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Suites/List",
+            request,
+            SuitesListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="suites.list",
+        )
+        return response
 
 
-class TimeResource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
+class TimeResource(LibraryTimeResource):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
 
-    async def get(self, request: wire_45.TimeGetRequest, *, timeout: float | None = None) -> wire_45.TimeGetResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Time").methods_by_name["Get"]
-        return await cast(Awaitable[wire_45.TimeGetResponse], self._client.call(request, method=method, timeout=timeout))
+    async def get(
+        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+    ) -> Timestamp:
+        request = TimeGetRequest()
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Time/Get",
+            request,
+            TimeGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="time.get",
+        )
+        if not response.HasField("now"):
+            raise ValueError("Read Time.Get: Missing Payload")
+        return response.now
 
-    async def sleep(self, request: wire_45.TimeSleepRequest, *, timeout: float | None = None) -> wire_45.TimeSleepResponse:
-        method = descriptor_pool.Default().FindServiceByName("harmos.v1.Time").methods_by_name["Sleep"]
-        return await cast(Awaitable[wire_45.TimeSleepResponse], self._client.call(request, method=method, timeout=timeout))
+    async def sleep(
+        self,
+        duration: Duration,
+        *,
+        call_metadata: CallMetadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> TimeSleepResponse:
+        request = TimeSleepRequest(duration=duration)
+        response = await unary(
+            self._channel,
+            "/harmos.host.v1.Time/Sleep",
+            request,
+            TimeSleepResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="time.sleep",
+        )
+        return response
 
 
-class Resource:
-    def __init__(self, client: Caller) -> None:
-        self._client = client
-        self.access = AccessResource(client)
-        self.aggregates = AggregatesResource(client)
-        self.analyses = AnalysesResource(client)
-        self.backend = BackendResource(client)
-        self.cases = CasesResource(client)
-        self.catalog_entries = CatalogEntriesResource(client)
-        self.content = ContentResource(client)
-        self.cycles = CyclesResource(client)
-        self.documents = DocumentsResource(client)
-        self.evidence = EvidenceResource(client)
-        self.executions = ExecutionsResource(client)
-        self.files = FilesResource(client)
-        self.invocations = InvocationsResource(client)
-        self.media = MediaResource(client)
-        self.plots = PlotsResource(client)
-        self.plugins = PluginsResource(client)
-        self.prompt_definitions = PromptDefinitionsResource(client)
-        self.prompts = PromptsResource(client)
-        self.record_schemas = RecordSchemasResource(client)
-        self.reports = ReportsResource(client)
-        self.secrets = SecretsResource(client)
-        self.settings = SettingsResource(client)
-        self.status = StatusResource(client)
-        self.storage = StorageResource(client)
-        self.stream_schemas = StreamSchemasResource(client)
-        self.suites = SuitesResource(client)
-        self.time = TimeResource(client)
+class ClientRoot(LibraryClient):
+    def __init__(self, channel: Channel) -> None:
+        super().__init__(channel)
+        self._channel = channel
+        self._composed_access = AccessResource(channel)
+        self._composed_aggregates = AggregatesResource(channel)
+        self._composed_analyses = AnalysesResource(channel)
+        self._composed_backend = BackendResource(channel)
+        self._composed_cases = CasesResource(channel)
+        self._composed_content = ContentResource(channel)
+        self._composed_cycles = CyclesResource(channel)
+        self._composed_documents = DocumentsResource(channel)
+        self._composed_evidence = EvidenceResource(channel)
+        self._composed_executions = ExecutionsResource(channel)
+        self._composed_files = FilesResource(channel)
+        self._composed_invocations = InvocationsResource(channel)
+        self._composed_media = MediaResource(channel)
+        self._composed_operations = OperationsResource(channel)
+        self._composed_plots = PlotsResource(channel)
+        self._composed_plugins = PluginsResource(channel)
+        self._composed_prompt_definitions = PromptDefinitionsResource(channel)
+        self._composed_prompts = PromptsResource(channel)
+        self._composed_record_schemas = RecordSchemasResource(channel)
+        self._composed_reports = ReportsResource(channel)
+        self._composed_schemas = SchemasResource(channel)
+        self._composed_secrets = SecretsResource(channel)
+        self._composed_settings = SettingsResource(channel)
+        self._composed_status = StatusResource(channel)
+        self._composed_storage = StorageResource(channel)
+        self._composed_stream_schemas = StreamSchemasResource(channel)
+        self._composed_streams = StreamsResource(channel)
+        self._composed_suites = SuitesResource(channel)
+        self._composed_time = TimeResource(channel)
+
+    @property
+    def access(self) -> AccessResource:
+        return self._composed_access
+
+    @property
+    def aggregates(self) -> AggregatesResource:
+        return self._composed_aggregates
+
+    @property
+    def analyses(self) -> AnalysesResource:
+        return self._composed_analyses
+
+    @property
+    def backend(self) -> BackendResource:
+        return self._composed_backend
+
+    @property
+    def cases(self) -> CasesResource:
+        return self._composed_cases
+
+    @property
+    def content(self) -> ContentResource:
+        return self._composed_content
+
+    @property
+    def cycles(self) -> CyclesResource:
+        return self._composed_cycles
+
+    @property
+    def documents(self) -> DocumentsResource:
+        return self._composed_documents
+
+    @property
+    def evidence(self) -> EvidenceResource:
+        return self._composed_evidence
+
+    @property
+    def executions(self) -> ExecutionsResource:
+        return self._composed_executions
+
+    @property
+    def files(self) -> FilesResource:
+        return self._composed_files
+
+    @property
+    def invocations(self) -> InvocationsResource:
+        return self._composed_invocations
+
+    @property
+    def media(self) -> MediaResource:
+        return self._composed_media
+
+    @property
+    def operations(self) -> OperationsResource:
+        return self._composed_operations
+
+    @property
+    def plots(self) -> PlotsResource:
+        return self._composed_plots
+
+    @property
+    def plugins(self) -> PluginsResource:
+        return self._composed_plugins
+
+    @property
+    def prompt_definitions(self) -> PromptDefinitionsResource:
+        return self._composed_prompt_definitions
+
+    @property
+    def prompts(self) -> PromptsResource:
+        return self._composed_prompts
+
+    @property
+    def record_schemas(self) -> RecordSchemasResource:
+        return self._composed_record_schemas
+
+    @property
+    def reports(self) -> ReportsResource:
+        return self._composed_reports
+
+    @property
+    def schemas(self) -> SchemasResource:
+        return self._composed_schemas
+
+    @property
+    def secrets(self) -> SecretsResource:
+        return self._composed_secrets
+
+    @property
+    def settings(self) -> SettingsResource:
+        return self._composed_settings
+
+    @property
+    def status(self) -> StatusResource:
+        return self._composed_status
+
+    @property
+    def storage(self) -> StorageResource:
+        return self._composed_storage
+
+    @property
+    def stream_schemas(self) -> StreamSchemasResource:
+        return self._composed_stream_schemas
+
+    @property
+    def streams(self) -> StreamsResource:
+        return self._composed_streams
+
+    @property
+    def suites(self) -> SuitesResource:
+        return self._composed_suites
+
+    @property
+    def time(self) -> TimeResource:
+        return self._composed_time

@@ -24,7 +24,7 @@ include!("generated/modules.rs");
 
 /* === Re-Exports === */
 
-pub use dokime::{client::v1 as client, plugin::host::v1 as context, plugin::v1 as plugin, v1};
+pub use dokime::{host::v1 as host, model::v1 as model, plugin::v1 as plugin};
 pub use sources::SOURCES;
 
 /* === Imports === */
@@ -53,7 +53,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("descriptors.bin");
 
 /* === Implementations === */
 
-impl v1::PlotKind {
+impl model::PlotKind {
     /// Parse a declared kind, refusing retired spellings with authoring guidance.
     pub fn parse_name(name: &str) -> Result<Self, String> {
         let short = name.strip_prefix("PLOT_KIND_").unwrap_or(name);

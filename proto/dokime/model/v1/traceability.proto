@@ -13,7 +13,7 @@ import "dokime/model/v1/scalar.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime";
 
 // === Services === //
 
@@ -22,6 +22,11 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // === Resources === //
 
 // TraceabilityEntry value owned by this resource.
-message TraceabilityEntry { .dokime.model.v1.Metadata metadata = 1; .dokime.model.v1.Value value = 2; string source = 3; string unit = 4; }
+message TraceabilityEntry {
+  .dokime.model.v1.Metadata metadata = 1;
+  .dokime.model.v1.Value value = 2;
+  string source = 3;
+  string unit = 4;
+}
 
 // === Enums === //

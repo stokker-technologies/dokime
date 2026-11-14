@@ -134,25 +134,6 @@ impl Store {
         )?;
         Ok(())
     }
-    pub fn save_plugin_administration(
-        &self, entries: &dokime_protocol::client::PluginEntries, installations: &dokime_protocol::client::InstallationPage,
-        executables: &dokime_protocol::v1::MapValue,
-    ) -> Result<()> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        for (key, payload) in [
-            ("plugin-entries", entries.encode_to_vec()),
-            ("plugin-installations", installations.encode_to_vec()),
-            ("managed-executables", executables.encode_to_vec()),
-        ] {
-            transaction.execute(
-                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                params![key, payload],
-            )?;
-        }
-        transaction.commit()?;
-        Ok(())
-    }
     pub fn compare_administration<T: Message>(&self, key: &str, expected: Option<&T>, value: &T) -> Result<bool> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
