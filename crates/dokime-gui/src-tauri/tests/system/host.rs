@@ -28,6 +28,7 @@ use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
 use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
@@ -394,9 +395,31 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let admitted = session
-                .execute(session.client().plugins.create_with("desktop.plot", placement, PluginValue { enabled: true }, options))
+                .execute(session.client().plugins.create_with("desktop_plot", placement, PluginValue { enabled: true }, options))
                 .await?;
-            assert!(!admitted.entry.unwrap().name.is_empty());
+            let mut entry = admitted.entry.ok_or("Admit Desktop Fixture: Missing Entry")?;
+            let options = PluginsWatchOptions {
+                name: Some(entry.name.clone()),
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let mut watching = session.execute(session.client().plugins.watch_with(options)).await?;
+            while entry.state != PluginState::Ready as i32 {
+                if entry.failure.is_some() || entry.state == PluginState::Stopped as i32 {
+                    return Err(format!("Admit Desktop Fixture: {:?}", entry.failure).into());
+                }
+                session.execute(watching.next()).await?.ok_or("Admit Desktop Fixture: Watch Closed")?;
+                let options = PluginsGetOptions {
+                    context: session.call_options()?,
+                    ..Default::default()
+                };
+                entry = session
+                    .execute(session.client().plugins.get_with(entry.name, options))
+                    .await?
+                    .entry
+                    .ok_or("Admit Desktop Fixture: Entry Removed")?;
+            }
+            drop(watching);
             let suites: SuitesListResponse = session.unary("/dokime.host.v1.Suites/List", SuitesListRequest::default()).await?;
             let suite = suites.values.first().ok_or("Read Suite: Missing Prepared Fixture")?;
             let suite_id = suite.metadata.as_ref().ok_or("Read Suite: Missing Identity")?.identifier.clone();

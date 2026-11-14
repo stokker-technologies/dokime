@@ -23,6 +23,7 @@ use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
 use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
@@ -109,10 +110,27 @@ impl Fixture {
             kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
-            .execute(session.client().plugins.create_with("desktop.thermal", placement, PluginValue { enabled: true }, options))
+            .execute(session.client().plugins.create_with("desktop_thermal", placement, PluginValue { enabled: true }, options))
             .await
             .unwrap();
-        assert!(!admitted.entry.unwrap().name.is_empty());
+        let mut entry = admitted.entry.unwrap();
+        let options = PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let mut watching = session.execute(session.client().plugins.watch_with(options)).await.unwrap();
+        while entry.state != PluginState::Ready as i32 {
+            assert!(entry.failure.is_none(), "Admit Desktop Fixture: {:?}", entry.failure);
+            assert_ne!(entry.state, PluginState::Stopped as i32);
+            session.execute(watching.next()).await.unwrap().expect("Admit Desktop Fixture: Watch Closed");
+            let options = PluginsGetOptions {
+                context: session.call_options().unwrap(),
+                ..Default::default()
+            };
+            entry = session.execute(session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
+        }
+        drop(watching);
         plugin
     }
 
