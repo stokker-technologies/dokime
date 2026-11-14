@@ -16,7 +16,7 @@ import json
 import tempfile
 import tomllib
 import unittest
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -165,6 +165,7 @@ class ChangedPathsTests(unittest.TestCase):
 
             with (
                 patch.object(focused.subprocess, "run", side_effect=execute),
+                patch.object(focused.desktop_bench, "credentials", side_effect=nullcontext),
                 patch.object(
                     focused.cargo, "compiler_environment", return_value={"CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER": "custom-linker"}
                 ) as compiler,
