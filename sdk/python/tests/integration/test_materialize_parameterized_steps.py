@@ -23,8 +23,7 @@ from harmos.plugin import Context as InvocationContext
 from harmos.plugin import Operation, operation
 
 # Third Party Imports
-import dokime
-from dokime import Metadata, Parameter
+from dokime import Failure, Metadata, Parameter
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import ExecutionBinding, RegisteredSelection, SelectionPlan
 from dokime.plugin import Context, Plugin
@@ -83,7 +82,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 self.attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
-                    raise dokime.Failure(
+                    raise Failure(
                         FailureValue(
                             classification=CLASSIFICATION_TRANSIENT,
                             code="retry_measurement",

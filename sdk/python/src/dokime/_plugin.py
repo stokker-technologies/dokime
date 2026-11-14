@@ -52,7 +52,7 @@ from .values import decode
 
 # === Public Exports === #
 
-__all__ = ["Endpoint", "Plugin", "serve"]
+__all__ = ["Endpoint", "Plugin"]
 
 # === Constants === #
 
@@ -230,7 +230,7 @@ class Plugin:
                 secrets=[item.metadata.identifier for item in self.secrets],
             )
             function = handler or template._methods.get(kind)
-            arguments = {}
+            arguments: dict[str, object] = {}
             if kind in ("step", "criterion"):
                 identity = getattr(request, kind)
                 function, arguments = session.case.bindings[kind, identity]
@@ -322,32 +322,15 @@ class Endpoint:
 # === Public Functions === #
 
 
-async def serve(
-    *suites: Suite | type | Plugin,
-    address: str = "127.0.0.1:7001",
-    identifier: str | None = None,
-    version: str = "0.1.0",
-    records: Sequence[Record] = (),
-    requires: Sequence[Operation[Any, Any] | HostOperation] | None = None,
-) -> Endpoint:
-    if len(suites) == 1 and isinstance(suites[0], Plugin):
-        return await suites[0].start(address)
-    values = tuple(_suite(item) for item in suites)
-    if not values:
-        raise ValueError("Serve requires a plugin or at least one suite")
-    plugin = Plugin(identifier or values[0].identifier, version, suites=values, records=records, requires=requires)
-    return await plugin.start(address)
-
-
 # === Private Functions === #
 
 
-def _suite(value: Suite | type | Plugin) -> Suite:
+def _suite(value: Suite | type) -> Suite:
     if isinstance(value, Suite):
         return value
     registered = _SUITES.get(value) if isinstance(value, type) else None
     if not isinstance(registered, Suite):
-        raise TypeError("Expected a Suite or a class decorated with @dokime.suite")
+        raise TypeError("Build Plugin: Supply a Suite or a Class Decorated with suite")
     return registered
 
 

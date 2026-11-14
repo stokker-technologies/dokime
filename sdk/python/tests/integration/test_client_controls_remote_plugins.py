@@ -10,6 +10,7 @@
 
 # === Imports === #
 
+import asyncio
 import unittest
 from collections.abc import AsyncIterator
 
@@ -46,6 +47,8 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         entries: dict[str, PluginEntry] = {}
         authorization: list[str | bytes | None] = []
         identities: list[str] = []
+        watching = asyncio.Event()
+        released = asyncio.Event()
 
         class Plugins(PluginsServicer):
             async def Create(self, request: PluginsCreateRequest, context: ServicerContext) -> PluginsCreateResponse:
@@ -76,6 +79,13 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
             async def Watch(self, request: LogsWatchRequest, context: ServicerContext) -> AsyncIterator[LogsWatchResponse]:
                 authorization.append(dict(context.invocation_metadata() or ()).get("authorization"))
                 yield LogsWatchResponse()
+                if request.max_events == 1:
+                    watching.set()
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        released.set()
+                    return
                 yield LogsWatchResponse(events=[Event(sequence=1)])
 
         # Start the Host Fixture and Connect Through the Public Client.
@@ -117,7 +127,17 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         # Delete the Entry and Close the Owned Connection Twice.
         await client.plugins.delete(created.entry.name, created.entry.revision)
         self.assertEqual(list((await client.plugins.list()).entries), [])
+
+        # Closing the Connection Cancels an Active Watch and Releases Its Handler.
+        watch = client.status.logs.watch(max_events=1, max_bytes=4096)
+        await anext(watch)
+        pending = asyncio.create_task(anext(watch))
+        await watching.wait()
         await client.close()
+        with self.assertRaises(asyncio.CancelledError):
+            await pending
+        await watch.aclose()
+        await released.wait()
         await client.close()
         with self.assertRaises(UsageError):
             await client.plugins.list()

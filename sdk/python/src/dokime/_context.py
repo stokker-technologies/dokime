@@ -139,7 +139,7 @@ class Context:
             ExecutionProgressValue(completed=completed, total=total, label=label), current.revision, request_id=request_id
         )
 
-    async def log(self, text: str, *, severity: Severity.ValueType = Severity.SEVERITY_INFO, request_id: str | None = None) -> None:
+    async def log(self, text: str, *, severity: int = Severity.SEVERITY_INFO, request_id: str | None = None) -> None:
         await self.host.evidence.logs.append(self.execution, cast(Severity, severity), text, await self.now(), request_id=request_id)
 
     async def traceability(
