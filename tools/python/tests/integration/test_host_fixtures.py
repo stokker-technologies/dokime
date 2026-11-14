@@ -53,6 +53,9 @@ class HostFixtureTests(unittest.TestCase):
         for language in ("rust", "python", "csharp", "cpp", "none"):
             with self.subTest(language=language), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
+                (root / "Cargo.toml").write_text(
+                    '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n', encoding="utf-8"
+                )
                 with (
                     patch.object(host_fixtures.configuration, "ROOT", root),
                     patch.object(host_fixtures.subprocess, "run") as run,
@@ -73,10 +76,17 @@ class HostFixtureTests(unittest.TestCase):
                         self.assertEqual(commands[0][-1], commands[1][-1])
                     if language == "csharp":
                         self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
+                    if language == "rust":
+                        reference = next(command for command in commands if command[:2] == ["cargo", "install"])
+                        self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
+                        self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
 
     def test_local_default_builds_present_toolchains_and_preserves_inventory(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            (root / "Cargo.toml").write_text(
+                '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n', encoding="utf-8"
+            )
             output = paths.output(root, "build", "dev") / "fixtures/host"
             output.mkdir(parents=True)
             (output / "fixture").write_bytes(b"fixture")

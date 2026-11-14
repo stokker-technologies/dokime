@@ -39,7 +39,12 @@ class ConformanceStory(unittest.IsolatedAsyncioTestCase):
         # Compose The Language-Neutral Harmos Fixture Through Dokime's Plugin.
         fixture = plugin()
         remote = dokime.Plugin(
-            fixture.id, fixture.version, requires=fixture.requires, sections=fixture.sections, operations=fixture.instance
+            fixture.id,
+            fixture.version,
+            requires=fixture.requires,
+            sections=fixture.sections,
+            messages=fixture.messages,
+            operations=fixture.instance,
         )
         endpoint = await dokime.serve(remote, address="127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)

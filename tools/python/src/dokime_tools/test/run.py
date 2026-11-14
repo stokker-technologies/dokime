@@ -101,6 +101,10 @@ def test(
             command = vitest.run(extra, junit, deadline)
 
         environment["TEST_PROFILE"] = profile
+        if language == "python" and category == "system":
+            environment["HARMOS_CONFORMANCE_HOST"] = str(
+                paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
+            )
         environment["DOKIME_TEST_LANE"] = key
         environment.pop("TEST_REPORT_DIR", None)
         if category == "system":
@@ -174,6 +178,10 @@ def coverage(
             raise policy.TestError("coverage is measured for rust and python")
 
         environment["TEST_PROFILE"] = profile
+        if language == "python" and category in (None, "system"):
+            environment["HARMOS_CONFORMANCE_HOST"] = str(
+                paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
+            )
         environment.pop("TEST_REPORT_DIR", None)
         lane = _lane(
             directory,
@@ -399,7 +407,12 @@ def _lane(
     started = time.time()
     destination = report.location(directory, profile, key)
     native = category == "system"
-    with desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as child_environment:
+    with (
+        desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as scratch_environment,
+        desktop_bench.credentials(scratch_environment)
+        if language == "rust" and category != "unit"
+        else nullcontext(scratch_environment) as child_environment,
+    ):
         if language in SCRIPTS:
             status = _execute(command, cwd, child_environment, timeout_s=rules.deadline(category))
         else:

@@ -280,6 +280,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     Python dokime-sdk composed with the single harmos-sdk; audience-specific builds
     are removed, and a codebase may install itself via main.py. The API should
     look simple and good. Amended by the owner on 2026-11-13.
+    The Python plugin forwards independent messages and record payload types to
+    Harmos's catalog builder, which owns descriptor merging and the catalog digest.
     **Why:** Another host must not reimplement the plugin protocol or depend on this product.
     **Where:** [SDK ownership requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-library-owned-language-sdks),
     [SDK inventory](../openspec/changes/operation-grammar/design.md#sdk-ownership-and-remaining-coverage-facts),

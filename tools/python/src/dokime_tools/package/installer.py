@@ -98,7 +98,19 @@ def bundle(root: Path, profile: str) -> list[Path]:
         ]
         if profile == "dev":
             command.append("--debug")
-        subprocess.run(command, cwd=root / "crates/dokime-gui", env=environment, check=True, creationflags=spawn_flags())
+        result = subprocess.run(
+            command,
+            cwd=root / "crates/dokime-gui",
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            creationflags=spawn_flags(),
+        )
+        print(result.stdout, end="", flush=True)
+        print(result.stderr, end="", file=sys.stderr, flush=True)
+        if result.returncode:
+            raise RuntimeError(f"Package Desktop: Native Bundler Failed ({result.returncode}): {result.stderr.strip()}")
         if hashlib.sha256(staged.read_bytes()).hexdigest() != expected:
             raise ValueError("Package Desktop: Bundler Modified the Product Executable")
         for artifact in sorted((target / mode / "bundle").rglob("*")):

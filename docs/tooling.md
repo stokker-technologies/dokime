@@ -42,10 +42,12 @@ mise -C sdk/cpp run test
 mise run build -- --artifact tests
 ```
 
-Host fixture production builds the Rust reference, content fixture, host and pure Python wheel;
+Host fixture production builds the Rust reference, pinned library conformance host,
+content fixture, product host and pure Python wheel;
 C# and C++ producers use their SDK tasks. `build:host-fixtures --language
 rust|python|csharp|cpp` selects one producer. C++ uses `target/cpp/` with short
-generated and object paths on Windows; cached dependency builds resolve code
+generated and object paths on Windows. Its CMake 4.2 pin supports Visual Studio 18
+and selects the installed Visual Studio generator. Cached dependency builds resolve code
 generators through the same Protobuf/gRPC package targets as uncached builds.
 Fixtures are exported under
 `target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
@@ -53,9 +55,12 @@ Rust starter built through its own mise task. Stories never compile plugins.
 
 `HARMOS_SOURCE`, `DOKIME_HARMOS_CACHE` and `DOKIME_CPP_BUILD_DIR` may select
 workstation source/dependency caches; do not put them in project configuration.
-Python consumes the built pure wheel and the pinned library SDK. Linux stories
-own an isolated session bus/keyring for credential storage; install `dbus` and
-`gnome-keyring`. Windows uses its operating system credential store and removes
+Python consumes the built pure wheel and the pinned library SDK. Python system
+and coverage tasks select the conformance executable from the host fixtures.
+Linux host stories own an isolated session bus/keyring for credential storage;
+install `dbus`, `gnome-keyring` and `libglib2.0-bin`. Native unit tests run without
+a host; connection journeys belong to integration and thermal execution to system.
+Windows uses its operating system credential store and removes
 every disposable root's protected slots through the product removal operation
 before deleting that root, including when a story unwinds.
 

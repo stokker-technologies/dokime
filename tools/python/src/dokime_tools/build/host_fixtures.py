@@ -17,11 +17,12 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import configuration, paths, wheel
+from dokime_tools.build import cargo, configuration, paths, wheel
 from dokime_tools.ci import transport
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
@@ -92,6 +93,38 @@ def build(profile: str, language: str = "auto") -> None:
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
         shutil.copy2(root / "target/debug" / f"dokime-host-next{extension}", output / f"dokime-host-next{extension}")
+
+        # Build The Reference Host From The Same Library Revision As The Product.
+        manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+        library = manifest["workspace"]["dependencies"]["harmos"]
+        subprocess.run(
+            [
+                "cargo",
+                "install",
+                "--git",
+                library["git"],
+                "--rev",
+                library["rev"],
+                "--locked",
+                "--debug",
+                "--force",
+                "--root",
+                str(root / "target/reference-host"),
+                "--target-dir",
+                str(root / "target"),
+                "--bin",
+                "harmos-conformance",
+                "harmos-conformance",
+            ],
+            cwd=root,
+            env=cargo.compiler_environment("dev"),
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        shutil.copy2(root / "target/reference-host/bin" / f"harmos-conformance{extension}", output / f"harmos-conformance{extension}")
 
     # Publish The C# Fixture With Its Runtime And Local SDK Package.
     if "csharp" in languages:

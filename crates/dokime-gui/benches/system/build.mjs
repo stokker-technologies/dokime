@@ -7,7 +7,7 @@ import { copyFile } from "node:fs/promises";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const selected = new Map([
   ["/plots/live-frames.ts", new Map([["applyDocumentPlotMessages", "retained_update"]])],
-  ["/lib/api/native-plots.ts", new Map([["mapNativePlotStreamFrame", "native_frame_adaptation"]])],
+  ["/lib/api/native-plots.ts", new Map([["mapNativePlotWatchPage", "native_frame_adaptation"]])],
 ]);
 
 // Instrument The Existing Owners Only In The Bench Bundle; Shipping Source Is Unchanged.
@@ -50,17 +50,17 @@ await build({
           source = source.replace(
             "frames.push(new Uint8Array(message));",
             `frames.push(new Uint8Array(message));
-          if (path.includes('.Plots/')) globalThis.__desktopBench?.arrival(message.byteLength, frames.length);`,
+          if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.arrival(message.byteLength, frames.length);`,
           );
           source = source.replace(
             "const payload = await call.next();",
             `const __received = performance.now();
           const payload = await call.next();
-          if (path.includes('.Plots/')) globalThis.__desktopBench?.sample('transport_bridge_wait', performance.now() - __received);`,
+          if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('transport_bridge_wait', performance.now() - __received);`,
           );
           source = source.replace(
             "const frame = frames.shift();",
-            `if (path.includes('.Plots/') && globalThis.__desktopBench?.stallUntil > performance.now())
+            `if (path === '/dokime.client.v1.plots.Snapshots/Watch' && globalThis.__desktopBench?.stallUntil > performance.now())
           await new Promise(resolve => setTimeout(resolve, globalThis.__desktopBench.stallUntil - performance.now()));
         const frame = frames.shift();`,
           );

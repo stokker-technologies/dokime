@@ -65,7 +65,6 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--scene", choices=("cycle", "plots", "report", "history", "library", "cycles", "touch"))
     parser.add_argument("--select")
     parser.add_argument("--filterset", help="Select Focused Rust Stories With A Nextest Filterset")
-    parser.add_argument("--artifacts")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
     parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
@@ -248,9 +247,7 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("--features requires a focused package build or test")
     if args.exact or args.target and args.operation != "package":
         parser.error("--exact and --target require a focused test (or --target for package)")
-    if args.operation == "test" and not any(
-        (args.language, args.layer, args.coverage, args.wheel, args.project, args.select, args.artifacts)
-    ):
+    if args.operation == "test" and not any((args.language, args.layer, args.coverage, args.wheel, args.project, args.select)):
         return subprocess.run(
             ["mise", "run", "ci:test", "--", "--profile", args.profile],
             stdin=sys.stdin,
@@ -312,8 +309,6 @@ def main(arguments: list[str] | None = None) -> int:
                         options = profile.copy()
                         if args.select:
                             options += ["--select", args.select]
-                        if args.artifacts and language == "python" and layer in ("acceptance", "system"):
-                            options += ["--artifacts", args.artifacts]
                         tasks.append((f"test:{language}:{layer}", options))
     elif args.operation == "bench":
         layers = [args.layer] if args.layer else ["unit", "integration", "system"]

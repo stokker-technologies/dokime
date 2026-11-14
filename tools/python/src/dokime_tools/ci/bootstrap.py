@@ -38,6 +38,11 @@ from pathlib import Path
 
 # Debian Build and Installer Prerequisites
 GUI_MARKER_PACKAGE = "libwebkit2gtk-4.1-dev"
+CREDENTIAL_STORE_PACKAGES = (
+    "dbus",
+    "gnome-keyring",
+    "libglib2.0-bin",
+)
 GUI_PACKAGES = (
     "git",
     "xz-utils",
@@ -50,7 +55,7 @@ GUI_PACKAGES = (
     "file",
     GUI_MARKER_PACKAGE,
     "libgtk-3-dev",
-    "libayatana-appindicator3-1",
+    "libayatana-appindicator3-dev",
     "libsoup-3.0-dev",
     "libjavascriptcoregtk-4.1-dev",
     "librsvg2-dev",
@@ -60,22 +65,18 @@ GUI_PACKAGES = (
     "libasound2-dev",
     "linux-libc-dev",
     "libclang-dev",
-)
-CREDENTIAL_STORE_PACKAGES = (
-    "dbus",
-    "gnome-keyring",
+    *CREDENTIAL_STORE_PACKAGES,
 )
 GUI_RUNTIME_PACKAGES = (
-    "dbus",
-    "gnome-keyring",
+    *CREDENTIAL_STORE_PACKAGES,
     "libwebkit2gtk-4.1-0",
-    "libgtk-3-0t64",
+    "libgtk-3-0",
     "libayatana-appindicator3-1",
     "libsoup-3.0-0",
     "libjavascriptcoregtk-4.1-0",
     "librsvg2-2",
-    "libasound2t64",
-    "libssl3t64",
+    "libasound2",
+    "libssl3",
 )
 DESKTOP_PACKAGES = (
     "webkit2gtk-driver",
@@ -174,6 +175,11 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False, creden
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
     selected = CREDENTIAL_STORE_PACKAGES if credential_store else GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
+    if runtime:
+        release = platform.freedesktop_os_release()
+        if release.get("ID") == "ubuntu" and tuple(map(int, release["VERSION_ID"].split("."))) >= (24, 4):
+            renamed = {"libgtk-3-0", "libasound2", "libssl3"}
+            selected = tuple(f"{package}t64" if package in renamed else package for package in selected)
     packages = (*selected, *(DESKTOP_PACKAGES if desktop else ()))
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")

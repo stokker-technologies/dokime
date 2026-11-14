@@ -75,6 +75,8 @@ Python decorators register ordinary values. The equivalent explicit form is
 `Suite(identifier, templates=[Template(identifier, instance, steps=[Step(...)],
 criteria=[Criterion(...)])])`, passed to
 `Plugin(identifier, version, suites=[...])` and then `await dokime.serve(plugin)`.
+Pass independent protobuf payload types through `messages=[Payload]`; record payload
+types are registered automatically. Harmos owns their descriptor merging and catalog digest.
 Pass generated `Parameter` and `FileParameter` messages and composed `Document`
 values to `Template`. Duplicate identifiers fail when the plugin is constructed
 or its catalog is built, before its endpoint starts.
