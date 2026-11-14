@@ -28,12 +28,39 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::fixture::{self, Row};
-use dokime_protocol::client::content::{ExecutionFileMetadata, ExecutionFileState};
-use dokime_protocol::v1;
-use dokime_protocol::v1::{
-    DataExpression, FftDetrend, FftWindow, FieldReference, GridAxisEntry, GridDefinition, GridHighlight, PlotFftOptions, Reduction,
-};
+use dokime_protocol::host::content::ExecutionFileMetadata;
+use dokime_protocol::host::content::ExecutionFileState;
+
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::FftDetrend;
+use dokime_protocol::model::FftWindow;
+use dokime_protocol::model::FieldReference;
+use dokime_protocol::model::GridAxisEntry;
+use dokime_protocol::model::GridDefinition;
+use dokime_protocol::model::GridHighlight;
+use dokime_protocol::model::PlotFftOptions;
+use dokime_protocol::model::Reduction;
 use dokime_storage::{BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store, storage_defaults};
+
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::host::UnevaluatedOutcome;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::AggregateExpression;
+use dokime_protocol::model::Metadata;
+use dokime_protocol::model::RecordContract;
+use dokime_protocol::model::RecordContracts;
+use dokime_protocol::model::Termination;
+use dokime_protocol::model::TransformExpression;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::transform_expression;
+use dokime_protocol::model::value;
+use harmos_protocol::model::Declarations;
+use harmos_storage::ExactNumber;
 
 /* === Constants === */
 
@@ -142,7 +169,7 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
     let (column, count) = read(&store, fixed)?;
     assert_eq!(count, 16);
     let peak = column.y.iter().enumerate().max_by(|(_, a), (_, b)| a.value.unwrap().total_cmp(&b.value.unwrap())).unwrap().0;
-    assert_eq!(column.x[peak].kind, Some(v1::value::Kind::Number(0.25)));
+    assert_eq!(column.x[peak].kind, Some(value::Kind::Number(0.25)));
     assert!((column.y[peak].value.unwrap() - 1.0).abs() < 1e-10);
     assert_eq!(read(&store, store.cut("execution")?.frontier)?.0, column);
     let axes = [9, 10, 11].map(|value| GridAxisEntry {
@@ -151,7 +178,7 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
         ..Default::default()
     });
     let cell = DataExpression {
-        kind: Some(v1::data_expression::Kind::Stream(FieldReference {
+        kind: Some(data_expression::Kind::Stream(FieldReference {
             identifier: "readings".into(),
             field: "value".into(),
         })),
@@ -293,9 +320,9 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     store.close_streams("execution")?;
     store.close(
         "execution",
-        v1::Termination::Completed,
-        v1::ExecutionOutcome {
-            attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome::default())),
+        Termination::Completed,
+        ExecutionOutcome {
+            attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
         },
     )?;
     store.seal("execution")?;
@@ -337,22 +364,22 @@ fn large_integer_document_median_is_exact() -> Result<()> {
     }
     store.sample_batch("execution", &samples)?;
     store.flush_samples()?;
-    let input = v1::DataExpression {
-        kind: Some(v1::data_expression::Kind::Stream(v1::FieldReference {
+    let input = DataExpression {
+        kind: Some(data_expression::Kind::Stream(FieldReference {
             identifier: "readings".into(),
             field: "value".into(),
         })),
         ..Default::default()
     };
-    let expression = v1::DataExpression {
-        kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+    let expression = DataExpression {
+        kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
             input: Some(Box::new(input)),
-            kind: v1::Aggregate::Median as i32,
+            kind: Aggregate::Median as i32,
             ..Default::default()
         }))),
         ..Default::default()
     };
-    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(v1::value::Kind::UnsignedInteger(u64::MAX - 1)));
+    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::UnsignedInteger(u64::MAX - 1)));
     let statistics = store.numeric_statistics(&numeric(3))?;
     assert_eq!(statistics.count, 3);
     assert!((statistics.stddev - (2.0f64 / 3.0).sqrt()).abs() < 1e-12);
@@ -362,7 +389,7 @@ fn large_integer_document_median_is_exact() -> Result<()> {
 fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
     let root = tempfile::tempdir()?;
     let base = 1_152_921_504_606_847_975u64;
-    let input = v1::FieldReference::new("readings").field("value");
+    let input = FieldReference::new("readings").field("value");
     {
         let store = Store::open(root.path())?;
         store.create(&fixture::execution())?;
@@ -379,14 +406,14 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
         store.flush_samples()?;
     }
     let store = Store::open(root.path())?;
-    for kind in [v1::value::Kind::Integer(-(base as i64)), v1::value::Kind::UnsignedInteger(base)] {
-        let input = v1::DataExpression {
-            kind: Some(v1::data_expression::Kind::Literal(v1::Value { kind: Some(kind.clone()) })),
+    for kind in [value::Kind::Integer(-(base as i64)), value::Kind::UnsignedInteger(base)] {
+        let input = DataExpression {
+            kind: Some(data_expression::Kind::Literal(Value { kind: Some(kind.clone()) })),
             ..Default::default()
         };
-        for aggregate in [v1::Aggregate::Median, v1::Aggregate::Percentile] {
-            let expression = v1::DataExpression {
-                kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+        for aggregate in [Aggregate::Median, Aggregate::Percentile] {
+            let expression = DataExpression {
+                kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
                     input: Some(Box::new(input.clone())),
                     kind: aggregate as i32,
                     percentile: 95.0,
@@ -402,7 +429,7 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
         let (_, summary, selected) = store.time_series_window(NumericWindow { start_ns, end_ns, ..numeric(101) })?;
         assert_eq!(selected, count);
         for (value, expected) in [(&summary.min, minimum), (&summary.mean, mean), (&summary.max, maximum)] {
-            assert_eq!(value.as_ref().unwrap().kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+            assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
         }
     }
     let statistics = store.numeric_statistics(&numeric(101))?;
@@ -417,13 +444,13 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
         (&statistics.p99, base + 9_900),
         (&statistics.mean, base + 5_000),
     ] {
-        assert_eq!(value.as_ref().unwrap().kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+        assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
     }
     for (kind, expected) in [
-        (v1::Aggregate::Min, statistics.min.as_ref().unwrap()),
-        (v1::Aggregate::Max, statistics.max.as_ref().unwrap()),
-        (v1::Aggregate::Mean, statistics.mean.as_ref().unwrap()),
-        (v1::Aggregate::Sum, statistics.sum.as_ref().unwrap()),
+        (Aggregate::Min, statistics.min.as_ref().unwrap()),
+        (Aggregate::Max, statistics.max.as_ref().unwrap()),
+        (Aggregate::Mean, statistics.mean.as_ref().unwrap()),
+        (Aggregate::Sum, statistics.sum.as_ref().unwrap()),
     ] {
         let (frame, count, _) = store.category_window(
             KindWindow {
@@ -442,36 +469,36 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
     let sum = statistics.sum.as_ref().unwrap();
     assert_eq!(
         sum.kind,
-        Some(v1::value::Kind::Exact(harmos_protocol::storage::ExactNumber {
+        Some(value::Kind::Exact(ExactNumber {
             negative: false,
             numerator: ((base as u128 + 5_000) * 101).to_string(),
             denominator: "1".into(),
         }))
     );
     for (kind, percentile, expected) in [
-        (v1::Aggregate::Median, 0.0, base + 5_000),
-        (v1::Aggregate::Percentile, 5.0, base + 500),
-        (v1::Aggregate::Percentile, 95.0, base + 9_500),
-        (v1::Aggregate::Min, 0.0, base),
-        (v1::Aggregate::Max, 0.0, base + 10_000),
-        (v1::Aggregate::First, 0.0, base),
-        (v1::Aggregate::Last, 0.0, base + 10_000),
-        (v1::Aggregate::Mean, 0.0, base + 5_000),
+        (Aggregate::Median, 0.0, base + 5_000),
+        (Aggregate::Percentile, 5.0, base + 500),
+        (Aggregate::Percentile, 95.0, base + 9_500),
+        (Aggregate::Min, 0.0, base),
+        (Aggregate::Max, 0.0, base + 10_000),
+        (Aggregate::First, 0.0, base),
+        (Aggregate::Last, 0.0, base + 10_000),
+        (Aggregate::Mean, 0.0, base + 5_000),
     ] {
-        let expression = v1::DataExpression {
-            kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+        let expression = DataExpression {
+            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
                 input: Some(Box::new(input.clone())),
                 kind: kind as i32,
                 percentile,
             }))),
             ..Default::default()
         };
-        assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+        assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::UnsignedInteger(expected)));
     }
-    let expression = v1::DataExpression {
-        kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+    let expression = DataExpression {
+        kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
             input: Some(Box::new(input)),
-            kind: v1::Aggregate::Sum as i32,
+            kind: Aggregate::Sum as i32,
             percentile: 0.0,
         }))),
         ..Default::default()
@@ -559,10 +586,10 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> Result<()> {
     }
     assert_eq!(values, (0..23).collect::<Vec<_>>());
     store.close_streams("execution")?;
-    store.close("execution", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+    store.close("execution", Termination::Completed, ExecutionOutcome::default())?;
     store.seal("execution")?;
     let seal = store.cut("execution")?.seal;
-    let response = dokime_protocol::client::ExecutionsDeleteResponse::default();
+    let response = ExecutionsDeleteResponse::default();
     assert!(store.delete_sealed_execution("delete", "execution", &seal, &response).is_err());
     backend.delete_snapshot(&snapshot).await?;
     store.delete_sealed_execution("delete", "execution", &seal, &response)?;
@@ -593,16 +620,16 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let mut execution = fixture::execution();
-    let mut catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice())?;
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
     catalog.types.as_mut().unwrap().file[0].message_type.push(prost_types::DescriptorProto {
         name: Some("Marker".into()),
         ..Default::default()
     });
-    let contracts = v1::RecordContracts {
+    let contracts = RecordContracts {
         records: ["start", "finish"]
             .into_iter()
-            .map(|id| v1::RecordContract {
-                metadata: Some(v1::Metadata {
+            .map(|id| RecordContract {
+                metadata: Some(Metadata {
                     identifier: id.into(),
                     ..Default::default()
                 }),
@@ -618,7 +645,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     store.create(&execution)?;
     store.open_stream("execution", "readings")?;
     for (record, time) in [("start", 2_000_000_000), ("finish", 4_000_000_000), ("start", 6_000_000_000)] {
-        let payload = dokime_protocol::context::evidence::RecordsAppendRequest {
+        let payload = RecordsAppendRequest {
             payload: Vec::new(),
             ..Default::default()
         };
@@ -638,16 +665,16 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     }
     store.sample_batch("execution", &rows)?;
     store.flush_samples()?;
-    let expression = v1::DataExpression {
-        kind: Some(v1::data_expression::Kind::Transform(Box::new(v1::TransformExpression {
-            input: Some(Box::new(v1::DataExpression {
-                kind: Some(v1::data_expression::Kind::Record(v1::FieldReference {
+    let expression = DataExpression {
+        kind: Some(data_expression::Kind::Transform(Box::new(TransformExpression {
+            input: Some(Box::new(DataExpression {
+                kind: Some(data_expression::Kind::Record(FieldReference {
                     identifier: "finish".into(),
                     field: String::new(),
                 })),
                 ..Default::default()
             })),
-            kind: Some(v1::transform_expression::Kind::TimeBetween("start".into())),
+            kind: Some(transform_expression::Kind::TimeBetween("start".into())),
         }))),
         ..Default::default()
     };
@@ -655,19 +682,19 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     let cut = reader.cut("execution")?;
     let selected = reader.plot_selection(
         &cut,
-        &v1::PlotRequest {
+        &PlotRequest {
             stream: "readings".into(),
             y_expressions: vec![expression],
             ..Default::default()
         },
     )?;
-    let Some(v1::data_expression::Kind::Stream(field)) = &selected.request.y_expressions[0].kind else { unreachable!() };
+    let Some(data_expression::Kind::Stream(field)) = &selected.request.y_expressions[0].kind else { unreachable!() };
     let statistics = reader.numeric_statistics(&NumericWindow {
         field: &field.field,
         ..numeric(cut.frontier)
     })?;
     assert_eq!(statistics.count, 2);
-    assert_eq!(statistics.mean.unwrap().kind, Some(v1::value::Kind::Number(2.0)));
+    assert_eq!(statistics.mean.unwrap().kind, Some(value::Kind::Number(2.0)));
     Ok(())
 }
 
@@ -680,7 +707,7 @@ fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let mut definition = fixture::execution();
-    let mut catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
+    let mut catalog = Declarations::decode(definition.catalog.as_slice())?;
     let row = &mut catalog.types.as_mut().unwrap().file[0].message_type[0];
     row.nested_type.push(DescriptorProto {
         name: Some("CountsEntry".into()),

@@ -25,16 +25,15 @@ use std::{
 // Third Party Imports
 use arrow_array::{BooleanArray, StructArray, UInt64Array};
 use arrow_select::filter::filter_record_batch;
+use harmos_query::columnar::{ArrowPage, ArrowScan, ArrowSeek, Cancellation, ColumnKind};
+use harmos_query::transform::{
+    FieldPath, FieldPathExecution, ProjectExecution,
+    project::{Project, Projection},
+};
 use harmos_storage::Error as BackendError;
 use harmos_storage::Result as BackendResult;
-use harmos_storage::query::{
-    FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection,
-    columnar::{ArrowPage, ArrowScan, ArrowSeek, Cancellation, ColumnKind, StorageCapabilities},
-    transform::{
-        FieldPath, FieldPathExecution, ProjectExecution,
-        project::{Project, Projection},
-    },
-};
+use harmos_storage::query::columnar::StorageCapabilities;
+use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection};
 use harmos_storage::{
     BackendFailure, BackendSnapshot, FileChunk, FileMetadata, FileReference, Identifier, ObjectCatalog, ObjectEntry, ObjectKey,
     ObjectPoint, ScanPage, SchemaKey, SchemaWrite, SchemaWriteReceipt, StagedFile, StorageBackend, StorageBatch, StorageCursor,

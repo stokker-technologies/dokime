@@ -25,7 +25,8 @@ use rusqlite::params;
 // Local Imports
 use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
 
-use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
+use dokime_protocol::host::EvidenceStatisticsRequest;
+use dokime_protocol::host::EvidenceStatisticsResponse;
 
 /* === Constants === */
 

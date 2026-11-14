@@ -25,8 +25,14 @@ use prost_types::{
 };
 
 // Local Imports
-use dokime_protocol::v1;
+
 use dokime_storage::{Execution, Sample};
+
+use dokime_protocol::model::Import;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::origin;
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::StreamDeclaration;
 
 /* === Constants === */
 
@@ -81,12 +87,12 @@ pub fn execution() -> Execution {
     Execution {
         identifier: "execution".into(),
         cycle: "cycle".into(),
-        origin: Some(v1::Origin {
-            kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+        origin: Some(Origin {
+            kind: Some(origin::Kind::Import(Import::default())),
         }),
-        catalog: harmos_protocol::v1::Catalog {
+        catalog: Catalog {
             types: Some(types),
-            streams: vec![harmos_protocol::v1::StreamDeclaration {
+            streams: vec![StreamDeclaration {
                 id: "readings".into(),
                 row: "fixture.Row".into(),
                 ..Default::default()

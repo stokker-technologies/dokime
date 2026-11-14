@@ -27,7 +27,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode};
-use harmos_protocol::v1::Sample;
+use harmos_protocol::model::Sample;
 use prost::Message;
 use prost_types::Timestamp;
 use tempfile::TempDir;
@@ -40,17 +40,22 @@ use dokime::{
     prelude::*,
     protocol::plugin::host::v1::{PromptsCreateRequest, evidence::RecordsAppendRequest},
 };
-use dokime_protocol::{
-    builders::Plot,
-    client::{evidence_client::EvidenceClient, files_client::FilesClient},
-};
-use dokime_protocol::{
-    client,
-    context::{PromptsCreateRequest as PromptRequest, PromptsCreateResponse},
-    v1,
-};
+use dokime_protocol::model::Plot;
+use dokime_protocol::host::evidence_client::EvidenceClient;
+use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host;
+use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
+use dokime_protocol::host::PromptsCreateResponse;
 use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, RenderSettings, services};
 use dokime_storage::storage_defaults;
+
+use dokime_protocol::model::Card;
+use dokime_protocol::model::Document;
+use dokime_protocol::model::FieldReference;
+use dokime_protocol::model::Section;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::card;
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -105,8 +110,8 @@ impl Fixture {
         let plugin = host.add_remote(endpoint).await.unwrap();
         let parameters = HashMap::from([(
             "rows".into(),
-            v1::Value {
-                kind: Some(v1::value::Kind::UnsignedInteger(rows as u64)),
+            Value {
+                kind: Some(value::Kind::UnsignedInteger(rows as u64)),
             },
         )]);
         let origin = host.materialize(&plugin, template, parameters).await.unwrap();
@@ -257,18 +262,18 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 let completed = cycle.wait().await.unwrap();
                 assert_eq!(completed.executions[0].samples.len(), 16384, "Prepare Runtime Archive: Retain Every Sample");
                 let snapshot = host.snapshot(&execution).unwrap();
-                let mut pulse = Plot::time_series(v1::FieldReference::new("pulse").field("value")).message;
+                let mut pulse = Plot::time_series(FieldReference::new("pulse").field("value")).message;
                 pulse.display_points = Some(400);
-                let mut spectrum = Plot::frequency_series(v1::FieldReference::new("spectrum").field("value")).message;
+                let mut spectrum = Plot::frequency_series(FieldReference::new("spectrum").field("value")).message;
                 spectrum.sample_rate_hz = Some(100.0);
-                let document = v1::Document::new("Report").section(
-                    v1::Section::new("Readings")
-                        .card(v1::Card {
-                            body: Some(v1::card::Body::Plot(pulse)),
+                let document = Document::new("Report").section(
+                    Section::new("Readings")
+                        .card(Card {
+                            body: Some(card::Body::Plot(pulse)),
                             ..Default::default()
                         })
-                        .card(v1::Card {
-                            body: Some(v1::card::Body::Plot(spectrum)),
+                        .card(Card {
+                            body: Some(card::Body::Plot(spectrum)),
                             ..Default::default()
                         }),
                 );

@@ -21,8 +21,18 @@
 use prost::Message;
 
 // Local Imports
-use dokime_protocol::v1;
+
 use dokime_storage::{Result, Store};
+
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::model::Document;
+use dokime_protocol::model::Import;
+use dokime_protocol::model::Metadata;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::Termination;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -51,26 +61,17 @@ fn report_seal_retains_stored_document_bytes() -> Result<()> {
     store.create(&dokime_storage::Execution {
         identifier: "report".into(),
         cycle: "report".into(),
-        origin: Some(v1::Origin {
-            kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+        origin: Some(Origin {
+            kind: Some(origin::Kind::Import(Import::default())),
         }),
         ..Default::default()
     })?;
-    store.close("report", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+    store.close("report", Termination::Completed, ExecutionOutcome::default())?;
     store.seal("report")?;
     let seal = store.cut("report")?.seal;
-    let document = v1::Document {
-        metadata: Some(v1::Metadata {
-            attributes: (0..7)
-                .map(|index| {
-                    (
-                        format!("field-{index}"),
-                        v1::Value {
-                            kind: Some(v1::value::Kind::Integer(index)),
-                        },
-                    )
-                })
-                .collect(),
+    let document = Document {
+        metadata: Some(Metadata {
+            attributes: (0..7).map(|index| (format!("field-{index}"), Value { kind: Some(value::Kind::Integer(index)) })).collect(),
             ..Default::default()
         }),
         ..Default::default()

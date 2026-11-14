@@ -31,11 +31,13 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use crate::StorageSettings;
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
-use dokime_protocol::context::evidence::RecordsAppendRequest;
-use dokime_protocol::v1::{self, ExecutionOutcome, RecordContracts, Termination};
-use harmos_protocol::v1::Catalog;
-use harmos_protocol::v1::History;
-use harmos_protocol::v1::Receipt;
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::model::RecordContracts;
+use dokime_protocol::model::Termination;
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::History;
+use harmos_protocol::model::Receipt;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
 use std::fs::OpenOptions;
@@ -45,6 +47,9 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use tokio::sync::watch::Sender;
+
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::model::origin;
 
 /* === Constants === */
 
@@ -353,7 +358,7 @@ impl Store {
         require_open(&connection, execution)?;
         let payload: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let execution = Execution::decode(payload.as_slice())?;
-        if !matches!(execution.origin.and_then(|origin| origin.kind), Some(v1::origin::Kind::PluginRun(_))) {
+        if !matches!(execution.origin.and_then(|origin| origin.kind), Some(origin::Kind::PluginRun(_))) {
             return Err(Error::Invalid("Use a Live PluginRun Execution for This Host Call".into()));
         }
         Ok(())
@@ -370,7 +375,9 @@ impl Store {
     pub fn append_requested(
         &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
     ) -> Result<(u64, Receipt)> {
-        use harmos_protocol::v1::{History, Position, Receipt};
+        use harmos_protocol::model::History;
+        use harmos_protocol::model::Position;
+        use harmos_protocol::model::Receipt;
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
         }
@@ -447,11 +454,11 @@ impl Store {
         }
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let mut value = Execution::decode(payload.as_slice())?;
-        let imported = matches!(value.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(v1::origin::Kind::Import(_)));
-        if imported && matches!(outcome.attribution, Some(v1::execution_outcome::Attribution::Evaluated(_))) {
+        let imported = matches!(value.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(origin::Kind::Import(_)));
+        if imported && matches!(outcome.attribution, Some(execution_outcome::Attribution::Evaluated(_))) {
             return Err(Error::Invalid("Close Import: Use an Importer-Declared or Not-Evaluated Outcome".into()));
         }
-        if !imported && matches!(outcome.attribution, Some(v1::execution_outcome::Attribution::Declared(_))) {
+        if !imported && matches!(outcome.attribution, Some(execution_outcome::Attribution::Declared(_))) {
             return Err(Error::Invalid("Close PluginRun: Use a Host-Evaluated or Not-Evaluated Outcome".into()));
         }
         value.termination = termination as i32;
@@ -537,7 +544,7 @@ fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &mu
     if let Some(kind) = evidence.kind.strip_prefix("record:") {
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let definition = Execution::decode(payload.as_slice())?;
-        let catalog = Catalog::decode(definition.catalog.as_slice())?;
+        let catalog = Declarations::decode(definition.catalog.as_slice())?;
         for section in &catalog.sections {
             if section.r#type != "dokime.v1.RecordContracts" {
                 continue;
@@ -580,8 +587,8 @@ fn validate_execution(execution: &Execution) -> Result<()> {
         return Err(Error::Invalid("Create Execution: Supply Execution and Cycle Identities".into()));
     }
     match execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-        Some(v1::origin::Kind::PluginRun(run)) => run.validate().map_err(|error| Error::Invalid(format!("Create Execution: {error}")))?,
-        Some(v1::origin::Kind::Import(_)) => (),
+        Some(origin::Kind::PluginRun(run)) => run.validate().map_err(|error| Error::Invalid(format!("Create Execution: {error}")))?,
+        Some(origin::Kind::Import(_)) => (),
         None => return Err(Error::Invalid("Create Execution: Supply a Frozen PluginRun or Import Origin".into())),
     }
     if execution.outcome.is_some() || execution.termination != Termination::Unspecified as i32 {

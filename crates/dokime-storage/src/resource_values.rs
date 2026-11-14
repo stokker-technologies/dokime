@@ -19,7 +19,9 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::v1::{History, Position, Receipt};
+use harmos_protocol::model::History;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::Receipt;
 use prost::Message;
 use rusqlite::Connection;
 use rusqlite::{OptionalExtension, params};
@@ -27,6 +29,9 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Evidence, Result, Store};
+
+use dokime_protocol::model::TraceabilityEntry;
+use harmos_protocol::model::Declarations;
 
 /* === Constants === */
 
@@ -108,7 +113,7 @@ impl Store {
         let mut value = resolve_value(&transaction, &self.identity, execution, "schemas", at)?;
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let execution = crate::Execution::decode(payload.as_slice())?;
-        let catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(execution.catalog.as_slice())?;
         value.payload = catalog.types.unwrap_or_default().encode_to_vec();
         value.revision = Sha256::digest(&value.payload).to_vec();
         transaction.execute(
@@ -172,7 +177,7 @@ impl Store {
         let mut digest = Sha256::new();
         digest.update(expected_revision);
         if evidence.kind == "traceability" {
-            let mut value = dokime_protocol::v1::TraceabilityEntry::decode(evidence.payload.as_slice())?;
+            let mut value = TraceabilityEntry::decode(evidence.payload.as_slice())?;
             let attributes = value.metadata.as_mut().map(|metadata| std::mem::take(&mut metadata.attributes)).unwrap_or_default();
             let payload = value.encode_to_vec();
             digest.update((payload.len() as u64).to_be_bytes());

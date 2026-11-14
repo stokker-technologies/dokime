@@ -24,6 +24,12 @@ use rusqlite::{OptionalExtension, params};
 // Local Imports
 use crate::{Error, Result, Store};
 
+use dokime_protocol::host::CasesCreateResponse;
+use dokime_protocol::host::PlannedCase;
+use harmos_protocol::model::History;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::Receipt;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -39,7 +45,7 @@ use crate::{Error, Result, Store};
 /* === Implementations === */
 
 impl Store {
-    pub fn registration(&self, key: &str, plan: &[u8]) -> Result<Option<dokime_protocol::client::CasesCreateResponse>> {
+    pub fn registration(&self, key: &str, plan: &[u8]) -> Result<Option<CasesCreateResponse>> {
         let existing: Option<(Vec<u8>, Vec<u8>)> = self
             .lock()?
             .query_row("SELECT plan,payload FROM registrations WHERE key=?1", [key], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -50,12 +56,12 @@ impl Store {
         if previous != plan {
             return Err(Error::Invalid("Register Selection: Reuse the Key with Its Original Plan or Choose a New Key".into()));
         }
-        Ok(Some(dokime_protocol::client::CasesCreateResponse::decode(payload.as_slice())?))
+        Ok(Some(CasesCreateResponse::decode(payload.as_slice())?))
     }
 
     pub fn register_cases(
-        &self, key: Option<&str>, plan: &[u8], cycle: &str, mut reply: dokime_protocol::client::CasesCreateResponse, max_reply_bytes: usize,
-    ) -> Result<dokime_protocol::client::CasesCreateResponse> {
+        &self, key: Option<&str>, plan: &[u8], cycle: &str, mut reply: CasesCreateResponse, max_reply_bytes: usize,
+    ) -> Result<CasesCreateResponse> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         if let Some(key) = key {
@@ -66,7 +72,7 @@ impl Store {
                 if previous != plan {
                     return Err(Error::Invalid("Register Selection: Choose a New Key for the Changed Plan".into()));
                 }
-                return Ok(dokime_protocol::client::CasesCreateResponse::decode(payload.as_slice())?);
+                return Ok(CasesCreateResponse::decode(payload.as_slice())?);
             }
         }
         transaction.execute("INSERT INTO registrations(key,plan,payload) VALUES (?1,?2,X'')", params![key, plan])?;
@@ -76,14 +82,14 @@ impl Store {
             transaction.execute("INSERT INTO cases VALUES (?1,?2,?3)", params![case.case_id, cycle, case.encode_to_vec()])?;
         }
         if let Some(key) = key {
-            let position = harmos_protocol::v1::Position {
-                history: Some(harmos_protocol::v1::History {
+            let position = Position {
+                history: Some(History {
                     store: self.identity.to_string(),
                     epoch: "case-registrations".into(),
                 }),
                 sequence: registration as u64,
             };
-            reply.receipt = Some(harmos_protocol::v1::Receipt {
+            reply.receipt = Some(Receipt {
                 request_id: key.into(),
                 accepted_at: Some(position.clone()),
                 durable_at: Some(position),
@@ -98,19 +104,16 @@ impl Store {
         Ok(reply)
     }
 
-    pub fn planned_case(&self, identifier: &str) -> Result<dokime_protocol::client::PlannedCase> {
+    pub fn planned_case(&self, identifier: &str) -> Result<PlannedCase> {
         let payload: Vec<u8> = self.lock()?.query_row("SELECT payload FROM cases WHERE id=?1", [identifier], |row| row.get(0))?;
-        Ok(dokime_protocol::client::PlannedCase::decode(payload.as_slice())?)
+        Ok(PlannedCase::decode(payload.as_slice())?)
     }
 
-    pub fn planned_cases(&self, cycle: &str) -> Result<Vec<dokime_protocol::client::PlannedCase>> {
+    pub fn planned_cases(&self, cycle: &str) -> Result<Vec<PlannedCase>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM cases WHERE cycle=?1 ORDER BY rowid")?;
         let payloads = statement.query_map([cycle], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(payloads
-            .iter()
-            .map(|payload| dokime_protocol::client::PlannedCase::decode(payload.as_slice()))
-            .collect::<std::result::Result<_, _>>()?)
+        Ok(payloads.iter().map(|payload| PlannedCase::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
     }
 }
 

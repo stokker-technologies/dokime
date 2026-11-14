@@ -20,8 +20,15 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+
 use dokime_storage::{Result, Store};
+
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::model::Import;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::Termination;
+use dokime_protocol::model::origin;
 
 /* === Constants === */
 
@@ -52,8 +59,8 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
         store.create(&dokime_storage::Execution {
             identifier: id.into(),
             cycle: "cycle".into(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::Import(Import::default())),
             }),
             ..Default::default()
         })?;
@@ -88,10 +95,10 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     assert_eq!(store.evidence_entries(0, cut.sequence, std::num::NonZeroUsize::new(10).unwrap(), false)?.len(), 1);
 
     // Deleting Sealed Evidence Explicitly Invalidates a Returned Global Cut.
-    store.close("first", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+    store.close("first", Termination::Completed, ExecutionOutcome::default())?;
     store.seal("first")?;
     let seal = store.cut("first")?.seal;
-    store.delete_sealed_execution("delete", "first", &seal, &dokime_protocol::client::ExecutionsDeleteResponse::default())?;
+    store.delete_sealed_execution("delete", "first", &seal, &ExecutionsDeleteResponse::default())?;
     assert!(store.evidence_position(Some(&cut)).is_err());
     let replacement = store.evidence_position(None)?;
     assert_ne!(replacement.history, cut.history);

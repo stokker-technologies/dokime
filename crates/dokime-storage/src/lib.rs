@@ -22,7 +22,6 @@ mod error;
 mod evidence_positions;
 mod execution;
 mod expressions;
-mod file_uploads;
 mod history;
 mod ipc;
 mod notes;

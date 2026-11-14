@@ -22,8 +22,11 @@ use prost::Message;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::context::evidence::LogsAppendRequest;
-use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Termination};
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::evidence::LogsAppendRequest;
+use dokime_protocol::model::ExecutionProgressValue;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::Termination;
 
 /* === Constants === */
 
@@ -154,7 +157,7 @@ impl ExecutionSnapshot {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "log")
-            .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn progress(&self) -> Result<Vec<ExecutionProgressValue>> {

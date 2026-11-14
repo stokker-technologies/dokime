@@ -28,11 +28,12 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, Store, store::next_position};
-use dokime_protocol::client::content::ArtifactsCreateRequest;
-use dokime_protocol::client::content::ArtifactsCreateResponse;
-use dokime_protocol::client::content::ExecutionFileMetadata;
-use dokime_protocol::client::content::ExecutionFileState;
-use dokime_protocol::v1::{ArtifactMetadata, ArtifactState};
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::content::ArtifactsCreateResponse;
+use dokime_protocol::host::content::ExecutionFileMetadata;
+use dokime_protocol::host::content::ExecutionFileState;
+use dokime_protocol::model::ArtifactMetadata;
+use dokime_protocol::model::ArtifactState;
 use prost_types::Timestamp;
 use std::io::Write;
 
@@ -101,7 +102,9 @@ pub struct ArchivedContentChunk {
 
 impl Store {
     pub fn attach_artifact(&self, operation: &str, request: ArtifactsCreateRequest, now_ns: i64) -> Result<ArtifactsCreateResponse> {
-        use harmos_protocol::v1::{History, Position, Receipt};
+        use harmos_protocol::model::History;
+        use harmos_protocol::model::Position;
+        use harmos_protocol::model::Receipt;
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Create Artifact: Supply a Request ID".into()));
         }

@@ -24,7 +24,9 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, Store, store};
-use dokime_protocol::v1;
+
+use dokime_protocol::host::plots::PlotSettingsValue;
+use dokime_protocol::model::Document;
 
 /* === Constants === */
 
@@ -46,7 +48,7 @@ pub struct Report {
     pub execution_seal: Vec<u8>,
 
     #[prost(message, optional, tag = "4")]
-    pub document: Option<v1::Document>,
+    pub document: Option<Document>,
 
     #[prost(bytes = "vec", tag = "5")]
     pub html: Vec<u8>,
@@ -64,10 +66,10 @@ pub struct Report {
 impl Store {
     pub fn plot_preferences(&self, execution: &str, document: &str, plot: &str) -> Result<Option<(Option<u32>, i32)>> {
         Ok(self
-            .administration::<dokime_protocol::client::plots::PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
+            .administration::<PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
             .map(|value| (value.display_points, value.downsample)))
     }
-    pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: v1::Document, html: Vec<u8>) -> Result<Report> {
+    pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: Document, html: Vec<u8>) -> Result<Report> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let (state, seal): (i32, Vec<u8>) =

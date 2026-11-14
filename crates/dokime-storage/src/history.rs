@@ -23,9 +23,13 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
-use dokime_protocol::client::ExecutionsDeleteResponse;
-use dokime_protocol::v1::{CyclePhase, CycleStatus, CycleSummary, ResultStatus, ResultSummary};
-use harmos_protocol::v1::History;
+use dokime_protocol::host::CyclePhase;
+use dokime_protocol::host::CycleStatus;
+use dokime_protocol::host::CycleSummary;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::host::ResultStatus;
+use dokime_protocol::host::ResultSummary;
+use harmos_protocol::model::History;
 
 /* === Constants === */
 

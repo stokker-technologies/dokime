@@ -24,27 +24,37 @@ use crate::scalar::{self, ScalarValue};
 use crate::{BatchSelection, expressions};
 use crate::{Error, NumericWindow, Result, Store};
 use arrow_array::{Int64Array, StructArray, UInt64Array};
-use dokime_protocol::v1::{
-    self, Aggregate, DataExpression, FftDetrend, FftWindow, FrequencyLevelUnit, GridAxisEntry, GridDefinition, PlotFftOptions,
-    PlotIntervalOptions, PlotWindow, Reduction, Value,
-};
-use harmos_storage::query::Accumulator;
+use dokime_protocol::host::plots::PlotWindow;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::FftDetrend;
+use dokime_protocol::model::FftWindow;
+use dokime_protocol::model::FrequencyLevelUnit;
+use dokime_protocol::model::GridAxisEntry;
+use dokime_protocol::model::GridDefinition;
+use dokime_protocol::model::PlotFftOptions;
+use dokime_protocol::model::PlotIntervalOptions;
+use dokime_protocol::model::Reduction;
+use dokime_protocol::model::Value;
+use harmos_query::Accumulator;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
-use dokime_protocol::client::plots::ContourGrid;
-use dokime_protocol::client::plots::GridCell;
-use dokime_protocol::client::plots::GridFrame;
-use dokime_protocol::client::plots::GridFrames;
-use dokime_protocol::client::plots::NullableNumber;
-use dokime_protocol::client::plots::PlotCartesianMode;
-use dokime_protocol::client::plots::PlotColumn;
-use dokime_protocol::client::plots::PlotFrame;
-use dokime_protocol::client::plots::PlotSigmaBin;
-use dokime_protocol::client::plots::PlotSigmaIntervalAnalysis;
-use dokime_protocol::client::plots::PlotSigmaSeries;
+use dokime_protocol::host::plots::ContourGrid;
+use dokime_protocol::host::plots::GridCell;
+use dokime_protocol::host::plots::GridFrame;
+use dokime_protocol::host::plots::GridFrames;
+use dokime_protocol::host::plots::NullableNumber;
+use dokime_protocol::host::plots::PlotCartesianMode;
+use dokime_protocol::host::plots::PlotColumn;
+use dokime_protocol::host::plots::PlotFrame;
+use dokime_protocol::host::plots::PlotSigmaBin;
+use dokime_protocol::host::plots::PlotSigmaIntervalAnalysis;
+use dokime_protocol::host::plots::PlotSigmaSeries;
 
 use prost_types::Timestamp;
+
+use dokime_protocol::model::data_expression;
 
 /* === Constants === */
 
@@ -493,7 +503,7 @@ impl Store {
         for highlight in &definition.highlights {
             let field = |expression: Option<&DataExpression>| -> Result<String> {
                 match expression.and_then(|expression| expression.kind.as_ref()) {
-                    Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == request.window.stream => {
+                    Some(data_expression::Kind::Stream(reference)) if reference.identifier == request.window.stream => {
                         Ok(reference.field.clone())
                     }
                     _ => Err(Error::Invalid("Query Grid Highlight: Bind Row and Column Expressions to the Selected Stream".into())),

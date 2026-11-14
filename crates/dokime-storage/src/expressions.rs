@@ -26,7 +26,7 @@ use std::{
 use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
 use arrow_schema::{ArrowError, DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
-use harmos_storage::query::{
+use harmos_query::{
     Accumulator, Table, TableWriter,
     transform::{
         FieldPath, FieldPathExecution, Transform,
@@ -43,8 +43,18 @@ use crate::{
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
-use dokime_protocol::v1::{Aggregate, DataExpression, FieldReference, FilterOperator, PlotFilter, RecordContracts};
-use dokime_protocol::{context::evidence::RecordsAppendRequest, v1};
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::FieldReference;
+use dokime_protocol::model::FilterOperator;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::RecordContracts;
+
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::transform_expression;
+use harmos_protocol::model::Declarations;
 
 /* === Constants === */
 
@@ -279,7 +289,7 @@ impl Store {
             )?;
             return Ok(codec.as_ref().clone());
         }
-        let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
         let message = if source.0 {
             let contracts = catalog
                 .sections
@@ -376,13 +386,13 @@ impl Evaluation<'_> {
         if depth > 32 {
             return Err(Error::Data("simplify expression nesting"));
         }
-        use v1::data_expression::Kind;
+        use dokime_protocol::model::data_expression::Kind;
         Ok(match expression.kind.as_ref() {
             Some(Kind::Stream(reference)) => self.field(reference, false, batch, row)?,
             Some(Kind::Record(reference)) => self.field(reference, true, batch, row)?,
             Some(Kind::Literal(value)) => scalar::from_wire(value)?,
             Some(Kind::Parameter(key) | Kind::Dimension(key)) => {
-                let Some(v1::origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|o| o.kind.as_ref()) else {
+                let Some(origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|o| o.kind.as_ref()) else {
                     return Err(Error::Data("select parameters from a PluginRun origin"));
                 };
                 scalar::from_wire(
@@ -392,7 +402,7 @@ impl Evaluation<'_> {
             Some(Kind::Transform(transform)) => {
                 let input = transform.input.as_deref().ok_or(Error::Data("supply the transform input"))?;
                 match transform.kind.as_ref() {
-                    Some(v1::transform_expression::Kind::Detail(field)) => {
+                    Some(transform_expression::Kind::Detail(field)) => {
                         let mut input = input.clone();
                         let reference = match input.kind.as_mut() {
                             Some(Kind::Stream(r) | Kind::Record(r)) => r,
@@ -401,14 +411,14 @@ impl Evaluation<'_> {
                         reference.field = if reference.field.is_empty() { field.clone() } else { format!("{}.{}", reference.field, field) };
                         self.value(&input, batch, row, depth + 1)?
                     }
-                    Some(v1::transform_expression::Kind::Scale(factor)) => ScalarValue::Float(
+                    Some(transform_expression::Kind::Scale(factor)) => ScalarValue::Float(
                         scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("scale a numeric value"))? * factor,
                     ),
-                    Some(v1::transform_expression::Kind::Offset(offset)) => ScalarValue::Float(
+                    Some(transform_expression::Kind::Offset(offset)) => ScalarValue::Float(
                         scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("offset a numeric value"))? + offset,
                     ),
-                    Some(v1::transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
-                    Some(v1::transform_expression::Kind::TimeBetween(previous)) => {
+                    Some(transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
+                    Some(transform_expression::Kind::TimeBetween(previous)) => {
                         let Some(Kind::Record(current)) = input.kind.as_ref() else {
                             return Err(Error::Data("select record occurrences for time between"));
                         };
@@ -559,9 +569,9 @@ fn align(base: &Table, right: &Table, name: &str) -> Result<Table> {
 }
 fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, String)>) {
     match expression.kind.as_ref() {
-        Some(v1::data_expression::Kind::Transform(t)) => {
+        Some(data_expression::Kind::Transform(t)) => {
             if let Some(input) = t.input.as_deref() {
-                if let (Some(v1::transform_expression::Kind::TimeBetween(previous)), Some(v1::data_expression::Kind::Record(current))) =
+                if let (Some(transform_expression::Kind::TimeBetween(previous)), Some(data_expression::Kind::Record(current))) =
                     (&t.kind, &input.kind)
                 {
                     pairs.insert((current.identifier.clone(), previous.clone()));
@@ -569,7 +579,7 @@ fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, 
                 collect_intervals(input, pairs);
             }
         }
-        Some(v1::data_expression::Kind::Aggregate(a)) => {
+        Some(data_expression::Kind::Aggregate(a)) => {
             if let Some(input) = a.input.as_deref() {
                 collect_intervals(input, pairs);
             }
@@ -583,7 +593,7 @@ pub(crate) fn reference(source: &str, field: &str, record: bool) -> DataExpressi
         field: field.into(),
     };
     DataExpression {
-        kind: Some(if record { v1::data_expression::Kind::Record(reference) } else { v1::data_expression::Kind::Stream(reference) }),
+        kind: Some(if record { data_expression::Kind::Record(reference) } else { data_expression::Kind::Stream(reference) }),
         ..Default::default()
     }
 }
@@ -591,7 +601,7 @@ fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<
     if depth > 32 {
         return Err(Error::Data("simplify expression nesting"));
     }
-    use v1::data_expression::Kind;
+    use dokime_protocol::model::data_expression::Kind;
     match expression.kind.as_ref() {
         Some(Kind::Stream(r)) => {
             sources.entry((false, r.identifier.clone())).or_default().insert(r.field.clone());
@@ -600,7 +610,7 @@ fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<
             sources.entry((true, r.identifier.clone())).or_default().insert(r.field.clone());
         }
         Some(Kind::Transform(t)) => {
-            if let Some(v1::transform_expression::Kind::TimeBetween(previous)) = &t.kind {
+            if let Some(transform_expression::Kind::TimeBetween(previous)) = &t.kind {
                 sources.entry((true, previous.clone())).or_default();
             }
             if let Some(input) = t.input.as_deref() {

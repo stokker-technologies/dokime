@@ -24,8 +24,11 @@ use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
-use dokime_protocol::client::executions::ExecutionCommandReceipt;
-use dokime_protocol::v1::CycleSummary;
+use dokime_protocol::host::CycleSummary;
+use dokime_protocol::host::executions::ExecutionCommandReceipt;
+
+use dokime_protocol::host::PlannedCase;
+use dokime_protocol::host::executions::ExecutionCommandPhase;
 
 /* === Constants === */
 
@@ -62,14 +65,12 @@ impl Store {
         let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
         drop(statement);
         for payload in payloads {
-            let mut receipt = dokime_protocol::client::executions::ExecutionCommandReceipt::decode(payload.as_slice())?;
+            let mut receipt = ExecutionCommandReceipt::decode(payload.as_slice())?;
             if matches!(
-                dokime_protocol::client::executions::ExecutionCommandPhase::try_from(receipt.phase),
-                Ok(dokime_protocol::client::executions::ExecutionCommandPhase::Accepted
-                    | dokime_protocol::client::executions::ExecutionCommandPhase::Dispatching
-                    | dokime_protocol::client::executions::ExecutionCommandPhase::Running)
+                ExecutionCommandPhase::try_from(receipt.phase),
+                Ok(ExecutionCommandPhase::Accepted | ExecutionCommandPhase::Dispatching | ExecutionCommandPhase::Running)
             ) {
-                receipt.phase = dokime_protocol::client::executions::ExecutionCommandPhase::Interrupted as i32;
+                receipt.phase = ExecutionCommandPhase::Interrupted as i32;
                 receipt.updated_at = Some(at);
                 receipt.detail = Some("Host Restarted; Inspect the Sealed Execution Before Starting a New Run".into());
                 transaction.execute(
@@ -119,7 +120,7 @@ impl Store {
                 params![execution.identifier, cycle, execution.encode_to_vec()],
             )?;
             let case_payload: Vec<u8> = transaction.query_row("SELECT payload FROM cases WHERE id=?1", [case], |row| row.get(0))?;
-            let case = dokime_protocol::client::PlannedCase::decode(case_payload.as_slice())?;
+            let case = PlannedCase::decode(case_payload.as_slice())?;
             transaction.execute(
                 "INSERT INTO bindings VALUES (?1,?2,?3,0)",
                 params![execution.identifier, case.case_id, case.metadata.map(|metadata| metadata.label).unwrap_or_default()],
@@ -163,7 +164,7 @@ impl Store {
             .lock()?
             .query_row("SELECT payload FROM commands WHERE request=?1 AND id=?2", params![request, id], |row| row.get(0))
             .optional()?;
-        Ok(payload.map(|payload| dokime_protocol::client::executions::ExecutionCommandReceipt::decode(payload.as_slice())).transpose()?)
+        Ok(payload.map(|payload| ExecutionCommandReceipt::decode(payload.as_slice())).transpose()?)
     }
     pub fn save_command(&self, receipt: &ExecutionCommandReceipt) -> Result<()> {
         self.lock()?.execute(

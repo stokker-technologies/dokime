@@ -26,7 +26,7 @@ use std::{
 use arrow_array::{RecordBatch, StructArray};
 use arrow_schema::DataType;
 use arrow_schema::Fields;
-use harmos_storage::query::scalar::ExactNumber;
+use harmos_query::scalar::ExactNumber;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use rusqlite::{Connection, OptionalExtension, params};

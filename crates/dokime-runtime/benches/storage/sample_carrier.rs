@@ -19,16 +19,19 @@
 use std::{error::Error, io::Write};
 
 // Third Party Imports
-use harmos_protocol::{
-    plugin::{
-        InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
-        InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
-        instance_client::InstanceClient,
-        instance_samples_request::Frame,
-        instance_server::{Instance, InstanceServer},
-    },
-    v1::Sample,
-};
+use harmos_protocol::plugin::InstanceGetRequest;
+use harmos_protocol::plugin::InstanceGetResponse;
+use harmos_protocol::plugin::InstanceInvokeRequest;
+use harmos_protocol::plugin::InstanceInvokeResponse;
+use harmos_protocol::plugin::InstanceSamplesRequest;
+use harmos_protocol::plugin::InstanceSamplesResponse;
+use harmos_protocol::plugin::InstanceStopRequest;
+use harmos_protocol::plugin::InstanceStopResponse;
+use harmos_protocol::plugin::instance_client::InstanceClient;
+use harmos_protocol::plugin::instance_samples_request::Frame;
+use harmos_protocol::plugin::instance_server::Instance;
+use harmos_protocol::plugin::instance_server::InstanceServer;
+use harmos_protocol::model::Sample;
 use prost_types::Timestamp;
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_stream::{
