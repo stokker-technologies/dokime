@@ -19,15 +19,16 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use arrow_array::{Float64Array, StructArray, UInt64Array};
 use harmos_protocol::v1::{Catalog, OperationContract};
 use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, Value};
+use prost_reflect::{DescriptorPool, Kind};
 use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::{Error, Resources, Result};
 use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
-use dokime_storage::StatisticsRead;
+use dokime_storage::{BatchSelection, Error as StorageError, NumericWindow, StatisticsRead};
 
 /* === Constants === */
 
@@ -77,8 +78,28 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
         descriptor.get_field_by_name(&request.field)
     }
     .ok_or_else(|| Error::Invalid("Select a Numeric Stream Column".into()))?;
+    if field.is_list()
+        || field.is_map()
+        || !matches!(
+            field.kind(),
+            Kind::Float
+                | Kind::Double
+                | Kind::Int32
+                | Kind::Sint32
+                | Kind::Sfixed32
+                | Kind::Uint32
+                | Kind::Fixed32
+                | Kind::Int64
+                | Kind::Sint64
+                | Kind::Sfixed64
+                | Kind::Uint64
+                | Kind::Fixed64
+        )
+    {
+        return Err(Error::Invalid("Select a Numeric Stream Column".into()));
+    }
     let page_size = NonZeroUsize::new(256).unwrap();
-    let (mut after, through) = resources.store.step_range(&resources.execution, &request.step, snapshot.frontier, page_size)?;
+    let (after, through) = resources.store.step_range(&resources.execution, &request.step, snapshot.frontier, page_size)?;
     let start = after;
     let frontier = resources.store.sample_frontier(&resources.execution, &request.stream, after, through)?;
     let mut key = request.clone();
@@ -91,72 +112,41 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
         resources.evidence("read:statistics", read.encode_to_vec(), None)?;
         return Ok(response);
     }
-    let mut values = Vec::new();
     let mut positions = Vec::new();
-    loop {
-        let page = resources.store.sample_page(&resources.execution, &request.stream, after, through, page_size)?;
-        if page.is_empty() {
-            break;
-        }
-        for sample in page {
-            after = sample.position;
-            positions.push(sample.position);
-            let row = DynamicMessage::decode(descriptor.clone(), sample.row.as_slice())?;
-            let value = match row.get_field(&field).as_ref() {
-                Value::F64(value) => *value,
-                Value::F32(value) => *value as f64,
-                Value::I64(value) => *value as f64,
-                Value::U64(value) => *value as f64,
-                Value::I32(value) => *value as f64,
-                Value::U32(value) => *value as f64,
-                _ => return Err(Error::Invalid("Select a Numeric Stream Column".into())),
-            };
-            if !value.is_finite() {
-                return Err(Error::Invalid("Publish Finite Values Before Computing Statistics".into()));
+    resources.store.read_batches(
+        BatchSelection {
+            execution: &resources.execution,
+            stream: &request.stream,
+            after,
+            through,
+            start_ns: i64::MIN,
+            end_ns: i64::MAX,
+        },
+        &[field.name().into()],
+        |batch| {
+            let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
+            if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>())
+                && column.values().iter().any(|v| !v.is_finite())
+            {
+                return Err(StorageError::Data("Compute Statistics: Publish Finite Values"));
             }
-            values.push(value);
-        }
-    }
-    if values.is_empty() {
-        let response = EvidenceStatisticsResponse {
-            resolved_at: Some(resolved_at),
-            ..Default::default()
-        };
-        let read = StatisticsRead {
-            request: Some(request),
-            positions,
-            response: Some(response.clone()),
-        };
-        resources.store.cache_statistics(&resources.execution, &key, start, frontier, read.clone())?;
-        resources.evidence("read:statistics", read.encode_to_vec(), None)?;
-        return Ok(response);
-    }
-    let first = values[0];
-    let last = values[values.len() - 1];
-    let count = values.len() as u64;
-    let mean = values.iter().sum::<f64>() / count as f64;
-    let stddev = (values.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / count as f64).sqrt();
-    values.sort_by(f64::total_cmp);
-    let percentile = |p: f64| {
-        let index = p * (values.len() - 1) as f64;
-        let low = index.floor() as usize;
-        let high = index.ceil() as usize;
-        values[low] + (values[high] - values[low]) * index.fract()
-    };
-    let response = EvidenceStatisticsResponse {
-        resolved_at: Some(resolved_at),
-        count,
-        min: values[0],
-        max: values[values.len() - 1],
-        mean,
-        stddev,
-        median: percentile(0.5),
-        p05: percentile(0.05),
-        p95: percentile(0.95),
-        p99: percentile(0.99),
-        first,
-        last,
-    };
+            let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+            let values = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+            positions.extend(values.values().iter().copied());
+            Ok(true)
+        },
+    )?;
+    let mut response = resources.store.numeric_statistics(&NumericWindow {
+        execution: &resources.execution,
+        stream: &request.stream,
+        field: field.name(),
+        after,
+        through,
+        start_ns: i64::MIN,
+        end_ns: i64::MAX,
+        bins: NonZeroUsize::MIN,
+    })?;
+    response.resolved_at = Some(resolved_at);
     let read = StatisticsRead {
         request: Some(request),
         positions,

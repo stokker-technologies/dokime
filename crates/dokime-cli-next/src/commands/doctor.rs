@@ -24,6 +24,8 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use crate::Result;
+use crate::settings::Settings;
 
 /* === Constants === */
 
@@ -55,7 +57,7 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
     let Command::Storage(args) = command;
     let root = args.storage.or(settings.storage.clone());
     let scratch = tempfile::Builder::new().prefix("dokime-doctor-").tempdir()?;
@@ -92,20 +94,34 @@ pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -
                     return Err("Incompatible Evidence Root".into());
                 }
                 let mut total = 0u64;
-                for name in ["backend-id", "execution.sqlite3", "execution.sqlite3-wal", "execution.sqlite3-shm"] {
-                    let path = root.join(name);
+                let mut names = ["backend-id", "execution.sqlite3", "execution.sqlite3-wal", "execution.sqlite3-shm"]
+                    .into_iter()
+                    .map(std::path::PathBuf::from)
+                    .collect::<Vec<_>>();
+                if root.join("telemetry").is_dir() {
+                    std::fs::create_dir(copy.join("telemetry"))?;
+                    for entry in std::fs::read_dir(root.join("telemetry"))? {
+                        let entry = entry?;
+                        if !entry.file_type()?.is_file() {
+                            return Err("Diagnose Storage: Preserve Only Regular Telemetry Files".into());
+                        }
+                        names.push(std::path::PathBuf::from("telemetry").join(entry.file_name()));
+                    }
+                }
+                for name in names {
+                    let path = root.join(&name);
                     if !path.exists() {
                         continue;
                     }
                     let input = std::fs::File::open(path)?;
                     total = total.saturating_add(input.metadata()?.len());
                     if total > settings.retained_bytes.get() as u64 {
-                        return Err(crate::error::Error::Capacity("Raise retained_bytes to Diagnose This Database Copy".into()));
+                        return Err(crate::error::Error::Capacity("Raise retained_bytes to Diagnose This Storage Copy".into()));
                     }
-                    let mut output = std::fs::File::create(copy.join(name))?;
+                    let mut output = std::fs::File::create(copy.join(&name))?;
                     let copied = std::io::copy(&mut input.take(settings.retained_bytes.get() as u64 + 1), &mut output)?;
                     if copied > settings.retained_bytes.get() as u64 {
-                        return Err(crate::error::Error::Capacity("Database Copy Exceeds retained_bytes".into()));
+                        return Err(crate::error::Error::Capacity("Storage Copy Exceeds retained_bytes".into()));
                     }
                 }
             }

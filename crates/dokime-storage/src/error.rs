@@ -33,8 +33,20 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Close Arrow Storage: Join Its Flush Worker: {0}")]
+    Worker(#[from] tokio::task::JoinError),
+
     #[error("{0}")]
     NotFound(String),
+
+    #[error("Read Arrow Evidence: {0}; Restore a Valid Backup")]
+    Corrupt(&'static str),
+
+    #[error("Process Arrow Evidence: {0}; Check the Stream Contract")]
+    Data(&'static str),
+
+    #[error("Read Arrow Evidence: Reduce the Selected Batch ({budget}: {reached} > {limit})")]
+    Budget { budget: &'static str, limit: u64, reached: u64 },
 
     #[error("{0}")]
     Conflict(String),
@@ -45,7 +57,7 @@ pub enum Error {
     #[error("{0}")]
     Permission(String),
 
-    #[error("Cannot Open Evidence Root: {0}. Make a backup and choose a fresh root or explicitly reset it")]
+    #[error("Cannot Open Evidence Root: {0}. Select a fresh storage root; the old folder is preserved")]
     Incompatible(String),
 
     #[error("Evidence storage failed; check the storage root and retry: {0}")]
@@ -62,6 +74,18 @@ pub enum Error {
 
     #[error("{0}")]
     Invalid(String),
+
+    #[error("Evaluate Stored Evidence: {0}")]
+    Query(#[from] harmos_storage::Error),
+
+    #[error("Read Stream Summary: Restore a Valid Backup: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Read Stream Preview: Restore a Valid Backup: {0}")]
+    Preview(#[from] postcard::Error),
+
+    #[error("Export Evidence: Check the Archive Destination: {0}")]
+    Zip(#[from] zip::result::ZipError),
 }
 
 /* === Traits === */

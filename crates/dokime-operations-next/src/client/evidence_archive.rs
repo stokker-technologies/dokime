@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::v1::OperationContract;
 
 // Local Imports
+use super::ClientSettings;
 use crate::{Error, Result, client::Context};
+use dokime_protocol::client::EvidenceArchiveRequest;
+use dokime_protocol::client::EvidenceArchiveResponse;
 
 /* === Constants === */
 
@@ -41,15 +44,13 @@ pub const ID: &str = "dokime.client.v1.Evidence/Archive";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<dokime_protocol::client::EvidenceArchiveRequest, dokime_protocol::client::EvidenceArchiveResponse>(
         ID,
         settings.read_timeout,
     )
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::client::EvidenceArchiveRequest,
-) -> Result<dokime_protocol::client::EvidenceArchiveResponse> {
+pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Result<EvidenceArchiveResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let key =
             format!("archive/{}", super::views::hex(&request.subject.as_ref().map(prost::Message::encode_to_vec).unwrap_or_default()));
@@ -62,36 +63,7 @@ pub async fn handle(
                     store.write_execution_archive(execution, &mut file)?
                 }
                 Some(dokime_protocol::client::evidence_subject::Kind::Cycle(cycle)) => {
-                    let mut count = 0;
-                    let mut after = String::new();
-                    loop {
-                        let ids =
-                            store.cycle_execution_page(cycle, &after, std::num::NonZeroUsize::new(context.settings.page_items).unwrap())?;
-                        if ids.is_empty() {
-                            break;
-                        }
-                        for id in ids {
-                            after = id.clone();
-                            if store.metadata(&id)?.execution.cycle != *cycle {
-                                continue;
-                            }
-                            let mut execution = tempfile::tempfile()
-                                .map_err(|error| Error::Invalid(format!("Create Temporary Execution Export: {error}")))?;
-                            store.write_execution_archive(&id, &mut execution)?;
-                            use std::io::{Seek, Write};
-                            let length = execution.stream_position().map_err(|error| Error::Invalid(error.to_string()))?;
-                            let mut prefix = Vec::new();
-                            prost::encoding::encode_key(1, prost::encoding::WireType::LengthDelimited, &mut prefix);
-                            prost::encoding::encode_varint(length, &mut prefix);
-                            file.write_all(&prefix).map_err(|error| Error::Invalid(error.to_string()))?;
-                            execution.rewind().map_err(|error| Error::Invalid(error.to_string()))?;
-                            std::io::copy(&mut execution, &mut file).map_err(|error| Error::Invalid(error.to_string()))?;
-                            count += 1;
-                        }
-                    }
-                    if count == 0 {
-                        return Err(Error::Invalid("Download Evidence: Select an Existing Cycle".into()));
-                    }
+                    store.write_cycle_archive(cycle, std::num::NonZeroUsize::new(context.settings.page_items).unwrap(), &mut file)?;
                 }
                 None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
             }
@@ -102,7 +74,7 @@ pub async fn handle(
                 metadata: Some(harmos_protocol::storage::FileMetadata {
                     id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
                     scope: None,
-                    media_type: "application/protobuf".into(),
+                    media_type: "application/zip".into(),
                     expected_length: Some(length),
                     expected_sha256: Some(digest.clone()),
                 }),

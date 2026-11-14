@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 use std::{io::Write, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 // Third Party Imports
@@ -46,7 +47,7 @@ use dokime_runtime_next::{
 /* === Private Functions === */
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn StdError>> {
     let mut arguments = std::env::args().skip(1);
     let mut endpoint = None;
     let mut root = None;
@@ -69,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
+        storage: dokime_storage::storage_defaults(),
         clock,
         placement: PlacementSettings {
             connect_timeout: Duration::from_secs(30),

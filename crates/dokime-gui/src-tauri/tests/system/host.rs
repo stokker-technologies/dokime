@@ -53,6 +53,7 @@ fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
             clock: Arc::new(ControlledClock::new(0)),
+            storage: Default::default(),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),

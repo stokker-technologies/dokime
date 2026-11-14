@@ -39,8 +39,10 @@ available credential store for secret writes and TLS private-key persistence.
 ## Evidence and Reports
 
 Records are acknowledged scoped host operations. Samples retain their declared
-source time, host receipt time, schema and durable position. The store retains
-Arrow batches alongside exact protobuf evidence and derived indexes. Read pages
+source time, host receipt time, schema and durable position. Samples have one durable representation: typed, ZSTD-compressed Arrow IPC
+files. SQLite catalogs their schema, batch offsets, digests, time/position ranges,
+incremental summaries and previews; records and other product objects remain in
+SQLite. Read pages
 apply configured row/byte limits and reject invalid or changed continuations.
 
 Documents evaluate against fixed evidence selections. HTML rendering creates
@@ -48,6 +50,56 @@ temporary output; downloads do not publish it. Explicit report publication freez
 the selected document and evidence seal. Unsupported plot/document variants fail
 with an action rather than returning incomplete results. See
 [Read and Plot Contracts](query-api.md) and [Supported Host Variants](execution-host.md).
+
+## Storage Roots and Archives
+
+The evidence portion of a root has this layout:
+
+```text
+backend-id
+local.lock
+execution.sqlite3
+execution.sqlite3-wal
+execution.sqlite3-shm
+telemetry/<owner-stream-schema-sha256>.arrow
+```
+
+Each file belongs to one execution, stream and frozen protobuf schema. Contract
+fields become typed Arrow columns under `values`; `_storage` retains position,
+source/receipt nanoseconds and stream sequence. Finalization appends only the Arrow
+footer. Restart truncates an interrupted append to the saved checkpoint before
+continuing; it does not rewrite saved batches. The diagnostics copy includes these
+files and the SQLite files.
+
+Rows are accepted into a bounded live tail. The default flush policy saves at
+65,536 rows or five seconds, under pressure at 64 MiB, and at evidence barriers and
+shutdown. Saved positions advance only after file synchronization and the catalog
+commit. Following reads merge the accepted tail with saved batches; finite reads
+retain their selected saved position. Queries default to a 64 MiB working bound.
+
+The CLI configuration file accepts these storage settings:
+
+```toml
+telemetry_rows = 65536
+telemetry_interval_ms = 5000
+telemetry_pending_bytes = 67108864
+telemetry_query_bytes = 67108864
+```
+
+Embedding hosts receive the same policy through `HostSettings.storage`, including
+adaptive preview bucket settings. Changing settings cannot reconstruct evidence
+that a previous preview discarded; raw files remain available for exact queries.
+
+An execution ZIP contains `evidence.pb`, the original finalized stream files as
+`telemetry/<stream>.arrow`, and `manifest.json` with each stream member's path,
+size and SHA-256. Stream members are copied byte for byte. Evidence seals and
+content hashes are checked during export. A cycle ZIP contains the execution ZIPs
+under `executions/<execution>.zip` and its own size/digest manifest. Deleting sealed
+evidence commits file retirement in SQLite before removing its stream files;
+startup completes interrupted retirement.
+
+Roots from the rebuilt sample-table layout are incompatible. Select a fresh
+storage root; the old folder is preserved. There is no reset or migration.
 
 ## Interfaces
 

@@ -459,3 +459,75 @@ service method-registration API; see the exact boundary in
 [Execution Host](execution-host.md#product-file-resources). Native library operations
 continue to advertise their actual bindings. Plugin-host Watch also needs a child
 stream carrier; ordinary invocation children have one response.
+
+## Arrow File Storage
+
+This implementation preserves invariant 11, **Distinct Storage Guarantees**:
+accepted live rows and a saved finite cut remain different guarantees. Invariant 7,
+**Library Machinery and Product Policy**, places the physical backend in
+`crates/dokime-storage/`; caller adoption through library operations remains 0.H.5.
+
+The root uses `execution.sqlite3` (plus WAL/SHM), `backend-id`, `local.lock` and
+`telemetry/<owner-stream-schema-sha256>.arrow`. The file identity hashes the
+execution, stream and frozen descriptor identity. Samples have no SQLite payload
+or scalar-projection tables. Their only durable representation is typed compressed
+Arrow IPC. SQLite stores file and batch digests/checkpoints, ranges, stream state,
+incremental numeric moments, compact binary adaptive previews and per-field preview
+time bounds. The derived preview payload has an explicit encoding marker; it does
+not encode sample rows. Existing records, resources,
+files, execution metadata and reports retain their SQLite owners.
+
+`ipc.rs` and `ipc/projection.rs` restore the old append/checkpoint/footer machinery
+and bounded projected decoder. Appends synchronize files before committing their
+catalog ranges; failed appends and catalog commits restore file/hash/block
+checkpoints and publish no saved acknowledgement. Finalization appends metadata
+only and commits stream closure in the same catalog transaction. Evidence barriers
+retain the writer connection through the flush and following mutation; shutdown
+closes sample admission under that lock. Pending accepted rows form the live tail; saved cuts exclude
+later positions. Flush policy is owned by `telemetry/config.rs`: 65,536 rows or five
+seconds, pressure at 64 MiB, evidence barriers and shutdown. Host settings compose
+this policy; CLI configuration exposes row, interval, pending and query bounds.
+Shutdown wakes and joins every active timed flusher before releasing its root.
+Record scans use the evidence kind/position index, including payload-free markers;
+they do not depend on a record having scalar fields.
+
+Plot/document readers consume projected batches. The pinned library supplies
+scalar evaluation, bounded accumulators, sorting and downsampling where its current
+query vocabulary fits. Each document render owns one isolated reader for all its
+cards and buffers its HTML output.
+`ordered_merge.rs` contains one as-of merge over two ordered
+Arrow batch iterators, with no product/storage types in its signature. Expression
+binding uses it for stream-to-stream and record-to-stream alignment, record-based
+ranges and grouping, values at records, and paired record intervals. Intervals pair
+the previous record at the current record's time before alignment to later samples.
+Exact integer rank selection spills projected order keys to an ephemeral query
+file once and replays those keys in bounded radix passes, avoiding repeated batch
+decompression and whole-population sorting in memory. Integer ordering and
+interpolation precede conversion at numeric-only protocol boundaries. Integer
+variance uses bounded exact sums of squares, so small spreads above f64 integer
+precision survive. A rational or integer outside the frozen `Value` format is
+refused instead of rounded; numeric-only statistics replies retain their existing
+f64 presentation boundary.
+
+`Backend::for_execution` implements the pinned `StorageBackend` lifecycle, retained
+snapshots and native Arrow scans for an execution history. Native schema identities
+name its declared streams at baseline v1 and scan columns use `_storage.*`/`values.*`.
+Retained tokens bind their original cursor; changing that cursor or schema version
+is refused. Generic
+schema/object/record/sample ports refuse because this pin's `PayloadEncoding`
+contains only `PostcardV1`, while current evidence freezes protobuf descriptors.
+The generic file ports also refuse: current product File resources own a separate
+file history and writer/publication positions, whose mapping belongs to 0.H.5.
+No alternate row encoding or duplicate file owner is installed to conceal those
+boundaries. The backend is implemented here but is not registered by the host yet.
+
+Execution archives copy finalized stream files unchanged under
+`telemetry/<stream>.arrow`; `manifest.json` records paths, sizes and SHA-256, and
+`evidence.pb` retains the sealed execution, records, reports and content. Cycle ZIPs
+contain those execution ZIPs and a manifest. Sealed deletion records stream tombstones
+in its transaction; startup completes pending physical deletion. Retained native
+backend snapshots prevent deletion until their readers release the files.
+
+The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
+`sample_batches` inventory is refused with an action to select a fresh root; no
+existing root is migrated, reset or deleted. Diagnostics copy stream files too.

@@ -16,17 +16,33 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, num::NonZeroUsize, path::Path};
+use std::fs::File;
+use std::{
+    io::{BufWriter, Write},
+    num::NonZeroUsize,
+    path::Path,
+};
 
 // Third Party Imports
 use harmos_protocol::v1 as h;
+use harmos_protocol::v1::Catalog;
+use harmos_protocol::v1::ReadCut;
 use prost::Message;
 
 use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::{Error, Host, Result};
+use dokime_operations_next::Result as OperationsResult;
+use dokime_operations_next::client::HostIdentity;
+use dokime_protocol::client::ReportMetadata;
+use dokime_protocol::client::ReportSubject;
 use dokime_protocol::v1;
+use dokime_protocol::v1::Document;
+use dokime_protocol::v1::DocumentScope;
+use dokime_protocol::v1::Plot;
+use dokime_protocol::v1::PlotFilter;
+use dokime_protocol::v1::Section;
 use dokime_storage::{Execution, ExecutionCut, Report, Store};
 
 /* === Constants === */
@@ -75,7 +91,7 @@ impl RenderedDocument {
     pub fn path(&self) -> &Path {
         self.output.path()
     }
-    pub fn into_file(self) -> std::fs::File {
+    pub fn into_file(self) -> File {
         self.output.into_file()
     }
     pub fn html(&self) -> Result<Vec<u8>> {
@@ -84,9 +100,8 @@ impl RenderedDocument {
 }
 impl Host {
     pub(crate) fn render_report(
-        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
-        identity: &dokime_operations_next::client::HostIdentity, render_settings: crate::RenderSettings,
-    ) -> dokime_operations_next::Result<(std::fs::File, dokime_protocol::client::ReportMetadata)> {
+        &self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>, identity: &HostIdentity, render_settings: RenderSettings,
+    ) -> OperationsResult<(File, ReportMetadata)> {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
@@ -181,12 +196,10 @@ impl Host {
         Ok((file, metadata))
     }
 
-    pub fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)> {
+    pub fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)> {
         self.current_document_in(&self.store, scope, identifier)
     }
-    pub(crate) fn current_document_in(
-        &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
-    ) -> Result<(v1::Document, ExecutionCut)> {
+    pub(crate) fn current_document_in(&self, store: &Store, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)> {
         if scope.execution_id.is_empty() {
             if !identifier.is_empty() && identifier != "default" {
                 return Err(Error::Invalid("Capture Cycle Document: Select the Default Document".into()));
@@ -300,8 +313,16 @@ impl Host {
             _read_cancellation: None,
         })
     }
-    pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
-        let mut output = NamedTempFile::with_prefix("dokime-render-")?;
+    pub fn render_document(&self, snapshot: &FixedSnapshot, document: Document, settings: RenderSettings) -> Result<RenderedDocument> {
+        let (store, cancellation) = snapshot.store.read_session()?;
+        let snapshot = FixedSnapshot {
+            store,
+            cut: snapshot.cut.clone(),
+            counts: snapshot.counts.clone(),
+            _read_cancellation: Some(cancellation),
+        };
+        let mut file = NamedTempFile::with_prefix("dokime-render-")?;
+        let mut output = BufWriter::new(&mut file);
         let title = document.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
         write!(
             output,
@@ -333,7 +354,7 @@ impl Host {
             )
             .map_err(|error| Error::Invalid(error.to_string()))?;
             for section in &expansion.document.sections {
-                render_section(&mut output, snapshot, section, &catalog, settings)?;
+                render_section(&mut output, &snapshot, section, &catalog, settings)?;
             }
             match expansion.next {
                 Some(next) => offset = next,
@@ -342,8 +363,9 @@ impl Host {
         }
         write!(output, "</body></html>")?;
         output.flush()?;
+        drop(output);
         Ok(RenderedDocument {
-            output,
+            output: file,
             execution: snapshot.cut.execution.identifier.clone(),
             execution_seal: snapshot.cut.seal.clone(),
             document,
@@ -362,7 +384,7 @@ impl Host {
 /* === Private Functions === */
 
 fn render_section(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, section: &Section, catalog: &Catalog, settings: RenderSettings,
 ) -> Result<()> {
     if section.repeat.is_some() {
         return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
@@ -427,8 +449,7 @@ fn render_section(
 }
 
 fn render_plot(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
-    settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &Plot, filters: &[PlotFilter], _catalog: &Catalog, settings: RenderSettings,
 ) -> Result<()> {
     let scope = v1::EvidenceScope {
         execution_id: Some(snapshot.cut.execution.identifier.clone()),
@@ -439,9 +460,8 @@ fn render_plot(
         dokime_operations_next::client::document_plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
     request.filters.extend_from_slice(filters);
     request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
-    let (store, _cancel_on_drop) = snapshot.store.read_session()?;
     let envelope = dokime_operations_next::client::plots_snapshots_list::snapshot_at(
-        &store,
+        &snapshot.store,
         &snapshot.cut,
         &request,
         settings.display_points.get().max(4),
@@ -449,10 +469,10 @@ fn render_plot(
         "v1",
     )
     .map_err(|error| Error::Invalid(error.to_string()))?;
-    let presentation = dokime_operations_next::client::document_plot::presentation(&store, &snapshot.cut, plot)?;
+    let presentation = dokime_operations_next::client::document_plot::presentation(&snapshot.store, &snapshot.cut, plot)?;
     crate::plot_html::render(output, plot, &envelope, &presentation)
 }
-fn render_evidence(output: &mut NamedTempFile, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
+fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
     let kind = v1::EvidenceCard::try_from(kind).map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
     write!(output, "<ol>")?;
     if kind == v1::EvidenceCard::Notes {
@@ -580,7 +600,7 @@ fn render_evidence(output: &mut NamedTempFile, snapshot: &FixedSnapshot, kind: i
     write!(output, "</ol>")?;
     Ok(())
 }
-fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [v1::Section]) -> Result<()> {
+fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [Section]) -> Result<()> {
     for section in sections {
         for card in &mut section.cards {
             if let Some(v1::card::Body::Plot(plot)) = &mut card.body {

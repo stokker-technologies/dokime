@@ -125,6 +125,25 @@ and tool pins. `.stkr/project.toml` contains only Hub source policy. Configurati
 under `tools/config/` is selected explicitly. Do not redirect another project's
 Python environment or place TEMP/TMP inside a checkout.
 
+## Storage Benchmarks
+
+```sh
+mise run build -- --artifact bench --binary storage
+mise run bench -- --binary storage
+```
+
+The producer selects the runtime's `storage` benchmark in Cargo's bench profile.
+The consumer checks the exported executable and fixture stamp before running it;
+Criterion keeps native observations under `.stkr/benchmarks/storage/`. This selection
+needs no desktop frontend. It measures durable writes (1,024 rows), a million-row
+window and exact median, finalization (65,536), unchanged-file export (16,384),
+ingest throughput, and three-day documents with 30 plots at the original 307,200,
+1,536,000 and 3,072,000 row densities. The deterministic three-phase waveform and
+three-day time span come from the old workload; settings and datasets are not
+adjusted to meet a timing budget. Document and median measurements capture summary
+values and plot payloads, matching the old cards-and-plots query boundary; they do
+not include HTML serialization or temporary report-file writes.
+
 ## Hosted Validation
 
 Pull requests and Nightly retain native Linux and Windows host/SDK validation.

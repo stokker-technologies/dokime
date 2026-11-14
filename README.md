@@ -28,7 +28,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 - Reusable suites with parameters, ordered steps, observers and criteria.
 - Managed executable plugins and remote gRPC plugins.
-- Scoped records, Arrow sample batches, frozen schemas and sealed evidence.
+- Scoped records, typed Arrow stream files, frozen schemas and sealed evidence.
 - Operator prompts, interactive execution controls and explicit cleanup.
 - Bounded plot/document reads, HTML preview and explicit report publication.
 - Authenticated remote access through the composed library Access services.
