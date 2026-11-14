@@ -14,7 +14,7 @@ No specification lifecycle command or push is authorized for this work.
 
 - [x] Measure the current request-to-draw/refusal path and identify its largest costs.
 - [x] Select visible plots in bounded desktop groups, retaining independent cancellation and updates; close effect dependency and generation identity proof.
-- [x] Share identical plot reads within one host batch and remove redundant full-history work.
+- [x] Share identical plot reads within one host batch and remove redundant full-history work; retain numeric grid-frame keys through reduction and format only returned instants.
 - [x] Select bounded frequency input for long executions and preserve explicit author intent.
 - [x] Prove documents exceeding one watch and frequency plots over long history deterministically; preserve source instants and categorical coordinates at the native renderer handoff exposed by whole-document traversal.
 - [x] Update affected maintained guides and benchmark boundaries; review README impact. Existing README claims and links remain accurate.

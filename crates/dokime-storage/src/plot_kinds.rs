@@ -52,7 +52,7 @@ use prost_types::Timestamp;
 /* === Type Aliases === */
 
 pub type CartesianRead = (PlotFrame, u64, Vec<(String, u64)>);
-type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, ScalarValue, f64, u64)>;
+type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, f64, u64)>;
 
 /* === Structs === */
 
@@ -66,9 +66,24 @@ pub struct KindWindow<'a> {
 
 /* === Enums === */
 
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+enum FrameKey {
+    Instant(i64),
+    Label(String),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl FrameKey {
+    fn label(&self) -> String {
+        match self {
+            Self::Instant(time) => instant(*time),
+            Self::Label(label) => label.clone(),
+        }
+    }
+}
 
 impl Store {
     pub fn cartesian_window(&self, request: KindWindow<'_>) -> Result<CartesianRead> {
@@ -360,21 +375,22 @@ impl Store {
         Ok((grid, count))
     }
 
+    #[tracing::instrument(name = "plot.grid", skip_all)]
     pub fn grid_window(&self, request: KindWindow<'_>, definition: &GridDefinition, reduction: Reduction) -> Result<(GridFrames, u64)> {
-        let frame_key = |input: &Input| -> Result<String> {
+        let frame_key = |input: &Input| -> FrameKey {
             if request.group.is_none() {
-                return Ok(instant(input.time));
+                return FrameKey::Instant(input.time);
             }
             match &input.g {
                 ScalarValue::Float(seconds) if seconds.is_finite() && seconds.abs() < i64::MAX as f64 / 1e9 => {
-                    Ok(instant((seconds * 1e9).round() as i64))
+                    FrameKey::Instant((seconds * 1e9).round() as i64)
                 }
-                value => Ok(text(value.clone())),
+                value => FrameKey::Label(text(value.clone())),
             }
         };
         let mut row_keys = definition.rows.iter().map(|axis| axis.key.clone()).collect::<BTreeSet<_>>();
         let mut column_keys = definition.columns.iter().map(|axis| axis.key.clone()).collect::<BTreeSet<_>>();
-        let mut grouped = BTreeMap::<String, GridReduction>::new();
+        let mut grouped = BTreeMap::<FrameKey, GridReduction>::new();
         let mut examined = 0;
         self.kind_values(&request, |row| {
             if missing(&row.x) || missing(&row.z) {
@@ -394,29 +410,30 @@ impl Store {
                 return Err(Error::Invalid("Read Grid Chart: Select Fewer Rows or Columns to Fit One Complete Frame".into()));
             }
             let maximum_frames = request.limit / cells;
-            let frame = frame_key(&row)?;
+            let frame = frame_key(&row);
             if grouped.len() >= maximum_frames && grouped.first_key_value().is_some_and(|(first, _)| frame < *first) {
                 return Ok(());
             }
-            let entry = grouped.entry(frame.clone()).or_default().entry((row_key, column_key)).or_insert((
-                row.x,
-                row.z,
-                ScalarValue::Text(frame),
-                row.y,
-                0,
-            ));
-            entry.4 += 1;
-            entry.3 = match reduction {
-                Reduction::Min => entry.3.min(row.y),
-                Reduction::Max => entry.3.max(row.y),
-                _ => entry.3 + (row.y - entry.3) / entry.4 as f64,
+            let entry = grouped.entry(frame).or_default().entry((row_key, column_key)).or_insert((row.x, row.z, row.y, 0));
+            entry.3 += 1;
+            entry.2 = match reduction {
+                Reduction::Min => entry.2.min(row.y),
+                Reduction::Max => entry.2.max(row.y),
+                _ => entry.2 + (row.y - entry.2) / entry.3 as f64,
             };
             while grouped.len() > maximum_frames {
                 grouped.pop_first();
             }
             Ok(())
         })?;
-        let records = grouped.into_values().flat_map(BTreeMap::into_values).collect::<Vec<_>>();
+        let retained_frames = grouped.keys().cloned().collect::<BTreeSet<_>>();
+        let records = grouped
+            .into_iter()
+            .flat_map(|(frame, cells)| {
+                let frame = frame.label();
+                cells.into_values().map(move |(row, column, value, count)| (row, column, ScalarValue::Text(frame.clone()), value, count))
+            })
+            .collect::<Vec<_>>();
         let axes = |declared: &[GridAxisEntry], index: usize| -> Vec<GridAxisEntry> {
             if !declared.is_empty() {
                 let mut values = declared.to_vec();
@@ -488,10 +505,10 @@ impl Store {
                 group: request.group,
                 limit: request.limit,
             };
-            let mut highlights = BTreeMap::<String, Input>::new();
+            let mut highlights = BTreeMap::<FrameKey, Input>::new();
             self.kind_values(&binding, |row| {
-                let key = frame_key(&row)?;
-                if !frames.contains_key(&key) {
+                let key = frame_key(&row);
+                if !retained_frames.contains(&key) {
                     return Ok(());
                 }
                 if highlights.get(&key).is_none_or(|old| old.position < row.position) {
@@ -500,6 +517,7 @@ impl Store {
                 Ok(())
             })?;
             for (frame, input) in highlights {
+                let frame = frame.label();
                 let (row, column) = (input.x, input.z);
                 let row = rows.iter().position(|axis| axis.key == text(row.clone()));
                 let column = columns.iter().position(|axis| axis.key == text(column.clone()));

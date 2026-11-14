@@ -30,7 +30,9 @@ use sha2::{Digest, Sha256};
 use super::fixture::{self, Row};
 use dokime_protocol::client::content::{ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::v1;
-use dokime_protocol::v1::{FftDetrend, FftWindow, GridAxisEntry, GridDefinition, PlotFftOptions, Reduction};
+use dokime_protocol::v1::{
+    DataExpression, FftDetrend, FftWindow, FieldReference, GridAxisEntry, GridDefinition, GridHighlight, PlotFftOptions, Reduction,
+};
 use dokime_storage::{BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store, storage_defaults};
 
 /* === Constants === */
@@ -148,6 +150,13 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
         label: value.to_string(),
         ..Default::default()
     });
+    let cell = DataExpression {
+        kind: Some(v1::data_expression::Kind::Stream(FieldReference {
+            identifier: "readings".into(),
+            field: "value".into(),
+        })),
+        ..Default::default()
+    };
     let (grid, count) = store.grid_window(
         KindWindow {
             window: numeric(fixed),
@@ -159,6 +168,11 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
         &GridDefinition {
             rows: axes.to_vec(),
             columns: axes.to_vec(),
+            highlights: vec![GridHighlight {
+                row: Some(cell.clone()),
+                column: Some(cell),
+                label: "Selected Cell".into(),
+            }],
             ..Default::default()
         },
         Reduction::Mean,
@@ -169,6 +183,10 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
         ["1970-01-04T00:00:14Z", "1970-01-04T00:00:15Z"]
     );
     assert_eq!(grid.frames[1].values.iter().copied().filter(|value| *value != 0.0).collect::<Vec<_>>(), [9.0]);
+    assert_eq!(
+        grid.frames.iter().flat_map(|frame| frame.highlights.iter().map(|cell| (cell.row, cell.column))).collect::<Vec<_>>(),
+        [(1, 1), (0, 0)]
+    );
     let refused = store.spectrum_window(
         KindWindow {
             window: numeric(fixed),

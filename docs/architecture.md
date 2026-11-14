@@ -534,6 +534,8 @@ Grid previews retain the latest complete frames that fit their declared axes and
 output resolution. A single grid whose rows and columns exceed that resolution
 still refuses. Numeric frame expressions denote source-time seconds; returned
 frame instants are canonical timestamps, including for playback.
+Frame reduction retains typed source-time keys and formats only the bounded
+returned instants; walking a long history does not allocate timestamp text per row.
 `ordered_merge.rs` contains one as-of merge over two ordered
 Arrow batch iterators, with no product/storage types in its signature. Expression
 binding uses it for stream-to-stream and record-to-stream alignment, record-based
