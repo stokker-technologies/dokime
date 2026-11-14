@@ -168,6 +168,7 @@ async function startNative(mode) {
     assert.ok(nativeRoot.startsWith(`${work}${sep}`), "Owned native profile stays inside its fixture directory");
     // Reopened Histories Share The Seed's Credential Slots Until Final Cleanup.
     if (backendMode === "active") await discardHostCredentials(nativeRoot);
+    else await discardHostCredentials(join(nativeRoot, "shell"));
     await rm(nativeRoot, { recursive: true, force: true });
   }
   nativeRoot = await realpath(await mkdtemp(join(work, "native-")));

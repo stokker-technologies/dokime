@@ -130,19 +130,118 @@ Python environment or place TEMP/TMP inside a checkout.
 ```sh
 mise run build -- --artifact bench --binary storage
 mise run bench -- --binary storage
+mise run bench -- --binary storage --once
+mise run build -- --artifact bench --binary system-desktop
+mise run bench -- --language rust --layer system --binary system-desktop --once
 ```
 
 The producer selects the runtime's `storage` benchmark in Cargo's bench profile.
-The consumer checks the exported executable and fixture stamp before running it;
-Criterion keeps native observations under `.stkr/benchmarks/storage/`. This selection
-needs no desktop frontend. It measures durable writes (1,024 rows), a million-row
-window and exact median, finalization (65,536), unchanged-file export (16,384),
-ingest throughput, and three-day documents with 30 plots at the original 307,200,
-1,536,000 and 3,072,000 row densities. The deterministic three-phase waveform and
-three-day time span come from the old workload; settings and datasets are not
-adjusted to meet a timing budget. Document and median measurements capture summary
-values and plot payloads, matching the old cards-and-plots query boundary; they do
-not include HTML serialization or temporary report-file writes.
+The consumer verifies the exported executable and fixture stamp. Storage observations
+and its console report stay under `target/benchmarks/storage/`; desktop observations
+stay under `target/benchmarks/criterion/`. Run producers and consumers sequentially:
+the producer replaces its exported benchmark directory, which Windows locks while
+an executable is running. Storage selection needs no desktop frontend.
+
+Each case prints its timed boundary. `--once` runs one measured iteration per case
+in the bench profile and prints an observation without a statistical estimate or
+baseline promotion. Omit it for the unchanged Criterion sampling configuration.
+Case identities distinguish preview reads, full scans, store admission and runtime
+publication; their baselines must never be interchanged. Benches record durations
+and refusals; stories assert deterministic behavior, never timing or sampled load.
+
+Warm queries use an already queried store. Cold queries include `Store::open` and
+the first query through that new store, with independent codec/query state. They
+do not evict the operating system's file cache or claim cold physical I/O. Fixture
+population is outside query/finalize/export timers. Document cases retain the
+three-day deterministic three-phase waveform, 30 streams/plots and original row
+densities. They capture expansion, count/min/max/mean/RMS tiles and plot payloads
+at 1,500 points; the median case adds one exact-median tile and has one plot.
+Neither includes HTML rendering or report-file writes. The former extra standard
+deviation tile is removed. Full-decode diagnostics consume all fields of every row;
+the LTTB window case uses the product query that must decode all selected rows.
+
+The following Windows x86-64 observations were measured on this workstation
+(AMD Ryzen 9 5950X) on 2026-11-14 with default storage settings and one iteration,
+in milliseconds.
+Old ranges are the recorded cards-and-plots measurements at `43875c422` in
+`docs/product-guide.md`; only the matching warm summary/plot workloads share them.
+They are historical multi-sample ranges, not statistical comparisons with one run.
+
+| Case | Timed Boundary | State | This Machine, ms | Comparable Old Figure, ms |
+| --- | --- | --- | ---: | --- |
+| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 11.556 | No comparable old figure |
+| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.407 / 1.800 | No comparable old figure |
+| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 167.598 / 182.450 | No comparable old figure |
+| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.285 | No comparable old figure |
+| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 6.125 | No comparable old figure |
+| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 8,167.407 | No comparable old figure |
+| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 9,182.036 | No comparable old figure |
+| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 286.488 / 204.213 | 356.91–367.41 warm; no comparable old cold figure |
+| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 24.073 / 27.393 | No comparable old figure |
+| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 22.508 / 25.160 | No comparable old figure |
+| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 23.894 / 25.349 | 39.359–43.803 warm; no comparable old cold figure |
+| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 576.543 | No comparable old figure |
+| Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, sample transport/admission, produced-count record barrier and captured prompt; end/shutdown excluded | Warm host, fresh execution | 63.335 | No comparable old figure |
+| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 80.225 | No comparable old figure |
+| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 16.747 | No comparable old figure |
+
+The runtime fixture uses a benchmark-owned producer speaking the real tick-driven
+Samples protocol, forwarding ordinary invocations to the SDK plugin. Responses
+carry 1,024 samples for runtime workloads and up to 4,096 for desktop history.
+The host uses its controlled clock, validates sequences/source timestamps and
+admits each response through its ordinary batch writer. Desktop history retains
+2,073,600 four-field rows over three days at 8 Hz. Live and late commands publish
+eight real samples; late source times are carried on Samples, not simulated by a
+display-only timestamp. Both producer processes remain owned until cleanup. No
+product test hook or separate storage-admission path exists.
+
+The current host has no public flush-only operation for an active execution;
+runtime publication therefore crosses the ordinary produced-count record barrier,
+which flushes accepted samples before committing evidence. It cannot inherit the
+old publication-plus-flush figure because it includes that record and its prompt
+handoff. Final snapshot joins reread evidence, and combined end/shutdown cannot
+inherit shutdown-only timing.
+Current archives contain sealed database evidence in `evidence.pb`, published
+report evidence and unchanged Arrow files, rather than the retired raw SQLite
+database snapshot. The export fixture retains the original 16,384 one-value pulse
+rows, produced-count record, 400-point pulse plot and empty frequency plot; the
+current Plot contract has no selectable FFT-window field. Transport and destination
+sync/drain are included, so the old export figure is not comparable.
+
+No store format, durability order, budgets or data density changed. The measured
+warm three-day documents remain in tens of milliseconds, and full-row decode is
+below one second per million samples. The host's per-response batch admission
+avoids revalidating the entire pending population once per individual sample.
+
+The desktop workload still contains its original mixed plot kinds. These are
+elapsed observations **to refusal**, not successful drawing latencies. Cold opens
+a fresh host and desktop before the timer; warm first exercises the same view;
+the other cases use the active host. There is no comparable old figure for these
+refused cases. The retained visible failure identifies the frequency refusal
+quoted below for the 30-plot observations.
+
+| Case | Timed Boundary | State | 30 Plots, ms | 100 Plots, ms | Comparable Old Figure |
+| --- | --- | --- | ---: | ---: | --- |
+| Cold | Request through refusal; host/desktop reopen excluded | Cold process, OS cache uncontrolled | 11,871.144 | 86.450 | No comparable old figure |
+| Warm | Request through refusal after warm-up | Warm | 10,164.197 | 18.081 | No comparable old figure |
+| Live | Initial request; 100-plot case also answers producer prompt | Active | 11,540.565 | 76.444 | No comparable old figure |
+| Late | Initial request; 100-plot case also answers late-source prompt | Active | 12,199.464 | 52.052 | No comparable old figure |
+| Zoom | Initial request; zoom blocked by refusal | Active | 12,189.889 | 22.192 | No comparable old figure |
+| Resize | Request and native resize through refusal | Active | 12,820.390 | 336.244 | No comparable old figure |
+| Navigation | Initial request; navigation blocked by refusal | Active | 10,911.475 | 20.215 | No comparable old figure |
+| Stalled | Initial request; 100-plot case also answers 13 producer prompts | Active | 11,421.673 | 1,856.855 | No comparable old figure |
+
+The 30-plot batch refuses with `Process Arrow Evidence: narrow the frequency source
+window to its configured input bound; Check the Stream Contract`. The 100-plot
+batch refuses with `Plots.Watch exceeded the native bounded read contract: more
+than 32 plots`. The first refusal prevents live/late/zoom/navigation/stall actions
+in the 30-plot cases; neither workload measures successful plot delivery. These
+cases retain their original history, kinds and bounds, rather than reducing the
+dataset or raising a budget. The benchmark records a visible failure even while
+the frontend marks it reconnecting, so refusal does not wait for a drawing hang
+guard. Prompt answers use a fresh request identity per question. Cleanup preserves
+copied history credential references until final disposal while always removing
+each disposable shell's independent credentials.
 
 ## Hosted Validation
 

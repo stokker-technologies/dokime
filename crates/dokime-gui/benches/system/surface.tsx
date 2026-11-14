@@ -153,11 +153,12 @@ requestAnimationFrame(presented);
 function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordScope }) {
   const states = useLivePlotPayloads({ enabled: true, plots, scope, windowS: 259200 });
   useLayoutEffect(() => {
+    const refused = (state: (typeof states)[string]) => state.status === "error" || Boolean(state.failure && !state.payload);
     observation.errors = Object.values(states)
-      .filter((state) => state.status === "error")
-      .map((state) => state.error ?? "Unknown plot failure");
-    observation.loadedPlots = Object.values(states).filter((state) => state.payload && state.status !== "error").length;
-    observation.failedPlots = Object.values(states).filter((state) => state.status === "error").length;
+      .filter(refused)
+      .map((state) => state.error ?? state.failure?.message ?? "Unknown plot failure");
+    observation.loadedPlots = Object.values(states).filter((state) => state.payload && !refused(state)).length;
+    observation.failedPlots = Object.values(states).filter(refused).length;
     const started = performance.now();
     requestAnimationFrame(() => requestAnimationFrame(() => observation.sample("presentation_opportunity", performance.now() - started)));
   }, [states]);

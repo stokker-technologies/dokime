@@ -1,5 +1,31 @@
 # gRPC Plugins Tasks
 
+## Storage Benchmark Boundaries
+
+This repair is owned by the sole writer on `fix/storage-bench-boundaries`;
+commits stay local. Source inventory: the desktop system host initializer;
+runtime and desktop benchmark sources and manifest/lock dependencies; their
+benchmark producer/consumer tooling and focused Python stories; batched observer
+admission in `crates/dokime-runtime-next/src/streams.rs` and its deterministic
+round-trip story; the storage reader/cache only if measurements justify a change; `docs/tooling.md`,
+`docs/architecture.md` and this task list. Outcome folding and the four outcome
+regression story modules remain with their separate owner.
+
+- [x] Repair the desktop host initializer alone, compile workspace tests and run the desktop plot/document system story.
+- [x] Name store boundaries honestly; add full scans and freshly opened query, median and document cases with matching historical tile counts.
+- [x] Restore current-host sample publication, execution end/shutdown and durable disk archive measurements, documenting unavailable old boundaries.
+- [x] Load desktop history through the real tick-driven Samples path and obtain measurements, including explicit refusals under the unchanged frequency and 32-plot bounds.
+- [x] Measure the complete bench-profile inventory and record comparable figures and remaining performance limits in the benchmark guide. Review README impact; its existing claims and links are unaffected.
+- [x] Close the source inventory and focused proof for the local candidate; retain the mandatory committed-head gate below.
+
+After committing this repair, the handoff requires `mise run format`, Rust and
+repository checks, locked workspace test compilation, storage integration stories,
+the desktop plot/document system story, every storage/runtime and desktop bench
+case once in the bench profile, and a `cmdkey /list` comparison proving these runs
+leave no additional `.dokime.access` entries. This is final proof, not a claim made
+by source closure. Keep the two desktop refusals above distinct from successful
+drawing and retain any other failing proof as a repair obligation.
+
 ## Face Split Story Repairs
 
 This checkout has one writer on `fix/face-split-stories`; commits remain local.

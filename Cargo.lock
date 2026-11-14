@@ -1465,6 +1465,7 @@ dependencies = [
  "dokime-runtime-next",
  "dokime-storage",
  "futures-util",
+ "harmos-protocol",
  "harmos-runtime",
  "image",
  "percent-encoding",

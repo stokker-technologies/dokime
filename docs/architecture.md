@@ -480,6 +480,9 @@ later positions. Flush policy is owned by `telemetry/config.rs`: 65,536 rows or 
 seconds, pressure at 64 MiB, evidence barriers and shutdown. Host settings compose
 this policy; CLI configuration exposes row, interval, pending and query bounds.
 Shutdown wakes and joins every active timed flusher before releasing its root.
+The host admits each tick response through one `sample_batch` call after validating
+its sequence and source timestamps. Batching preserves every producer sample,
+including late source times, and retains the same file-sync-before-catalog order.
 Record scans use the evidence kind/position index, including payload-free markers;
 they do not depend on a record having scalar fields.
 

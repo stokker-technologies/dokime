@@ -67,8 +67,13 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--filterset", help="Select Focused Rust Stories With A Nextest Filterset")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
+    parser.add_argument("--once", action="store_true", help="Run Each Selected Benchmark Case Once")
     parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
     args = parser.parse_args(arguments)
+    if args.once and args.operation != "bench":
+        parser.error("--once requires bench")
+    if args.once and args.refresh_baseline:
+        parser.error("--once cannot promote a benchmark baseline")
     if args.cargo is not None:
         if args.operation != "build" or args.package or not args.cargo or args.cargo[0] not in ("build", "check", "rustc"):
             parser.error("--cargo requires build and a native build, check or rustc command")
@@ -316,7 +321,10 @@ def main(arguments: list[str] | None = None) -> int:
             if args.language not in (None, "rust") or args.refresh_baseline:
                 parser.error("storage benchmarks use Rust and native Criterion output; baseline promotion is separate")
             layers = []
-            tasks = [("bench:rust:storage", ["--select", args.select] if args.select else [])]
+            options = ["--select", args.select] if args.select else []
+            if args.once:
+                options += ["--once"]
+            tasks = [("bench:rust:storage", options)]
         if "acceptance" in layers:
             parser.error("bench layers are unit, integration and system")
         for language in [args.language] if args.language else ["rust"]:
@@ -324,6 +332,10 @@ def main(arguments: list[str] | None = None) -> int:
                 if language != "rust" and (language != "python" or layer != "system"):
                     continue
                 options = ["--refresh-baseline"] if args.refresh_baseline else []
+                if args.once:
+                    if language != "rust":
+                        parser.error("--once selects native Rust benchmarks")
+                    options += ["--once"]
                 if args.binary:
                     options += ["--binary", args.binary]
                 if args.select:
