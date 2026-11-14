@@ -1,8 +1,6 @@
 <Solution>
-  <Project Path="Dokime.csproj" />
+  <Project Path="src/Dokime/Dokime.csproj" />
   <Project Path="tests/Builders/Builders.csproj" />
   <Project Path="tests/Stories/Stories.csproj" />
-  <Project Path="tests/Conformance/Conformance.csproj" />
-  <Project Path="tests/SystemPlugin/SystemPlugin.csproj" />
-  <Project Path="starter/Starter.csproj" />
+  <Project Path="../tests/fixtures/csharp/Conformance/Conformance.csproj" />
 </Solution>

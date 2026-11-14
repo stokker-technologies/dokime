@@ -50,10 +50,11 @@ def main() -> None:
                     break
             else:
                 raise RuntimeError("Plugin Exited Before Readiness")
-            subprocess.run([story, address, placement], check=True, creationflags=creationflags)
-            if placement == "managed":
-                if process.wait() != 0:
-                    raise RuntimeError("Managed Plugin Failed on Exit")
+            subprocess.run(
+                [story, address, placement], check=True, creationflags=creationflags, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr
+            )
+            if placement == "managed" and process.wait() != 0:
+                raise RuntimeError("Managed Plugin Failed on Exit")
         finally:
             if process.poll() is None:
                 process.terminate()

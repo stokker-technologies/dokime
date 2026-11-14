@@ -11,7 +11,7 @@
 
 /* === Imports === */
 
-#include <stdexcept>
+#include <catch2/catch_test_macros.hpp>
 
 /* === Macros === */
 
@@ -22,8 +22,8 @@
 /* === Classes === */
 
 inline void check(bool condition, const char *message) {
-  if (!condition)
-    throw std::runtime_error(message);
+  INFO(message);
+  REQUIRE(condition);
 }
 
 /* === Templates === */

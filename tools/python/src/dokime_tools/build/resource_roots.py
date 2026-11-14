@@ -142,10 +142,10 @@ def generate(check: bool = False) -> None:
     declarations.append("}")
     outputs = [
         "sdk/resources.json",
-        "sdk/python/src/dokime/resources.json",
+        "sdk/python/src/dokime/generated/resources.py",
         "sdk/rust/src/client/resources.rs",
-        "sdk/csharp/Dokime/Resources.cs",
-        "sdk/csharp/Dokime/ClientResources.cs",
+        "sdk/csharp/src/Dokime/Generated/Resources.g.cs",
+        "sdk/csharp/src/Dokime/Generated/ClientResources.g.cs",
         "sdk/cpp/include/dokime/resources.hpp",
     ]
     with tempfile.TemporaryDirectory(prefix="dokime-sdk-roots-") as scratch:
@@ -153,7 +153,41 @@ def generate(check: bool = False) -> None:
         for path in outputs:
             (output / path).parent.mkdir(parents=True, exist_ok=True)
         (output / outputs[0]).write_text(json.dumps(methods, indent=2) + "\n", encoding="utf-8", newline="\n")
-        (output / outputs[1]).write_text(json.dumps(clients, indent=2) + "\n", encoding="utf-8", newline="\n")
+        renderer = runpy.run_path(str(root / "sdk/python/tools/resources.py"))
+        renderer["resources"](output / outputs[1], descriptors, clients)
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "--project",
+                "tools/python",
+                "ruff",
+                "check",
+                "--config",
+                "sdk/python/ruff.toml",
+                "--select",
+                "I,F401",
+                "--fix",
+                str(output / outputs[1]),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "--project",
+                "tools/python",
+                "ruff",
+                "format",
+                "--config",
+                "sdk/python/ruff.toml",
+                str(output / outputs[1]),
+            ],
+            check=True,
+        )
         generator["rust"](output, clients, target=output / outputs[2])
         # The Pinned Library's Rust Renderer Predates Explicit Product Client Packages.
         rust = (output / outputs[2]).read_text(encoding="utf-8")

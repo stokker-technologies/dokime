@@ -63,6 +63,7 @@ def main() -> None:
         python = install / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         starter = install / "starter"
         shutil.copytree(root / "sdk/python/examples/starter", starter)
+        shutil.copytree(root / "sdk/tests/fixtures/python/starter", starter / "tests")
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
             ["uv", "pip", "install", "--python", str(python), str(wheels[0]), *(stub_requirements if options.stubs else [])],

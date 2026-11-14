@@ -9,9 +9,9 @@
 """A Deterministic Suite Shared With The Cross-Language Host Story."""
 
 # === Imports === #
+from typing import Any
 
 # Standard Library Imports
-
 # Third Party Imports
 # Local Imports
 from google.protobuf.wrappers_pb2 import BoolValue
@@ -35,7 +35,7 @@ __all__ = ["Capture", "plugin"]
 
 class Capture:
     @dokime.step("Confirm", identifier="confirm")
-    async def confirm(self, ctx):
+    async def confirm(self, ctx: Any) -> Any:
         question = next(operation for operation in HOST_OPERATIONS if operation.id == "dokime.plugin.host.v1.Prompts/Create")
         answer = await ctx.operation(question)(
             message("dokime.plugin.host.v1.PromptsCreateRequest", prompt="confirmation", prompt_type="example.confirmation")
@@ -43,7 +43,7 @@ class Capture:
         await ctx.record("example.confirmation", value=answer.accepted and answer.action == "yes")
 
     @dokime.criterion("Confirmed", identifier="confirmed")
-    async def confirmed(self, ctx):
+    async def confirmed(self, ctx: Any) -> Any:
         confirmation = await ctx.records("example.confirmation", step="confirm").last()
         return confirmation is not None and confirmation.value
 
@@ -51,7 +51,7 @@ class Capture:
 # === Public Functions === #
 
 
-def plugin():
+def plugin() -> Any:
     needed = {
         "dokime.plugin.host.v1.Prompts/Create",
         "dokime.plugin.host.v1.evidence.Records/Append",

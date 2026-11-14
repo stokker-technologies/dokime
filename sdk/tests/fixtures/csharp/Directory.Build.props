@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="../../../csharp/Directory.Build.props" />
+</Project>

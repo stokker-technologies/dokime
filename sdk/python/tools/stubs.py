@@ -37,7 +37,7 @@ MODULES = [
     "dokime.schemas",
     "dokime.values",
     "dokime.v1",
-    "_dokime_resources",
+    "dokime.generated.resources",
 ]
 
 # === Types === #

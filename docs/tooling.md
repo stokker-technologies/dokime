@@ -36,7 +36,7 @@ mise run build:cli-fixtures
 mise run test -- --package dokime-runtime-next --target system
 mise run test -- --package dokime-cli-next --target system
 mise -C sdk/rust run sdk:test
-mise -C sdk/python run sdk:test
+mise -C sdk/python run test
 mise -C sdk/csharp run test
 mise -C sdk/cpp run test
 mise run build -- --artifact tests

@@ -201,35 +201,45 @@ checks the digest before caching and assembles dependencies before decoding. Des
 snapshots returned by `get(client, execution)` are independent copies. Drop the cache
 to release retained descriptors.
 
-## Validate
+## Setup, Build, Test and Package
 
 Run these tasks from the repository root:
 
 ```sh
-mise -C sdk/python run sdk:prepare
-mise -C sdk/python run sdk:build
-mise -C sdk/python run sdk:install
-mise -C sdk/python run sdk:generated
+mise -C sdk/python run prepare
+mise -C sdk/python run format
+mise -C sdk/python run check
+mise -C sdk/python run build
+mise -C sdk/python run install
+mise -C sdk/python run package
+mise -C sdk/python run generated
 mise run check:python:bindings
-mise -C sdk/python run sdk:unit
 mise run build:host-fixtures -- --language rust
-mise -C sdk/python run sdk:test
-mise -C sdk/python run sdk:starter
-mise -C sdk/python run sdk:wheel
+mise -C sdk/python run test
+mise -C sdk/python run starter
+mise -C sdk/python run wheel
 ```
 
-`sdk:generated` checks every source hash, generated message, service method,
+The package contains inline annotations, regular typed protocol packages and
+`dokime.generated.resources`; no runtime resource table or dynamic public
+attribute fallback is shipped. The current call shape is retained until the
+next library pin regenerates the resource roots and protobuf bindings.
+`package` verifies and copies the existing wheel and source distribution to
+`target/package/dev/any/python`; it never compiles. SDK test fixtures live under
+`sdk/tests/fixtures/python`.
+
+`generated` checks every source hash, generated message, service method,
 cardinality, serializer, and response type. `check:python:bindings` also runs strict
 mypy stubtest against the installed public package and generated resource stubs in a
 fresh environment, without an allowlist or ignored missing stubs.
-Builds generate messages, `.pyi`
-files and gRPC stubs from `proto/`; generated Python is never committed. Source
+`generate` refreshes committed messages, `.pyi` files, typed package markers
+and gRPC stubs from `proto/`, matching the library SDK structure. Source
 distributions carry those same proto sources so wheel builds remain self-contained.
 
 For transport conformance, build `harmos-conformance` through the pinned Harmos
 checkout's `mise run build -- --package harmos-conformance`, set
 `HARMOS_CONFORMANCE_HOST` to that executable, then run
-`mise -C sdk/python run sdk:conformance`. It runs the fixed language-neutral
+`mise -C sdk/python run conformance`. It runs the fixed language-neutral
 fixture through Dokime's plugin composition against all reference-host rules.
 
 The cross-language suite is [`examples/thermal/suite.py`](examples/thermal/suite.py).

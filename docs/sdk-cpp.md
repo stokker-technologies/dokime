@@ -114,74 +114,61 @@ forwards metadata, cancellation setup and deadline overrides to every page;
 operation policies supply deadlines otherwise. Assemble all files before resolving
 descriptor dependencies when using raw calls.
 
-## Source Distribution and Starter
+## Setup, Build, Test and Package
 
-`mise -C sdk/cpp run archive -- --version VERSION` creates
-`target/cpp/dokime-cpp-VERSION.tar.gz` and its SHA-256 sidecar. The archive
-contains `sdk/cpp` and the authoritative `proto` tree in their repository layout.
-It also includes this guide, LICENSE and NOTICE. It contains neither generated
-bindings nor dependency binaries. Release tooling
-must publish these two files together.
+Install mise, Git, Python, and a native C++20 compiler (MSVC on Windows;
+GCC or Clang, `pkg-config`, curl, zip, unzip and tar on Linux). Then run:
 
-The starter uses CMake `FetchContent`, a versioned `DOKIME_SDK_URL`, its required
-`DOKIME_SDK_SHA256`, and `SOURCE_SUBDIR sdk/cpp`. The CLI scaffold must write those
-release coordinates into `CMakePresets.json` as `cacheVariables`; no guessed
-release URL or digest is embedded here. The starter's vcpkg manifest supplies
-gRPC, protobuf and OpenSSL. Set `VCPKG_ROOT` to an existing vcpkg checkout, set the
-two archive coordinates in the preset, and run `mise run build`. A manual configure
-can instead pass `-DDOKIME_SDK_URL=URL -DDOKIME_SDK_SHA256=HASH`. Windows requires Visual Studio
-2022 C++ Build Tools and a Windows SDK. Linux requires a C++20 compiler.
-
-## Focused Contributor Proof
-
-Run all commands through mise; the contributor configure task selects the Harmos
-Host audience so its in-process host and plugin fixtures compile together.
-Consumers of the SDK retain the library's Plugin audience by default:
-
-```powershell
-mise -C sdk/cpp tasks --all
+```sh
+mise -C sdk/cpp install cmake ninja pipx:clang-format
 mise -C sdk/cpp run prepare
 mise -C sdk/cpp run format
-mise -C sdk/cpp run configure -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
+mise -C sdk/cpp run check
 mise -C sdk/cpp run build
 mise -C sdk/cpp run test
-mise -C sdk/cpp run check
-mise -C sdk/cpp run conformance -- --host C:/path/to/harmos-conformance.exe
-mise -C sdk/cpp run starter -- --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
-mise -C sdk/cpp run starter -- --build-dir ../../target/cpp-archive-proof --sdk-archive ../../target/cpp/dokime-cpp-0.1.0.tar.gz --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/dependencies/x64-windows
+mise -C sdk/cpp run package
+mise -C sdk/cpp run consumer
 ```
 
-`configure --fetch-dependencies` builds the exact Harmos-pinned gRPC dependency
-graph inside the selected build directory; the execution-host fixture producer
-uses this mode on Linux and Windows. `--harmos-cache` (or `DOKIME_HARMOS_CACHE`)
-selects a CMake package prefix containing Protobuf, gRPC and OpenSSL instead.
-The same imported package targets supply headers, libraries and code generators;
-no relocated Visual Studio project or hard-coded compiler path is read. Runtime
-DLLs are staged beside the fixture when the packages use shared libraries.
+The repository owns its build tooling; Harmos tooling is never invoked. The
+manifest baseline `ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0` selects gRPC
+1.71.0#1, protobuf 5.29.3 and Catch2 3.8.1. This avoids the gRPC 1.76 fused-filter
+code that fails under newer MSVC with `MapResult` / `RaceAsyncCompletion::Run`
+([upstream compiler issue](https://github.com/grpc/grpc/issues/41970)).
+Local MSVC compilation and hosted Windows Nightly are separate compiler proofs;
+only Nightly can validate its current Visual Studio image. No gRPC source patch
+or project compiler-cache setting is used.
 
-Without `--harmos-cache` or `--fetch-dependencies`, configure uses the CMake package dependencies installed
-by vcpkg, and fetches the exact Harmos revision unless its source is overridden.
-Cached packages remain read-only while the requested Harmos SDK source builds
-inside the selected output directory. Never clean or reconfigure another worker's
-cache. Native Linux proof remains separately required.
-`--build-dir` selects a fresh output directory for all actions. Complete logs and
-CTest JUnit stay under that directory. Tests consume existing build outputs.
+`CMakePresets.json` provides `development`, `tests` (the default) and `release`.
+Pass `-- --preset release` to build, test and package that configuration.
+`target/cp/` keeps native and generated paths short on Windows; vcpkg's immutable
+tool checkout is prepared in the mise cache and dependency installs live in
+`target/cp/v`. `check` configures the graph; `build` compiles; `test` consumes
+those outputs. Catch2 3 runs the document, authoring and backend stories, while
+the plugin journey awaits readiness and exercises managed and remote placement.
 
-The conformance executable reuses the exact Harmos reference fixture source at
-configure time, replacing only plugin composition with `dokime::Plugin`. The
-Harmos reference host checks its transport rules, child calls, failure propagation,
-observer ticks, device streams and managed shutdown. The SDK's focused stories
-separately cover catalog composition, duplicate rejection, client authentication,
-stream completion, errors and retained document builders. The managed and remote
-starter journeys materialize a case, preserve a full-width unsigned parameter,
-execute its step and criterion, reject a mismatched scope, release execution
-resources through cleanup and check placement-specific Stop behaviour.
+`package` installs and exports a relocatable CMake package to
+`target/cp/tests/installed` and archives it as `target/cp/tests/dokime-cpp.tar.gz`.
+The archive contains headers, static SDK libraries and CMake targets. Consumers
+provide the manifest's matching native dependencies and configure with the
+installed prefix in `CMAKE_PREFIX_PATH`:
+
+```cmake
+find_package(Dokime CONFIG REQUIRED)
+target_link_libraries(my_plugin PRIVATE Dokime::Cpp)
+```
+
+`consumer` builds `sdk/cpp/starter` through this installed package, with no
+SDK source-tree access. The current Harmos pin predates its own installable
+package, so the dependency recipe compiles its unmodified source and exports
+those targets together with Dokime. The next library pin replaces that recipe
+with the upstream package and regenerates client roots and protocol bindings.
 
 ## Shared System Story
 
-[`tests/system/main.cpp`](../sdk/cpp/tests/system/main.cpp) implements the shared
+[`main.cpp`](../sdk/tests/fixtures/cpp/thermal/main.cpp) implements the shared
 `thermal.cycle` suite. CMake generates its Temperature and Door payload types
-from `tests/system/thermal.proto` and builds `dokime-system-suite` through the
+from `sdk/tests/fixtures/cpp/thermal/thermal.proto` and builds `dokime-system-suite` through the
 SDK `build` task. The `cpp_plugin_matches_rust_thermal_evidence` host story runs
 the executable in remote and managed placements, compares the frozen case and
 all ordered evidence/sample fields with Rust, and reopens the sealed evidence.
@@ -193,20 +180,3 @@ See [Execution Host](execution-host.md) for prerequisites and focused runs.
 roots over its channel, such as `client.access.listener.get(context, request)`.
 Caller-owned gRPC contexts supply authentication metadata, cancellation and
 explicit deadline overrides for unary and streaming calls.
-
-If CMake reports a cached generator/platform mismatch, rerun the existing configure
-task with --fresh to refresh its configuration while retaining compiled outputs:
-
-    mise -C sdk/cpp run configure -- --fresh --fetch-dependencies
-
-
-Traceability entries use distinct `dokime.plugin.host.v1.evidence.Traceability/Get`
-and `dokime.plugin.host.v1.evidence.Traceability/Set` contracts. Get selects the execution and entry name and returns its revision;
-Set replaces the whole entry with that revision and a caller-retained request ID.
-The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
-position-resolved history pages and a bounded durable change stream.
-
-`client.files.upload(path)` publishes a local file through Files.Uploads, using
-its returned transfer limits and verifying the published length and SHA-256.
-`FrozenSchemaCache::message_name(detail, identity)` resolves record and stream
-aliases to the fully qualified protobuf message in the frozen descriptors.

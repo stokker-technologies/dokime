@@ -37,7 +37,12 @@ jobs:
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         bootstrap: '[]'
-    - run: mise run build -- --language python --profile ${{ env.PROFILE }}
+        prepare-arguments: --without-frontend
+    - run: mise -C sdk/python run build
+      env:
+        DOKIME_BUILD_PROFILE: ${{ env.PROFILE }}
+    - name: Export Python Distributions
+      run: uv run --no-sync --project tools/python python -c "import os; from dokime_tools.ci.transport import send; send(os.environ['PROFILE'])"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: build-product-python-${{ env.PROFILE }}-any
@@ -47,29 +52,11 @@ jobs:
         compression-level: 0
       if: success()
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
-        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
         steps.setup.outputs.mise-path != ''
       with:
         key: ${{ steps.setup.outputs.mise-cache-primary-key }}
         path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
-        steps.setup.outputs.pnpm-path != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
-        && steps.setup.outputs.sccache-path != ''
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
         steps.setup.outputs.uv-path != ''
@@ -77,10 +64,6 @@ jobs:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup.outputs.uv-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
+      MISE_ENABLE_TOOLS: python,uv
       CI_TRANSPORT: 'true'
       CI_OUTPUTS: '[{"archive":"target/ci/build-product-python-{profile}-any.tar.zst","paths":["target/build/{profile}/any/python"]}]'

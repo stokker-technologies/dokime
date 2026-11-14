@@ -12,8 +12,9 @@
 
 # Standard Library Imports
 import argparse
-import hashlib
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,8 @@ from pathlib import Path
 
 # === Constants === #
 
+ROOT = Path(__file__).resolve().parents[3]
+
 # === Types === #
 
 # === Classes === #
@@ -37,229 +40,190 @@ from pathlib import Path
 # === Public Functions === #
 
 
+def environment() -> dict[str, str]:
+    environment = dict(os.environ)
+    cache = subprocess.check_output(
+        ["mise", "cache", "path"], text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    ).strip()
+    manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text())
+    revision = manifest["builtin-baseline"]
+    checkout = Path(cache) / "vcpkg" / revision[:12]
+    environment["VCPKG_ROOT"] = str(checkout)
+
+    # Bootstrap the Immutable Tool Checkout Outside the Repository.
+    if not checkout.is_dir():
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "--filter=blob:none",
+                "--single-branch",
+                "--branch",
+                "2025.06.13",
+                "https://github.com/microsoft/vcpkg.git",
+                str(checkout),
+            ],
+            check=True,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    actual = subprocess.check_output(
+        ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    ).strip()
+    if actual != revision:
+        raise RuntimeError(f"vcpkg Checkout: Expected {revision}, Got {actual}")
+    executable = checkout / ("vcpkg.exe" if os.name == "nt" else "vcpkg")
+    if not executable.is_file():
+        bootstrap = (
+            ["cmd", "/c", str(checkout / "bootstrap-vcpkg.bat"), "-disableMetrics"]
+            if os.name == "nt"
+            else ["sh", str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
+        )
+        subprocess.run(
+            bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        )
+
+    # Ninja Uses the Native MSVC Environment on Windows.
+    if os.name == "nt" and not environment.get("VCINSTALLDIR"):
+        tool_path = environment["PATH"]
+        vswhere = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
+        installation = subprocess.check_output(
+            [
+                str(vswhere),
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property",
+                "installationPath",
+            ],
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        ).strip()
+        developer = Path(installation) / "Common7/Tools/VsDevCmd.bat"
+        output = subprocess.check_output(
+            f'cmd /d /s /c ""{developer}" -no_logo -arch=x64 -host_arch=x64 >nul && set"',
+            text=True,
+            env=dict(environment, PATH=str(vswhere.parent) + os.pathsep + environment["PATH"]),
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        environment.update(
+            (key.upper(), value)
+            for line in output.splitlines()
+            if "=" in line and not line.startswith("=")
+            for key, value in [line.split("=", 1)]
+        )
+        environment["PATH"] = tool_path + os.pathsep + environment["PATH"]
+    environment["VCPKG_ROOT"] = str(checkout)
+    return environment
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "action",
-        choices=[
-            "configure",
-            "build",
-            "test",
-            "conformance",
-            "starter",
-            "archive",
-            "check",
-            "format",
-        ],
+        "action", choices=("prepare", "configure", "build", "test", "check", "format", "package", "consumer", "conformance", "clean")
     )
-    parser.add_argument("--build-dir", type=Path)
-    parser.add_argument("--harmos-source", type=Path, default=os.environ.get("HARMOS_SOURCE"))
-    parser.add_argument(
-        "--harmos-cache",
-        type=Path,
-        default=os.environ.get("DOKIME_HARMOS_CACHE"),
-        help="CMake Package Prefix for Cached Native Dependencies",
-    )
-    parser.add_argument("--fetch-dependencies", action="store_true")
-    parser.add_argument("--fresh", action="store_true", help="Refresh the CMake Configuration While Preserving Compiled Outputs")
+    parser.add_argument("--preset", choices=("development", "tests", "release"), default="tests")
     parser.add_argument("--target")
-    parser.add_argument("--host", type=Path)
-    parser.add_argument("--version", default="0.1.0")
-    parser.add_argument("--sdk-archive", type=Path)
+    parser.add_argument("--exact")
+    parser.add_argument("--repeat", type=int)
+    parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--source", type=Path, help="Format One Generated Source")
-    args = parser.parse_args()
-    sdk = Path(__file__).resolve().parents[1]
-    root = sdk.parents[1]
-    directory = (args.build_dir or root / "target/cpp").resolve()
+    parser.add_argument("--source", type=Path)
+    parser.add_argument("--host", type=Path)
+    options = parser.parse_args()
+    sdk = ROOT / "sdk/cpp"
+    directory = ROOT / "target/cp" / options.preset
     directory.mkdir(parents=True, exist_ok=True)
-    configuration = "Debug"
-    environment = dict(os.environ)
-    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    if os.name == "nt":
-        # Dependency Submodules Contain Long Source Names; Keep Git Policy Child-Scoped.
-        index = int(environment.get("GIT_CONFIG_COUNT", "0"))
-        environment["GIT_CONFIG_COUNT"] = str(index + 1)
-        environment[f"GIT_CONFIG_KEY_{index}"] = "core.longpaths"
-        environment[f"GIT_CONFIG_VALUE_{index}"] = "true"
-
-    if args.action == "format":
-        formatter = shutil.which("clang-format")
-        if not formatter and os.name == "nt":
-            installer = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
-            installation = subprocess.check_output(
-                [
-                    str(installer),
-                    "-latest",
-                    "-products",
-                    "*",
-                    "-property",
-                    "installationPath",
-                ],
-                text=True,
-                creationflags=creationflags,
-            ).strip()
-            formatter = str(Path(installation) / "VC/Tools/Llvm/bin/clang-format.exe")
-        if not formatter:
-            parser.error("Install clang-format and Put It on PATH")
+    child = dict(os.environ) if options.action == "format" else environment()
+    if options.action == "prepare":
+        return
+    if options.action == "format":
+        formatter = shutil.which("clang-format", path=child["PATH"])
         sources = (
-            [args.source]
-            if args.source
-            else sorted(source for source in [*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp")] if source != sdk / "include/dokime/resources.hpp")
+            [options.source]
+            if options.source
+            else sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp"), *ROOT.glob("sdk/tests/fixtures/cpp/**/*.cpp")])
         )
-        command = [formatter, "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
-        command += ["--dry-run", "--Werror"] if args.check else ["-i"]
-        command += [str(source) for source in sources]
-    elif args.action == "configure":
-        command = [
-            "cmake",
-            "-S",
-            str(sdk),
-            "-B",
-            str(directory),
-            "-DCMAKE_BUILD_TYPE=Debug",
-            "-DDOKIME_BUILD_CONFORMANCE=ON",
-            f"-DDOKIME_FETCH_DEPENDENCIES={'ON' if args.fetch_dependencies else 'OFF'}",
-        ]
-        if args.fresh:
-            command += ["--fresh"]
-        if os.name == "nt":
-            command += ["-A", "x64"]
-        if args.harmos_source:
-            command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
-        if args.harmos_cache:
-            command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
-    elif args.action == "build":
-        command = [
-            "cmake",
-            "--build",
-            str(directory),
-            "--config",
-            configuration,
-            "--parallel",
-            "2",
-        ]
-        if args.target:
-            command += ["--target", args.target]
-    elif args.action == "test":
-        command = [
-            "ctest",
-            "--test-dir",
-            str(directory),
-            "-C",
-            configuration,
-            "--output-on-failure",
-            "--output-junit",
-            str(directory / "junit.xml"),
-        ]
-    elif args.action == "conformance":
-        if not args.host:
-            parser.error("--host Must Name the Built Harmos tools/conformance Executable")
-        executable = (
-            directory / "tests" / configuration / "dokime-conformance.exe" if os.name == "nt" else directory / "tests/dokime-conformance"
+        command = [formatter or "clang-format", "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
+        command += ["--dry-run", "--Werror"] if options.check else ["-i"]
+        command += [str(path) for path in sources]
+    elif options.action in ("configure", "check", "build"):
+        result = subprocess.run(
+            ["cmake", "--preset", options.preset],
+            cwd=sdk,
+            env=child,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
         )
-        command = [str(args.host.resolve()), "--plugin", str(executable)]
-    elif args.action == "check":
-        presets = subprocess.run(
-            ["cmake", "--list-presets", "-S", str(sdk / "starter")], capture_output=True, text=True, creationflags=creationflags
-        )
-        print(presets.stdout + presets.stderr)
-        presets.check_returncode()
-        command = ["cmake", "-S", str(sdk), "-B", str(directory)]
-    elif args.action == "starter":
-        command = [
-            "cmake",
-            "-S",
-            str(sdk / "starter"),
-            "-B",
-            str(directory / "starter"),
-            "-DDOKIME_BUILD_TESTS=OFF",
-            "-DCMAKE_BUILD_TYPE=Debug",
-        ]
-        if args.sdk_archive:
-            archive = args.sdk_archive.resolve()
-            with archive.open("rb") as source:
-                digest = hashlib.file_digest(source, "sha256").hexdigest()
-            command += [
-                f"-DDOKIME_SDK_URL={archive.as_posix()}",
-                f"-DDOKIME_SDK_SHA256={digest}",
-            ]
-        else:
-            command += [f"-DFETCHCONTENT_SOURCE_DIR_DOKIME={root}"]
-        if os.name == "nt":
-            command += ["-A", "x64"]
-        if args.harmos_source:
-            command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
-        if args.harmos_cache:
-            command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
-        configure_log = directory / "starter-configure.log"
-        with configure_log.open("w", encoding="utf-8") as output:
-            result = subprocess.run(command, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=creationflags)
-        print("\n".join(configure_log.read_text(encoding="utf-8", errors="replace").splitlines()[-60:]))
+        (directory / "configure.log").write_text(result.stdout, encoding="utf-8")
+        print(result.stdout)
         result.check_returncode()
+        if options.action != "build":
+            return
+        command = ["cmake", "--build", "--preset", options.preset, "--parallel", "4"]
+        if options.target:
+            command += ["--target", options.target]
+    elif options.action == "clean":
+        command = ["cmake", "--build", "--preset", options.preset, "--target", "clean"]
+    elif options.action == "test":
+        command = ["ctest", "--preset", options.preset, "--output-junit", str(directory / "junit.xml")]
+        if options.exact:
+            command += ["-R", "^" + re.escape(options.exact) + "$"]
+        if options.verbose:
+            command.append("--verbose")
+        if options.repeat:
+            command += ["--repeat", f"until-fail:{options.repeat}"]
+    elif options.action == "consumer":
+        prefix = directory / "installed"
+        subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
+        consumer = ROOT / "target/cp/consumer"
+        subprocess.run(
+            [
+                "cmake",
+                "-S",
+                str(sdk / "starter"),
+                "-B",
+                str(consumer),
+                "-G",
+                "Ninja",
+                f"-DCMAKE_TOOLCHAIN_FILE={child['VCPKG_ROOT']}/scripts/buildsystems/vcpkg.cmake",
+                f"-DCMAKE_PREFIX_PATH={prefix}",
+                f"-DVCPKG_INSTALLED_DIR={ROOT}/target/cp/v",
+                "-DVCPKG_MANIFEST_INSTALL=OFF",
+                "-DCMAKE_BUILD_TYPE=Debug",
+            ],
+            env=child,
+            check=True,
+        )
+        command = ["cmake", "--build", str(consumer), "--parallel", "4"]
+    elif options.action == "conformance":
+        if options.host is None:
+            parser.error("--host Must Name the Built Reference Host")
         command = [
-            "cmake",
-            "--build",
-            str(directory / "starter"),
-            "--config",
-            configuration,
-            "--parallel",
-            "2",
+            str(options.host),
+            "--plugin",
+            str(directory / "tests" / ("dokime-conformance.exe" if os.name == "nt" else "dokime-conformance")),
         ]
     else:
-        archive = directory / f"dokime-cpp-{args.version}.tar.gz"
-        tracked = subprocess.check_output(
-            [
-                "git",
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "--",
-                "sdk/cpp",
-                "proto",
-                "docs/sdk-cpp.md",
-                "LICENSE",
-                "NOTICE",
-            ],
-            cwd=root,
-            text=True,
-        ).splitlines()
-        with tarfile.open(archive, "w:gz") as output:
-            for relative in tracked:
-                source = root / relative
-                if source.is_file():
-                    output.add(source, arcname=f"dokime-cpp-{args.version}/{relative}")
-        with archive.open("rb") as source:
-            digest = hashlib.file_digest(source, "sha256").hexdigest()
-        archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
-        print(f"{archive}\nSHA256={digest}")
+        prefix = directory / "installed"
+        subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
+        with tarfile.open(directory / "dokime-cpp.tar.gz", "w:gz") as archive:
+            archive.add(prefix, arcname="dokime-cpp")
         return
-
-    # Preserve Complete Tool Output and Expose Every Failure Diagnostic.
-    log = directory / f"{args.action}.log"
+    log = directory / f"{options.action}.log"
     if log.exists():
-        attempt = len(list(directory.glob(f"{args.action}-*.log"))) + 1
-        shutil.copyfile(log, directory / f"{args.action}-{attempt}.log")
+        attempt = len(list(directory.glob(f"{options.action}-*.log"))) + 1
+        shutil.copyfile(log, directory / f"{options.action}-{attempt}.log")
     with log.open("w", encoding="utf-8") as output:
-        result = subprocess.run(command, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=creationflags)
-    lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
-    print("\n".join(lines if result.returncode else lines[-60:]))
-    print(f"Complete Output: {log}")
+        result = subprocess.run(command, cwd=sdk, env=child, stdout=output, stderr=subprocess.STDOUT, check=False)
+    print(log.read_text(encoding="utf-8", errors="replace"))
     result.check_returncode()
-    if args.action == "build":
-        # Stage Package-Provided Runtime Libraries Beside Their Consumer.
-        manifest = directory / f"runtime-{configuration}.cmake"
-        if manifest.is_file():
-            subprocess.run(
-                ["cmake", "-P", str(manifest)],
-                env=environment,
-                check=True,
-                creationflags=creationflags,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-            )
 
 
 # === Private Functions === #

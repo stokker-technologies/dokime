@@ -7,7 +7,7 @@
 # ***
 
 [build-system]
-requires = ["hatchling==1.33.0", "grpcio-tools==1.85.1", "mypy-protobuf==5.1.0"]
+requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -23,6 +23,7 @@ dependencies = [
 ]
 
 [dependency-groups]
+generate = ["grpcio-tools==1.85.1", "mypy-protobuf==5.1.0"]
 stubs = ["mypy==2.4.1", "types-protobuf==7.35.1.20260906", "types-grpcio==1.85.0.20261028"]
 
 [tool.hatch.metadata]
@@ -35,7 +36,7 @@ packages = ["src/dokime"]
 path = "hatch_build.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/hatch_build.py", "/pyproject.toml", "/README.md"]
+include = ["/src", "/tools/generate.py", "/hatch_build.py", "/pyproject.toml", "/README.md"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "../../proto" = "proto"
@@ -48,11 +49,13 @@ python = "../../.venv"
 
 [tool.ty.src]
 include = ["src/dokime", "tests", "examples"]
+# protoc Owns Generated Bindings; Descriptor and Stub Stories Verify Their Contract.
+exclude = ["**/*_pb2*"]
 
 [tool.ruff]
 target-version = "py313"
-# Generated Bindings Are Build Outputs Owned By protoc.
-extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
+# protoc Owns the Committed Generated Bindings.
+extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py", "*_pb2_grpc.pyi"]
 
 [tool.pytest.ini_options]
 addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib"]

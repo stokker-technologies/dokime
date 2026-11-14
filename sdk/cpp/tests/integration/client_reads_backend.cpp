@@ -14,6 +14,7 @@
 #include "dokime/client.hpp"
 #include "harmos/harmos.hpp"
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <google/protobuf/empty.pb.h>
 #include <google/protobuf/wrappers.pb.h>
 
@@ -60,7 +61,7 @@ public:
 
 /* === Entry Point === */
 
-int main() {
+TEST_CASE("Client Reads the Backend") {
   // Start a Backend in This Process.
   Backend backend;
   Plugins plugins;

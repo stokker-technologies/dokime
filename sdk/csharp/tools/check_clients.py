@@ -43,7 +43,7 @@ for protocol in (root / "../../proto/dokime").resolve().rglob("*.proto"):
 if not services:
     sys.exit("Client coverage is blocked: proto/dokime has no service declarations.")
 
-generated = [path.read_text(encoding="utf-8-sig") for path in (root / "obj/Release/net10.0").rglob("*Grpc.cs")]
+generated = [path.read_text(encoding="utf-8-sig") for path in (root / "../../target/cs/obj/Dokime/release").rglob("*Grpc.cs")]
 missing = [
     f"{package}.{service}"
     for package, namespace, service in services

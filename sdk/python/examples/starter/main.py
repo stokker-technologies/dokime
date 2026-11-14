@@ -9,10 +9,10 @@
 """Serve A Remote Plugin; Start Dokime Separately."""
 
 # === Imports === #
-
 # Standard Library Imports
 import argparse
 import asyncio
+from typing import Any
 
 # Local Imports
 from suite import plugin
@@ -33,7 +33,7 @@ import dokime
 # === Public Functions === #
 
 
-async def main():
+async def main() -> Any:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--address", default="127.0.0.1:7001")
     options = parser.parse_args()

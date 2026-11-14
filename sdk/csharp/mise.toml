@@ -6,115 +6,97 @@
 #
 # ***
 
-# === Settings === #
-
 # === Tools === #
 
 [tools]
 dotnet = "10.0.403"
 
-# === Environment === #
-
-# === Variables === #
-
-# === Generate === #
-
 [tasks."prepare:harmos"]
-description = "Prepare the Pinned Harmos SDK Source"
-run = 'python tools/prepare_harmos.py'
+description = "Prepare the Pinned Harmos NuGet Feed"
+run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet"']
 
-[tasks.restore]
-description = "Restore SDK Dependencies"
+[tasks."restore"]
+description = "Restore the C# Solution"
 depends = ["prepare:harmos"]
-run = '"{{tools.dotnet.path}}/dotnet" restore Dokime.csproj --configfile NuGet.Config'
+run = ['"{{tools.dotnet.path}}/dotnet" restore Dokime.slnx --configfile NuGet.Config --force-evaluate']
 
-[tasks.build]
-description = "Build the SDK from Protocol Sources"
+[tasks."build"]
+description = "Build the C# Solution"
 depends = ["restore"]
-run = '"{{tools.dotnet.path}}/dotnet" build Dokime.csproj --configuration Release --no-restore'
+run = ['"{{tools.dotnet.path}}/dotnet" build Dokime.slnx --configuration Release --no-restore']
 
-[tasks.check]
-description = "Check C# Formatting and Compiler Diagnostics"
+[tasks."format"]
+description = "Format the C# Solution"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --exclude obj --verify-no-changes',
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401,E9 tools',
-  'uv run --no-sync --project ../../tools/python ruff format --line-length 140 --check tools',
-  'python tools/check_clients.py',
-]
-
-[tasks.format]
-description = "Format the C# SDK"
-run = [
-  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --exclude obj',
+  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore',
   'uv run --no-sync --project ../../tools/python ruff check --select I --fix tools',
   'uv run --no-sync --project ../../tools/python ruff format --line-length 140 tools',
 ]
 
-[tasks.package]
-description = "Pack the SDK"
-env = { NUGET_PACKAGES = "{{config_root}}/obj/consumer-packages" }
+[tasks."check"]
+description = "Check C# Formatting and Generated Clients"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" pack Dokime.csproj --configuration Release --no-build --output obj/packages',
-  '"{{tools.dotnet.path}}/dotnet" nuget locals global-packages --clear',
+  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --verify-no-changes',
+  'python tools/check_clients.py',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401,E9 tools',
+  'uv run --no-sync --project ../../tools/python ruff format --line-length 140 --check tools',
 ]
 
-[tasks."test:builders"]
-description = "Test Canonical Document Builders"
+[tasks."package"]
+description = "Pack the C# SDK"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore tests/Builders/Builders.csproj --configfile NuGet.Config',
-  '"{{tools.dotnet.path}}/dotnet" run --project tests/Builders/Builders.csproj --configuration Release --no-restore',
+  'python tools/package.py',
+  '"{{tools.dotnet.path}}/dotnet" pack Dokime.slnx --configuration Release --no-build --no-restore --output ../../target/cs/feed',
 ]
 
-
-[tasks."build:reference"]
-description = "Build the Pinned Harmos Reference Host"
+[tasks."test"]
+description = "Test the C# Solution"
 run = [
-  'python tools/prepare_reference.py',
-  'cargo build --manifest-path ../../target/csharp-reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target/csharp-reference/target',
+  '"{{tools.dotnet.path}}/dotnet" test Dokime.slnx --configuration Release --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"',
+  '"{{tools.dotnet.path}}/dotnet" ../../target/cs/bin/Builders/release/Builders.dll',
 ]
-
-[tasks."build:tests"]
-description = "Build the Focused SDK Stories and Conformance Plugin"
-run = [
-  '"{{tools.dotnet.path}}/dotnet" restore tests/Stories/Stories.csproj --configfile NuGet.Config',
-  '"{{tools.dotnet.path}}/dotnet" build tests/Stories/Stories.csproj --configuration Release --no-restore',
-  '"{{tools.dotnet.path}}/dotnet" restore tests/Conformance/Conformance.csproj --configfile NuGet.Config',
-  '"{{tools.dotnet.path}}/dotnet" build tests/Conformance/Conformance.csproj --configuration Release --no-restore',
-]
-
-[tasks.test]
-description = "Run Focused SDK Journeys"
-run = '"{{tools.dotnet.path}}/dotnet" test tests/Stories/Stories.csproj --configuration Release --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"'
 
 [tasks."build:starter"]
-description = "Build the Starter Against the Local NuGet Package"
+description = "Build the NuGet Consumer"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore starter/Starter.csproj --configfile NuGet.Config --force-evaluate --packages obj/consumer-packages',
+  '"{{tools.dotnet.path}}/dotnet" restore starter/Starter.csproj --configfile NuGet.Config --force-evaluate',
   '"{{tools.dotnet.path}}/dotnet" build starter/Starter.csproj --configuration Release --no-restore',
 ]
 
-[tasks."test:conformance"]
-description = "Run Harmos Conformance in Both Placements"
-run = 'python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Conformance"'
-
-[tasks."test:starter"]
-description = "Run the Packaged Starter as a Managed Executable"
-run = 'python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Starter"'
-
-
 [tasks."build:system"]
-description = "Build the Shared System Story Suite Against the Package"
+description = "Build the Shared Host Fixture"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore tests/SystemPlugin/SystemPlugin.csproj --configfile NuGet.Config --force-evaluate --packages obj/consumer-packages',
-  '"{{tools.dotnet.path}}/dotnet" build tests/SystemPlugin/SystemPlugin.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" restore ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configfile NuGet.Config --force-evaluate',
+  '"{{tools.dotnet.path}}/dotnet" build ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release --no-restore',
 ]
 
 [tasks."publish:system"]
-description = "Publish the Self-Contained Shared System Story Suite"
+description = "Publish the Shared Host Fixture"
 usage = 'arg "output"'
-run = '"{{tools.dotnet.path}}/dotnet" publish tests/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" -p:RestoreForceEvaluate=true --configfile NuGet.Config --packages obj/consumer-packages'
+run = [
+  '"{{tools.dotnet.path}}/dotnet" publish ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" --configfile NuGet.Config -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" -p:RestoreForceEvaluate=true',
+]
 
+[tasks."build:reference"]
+description = "Build the Pinned Reference Host"
+run = [
+  'python tools/prepare_reference.py',
+  'cargo build --manifest-path ../../target/cs/reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target/cs/reference/target',
+]
+
+[tasks."test:starter"]
+description = "Test the Packaged Starter"
+run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Starter"']
+
+[tasks."test:conformance"]
+description = "Test Library Conformance"
+run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Conformance"']
 
 [tasks.clean]
-description = "Clean C# Compiler Outputs with MSBuild"
-run = '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration Release'
+description = "Clean C# Compiler Outputs"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean starter/Starter.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release --artifacts-path ../../target/cs/harmos',
+]

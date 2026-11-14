@@ -5,43 +5,55 @@ composed plugin authoring, typed host calls, canonical plot/document builders
 and a channel-owning client facade. It builds messages and any declared service
 stubs with `Grpc.Tools` directly from `proto/dokime/**/*.proto`; generated C#
 protobuf messages and service stubs are build outputs. Descriptor-derived resource
-wrappers in `sdk/csharp/Dokime/Resources.cs` and `ClientResources.cs` are committed
-and regenerated through `mise run generate -- --protocol`. The Harmos SDK source
-is compiled into Dokime without modifications from revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
+wrappers in `sdk/csharp/src/Dokime/Generated/Resources.g.cs` and `ClientResources.g.cs` are committed
+and regenerated through `mise run generate -- --protocol`. The Harmos SDK is consumed as a local NuGet package built from revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
 
-## Build and Install
+## Setup, Build, Test and Package
 
-From the repository root:
+Install mise, Python and Git, then use the SDK's pinned .NET toolchain:
 
 ```sh
+mise -C sdk/csharp install dotnet
+mise -C sdk/csharp run prepare:harmos
+mise -C sdk/csharp run restore
+mise -C sdk/csharp run format
 mise -C sdk/csharp run build
+mise -C sdk/csharp run check
+mise -C sdk/csharp run test
 mise -C sdk/csharp run package
 mise -C sdk/csharp run build:starter
-mise -C sdk/csharp run build:system
+mise -C sdk/csharp run test:starter
 ```
 
-Preparation downloads the immutable Harmos source archive. Set `HARMOS_SOURCE`
-to a local Harmos Git checkout to read that same commit with `git archive` instead;
-the checkout is never written. Python, Git (for the local-source option) and the
-SDK's mise-managed .NET 10 toolchain are needed. The package task consumes the
-existing Release build and writes `Dokime` to `sdk/csharp/obj/packages/`. The
-package contains the pinned Harmos implementation; no separate unpublished Harmos
-package is needed. These tasks do not publish to a registry. Packing clears only
-the SDK-local consumer package cache so starter proof uses the newly packed bytes.
+`Dokime.slnx` is the entry point for the library under `src/Dokime` and its
+`tests`. `Directory.Packages.props` centrally pins dependencies. Locks for the rebuilt
+local feed are generated under `target/cs/locks`, alongside the SDK package cache;
+no machine-wide package cache is cleared. Generated
+client roots live under `src/Dokime/Generated/*.g.cs`; protoc's generated
+bindings stay in the build output. Every project writes to `target/cs/`,
+including the local NuGet feed at `target/cs/feed`.
 
-Restore a consuming project with that feed and nuget.org available, then add:
+Preparation downloads immutable Harmos source (or reads that exact revision
+from `HARMOS_SOURCE` using `git archive`) and packs its own NuGet package.
+The current pin has no C# project, so `tools/Harmos.csproj` is this repository's
+build recipe for those unmodified sources. Dokime references the resulting
+`Harmos` package; it never compiles foreign source into Dokime or references
+another checkout's project. The next library pin supplies its own project and
+regenerates the committed client roots and protocol bindings.
+
+`package` packs the existing solution build without compilation. Configure
+`target/cs/feed` and nuget.org in a consumer and add:
 
 ```xml
 <PackageReference Include="Dokime" Version="[0.1.0-dev]" />
 ```
 
-`starter/` is a package-consuming ordinary executable project. Its own
-`mise run build` works with Dokime available in the configured NuGet
-feeds. The repository's `build:starter` supplies the local feed explicitly.
-The starter has no repository project references and needs no Rust toolchain.
-Its apphost executable uses adjacent managed assemblies and the .NET/ASP.NET 10
-runtime. A distribution can publish a self-contained single-file executable for
-its target before passing that executable to the language-neutral bundler.
+`build:starter` restores the standalone package consumer with a lock under
+`target/cs/locks`; its exported project pins Dokime directly so it also builds
+without the SDK workspace.
+`test:starter` runs that executable through a ready gRPC endpoint and awaits
+managed shutdown. `publish:system` builds the shared host fixture under
+`sdk/tests/fixtures/csharp` with its self-contained runtime on Windows or Linux.
 
 ## Author a Plugin
 
@@ -169,9 +181,7 @@ Real-host execution remains separate integration proof.
 ## Focused Proof
 
 ```sh
-mise -C sdk/csharp run build:tests
 mise -C sdk/csharp run test
-mise -C sdk/csharp run test:builders
 mise -C sdk/csharp run build:reference
 mise -C sdk/csharp run test:conformance
 mise -C sdk/csharp run test:starter
@@ -186,14 +196,14 @@ host checks every transport rule in managed and remote placements; it does not
 understand Dokime execution orchestration. Separate journeys directly exercise
 the Dokime suite catalog, pure materialization, scoped child calls, explicit
 observer ticks, evidence evaluation and resource release. The ordinary `test` task runs three in-process journeys;
-`test:builders` runs two document builder checks. Conformance and packaged-starter
-stories require the reference host fixture and are excluded from `test`.
+the solution test task also runs the document builder executable. Conformance requires the reference host fixture. The packaged-starter story
+uses its own ready transport. Both are selected separately from `test`.
 Test setup deadlines
 are transport hang guards; no scenario waits for wall-clock time.
 
 ## Shared System Story
 
-`tests/SystemPlugin` implements the same thermal suite as Rust, Python and C++.
+`sdk/tests/fixtures/csharp/SystemPlugin` implements the same thermal suite as Rust, Python and C++.
 Build it through `mise -C sdk/csharp run build`, `package` and `build:system`.
 The `csharp_plugin_matches_rust_thermal_evidence` host story runs the built
 executable through both remote URL and managed placements. It compares the full

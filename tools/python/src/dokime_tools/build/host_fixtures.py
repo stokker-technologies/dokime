@@ -18,11 +18,10 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, paths, wheel
+from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.ci import transport
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
@@ -158,9 +157,9 @@ def build(profile: str, language: str = "auto") -> None:
 
     # Build The C++ Fixture With The Pinned Native Dependency Graph.
     if "cpp" in languages:
-        directory = Path(os.environ.get("DOKIME_CPP_BUILD_DIR", root / "target/cpp")).resolve()
+        directory = root / "target/cp/tests"
         subprocess.run(
-            ["mise", "-C", "sdk/cpp", "run", "configure", "--", "--fetch-dependencies", "--build-dir", str(directory)],
+            ["mise", "-C", "sdk/cpp", "run", "prepare"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -169,7 +168,7 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         subprocess.run(
-            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--target", "dokime-system-suite", "--build-dir", str(directory)],
+            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--target", "dokime-system-suite"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -178,15 +177,22 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         native = directory / "tests"
-        if os.name == "nt":
-            native /= "Debug"
         shutil.copy2(native / f"dokime-system-suite{extension}", output / f"dokime-system-suite{extension}")
         for library in native.glob("*.dll"):
             shutil.copy2(library, output / library.name)
 
     # Build The Pure Python Fixture Without A Host Dependency.
     if "python" in languages:
-        wheel.build(root, profile)
+        subprocess.run(
+            ["mise", "-C", "sdk/python", "run", "build"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            env=dict(os.environ, DOKIME_BUILD_PROFILE=profile),
+        )
 
     # Extend The Tests Producer's Existing Fixture Inventory.
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"

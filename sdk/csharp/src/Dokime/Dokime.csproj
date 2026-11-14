@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Dokime</PackageId>
+    <Version>0.1.0-dev</Version>
+    <PackageReadmeFile>sdk-csharp.md</PackageReadmeFile>
+    <Description>Dokime Plugin Authoring and gRPC Client SDK</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/stokker-technologies/dokime</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <None Include="$(RepoRoot)docs/sdk-csharp.md" Pack="true" PackagePath="/" />
+    <PackageReference Include="Harmos" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+    <Protobuf Include="$(RepoRoot)proto/dokime/**/*.proto" ProtoRoot="$(RepoRoot)proto" AdditionalImportDirs="$(RepoRoot)proto" GrpcServices="Both" />
+  </ItemGroup>
+</Project>

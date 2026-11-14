@@ -542,3 +542,14 @@ backend snapshots prevent deletion until their readers release the files.
 The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
 `sample_batches` inventory is refused with an action to select a fresh root; no
 existing root is migrated, reset or deleted. Diagnostics copy stream files too.
+
+## SDK Build Ownership
+
+Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build
+recipes. Repository host-fixture tooling calls those entry points; fixtures live
+under `sdk/tests/fixtures`. C++ resolves its native graph through one pinned
+vcpkg manifest and exports `Dokime::Cpp` as an installed package. C# builds one
+solution with central dependency versions and consumes Harmos through a local
+NuGet feed. Python ships typed resource modules and generated protobuf packages.
+These build changes retain the current protocol and client call shapes; the
+next library pin must regenerate their descriptor-derived surfaces.
