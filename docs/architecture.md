@@ -486,7 +486,9 @@ Arrow batch iterators, with no product/storage types in its signature. Expressio
 binding uses it for stream-to-stream and record-to-stream alignment, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
 the previous record at the current record's time before alignment to later samples.
-Exact integer rank selection uses bounded radix replay; integer ordering and
+Exact integer rank selection spills projected order keys to an ephemeral query
+file once and replays those keys in bounded radix passes, avoiding repeated batch
+decompression and whole-population sorting in memory. Integer ordering and
 interpolation precede conversion at numeric-only protocol boundaries. Integer
 variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. A rational or integer outside the frozen `Value` format is

@@ -16,7 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroU128};
+use std::{
+    collections::BTreeMap,
+    io::{BufReader, BufWriter, Read, Seek, Write},
+    num::NonZeroU128,
+};
 
 // Third Party Imports
 use arrow_array::{RecordBatch, StructArray};
@@ -272,7 +276,8 @@ impl Store {
         })?;
         Ok(moments)
     }
-    // Eight Radix Passes Retain Only Requested Ranks And 256 Counters Per Prefix.
+    // Spill Projected Order Keys Once; Radix Passes Never Replay Stream Decoding.
+    // Each Pass Retains Only Requested Ranks And 256 Counters Per Prefix.
     // Integer Order And Interpolation Stay Exact Until The Protocol's f64 Boundary.
     pub(crate) fn ranks(&self, window: NumericWindow<'_>, count: u64, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
         let ranks = percentiles
@@ -284,8 +289,9 @@ impl Store {
             .collect::<std::collections::BTreeSet<_>>();
         let mut selected = ranks.into_iter().map(|rank| (rank, (0u64, rank))).collect::<BTreeMap<_, _>>();
         let mut kind = None;
-        for shift in (0..8).rev().map(|n| n * 8) {
-            let mut groups = selected.values().map(|(prefix, _)| (*prefix, [0u64; 256])).collect::<BTreeMap<_, _>>();
+        let mut keys = tempfile::tempfile()?;
+        {
+            let mut output = BufWriter::new(&mut keys);
             self.evaluated_batches(window, &[window.field.into()], |batch| {
                 let column = scalar::column(&batch, window.field)?;
                 for row in 0..batch.num_rows() {
@@ -310,13 +316,25 @@ impl Store {
                         }
                         _ => continue,
                     };
-                    let prefix = if shift == 56 { 0 } else { key & (!0u64 << (shift + 8)) };
-                    if let Some(histogram) = groups.get_mut(&prefix) {
-                        histogram[((key >> shift) & 255) as usize] += 1;
-                    }
+                    output.write_all(&key.to_le_bytes())?;
                 }
                 Ok(true)
             })?;
+            output.flush()?;
+        }
+        for shift in (0..8).rev().map(|n| n * 8) {
+            let mut groups = selected.values().map(|(prefix, _)| (*prefix, [0u64; 256])).collect::<BTreeMap<_, _>>();
+            keys.rewind()?;
+            let mut input = BufReader::new(&mut keys);
+            for _ in 0..count {
+                let mut bytes = [0; 8];
+                input.read_exact(&mut bytes)?;
+                let key = u64::from_le_bytes(bytes);
+                let prefix = if shift == 56 { 0 } else { key & (!0u64 << (shift + 8)) };
+                if let Some(histogram) = groups.get_mut(&prefix) {
+                    histogram[((key >> shift) & 255) as usize] += 1;
+                }
+            }
             for (prefix, rank) in selected.values_mut() {
                 let histogram = &groups[prefix];
                 let mut bin = 0;

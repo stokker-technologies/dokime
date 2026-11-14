@@ -16,7 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, num::NonZeroUsize, path::Path};
+use std::{
+    io::{BufWriter, Write},
+    num::NonZeroUsize,
+    path::Path,
+};
 
 // Third Party Imports
 use harmos_protocol::v1 as h;
@@ -301,7 +305,8 @@ impl Host {
         })
     }
     pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
-        let mut output = NamedTempFile::with_prefix("dokime-render-")?;
+        let mut file = NamedTempFile::with_prefix("dokime-render-")?;
+        let mut output = BufWriter::new(&mut file);
         let title = document.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
         write!(
             output,
@@ -342,8 +347,9 @@ impl Host {
         }
         write!(output, "</body></html>")?;
         output.flush()?;
+        drop(output);
         Ok(RenderedDocument {
-            output,
+            output: file,
             execution: snapshot.cut.execution.identifier.clone(),
             execution_seal: snapshot.cut.seal.clone(),
             document,
@@ -362,7 +368,7 @@ impl Host {
 /* === Private Functions === */
 
 fn render_section(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, settings: RenderSettings,
 ) -> Result<()> {
     if section.repeat.is_some() {
         return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
@@ -427,7 +433,7 @@ fn render_section(
 }
 
 fn render_plot(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
+    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
     settings: RenderSettings,
 ) -> Result<()> {
     let scope = v1::EvidenceScope {
@@ -452,7 +458,7 @@ fn render_plot(
     let presentation = dokime_operations_next::client::document_plot::presentation(&store, &snapshot.cut, plot)?;
     crate::plot_html::render(output, plot, &envelope, &presentation)
 }
-fn render_evidence(output: &mut NamedTempFile, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
+fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
     let kind = v1::EvidenceCard::try_from(kind).map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
     write!(output, "<ol>")?;
     if kind == v1::EvidenceCard::Notes {
