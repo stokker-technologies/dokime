@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * dokime-rust-workspace
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -9,167 +9,26 @@
 
 // Native Operation Admission
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
-use crate::host::{ClientSettings, Context};
-use crate::{Error, Resources, Result};
-use harmos_protocol::model::Callers;
-use harmos_runtime::operations::{Contract, ExecutionContext, HostContext, OperationFactory, ProtobufOperation, ServingError};
-use harmos_runtime::plugin::grpc::CallingPlugin;
+// Standard Library Imports
 use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 
-/* === Structs === */
+// Third Party Imports
+use harmos_protocol::model::Callers;
+use harmos_runtime::operations::{Contract, ExecutionContext, HostContext, OperationFactory, ProtobufOperation, ServingError};
+use harmos_runtime::plugin::grpc::CallingPlugin;
 
-#[derive(Default)]
-pub struct Binding(OnceLock<Weak<Context>>);
+// Local Imports
+use crate::host::{ClientSettings, Context};
+use crate::{Error, Resources, Result};
 
-/* === Implementations === */
-
-impl Binding {
-    pub fn bind(&self, context: &Arc<Context>) -> Result<()> {
-        self.0.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Native Operations: Assemble the Host Only Once".into()))
-    }
-}
-
-/* === Public Functions === */
-
-pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
-    let host = execution.resource::<HostContext>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
-    let binding = execution.resource::<Binding>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
-    let mut context = binding
-        .0
-        .get()
-        .and_then(Weak::upgrade)
-        .ok_or_else(|| Error::Unavailable(format!("{action}: Assemble the Host Context")))?
-        .as_ref()
-        .clone();
-    let host = host.borrow();
-    let plugin = execution.resource::<CallingPlugin>().is_ok();
-    crate::authorize(action, if plugin { Callers::Plugins } else { Callers::Clients })
-        .map_err(|source| Error::Permission(format!("{action}: {source}")))?;
-    if plugin {
-        let resources =
-            host.context().get::<Resources>().ok_or_else(|| Error::Permission(format!("{action}: Enter an Active Execution")))?;
-        resources.check_action_scope(&resources.execution, action)?;
-        context.caller = Some(resources.clone());
-    }
-    Ok(context)
-}
-
-pub fn failure(source: Error) -> ServingError {
-    ServingError::Native(Arc::new(crate::host::status(source)))
-}
-
-pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFactory> {
-    let factory = OperationFactory::protobuf::<O>().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
-    let contract = factory.contract().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
-    let mut operation = contract.operation().clone();
-    operation.policy.timeout = timeout;
-    operation.policy.attempt_timeout = timeout;
-    let contract = Contract::from_protobuf(
-        operation,
-        contract.protobuf().expect("protobuf operation").clone(),
-        contract.grpc().cloned(),
-        &Default::default(),
-    )
-    .map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
-    Ok(factory.with_contract(contract))
-}
-
-/* === Macros === */
-
-macro_rules! unary {
-    ($request:ident, $response:ident, $caller:ident, $package:literal, $service:literal, $method:literal) => {
-        pub use native::Operation;
-        mod native {
-            use super::{$request, $response};
-            use harmos_runtime::operations::{
-                ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, Resource,
-                RetryPolicy, ServingError, Visibility,
-            };
-            use harmos_protocol::policy::UNBOUNDED;
-            use std::time::Duration;
-            use std::result::Result as NativeResult;
-            use crate::native::{Binding, context, failure};
-            pub struct Operation;
-            impl ProtobufOperation for Operation {
-                type Request = $request;
-                type Response = $response;
-                type Endpoints = ();
-                const ID: &'static str = super::ID;
-                const GRPC: Option<Grpc> = Some(Grpc::new($package, $service, $method));
-                const POLICY: OperationPolicy = OperationPolicy {
-                    timeout: UNBOUNDED,
-                    attempt_timeout: UNBOUNDED,
-                    cancellation_timeout: Duration::ZERO,
-                    retries: RetryPolicy::Never,
-                };
-                const VISIBILITY: Visibility = Visibility::Public;
-                const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
-                async fn run(
-                    execution: ExecutionContext, request: Self::Request, _: &(),
-                ) -> NativeResult<Self::Response, ServingError> {
-                    let context = context(&execution, Self::ID).map_err(failure)?;
-                    crate::native::unary!(@call $caller, context, request)
-                }
-            }
-        }
-    };
-    (@call context, $context:ident, $request:ident) => {
-        super::handle(&$context, $request).await.map_err(failure)
-    };
-    (@call resources, $context:ident, $request:ident) => {
-        super::handle($context.caller.as_ref().ok_or(ServingError::Catalog)?, $request).await.map_err(failure)
-    };
-}
-pub(crate) use unary;
-
-macro_rules! download {
-    ($request:ident, $response:ident, $package:literal, $service:literal, $method:literal) => {
-        pub use native::Operation;
-        mod native {
-            use super::{$request, $response};
-            use crate::native::{Binding, context, failure};
-            use harmos_protocol::policy::UNBOUNDED;
-            use harmos_runtime::operations::{
-                ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, RetryPolicy,
-                ServingError, Visibility,
-            };
-            use std::result::Result as NativeResult;
-            use std::{sync::Arc, time::Duration};
-            use tokio_stream::StreamExt;
-            pub struct Operation;
-            impl ProtobufOperation for Operation {
-                type Request = $request;
-                type Response = $response;
-                type Endpoints = ProtobufOutput<$response>;
-                const ID: &'static str = super::ID;
-                const GRPC: Option<Grpc> = Some(Grpc::new($package, $service, $method));
-                const POLICY: OperationPolicy = OperationPolicy {
-                    timeout: UNBOUNDED,
-                    attempt_timeout: UNBOUNDED,
-                    cancellation_timeout: Duration::ZERO,
-                    retries: RetryPolicy::Never,
-                };
-                const VISIBILITY: Visibility = Visibility::Public;
-                const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
-                async fn run(
-                    execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints,
-                ) -> NativeResult<Self::Response, ServingError> {
-                    let context = context(&execution, Self::ID).map_err(failure)?;
-                    let mut stream = super::handle(&context, request).await.map_err(failure)?;
-                    while let Some(response) = stream.next().await {
-                        let response = response.map_err(|source| ServingError::Native(Arc::new(source)))?;
-                        output.send(response).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
-                    }
-                    Ok(Self::Response::default())
-                }
-            }
-        }
-    };
-}
-pub(crate) use download;
+/* === Constants === */
 
 const OPERATIONS: &[&str] = &[
     crate::host::content::artifacts::create::ID,
@@ -281,6 +140,166 @@ const OPERATIONS: &[&str] = &[
     crate::host::suites::get::ID,
     crate::host::suites::list::ID,
 ];
+
+/* === Macros === */
+
+macro_rules! unary {
+    ($request:ident, $response:ident, $caller:ident, $package:literal, $service:literal, $method:literal) => {
+        pub use native::Operation;
+        mod native {
+            use super::{$request, $response};
+            use harmos_runtime::operations::{
+                ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, Resource,
+                RetryPolicy, ServingError, Visibility,
+            };
+            use harmos_protocol::policy::UNBOUNDED;
+            use std::time::Duration;
+            use std::result::Result as NativeResult;
+            use crate::native::{Binding, context, failure};
+            pub struct Operation;
+            impl ProtobufOperation for Operation {
+                type Request = $request;
+                type Response = $response;
+                type Endpoints = ();
+                const ID: &'static str = super::ID;
+                const GRPC: Option<Grpc> = Some(Grpc::new($package, $service, $method));
+                const POLICY: OperationPolicy = OperationPolicy {
+                    timeout: UNBOUNDED,
+                    attempt_timeout: UNBOUNDED,
+                    cancellation_timeout: Duration::ZERO,
+                    retries: RetryPolicy::Never,
+                };
+                const VISIBILITY: Visibility = Visibility::Public;
+                const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
+                async fn run(
+                    execution: ExecutionContext, request: Self::Request, _: &(),
+                ) -> NativeResult<Self::Response, ServingError> {
+                    let context = context(&execution, Self::ID).map_err(failure)?;
+                    crate::native::unary!(@call $caller, context, request)
+                }
+            }
+        }
+    };
+    (@call context, $context:ident, $request:ident) => {
+        super::handle(&$context, $request).await.map_err(failure)
+    };
+    (@call resources, $context:ident, $request:ident) => {
+        super::handle($context.caller.as_ref().ok_or(ServingError::Catalog)?, $request).await.map_err(failure)
+    };
+}
+
+pub(crate) use unary;
+
+macro_rules! download {
+    ($request:ident, $response:ident, $package:literal, $service:literal, $method:literal) => {
+        pub use native::Operation;
+        mod native {
+            use super::{$request, $response};
+            use crate::native::{Binding, context, failure};
+            use harmos_protocol::policy::UNBOUNDED;
+            use harmos_runtime::operations::{
+                ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, RetryPolicy,
+                ServingError, Visibility,
+            };
+            use std::result::Result as NativeResult;
+            use std::{sync::Arc, time::Duration};
+            use tokio_stream::StreamExt;
+            pub struct Operation;
+            impl ProtobufOperation for Operation {
+                type Request = $request;
+                type Response = $response;
+                type Endpoints = ProtobufOutput<$response>;
+                const ID: &'static str = super::ID;
+                const GRPC: Option<Grpc> = Some(Grpc::new($package, $service, $method));
+                const POLICY: OperationPolicy = OperationPolicy {
+                    timeout: UNBOUNDED,
+                    attempt_timeout: UNBOUNDED,
+                    cancellation_timeout: Duration::ZERO,
+                    retries: RetryPolicy::Never,
+                };
+                const VISIBILITY: Visibility = Visibility::Public;
+                const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
+                async fn run(
+                    execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints,
+                ) -> NativeResult<Self::Response, ServingError> {
+                    let context = context(&execution, Self::ID).map_err(failure)?;
+                    let mut stream = super::handle(&context, request).await.map_err(failure)?;
+                    while let Some(response) = stream.next().await {
+                        let response = response.map_err(|source| ServingError::Native(Arc::new(source)))?;
+                        output.send(response).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
+                    }
+                    Ok(Self::Response::default())
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use download;
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[derive(Default)]
+pub struct Binding(OnceLock<Weak<Context>>);
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl Binding {
+    pub fn bind(&self, context: &Arc<Context>) -> Result<()> {
+        self.0.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Native Operations: Assemble the Host Only Once".into()))
+    }
+}
+
+/* === Public Functions === */
+
+pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
+    let host = execution.resource::<HostContext>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
+    let binding = execution.resource::<Binding>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
+    let mut context = binding
+        .0
+        .get()
+        .and_then(Weak::upgrade)
+        .ok_or_else(|| Error::Unavailable(format!("{action}: Assemble the Host Context")))?
+        .as_ref()
+        .clone();
+    let host = host.borrow();
+    let plugin = execution.resource::<CallingPlugin>().is_ok();
+    crate::authorize(action, if plugin { Callers::Plugins } else { Callers::Clients })
+        .map_err(|source| Error::Permission(format!("{action}: {source}")))?;
+    if plugin {
+        let resources =
+            host.context().get::<Resources>().ok_or_else(|| Error::Permission(format!("{action}: Enter an Active Execution")))?;
+        resources.check_action_scope(&resources.execution, action)?;
+        context.caller = Some(resources.clone());
+    }
+    Ok(context)
+}
+
+pub fn failure(source: Error) -> ServingError {
+    ServingError::Native(Arc::new(crate::host::status(source)))
+}
+
+pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFactory> {
+    let factory = OperationFactory::protobuf::<O>().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
+    let contract = factory.contract().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
+    let mut operation = contract.operation().clone();
+    operation.policy.timeout = timeout;
+    operation.policy.attempt_timeout = timeout;
+    let contract = Contract::from_protobuf(
+        operation,
+        contract.protobuf().expect("protobuf operation").clone(),
+        contract.grpc().cloned(),
+        &Default::default(),
+    )
+    .map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
+    Ok(factory.with_contract(contract))
+}
 
 pub fn callers() -> Result<String> {
     let mut composition = String::from("[callers]\n");
@@ -416,3 +435,7 @@ pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operati
     registration = registration.entry(factory::<crate::host::files::capture::Operation>(settings.mutation_timeout)?);
     Ok(registration)
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

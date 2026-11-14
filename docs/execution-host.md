@@ -1725,9 +1725,14 @@ and source chain. Direct hosts use
 `Host::open(root, host_settings, operation_settings).await`; served hosts share that
 assembly. Assembly owns the backend lease, and closure refuses further backend
 calls before releasing it.
+
+Uploads.Create assigns an omitted file ID from its mutation identity. Plugin
+mutation identities include the trusted execution scope, so equal request IDs in
+different executions remain independent; retrying one request retains its file ID.
+
 For this wave, compound product objects retain their transactional Store paths.
-The operations manifest must declare the workspace `harmos-runtime`
-dependency; only the manifest owner may edit it. Runtime storage registration
+The operations manifest declares the workspace `harmos-runtime`
+dependency. Runtime storage registration
 combines the library plugin catalog with `host::storage::administration::catalog()`.
 The library Plugins watch refreshes the suite projection and reconciles secret
 bindings; observer cancellation is awaited before the host closes.

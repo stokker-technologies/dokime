@@ -51,8 +51,11 @@ pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<
             let execution = caller.resolve_execution(metadata.scope.as_deref(), ID)?;
             metadata.scope = Some(execution.to_owned());
         }
-        let metadata = NativeFileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        if metadata.id.is_empty() {
+            metadata.id = mutation.key.to_string();
+        }
+        let metadata = NativeFileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
         let response = context
             .storage::<CreateFileProduction>(CreateFileProductionRequest {
                 metadata: Some(metadata),

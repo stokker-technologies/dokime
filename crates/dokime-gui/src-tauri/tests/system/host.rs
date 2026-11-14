@@ -22,7 +22,6 @@ use std::{error::Error as StdError, num::NonZeroUsize, path::PathBuf, sync::Arc,
 
 // Local Imports
 
-use dokime_sdk::PlotRequest;
 use dokime_sdk::client::DocumentScope;
 use dokime_sdk::client::PluginPlacement;
 use dokime_sdk::client::PluginRemote;
@@ -55,6 +54,8 @@ use dokime_sdk::EvidenceCapturedRecordSelection;
 use dokime_sdk::EvidenceRecordsListResponse;
 use dokime_sdk::EvidenceScope;
 use dokime_sdk::FieldReference;
+use dokime_sdk::FilesGetResponse;
+use dokime_sdk::FilesReadResponse;
 use dokime_sdk::Import;
 use dokime_sdk::Metadata;
 use dokime_sdk::Origin;
@@ -69,8 +70,6 @@ use dokime_sdk::client::ExecutionState;
 use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
 use dokime_sdk::client::ExecutionsProgressWatchResponse;
-use dokime_sdk::client::FilesGetResponse;
-use dokime_sdk::client::FilesReadResponse;
 use dokime_sdk::client::PlotsPlotRequest;
 use dokime_sdk::client::PlotsSnapshotsListResponse;
 use dokime_sdk::client::PlotsSnapshotsWatchResponse;
@@ -104,7 +103,7 @@ use dokime_sdk::client::document_frame_frame::Kind as FrameKind;
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
 use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
-use harmos_protocol::model::{Catalog, Section as CatalogSection, StreamDeclaration};
+use harmos_protocol::model::{Declarations, Section as CatalogSection, StreamDeclaration};
 use prost_types::FileDescriptorSet;
 
 /* === Constants === */
@@ -203,7 +202,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             }],
             ..Default::default()
         };
-        let catalog = Catalog {
+        let catalog = Declarations {
             types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![StreamDeclaration {
                 id: "wave".into(),
