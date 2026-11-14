@@ -16,13 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{fs, path::Path};
+use std::fs;
+use std::path::Path;
 
 // Third Party Imports
 
 // Local Imports
 use dokime_protocol::builders::Plot as PlotBuilder;
 use dokime_protocol::model::PlotKind;
+use dokime_protocol::model::Step;
+use dokime_protocol::model::TestCase;
+use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
 use harmos_protocol::plugin::InstanceGetResponse;
 use prost_reflect::ReflectMessage;
 use prost_types::Duration;
@@ -190,7 +194,8 @@ fn typed_plot_builders_produce_canonical_document_messages() {
 
 #[test]
 fn descriptors_separate_executors_and_admit_declared_callers() {
-    use harmos_protocol::{model::Callers, schema::method_callers};
+    use harmos_protocol::model::Callers;
+    use harmos_protocol::schema::method_callers;
 
     // Discover Real Services on Both Executors and Keep Values Service-Free.
     let pool = dokime_protocol::descriptor_pool();
@@ -245,7 +250,8 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
     use dokime_protocol::host::*;
     use dokime_protocol::model::*;
     use prost::Message;
-    use prost_reflect::{DynamicMessage, ReflectMessage};
+    use prost_reflect::DynamicMessage;
+    use prost_reflect::ReflectMessage;
 
     // Reflect Plan Admission Against the Final Resource Service.
     let request = CasesCreateRequest {
@@ -320,8 +326,11 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
 #[test]
 fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
     use ReflectMessage;
-    use dokime_protocol::plugin;
-    use harmos_protocol::model::{Declarations, OperationContract, OperationPolicy, Visibility};
+
+    use harmos_protocol::model::Declarations;
+    use harmos_protocol::model::OperationContract;
+    use harmos_protocol::model::OperationPolicy;
+    use harmos_protocol::model::Visibility;
     use prost::Message;
 
     // Independent Dotted Bindings Share One Typed Step Payload Family.
@@ -329,8 +338,8 @@ fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
     for (id, seconds) in [("measurement.sample.step.0", 2), ("measurement.sample.step.1", 9)] {
         catalog.operations.push(OperationContract {
             id: id.into(),
-            request: plugin::StepsExecuteRequest::default().descriptor().full_name().into(),
-            response: plugin::StepsExecuteResponse::default().descriptor().full_name().into(),
+            request: StepsExecuteRequest::default().descriptor().full_name().into(),
+            response: StepsExecuteResponse::default().descriptor().full_name().into(),
             visibility: Visibility::Protected as i32,
             policy: Some(OperationPolicy {
                 timeout: Some(Duration { seconds, nanos: 0 }),
@@ -339,11 +348,11 @@ fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
             ..Default::default()
         });
     }
-    let case = dokime_protocol::model::TestCase {
+    let case = TestCase {
         steps: catalog
             .operations
             .iter()
-            .map(|operation| dokime_protocol::model::Step {
+            .map(|operation| Step {
                 operation: operation.id.clone(),
                 ..Default::default()
             })
