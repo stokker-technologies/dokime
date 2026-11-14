@@ -2557,7 +2557,8 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     assert.ok(streams.filter((group) => group.generation === "1").every((group) => group.stream.cancel.mock.calls.length === 1));
     const retained = states.get("0")?.["live-0"];
     await act(async () => {
-      const group = streams.find((group) => group.generation === "3" && group.ids.includes("live-96"))!;
+      const group = streams.find((group) => group.generation === "3" && group.ids.includes("live-96"));
+      assert.ok(group);
       group.stream.push(...group.ids.map((plot_id) => ({ ...streamMessage("replace", 129, hostFrame([129], [[129]])), plot_id })));
       await vi.advanceTimersByTimeAsync(20);
     });
@@ -2566,7 +2567,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     assert.equal(states.get("0")?.["live-96"].revision, 129);
   } finally {
     await act(async () => {
-      roots.forEach((root) => root.unmount());
+      for (const root of roots) root.unmount();
     });
     useSummaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
     raf.mockRestore();

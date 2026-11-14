@@ -98,11 +98,15 @@ export function scaleStatisticValue(value: StatisticValue, scale: number): Stati
   const power = Number(match[4] ?? 0) - (match[3]?.length ?? 0);
   const factor = power >= 0 ? digits * 10n ** BigInt(power) : digits;
   const divisor = power >= 0 ? 1n : 10n ** BigInt(-power);
-  const integer = "numerator" in value ? null : BigInt(value.decimal);
-  const negative = "numerator" in value ? value.negative : integer! < 0n;
-  const numerator = "numerator" in value ? BigInt(value.numerator) : integer! < 0n ? -integer! : integer!;
-  const denominator = "denominator" in value ? BigInt(value.denominator) : 1n;
-  return new NativeExactValue(negative !== Boolean(match[1]), String(numerator * factor), String(denominator * divisor));
+  if ("numerator" in value) {
+    return new NativeExactValue(
+      value.negative !== Boolean(match[1]),
+      String(BigInt(value.numerator) * factor),
+      String(BigInt(value.denominator) * divisor),
+    );
+  }
+  const integer = BigInt(value.decimal);
+  return new NativeExactValue(integer < 0n !== Boolean(match[1]), String((integer < 0n ? -integer : integer) * factor), String(divisor));
 }
 
 /**
