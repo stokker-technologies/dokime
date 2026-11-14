@@ -135,9 +135,9 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
             {
               seriesId: "value",
               count: 2n,
-              min: { kind: { case: "number", value: 1.25 } },
-              max: { kind: { case: "number", value: 4.5 } },
-              mean: { kind: { case: "number", value: 2.875 } },
+              min: { kind: { case: "number" as const, value: 1.25 } },
+              max: { kind: { case: "number" as const, value: 4.5 } },
+              mean: { kind: { case: "number" as const, value: 2.875 } },
             },
           ],
         },
