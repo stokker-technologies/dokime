@@ -1738,6 +1738,12 @@ mutation identities include the trusted execution scope, so equal request IDs in
 different executions remain independent; retrying one request retains its file ID.
 Artifact creation accepts open execution evidence, including imported evidence,
 and refuses closed executions before writing metadata.
+Artifact metadata, the original native file reference and its mutation receipt
+commit in the product Store transaction with execution evidence. Reads and watches
+retain product read cuts, and deletion removes these references in the execution
+transaction. File bytes remain in native storage. Admission refuses incompatible
+product file objects before execution recovery and refuses earlier native artifact
+objects with the action to select a fresh storage root; it never resets that data.
 
 Bundle creation and inspection use the library's canonical manifest and USTAR
 rules. Install, add and development commands observe Plugins.Watch and read the
@@ -1794,7 +1800,7 @@ Native primary and state backends share the product root and history identity.
 | Execution deletion | Product Store transactions | Atomic scope deletion with a durable receipt and retained-reader guarantees. |
 | Samples | Product Arrow ingestion and registered native backend | Scoped capture must preserve source times, ordered ticks and the execution evidence frontier. |
 | Files and uploads | Library native file operations through the registered backend | No product file-transfer store or wire twin. |
-| Artifact metadata | Library native administration objects | Execution-open admission is checked before creating metadata. |
+| Artifact metadata and retained file references | Product Store transactions | Atomic execution-open admission, metadata publication and the original mutation receipt; file bytes remain native. |
 | Plugin entries and settings | Library Plugins and plugins.Settings | Library-owned objects and lifecycle; no product installation record. |
 | Plugin secret bindings and plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
 | Protected secrets and access credentials | Product credential store and transactional catalog | Credential values remain in the operating system store. |

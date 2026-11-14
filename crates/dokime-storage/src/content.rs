@@ -59,6 +59,14 @@ pub struct ContentEntry {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct StoredArtifact {
+    #[prost(message, optional, tag = "1")]
+    pub request: Option<ArtifactsCreateRequest>,
+    #[prost(message, optional, tag = "2")]
+    pub artifact: Option<ArtifactMetadata>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ArchivedContent {
     #[prost(string, tag = "1")]
     pub identifier: String,
@@ -102,9 +110,7 @@ pub struct ArchivedContentChunk {
 
 impl Store {
     pub fn attach_artifact(&self, operation: &str, request: ArtifactsCreateRequest, now_ns: i64) -> Result<ArtifactsCreateResponse> {
-        use harmos_protocol::model::History;
-        use harmos_protocol::model::Position;
-        use harmos_protocol::model::Receipt;
+        use harmos_protocol::model::{History, Position, Receipt};
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Create Artifact: Supply a Request ID".into()));
         }
@@ -112,12 +118,25 @@ impl Store {
         let execution =
             scope.execution_id.as_deref().ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution Scope".into()))?;
         let reference = request.file.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Published Content".into()))?;
-        let source = reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select a Named File Reference".into()))?;
+        let file = reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select a Named File Reference".into()))?;
+        if file.scope.as_deref() != Some(execution)
+            || reference.sha256.len() != 32
+            || file.expected_length.is_some_and(|expected| expected != reference.length)
+            || file.expected_sha256.as_ref().is_some_and(|expected| expected != &reference.sha256)
+            || reference
+                .position
+                .as_ref()
+                .and_then(|position| position.history.as_ref())
+                .is_none_or(|history| history.store != self.identity.as_ref() || history.epoch.is_empty())
+        {
+            return Err(Error::Invalid("Create Artifact: Keep Its Verified Native File Reference Within the Execution Scope".into()));
+        }
         let fingerprint = Sha256::digest(request.encode_to_vec()).to_vec();
         let identifier = Sha256::digest(format!("{operation}/{execution}/{}", request.request_id))
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
+        let key = format!("artifact/{identifier}");
         let mut connection = self.lock()?;
         self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
@@ -132,45 +151,19 @@ impl Store {
             if saved != fingerprint {
                 return Err(Error::Conflict("Create Artifact: Use a New Request ID for Changed Content or Metadata".into()));
             }
-            let payload: Vec<u8> =
-                transaction.query_row("SELECT metadata FROM content_objects WHERE id=?1", [&identifier], |row| row.get(0))?;
-            (ArtifactMetadata::decode(payload.as_slice())?, sequence as u64)
+            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0))?;
+            let stored = StoredArtifact::decode(payload.as_slice())?;
+            (stored.artifact.ok_or_else(|| Error::Invalid("Create Artifact: Restore Its Committed Metadata".into()))?, sequence as u64)
         } else {
             require_open(&transaction, execution)?;
-            let (owner, length, sha256, phase): (String, i64, String, i32) =
-                transaction.query_row("SELECT execution,length,sha256,phase FROM content_objects WHERE id=?1", [&source.id], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?;
-            let digest = (0..sha256.len())
-                .step_by(2)
-                .map(|index| {
-                    u8::from_str_radix(&sha256[index..index + 2], 16)
-                        .map_err(|_| Error::Invalid("Create Artifact: Restore Its Published Digest".into()))
-                })
-                .collect::<Result<Vec<_>>>()?;
-            if owner != execution
-                || phase != 2
-                || reference.length != length as u64
-                || reference.sha256 != digest
-                || source.expected_length.is_some_and(|expected| expected != length as u64)
-                || source.expected_sha256.as_ref().is_some_and(|expected| expected != &digest)
-                || reference
-                    .position
-                    .as_ref()
-                    .and_then(|position| position.history.as_ref())
-                    .is_none_or(|history| history.store != self.identity.as_ref() || history.epoch != execution)
-            {
-                return Err(Error::Invalid(
-                    "Create Artifact: Keep Its Original Published File Reference Within the Execution Scope".into(),
-                ));
-            }
             let artifact = ArtifactMetadata {
-                artifact_id: identifier.clone(),
+                artifact_id: identifier,
+                upload_id: file.id.clone(),
                 scope: Some(scope.clone()),
                 filename: request.filename.clone(),
                 content_type: Some(request.content_type.clone()),
-                size_bytes: length as u64,
-                sha256: sha256.clone(),
+                size_bytes: reference.length,
+                sha256: reference.sha256.iter().map(|byte| format!("{byte:02x}")).collect(),
                 state: ArtifactState::Complete as i32,
                 created_at: Some(Timestamp {
                     seconds: now_ns.div_euclid(1_000_000_000),
@@ -178,14 +171,11 @@ impl Store {
                 }),
                 ..Default::default()
             };
-            transaction.execute(
-                "INSERT INTO content_objects VALUES(?1,?2,?3,1,?4,?5,?6,2)",
-                params![identifier, execution, request.filename, artifact.encode_to_vec(), length, sha256],
-            )?;
-            transaction.execute(
-                "INSERT INTO content_chunks SELECT ?1,offset,payload FROM content_chunks WHERE object=?2",
-                params![identifier, source.id],
-            )?;
+            let stored = StoredArtifact {
+                request: Some(request.clone()),
+                artifact: Some(artifact.clone()),
+            };
+            transaction.execute("INSERT INTO administration VALUES(?1,?2)", params![key, stored.encode_to_vec()])?;
             let sequence = next_position(&transaction, execution)?;
             append_reference(&transaction, execution, "artifact:metadata", artifact.encode_to_vec())?;
             transaction.execute(
@@ -212,6 +202,22 @@ impl Store {
                 completed: true,
             }),
         })
+    }
+    pub fn artifact(&self, identifier: &str) -> Result<StoredArtifact> {
+        self.administration(&format!("artifact/{identifier}"))?
+            .ok_or_else(|| Error::NotFound("Read Artifact: Select a Committed Artifact Identifier".into()))
+    }
+    pub fn has_incompatible_content(&self) -> Result<bool> {
+        Ok(self.lock()?.query_row("SELECT EXISTS(SELECT 1 FROM content_objects)", [], |row| row.get(0))?)
+    }
+    pub fn artifact_records_page(&self, after: &str, limit: usize) -> Result<Vec<StoredArtifact>> {
+        let connection = self.lock()?;
+        let mut statement =
+            connection.prepare("SELECT payload FROM administration WHERE id LIKE 'artifact/%' AND id>?1 ORDER BY id LIMIT ?2")?;
+        statement
+            .query_map(params![format!("artifact/{after}"), limit as i64], |row| row.get::<_, Vec<u8>>(0))?
+            .map(|row| Ok(StoredArtifact::decode(row?.as_slice())?))
+            .collect()
     }
     pub fn begin_artifact(&self, metadata: ArtifactMetadata) -> Result<()> {
         let execution = metadata
@@ -374,12 +380,9 @@ impl Store {
         Ok(bytes)
     }
     pub fn artifacts_page(&self, after: &str, limit: usize) -> Result<Vec<ArtifactMetadata>> {
-        let connection = self.lock()?;
-        let mut statement =
-            connection.prepare("SELECT metadata FROM content_objects WHERE artifact=1 AND phase=2 AND id>?1 ORDER BY id LIMIT ?2")?;
-        statement
-            .query_map(params![after, limit as i64], |row| row.get::<_, Vec<u8>>(0))?
-            .map(|row| Ok(ArtifactMetadata::decode(row?.as_slice())?))
+        self.artifact_records_page(after, limit)?
+            .into_iter()
+            .map(|stored| stored.artifact.ok_or_else(|| Error::Invalid("Read Artifact: Restore Its Committed Metadata".into())))
             .collect()
     }
     pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<ContentEntry>> {

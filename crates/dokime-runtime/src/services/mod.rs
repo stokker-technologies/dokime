@@ -251,6 +251,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     });
     host.executions.bind_context(&context)?;
     binding.bind(&context)?;
+    dokime_operations::host::content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;
     dokime_operations::host::plugins::secrets::reconcile(&context).await?;
     dokime_operations::host::register_redactions(&context)?;

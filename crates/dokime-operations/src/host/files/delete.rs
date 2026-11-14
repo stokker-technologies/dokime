@@ -50,7 +50,7 @@ pub async fn handle(context: &Context, request: FilesDeleteRequest) -> Result<Fi
         let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;
         transfer::authorize(context, &file)?;
         let _guard = context.administration.lock().await;
-        if crate::host::content::retained(context, &file).await? {
+        if crate::host::content::retained(context, &file)? {
             return Err(Error::Precondition(format!("{ID}: Retain Content Attached to Execution Evidence")));
         }
         let file = NativeFileReference::try_from(file).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;

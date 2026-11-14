@@ -20,8 +20,11 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_operations::Error as OperationError;
+use dokime_protocol::model::{ArtifactMetadata, ArtifactScope, Import, Origin, origin::Kind};
 use dokime_runtime::Error;
 use dokime_runtime::Host;
+use dokime_storage::{Execution, ExecutionState, Store};
 use std::error::Error as ErrorError;
 use std::fs::OpenOptions;
 
@@ -44,6 +47,38 @@ use std::fs::OpenOptions;
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result<(), Box<dyn ErrorError>> {
+    let root = super::support::tempdir()?;
+    let store = Store::open(root.path())?;
+    let execution = Execution {
+        identifier: "evidence".into(),
+        cycle: "cycle".into(),
+        origin: Some(Origin {
+            kind: Some(Kind::Import(Import::default())),
+        }),
+        ..Default::default()
+    };
+    let identifier = execution.identifier.clone();
+    store.create(&execution)?;
+    store.begin_artifact(ArtifactMetadata {
+        artifact_id: "legacy".into(),
+        filename: "evidence.bin".into(),
+        scope: Some(ArtifactScope {
+            execution_id: Some(identifier.clone()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    })?;
+    drop(store);
+    let refused = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await;
+    assert!(matches!(refused, Err(Error::Operation(OperationError::Precondition(_)))));
+    let store = Store::open(root.path())?;
+    assert_eq!(store.cut(&identifier)?.state, ExecutionState::Open);
+    assert!(store.has_incompatible_content()?);
+    Ok(())
+}
 
 #[tokio::test]
 async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn ErrorError>> {

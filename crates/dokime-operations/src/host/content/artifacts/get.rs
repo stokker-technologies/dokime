@@ -15,8 +15,7 @@
 
 /* === Imports === */
 
-use crate::host::content::{StoredArtifact, artifact_key};
-use crate::host::{ClientSettings, storage::administration};
+use crate::host::ClientSettings;
 
 // Standard Library Imports
 
@@ -60,16 +59,17 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: ArtifactsGetRequest) -> Result<ArtifactsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let snapshot = administration::read(context, &artifact_key(&request.name), &[], request.at).await?;
-        if snapshot.payload.is_empty() {
-            return Err(Error::NotFound(format!("{ID}: Select an Artifact Identifier")));
-        }
-        let stored = StoredArtifact::decode(snapshot.payload.as_slice())?;
-        Ok(ArtifactsGetResponse {
-            metadata: stored.artifact,
-            file: stored.request.and_then(|request| request.file),
-            resolved_at: snapshot.resolved_at,
+        let (mut reply, cut) = crate::host::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
+            let stored = context.host.store().artifact(&request.name)?;
+            Ok(ArtifactsGetResponse {
+                metadata: stored.artifact,
+                file: stored.request.and_then(|request| request.file),
+                ..Default::default()
+            })
         })
+        .await?;
+        reply.resolved_at = Some(cut);
+        Ok(reply)
     })
     .await
 }

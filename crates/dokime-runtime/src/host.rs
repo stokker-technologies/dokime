@@ -105,6 +105,7 @@ impl Host {
         }
         let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
         let store = Store::open_with(root, settings.storage)?;
+        dokime_operations::host::content::validate_store(&store)?;
         let changed = tokio::sync::watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
         let prompts = Arc::new(crate::prompts::PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));

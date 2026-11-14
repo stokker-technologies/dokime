@@ -23,10 +23,8 @@ use crate::{
     Error, Result,
     host::{Context, storage::administration},
 };
-use dokime_protocol::host::content::ArtifactsCreateRequest;
-use dokime_protocol::model::ArtifactMetadata;
+use dokime_storage::Store;
 use harmos_protocol::model::FileReference;
-use prost::Message;
 
 /* === Constants === */
 
@@ -36,14 +34,6 @@ use prost::Message;
 
 /* === Structs === */
 
-#[derive(Clone, PartialEq, Message)]
-pub(crate) struct StoredArtifact {
-    #[prost(message, optional, tag = "1")]
-    pub request: Option<ArtifactsCreateRequest>,
-    #[prost(message, optional, tag = "2")]
-    pub artifact: Option<ArtifactMetadata>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -52,24 +42,47 @@ pub(crate) struct StoredArtifact {
 
 /* === Public Functions === */
 
-pub(crate) fn artifact_key(identifier: &str) -> String {
-    format!("artifact/{identifier}")
+pub fn validate_store(store: &Store) -> Result<()> {
+    if store.has_incompatible_content()? {
+        return Err(Error::Precondition(
+            "Open Content Storage: Select a Fresh Storage Root; This Root Uses Incompatible File Objects".into(),
+        ));
+    }
+    Ok(())
 }
 
-pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<bool> {
+pub async fn validate_root(context: &Context) -> Result<()> {
     let (entries, _) = administration::scan(context, "artifact/", None).await?;
-    for entry in entries {
-        let artifact = StoredArtifact::decode(entry.payload.as_slice())?;
-        let reference = artifact
-            .request
-            .as_ref()
-            .and_then(|request| request.file.as_ref())
-            .ok_or_else(|| Error::Precondition("Delete File: Restore Its Retained Artifact Reference".into()))?;
-        if same_file(reference, file) {
-            return Ok(true);
+    if !entries.is_empty() {
+        return Err(Error::Precondition(
+            "Open Artifact Storage: Select a Fresh Storage Root; This Root Uses Incompatible Artifact Objects".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn retained(context: &Context, file: &FileReference) -> Result<bool> {
+    let store = context.host.store();
+    let mut after = String::new();
+    loop {
+        let entries = store.artifact_records_page(&after, context.settings.page_items)?;
+        if entries.is_empty() {
+            return Ok(false);
+        }
+        for entry in entries {
+            let artifact =
+                entry.artifact.ok_or_else(|| Error::Precondition("Delete File: Restore Its Committed Artifact Metadata".into()))?;
+            after = artifact.artifact_id;
+            let reference = entry
+                .request
+                .as_ref()
+                .and_then(|request| request.file.as_ref())
+                .ok_or_else(|| Error::Precondition("Delete File: Restore Its Retained Artifact Reference".into()))?;
+            if same_file(reference, file) {
+                return Ok(true);
+            }
         }
     }
-    Ok(false)
 }
 
 /* === Private Functions === */
