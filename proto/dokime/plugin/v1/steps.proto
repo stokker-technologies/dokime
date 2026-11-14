@@ -8,7 +8,7 @@ package dokime.plugin.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/execution.proto";
+import "dokime/v1/execution.proto";
 
 // === Options === //
 
@@ -16,28 +16,22 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// Host-only plugin operations with independent Protected lifecycle bindings.
-service Steps {
-  // Execute the Steps resource; admission and policy are owned by the executor.
-  rpc Execute(.dokime.plugin.v1.StepsExecuteRequest) returns (.dokime.plugin.v1.StepsExecuteResponse);
-}
+// === Requests and Responses === //
 
-// === Execute === //
+// === Resources === //
 
-// StepsExecuteRequest for Steps.Execute.
+// StepsExecuteRequest value owned by this resource.
 message StepsExecuteRequest {
   string execution = 1;
   
   string step = 2;
   
   
-  .dokime.model.v1.TestCase test_case = 3;
-  .dokime.model.v1.Origin origin = 4;
+  .dokime.v1.TestCase test_case = 3;
+  .dokime.v1.Origin origin = 4;
 }
 
-// StepsExecuteResponse for Steps.Execute.
+// StepsExecuteResponse value owned by this resource.
 message StepsExecuteResponse {}
-
-// === Resources === //
 
 // === Enums === //

@@ -8,8 +8,8 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/plots.proto";
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/plots.proto";
+import "dokime/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -68,7 +68,7 @@ message ReadSettings {}
 // SavedSettings value owned by this resource.
 message SavedSettings {
   
-  map<string, .dokime.model.v1.Value> values = 1;
+  map<string, .dokime.v1.Value> values = 1;
 }
 
 // ApplicationAppearance value owned by this resource.
@@ -190,7 +190,7 @@ message ReportDefaults {
   uint32 value_depth = 2;
   uint32 table_rows = 3;
   uint32 plot_points = 4;
-  .dokime.model.v1.Downsample plot_downsample = 5;
+  .dokime.v1.Downsample plot_downsample = 5;
 }
 
 // SettingsCard value owned by this resource.

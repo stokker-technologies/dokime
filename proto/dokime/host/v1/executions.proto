@@ -8,12 +8,13 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/host/v1/cycles.proto";
-import "dokime/host/v1/record_schemas.proto";
-import "dokime/model/v1/evidence.proto";
-import "dokime/model/v1/execution.proto";
-import "dokime/model/v1/metadata.proto";
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/cycles.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/execution.proto";
+import "dokime/v1/formatting.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "dokime/v1/schemas.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
@@ -85,7 +86,7 @@ message ExecutionsGetResponse {
   .dokime.host.v1.ExecutionWritable value = 1;
   bytes revision = 2;
   .dokime.host.v1.ExecutionDetail execution = 3;
-  .dokime.model.v1.ExecutionProgressValue progress = 4;
+  .dokime.v1.ExecutionProgressValue progress = 4;
   .harmos.model.v1.Position resolved_at = 90;
 }
 
@@ -201,8 +202,8 @@ message FrozenSchemas {
   
   
   bytes digest = 3;
-  repeated .dokime.host.v1.RecordSchema records = 1;
-  repeated .dokime.host.v1.TelemetrySchema streams = 2;
+  repeated .dokime.v1.RecordSchema records = 1;
+  repeated .dokime.v1.TelemetrySchema streams = 2;
 }
 
 // Diagnostic value owned by this resource.
@@ -241,12 +242,12 @@ message ExecutionOutcomeCounts {
   uint64 evaluated_count = 1;
   uint64 not_evaluated_count = 2;
   uint64 declared_count = 3;
-  optional .dokime.host.v1.ResultStatus result_status = 4;
+  optional .dokime.v1.ResultStatus result_status = 4;
 }
 
 // ExecutionDetail value owned by this resource.
 message ExecutionDetail {
-  .dokime.model.v1.ExecutionProgressValue progress = 20;
+  .dokime.v1.ExecutionProgressValue progress = 20;
   .harmos.model.v1.Position resolved_at = 21;
   
   .dokime.host.v1.ExecutionOutcomeCounts cycle_counts = 19;
@@ -255,17 +256,17 @@ message ExecutionDetail {
   .dokime.host.v1.ReportStatus report = 1;
   .dokime.host.v1.ExecutionSummary summary = 2;
   string cycle_id = 3;
-  .dokime.model.v1.EvidenceScope scope = 4;
-  .dokime.model.v1.Metadata admitted_suite = 5;
-  .dokime.model.v1.Metadata admitted_template = 6;
+  .dokime.v1.EvidenceScope scope = 4;
+  .dokime.v1.Metadata admitted_suite = 5;
+  .dokime.v1.Metadata admitted_template = 6;
   .google.protobuf.Timestamp started_at = 7;
   .google.protobuf.Timestamp finished_at = 8;
   uint64 input_parameter_count = 9;
   uint64 output_parameter_count = 10;
   uint64 step_count = 11;
   .dokime.host.v1.ExecutionControls controls = 13;
-  .dokime.model.v1.Origin origin = 14;
-  .dokime.host.v1.ExecutionOutcome outcome = 15;
+  .dokime.v1.Origin origin = 14;
+  .dokime.v1.ExecutionOutcome outcome = 15;
   .dokime.host.v1.FrozenSchemas schemas = 16;
   optional .dokime.host.v1.LiveExecutionState live_state = 17;
 }
@@ -273,12 +274,12 @@ message ExecutionDetail {
 // ExecutionFilter value owned by this resource.
 message ExecutionFilter {
   string text = 1;
-  repeated .dokime.host.v1.ExecutionState statuses = 2;
+  repeated .dokime.v1.ExecutionState statuses = 2;
   repeated string template_ids = 3;
   repeated string cycle_ids = 4;
   .google.protobuf.Timestamp started_after = 5;
   .google.protobuf.Timestamp started_before = 6;
-  optional .dokime.host.v1.ArchiveScope archive = 7;
+  optional .dokime.v1.ArchiveScope archive = 7;
 }
 
 // ExecutionOrder value owned by this resource.
@@ -291,15 +292,15 @@ message ExecutionOrder {
 message ExecutionSelection {
   repeated string template_ids = 1;
   repeated string cycle_ids = 2;
-  repeated .dokime.host.v1.ExecutionState statuses = 3;
-  .dokime.model.v1.Window started_at = 4;
-  optional .dokime.host.v1.ArchiveScope archive = 5;
+  repeated .dokime.v1.ExecutionState statuses = 3;
+  .dokime.v1.Window started_at = 4;
+  optional .dokime.v1.ArchiveScope archive = 5;
 }
 
 // ExecutionStep value owned by this resource.
 message ExecutionStep {
   string step_id = 1;
-  .dokime.model.v1.Metadata metadata = 2;
+  .dokime.v1.Metadata metadata = 2;
   .dokime.host.v1.StepStatus status = 3;
   .google.protobuf.Timestamp started_at = 4;
   .google.protobuf.Timestamp finished_at = 5;
@@ -317,18 +318,18 @@ message ExecutionSummary {
   string case_id = 2;
   uint64 ordinal = 3;
   bool archived = 4;
-  .dokime.host.v1.ExecutionState state = 5;
-  .dokime.host.v1.ExecutionOutcome outcome = 6;
+  .dokime.v1.ExecutionState state = 5;
+  .dokime.v1.ExecutionOutcome outcome = 6;
 }
 
 // MaterializedParameter value owned by this resource.
 message MaterializedParameter {
   string name = 1;
-  .dokime.model.v1.Metadata metadata = 2;
+  .dokime.v1.Metadata metadata = 2;
   optional string group_id = 3;
   .dokime.host.v1.ParameterSource source = 4;
-  .dokime.model.v1.Value value = 5;
-  .dokime.host.v1.MeasurementUnit unit = 6;
+  .dokime.v1.Value value = 5;
+  .dokime.v1.MeasurementUnit unit = 6;
 }
 
 // ReportStatus value owned by this resource.
@@ -340,44 +341,15 @@ message ReportStatus {
 // StepCriterion value owned by this resource.
 message StepCriterion {
   string criterion_id = 1;
-  .dokime.model.v1.Metadata metadata = 2;
+  .dokime.v1.Metadata metadata = 2;
   .dokime.host.v1.CriterionStatus status = 3;
-  .dokime.model.v1.Value observed = 4;
+  .dokime.v1.Value observed = 4;
   optional string message = 5;
   uint64 ordinal = 6;
 }
 
 // ExecutionWritable value owned by this resource.
 message ExecutionWritable { string label = 1; bool paused = 2; bool archived = 3; }
-
-// ExecutionOutcome value owned by this resource.
-message ExecutionOutcome {
-  oneof attribution {
-    .dokime.host.v1.UnevaluatedOutcome not_evaluated = 1;
-    .dokime.host.v1.EvaluatedOutcome evaluated = 2;
-    .dokime.host.v1.DeclaredOutcome declared = 3;
-  }
-}
-
-// UnevaluatedOutcome value owned by this resource.
-message UnevaluatedOutcome { .dokime.model.v1.Termination termination = 1; string reason = 2; }
-
-// EvaluatedOutcome value owned by this resource.
-message EvaluatedOutcome { .dokime.host.v1.ResultStatus status = 1; string reason = 2; }
-
-// DeclaredOutcome value owned by this resource.
-message DeclaredOutcome { .dokime.host.v1.ResultStatus status = 1; string reason = 2; string importer = 3; }
-
-// ResultSummary value owned by this resource.
-message ResultSummary {
-  .dokime.host.v1.ResultStatus status = 1;
-  uint32 passed = 2;
-  uint32 failed = 3;
-  uint32 blocked = 4;
-  uint32 skipped = 5;
-  uint32 declared = 6;
-  uint32 not_evaluated = 7;
-}
 
 // === Enums === //
 
@@ -457,22 +429,4 @@ enum StepStatus {
   STEP_STATUS_FAILED = 4;
   STEP_STATUS_SKIPPED = 5;
   STEP_STATUS_CANCELLED = 6;
-}
-
-// ExecutionState choices.
-enum ExecutionState {
-  EXECUTION_STATE_UNSPECIFIED = 0;
-  EXECUTION_STATE_OPEN = 1;
-  EXECUTION_STATE_CLOSED = 2;
-  EXECUTION_STATE_SEALED = 3;
-}
-
-// ResultStatus choices.
-enum ResultStatus {
-  RESULT_STATUS_UNSPECIFIED = 0;
-  RESULT_STATUS_PENDING = 1;
-  RESULT_STATUS_PASSED = 2;
-  RESULT_STATUS_FAILED = 3;
-  RESULT_STATUS_BLOCKED = 4;
-  RESULT_STATUS_CANCELLED = 5;
 }

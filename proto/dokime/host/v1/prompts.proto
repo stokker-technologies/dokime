@@ -8,9 +8,9 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/evidence.proto";
-import "dokime/model/v1/prompts.proto";
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/prompts.proto";
+import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
@@ -49,17 +49,17 @@ service Prompts {
 message PromptsCreateRequest {
   string prompt = 1;
   string prompt_type = 2;
-  map<string, .dokime.model.v1.Value> values = 3;
+  map<string, .dokime.v1.Value> values = 3;
   
   
-  .dokime.model.v1.Prompt definition = 4;
+  .dokime.v1.Prompt definition = 4;
 }
 
 // PromptsCreateResponse for Prompts.Create.
 message PromptsCreateResponse {
   string prompt = 1;
   string action = 2;
-  map<string, .dokime.model.v1.Value> values = 3;
+  map<string, .dokime.v1.Value> values = 3;
   string responder = 4;
   .google.protobuf.Timestamp submitted_at = 5;
   bool accepted = 6;
@@ -117,28 +117,18 @@ message PromptsWatchResponse {
 // PromptInstance value owned by this resource.
 message PromptInstance {
   string prompt_id = 1;
-  .dokime.model.v1.Prompt definition = 2;
+  .dokime.v1.Prompt definition = 2;
   .dokime.host.v1.PromptKind kind = 3;
-  .dokime.model.v1.MapValue values = 4;
-  .dokime.model.v1.EvidenceScope scope = 5;
+  .dokime.v1.MapValue values = 4;
+  .dokime.v1.EvidenceScope scope = 5;
   .google.protobuf.Timestamp created_at = 6;
 }
 
 // PromptView value owned by this resource.
 message PromptView {
   .dokime.host.v1.PromptInstance prompt = 1;
-  .dokime.host.v1.PromptResponse response = 2;
+  .dokime.v1.PromptResponse response = 2;
   .harmos.model.v1.ReadCut observed_cursor = 3;
-}
-
-// PromptResponse value owned by this resource.
-message PromptResponse {
-  string prompt_id = 1;
-  string action = 2;
-  string responder = 3;
-  .google.protobuf.Timestamp submitted_at = 4;
-  .dokime.model.v1.MapValue values = 5;
-  bool accepted = 6;
 }
 
 // === Enums === //

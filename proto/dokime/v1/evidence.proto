@@ -4,16 +4,16 @@
 
 syntax = "proto3";
 
-package dokime.model.v1;
+package dokime.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime.Protocol.V1";
 
 // === Services === //
 
@@ -24,25 +24,25 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // EvidenceCondition value owned by this resource.
 message EvidenceCondition {
   oneof kind {
-    .dokime.model.v1.RecordMatch record = 1;
-    .dokime.model.v1.StreamMatch stream = 2;
-    .dokime.model.v1.EvidenceConditions all = 3;
-    .dokime.model.v1.EvidenceConditions any = 4;
+    .dokime.v1.RecordMatch record = 1;
+    .dokime.v1.StreamMatch stream = 2;
+    .dokime.v1.EvidenceConditions all = 3;
+    .dokime.v1.EvidenceConditions any = 4;
   }
 }
 
 // EvidenceConditions value owned by this resource.
-message EvidenceConditions { repeated .dokime.model.v1.EvidenceCondition conditions = 1; }
+message EvidenceConditions { repeated .dokime.v1.EvidenceCondition conditions = 1; }
 
 // RecordMatch value owned by this resource.
-message RecordMatch { string kind = 1; map<string, .dokime.model.v1.Value> fields = 2; }
+message RecordMatch { string kind = 1; map<string, .dokime.v1.Value> fields = 2; }
 
 // StreamMatch value owned by this resource.
 message StreamMatch {
   string stream = 1;
   string field = 2;
-  .dokime.model.v1.StreamMatchOperator operator = 3;
-  .dokime.model.v1.Value target = 4;
+  .dokime.v1.StreamMatchOperator operator = 3;
+  .dokime.v1.Value target = 4;
   optional double tolerance = 5;
 }
 
@@ -50,12 +50,12 @@ message StreamMatch {
 message ArtifactMetadata {
   string artifact_id = 1;
   string upload_id = 2;
-  .dokime.model.v1.ArtifactScope scope = 3;
+  .dokime.v1.ArtifactScope scope = 3;
   string filename = 4;
   optional string content_type = 5;
   uint64 size_bytes = 6;
   string sha256 = 7;
-  .dokime.model.v1.ArtifactState state = 8;
+  .dokime.v1.ArtifactState state = 8;
   .google.protobuf.Timestamp created_at = 9;
   optional string error = 10;
 }
@@ -69,7 +69,7 @@ message ArtifactScope {
 
 // EvidenceOrigin value owned by this resource.
 message EvidenceOrigin {
-  .dokime.model.v1.EvidenceOriginKind kind = 1;
+  .dokime.v1.EvidenceOriginKind kind = 1;
 }
 
 // EvidenceOriginKind value owned by this resource.
@@ -92,7 +92,7 @@ message EvidenceScope {
   optional string criterion_id = 6;
   optional string template_id = 7;
   optional string suite_id = 8;
-  .dokime.model.v1.EvidenceOrigin origin = 9;
+  .dokime.v1.EvidenceOrigin origin = 9;
 }
 
 // Window value owned by this resource.

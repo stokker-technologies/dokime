@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Formatting Contracts
+
+syntax = "proto3";
+
+package dokime.v1;
+
+// === Imports === //
+
+import "dokime/v1/metadata.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// AbsoluteTimeFormat value owned by this resource.
+message AbsoluteTimeFormat {
+  string pattern = 1;
+}
+
+// ElapsedFormat value owned by this resource.
+message ElapsedFormat {
+  .dokime.v1.ElapsedUnit unit = 1;
+}
+
+// EngineeringFormat value owned by this resource.
+message EngineeringFormat {
+  uint32 significant_digits = 1;
+}
+
+// FixedFormat value owned by this resource.
+message FixedFormat {
+  uint32 decimals = 1;
+}
+
+// MeasurementUnit value owned by this resource.
+message MeasurementUnit {
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.UnitFamily family = 2;
+  string symbol = 3;
+}
+
+// NormalFormat value owned by this resource.
+message NormalFormat {
+  optional uint32 max_fraction_digits = 1;
+}
+
+// ScientificFormat value owned by this resource.
+message ScientificFormat {
+  uint32 significant_digits = 1;
+}
+
+// SiPrefixFormat value owned by this resource.
+message SiPrefixFormat {
+  uint32 significant_digits = 1;
+}
+
+// ValueFormat value owned by this resource.
+message ValueFormat {
+  .dokime.v1.ValueFormatKind kind = 1;
+}
+
+// ValueFormatKind value owned by this resource.
+message ValueFormatKind {
+  oneof kind {
+    .dokime.v1.NormalFormat normal = 1;
+    .dokime.v1.FixedFormat fixed = 2;
+    .dokime.v1.ScientificFormat scientific = 3;
+    .dokime.v1.EngineeringFormat engineering = 4;
+    .dokime.v1.SiPrefixFormat si_prefix = 5;
+    .dokime.v1.AbsoluteTimeFormat absolute_time = 6;
+    .dokime.v1.ElapsedFormat elapsed_since_run = 7;
+    .dokime.v1.ElapsedFormat elapsed_since_cycle = 8;
+  }
+}
+
+// === Enums === //
+
+// ElapsedUnit choices.
+enum ElapsedUnit {
+  ELAPSED_UNIT_UNSPECIFIED = 0;
+  ELAPSED_UNIT_SECONDS = 1;
+  ELAPSED_UNIT_MILLISECONDS = 2;
+  ELAPSED_UNIT_MINUTES = 3;
+}
+
+// UnitFamily choices.
+enum UnitFamily {
+  UNIT_FAMILY_UNSPECIFIED = 0;
+  UNIT_FAMILY_COUNT = 1;
+  UNIT_FAMILY_DISTANCE = 2;
+  UNIT_FAMILY_DURATION = 3;
+  UNIT_FAMILY_FREQUENCY = 4;
+  UNIT_FAMILY_POWER = 5;
+  UNIT_FAMILY_TEMPERATURE = 6;
+  UNIT_FAMILY_VOLTAGE = 7;
+  UNIT_FAMILY_RATIO = 8;
+  UNIT_FAMILY_CUSTOM = 9;
+}

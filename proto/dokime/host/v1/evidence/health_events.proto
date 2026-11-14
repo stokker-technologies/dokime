@@ -1,11 +1,75 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// HealthEvents Contracts
+
 syntax = "proto3";
-package dokime.client.v1.evidence;
-option csharp_namespace = "Dokime.Protocol.Client.V1.EvidenceResources";
+
+package dokime.host.v1.evidence;
+
+// === Imports === //
+
 import "dokime/v1/evidence.proto";
 import "dokime/v1/notes.proto";
 import "google/protobuf/timestamp.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1.EvidenceResources";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service HealthEvents {
+  // List the HealthEvents resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.evidence.HealthEventsListRequest) returns (.dokime.host.v1.evidence.HealthEventsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Watch the HealthEvents resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.evidence.HealthEventsWatchRequest) returns (stream .dokime.host.v1.evidence.HealthEventsWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === List === //
+
+// HealthEventsListRequest for HealthEvents.List.
+message HealthEventsListRequest {
+  .dokime.v1.AnnotationSelection selection = 1;
+  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.PageRequest page = 91;
+}
+
+// HealthEventsListResponse for HealthEvents.List.
+message HealthEventsListResponse {
+  repeated .dokime.host.v1.evidence.HealthItem events = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// HealthEventsWatchRequest for HealthEvents.Watch.
+message HealthEventsWatchRequest {
+  .dokime.v1.AnnotationSelection selection = 1;
+  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.PageRequest page = 91;
+}
+
+// HealthEventsWatchResponse for HealthEvents.Watch.
+message HealthEventsWatchResponse {
+  repeated .dokime.host.v1.evidence.HealthItem events = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Resources === //
+
+// HealthItem value owned by this resource.
 message HealthItem {
   string health_item_id = 1;
   .dokime.v1.EvidenceScope scope = 2;
@@ -15,38 +79,4 @@ message HealthItem {
   .google.protobuf.Timestamp observed_at = 6;
 }
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
-message HealthEventsListRequest {
-  .dokime.v1.AnnotationSelection selection = 1;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
-}
-
-message HealthEventsListResponse {
-  repeated .dokime.client.v1.evidence.HealthItem events = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  string next_page_token = 91;
-}
-
-message HealthEventsWatchRequest {
-  .dokime.v1.AnnotationSelection selection = 1;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
-}
-
-message HealthEventsWatchResponse {
-  repeated .dokime.client.v1.evidence.HealthItem events = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  bool opening = 91;
-  .harmos.v1.Failure resync_required = 92;
-}
-
-service HealthEvents {
-  // Public. Identity: dokime.client.v1.evidence.HealthEvents/List
-  rpc List(.dokime.client.v1.evidence.HealthEventsListRequest) returns (.dokime.client.v1.evidence.HealthEventsListResponse);
-  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
-  // Missing retained cuts or delivery gaps require explicit resynchronization.
-  rpc Watch(.dokime.client.v1.evidence.HealthEventsWatchRequest) returns (stream .dokime.client.v1.evidence.HealthEventsWatchResponse);
-}
+// === Enums === //

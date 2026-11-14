@@ -8,8 +8,8 @@ package dokime.host.v1.files;
 
 // === Imports === //
 
-import "dokime/model/v1/files.proto";
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/files.proto";
+import "dokime/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 
 // === Options === //
@@ -33,7 +33,7 @@ service Captures {
 // === Start === //
 
 // CapturesStartRequest for Captures.Start.
-message CapturesStartRequest { .dokime.model.v1.FileSource source = 1; string output = 2; .dokime.host.v1.files.CaptureMode mode = 3; }
+message CapturesStartRequest { .dokime.v1.FileSource source = 1; string output = 2; .dokime.host.v1.files.CaptureMode mode = 3; }
 
 // CapturesStartResponse for Captures.Start.
 message CapturesStartResponse { uint64 capture_id = 1; }
@@ -44,7 +44,7 @@ message CapturesStartResponse { uint64 capture_id = 1; }
 message CapturesStopRequest { uint64 capture_id = 1; }
 
 // CapturesStopResponse for Captures.Stop.
-message CapturesStopResponse { repeated .dokime.model.v1.CapturedArtifact artifacts = 1; repeated .dokime.model.v1.CaptureGap gaps = 2; }
+message CapturesStopResponse { repeated .dokime.v1.CapturedArtifact artifacts = 1; repeated .dokime.v1.CaptureGap gaps = 2; }
 
 // === Resources === //
 
@@ -61,7 +61,7 @@ message MirrorCapture { optional uint32 interval_s = 1; }
 message LineMatcher { string pattern = 1; string stream = 2; repeated .dokime.host.v1.files.LineField fields = 3; }
 
 // LineField value owned by this resource.
-message LineField { string name = 1; .dokime.model.v1.ValueType type = 2; }
+message LineField { string name = 1; .dokime.v1.ValueType type = 2; }
 
 // LineMarker value owned by this resource.
 message LineMarker { string pattern = 1; string record_type = 2; }

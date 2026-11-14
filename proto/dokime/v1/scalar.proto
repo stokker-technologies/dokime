@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package dokime.model.v1;
+package dokime.v1;
 
 // === Imports === //
 
@@ -12,7 +12,7 @@ import "google/protobuf/timestamp.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime.Protocol.V1";
 
 // === Services === //
 
@@ -23,14 +23,14 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 // Value value owned by this resource.
 message Value {
   oneof kind {
-    .dokime.model.v1.Null null = 1;
+    .dokime.v1.Null null = 1;
     bool boolean = 2;
     sint64 integer = 3;
     uint64 unsigned_integer = 4;
     double number = 5;
     string text = 6;
     bytes data = 7;
-    .dokime.model.v1.ValueList list = 8;
+    .dokime.v1.ValueList list = 8;
     .google.protobuf.Timestamp datetime = 9;
   }
 }
@@ -39,10 +39,10 @@ message Value {
 message Null {}
 
 // ValueList value owned by this resource.
-message ValueList { repeated .dokime.model.v1.Value values = 1; }
+message ValueList { repeated .dokime.v1.Value values = 1; }
 
 // MapValue value owned by this resource.
-message MapValue { map<string, .dokime.model.v1.Value> values = 1; }
+message MapValue { map<string, .dokime.v1.Value> values = 1; }
 
 // === Enums === //
 

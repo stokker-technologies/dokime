@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/analyses.proto";
+import "dokime/v1/analyses.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 
@@ -32,7 +32,7 @@ service Analyses {
 message AnalysesListRequest { .harmos.model.v1.ReadCut at = 1; }
 
 // AnalysesListResponse for Analyses.List.
-message AnalysesListResponse { repeated .dokime.model.v1.Analysis definitions = 1; .harmos.model.v1.ReadCut resolved_at = 2; }
+message AnalysesListResponse { repeated .dokime.v1.Analysis definitions = 1; .harmos.model.v1.ReadCut resolved_at = 2; }
 
 // === Resources === //
 

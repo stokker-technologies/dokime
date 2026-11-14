@@ -1,23 +1,51 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// PromptDefinitions Contracts
+
 syntax = "proto3";
-package dokime.client.v1;
-option csharp_namespace = "Dokime.Protocol.Client.V1";
+
+package dokime.host.v1;
+
+// === Imports === //
+
 import "dokime/v1/prompts.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
-message PromptDefinitionsGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.v1.ReadCut at = 90; }
+// === Options === //
 
-message PromptDefinitionsGetResponse { .dokime.v1.Prompt value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+option csharp_namespace = "Dokime.Protocol.Host.V1";
 
-message PromptDefinitionsListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+// === Services === //
 
-message PromptDefinitionsListResponse { repeated .dokime.v1.Prompt values = 1; .harmos.v1.ReadCut resolved_at = 90; }
-
+// Host operations with explicit caller admission.
 service PromptDefinitions {
-  // Public. Identity: dokime.client.v1.PromptDefinitions/Get
-  rpc Get(.dokime.client.v1.PromptDefinitionsGetRequest) returns (.dokime.client.v1.PromptDefinitionsGetResponse);
-  // Public. Identity: dokime.client.v1.PromptDefinitions/List
-  rpc List(.dokime.client.v1.PromptDefinitionsListRequest) returns (.dokime.client.v1.PromptDefinitionsListResponse);
+  // Get the PromptDefinitions resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.PromptDefinitionsGetRequest) returns (.dokime.host.v1.PromptDefinitionsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the PromptDefinitions resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.PromptDefinitionsListRequest) returns (.dokime.host.v1.PromptDefinitionsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
+
+// === Get === //
+
+// PromptDefinitionsGetRequest for PromptDefinitions.Get.
+message PromptDefinitionsGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.model.v1.ReadCut at = 90; }
+
+// PromptDefinitionsGetResponse for PromptDefinitions.Get.
+message PromptDefinitionsGetResponse { .dokime.v1.Prompt value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === List === //
+
+// PromptDefinitionsListRequest for PromptDefinitions.List.
+message PromptDefinitionsListRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
+
+// PromptDefinitionsListResponse for PromptDefinitions.List.
+message PromptDefinitionsListResponse { repeated .dokime.v1.Prompt values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Resources === //
+
+// === Enums === //

@@ -1,20 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Snapshots Contracts
+
 syntax = "proto3";
-package dokime.client.v1.plots;
-option csharp_namespace = "Dokime.Protocol.Client.V1.PlotsResources";
+
+package dokime.host.v1.plots;
+
+// === Imports === //
+
 import "dokime/v1/analyses.proto";
 import "dokime/v1/evidence.proto";
 import "dokime/v1/formatting.proto";
 import "dokime/v1/plots.proto";
 import "dokime/v1/scalar.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1.PlotsResources";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Snapshots {
+  // List the Snapshots resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.plots.SnapshotsListRequest) returns (.dokime.host.v1.plots.SnapshotsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Watch the Snapshots resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.plots.SnapshotsWatchRequest) returns (stream .dokime.host.v1.plots.SnapshotsWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === List === //
+
+// SnapshotsListRequest for Snapshots.List.
+message SnapshotsListRequest {
+  repeated .dokime.v1.PlotRequest requests = 1;
+  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.PageRequest page = 91;
+}
+
+// SnapshotsListResponse for Snapshots.List.
+message SnapshotsListResponse {
+  repeated .dokime.host.v1.plots.PlotEnvelope envelopes = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// SnapshotsWatchRequest for Snapshots.Watch.
+message SnapshotsWatchRequest {
+  repeated .dokime.v1.PlotRequest requests = 1;
+  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.PageRequest page = 91;
+}
+
+// SnapshotsWatchResponse for Snapshots.Watch.
+message SnapshotsWatchResponse {
+  repeated .dokime.host.v1.plots.PlotStreamUpdate updates = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Resources === //
+
+// AnalysisComputation value owned by this resource.
 message AnalysisComputation {
   .dokime.v1.Analysis definition = 1;
   .dokime.v1.AnalysisSelection selection = 2;
-  .dokime.client.v1.plots.AnalysisEvidence source = 3;
-  repeated .dokime.client.v1.plots.AnalysisSeries series = 4;
+  .dokime.host.v1.plots.AnalysisEvidence source = 3;
+  repeated .dokime.host.v1.plots.AnalysisSeries series = 4;
 }
 
+// AnalysisEvidence value owned by this resource.
 message AnalysisEvidence {
   string store = 1;
   string epoch = 2;
@@ -26,6 +91,7 @@ message AnalysisEvidence {
   string x_key = 8;
 }
 
+// AnalysisSeries value owned by this resource.
 message AnalysisSeries {
   string key = 1;
   string label = 2;
@@ -36,6 +102,7 @@ message AnalysisSeries {
   repeated .dokime.v1.AnalysisValues outputs = 7;
 }
 
+// ContourGrid value owned by this resource.
 message ContourGrid {
   uint32 columns = 1;
   uint32 rows = 2;
@@ -45,49 +112,57 @@ message ContourGrid {
   repeated bool valid = 6;
 }
 
+// GridCell value owned by this resource.
 message GridCell {
   uint32 row = 1;
   uint32 column = 2;
   string label = 3;
 }
 
+// GridFrame value owned by this resource.
 message GridFrame {
   string instant = 1;
   repeated double values = 2;
   repeated bool valid = 3;
-  repeated .dokime.client.v1.plots.GridCell highlights = 4;
+  repeated .dokime.host.v1.plots.GridCell highlights = 4;
 }
 
+// GridFrames value owned by this resource.
 message GridFrames {
   repeated .dokime.v1.GridAxisEntry rows = 1;
   repeated .dokime.v1.GridAxisEntry columns = 2;
-  repeated .dokime.client.v1.plots.GridFrame frames = 3;
+  repeated .dokime.host.v1.plots.GridFrame frames = 3;
   string summary_label = 4;
 }
 
+// NullableNumber value owned by this resource.
 message NullableNumber {
   optional double value = 1;
 }
 
+// PlotAnalysis value owned by this resource.
 message PlotAnalysis {
-  .dokime.client.v1.plots.PlotAnalysisResult result = 1;
+  .dokime.host.v1.plots.PlotAnalysisResult result = 1;
 }
 
+// PlotAnalysisError value owned by this resource.
 message PlotAnalysisError {
   string message = 1;
 }
 
+// PlotAnalysisResult value owned by this resource.
 message PlotAnalysisResult {
   oneof kind {
-    .dokime.client.v1.plots.ContourGrid contour = 1;
-    .dokime.client.v1.plots.GridFrames grid_chart = 2;
-    .dokime.client.v1.plots.PlotHistogramAnalysis histogram = 3;
-    .dokime.client.v1.plots.PlotBoxSummaryAnalysis box_plot = 4;
-    .dokime.client.v1.plots.PlotSigmaIntervalAnalysis sigma_interval = 5;
-    .dokime.client.v1.plots.PlotAnalysisError error = 6;
+    .dokime.host.v1.plots.ContourGrid contour = 1;
+    .dokime.host.v1.plots.GridFrames grid_chart = 2;
+    .dokime.host.v1.plots.PlotHistogramAnalysis histogram = 3;
+    .dokime.host.v1.plots.PlotBoxSummaryAnalysis box_plot = 4;
+    .dokime.host.v1.plots.PlotSigmaIntervalAnalysis sigma_interval = 5;
+    .dokime.host.v1.plots.PlotAnalysisError error = 6;
   }
 }
 
+// PlotBoxSummary value owned by this resource.
 message PlotBoxSummary {
   string key = 1;
   uint64 count = 2;
@@ -102,66 +177,69 @@ message PlotBoxSummary {
   string label = 11;
 }
 
+// PlotBoxSummaryAnalysis value owned by this resource.
 message PlotBoxSummaryAnalysis {
-  repeated .dokime.client.v1.plots.PlotBoxSummary series = 1;
+  repeated .dokime.host.v1.plots.PlotBoxSummary series = 1;
   uint64 total = 2;
 }
 
-enum PlotCartesianMode {
-  PLOT_CARTESIAN_MODE_UNSPECIFIED = 0;
-  PLOT_CARTESIAN_MODE_ALIGNED = 1;
-  PLOT_CARTESIAN_MODE_FACETED = 2;
-}
-
+// PlotColumn value owned by this resource.
 message PlotColumn {
   repeated string instants = 1;
   repeated .dokime.v1.Value x = 2;
-  repeated .dokime.client.v1.plots.NullableNumber y = 3;
-  repeated .dokime.client.v1.plots.NullableNumber z = 4;
+  repeated .dokime.host.v1.plots.NullableNumber y = 3;
+  repeated .dokime.host.v1.plots.NullableNumber z = 4;
 }
 
+// PlotDomain value owned by this resource.
 message PlotDomain {
   double min = 1;
   double max = 2;
 }
 
+// PlotEnvelope value owned by this resource.
 message PlotEnvelope {
   string plot_id = 1;
   uint64 revision = 2;
   string epoch = 3;
   string selection = 4;
-  .dokime.client.v1.plots.PlotPayload payload = 5;
-  .dokime.client.v1.plots.PlotPayloadDiagnostics diagnostics = 6;
+  .dokime.host.v1.plots.PlotPayload payload = 5;
+  .dokime.host.v1.plots.PlotPayloadDiagnostics diagnostics = 6;
   repeated string warnings = 7;
 }
 
+// PlotFrame value owned by this resource.
 message PlotFrame {
-  optional .dokime.client.v1.plots.PlotCartesianMode mode = 1;
+  optional .dokime.host.v1.plots.PlotCartesianMode mode = 1;
   repeated double time = 2;
-  repeated .dokime.client.v1.plots.PlotColumn series = 3;
-  .dokime.client.v1.plots.PlotDomain x_domain = 4;
-  .dokime.client.v1.plots.PlotDomain y_domain = 5;
+  repeated .dokime.host.v1.plots.PlotColumn series = 3;
+  .dokime.host.v1.plots.PlotDomain x_domain = 4;
+  .dokime.host.v1.plots.PlotDomain y_domain = 5;
   uint64 point_count = 6;
   string signature = 7;
 }
 
+// PlotHistogramAnalysis value owned by this resource.
 message PlotHistogramAnalysis {
-  repeated .dokime.client.v1.plots.PlotHistogramSeries series = 1;
+  repeated .dokime.host.v1.plots.PlotHistogramSeries series = 1;
 }
 
+// PlotHistogramBin value owned by this resource.
 message PlotHistogramBin {
   double lower = 1;
   double upper = 2;
   uint64 count = 3;
 }
 
+// PlotHistogramSeries value owned by this resource.
 message PlotHistogramSeries {
   string key = 1;
-  repeated .dokime.client.v1.plots.PlotHistogramBin bins = 2;
+  repeated .dokime.host.v1.plots.PlotHistogramBin bins = 2;
   uint64 count = 3;
-  .dokime.client.v1.plots.PlotHistogramStatistics statistics = 4;
+  .dokime.host.v1.plots.PlotHistogramStatistics statistics = 4;
 }
 
+// PlotHistogramStatistics value owned by this resource.
 message PlotHistogramStatistics {
   double mean = 1;
   double median = 2;
@@ -171,6 +249,7 @@ message PlotHistogramStatistics {
   double max = 6;
 }
 
+// PlotMarker value owned by this resource.
 message PlotMarker {
   .dokime.v1.Value x = 1;
   string label = 2;
@@ -178,32 +257,34 @@ message PlotMarker {
   string color = 4;
 }
 
+// PlotPayload value owned by this resource.
 message PlotPayload {
   string stream = 1;
   string x_key = 2;
   optional string series_by = 3;
   .dokime.v1.Value context = 4;
-  repeated .dokime.client.v1.plots.PlotSeries series = 5;
-  .dokime.client.v1.plots.PlotFrame frame = 6;
-  repeated .dokime.client.v1.plots.PlotMarker markers = 7;
+  repeated .dokime.host.v1.plots.PlotSeries series = 5;
+  .dokime.host.v1.plots.PlotFrame frame = 6;
+  repeated .dokime.host.v1.plots.PlotMarker markers = 7;
   uint64 max_points = 8;
   optional double window_s = 9;
   string generated_at = 10;
   .dokime.v1.ValueFormat x_format = 11;
   optional string run_started_at = 12;
   optional string cycle_started_at = 13;
-  .dokime.client.v1.plots.PlotAnalysis analysis = 14;
-  .dokime.client.v1.plots.AnalysisComputation computed = 15;
-  repeated .dokime.client.v1.plots.PlotSeriesSummary summaries = 16;
+  .dokime.host.v1.plots.PlotAnalysis analysis = 14;
+  .dokime.host.v1.plots.AnalysisComputation computed = 15;
+  repeated .dokime.host.v1.plots.PlotSeriesSummary summaries = 16;
   optional double bucket_width_s = 17;
   .dokime.v1.PlotWindow bucket_window = 18;
   repeated double replaced_buckets = 19;
 }
 
+// PlotPayloadDiagnostics value owned by this resource.
 message PlotPayloadDiagnostics {
-  // Number of retained source rows consumed by this window reduction.
+  
   uint64 examined_rows = 7;
-  // Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+  
   uint64 resolution_nanos = 8;
   uint64 series_count = 1;
   uint64 point_count = 2;
@@ -213,6 +294,7 @@ message PlotPayloadDiagnostics {
   optional double window_s = 6;
 }
 
+// PlotSeries value owned by this resource.
 message PlotSeries {
   string key = 1;
   string label = 2;
@@ -222,6 +304,7 @@ message PlotSeries {
   .dokime.v1.ValueFormat format = 6;
 }
 
+// PlotSeriesSummary value owned by this resource.
 message PlotSeriesSummary {
   string series_id = 1;
   uint64 count = 2;
@@ -234,6 +317,7 @@ message PlotSeriesSummary {
   .dokime.v1.PlotWindow window = 9;
 }
 
+// PlotSigmaBin value owned by this resource.
 message PlotSigmaBin {
   double x = 1;
   uint64 count = 2;
@@ -242,16 +326,34 @@ message PlotSigmaBin {
   double upper = 5;
 }
 
+// PlotSigmaIntervalAnalysis value owned by this resource.
 message PlotSigmaIntervalAnalysis {
-  repeated .dokime.client.v1.plots.PlotSigmaSeries series = 1;
+  repeated .dokime.host.v1.plots.PlotSigmaSeries series = 1;
 }
 
+// PlotSigmaSeries value owned by this resource.
 message PlotSigmaSeries {
   string key = 1;
-  repeated .dokime.client.v1.plots.PlotSigmaBin bins = 2;
+  repeated .dokime.host.v1.plots.PlotSigmaBin bins = 2;
   uint64 raw_points = 3;
 }
 
+// PlotStreamUpdate value owned by this resource.
+message PlotStreamUpdate {
+  .dokime.host.v1.plots.PlotStreamKind kind = 1;
+  .dokime.host.v1.plots.PlotEnvelope envelope = 2;
+}
+
+// === Enums === //
+
+// PlotCartesianMode choices.
+enum PlotCartesianMode {
+  PLOT_CARTESIAN_MODE_UNSPECIFIED = 0;
+  PLOT_CARTESIAN_MODE_ALIGNED = 1;
+  PLOT_CARTESIAN_MODE_FACETED = 2;
+}
+
+// PlotStreamKind choices.
 enum PlotStreamKind {
   PLOT_STREAM_KIND_UNSPECIFIED = 0;
   PLOT_STREAM_KIND_SNAPSHOT = 1;
@@ -259,45 +361,4 @@ enum PlotStreamKind {
   PLOT_STREAM_KIND_DELTA = 3;
   PLOT_STREAM_KIND_STATISTICS = 4;
   PLOT_STREAM_KIND_ERROR = 5;
-}
-
-message PlotStreamUpdate {
-  .dokime.client.v1.plots.PlotStreamKind kind = 1;
-  .dokime.client.v1.plots.PlotEnvelope envelope = 2;
-}
-
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
-message SnapshotsListRequest {
-  repeated .dokime.v1.PlotRequest requests = 1;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
-}
-
-message SnapshotsListResponse {
-  repeated .dokime.client.v1.plots.PlotEnvelope envelopes = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  string next_page_token = 91;
-}
-
-message SnapshotsWatchRequest {
-  repeated .dokime.v1.PlotRequest requests = 1;
-  .harmos.v1.ReadCut at = 90;
-  .harmos.v1.PageRequest page = 91;
-}
-
-message SnapshotsWatchResponse {
-  repeated .dokime.client.v1.plots.PlotStreamUpdate updates = 1;
-  .harmos.v1.ReadCut resolved_at = 90;
-  bool opening = 91;
-  .harmos.v1.Failure resync_required = 92;
-}
-
-service Snapshots {
-  // Public. Identity: dokime.client.v1.plots.Snapshots/List
-  rpc List(.dokime.client.v1.plots.SnapshotsListRequest) returns (.dokime.client.v1.plots.SnapshotsListResponse);
-  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
-  // Missing retained cuts or delivery gaps require explicit resynchronization.
-  rpc Watch(.dokime.client.v1.plots.SnapshotsWatchRequest) returns (stream .dokime.client.v1.plots.SnapshotsWatchResponse);
 }

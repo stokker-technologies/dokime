@@ -8,8 +8,8 @@ package dokime.host.v1;
 
 // === Imports === //
 
+import "dokime/v1/appearance.proto";
 import "harmos/model/v1/callers.proto";
-import "harmos/model/v1/file.proto";
 import "harmos/model/v1/position.proto";
 
 // === Options === //
@@ -72,7 +72,7 @@ message OrganizationIdentity {
 // AppearanceLogo value owned by this resource.
 message AppearanceLogo {
   .dokime.host.v1.LogoVariant variant = 1;
-  .dokime.host.v1.AppearanceAssetMetadata asset = 2;
+  .dokime.v1.AppearanceAssetMetadata asset = 2;
   optional string alt = 3;
 }
 
@@ -110,22 +110,6 @@ message ThemeVariant {
 
 // AppearanceFailure value owned by this resource.
 message AppearanceFailure { .dokime.host.v1.AppearanceFailureKind kind = 1; }
-
-// AppearanceAssetReference value owned by this resource.
-message AppearanceAssetReference {
-  string plugin_id = 1;
-  string asset_id = 2;
-  string sha256 = 3;
-}
-
-// AppearanceAssetMetadata value owned by this resource.
-message AppearanceAssetMetadata {
-  .dokime.host.v1.AppearanceAssetReference reference = 1;
-  string content_type = 2;
-  uint64 size_bytes = 3;
-  
-  .harmos.model.v1.FileReference file = 4;
-}
 
 // === Enums === //
 

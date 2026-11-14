@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/files.proto";
+import "dokime/v1/files.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/file.proto";
 import "harmos/model/v1/position.proto";
@@ -107,14 +107,14 @@ message FilesDeleteResponse {
 
 // FilesCaptureRequest value owned by this resource.
 message FilesCaptureRequest {
-  .dokime.model.v1.FileSource source = 1;
+  .dokime.v1.FileSource source = 1;
   string output = 2;
 }
 
 // FilesCaptureResponse value owned by this resource.
 message FilesCaptureResponse {
-  repeated .dokime.model.v1.CapturedArtifact artifacts = 1;
-  repeated .dokime.model.v1.CaptureGap gaps = 2;
+  repeated .dokime.v1.CapturedArtifact artifacts = 1;
+  repeated .dokime.v1.CaptureGap gaps = 2;
 }
 
 // === Enums === //

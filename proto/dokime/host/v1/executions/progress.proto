@@ -8,7 +8,7 @@ package dokime.host.v1.executions;
 
 // === Imports === //
 
-import "dokime/model/v1/execution.proto";
+import "dokime/v1/execution.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -42,7 +42,7 @@ message ProgressGetRequest { optional string name = 1; }
 
 // ProgressGetResponse for Progress.Get.
 message ProgressGetResponse {
-  .dokime.model.v1.ExecutionProgressValue value = 1;
+  .dokime.v1.ExecutionProgressValue value = 1;
   bytes revision = 2;
   .harmos.model.v1.Position resolved_at = 3;
 }
@@ -52,14 +52,14 @@ message ProgressGetResponse {
 // ProgressSetRequest for Progress.Set.
 message ProgressSetRequest {
   string name = 1;
-  .dokime.model.v1.ExecutionProgressValue value = 2;
+  .dokime.v1.ExecutionProgressValue value = 2;
   bytes expected_revision = 3;
   string request_id = 4;
 }
 
 // ProgressSetResponse for Progress.Set.
 message ProgressSetResponse {
-  .dokime.model.v1.ExecutionProgressValue value = 1;
+  .dokime.v1.ExecutionProgressValue value = 1;
   bytes revision = 2;
   .harmos.model.v1.Receipt receipt = 3;
 }
@@ -71,7 +71,7 @@ message ProgressWatchRequest { string name = 1; .harmos.model.v1.Position at = 2
 
 // ProgressWatchResponse for Progress.Watch.
 message ProgressWatchResponse {
-  .dokime.model.v1.ExecutionProgressValue value = 1;
+  .dokime.v1.ExecutionProgressValue value = 1;
   bytes revision = 2;
   .harmos.model.v1.Position resolved_at = 3;
   string phase = 4;

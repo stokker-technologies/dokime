@@ -8,7 +8,7 @@ package dokime.plugin.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/execution.proto";
+import "dokime/v1/execution.proto";
 
 // === Options === //
 
@@ -16,28 +16,22 @@ option csharp_namespace = "Dokime.Protocol.Plugin.V1";
 
 // === Services === //
 
-// Host-only plugin operations with independent Protected lifecycle bindings.
-service Criteria {
-  // Evaluate the Criteria resource; admission and policy are owned by the executor.
-  rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse);
-}
+// === Requests and Responses === //
 
-// === Evaluate === //
+// === Resources === //
 
-// CriteriaEvaluateRequest for Criteria.Evaluate.
+// CriteriaEvaluateRequest value owned by this resource.
 message CriteriaEvaluateRequest {
   string execution = 1;
   
   string criterion = 2;
-  .dokime.model.v1.TestCase test_case = 3;
-  .dokime.model.v1.Origin origin = 4;
+  .dokime.v1.TestCase test_case = 3;
+  .dokime.v1.Origin origin = 4;
 }
 
-// CriteriaEvaluateResponse for Criteria.Evaluate.
+// CriteriaEvaluateResponse value owned by this resource.
 message CriteriaEvaluateResponse {
   bool passed = 1;
 }
-
-// === Resources === //
 
 // === Enums === //

@@ -1,23 +1,51 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// StreamSchemas Contracts
+
 syntax = "proto3";
-package dokime.client.v1;
-option csharp_namespace = "Dokime.Protocol.Client.V1";
+
+package dokime.host.v1;
+
+// === Imports === //
+
 import "dokime/v1/schemas.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
 
-// Reads resolve latest durable once, without flushing accepted writes. Only
-// returned cuts or seals are accepted as at; continuations bind cut, selection,
-// ordering and schema. Missing positions and gaps fail explicitly.
-message StreamSchemasGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.v1.ReadCut at = 90; }
+// === Options === //
 
-message StreamSchemasGetResponse { .dokime.v1.TelemetrySchema value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+option csharp_namespace = "Dokime.Protocol.Host.V1";
 
-message StreamSchemasListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+// === Services === //
 
-message StreamSchemasListResponse { repeated .dokime.v1.TelemetrySchema values = 1; .harmos.v1.ReadCut resolved_at = 90; }
-
+// Host operations with explicit caller admission.
 service StreamSchemas {
-  // Public. Identity: dokime.client.v1.StreamSchemas/Get
-  rpc Get(.dokime.client.v1.StreamSchemasGetRequest) returns (.dokime.client.v1.StreamSchemasGetResponse);
-  // Public. Identity: dokime.client.v1.StreamSchemas/List
-  rpc List(.dokime.client.v1.StreamSchemasListRequest) returns (.dokime.client.v1.StreamSchemasListResponse);
+  // Get the StreamSchemas resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.StreamSchemasGetRequest) returns (.dokime.host.v1.StreamSchemasGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the StreamSchemas resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.StreamSchemasListRequest) returns (.dokime.host.v1.StreamSchemasListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
 }
+
+// === Get === //
+
+// StreamSchemasGetRequest for StreamSchemas.Get.
+message StreamSchemasGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.model.v1.ReadCut at = 90; }
+
+// StreamSchemasGetResponse for StreamSchemas.Get.
+message StreamSchemasGetResponse { .dokime.v1.TelemetrySchema value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === List === //
+
+// StreamSchemasListRequest for StreamSchemas.List.
+message StreamSchemasListRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
+
+// StreamSchemasListResponse for StreamSchemas.List.
+message StreamSchemasListResponse { repeated .dokime.v1.TelemetrySchema values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Resources === //
+
+// === Enums === //

@@ -4,17 +4,20 @@
 
 syntax = "proto3";
 
-package dokime.model.v1;
+package dokime.v1;
 
 // === Imports === //
 
-import "dokime/model/v1/expressions.proto";
-import "dokime/model/v1/metadata.proto";
-import "dokime/model/v1/scalar.proto";
+import "dokime/v1/analyses.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/expressions.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/model/v1/position.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.Model.V1";
+option csharp_namespace = "Dokime.Protocol.V1";
 
 // === Services === //
 
@@ -24,30 +27,30 @@ option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // Plot value owned by this resource.
 message Plot {
-  .dokime.model.v1.Metadata metadata = 1;
-  .dokime.model.v1.PlotKind kind = 2;
-  .dokime.model.v1.DataExpression x = 3;
-  repeated .dokime.model.v1.DataExpression y = 4;
-  .dokime.model.v1.DataExpression z = 5;
-  .dokime.model.v1.DataExpression series_by = 6;
-  repeated .dokime.model.v1.DocumentFilter filters = 7;
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.PlotKind kind = 2;
+  .dokime.v1.DataExpression x = 3;
+  repeated .dokime.v1.DataExpression y = 4;
+  .dokime.v1.DataExpression z = 5;
+  .dokime.v1.DataExpression series_by = 6;
+  repeated .dokime.v1.DocumentFilter filters = 7;
   string unit = 8;
   repeated string marker_records = 9;
   optional uint32 histogram_bins = 10;
   optional double sample_rate_hz = 11;
   optional uint32 display_points = 12;
-  repeated .dokime.model.v1.ReferenceLine reference_lines = 13;
-  repeated .dokime.model.v1.ReferenceBand reference_bands = 14;
-  optional .dokime.model.v1.BarArrangement arrangement = 15;
+  repeated .dokime.v1.ReferenceLine reference_lines = 13;
+  repeated .dokime.v1.ReferenceBand reference_bands = 14;
+  optional .dokime.v1.BarArrangement arrangement = 15;
   bool pareto = 16;
   optional double hole = 17;
-  optional .dokime.model.v1.XyInterval interval = 18;
-  optional .dokime.model.v1.Reduction reduction = 19;
-  .dokime.model.v1.ContourRender render = 20;
-  .dokime.model.v1.GridChart grid = 21;
-  .dokime.model.v1.PlotStyle style = 22;
-  .dokime.model.v1.AxisScale x_scale = 23;
-  .dokime.model.v1.AxisScale y_scale = 24;
+  optional .dokime.v1.XyInterval interval = 18;
+  optional .dokime.v1.Reduction reduction = 19;
+  .dokime.v1.ContourRender render = 20;
+  .dokime.v1.GridChart grid = 21;
+  .dokime.v1.PlotStyle style = 22;
+  .dokime.v1.AxisScale x_scale = 23;
+  .dokime.v1.AxisScale y_scale = 24;
   
   
   optional uint32 input_samples = 25;
@@ -63,52 +66,52 @@ message GridAxisEntry {
 
 // GridHighlight value owned by this resource.
 message GridHighlight {
-  .dokime.model.v1.DataExpression row = 1;
-  .dokime.model.v1.DataExpression column = 2;
+  .dokime.v1.DataExpression row = 1;
+  .dokime.v1.DataExpression column = 2;
   string label = 3;
 }
 
 // GridChart value owned by this resource.
 message GridChart {
-  .dokime.model.v1.DataExpression row = 1;
-  .dokime.model.v1.DataExpression column = 2;
-  .dokime.model.v1.DataExpression frame = 3;
-  repeated .dokime.model.v1.GridAxisEntry rows = 4;
-  repeated .dokime.model.v1.GridAxisEntry columns = 5;
-  repeated .dokime.model.v1.GridHighlight highlights = 6;
+  .dokime.v1.DataExpression row = 1;
+  .dokime.v1.DataExpression column = 2;
+  .dokime.v1.DataExpression frame = 3;
+  repeated .dokime.v1.GridAxisEntry rows = 4;
+  repeated .dokime.v1.GridAxisEntry columns = 5;
+  repeated .dokime.v1.GridHighlight highlights = 6;
   string summary_label = 7;
 }
 
 // ReferenceLine value owned by this resource.
-message ReferenceLine { .dokime.model.v1.DataExpression value = 1; string label = 2; string color = 3; }
+message ReferenceLine { .dokime.v1.DataExpression value = 1; string label = 2; string color = 3; }
 
 // ReferenceBand value owned by this resource.
 message ReferenceBand {
-  .dokime.model.v1.DataExpression min = 1;
-  .dokime.model.v1.DataExpression max = 2;
+  .dokime.v1.DataExpression min = 1;
+  .dokime.v1.DataExpression max = 2;
   string label = 3;
   string color = 4;
-  .dokime.model.v1.DataExpression center = 5;
-  .dokime.model.v1.DataExpression tolerance = 6;
+  .dokime.v1.DataExpression center = 5;
+  .dokime.v1.DataExpression tolerance = 6;
 }
 
 // GridDefinition value owned by this resource.
 message GridDefinition {
-  .dokime.model.v1.DataExpression row = 1;
-  .dokime.model.v1.DataExpression column = 2;
-  .dokime.model.v1.DataExpression frame = 3;
-  repeated .dokime.model.v1.GridAxisEntry rows = 4;
-  repeated .dokime.model.v1.GridAxisEntry columns = 5;
-  repeated .dokime.model.v1.GridHighlight highlights = 6;
+  .dokime.v1.DataExpression row = 1;
+  .dokime.v1.DataExpression column = 2;
+  .dokime.v1.DataExpression frame = 3;
+  repeated .dokime.v1.GridAxisEntry rows = 4;
+  repeated .dokime.v1.GridAxisEntry columns = 5;
+  repeated .dokime.v1.GridHighlight highlights = 6;
   string summary_label = 7;
 }
 
 // PlotFftOptions value owned by this resource.
 message PlotFftOptions {
   optional double sample_rate_hz = 1;
-  .dokime.model.v1.FftWindow window = 2;
-  .dokime.model.v1.FftDetrend detrend = 3;
-  .dokime.model.v1.FrequencyLevelUnit level_unit = 4;
+  .dokime.v1.FftWindow window = 2;
+  .dokime.v1.FftDetrend detrend = 3;
+  .dokime.v1.FrequencyLevelUnit level_unit = 4;
   bool include_dc = 5;
   optional double min_frequency_hz = 6;
   optional double max_frequency_hz = 7;
@@ -119,9 +122,9 @@ message PlotFftOptions {
 
 // PlotFilter value owned by this resource.
 message PlotFilter {
-  .dokime.model.v1.DataExpression expression = 1;
-  .dokime.model.v1.FilterOperator operator = 2;
-  .dokime.model.v1.Value value = 3;
+  .dokime.v1.DataExpression expression = 1;
+  .dokime.v1.FilterOperator operator = 2;
+  .dokime.v1.Value value = 3;
 }
 
 // PlotHistogramOptions value owned by this resource.
@@ -135,6 +138,56 @@ message PlotIntervalOptions {
   double bin_width = 1;
   double sigma = 2;
   bool clip_to_observed = 3;
+}
+
+// PlotRequest value owned by this resource.
+message PlotRequest {
+  optional .dokime.v1.BarArrangement arrangement = 1;
+  bool pareto = 2;
+  optional double hole = 3;
+  optional .dokime.v1.XyInterval xy_interval = 4;
+  .dokime.v1.GridDefinition grid = 5;
+  optional .dokime.v1.Reduction reduction = 6;
+  .dokime.v1.ContourRender render = 7;
+  .dokime.v1.PlotWindow y_viewport = 8;
+  optional uint32 panel_height = 9;
+  optional string plot_id = 10;
+  .dokime.v1.PlotKind plot_type = 11;
+  .dokime.v1.LineStyle style = 12;
+  .dokime.v1.AxisScale x_scale = 13;
+  .dokime.v1.AxisScale y_scale = 14;
+  string stream = 15;
+  repeated string y_keys = 16;
+  repeated string marker_record_types = 17;
+  repeated .dokime.v1.PlotFilter filters = 18;
+  optional string x_key = 19;
+  optional string series_by = 20;
+  .dokime.v1.DataExpression x_expression = 21;
+  repeated .dokime.v1.DataExpression y_expressions = 22;
+  .dokime.v1.DataExpression series_by_expression = 23;
+  optional string z_stream = 24;
+  optional string z_field = 25;
+  optional string unit = 26;
+  optional uint64 max_points = 27;
+  optional double window_s = 28;
+  .dokime.v1.EvidenceScope scope = 29;
+  .dokime.v1.Downsample technique = 30;
+  .dokime.v1.DataExpression z_expression = 31;
+  .dokime.v1.PlotFftOptions fft = 32;
+  .dokime.v1.PlotIntervalOptions interval = 33;
+  .dokime.v1.PlotHistogramOptions histogram = 34;
+  .dokime.v1.AnalysisSelection analysis = 35;
+  .dokime.v1.PlotWindow summary_window = 36;
+  .dokime.v1.PlotWindow viewport = 37;
+  optional uint32 panel_width = 38;
+  
+  .harmos.model.v1.ReadCut at = 39;
+}
+
+// PlotWindow value owned by this resource.
+message PlotWindow {
+  double from = 1;
+  double to = 2;
 }
 
 // === Enums === //
