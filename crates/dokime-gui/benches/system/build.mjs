@@ -71,7 +71,7 @@ await build({
           }
           source = source.replace(
             "<VisiblePlotCard",
-            '<div key={descriptor.plot_id} data-bench-plot={descriptor.plot_id} data-bench-error={liveStates[descriptor.plot_id]?.status === "error"} data-bench-ready={Boolean(liveStates[descriptor.plot_id]?.payload)} data-bench-revision={globalThis.__desktopBench.frame(liveStates[descriptor.plot_id]?.payload)}><VisiblePlotCard',
+            '<div key={descriptor.plot_id} data-bench-plot={descriptor.plot_id} data-bench-error={liveStates[descriptor.plot_id]?.status === "error" || Boolean(liveStates[descriptor.plot_id]?.failure && !liveStates[descriptor.plot_id]?.payload)} data-bench-ready={Boolean(liveStates[descriptor.plot_id]?.payload)} data-bench-revision={globalThis.__desktopBench.frame(liveStates[descriptor.plot_id]?.payload)}><VisiblePlotCard',
           );
           source = source.replace("viewportMode={viewportMode}\n    />", "viewportMode={viewportMode}\n    /></div>");
         }

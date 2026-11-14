@@ -18,20 +18,26 @@
 use dokime_protocol::client;
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, path::Path, time::Duration};
+use std::{
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 // Third Party Imports
+use harmos_protocol::v1::Sample;
+use prost::Message;
 use prost_types::Timestamp;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
 // Local Imports
-use dokime_gui::{
-    connection::{ConnectionSession, host::Session},
-    native_session::{BackendSelection, DesktopSession, backend::Backend},
-};
-use dokime_runtime_next::{PlacementSettings, PluginProcess};
-use dokime_sdk::{Result, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
+use super::sample_carrier::Producer;
+use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
+use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
+use dokime_sdk::client::{ClientSettings, StorageTransferSettings};
+use dokime_sdk::{Result, clock::TimeSleepRequest, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
 
 /* === Constants === */
 
@@ -54,11 +60,12 @@ struct Row {
 }
 
 pub struct Fixture {
-    pub owner: DesktopSession,
+    pub owner: Connection,
     pub session: Session,
     pub cycle: String,
     pub execution: String,
-    plugin: Option<PluginProcess>,
+    plugin: Option<Producer>,
+    mode: PathBuf,
 }
 
 /* === Enums === */
@@ -70,9 +77,38 @@ pub struct Fixture {
 impl Fixture {
     pub async fn start(root: &Path, restoring: bool) -> Self {
         // Start the Desktop's Current Embedded Host
-        let owner = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.to_owned()));
-        owner.select(BackendSelection::OwnedLocal).await.unwrap();
-        let session = owner.local_client().await.unwrap();
+        let settings = ConnectionSettings {
+            host: HostSettings {
+                clock: Arc::new(ControlledClock::new(ORIGIN_S as i64 * 1_000_000_000)),
+                storage: storage_defaults(),
+                placement: PlacementSettings {
+                    connect_timeout: Duration::from_secs(30),
+                    reconnect_delay: Duration::from_millis(25),
+                    stop_grace: Duration::from_secs(30),
+                    stream_window: NonZeroUsize::new(8).unwrap(),
+                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                },
+            },
+            services: services::ClientSettings {
+                read_timeout: Duration::from_secs(30),
+                mutation_timeout: Duration::from_secs(30),
+                watch_timeout: Duration::from_secs(3600),
+                max_cases: 1000,
+                page_items: 1000,
+                message_bytes: 4 * 1024 * 1024,
+                stream_buffer: 8,
+            },
+            client: ClientSettings {
+                transfer: StorageTransferSettings { chunk_bytes: Some(64 * 1024) },
+                retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
+                message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                input_items: NonZeroUsize::new(8).unwrap(),
+                input_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            },
+            connect_timeout: Duration::from_secs(30),
+        };
+        let mut owner = Connection::new(settings).unwrap();
+        let session = owner.start(root).await.unwrap();
         let manifest = root.join("bench-fixture.json");
         if restoring {
             let saved: Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
@@ -82,6 +118,7 @@ impl Fixture {
                 cycle: saved["cycle"].as_str().unwrap().into(),
                 execution: saved["execution"].as_str().unwrap().into(),
                 plugin: None,
+                mode: root.join("bench-mode"),
             };
         }
 
@@ -93,7 +130,8 @@ impl Fixture {
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let plugin = PluginProcess::start(&std::env::current_exe().unwrap(), true, &placement).await.unwrap();
+        let mode = root.join("bench-mode");
+        let plugin = Producer::start(&placement, &[("DOKIME_BENCH_MODE".into(), mode.to_str().unwrap().into())]).await.unwrap();
         let _: client::Plugin =
             session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
         let plan: client::CasesCreateResponse = session
@@ -149,10 +187,12 @@ impl Fixture {
             cycle,
             execution,
             plugin: Some(plugin),
+            mode,
         }
     }
 
     pub async fn publish(&self, action: &str) {
+        std::fs::write(&self.mode, action).unwrap();
         // Await the Producer's Question Before Releasing Its Next Publication
         let mut changes = self.session.watch_raw("/dokime.client.v1.backend.Overview/Watch", &[]).await.unwrap();
         loop {
@@ -175,7 +215,7 @@ impl Fixture {
                         "/dokime.client.v1.prompts.Answers/Create",
                         client::prompts::AnswersCreateRequest {
                             parent: prompt.prompt.as_ref().unwrap().prompt_id.clone(),
-                            request_id: "bench-answer".into(),
+                            request_id: format!("bench-answer-{}", prompt.prompt.as_ref().unwrap().prompt_id),
                             action: action.into(),
                             accepted: true,
                             ..Default::default()
@@ -223,54 +263,49 @@ impl Fixture {
     }
 
     pub async fn close(mut self) {
-        self.owner.shutdown().await.unwrap();
-        if let Some(plugin) = &mut self.plugin {
-            plugin.close().await.unwrap();
-        }
+        let host_close = self.owner.close().await;
+        let plugin_close = if let Some(plugin) = &mut self.plugin { plugin.close().await } else { Ok(()) };
+        host_close.unwrap();
+        plugin_close.unwrap();
     }
 }
 
 /* === Public Functions === */
 
 pub fn serve() -> Result<()> {
-    let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples").publish_on(publish);
+    let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples");
+    let observer = Observer::new(&stream, observe).every_ms(125);
     let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
-        .step(Step::new("Capture", async |_: &Context| std::future::pending().await))
-        .stream(stream);
+        .initialize(async |context: &Context| {
+            context.set(History::default());
+            Ok(())
+        })
+        .step(Step::new("Capture", publish))
+        .stream(stream)
+        .observer(observer);
     Plugin::new("desktop.benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
         .requires_host::<PromptsCreateRequest>()
+        .requires::<TimeSleepRequest>()
         .remote()
         .serve()
 }
 
 /* === Private Functions === */
 
-async fn publish(context: &Context, publisher: Publisher<Row>) -> Result<()> {
-    // Produce History Through the Same SDK Sample Carrier as Product Plugins
+async fn publish(context: &Context) -> Result<()> {
+    // Advance the Controlled Host Clock Through Real Observer Ticks.
     let mut sequence = 0;
     let mut first = 0;
     let mut count = ROWS;
     let mut late = false;
     loop {
-        for index in first..first + count {
-            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
-            publisher
-                .publish_at(
-                    Row {
-                        timestamp: source_ns as f64 / 1_000_000_000.0,
-                        y0: (index % 8) as f64,
-                        y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
-                        y2: ((index / 8) % 8) as f64,
-                    },
-                    Some(Timestamp {
-                        seconds: source_ns.div_euclid(1_000_000_000),
-                        nanos: source_ns.rem_euclid(1_000_000_000) as i32,
-                    }),
-                )
-                .await?;
-        }
+        context.get::<History>()?.next.store(first, std::sync::atomic::Ordering::SeqCst);
+        context.get::<History>()?.late.store(late, std::sync::atomic::Ordering::SeqCst);
+        let chunks = count.div_ceil(4096);
+        let ticks = if sequence == 0 { chunks - 1 } else { chunks };
+        context.sleep(Duration::from_millis(ticks as u64 * 125)).await?;
         sequence += count;
         let answer = context
             .prompt(PromptsCreateRequest {
@@ -283,6 +318,51 @@ async fn publish(context: &Context, publisher: Publisher<Row>) -> Result<()> {
         first = if late { ROWS - 480 + (sequence - ROWS) % 400 } else { sequence };
         count = 8;
     }
+}
+
+#[derive(Default)]
+struct History {
+    next: std::sync::atomic::AtomicUsize,
+    late: std::sync::atomic::AtomicBool,
+}
+
+async fn observe(context: &Context) -> Result<Row> {
+    let history = context.get::<History>()?;
+    let index = history.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let late = history.late.load(std::sync::atomic::Ordering::SeqCst);
+    let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
+    Ok(Row {
+        timestamp: source_ns as f64 / 1_000_000_000.0,
+        y0: (index % 8) as f64,
+        y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
+        y2: ((index / 8) % 8) as f64,
+    })
+}
+
+pub fn samples(_stream: &str, first: u64, _at: &Timestamp) -> Vec<Sample> {
+    let first = first as usize;
+    let count = if first < ROWS { (ROWS - first).min(4096) } else { 8 };
+    let late = std::env::var_os("DOKIME_BENCH_MODE").and_then(|path| std::fs::read_to_string(path).ok()).is_some_and(|mode| mode == "late");
+    (first..first + count)
+        .map(|sequence| {
+            let index = if late { ROWS - 480 + (sequence - ROWS) % 400 } else { sequence };
+            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * 125_000_000 + if late { 500_000_000 } else { 0 };
+            let row = Row {
+                timestamp: source_ns as f64 / 1_000_000_000.0,
+                y0: (index % 8) as f64,
+                y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
+                y2: ((index / 8) % 8) as f64,
+            };
+            Sample {
+                sequence: sequence as u64 + 1,
+                at: Some(Timestamp {
+                    seconds: source_ns.div_euclid(1_000_000_000),
+                    nanos: source_ns.rem_euclid(1_000_000_000) as i32,
+                }),
+                row: row.encode_to_vec(),
+            }
+        })
+        .collect()
 }
 
 /* === Tests === */

@@ -22,6 +22,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from dokime_tools.build import bench as bench_builder
+from dokime_tools.ci import tasks
 
 # Third Party Imports
 # Local Imports
@@ -40,6 +41,23 @@ from dokime_tools.test import desktop_bench, run
 
 
 class DesktopBench(unittest.TestCase):
+    def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
+        with (
+            patch.object(tasks.transport, "receive"),
+            patch.object(tasks.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as execute,
+        ):
+            for binary, consumer in (("storage", "bench:rust:storage"), ("system-desktop", "bench:rust:system")):
+                self.assertEqual(tasks.main(["bench", "--binary", binary, "--layer", "system", "--once", "--select", "window"]), 7)
+                command = execute.call_args.args[0]
+                self.assertEqual(command[:4], ["mise", "run", consumer, "--"])
+                self.assertIn("--once", command)
+                self.assertEqual(command[command.index("--select") + 1], "window")
+                self.assertNotIn("--refresh-baseline", command)
+            execute.reset_mock()
+            with self.assertRaises(SystemExit):
+                tasks.main(["bench", "--binary", "system-desktop", "--once", "--refresh-baseline"])
+            execute.assert_not_called()
+
     def test_desktop_build_embeds_its_surface_without_replacing_shipping_assets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -50,6 +68,9 @@ class DesktopBench(unittest.TestCase):
             web = output / "web"
 
             def bundle(command, **options):
+                if command[:3] == ["mise", "run", "build:typescript"]:
+                    self.assertEqual(command, ["mise", "run", "build:typescript", "--profile", "dev"])
+                    return subprocess.CompletedProcess(command, 0)
                 self.assertEqual(command[:2], ["node", "benches/system/build.mjs"])
                 self.assertEqual(Path(command[2]), web)
                 web.mkdir(parents=True)

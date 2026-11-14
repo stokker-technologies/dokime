@@ -425,8 +425,8 @@ run = [
 [tasks."bench:rust:storage"]
 hide = true
 description = "Measure Prepared Arrow Storage Benchmarks"
-usage = 'flag "--select <select>"'
-run = "{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --select {{usage.select}}{% endif %}"
+usage = 'flag "--select <select>"; flag "--once"'
+run = "{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --select {{usage.select}}{% endif %}{% if usage.once %} --once{% endif %}"
 
 [tasks."bench:rust:system"]
 hide = true
@@ -436,10 +436,11 @@ flag "--profile <profile>" default="dev"
 flag "--binary <binary>"
 flag "--select <select>"
 flag "--refresh-baseline"
+flag "--once"
 '''
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile bench",
-  "{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select %} -- {{usage.select}}{% endif %}",
+  "{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select or usage.once %} --{% endif %}{% if usage.once %} --test{% endif %}{% if usage.select %} {{usage.select}}{% endif %}",
 ]
 
 [tasks."test:typescript"]

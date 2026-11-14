@@ -11,6 +11,11 @@
 
 /* === Modules === */
 
+#[path = "storage/publication.rs"]
+mod publication;
+#[path = "storage/sample_carrier.rs"]
+mod sample_carrier;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -19,7 +24,6 @@
 use std::{
     hint::black_box,
     num::NonZeroUsize,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -37,8 +41,7 @@ use tempfile::TempDir;
 use dokime_protocol::v1::Aggregate;
 use dokime_protocol::v1::DataExpression;
 use dokime_protocol::{builders::Plot, v1};
-use dokime_runtime_next::{ControlledClock, Host, HostSettings, PlacementSettings};
-use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store, storage_defaults};
+use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store};
 
 /* === Constants === */
 
@@ -80,7 +83,6 @@ struct Fixture {
     root: TempDir,
 }
 struct DocumentFixture {
-    host: Host,
     document: v1::Document,
     _fixture: Fixture,
     rows: usize,
@@ -175,31 +177,15 @@ impl DocumentFixture {
             }
         }
         fixture.store.flush_samples().unwrap();
-        let host = Host::open(
-            fixture.root.path(),
-            HostSettings {
-                clock: Arc::new(ControlledClock::new(0)),
-                storage: storage_defaults(),
-                placement: PlacementSettings {
-                    connect_timeout: Duration::from_secs(30),
-                    reconnect_delay: Duration::from_millis(25),
-                    stop_grace: Duration::from_secs(30),
-                    stream_window: NonZeroUsize::new(8).unwrap(),
-                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-                },
-            },
-        )
-        .unwrap();
         let mut cards = (0..plots)
             .map(|i| v1::Card {
                 body: Some(v1::card::Body::Plot(Plot::time_series(v1::FieldReference::new(format!("signal.{i}")).field("value")).message)),
                 ..Default::default()
             })
             .collect::<Vec<_>>();
-        let kinds =
-            [v1::Aggregate::Count, v1::Aggregate::Min, v1::Aggregate::Max, v1::Aggregate::Mean, v1::Aggregate::Stddev, v1::Aggregate::Rms]
-                .into_iter()
-                .chain(median.then_some(v1::Aggregate::Median));
+        let kinds = [v1::Aggregate::Count, v1::Aggregate::Min, v1::Aggregate::Max, v1::Aggregate::Mean, v1::Aggregate::Rms]
+            .into_iter()
+            .chain(median.then_some(v1::Aggregate::Median));
         let tiles = kinds
             .map(|kind| v1::SummaryTile {
                 metadata: Some(v1::Metadata {
@@ -222,19 +208,13 @@ impl DocumentFixture {
             sections: vec![v1::Section { cards, ..Default::default() }],
             ..Default::default()
         };
-        Self {
-            host,
-            document,
-            _fixture: fixture,
-            rows,
-            plots,
-        }
+        Self { document, _fixture: fixture, rows, plots }
     }
-    fn query(&self) {
+    fn query(&self, store: &Store) {
         // The Old Cards-And-Plots Workload Captured Values And Plot Payloads,
         // Without HTML Rendering Or File Output.
-        let cut = self._fixture.store.cut("document").unwrap();
-        let (reader, _cancellation) = self._fixture.store.read_session().unwrap();
+        let cut = store.cut("document").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
         let expansion = dokime_operations_next::client::document_expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
         assert!(expansion.next.is_none());
         let scope = v1::EvidenceScope {
@@ -380,6 +360,15 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     }
 }
 fn main() {
+    if std::env::args().any(|argument| argument == "--remote") {
+        if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
+            publication::serve().unwrap();
+        } else {
+            let executor = tokio::runtime::Runtime::new().unwrap();
+            executor.block_on(sample_carrier::serve(publication::samples)).unwrap();
+        }
+        return;
+    }
     let executor = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let _entered = executor.enter();
     let mut criterion = Criterion::default().configure_from_args();
@@ -388,7 +377,11 @@ fn main() {
     group.sampling_mode(SamplingMode::Flat);
     let fixture = Fixture::new();
     let mut offset = 0;
-    group.bench_function("durable_write/1024", |b| {
+    boundary(
+        "Store Admission and Flush, 1,024 Rows",
+        "warm open store; sample_batch and flush_samples, including file creation when absent; durable; row encoding excluded",
+    );
+    group.bench_function("store_admission_and_flush/1024", |b| {
         b.iter_custom(|iterations| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iterations {
@@ -399,21 +392,60 @@ fn main() {
                 fixture.store.flush_samples().unwrap();
                 elapsed += started.elapsed();
             }
-            elapsed
+            report(elapsed, iterations)
         })
     });
     executor.block_on(fixture.store.shutdown_samples()).unwrap();
     let mut query = None;
-    group.bench_function("window_query/1000000", |b| {
+    boundary("Window Preview, 1,000,000 Rows", "warm; persisted preview read and bounded points; read only");
+    group.bench_function("window_preview_warm/1000000", |b| {
         let query = query.get_or_insert_with(|| Fixture::populated(QUERY_ROWS));
         b.iter(|| {
+            let started = Instant::now();
             let (column, _, count) = query.store.time_series_window(window(QUERY_ROWS as u64)).unwrap();
             assert_eq!(count, QUERY_ROWS as u64);
             assert!(column.y.len() <= 1500);
             black_box(column);
+            report(started.elapsed(), 1);
         })
     });
-    group.bench_function("finalize/65536", |b| {
+    for cold in [false, true] {
+        let temperature = if cold { "cold" } else { "warm" };
+        boundary(
+            &format!("Window Full Scan LTTB, 1,000,000 Rows ({temperature})"),
+            "sampled_time_series_window: preview summary, decode every selected numeric row and LTTB reduction to 1,500 points; read only; cold includes store open, OS cache uncontrolled",
+        );
+        group.bench_function(format!("window_full_scan_lttb_{temperature}/1000000"), |b| {
+            let query = query.get_or_insert_with(|| Fixture::populated(QUERY_ROWS));
+            black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+            b.iter_custom(|iterations| {
+                let mut elapsed = Duration::ZERO;
+                for _ in 0..iterations {
+                    let started = Instant::now();
+                    if cold {
+                        let store = Store::open(query.root.path()).unwrap();
+                        black_box(store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+                    } else {
+                        black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+                    }
+                    elapsed += started.elapsed();
+                }
+                report(elapsed, iterations)
+            });
+        });
+    }
+    boundary("Window Preview, 1,000,000 Rows (Cold)", "fresh store open and preview read; read only; OS cache uncontrolled");
+    group.bench_function("window_preview_cold/1000000", |b| {
+        let query = query.get_or_insert_with(|| Fixture::populated(QUERY_ROWS));
+        b.iter(|| {
+            let started = Instant::now();
+            let store = Store::open(query.root.path()).unwrap();
+            black_box(store.time_series_window(window(QUERY_ROWS as u64)).unwrap());
+            report(started.elapsed(), 1);
+        });
+    });
+    boundary("Stream Finalize, 65,536 Rows", "warm; close_streams and shutdown_samples only; durable; population excluded");
+    group.bench_function("stream_finalize/65536", |b| {
         b.iter_custom(|iterations| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iterations {
@@ -423,20 +455,31 @@ fn main() {
                 executor.block_on(fixture.store.shutdown_samples()).unwrap();
                 elapsed += started.elapsed();
             }
-            elapsed
+            report(elapsed, iterations)
         })
     });
     let export = Fixture::populated(EXPORT_ROWS);
     export.seal();
-    group.bench_function("export/16384", |b| {
+    boundary("Minimal Archive in Memory, 16,384 Rows", "warm; write_execution_archive into Vec; no disk sync or report; not durable");
+    group.bench_function("minimal_archive_in_memory/16384", |b| {
         b.iter(|| {
+            let started = Instant::now();
             let mut bytes = Vec::new();
             export.store.write_execution_archive("execution", &mut bytes).unwrap();
             black_box(bytes);
+            report(started.elapsed(), 1);
         })
     });
     group.throughput(Throughput::Elements(INGEST_ROWS as u64));
     for durable in [false, true] {
+        boundary(
+            if durable { "Store Ingest and Flush, 1,000,000 Rows" } else { "Store Ingest Admission, 1,000,000 Rows" },
+            if durable {
+                "fresh empty store; generate, encode, admit and flush; durable; shutdown excluded"
+            } else {
+                "fresh empty store; generate, encode and admit; automatic flush included; final tail not durable; shutdown excluded"
+            },
+        );
         group.bench_function(BenchmarkId::new(if durable { "ingest_durable" } else { "ingest_accepted" }, INGEST_ROWS), |b| {
             b.iter_custom(|iterations| {
                 let mut elapsed = Duration::ZERO;
@@ -487,7 +530,7 @@ fn main() {
                         .unwrap();
                     assert_eq!(rows, INGEST_ROWS);
                 }
-                elapsed
+                report(elapsed, iterations)
             })
         });
     }
@@ -499,28 +542,99 @@ fn main() {
     let mut group = criterion.benchmark_group("telemetry");
     group.sample_size(10);
     group.sampling_mode(SamplingMode::Flat);
-    let mut median = None;
-    group.bench_function("exact_median/1000000", |b| {
-        let median = median.get_or_insert_with(|| DocumentFixture::new(QUERY_ROWS, 1, true));
-        b.iter(|| median.query());
-    });
-    if let Some(median) = median {
-        executor.block_on(median.host.shutdown()).unwrap();
-        executor.block_on(median._fixture.store.shutdown_samples()).unwrap();
-    }
-    for rows in DOCUMENT_ROWS {
+    for (rows, plots, median) in [(QUERY_ROWS, 1, true)].into_iter().chain(DOCUMENT_ROWS.map(|rows| (rows, PLOTS, false))) {
         let mut document = None;
-        group.bench_function(BenchmarkId::new("three_day_document_30_plots", rows), |b| {
-            let document = document.get_or_insert_with(|| DocumentFixture::new(rows, PLOTS, false));
-            b.iter(|| document.query());
-        });
+        for cold in [false, true] {
+            let temperature = if cold { "cold" } else { "warm" };
+            let name = if median { "median_and_plot" } else { "three_day_document_30_plots" };
+            boundary(
+                &format!("{name}, {rows} Rows ({temperature})"),
+                "document expansion, five summary values (plus exact median when named), plot payloads at 1,500 points and presentation; no rendering; read only; cold includes fresh store open, OS cache uncontrolled",
+            );
+            group.bench_function(BenchmarkId::new(format!("{name}_{temperature}"), rows), |b| {
+                let document = document.get_or_insert_with(|| DocumentFixture::new(rows, plots, median));
+                document.query(&document._fixture.store);
+                b.iter_custom(|iterations| {
+                    let mut elapsed = Duration::ZERO;
+                    for _ in 0..iterations {
+                        let started = Instant::now();
+                        if cold {
+                            let store = Store::open(document._fixture.root.path()).unwrap();
+                            document.query(&store);
+                        } else {
+                            document.query(&document._fixture.store);
+                        }
+                        elapsed += started.elapsed();
+                    }
+                    report(elapsed, iterations)
+                });
+            });
+        }
+        if rows == 3_072_000 {
+            boundary(
+                "Document Full Decode, 3,072,000 Rows",
+                "warm; read_batches all fields of all 30 streams and consume every value and timestamp; no preview or rendering; read only",
+            );
+            group.bench_function("document_full_decode_warm/3072000", |b| {
+                let document = document.get_or_insert_with(|| DocumentFixture::new(rows, plots, median));
+                let streams = (0..plots).map(|index| format!("signal.{index}")).collect::<Vec<_>>();
+                b.iter(|| {
+                    let started = Instant::now();
+                    full_decode(&document._fixture.store, "document", &streams, rows as u64);
+                    report(started.elapsed(), 1);
+                });
+            });
+        }
         if let Some(document) = document {
-            executor.block_on(document.host.shutdown()).unwrap();
             executor.block_on(document._fixture.store.shutdown_samples()).unwrap();
         }
     }
     group.finish();
+    publication::benchmark(&mut criterion, &executor);
     criterion.final_summary();
+}
+
+fn boundary(case: &str, measured: &str) {
+    println!("Boundary | {case} | {measured}");
+}
+
+fn report(elapsed: Duration, iterations: u64) -> Duration {
+    if std::env::var_os("DOKIME_BENCH_ONCE").is_some() {
+        println!("Measured | {:.6} ms | {iterations} iterations", elapsed.as_secs_f64() * 1000.0 / iterations as f64);
+    }
+    elapsed
+}
+
+fn full_decode(store: &Store, execution: &str, streams: &[String], through: u64) {
+    let mut count = 0;
+    for stream in streams {
+        store
+            .read_batches(
+                BatchSelection {
+                    execution,
+                    stream,
+                    after: 0,
+                    through,
+                    start_ns: i64::MIN,
+                    end_ns: i64::MAX,
+                },
+                &[],
+                |batch| {
+                    let values = batch.column(1).to_data();
+                    for field in values.child_data() {
+                        for buffer in field.buffers() {
+                            for byte in buffer.as_slice() {
+                                black_box(*byte);
+                            }
+                        }
+                    }
+                    count += batch.num_rows();
+                    Ok(true)
+                },
+            )
+            .unwrap();
+    }
+    assert_eq!(count, through as usize);
 }
 
 /* === Tests === */
