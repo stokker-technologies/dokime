@@ -10,14 +10,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import type {
-  HistoryIssue as GeneratedHistoryIssue,
-  CheckpointContext as GeneratedCheckpointContext,
-  CheckpointEvidence as GeneratedNativeCheckpointEvidence,
-  CheckpointTelemetryPage as GeneratedCheckpointTelemetryPage,
-} from "@host/dokime/v1/client_types_pb.js";
-import { ArtifactState } from "@host/dokime/v1/client_types_pb.js";
-import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { ArtifactState } from "@host/dokime/v1/evidence_pb.js";
+import { Severity } from "@host/dokime/v1/evidence_pb.js";
 import { nativeValuesToJson } from "@/lib/host/values";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
@@ -36,7 +30,6 @@ import {
 } from "@/lib/api/native-checkpoints";
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { timestampIso } from "@/lib/api/native-values";
-import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
 import {
   fetchCheckpointContext,
@@ -48,10 +41,9 @@ import {
 
 const GUI_ERROR_PREVIEW_CHARS = 500;
 
-type CheckpointContext = Wire<GeneratedCheckpointContext>;
-type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
-type HistoryIssue = Wire<GeneratedHistoryIssue>;
-type NativeCheckpointEvidence = Wire<GeneratedNativeCheckpointEvidence>;
+type CheckpointContext = Awaited<ReturnType<typeof fetchCheckpointContext>>;
+type CheckpointTelemetryPage = Awaited<ReturnType<typeof fetchCheckpointTelemetry>>;
+type NativeCheckpointEvidence = Awaited<ReturnType<typeof fetchCheckpointEvidence>>;
 
 type Props = { checkpoint: ExecutionCheckpoint };
 type SessionProps = Props & { session: NativeCheckpointSession };
@@ -88,18 +80,6 @@ export function CheckpointEvidence({ checkpoint }: Props) {
 
 function Failure({ error, retry }: { error: Error; retry: () => void }) {
   return <ErrorCard failure={failureOf(error, "Evidence Unavailable")} onRetry={retry} />;
-}
-
-function Diagnostics({ issues, truncated }: { issues: HistoryIssue[]; truncated: boolean }) {
-  if (!issues.length && !truncated) return null;
-  return (
-    <NotificationMessage tone="info">
-      {issues.map((issue) => (
-        <p key={`${issue.source ?? "history"}:${issue.dataset ?? "dataset"}:${issue.message}`}>{issue.message}</p>
-      ))}
-      {truncated && <p>Additional source issues were omitted.</p>}
-    </NotificationMessage>
-  );
 }
 
 function Pager({
@@ -143,7 +123,6 @@ function Records({ checkpoint, session }: SessionProps) {
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
     <section className="grid min-w-0 gap-3" aria-label="Captured Records">
-      <Diagnostics issues={query.data.issues} truncated={query.data.issuesTruncated} />
       {!query.data.records.length && <p>No execution records at this checkpoint.</p>}
       {query.data.records.map((row) => {
         const record = row.record;
@@ -240,13 +219,12 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
     <section className="grid min-w-0 gap-3" aria-label="Captured Telemetry">
-      <Diagnostics issues={query.data.issues} truncated={query.data.issuesTruncated} />
-      {!query.data.rows.length && <p>No samples at this checkpoint.</p>}
-      {query.data.rows.map((row) => {
-        const sample = row.sample;
-        if (!row.epoch || !sample) throw new Error("Captured sample source identity is missing.");
+      {!query.data.samples.length && <p>No samples at this checkpoint.</p>}
+      {query.data.samples.map((row) => {
+        if (row.kind.case !== "raw") throw new Error("Read Captured Samples: Expected Raw Evidence");
+        const sample = row.kind.value;
         return (
-          <div key={`${row.epoch}:${row.ordinal}:${sample.sampleId}`} className="min-w-0 border-b pb-2 text-sm">
+          <div key={sample.sampleId} className="min-w-0 border-b pb-2 text-sm">
             <p className="text-muted-foreground">{timestampIso(sample.timestamp) ?? "Unknown Time"}</p>
             <ValueObjectView value={sample.values?.values} />
             {sample.summary && (
@@ -411,7 +389,7 @@ function Context({ checkpoint, session }: SessionProps) {
   const context = query.data;
   return (
     <div className="grid min-w-0 gap-3">
-      <h3 className="font-medium">{context.cycle?.cycle?.metadata?.label ?? "Execution Context"}</h3>
+      <h3 className="font-medium">{context.cycle?.metadata?.label ?? "Execution Context"}</h3>
       <h4 className="text-sm font-medium">Notes at Capture</h4>
       {!context.notes.length && <p>No notes captured.</p>}
       {context.notes.map((note) => (
@@ -430,23 +408,20 @@ function Context({ checkpoint, session }: SessionProps) {
       <h4 className="text-sm font-medium">Prompts at Capture</h4>
       <p className="text-xs text-muted-foreground">Historical prompts are read-only.</p>
       {!context.prompts.length && <p>No prompts captured.</p>}
-      {context.prompts.map((prompt) => (
-        <div key={prompt.promptId} className="rounded border p-2">
-          <p>{prompt.definition?.metadata?.label || prompt.promptId}</p>
-          <pre className="overflow-auto whitespace-pre-wrap break-all text-xs">
-            {formatStructured(nativeValuesToJson(prompt.values?.values))}
-          </pre>
-        </div>
-      ))}
-      <h4 className="text-sm font-medium">Captured Documents</h4>
-      {context.executionDocuments.map((document, index) => {
-        const presentation = document.presentation;
+      {context.prompts.map((view) => {
+        const prompt = view.prompt;
+        if (!prompt) throw new Error("Read Historical Prompt: Host Omitted Its Value");
         return (
-          <p key={presentation?.documentId || presentation?.metadata?.identifier || `document-${index}`}>
-            {presentation?.metadata?.label || presentation?.documentId || "Captured Document"}
-          </p>
+          <div key={prompt.promptId} className="rounded border p-2">
+            <p>{prompt.definition?.metadata?.label || prompt.promptId}</p>
+            <pre className="overflow-auto whitespace-pre-wrap break-all text-xs">
+              {formatStructured(nativeValuesToJson(prompt.values?.values))}
+            </pre>
+          </div>
         );
       })}
+      <h4 className="text-sm font-medium">Captured Documents</h4>
+      <p>{context.document.header.metadata?.label || context.document.header.documentId || "Captured Document"}</p>
     </div>
   );
 }

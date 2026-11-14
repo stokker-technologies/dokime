@@ -72,8 +72,8 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
     },
   });
   const methods = session.snapshot.connection.backend?.methods ?? [];
-  const canReorder = methods.includes("/dokime.v1.Settings/ReorderStorageSources");
-  const canEnable = methods.includes("/dokime.v1.Settings/SetStorageSourceEnabled");
+  const canReorder = methods.includes("/dokime.client.v1.storage.Sources/Set");
+  const canEnable = methods.includes("/dokime.client.v1.storage.Sources/Set");
   const sources = query.data ?? NO_SOURCES;
   const error = mutation.error ?? query.error;
   // The autosave readout belongs beside the control that moved, so the row

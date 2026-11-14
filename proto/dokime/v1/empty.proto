@@ -1,0 +1,10 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// Shared Resource Payloads; Operation Wrappers Live With Their Face Resource.
+
+// Shared Resource Message Contracts
+// Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
+// New message field numbers are protocol-owned; native row-derived schemas are retired.
+message ClientEmpty {}

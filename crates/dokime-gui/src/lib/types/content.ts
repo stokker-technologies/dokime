@@ -12,7 +12,7 @@
 /** Lifecycle of a registered execution file as one bounded read observed it. */
 export type ExecutionFileLifecycle = "static" | "streaming" | "finalized" | "interrupted";
 
-/** One bounded `Content.ReadExecutionFile` window, mapped from the wire. */
+/** One bounded `ExecutionFiles.Get` window, mapped from the wire. */
 export type ExecutionFileReadWindow = {
   offset: number;
   observedSizeBytes: number;
@@ -29,7 +29,7 @@ export type ExecutionFileIdentity = {
   relativePath: string;
 };
 
-/** One `Content.FollowExecutionFile` frame, mapped from the wire. */
+/** One `ExecutionFiles.Get` frame, mapped from the wire. */
 export type ExecutionFileFollowEvent =
   | {
       kind: "metadata";

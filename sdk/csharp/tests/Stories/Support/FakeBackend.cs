@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-using Dokime.V1;
+using Dokime.Protocol.Client.V1;
+using Dokime.Protocol.Client.V1.ExecutionsResources;
+using Google.Protobuf;
+using Google.Protobuf.Reflection;
+using System.Security.Cryptography;
+using Dokime.Protocol.V1;
 using Grpc.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -33,10 +38,13 @@ public class FakeBackend : Harmos.V1.Status.StatusBase
     builder.WebHost.UseTestServer();
     builder.Services.AddGrpc();
     builder.Services.AddSingleton<FakePlugins>();
+    builder.Services.AddSingleton<FakeSchemas>();
     var app = builder.Build();
     app.MapGrpcService<FakeBackend>();
     app.MapGrpcService<FakeLogs>();
     app.MapGrpcService<FakePlugins>();
+    app.MapGrpcService<FakeCases>();
+    app.MapGrpcService<FakeSchemas>();
     await app.StartAsync();
     var handler = app.GetTestServer().CreateHandler();
     return (app, handler);
@@ -60,13 +68,13 @@ public sealed class FakeLogs : Harmos.V1.StatusResources.Logs.LogsBase
 
 public sealed class FakePlugins : Plugins.PluginsBase
 {
-  private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dokime.V1.Plugin> entries = new();
+  private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dokime.Protocol.Client.V1.Plugin> entries = new();
 
-  public override Task<Dokime.V1.Plugin> Add(AddRemotePlugin request, ServerCallContext context)
+  public override Task<Dokime.Protocol.Client.V1.Plugin> Add(AddRemotePlugin request, ServerCallContext context)
   {
     if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var url) || url.Scheme != "http")
       throw new RpcException(new Status(StatusCode.InvalidArgument, "Plugin URL is required"));
-    var plugin = new Dokime.V1.Plugin
+    var plugin = new Dokime.Protocol.Client.V1.Plugin
     {
       Entry = Guid.NewGuid().ToString(),
       Remote = new RemotePlugin { Url = request.Url },
@@ -81,5 +89,49 @@ public sealed class FakePlugins : Plugins.PluginsBase
     var reply = new PluginEntries();
     reply.Plugins.AddRange(entries.Values.OrderBy(entry => entry.Entry).Select(entry => entry.Clone()));
     return Task.FromResult(reply);
+  }
+}
+
+public sealed class FakeCases : Dokime.Protocol.Client.V1.Cases.CasesBase
+{
+  public override Task<Dokime.Protocol.Client.V1.CasesGetResponse> Get(Dokime.Protocol.Client.V1.CasesGetRequest request, ServerCallContext context)
+  {
+    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
+      throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Case: Supply Credentials"));
+    if (string.IsNullOrWhiteSpace(request.Name))
+      throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
+    return Task.FromResult(new Dokime.Protocol.Client.V1.CasesGetResponse
+    {
+      Value = new CaseDetail { Summary = new CaseSummary { CaseId = request.Name, Status = CaseStatus.Planned } },
+      ResolvedAt = request.At?.Clone()
+    });
+  }
+}
+
+public sealed class FakeSchemas : Schemas.SchemasBase
+{
+  public FileDescriptorSet Types { get; } = new()
+  {
+    File = { Google.Protobuf.WellKnownTypes.BoolValue.Descriptor.File.ToProto(), Google.Protobuf.WellKnownTypes.Empty.Descriptor.File.ToProto() }
+  };
+  public int Calls { get; private set; }
+  public ByteString Digest => ByteString.CopyFrom(SHA256.HashData(Types.ToByteArray()));
+
+  public override Task<SchemasGetResponse> Get(SchemasGetRequest request, ServerCallContext context)
+  {
+    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
+      throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Schemas: Supply Credentials"));
+    Calls++;
+    var cut = new Harmos.V1.Position { History = new Harmos.V1.History { Store = "schemas", Epoch = request.Name }, Sequence = 1 };
+    var first = request.Page?.PageToken.Length == 0;
+    if (!first && (!cut.Equals(request.At) || request.Page?.PageToken != "second"))
+      throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Schemas: Continue the Same Read Cut"));
+    return Task.FromResult(new SchemasGetResponse
+    {
+      Digest = Digest,
+      Types_ = new FileDescriptorSet { File = { Types.File[first ? 0 : 1].Clone() } },
+      ResolvedAt = cut,
+      NextPageToken = first ? "second" : ""
+    });
   }
 }

@@ -17,6 +17,8 @@ pub mod delivery;
 
 /* === Imports === */
 
+use dokime_protocol::client;
+
 // Standard Library Imports
 use std::{
     convert::Infallible,
@@ -29,7 +31,7 @@ use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
 use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
-use dokime_sdk::{client::v1 as library, v1};
+use dokime_sdk::client::v1 as library;
 
 /* === Constants === */
 
@@ -87,7 +89,7 @@ impl Service {
 impl<const KIND: u8> tonic::server::NamedService for Rpc<KIND> {
     const NAME: &'static str = match KIND {
         0 => "harmos.v1.Status",
-        1 => "dokime.v1.Execution",
+        1 => "dokime.client.v1.backend.Overview",
         _ => "harmos.v1.CatalogEntries",
     };
 }
@@ -117,15 +119,15 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                         .unary(Reply(reply), request)
                         .await
                 }
-                "/dokime.v1.Execution/ListCycles" => {
-                    let reply = v1::ListCyclesReply {
-                        cursor: Some(v1::Cursor {
-                            epoch: "product-history".into(),
+                "/dokime.client.v1.backend.Overview/Get" => {
+                    let reply = client::backend::OverviewGetResponse {
+                        overview: Some(client::backend::RuntimeShellSnapshot {
+                            session_id: "product-history".into(),
                             ..Default::default()
                         }),
                         ..Default::default()
                     };
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, v1::ExecutionListCyclesRequest>::default())
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, client::backend::OverviewGetRequest>::default())
                         .unary(Reply(reply), request)
                         .await
                 }
@@ -135,9 +137,9 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                             grpc_available: true,
                             contract: Some(library::DiscoveredContract {
                                 grpc: Some(library::Grpc {
-                                    package: "dokime.v1".into(),
-                                    service: "Content".into(),
-                                    method: "DownloadArtifact".into(),
+                                    package: "harmos.v1".into(),
+                                    service: "Storage".into(),
+                                    method: "GetFileBytes".into(),
                                     ..Default::default()
                                 }),
                                 ..Default::default()
@@ -177,7 +179,8 @@ impl Listener {
                 .add_service(Rpc::<0>(service.clone()))
                 .add_service(Rpc::<1>(service.clone()))
                 .add_service(Rpc::<2>(service.clone()))
-                .add_service(delivery::Content(service))
+                .add_service(delivery::Content(service.clone()))
+                .add_service(delivery::Storage(service))
                 .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
         );
         Self { endpoint, task }

@@ -55,6 +55,43 @@ with an action rather than returning incomplete results. See
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
+The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
+Suites resource; `operation list/show/call` discovers contracts through the library's
+CatalogEntries.List. Product identities use `dokime.client.v1`; library operations
+retain `harmos.v1`. Product operations are currently absent from host discovery,
+so raw product calls remain blocked pending host registration. Typed product
+commands and library raw calls use these forms:
+
+```sh
+dokime-next --endpoint http://127.0.0.1:7000 operation call harmos.v1.Status/Get --json '{}'
+dokime-next --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
+dokime-next --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
+```
+
+Structured output follows the final response wrappers: suites are in `values`,
+cycle creation returns `cycle`, and execution reads return `execution`. Execution
+list prints one response per page and continues with that page's retained cut;
+`--page-size` bounds each response.
+`execution show` accepts several execution IDs and `--schemas` fetches frozen
+descriptors through Executions.Schemas.Get once per digest within the command.
+Frozen record/stream metadata and every descriptor page carry each identity's fully qualified `message_name` binding for payload decoding.
+
+`plan preview/register --input-file` accepts canonical CasesCreateRequest JSON:
+`{"plan":{"selections":[{"suite_id":"SUITE","template_id":"TEMPLATE"}]},"request_id":"selection-1"}`.
+Preview forces `validate_only`; registration preserves the caller's request identity.
+`cycle append --request` reads encoded `dokime.client.v1.ExecutionsCreateRequest`
+with `parent`, `executions` and `request_id`. Lifecycle commands and prompt answers
+accept `--request-id`; retain it to retry an unchanged mutation. Omitted identities
+are generated for a single command invocation. Whole-value metadata changes use
+the final Set request with Get's complete writable value, `expected_revision`
+and a retained `request_id`; raw delivery awaits the discovery registration above.
+
+Report commands prepare with Reports.Create, read bounded product Files.Read
+ranges at the returned cut, verify length and SHA-256, and save without replacing an
+existing file. Rendering and downloading do not publish a report. Product content
+byte delivery verifies the file length, SHA-256 and retained read cut;
+the product serves those resources over its current content store.
+
 The desktop embeds the same host and also attaches to a pinned remote host.
 Product packaging includes the portable desktop distribution and native Windows
 NSIS or Linux DEB/RPM installers. The remaining document-capture limitation and

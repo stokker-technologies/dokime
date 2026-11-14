@@ -47,7 +47,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Start a Managed Plugin and Preview Its Case Without an Execution.
     let mut process = Process::start("dokime-rust-thermal", false).await?;
     let description = process.describe().await?;
-    let request = v1::MaterializeRequest {
+    let request = dokime::protocol::plugin::v1::TestCasesMaterializeRequest {
         template: "thermal.cycle".into(),
         parameters: [(
             "limit".into(),
@@ -57,7 +57,13 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )]
         .into(),
     };
-    let case = process.invoke("thermal.cycle.materialize", "", request.clone()).await?.finish::<v1::TestCase>().await?;
+    let case = process
+        .invoke("thermal.cycle.materialize", "", request.clone())
+        .await?
+        .finish::<dokime::protocol::plugin::v1::TestCasesMaterializeResponse>()
+        .await?
+        .test_case
+        .ok_or("Missing Materialized Test Case")?;
     let origin = v1::Origin {
         kind: Some(v1::origin::Kind::PluginRun(v1::PluginRun {
             test_case: Some(case.clone()),
@@ -69,7 +75,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     };
 
     // Materialization Cannot Allocate a Bench Resource for a Later Execution.
-    let step = v1::StepRequest {
+    let step = dokime::protocol::plugin::v1::StepsExecuteRequest {
         execution: "a".into(),
         step: "ramp".into(),
         test_case: Some(case.clone()),
@@ -87,7 +93,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         .invoke(
             "thermal.cycle.initialize",
             "a",
-            v1::InitializeRequest {
+            dokime::protocol::plugin::v1::ExecutionsInitializeRequest {
                 execution: "a".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
@@ -95,13 +101,13 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    initialize.finish::<v1::InitializeResponse>().await?;
+    initialize.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
+    initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
     let mut initialize = process
         .invoke(
             "thermal.cycle.initialize",
             "b",
-            v1::InitializeRequest {
+            dokime::protocol::plugin::v1::ExecutionsInitializeRequest {
                 execution: "b".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
@@ -109,8 +115,8 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = initialize.child().await?;
-    initialize.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    initialize.finish::<v1::InitializeResponse>().await?;
+    initialize.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
+    initialize.finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>().await?;
 
     // Reject a Changed Definition on an Already Initialized Execution.
     let mut changed = case.clone();
@@ -125,7 +131,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         return Err("Missing Run Origin".into());
     };
     run.test_case = Some(changed.clone());
-    let changed = v1::StepRequest {
+    let changed = dokime::protocol::plugin::v1::StepsExecuteRequest {
         test_case: Some(changed),
         origin: Some(changed_origin),
         ..step.clone()
@@ -140,7 +146,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         .invoke(
             "thermal.cycle.cleanup",
             "a",
-            v1::CleanupRequest {
+            dokime::protocol::plugin::v1::ExecutionsCleanupRequest {
                 execution: "a".into(),
                 termination: v1::Termination::Cancelled as i32,
                 test_case: Some(case.clone()),
@@ -149,26 +155,35 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    cleanup.finish::<v1::CleanupResponse>().await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     assert_eq!(
         process.invoke(&case.steps[0].operation, "a", step.clone()).await?.failure().await?.classification,
         harmos_protocol::v1::Classification::Permanent as i32
     );
-    let mut ramp = process.invoke(&case.steps[0].operation, "b", v1::StepRequest { execution: "b".into(), ..step }).await?;
+    let mut ramp = process
+        .invoke(&case.steps[0].operation, "b", dokime::protocol::plugin::v1::StepsExecuteRequest { execution: "b".into(), ..step })
+        .await?;
     let get = ramp.child().await?;
-    ramp.reply(get.call, dokime::protocol::context::v1::executions::ProgressGetResponse { revision: vec![0; 8], ..Default::default() }).await?;
+    ramp.reply(
+        get.call,
+        dokime::protocol::plugin::host::v1::executions::ProgressGetResponse {
+            revision: vec![0; 8],
+            ..Default::default()
+        },
+    )
+    .await?;
     let progress = ramp.child().await?;
-    assert_eq!(dokime::protocol::context::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.name, "b");
-    ramp.reply(progress.call, dokime::protocol::context::v1::executions::ProgressSetResponse::default()).await?;
-    ramp.finish::<v1::StepResponse>().await?;
+    assert_eq!(dokime::protocol::plugin::host::v1::executions::ProgressSetRequest::decode(progress.payload.as_slice())?.name, "b");
+    ramp.reply(progress.call, dokime::protocol::plugin::host::v1::executions::ProgressSetResponse::default()).await?;
+    ramp.finish::<dokime::protocol::plugin::v1::StepsExecuteResponse>().await?;
 
     // Cleanup May Be the First Operation, Including on a Case Never Initialized.
     let mut cleanup = process
         .invoke(
             "thermal.cycle.cleanup",
             "unstarted",
-            v1::CleanupRequest {
+            dokime::protocol::plugin::v1::ExecutionsCleanupRequest {
                 execution: "unstarted".into(),
                 termination: v1::Termination::Interrupted as i32,
                 test_case: Some(case.clone()),
@@ -177,15 +192,15 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    cleanup.finish::<v1::CleanupResponse>().await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
 
     // Finish the Remaining Execution and Verify Managed Stop Exits Normally.
     let mut cleanup = process
         .invoke(
             "thermal.cycle.cleanup",
             "b",
-            v1::CleanupRequest {
+            dokime::protocol::plugin::v1::ExecutionsCleanupRequest {
                 execution: "b".into(),
                 termination: v1::Termination::Completed as i32,
                 test_case: Some(case),
@@ -194,8 +209,8 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         )
         .await?;
     let log = cleanup.child().await?;
-    cleanup.reply(log.call, dokime::protocol::context::v1::evidence::LogsAppendResponse {}).await?;
-    cleanup.finish::<v1::CleanupResponse>().await?;
+    cleanup.reply(log.call, dokime::protocol::plugin::host::v1::evidence::LogsAppendResponse::default()).await?;
+    cleanup.finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>().await?;
     process.stop(false).await?;
     Ok(())
 }

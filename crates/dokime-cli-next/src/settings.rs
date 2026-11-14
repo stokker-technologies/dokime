@@ -151,6 +151,24 @@ impl Settings {
         }
         request
     }
+    pub async fn sdk(&self, endpoint: Option<String>, streaming: bool) -> crate::Result<dokime::Client> {
+        let channel = self.channel(endpoint, streaming).await?;
+        let mut client = dokime::Client::from_channel(channel, self.client())?;
+        if let Some(pairing) = &self.pairing {
+            client = client.authorization(pairing.authorization()?);
+        }
+        Ok(client)
+    }
+    pub fn request_id(&self, supplied: Option<String>) -> crate::Result<String> {
+        if let Some(value) = supplied {
+            if value.is_empty() {
+                return Err(crate::error::Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
+            }
+            return Ok(value);
+        }
+        let nonce = tempfile::Builder::new().prefix("dokime-request-").tempfile()?;
+        Ok(nonce.path().file_name().unwrap().to_string_lossy().into_owned())
+    }
     pub fn interceptor(&self) -> impl tonic::service::Interceptor + Clone + use<> {
         let authorization = self.pairing.as_ref().map(|pairing| pairing.authorization().expect("Validated Pairing Key"));
         move |mut request: tonic::Request<()>| {

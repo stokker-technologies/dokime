@@ -12,7 +12,7 @@
 
 /* === Local Imports === */
 
-import { CyclePhase, CycleStatus } from "@host/dokime/v1/client_types_pb.js";
+import { CyclePhase, CycleStatus } from "@host/dokime/v1/cycles_pb.js";
 import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
 import { mapCycleStatus } from "@/lib/api/native-planning";
 import type { CycleSummary } from "@/lib/api/native-planning";

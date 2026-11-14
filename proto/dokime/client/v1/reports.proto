@@ -1,0 +1,73 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+message ReportMetadata {
+  string test_cycle_id = 1;
+  optional string test_execution_id = 2;
+  string identifier = 3;
+  .dokime.v1.Metadata metadata = 4;
+  .google.protobuf.Timestamp generated_at = 5;
+  .dokime.client.v1.ReportOrigin origin = 6;
+  repeated string warnings = 7;
+}
+
+enum ReportOrigin {
+  REPORT_ORIGIN_UNSPECIFIED = 0;
+  REPORT_ORIGIN_SEALED = 1;
+  REPORT_ORIGIN_CURRENT = 2;
+}
+
+message ReportSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message ReportsGetRequest { .dokime.client.v1.ReportSubject subject = 1; string name = 2; .harmos.v1.ReadCut at = 90; }
+
+message ReportsGetResponse {
+  .dokime.client.v1.ReportMetadata report = 1;
+  .harmos.storage.v1.FileReference file = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message ReportsCreateRequest {
+  .dokime.client.v1.ReportSubject subject = 1;
+  string document_id = 2;
+  .harmos.v1.ReadCut at = 3;
+  string request_id = 4;
+}
+
+message ReportsCreateResponse {
+  .dokime.client.v1.ReportMetadata report = 1;
+  .harmos.storage.v1.FileReference file = 2;
+  .harmos.v1.ReadCut resolved_at = 3;
+  .harmos.v1.Receipt receipt = 4;
+}
+
+message ReportsPublishRequest {
+  string name = 1;
+  .dokime.client.v1.ReportSubject subject = 2;
+  bytes expected_revision = 3;
+  string request_id = 4;
+}
+
+message ReportsPublishResponse { .dokime.client.v1.ReportMetadata report = 1; bytes seal = 2; .harmos.v1.Receipt receipt = 3; }
+
+service Reports {
+  // Public. Identity: dokime.client.v1.Reports/Get
+  rpc Get(.dokime.client.v1.ReportsGetRequest) returns (.dokime.client.v1.ReportsGetResponse);
+  // Public. Render a preview at a fixed cut; rendering and reading bytes never publish.
+  rpc Create(.dokime.client.v1.ReportsCreateRequest) returns (.dokime.client.v1.ReportsCreateResponse);
+  // Public. Commit the selected prepared report and seal atomically; no implicit download publication.
+  rpc Publish(.dokime.client.v1.ReportsPublishRequest) returns (.dokime.client.v1.ReportsPublishResponse);
+}

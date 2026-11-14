@@ -35,6 +35,10 @@ name = "dokime-rust-resources"
 path = "../fixtures/resources.rs"
 
 [[bin]]
+name = "dokime-rust-starter"
+path = "../../starter/src/main.rs"
+
+[[bin]]
 name = "dokime-sdk-consumer"
 path = "src/main.rs"
 

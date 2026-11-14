@@ -70,6 +70,60 @@ async fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
         )?;
         assert_eq!(reply["status"]["identity"], direct["status"]["identity"]);
 
+        // Use Final Product Identities and Replace Whole Metadata with a Revision.
+        let created: serde_json::Value = serde_json::from_str(
+            &super::run(&[
+                "--endpoint",
+                &host.endpoint,
+                "operation",
+                "call",
+                "dokime.client.v1.Cycles/Create",
+                "--json",
+                r#"{"request_id":"metadata-cycle"}"#,
+            ])
+            .await?,
+        )?;
+        let name = created["cycle"]["cycle_id"].as_str().unwrap();
+        let input = serde_json::json!({"name": name}).to_string();
+        let current: serde_json::Value = serde_json::from_str(
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Get", "--json", &input]).await?,
+        )?;
+        let mut value = current["value"].clone();
+        value["label"] = "Recorded Metadata".into();
+        let request =
+            serde_json::json!({"name": name, "value": value, "expected_revision": current["revision"], "request_id":"metadata-set"});
+        let input = request.to_string();
+        let updated: serde_json::Value = serde_json::from_str(
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input]).await?,
+        )?;
+        assert_eq!(updated["value"], value);
+        let replayed: serde_json::Value = serde_json::from_str(
+            &super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input]).await?,
+        )?;
+        assert_eq!(replayed, updated);
+        let mut stale = request;
+        stale["request_id"] = "metadata-stale".into();
+        stale["value"]["label"] = "Stale Write".into();
+        let input = stale.to_string();
+        let refused = super::command()
+            .args(["--endpoint", &host.endpoint, "operation", "call", "dokime.client.v1.Cycles/Set", "--json", &input])
+            .output()
+            .await?;
+        assert!(!refused.status.success());
+        let retained: serde_json::Value = serde_json::from_str(
+            &super::run(&[
+                "--endpoint",
+                &host.endpoint,
+                "operation",
+                "call",
+                "dokime.client.v1.Cycles/Get",
+                "--json",
+                &serde_json::json!({"name":name}).to_string(),
+            ])
+            .await?,
+        )?;
+        assert_eq!(retained["value"], value);
+
         // An Unadmitted Action Is Named and Refused Without a Response
         let absent = "fixture.v1.Absent/Execute";
         let refused = super::command().args(["--endpoint", &host.endpoint, "operation", "call", absent, "--json", "{}"]).output().await?;

@@ -309,10 +309,10 @@ try {
   await sizeViewport(session, desktop);
 
   // Materialize A Real Bench Case With Finite Paced Measurements.
-  const catalog = await call(session, "Catalog", "ListSuites");
-  const suite = catalog.suites.find((row) => row.metadata.label === "Charger Start-Up");
+  const catalog = await call(session, "Suites", "List", {});
+  const suite = catalog.values.find((row) => row.metadata.label === "Charger Start-Up");
   assert.ok(suite, "The bench plugin registers its startup suite");
-  const definition = await call(session, "Catalog", "GetSuite", { suiteId: suite.suiteId });
+  const definition = await call(session, "Suites", "Get", { name: suite.metadata.identifier }).then((reply) => reply.value);
   await writeFile(join(evidence, "suite.json"), JSON.stringify(definition, null, 2));
   const template = definition.templates.find((row) => row.metadata.label === "Start-Up Sequence");
 
@@ -340,18 +340,22 @@ try {
         (row) => row.name === name || row.metadata?.identifier === name || row.parameterId?.endsWith(`.${name}`),
       );
       assert.ok(parameter, `The bench declares ${name}`);
-      return { key: name, value: { values: [{ nodes: [{ kind: { [kind]: { field0: value } } }] }] } };
+      return { key: name, value: { values: [{ [kind === "Bool" ? "boolean" : "number"]: value }] } };
     });
-    const plan = await call(session, "Planning", "MaterializeTemplate", {
-      selection: { suiteId: suite.suiteId, templateId: template.templateId, parameters },
+    const plan = await call(session, "Cases", "Create", {
+      requestId: crypto.randomUUID(),
+      plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: template.metadata.identifier, parameters }] },
+      validateOnly: true,
     });
-    const cycle = await call(session, "Execution", "CreateCycle", {
+    const cycle = await call(session, "Cycles", "Create", {
+      requestId: crypto.randomUUID(),
       metadata: { label: "AC Characterization" },
       continueAutomatically: false,
-    });
+    }).then((reply) => reply.cycle);
     const executionId = randomUUID();
-    await call(session, "Execution", "AppendExecutions", {
-      cycleId: cycle.cycleId,
+    await call(session, "Executions", "Create", {
+      requestId: crypto.randomUUID(),
+      parent: cycle.cycleId,
       executions: [{ executionId, caseId: plan.cases[0].caseId }],
     });
     const route = `/cycles/${cycle.cycleId}?executionId=${executionId}`;
@@ -392,7 +396,7 @@ try {
       );
     }
     if (["cycle", "touch"].includes(options.scene)) {
-      await call(session, "Execution", "StopExecution", { executionId });
+      await call(session, "Executions", "Stop", { requestId: crypto.randomUUID(), name: executionId });
     } else {
       // Finish And Seal The Measured Execution Through The Real Backend.
       await session.goto(route);
@@ -400,20 +404,15 @@ try {
         "finished measured execution",
         async () => {
           await answerPendingPrompts(session);
-          const result = await call(session, "Execution", "GetExecution", { executionId });
+          const result = await call(session, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
           await writeFile(join(evidence, "execution.json"), JSON.stringify(result, null, 2));
-          return result.summary?.sealed ||
-            result.summary?.status?.Failed ||
-            result.summary?.status?.Cancelled ||
-            result.summary?.status?.Blocked
-            ? result
-            : null;
+          return result.summary?.state === "EXECUTION_STATE_SEALED" ? result : null;
         },
         undefined,
         500,
       );
-      assert.ok(finished.summary.status.Passed, `Measured case did not pass: ${JSON.stringify(finished.summary.status)}`);
-      await call(session, "Execution", "SealCycle", { cycleId: cycle.cycleId });
+      assert.equal(finished.outcome.evaluated?.status, "RESULT_STATUS_PASSED");
+      await call(session, "Cycles", "Seal", { requestId: crypto.randomUUID(), name: cycle.cycleId });
 
       // Show Finished Plots And Hold A Zoom On The First Trace.
       await capture(
@@ -523,13 +522,15 @@ try {
       await session.key("Escape");
 
       // Retain An Active Cycle Beside The Completed One On The Home Surface.
-      const active = await call(session, "Execution", "CreateCycle", {
+      const active = await call(session, "Cycles", "Create", {
+        requestId: crypto.randomUUID(),
         metadata: { label: "Continuous Observation" },
         continueAutomatically: false,
-      });
+      }).then((reply) => reply.cycle);
       const activeId = randomUUID();
-      await call(session, "Execution", "AppendExecutions", {
-        cycleId: active.cycleId,
+      await call(session, "Executions", "Create", {
+        requestId: crypto.randomUUID(),
+        parent: active.cycleId,
         executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
       });
       await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
@@ -565,19 +566,14 @@ try {
         "active observation completed",
         async () => {
           await answerPendingPrompts(session);
-          const result = await call(session, "Execution", "GetExecution", { executionId: activeId });
-          return result.summary?.sealed ||
-            result.summary?.status?.Failed ||
-            result.summary?.status?.Cancelled ||
-            result.summary?.status?.Blocked
-            ? result
-            : null;
+          const result = await call(session, "Executions", "Get", { name: activeId }).then((reply) => reply.execution);
+          return result.summary?.state === "EXECUTION_STATE_SEALED" ? result : null;
         },
         undefined,
         500,
       );
-      assert.ok(observed.summary.status.Passed, `Observation did not pass: ${JSON.stringify(observed.summary.status)}`);
-      await call(session, "Execution", "SealCycle", { cycleId: active.cycleId });
+      assert.equal(observed.outcome.evaluated?.status, "RESULT_STATUS_PASSED");
+      await call(session, "Cycles", "Seal", { requestId: crypto.randomUUID(), name: active.cycleId });
     }
   }
 } catch (error) {

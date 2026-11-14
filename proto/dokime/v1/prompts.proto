@@ -1,0 +1,115 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+
+// Shared prompt, traceability, file-capture and effect payloads.
+message PromptDefinitions { repeated .dokime.v1.Prompt prompts = 1; }
+
+message Prompt {
+  .dokime.v1.Metadata metadata = 1;
+  string message = 2;
+  repeated .dokime.v1.PromptField fields = 3;
+  repeated .dokime.v1.PromptAction actions = 4;
+  .dokime.v1.PromptArchetype archetype = 5;
+  repeated .dokime.v1.AnswerRule rules = 6;
+  .dokime.v1.EvidenceCondition condition = 7;
+  string owner_suite = 8;
+  string template = 9;
+  repeated .dokime.v1.PromptValues examples = 10;
+  .dokime.v1.Severity level = 11;
+}
+
+message PromptValues { map<string, .dokime.v1.Value> values = 1; }
+
+enum PromptArchetype {
+  PROMPT_ARCHETYPE_UNSPECIFIED = 0;
+  PROMPT_ARCHETYPE_CONFIRMATION = 1;
+  PROMPT_ARCHETYPE_FORM = 2;
+  PROMPT_ARCHETYPE_CHOICE = 3;
+  PROMPT_ARCHETYPE_STATUS = 4;
+}
+
+message PromptField {
+  .dokime.v1.Metadata metadata = 1;
+  .dokime.v1.ValueType type = 2;
+  bool required = 3;
+  bool multiple = 4;
+  .dokime.v1.Value default_value = 5;
+  repeated .dokime.v1.Value choices = 6;
+  .dokime.v1.PromptFieldValidation validation = 7;
+  .dokime.v1.PromptFieldKind kind = 8;
+}
+
+message PromptFieldValidation {
+  optional uint64 min_length = 1;
+  optional uint64 max_length = 2;
+  optional string pattern = 3;
+  .dokime.v1.Value minimum = 4;
+  .dokime.v1.Value maximum = 5;
+  optional uint64 min_items = 6;
+  optional uint64 max_items = 7;
+}
+
+enum PromptFieldKind {
+  PROMPT_FIELD_KIND_UNSPECIFIED = 0;
+  PROMPT_FIELD_KIND_TEXT = 1;
+  PROMPT_FIELD_KIND_FLOAT = 2;
+  PROMPT_FIELD_KIND_INTEGER = 3;
+  PROMPT_FIELD_KIND_CHOICE = 4;
+  PROMPT_FIELD_KIND_BOOLEAN = 5;
+}
+
+message PromptAction {
+  string identifier = 1;
+  string label = 2;
+  .dokime.v1.PromptActionEmphasis emphasis = 3;
+  bool requires_condition = 4;
+}
+
+enum PromptActionEmphasis {
+  PROMPT_ACTION_EMPHASIS_UNSPECIFIED = 0;
+  PROMPT_ACTION_EMPHASIS_PRIMARY = 1;
+  PROMPT_ACTION_EMPHASIS_SECONDARY = 2;
+  PROMPT_ACTION_EMPHASIS_DANGER = 3;
+}
+
+message AnswerRule { .dokime.v1.AnswerPredicate predicate = 1; string message = 2; }
+
+message AnswerPredicate {
+  oneof kind {
+    .dokime.v1.Value literal = 1;
+    string field = 2;
+    .dokime.v1.AnswerPredicate not = 3;
+    .dokime.v1.AnswerBinaryPredicate binary = 4;
+  }
+}
+
+message AnswerBinaryPredicate { .dokime.v1.AnswerOperator operator = 1; .dokime.v1.AnswerPredicate left = 2; .dokime.v1.AnswerPredicate right = 3; }
+
+enum AnswerOperator {
+  ANSWER_OPERATOR_UNSPECIFIED = 0;
+  ANSWER_OPERATOR_AND = 1;
+  ANSWER_OPERATOR_OR = 2;
+  ANSWER_OPERATOR_EQ = 3;
+  ANSWER_OPERATOR_NE = 4;
+  ANSWER_OPERATOR_GT = 5;
+  ANSWER_OPERATOR_GE = 6;
+  ANSWER_OPERATOR_LT = 7;
+  ANSWER_OPERATOR_LE = 8;
+  ANSWER_OPERATOR_CONTAINS = 9;
+  ANSWER_OPERATOR_STARTS_WITH = 10;
+  ANSWER_OPERATOR_ENDS_WITH = 11;
+}
+
+message PromptResponse {
+  string prompt_id = 1;
+  string action = 2;
+  string responder = 3;
+  .google.protobuf.Timestamp submitted_at = 4;
+  .dokime.v1.MapValue values = 5;
+  bool accepted = 6;
+}

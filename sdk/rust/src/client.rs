@@ -11,11 +11,15 @@
 
 /* === Modules === */
 
+mod files;
 mod host;
+mod schemas;
 #[rustfmt::skip]
 mod resources;
 
 /* === Re-Exports === */
+
+pub use schemas::FrozenSchemaCache;
 
 pub use host::{Cycle, Cycles, Executions, Health, HostClient, Plugins, Progress, Prompts, Records, Reports, Samples, Suites, Templates};
 
@@ -39,6 +43,7 @@ use tonic::{
 };
 
 // Local Imports
+use std::ops::Deref;
 
 /* === Constants === */
 
@@ -123,7 +128,7 @@ impl Client {
     }
 }
 
-impl std::ops::Deref for Client {
+impl Deref for Client {
     type Target = resources::Root;
     fn deref(&self) -> &Self::Target {
         &self.resources

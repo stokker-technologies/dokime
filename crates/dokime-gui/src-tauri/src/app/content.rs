@@ -21,16 +21,14 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_sdk::v1;
-use prost::Message;
-use prost_reflect::{DynamicMessage, Value};
+use dokime_protocol::client;
+use dokime_protocol::client::FilesReadResponse;
+use dokime_protocol::client::{FilesGetRequest, FilesGetResponse, FilesReadRequest};
 use sha2::{Digest, Sha256};
+use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio_stream::StreamExt;
 
 /* === Constants === */
-
-const CYCLE_REPORT: &str = "cycle.summary";
 
 /* === Macros === */
 
@@ -50,7 +48,7 @@ pub(crate) struct VerifiedContent {
 
     pub content_type: Option<String>,
 
-    pub report_origin: Option<v1::ReportOrigin>,
+    pub report_origin: Option<client::ReportOrigin>,
 }
 
 #[derive(Debug, serde::Serialize, thiserror::Error)]
@@ -99,7 +97,7 @@ impl DeliveryError {
 impl From<crate::connection::host::Error> for DeliveryError {
     fn from(error: crate::connection::host::Error) -> Self {
         Self {
-            stage: DeliveryStage::Stream,
+            stage: DeliveryStage::Request,
             failure: DeliveryFailure::Rpc(error.into()),
         }
     }
@@ -108,8 +106,8 @@ impl From<crate::connection::host::Error> for DeliveryError {
 impl VerifiedContent {
     pub(crate) fn report_origin(&self) -> Option<&'static str> {
         match self.report_origin {
-            Some(v1::ReportOrigin::Sealed) => Some("sealed"),
-            Some(v1::ReportOrigin::Current) => Some("current"),
+            Some(client::ReportOrigin::Sealed) => Some("sealed"),
+            Some(client::ReportOrigin::Current) => Some("current"),
             _ => None,
         }
     }
@@ -120,168 +118,150 @@ impl VerifiedContent {
 pub(crate) async fn fetch_verified(
     lease: &SessionLease, source: &ArtifactSource, destination: &Path, frame_bytes: usize,
 ) -> Result<VerifiedContent, DeliveryError> {
-    let (path, request, output) = match source {
-        ArtifactSource::Artifact { artifact_id } => (
-            "/dokime.v1.Content/DownloadArtifact",
-            v1::ContentDownloadArtifactRequest { artifact_id: artifact_id.clone() }.encode_to_vec(),
-            "ContentDownloadArtifactOutput",
-        ),
-        ArtifactSource::ExecutionFile { execution_id, relative_path } => (
-            "/dokime.v1.Content/DownloadExecutionFile",
-            v1::ContentDownloadExecutionFileRequest {
-                execution_id: execution_id.clone(),
-                relative_path: relative_path.clone(),
-            }
-            .encode_to_vec(),
-            "ContentDownloadExecutionFileOutput",
-        ),
-        ArtifactSource::ExecutionEvidence { execution_id } => (
-            "/dokime.v1.Content/DownloadEvidence",
-            v1::ContentDownloadEvidenceRequest {
-                subject: Some(v1::EvidenceSubject {
-                    kind: Some(v1::evidence_subject::Kind::Execution(execution_id.clone())),
-                }),
-            }
-            .encode_to_vec(),
-            "ContentDownloadEvidenceOutput",
-        ),
-        ArtifactSource::CycleEvidence { cycle_id } => (
-            "/dokime.v1.Content/DownloadEvidence",
-            v1::ContentDownloadEvidenceRequest {
-                subject: Some(v1::EvidenceSubject {
-                    kind: Some(v1::evidence_subject::Kind::Cycle(cycle_id.clone())),
-                }),
-            }
-            .encode_to_vec(),
-            "ContentDownloadEvidenceOutput",
-        ),
-        ArtifactSource::CycleReport { cycle_id } => (
-            "/dokime.v1.Reports/DownloadCycleReport",
-            v1::ReportsDownloadCycleReportRequest {
-                cycle_id: cycle_id.clone(),
-                identifier: CYCLE_REPORT.into(),
-            }
-            .encode_to_vec(),
-            "ReportsDownloadCycleReportOutput",
-        ),
-        ArtifactSource::ExecutionReport { execution_id } => (
-            "/dokime.v1.Reports/DownloadExecutionReport",
-            v1::ReportsDownloadExecutionReportRequest { execution_id: execution_id.clone() }.encode_to_vec(),
-            "ReportsDownloadExecutionReportOutput",
-        ),
-    };
     let session = lease.client();
-    let mut watch = session.watch_raw(path, &request).await.map_err(|error| DeliveryError {
-        stage: DeliveryStage::Request,
-        failure: DeliveryFailure::Rpc(error.into()),
-    })?;
-    let descriptor =
-        dokime_protocol::descriptor_pool().get_message_by_name(&format!("dokime.v1.{output}")).expect("canonical transfer output");
+    let (reference, report_origin) = match source {
+        ArtifactSource::Artifact { artifact_id } => {
+            let reply: client::content::ArtifactsGetResponse = session
+                .unary(
+                    "/dokime.client.v1.content.Artifacts/Get",
+                    client::content::ArtifactsGetRequest {
+                        name: artifact_id.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, None)
+        }
+        ArtifactSource::ExecutionFile { execution_id, relative_path } => {
+            let reply: client::content::ExecutionFilesGetResponse = session
+                .unary(
+                    "/dokime.client.v1.content.ExecutionFiles/Get",
+                    client::content::ExecutionFilesGetRequest {
+                        parent: execution_id.clone(),
+                        name: relative_path.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, None)
+        }
+        ArtifactSource::ExecutionEvidence { execution_id } => {
+            let reply: client::EvidenceArchiveResponse = session
+                .unary(
+                    "/dokime.client.v1.Evidence/Archive",
+                    client::EvidenceArchiveRequest {
+                        subject: Some(client::EvidenceSubject {
+                            kind: Some(client::evidence_subject::Kind::Execution(execution_id.clone())),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, None)
+        }
+        ArtifactSource::CycleEvidence { cycle_id } => {
+            let reply: client::EvidenceArchiveResponse = session
+                .unary(
+                    "/dokime.client.v1.Evidence/Archive",
+                    client::EvidenceArchiveRequest {
+                        subject: Some(client::EvidenceSubject {
+                            kind: Some(client::evidence_subject::Kind::Cycle(cycle_id.clone())),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, None)
+        }
+        ArtifactSource::CycleReport { cycle_id } => {
+            let reply: client::ReportsCreateResponse = session
+                .unary(
+                    "/dokime.client.v1.Reports/Create",
+                    client::ReportsCreateRequest {
+                        subject: Some(client::ReportSubject {
+                            kind: Some(client::report_subject::Kind::Cycle(cycle_id.clone())),
+                        }),
+                        request_id: format!("desktop-report-{:032x}", rand::random::<u128>()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, reply.report.and_then(|report| client::ReportOrigin::try_from(report.origin).ok()))
+        }
+        ArtifactSource::ExecutionReport { execution_id } => {
+            let reply: client::ReportsGetResponse = session
+                .unary(
+                    "/dokime.client.v1.Reports/Get",
+                    client::ReportsGetRequest {
+                        subject: Some(client::ReportSubject {
+                            kind: Some(client::report_subject::Kind::Execution(execution_id.clone())),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            (reply.file, reply.report.and_then(|report| client::ReportOrigin::try_from(report.origin).ok()))
+        }
+    };
+    let reference = reference.ok_or_else(|| invalid("Read Content: Host Omitted Its File Reference"))?;
+    if reference.sha256.len() != 32 {
+        return Err(invalid("Read Content: Host Omitted Its SHA-256"));
+    }
+    let selected: FilesGetResponse =
+        session.unary("/dokime.client.v1.Files/Get", FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
+    let selected_file = selected.file.as_ref().ok_or_else(|| invalid("Read Content: Host Omitted Its Selected File"))?;
+    if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
+        return Err(invalid("Read Content: Selected File Identity Changed"));
+    }
+    let frame_bytes = frame_bytes
+        .min(usize::try_from(selected.chunk_bytes).map_err(|_| invalid("Read Content: Invalid Chunk Limit"))?)
+        .min(usize::try_from(selected.message_bytes.saturating_sub(1024)).map_err(|_| invalid("Read Content: Invalid Message Limit"))?);
+    if frame_bytes == 0 {
+        return Err(invalid("Read Content: Host Omitted Its Transfer Limits"));
+    }
+    let content_type = reference.metadata.as_ref().map(|metadata| metadata.media_type.clone());
     let directory =
         destination.parent().ok_or_else(|| DeliveryError::local(DeliveryStage::Prepare, "Select a destination with a parent directory"))?;
     tokio::fs::create_dir_all(directory).await.map_err(write_error)?;
     let staged = tempfile::NamedTempFile::new_in(directory).map_err(write_error)?;
-    let mut file = tokio::fs::File::from_std(staged.reopen().map_err(write_error)?);
+    let mut file = File::from_std(staged.reopen().map_err(write_error)?);
     let mut digest = Sha256::new();
     let mut offset = 0;
-    let mut metadata = false;
-    let mut complete = false;
-    let mut response = false;
-    let mut content_type = None;
-    let mut report_origin = None;
-    let mut declared_size = None;
-    let mut declared_digest = None;
-    while let Some(bytes) = watch.next().await.transpose()? {
-        if bytes.len() > frame_bytes || response {
-            return Err(invalid("Transfer returned an oversized frame or data after its final response"));
+    let mut at = selected.resolved_at;
+    while offset < reference.length {
+        let reply: FilesReadResponse = session
+            .unary(
+                "/dokime.client.v1.Files/Read",
+                FilesReadRequest {
+                    file: Some(reference.clone()),
+                    offset,
+                    max_bytes: frame_bytes as u64,
+                    at: at.clone(),
+                },
+            )
+            .await?;
+        if reply.total_length != reference.length
+            || reply.sha256 != reference.sha256
+            || reply.data.is_empty()
+            || reply.data.len() > frame_bytes
+            || offset.saturating_add(reply.data.len() as u64) > reference.length
+            || reply.resolved_at.is_none()
+            || (at.is_some() && at != reply.resolved_at)
+        {
+            return Err(invalid("Read Content: Invalid Range, Digest or Retained Cut"));
         }
-        let message = DynamicMessage::decode(descriptor.clone(), bytes.as_slice()).map_err(|error| invalid(error.to_string()))?;
-        if message.has_field_by_name("response") {
-            if !complete {
-                return Err(invalid("Transfer completed before verified content"));
-            }
-            response = true;
-            continue;
-        }
-        if complete {
-            return Err(invalid("Transfer returned content after completion"));
-        }
-        let item = message.get_field_by_name("item").ok_or_else(|| invalid("Transfer omitted its item"))?;
-        let Value::Message(item) = item.as_ref() else {
-            return Err(invalid("Transfer item is not a message"));
-        };
-        let payload = item.get_field_by_name("payload").ok_or_else(|| invalid("Transfer omitted its payload"))?;
-        let Value::Message(payload) = payload.as_ref() else {
-            return Err(invalid("Transfer payload is not a message"));
-        };
-        if payload.has_field_by_name("metadata") || payload.has_field_by_name("report") {
-            if metadata || offset != 0 {
-                return Err(invalid("Transfer repeated metadata"));
-            }
-            metadata = true;
-            let value =
-                payload.get_field_by_name(if payload.has_field_by_name("report") { "report" } else { "metadata" }).expect("metadata field");
-            if let Value::Message(value) = value.as_ref() {
-                declared_size = value.get_field_by_name("size_bytes").and_then(|value| value.as_u64());
-                declared_digest = value.get_field_by_name("sha256").and_then(|value| value.as_str().map(str::to_owned));
-                content_type = value.get_field_by_name("content_type").and_then(|value| value.as_str().map(str::to_owned));
-                report_origin = value
-                    .get_field_by_name("origin")
-                    .and_then(|value| value.as_enum_number())
-                    .and_then(|value| v1::ReportOrigin::try_from(value).ok());
-                if report_origin.is_some() {
-                    content_type = Some("text/html".into());
-                }
-            }
-            continue;
-        }
-        if !metadata {
-            return Err(invalid("Transfer omitted initial metadata"));
-        }
-        if payload.has_field_by_name("chunk") {
-            let value = payload.get_field_by_name("chunk").expect("chunk field");
-            let Value::Message(chunk) = value.as_ref() else {
-                return Err(invalid("Invalid chunk"));
-            };
-            let position =
-                chunk.get_field_by_name("offset").and_then(|value| value.as_u64()).ok_or_else(|| invalid("Chunk omitted its offset"))?;
-            let data = chunk.get_field_by_name("data").ok_or_else(|| invalid("Chunk omitted its bytes"))?;
-            let data = data.as_bytes().ok_or_else(|| invalid("Invalid chunk bytes"))?;
-            if position != offset {
-                return Err(invalid("Transfer chunk offset did not advance contiguously"));
-            }
-            offset = offset.checked_add(data.len() as u64).ok_or_else(|| invalid("Transfer size overflow"))?;
-            digest.update(data);
-            file.write_all(data).await.map_err(write_error)?;
-            continue;
-        }
-        if payload.has_field_by_name("complete") {
-            let value = payload.get_field_by_name("complete").expect("completion field");
-            let Value::Message(value) = value.as_ref() else {
-                return Err(invalid("Invalid completion"));
-            };
-            let size = value.get_field_by_name("size_bytes").and_then(|value| value.as_u64());
-            let expected = value.get_field_by_name("sha256").and_then(|value| value.as_str().map(str::to_owned));
-            let actual = digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-            if size != Some(offset)
-                || expected.as_deref() != Some(actual.as_str())
-                || declared_size.is_some_and(|size| size != offset)
-                || declared_digest.as_deref().is_some_and(|digest| digest != actual)
-            {
-                return Err(invalid("Transfer size or SHA-256 mismatch"));
-            }
-            complete = true;
-            continue;
-        }
-        return Err(invalid("Transfer returned an unknown frame"));
+        at = reply.resolved_at;
+        offset += reply.data.len() as u64;
+        digest.update(&reply.data);
+        file.write_all(&reply.data).await.map_err(write_error)?;
     }
-    if !response {
-        lease.guard(async {}).await.map_err(|error| DeliveryError {
-            stage: DeliveryStage::Stream,
-            failure: DeliveryFailure::Rpc(error.into()),
-        })?;
-        return Err(invalid("Transfer ended without a final response"));
+    if digest.clone().finalize().as_slice() != reference.sha256.as_slice() {
+        return Err(invalid("Read Content: SHA-256 Mismatch"));
     }
+    lease.guard(async {}).await.map_err(|error| DeliveryError {
+        stage: DeliveryStage::Stream,
+        failure: DeliveryFailure::Rpc(error.into()),
+    })?;
     file.flush().await.map_err(write_error)?;
     file.sync_all().await.map_err(write_error)?;
     drop(file);

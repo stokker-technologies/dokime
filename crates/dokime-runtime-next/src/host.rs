@@ -199,7 +199,7 @@ impl Host {
     pub fn capabilities(&self, execution: &str) -> Result<crate::ExecutionCapabilities> {
         self.executions.capabilities(execution)
     }
-    pub fn execution_controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
+    pub fn execution_controls(&self, execution: &str) -> Result<dokime_protocol::client::ExecutionControls> {
         self.executions.execution_controls(execution)
     }
     pub fn pause_execution(&self, execution: &str, paused: bool) -> Result<()> {
@@ -208,13 +208,15 @@ impl Host {
     pub fn stop_execution(&self, execution: &str) -> Result<()> {
         self.executions.stop_execution(execution)
     }
-    pub async fn start_execution_mode(&self, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
+    pub async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<Cycle> {
         self.executions.start_execution_mode(execution, mode).await
     }
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
-        self.start_execution_mode(execution, v1::ExecutionMode::Automatic).await
+        self.start_execution_mode(execution, dokime_protocol::client::ExecutionMode::Automatic).await
     }
-    pub fn submit_execution_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
+    pub fn submit_execution_command(
+        &self, request: dokime_protocol::client::executions::CommandsCreateRequest,
+    ) -> Result<dokime_protocol::client::executions::ExecutionCommandReceipt> {
         self.executions.submit_execution_command(request)
     }
     pub async fn rerun(&self, execution: &str) -> Result<Cycle> {
@@ -282,8 +284,10 @@ impl Host {
     pub fn signal_change(&self) {
         self.changed.send_modify(|revision| *revision += 1);
     }
-    pub fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
-        self.prompts.record_answer(execution, answer)
+    pub fn record_answer(
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::v1::Receipt> {
+        self.prompts.record_answer(execution, request_id, fingerprint, answer)
     }
     pub async fn shutdown(&self) -> Result<()> {
         let mut result = self.executions.shutdown().await;

@@ -1,0 +1,182 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/plugin/v1/instance.proto";
+
+// Public operations: dokime.plugins.list (ListPlugins -> PluginEntries),
+// dokime.plugins.add (AddRemotePlugin -> Plugin), and
+// dokime.plugins.remove (RemovePlugin -> RemovePluginResponse).
+// Managed installation and uninstallation retain their existing operations.
+message ListPlugins {}
+
+message PluginEntries { repeated .dokime.client.v1.Plugin plugins = 1; }
+
+message AddRemotePlugin { string url = 1; }
+
+message RemovePlugin { string entry = 1; }
+
+message RemovePluginResponse {}
+
+message Plugin {
+  // Stable even before the first successful connection.
+  string entry = 1;
+  oneof placement {
+    .dokime.client.v1.ManagedPlugin managed = 2;
+    .dokime.client.v1.RemotePlugin remote = 3;
+  }
+  .dokime.client.v1.PluginState state = 4;
+  string reason = 5;
+  // Absent until first connection; retained while unavailable.
+  .harmos.plugin.v1.InstanceGetResponse description = 6;
+}
+
+message ManagedPlugin { string bundle = 1; }
+
+message RemotePlugin { string url = 1; }
+
+enum PluginState {
+  PLUGIN_STATE_UNSPECIFIED = 0;
+  PLUGIN_STATE_STARTING = 1;
+  PLUGIN_STATE_CONNECTING = 2;
+  PLUGIN_STATE_READY = 3;
+  PLUGIN_STATE_UNAVAILABLE = 4;
+  PLUGIN_STATE_FAILED = 5;
+}
+
+message AdmittedPlugin {
+  .dokime.client.v1.Plugin plugin = 1;
+}
+
+// Continue plugin identifier ordering within one process epoch and admission revision. Availability changes can
+// invalidate pagination.
+message AdmittedPluginCursor {
+  string epoch = 1;
+  uint64 revision = 2;
+  string after_plugin_id = 3;
+}
+
+message AdmittedPluginPage {
+  repeated .dokime.client.v1.AdmittedPlugin plugins = 1;
+  .dokime.client.v1.AdmittedPluginCursor next = 2;
+  uint64 total_count = 3;
+  string epoch = 4;
+  uint64 revision = 5;
+}
+
+message InstallPluginChunk {
+  uint64 offset = 1;
+  bytes data = 2;
+}
+
+// Header first, then contiguous nonempty chunks bounded by the advertised message size. EOF/finish must match
+// the declared size and SHA-256. On uncertain acknowledgement, reconcile the manifest by digest before retrying.
+message InstallPluginFrame {
+  .dokime.client.v1.InstallPluginFrameFrame frame = 1;
+}
+
+message InstallPluginFrameFrame {
+  oneof kind {
+    .dokime.client.v1.InstallPluginHeader header = 1;
+    .dokime.client.v1.InstallPluginChunk chunk = 2;
+  }
+}
+
+message InstallPluginHeader {
+  uint64 size_bytes = 1;
+  string sha256 = 2;
+}
+
+// Continue the installation UUID ordering against this exact manifest digest. A changed manifest invalidates the
+// page sequence; start again without a cursor.
+message InstallationCursor {
+  string manifest_sha256 = 1;
+  string after_install_id = 2;
+}
+
+message InstallationPage {
+  repeated .dokime.client.v1.PluginInstallation installations = 1;
+  .dokime.client.v1.InstallationCursor next = 2;
+  uint64 total_count = 3;
+  string manifest_sha256 = 4;
+}
+
+message PluginIdentity {
+  string name = 1;
+  string version = 2;
+  string description = 3;
+}
+
+// Installed bundle metadata plus its managed entry. Connection/process availability is Plugin.state;
+// installation state describes bundle management, not whether a plugin is connected.
+message PluginInstallation {
+  string install_id = 1;
+  string sha256 = 2;
+  .google.protobuf.Timestamp installed_at = 3;
+  .dokime.client.v1.PluginInstallationState state = 4;
+  .dokime.client.v1.PluginMetadata metadata = 5;
+  optional string error = 6;
+  .dokime.client.v1.Plugin plugin = 7;
+}
+
+enum PluginInstallationState {
+  PLUGIN_INSTALLATION_STATE_UNSPECIFIED = 0;
+  PLUGIN_INSTALLATION_STATE_INSTALLED = 1;
+  PLUGIN_INSTALLATION_STATE_DISABLED = 2;
+  PLUGIN_INSTALLATION_STATE_REMOVAL_PENDING = 3;
+}
+
+message PluginMetadata {
+  .dokime.client.v1.PluginIdentity identity = 1;
+  repeated string owners = 2;
+  uint64 size_bytes = 3;
+}
+
+// Awaiting Direct Library Composition; Ordinary Contracts Stay Unchanged.
+message PluginsGetInstallationRequest {
+  string install_id = 1;
+}
+
+message PluginsInstallRequest {
+
+}
+
+message PluginsInstallInput {
+  oneof value {
+    .dokime.client.v1.PluginsInstallRequest request = 1;
+    .dokime.client.v1.InstallPluginFrame item = 2;
+  }
+}
+
+message PluginsListAdmittedPluginsRequest {
+  uint32 page_size = 1;
+  .dokime.client.v1.AdmittedPluginCursor after = 2;
+}
+
+message PluginsListInstallationsRequest {
+  uint32 page_size = 1;
+  .dokime.client.v1.InstallationCursor after = 2;
+}
+
+message PluginsReloadRequest {
+  optional string install_id = 1;
+  optional string plugin_id = 2;
+}
+
+message PluginsSetEnabledRequest {
+  string install_id = 1;
+  bool enabled = 2;
+}
+
+service Plugins {
+  rpc GetInstallation (.dokime.client.v1.PluginsGetInstallationRequest) returns (.dokime.client.v1.PluginInstallation);
+  rpc Install (stream .dokime.client.v1.PluginsInstallInput) returns (.dokime.client.v1.PluginInstallation);
+  rpc ListAdmittedPlugins (.dokime.client.v1.PluginsListAdmittedPluginsRequest) returns (.dokime.client.v1.AdmittedPluginPage);
+  rpc ListInstallations (.dokime.client.v1.PluginsListInstallationsRequest) returns (.dokime.client.v1.InstallationPage);
+  rpc Reload (.dokime.client.v1.PluginsReloadRequest) returns (.dokime.v1.ClientEmpty);
+  rpc Remove (.dokime.client.v1.RemovePlugin) returns (.dokime.client.v1.RemovePluginResponse);
+  rpc SetEnabled (.dokime.client.v1.PluginsSetEnabledRequest) returns (.dokime.client.v1.PluginInstallation);
+  rpc List (.dokime.client.v1.ListPlugins) returns (.dokime.client.v1.PluginEntries);
+  rpc Add (.dokime.client.v1.AddRemotePlugin) returns (.dokime.client.v1.Plugin);
+}

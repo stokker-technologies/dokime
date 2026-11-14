@@ -6,13 +6,9 @@
  * server API types.
  */
 
-import type { ExecutionCheckpoint as GeneratedNativeExecutionCheckpoint } from "@host/dokime/v1/client_types_pb.js";
-import type { Wire } from "@/lib/rpc/canonical";
 import type { ValueFormat } from "./format";
-
-type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
-type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
-type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
+import type { Origin, ExecutionOutcome } from "@host/dokime/v1/execution_pb.js";
+import type { Wire } from "@/lib/rpc/canonical";
 
 export type Boolean = {
   id: string;
@@ -110,16 +106,21 @@ export type SavedCycleSummary = {
   archived: boolean;
 };
 
-export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
+export type ExecutionCheckpoint = {
+  executionIdentifier: string;
+  version: Uint8Array;
   position: CheckpointCursor;
   evidenceThrough: CheckpointCursor;
 };
 
-export type CheckpointCursor = Pick<NativeStorageCursor, "sequence"> & {
-  history: Pick<NativeStoreHistory, "store" | "epoch">;
+export type CheckpointCursor = {
+  sequence: bigint;
+  history: { store: string; epoch: string };
 };
 
 export type ExecutionMetadata = {
+  origin?: Wire<Origin>;
+  outcome?: Wire<ExecutionOutcome>;
   execution_id: TestExecutionId;
   cycle_id: TestCycleId | null;
   case_id: CaseId;

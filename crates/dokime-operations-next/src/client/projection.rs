@@ -21,11 +21,27 @@
 use harmos_protocol::v1 as h;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, ReflectMessage};
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, client::Context};
+use dokime_protocol::client::ExecutionControls;
+use dokime_protocol::client::ExecutionOutcomeCounts;
+use dokime_protocol::client::ExecutionSummary;
+use dokime_protocol::client::FrozenSchemas;
+use dokime_protocol::client::evidence::CapturedRecord;
+use dokime_protocol::client::evidence::TelemetrySample;
+use dokime_protocol::context::PromptsCreateRequest;
+use dokime_protocol::context::evidence::RecordsAppendRequest;
 use dokime_protocol::v1;
+use dokime_protocol::v1::{EvidenceScope, ExecutionOutcome, Prompt, Value as ProductValue};
+use dokime_storage::Evidence;
+use dokime_storage::OutcomeCounts;
 use dokime_storage::{ExecutionSnapshot, ExecutionState};
+use prost_reflect::MapKey;
+use prost_reflect::Value;
+use prost_types::Timestamp;
+use std::collections::HashMap;
 
 /* === Constants === */
 
@@ -46,14 +62,9 @@ use dokime_storage::{ExecutionSnapshot, ExecutionState};
 pub(super) fn limit(requested: u32, maximum: usize) -> usize {
     if requested == 0 { maximum } else { (requested as usize).min(maximum) }
 }
-pub(super) fn bounded(count: usize, maximum: usize) -> Result<()> {
-    if count > maximum {
-        return Err(Error::Invalid("Read Exceeds the New Host's Page Bound; Narrow the Selection".into()));
-    }
-    Ok(())
-}
-pub(super) fn timestamp(at_ns: i64) -> prost_types::Timestamp {
-    prost_types::Timestamp {
+
+pub(super) fn timestamp(at_ns: i64) -> Timestamp {
+    Timestamp {
         seconds: at_ns.div_euclid(1_000_000_000),
         nanos: at_ns.rem_euclid(1_000_000_000) as i32,
     }
@@ -65,7 +76,7 @@ pub(super) fn scope(snapshot: &ExecutionSnapshot) -> v1::EvidenceScope {
         ..Default::default()
     }
 }
-pub(super) fn entry_scope(snapshot: &ExecutionSnapshot, entry: &dokime_storage::Evidence) -> Result<v1::EvidenceScope> {
+pub(super) fn entry_scope(snapshot: &ExecutionSnapshot, entry: &Evidence) -> Result<EvidenceScope> {
     let mut scope = scope(snapshot);
     if !entry.step.is_empty() {
         scope.step_id = Some(entry.step.clone());
@@ -140,18 +151,16 @@ pub(super) fn execution_scope(scope: Option<&v1::EvidenceScope>) -> Result<&str>
         .filter(|identifier| !identifier.is_empty())
         .ok_or_else(|| Error::Invalid("Read Requires an Execution Identifier".into()))
 }
-pub(super) fn prompt_definition(
-    snapshot: &ExecutionSnapshot, question: &dokime_protocol::context::PromptsCreateRequest,
-) -> Result<v1::Prompt> {
+pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &PromptsCreateRequest) -> Result<Prompt> {
     if let Some(definition) = &question.definition {
         return Ok(definition.clone());
     }
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     for section in catalog.sections {
-        if section.r#type != "dokime.v1.PromptCatalog" {
+        if section.r#type != "dokime.v1.PromptDefinitions" {
             continue;
         }
-        for prompt in v1::PromptCatalog::decode(section.payload.as_slice())?.prompts {
+        for prompt in v1::PromptDefinitions::decode(section.payload.as_slice())?.prompts {
             if prompt.metadata.as_ref().is_some_and(|metadata| metadata.identifier == question.prompt_type) {
                 return Ok(prompt);
             }
@@ -159,13 +168,13 @@ pub(super) fn prompt_definition(
     }
     Err(Error::Invalid("Read Prompt Definition: Declare the Prompt in the Frozen Catalog".into()))
 }
-pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: v1::ExecutionControls) -> v1::ExecutionSummary {
+pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: ExecutionControls) -> ExecutionSummary {
     let state = match snapshot.state {
         ExecutionState::Open => v1::ExecutionState::Open,
         ExecutionState::Closed => v1::ExecutionState::Closed,
         ExecutionState::Sealed => v1::ExecutionState::Sealed,
     };
-    v1::ExecutionSummary {
+    ExecutionSummary {
         execution_id: snapshot.execution.identifier.clone(),
         state: state as i32,
         outcome: snapshot.execution.outcome.clone(),
@@ -173,16 +182,16 @@ pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: v1::ExecutionContr
         ..Default::default()
     }
 }
-pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> v1::ExecutionOutcomeCounts {
-    let counts = dokime_storage::OutcomeCounts::from_outcomes(outcomes);
-    v1::ExecutionOutcomeCounts {
+pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a ExecutionOutcome>) -> ExecutionOutcomeCounts {
+    let counts = OutcomeCounts::from_outcomes(outcomes);
+    ExecutionOutcomeCounts {
         evaluated_count: counts.evaluated,
         not_evaluated_count: counts.not_evaluated,
         declared_count: counts.declared,
         result_status: counts.verdict.map(|verdict| verdict as i32),
     }
 }
-pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas> {
+pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<FrozenSchemas> {
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let mut records = Vec::new();
     for section in &catalog.sections {
@@ -194,6 +203,7 @@ pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas>
                 record_type: contract.metadata.as_ref().map(|metadata| metadata.identifier.clone()).unwrap_or_default(),
                 schema_version: 1,
                 metadata: contract.metadata,
+                message_name: contract.message,
                 ..Default::default()
             });
         }
@@ -203,13 +213,15 @@ pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas>
         .iter()
         .map(|stream| v1::TelemetrySchema {
             stream: stream.id.clone(),
+            message_name: stream.row.clone(),
             schema_version: 1,
             ..Default::default()
         })
         .collect();
-    Ok(v1::FrozenSchemas { catalog: Some(catalog), records, streams })
+    let digest = Sha256::digest(catalog.types.unwrap_or_default().encode_to_vec()).to_vec();
+    Ok(FrozenSchemas { digest, records, streams })
 }
-pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>) -> Result<Vec<v1::CapturedRecord>> {
+pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>) -> Result<Vec<CapturedRecord>> {
     let mut records = Vec::new();
     for evidence in &snapshot.evidence {
         let Some(kind) = evidence.kind.strip_prefix("record:") else {
@@ -221,13 +233,13 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
         if !snapshot.step_contains(step.unwrap_or_default(), evidence.position) {
             continue;
         }
-        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
+        let record = RecordsAppendRequest::decode(evidence.payload.as_slice())?;
         let mut scope = scope(snapshot);
         scope.step_id = Some(evidence.step.clone());
-        records.push(v1::CapturedRecord {
+        records.push(CapturedRecord {
             record_id: format!("{}:{}", snapshot.execution.identifier, evidence.position),
             sequence: evidence.position,
-            timestamp: record.at,
+            timestamp: record.source_at,
             received_at: Some(timestamp(evidence.receipt_ns)),
             record_type: record.kind,
             payload: record.payload,
@@ -238,7 +250,7 @@ pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
     }
     Ok(records)
 }
-pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>) -> Result<Vec<v1::TelemetrySample>> {
+pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>) -> Result<Vec<TelemetrySample>> {
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let pool = DescriptorPool::from_file_descriptor_set(
         catalog.types.clone().ok_or_else(|| Error::Invalid("Read Samples Requires Frozen Descriptors".into()))?,
@@ -260,11 +272,11 @@ pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
         let descriptor =
             pool.get_message_by_name(&stream.row).ok_or_else(|| Error::Invalid("Read Sample Requires a Frozen Row Descriptor".into()))?;
         let row = DynamicMessage::decode(descriptor, sample.row.as_slice())?;
-        let mut values = std::collections::HashMap::new();
+        let mut values = HashMap::new();
         for field in row.descriptor().fields() {
             values.insert(field.name().into(), value(row.get_field(&field).as_ref()));
         }
-        samples.push(v1::TelemetrySample {
+        samples.push(TelemetrySample {
             sample_id: format!("{}:{}", snapshot.execution.identifier, sample.position),
             stream: sample.stream.clone(),
             sequence: sample.sequence,
@@ -282,13 +294,12 @@ pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
 pub(super) fn prompt_id(execution: &str, prompt: &str, position: u64) -> String {
     format!("{execution}/{prompt}/{position}")
 }
-pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, dokime_protocol::context::PromptsCreateRequest)> {
+pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, PromptsCreateRequest)> {
     for (execution, question) in context.host.pending()? {
         let snapshot = super::execution_state::evidence(context, &execution)?;
         if let Some(entry) = snapshot.evidence.iter().rev().find(|entry| {
             entry.kind == "prompt"
-                && dokime_protocol::context::PromptsCreateRequest::decode(entry.payload.as_slice())
-                    .is_ok_and(|stored| stored.prompt == question.prompt)
+                && PromptsCreateRequest::decode(entry.payload.as_slice()).is_ok_and(|stored| stored.prompt == question.prompt)
         }) && prompt_id(&execution, &question.prompt, entry.position) == identifier
         {
             return Ok((execution, question));
@@ -298,8 +309,8 @@ pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, do
 }
 /* === Private Functions === */
 
-pub(super) fn value(value: &prost_reflect::Value) -> v1::Value {
-    use prost_reflect::Value as V;
+pub(super) fn value(value: &Value) -> ProductValue {
+    use Value as V;
     use v1::value::Kind;
     let kind = match value {
         V::Bool(value) => Kind::Boolean(*value),
@@ -323,12 +334,12 @@ pub(super) fn value(value: &prost_reflect::Value) -> v1::Value {
                 .into_iter()
                 .map(|(key, item)| {
                     let key = match key {
-                        prost_reflect::MapKey::Bool(key) => Kind::Boolean(*key),
-                        prost_reflect::MapKey::I32(key) => Kind::Integer(i64::from(*key)),
-                        prost_reflect::MapKey::I64(key) => Kind::Integer(*key),
-                        prost_reflect::MapKey::U32(key) => Kind::UnsignedInteger(u64::from(*key)),
-                        prost_reflect::MapKey::U64(key) => Kind::UnsignedInteger(*key),
-                        prost_reflect::MapKey::String(key) => Kind::Text(key.clone()),
+                        MapKey::Bool(key) => Kind::Boolean(*key),
+                        MapKey::I32(key) => Kind::Integer(i64::from(*key)),
+                        MapKey::I64(key) => Kind::Integer(*key),
+                        MapKey::U32(key) => Kind::UnsignedInteger(u64::from(*key)),
+                        MapKey::U64(key) => Kind::UnsignedInteger(*key),
+                        MapKey::String(key) => Kind::Text(key.clone()),
                     };
                     v1::Value {
                         kind: Some(Kind::List(v1::ValueList {

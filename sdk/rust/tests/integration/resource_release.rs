@@ -47,11 +47,17 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     // Materialize the Resource Fixture Without Allocating Its Device.
     let mut process = Process::start("dokime-rust-resources", false).await?;
     let description = process.describe().await?;
-    let request = v1::MaterializeRequest {
+    let request = dokime::protocol::plugin::v1::TestCasesMaterializeRequest {
         template: "resources.case".into(),
         parameters: Default::default(),
     };
-    let case = process.invoke("resources.case.materialize", "", request).await?.finish::<v1::TestCase>().await?;
+    let case = process
+        .invoke("resources.case.materialize", "", request)
+        .await?
+        .finish::<dokime::protocol::plugin::v1::TestCasesMaterializeResponse>()
+        .await?
+        .test_case
+        .ok_or("Missing Materialized Test Case")?;
     let origin = v1::Origin {
         kind: Some(v1::origin::Kind::PluginRun(v1::PluginRun {
             test_case: Some(case.clone()),
@@ -63,12 +69,16 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     };
 
     // Initialize a Device and Begin an Observer Read on the Execution's Store.
-    let request = v1::InitializeRequest {
+    let request = dokime::protocol::plugin::v1::ExecutionsInitializeRequest {
         execution: "retained".into(),
         test_case: Some(case.clone()),
         origin: Some(origin.clone()),
     };
-    process.invoke("resources.case.initialize", "retained", request).await?.finish::<v1::InitializeResponse>().await?;
+    process
+        .invoke("resources.case.initialize", "retained", request)
+        .await?
+        .finish::<dokime::protocol::plugin::v1::ExecutionsInitializeResponse>()
+        .await?;
     let (ticks, mut samples) = process.publish("resources.state", "retained").await?;
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     ticks
@@ -79,13 +89,17 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     process.invoke("resources.observer_ready", "", ()).await?.finish::<()>().await?;
 
     // Complete Derived Cleanup While the Observer Still Holds Its Call Context.
-    let request = v1::CleanupRequest {
+    let request = dokime::protocol::plugin::v1::ExecutionsCleanupRequest {
         execution: "retained".into(),
         termination: v1::Termination::Completed as i32,
         test_case: Some(case),
         origin: Some(origin),
     };
-    process.invoke("resources.case.cleanup", "retained", request).await?.finish::<v1::CleanupResponse>().await?;
+    process
+        .invoke("resources.case.cleanup", "retained", request)
+        .await?
+        .finish::<dokime::protocol::plugin::v1::ExecutionsCleanupResponse>()
+        .await?;
 
     // Release the Device Read and See That the Store Was Emptied, Not Merely Unregistered.
     process.invoke("resources.release_observer", "", ()).await?.finish::<()>().await?;

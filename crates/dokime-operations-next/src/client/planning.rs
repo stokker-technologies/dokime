@@ -41,7 +41,9 @@ use dokime_protocol::v1;
 
 /* === Public Functions === */
 
-pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Result<v1::PreviewSelectionReply> {
+pub(super) async fn resolve(
+    context: &Context, plan: &dokime_protocol::client::SelectionPlan,
+) -> Result<dokime_protocol::client::CasesCreateResponse> {
     if !plan.case_ids.is_empty() && !plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Choose Registered Cases or Template Selections".into()));
     }
@@ -57,7 +59,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
         for identifier in &plan.case_ids {
             cases.push(context.host.store().planned_case(identifier)?);
         }
-        return Ok(v1::PreviewSelectionReply { cases, ..Default::default() });
+        return Ok(dokime_protocol::client::CasesCreateResponse { cases, ..Default::default() });
     }
     if plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Supply at Least One Selection".into()));
@@ -94,7 +96,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
             if let Some(metadata) = &mut metadata {
                 metadata.label = format!("{} #{}", metadata.label, first_ordinal + cases.len() as u64 + 1);
             }
-            cases.push(v1::PlannedCase {
+            cases.push(dokime_protocol::client::PlannedCase {
                 suite_id: selection.suite_id.clone(),
                 template_id: selection.template_id.clone(),
                 metadata,
@@ -109,10 +111,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
     if super::paging::cursor(context, "planning.catalog".into(), latest.iter().map(super::paging::bytes)) != catalog_cursor {
         return Err(Error::Precondition("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
     }
-    let reply = v1::PreviewSelectionReply {
-        cases,
-        observed_cursor: Some(catalog_cursor),
-    };
+    let reply = dokime_protocol::client::CasesCreateResponse { cases, ..Default::default() };
     if reply.encoded_len() > context.settings.message_bytes {
         return Err(Error::Invalid("Plan Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));
     }
@@ -121,7 +120,9 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
 
 /* === Private Functions === */
 
-fn expand(template: &v1::TestCaseTemplate, selection: &v1::RegisteredSelection, cap: usize) -> Result<Vec<HashMap<String, v1::Value>>> {
+fn expand(
+    template: &v1::TestCaseTemplate, selection: &dokime_protocol::client::RegisteredSelection, cap: usize,
+) -> Result<Vec<HashMap<String, v1::Value>>> {
     let mut supplied = HashMap::new();
     for parameter in &selection.parameters {
         if !template.parameters.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == parameter.key)) {
@@ -231,8 +232,8 @@ fn expand(template: &v1::TestCaseTemplate, selection: &v1::RegisteredSelection, 
             return Err(Error::Invalid("Plan Selection: Use Unique Declared File Parameters".into()));
         }
         let value = match file.value.as_ref().and_then(|file| file.kind.as_ref()).and_then(|kind| kind.kind.as_ref()) {
-            Some(v1::selected_file_kind::Kind::Value(value)) => Some(value.clone()),
-            Some(v1::selected_file_kind::Kind::Clear(_)) => None,
+            Some(dokime_protocol::client::selected_file_kind::Kind::Value(value)) => Some(value.clone()),
+            Some(dokime_protocol::client::selected_file_kind::Kind::Clear(_)) => None,
             None => return Err(Error::Invalid("Plan Selection: Select or Explicitly Clear Each File".into())),
         };
         files.insert(file.key.clone(), value);
@@ -535,10 +536,10 @@ mod tests {
             ],
             ..Default::default()
         };
-        let selection = v1::RegisteredSelection {
-            parameters: vec![v1::RegisteredSelectionParametersEntry {
+        let selection = dokime_protocol::client::RegisteredSelection {
+            parameters: vec![dokime_protocol::client::RegisteredSelectionParametersEntry {
                 key: "left".into(),
-                value: Some(v1::SelectionValues {
+                value: Some(dokime_protocol::client::SelectionValues {
                     values: vec![
                         v1::Value { kind: Some(v1::value::Kind::Number(1.0)) },
                         v1::Value { kind: Some(v1::value::Kind::Number(2.0)) },

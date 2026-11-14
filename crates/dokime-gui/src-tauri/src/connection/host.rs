@@ -35,6 +35,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
+use dokime_protocol::client;
 use dokime_runtime_next::{HostSettings, services};
 use dokime_sdk::{Client, client::ClientSettings};
 
@@ -58,7 +59,7 @@ pub struct ConnectionSettings {
 /// One SDK Connection. Leases And Watches End With Their Connection Generation.
 #[derive(Clone)]
 pub struct Session {
-    client: Client,
+    client: Box<Client>,
     channel: tonic::transport::Channel,
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
@@ -159,37 +160,19 @@ impl Session {
         R::decode(bytes.as_slice()).map_err(|error| Status::data_loss(error.to_string()).into())
     }
 
-    pub async fn upload_artifact(
-        &self, items: impl tokio_stream::Stream<Item = dokime_sdk::v1::UploadArtifactFrame> + Send + 'static,
-    ) -> Result<dokime_sdk::v1::ArtifactMetadata, Error> {
-        use dokime_sdk::v1;
-        use tokio_stream::StreamExt;
-        let opening = v1::ContentUploadArtifactInput {
-            value: Some(v1::content_upload_artifact_input::Value::Request(v1::ContentUploadArtifactRequest {})),
-        };
-        let items = tokio_stream::once(opening).chain(items.map(|item| v1::ContentUploadArtifactInput {
-            value: Some(v1::content_upload_artifact_input::Value::Item(item)),
-        }));
-        let mut request = self.request(items)?;
-        request.set_timeout(self.mutation_timeout);
-        let mut client = v1::content_client::ContentClient::new(self.channel.clone());
-        Ok(self.execute(client.upload_artifact(request)).await?.into_inner())
-    }
-
     pub async fn install_plugin(
-        &self, items: impl tokio_stream::Stream<Item = dokime_sdk::v1::InstallPluginFrame> + Send + 'static,
-    ) -> Result<dokime_sdk::v1::PluginInstallation, Error> {
-        use dokime_sdk::v1;
+        &self, items: impl tokio_stream::Stream<Item = dokime_protocol::client::InstallPluginFrame> + Send + 'static,
+    ) -> Result<dokime_protocol::client::PluginInstallation, Error> {
         use tokio_stream::StreamExt;
-        let opening = v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+        let opening = client::PluginsInstallInput {
+            value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
         };
-        let items = tokio_stream::once(opening).chain(items.map(|item| v1::PluginsInstallInput {
-            value: Some(v1::plugins_install_input::Value::Item(item)),
+        let items = tokio_stream::once(opening).chain(items.map(|item| client::PluginsInstallInput {
+            value: Some(client::plugins_install_input::Value::Item(item)),
         }));
         let mut request = self.request(items)?;
         request.set_timeout(self.mutation_timeout);
-        let mut client = v1::plugins_client::PluginsClient::new(self.channel.clone());
+        let mut client = client::plugins_client::PluginsClient::new(self.channel.clone());
         Ok(self.execute(client.install(request)).await?.into_inner())
     }
 
@@ -230,8 +213,12 @@ impl Session {
         Ok(response)
     }
 
-    pub(crate) fn mutation_timeout(&self) -> Duration {
-        self.mutation_timeout
+    pub(crate) fn read_timeout(&self) -> Duration {
+        self.read_timeout
+    }
+
+    pub(crate) fn watch_timeout(&self) -> Duration {
+        self.watch_timeout
     }
 
     pub(crate) fn with_timeout(&self, timeout: Duration) -> Self {
@@ -378,7 +365,7 @@ impl Session {
             client = client.authorization(pairing.authorization()?);
         }
         let mut session = Self {
-            client,
+            client: Box::new(client),
             channel,
             pairing,
             endpoint: endpoint.to_owned(),
@@ -405,10 +392,9 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
-        let cycles: dokime_sdk::v1::ListCyclesReply = session
-            .unary("/dokime.v1.Execution/ListCycles", dokime_sdk::v1::ExecutionListCyclesRequest { limit: 1, ..Default::default() })
-            .await?;
-        session.product_epoch = cycles.cursor.filter(|cursor| !cursor.epoch.is_empty()).ok_or(Error::IncompleteIdentity)?.epoch;
+        let overview: client::backend::OverviewGetResponse =
+            session.unary("/dokime.client.v1.backend.Overview/Get", client::backend::OverviewGetRequest::default()).await?;
+        session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
         let mut methods = std::collections::BTreeSet::new();
         let catalog: dokime_sdk::client::v1::CatalogEntriesListResponse = session
             .unary(

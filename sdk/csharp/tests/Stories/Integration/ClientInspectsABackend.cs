@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using Dokime.Protocol.Client.V1;
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Grpc.Net.Client;
 using Stories.Support;
 using Xunit;
@@ -40,6 +42,20 @@ public sealed class ClientInspectsABackend
     Assert.Equal(new[] { "INFO", "ERROR" }, frames.SelectMany(frame => frame.Events).Select(item => item.Level));
     Assert.Equal(StatusCode.OK, logs.GetStatus().StatusCode);
 
+    // Read a Product Resource Through the Regenerated Root and Preserve Its Cut.
+    var cut = new Harmos.V1.ReadCut
+    {
+      Positions = { new Harmos.V1.Position { History = new Harmos.V1.History { Store = "cases", Epoch = "epoch" }, Sequence = 7 } }
+    };
+    using var getCase = client.Cases.Get(new Dokime.Protocol.Client.V1.CasesGetRequest { Name = "case-a", At = cut }, new CallOptions(headers));
+    var planned = await getCase.ResponseAsync;
+    Assert.Equal("case-a", planned.Value.Summary.CaseId);
+    Assert.Equal(CaseStatus.Planned, planned.Value.Summary.Status);
+    Assert.Equal(cut, planned.ResolvedAt);
+    using var missingCase = client.Cases.Get(new Dokime.Protocol.Client.V1.CasesGetRequest(), new CallOptions(headers));
+    var missing = await Assert.ThrowsAsync<RpcException>(() => missingCase.ResponseAsync);
+    Assert.Equal(StatusCode.InvalidArgument, missing.StatusCode);
+
     // Add a Remote Entry and Read It Back Through the Generated Plugin Client.
     using var add = plugins.AddAsync(new AddRemotePlugin { Url = "http://127.0.0.1:7001" }, headers);
     var added = await add.ResponseAsync;
@@ -48,6 +64,20 @@ public sealed class ClientInspectsABackend
     using var list = plugins.ListAsync(new ListPlugins(), headers);
     var listed = await list.ResponseAsync;
     Assert.Equal(added, Assert.Single(listed.Plugins));
+
+    // Fetch Descriptor Pages Once, Then Reuse Them for Another Execution.
+    var schemas = new FrozenSchemaCache();
+    var source = server.App.Services.GetRequiredService<FakeSchemas>();
+    var detail = new ExecutionDetail { Summary = new ExecutionSummary { ExecutionId = "first" }, Schemas = new FrozenSchemas { Digest = source.Digest } };
+    var types = await schemas.GetAsync(client, detail, new CallOptions(headers));
+    Assert.Equal(new[] { "google/protobuf/wrappers.proto", "google/protobuf/empty.proto" }, types.File.Select(file => file.Name));
+    var calls = source.Calls;
+    Assert.Equal(types.File.Count, calls);
+    types.File.Clear();
+    detail.Summary.ExecutionId = "second";
+    var reused = await schemas.GetAsync(client, detail, new CallOptions(headers));
+    Assert.Equal(calls, source.Calls);
+    Assert.Equal(2, reused.File.Count);
 
     // Preserve the Server's Refusal Through a Generated Unary Call.
     using var invalid = plugins.AddAsync(new AddRemotePlugin { Url = "invalid" }, headers);

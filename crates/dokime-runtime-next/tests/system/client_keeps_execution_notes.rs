@@ -66,8 +66,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         // Create a Note and Resolve a Retried Mutation
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut notes = v1::notes_client::NotesClient::new(channel);
-        let epoch = notes.list_notes(v1::NotesListNotesRequest::default()).await?.into_inner().cursor.unwrap().epoch;
+        let mut notes = dokime_protocol::client::evidence::notes_client::NotesClient::new(channel);
         let owner = v1::AnnotationOwner {
             owner: Some(v1::AnnotationOwnerOwner {
                 kind: Some(v1::annotation_owner_owner::Kind::Execution(v1::ExecutionNoteOwner {
@@ -76,46 +75,49 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
                 })),
             }),
         };
-        let request = v1::NotesCreateNoteRequest {
-            epoch: epoch.clone(),
-            mutation_id: uuid::Uuid::now_v7().to_string(),
+        let value = dokime_protocol::client::evidence::NoteWritable {
+            message: uuid::Uuid::now_v7().to_string(),
+        };
+        let request = dokime_protocol::client::evidence::NotesCreateRequest {
             owner: Some(owner.clone()),
-            message: "Inspect the connector".into(),
+            value: Some(value.clone()),
+            request_id: uuid::Uuid::now_v7().to_string(),
         };
-        let receipt = notes.create_note(request.clone()).await?.into_inner();
-        assert_eq!(notes.create_note(request.clone()).await?.into_inner(), receipt);
+        let receipt = notes.create(request.clone()).await?.into_inner();
+        assert_eq!(notes.create(request.clone()).await?.into_inner(), receipt);
         let mut conflict = request;
-        conflict.message = "Different mutation".into();
-        assert_eq!(notes.create_note(conflict).await.unwrap_err().code(), tonic::Code::AlreadyExists);
-
-        // Edit Through the Run Envelope and Page Only This Owner
-        let id = receipt.note.unwrap().note_id;
-        let input = v1::NotesEditNoteRunInput {
-            value: Some(v1::notes_edit_note_run_input::Value::Request(v1::NotesEditNoteRequest {
-                epoch: epoch.clone(),
-                note_id: id.clone(),
-                message: "Connector inspected".into(),
-            })),
+        conflict.value.as_mut().unwrap().message.push('x');
+        assert!(notes.create(conflict).await.is_err());
+        let name = receipt.note.unwrap().note_id;
+        let first =
+            notes.get(dokime_protocol::client::evidence::NotesGetRequest { name: name.clone(), ..Default::default() }).await?.into_inner();
+        let changed = dokime_protocol::client::evidence::NoteWritable {
+            message: uuid::Uuid::now_v7().to_string(),
         };
-        let mut edit = notes.run_edit_note(tokio_stream::iter([input])).await?.into_inner();
-        assert!(matches!(edit.message().await?.unwrap().value,
-            Some(v1::notes_edit_note_run_output::Value::Response(reply)) if reply.note.as_ref().unwrap().message == "Connector inspected"));
-        assert!(edit.message().await?.is_none());
+        let update = dokime_protocol::client::evidence::NotesSetRequest {
+            name: name.clone(),
+            value: Some(changed.clone()),
+            expected_revision: first.revision.clone(),
+            request_id: "edit".into(),
+        };
+        let saved = notes.set(update.clone()).await?.into_inner();
+        assert_eq!(saved.value, Some(changed.clone()));
+        assert_eq!(notes.set(update.clone()).await?.into_inner(), saved);
         let selection = Some(v1::AnnotationSelection {
             owner: Some(owner),
             include_context: true,
         });
         let page = notes
-            .list_notes(v1::NotesListNotesRequest {
+            .list(dokime_protocol::client::evidence::NotesListRequest {
                 selection: selection.clone(),
-                limit: 1,
+                page: Some(harmos_protocol::v1::PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             })
             .await?
             .into_inner();
         assert_eq!(page.notes.len(), 1);
         assert_eq!(page.notes[0].scope.as_ref().unwrap().execution_id.as_deref(), Some("notes-a"));
-        assert_eq!(page.notes[0].message, "Connector inspected");
+        assert_eq!(page.notes[0].message, changed.message);
         let other = v1::AnnotationOwner {
             owner: Some(v1::AnnotationOwnerOwner {
                 kind: Some(v1::annotation_owner_owner::Kind::Execution(v1::ExecutionNoteOwner {
@@ -126,52 +128,38 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         };
         assert!(
             notes
-                .list_notes(v1::NotesListNotesRequest {
+                .list(dokime_protocol::client::evidence::NotesListRequest {
                     selection: Some(v1::AnnotationSelection {
                         owner: Some(other),
                         include_context: false
                     }),
-                    cursor: page.cursor.clone(),
+                    at: page.resolved_at,
                     ..Default::default()
                 })
                 .await
                 .is_err()
         );
-
-        // Refuse Edits Once the Owner Closes
+        let pinned = notes
+            .get(dokime_protocol::client::evidence::NotesGetRequest {
+                name: name.clone(),
+                at: first.resolved_at.clone(),
+            })
+            .await?
+            .into_inner();
+        assert_eq!(pinned.value, Some(value));
         store.close("notes-a", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
         store.seal("notes-a")?;
-        assert!(
-            notes
-                .edit_note(v1::NotesEditNoteRequest {
-                    epoch: epoch.clone(),
-                    note_id: id.clone(),
-                    message: "Too late".into()
-                })
-                .await
-                .is_err()
-        );
-
-        // Reopen Durable Notes and Refuse Stale Epoch Mutations
+        let mut closed = update;
+        closed.request_id = "closed".into();
+        closed.expected_revision = saved.revision.clone();
+        assert!(notes.set(closed.clone()).await.is_err());
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut notes = v1::notes_client::NotesClient::new(channel);
-        let page = notes.list_notes(v1::NotesListNotesRequest { selection, ..Default::default() }).await?.into_inner();
-        assert_eq!(page.notes[0].note_id, id);
-        assert_eq!(page.notes[0].message, "Connector inspected");
-        assert_eq!(
-            notes
-                .edit_note(v1::NotesEditNoteRequest {
-                    epoch,
-                    note_id: id,
-                    message: "Stale".into()
-                })
-                .await
-                .unwrap_err()
-                .code(),
-            tonic::Code::FailedPrecondition
-        );
+        let mut notes = dokime_protocol::client::evidence::notes_client::NotesClient::connect(process.url.clone()).await?;
+        let page = notes.list(dokime_protocol::client::evidence::NotesListRequest { selection, ..Default::default() }).await?.into_inner();
+        assert_eq!(page.notes[0].note_id, name);
+        assert_eq!(page.notes[0].message, changed.message);
+        assert!(notes.set(closed).await.is_err());
         process.close().await?;
         Ok::<_, Box<dyn std::error::Error>>(())
     })

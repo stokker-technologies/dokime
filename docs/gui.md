@@ -23,10 +23,10 @@ commands and receives bounded Tauri channel frames; it never opens a host socket
 protobuf bytes through it. An attached host is never shut down by the desktop.
 
 `src/lib/host/` owns canonical frontend projections. The running shell uses its
-host identity, catalog, scoped client/application preferences and appearance
+host identity, suite registries, scoped client/application preferences and appearance
 projections, together with secret catalog and transfer. Planning, execution detail/control,
 runtime/progress Watch, prompt and live-record adapters also use canonical host messages. Case
-registration uses one cycle-scoped `RegisterSelection` request; execution status
+registration uses one cycle-scoped `Cases.Create` request; execution status
 projects durable state, attributed outcome and optional live controls separately.
 Run buttons use the host capabilities, including the absence of controls on imports.
 Telemetry plots, incremental document frames and content read/follow/upload adapters
@@ -40,11 +40,11 @@ The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 Reloading the WebView adopts and verifies the native owner's current connection,
 including an imported remote profile, before considering launch arguments.
-Execution progress uses `dokime.v1.executions.Progress/Watch` with its named
+Execution progress uses `dokime.client.v1.executions.Progress/Watch` with its named
 resource, opaque revision, pinned position and terminal flag. Its adapter projects
 the served label and counts; elapsed time, ETA and a step identifier stay absent
 because this contract does not supply them. The operation grammar table in
-`docs/execution-host.md` distinguishes subsequent locked renames from landed routes.
+`docs/execution-host.md` records the package and resource boundaries.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
 use canonical host messages. SDK and binary adapter stories prove their boundaries;
@@ -52,6 +52,12 @@ the WebView drives the same adapters. Native method availability comes from the
 SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
 catalog currently omits those bindings, so storage source changes remain disabled
 with a visible reason and a Host Request.
+Product Files and Files.Uploads serve uploads and verified artifact/report delivery.
+Uploads.Create/Get/Resume and Files.Get return the chunk and message limits. A default execution document
+read must return the selected document identity in its header; an empty selector
+is not a valid header identity. The desktop rejects that response before accepting
+source cards or the evidence cut. Frozen record schemas must also retain each
+record alias's protobuf message binding; descriptors alone do not provide it.
 Desktop system startup uses `dokime-next server --endpoint ... --storage ...`
   and admits the prepared Rust SDK fixture with `plugin add`. The WebView RPC
 helper uses canonical host schemas and the descriptor fence, including numeric
@@ -63,13 +69,20 @@ The thermal fixture does not publish a report automatically. Stories explicitly
 publish a selected evidence document before requiring a sealed download; a render
 without publication correctly retains the host's Current origin.
 
-The execution WebView currently reaches a real passed result and captured evidence,
-but its document card reports Evidence Unavailable: the host sends EvidenceCut before
-StructureComplete and declares cards afterward. The adapter retains its ordering,
-identity and completion checks; this mismatch is a Host Request, not a disabled
-execution control. The old facade inventory test is removed because that generated
-facade no longer exists; type checking, the host import smoke and native IPC stories
-cover the current client boundary.
+`Documents.Get` is a bounded unary page read. The adapter joins pages using their
+returned cut and continuation token, then validates the complete frame sequence:
+structure with source cards, summary definitions, bindings and layout; the fixed
+evidence cut; card results; and completion counters. It rejects misplaced cuts,
+changed identities, incomplete cards and trailing frames. A page boundary never
+relaxes those checks.
+
+`Executions.Get` carries frozen record/stream declarations and a schema digest.
+`src/lib/host/schemas.ts` fetches complete descriptor-file pages through
+`Executions.Schemas.Get` on a cache miss, verifies their digest and caches the
+registry by digest for the connection generation. Frozen record identifiers that
+differ from protobuf message names require a served record-to-message binding;
+`FrozenSchemas.records` and descriptor pages retain that `message_name` binding,
+which the decoder resolves against the frozen registry. No current plugin registry substitutes for frozen data.
 
 Native stories retain their disposable roots outside the test runtime. After
 owned tasks stop, including on assertion failure, the host fixture removes each
@@ -85,7 +98,7 @@ removal operation, preserving any earlier generator or user storage roots.
 | Control | Visible Reason |
 | --- | --- |
 | Screenshot, Photo and Record Audio | The host has no capture owner. |
-| Connected-Host Logos and Appearance Assets | Application content-source composition is pending; installer appearance remains native. |
+| Connected-Host Logos and Appearance Assets | A provider must publish each declared asset file; missing bytes are reported explicitly. |
 | Back Up and Reset, Reset Local Storage | The host has no preserving recovery operation. |
 | Plugin Check for Updates | The connected host does not publish its typed build target. File installation remains available. |
 | Storage Source Priority and Enablement | Product RPC bindings are absent from operation discovery. |
@@ -95,9 +108,9 @@ removal operation, preserving any earlier generator or user storage roots.
 | Journey | Current Contract |
 | --- | --- |
 | Execution, Live Progress and Prompts | `native-planning.ts`, `native-execution.ts`, `native-observation.ts` and `native-prompts.ts` use canonical messages, numeric lifecycle enums, separate state/outcome/live controls and recursive values. The runtime consumer refreshes snapshots on resynchronization; execution progress projects the named resource. The WebView creates registered cases, starts the SDK thermal execution, answers its prompt and observes its sealed outcome. |
-| Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's frozen descriptor/record catalog, preserves exact scalar values and evidence origins, and follows canonical RecordPage cursors. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the checkpoint document's frozen catalog. |
-| Documents and Reports | `native-documents.ts` preserves frame order, identity, completion and card commits. Live document capture currently fails with the precise host ordering error above. Verified published report export remains available: both native owners save the same sealed HTML and reopen its frozen evidence in the owned browser. |
-| History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and product epochs. The Execution WebView visits History and reopens the saved execution after a full page reload; live document capture retains the same host limitation. |
+| Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's digest-verified frozen descriptors, preserves exact scalar values and evidence origins, and follows returned read cuts and page tokens. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the execution's digest-cached descriptor registry. |
+| Documents and Reports | `native-documents.ts` preserves frame order, identity, completion and card commits. The host supplies structure before the evidence cut; unary page assembly retains strict validation. Verified published report export remains available: both native owners save the same sealed HTML and reopen its frozen evidence in the owned browser. |
+| History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and retained read cuts. The Execution WebView visits History and reopens the saved execution after a full page reload; retained reads refuse unavailable cuts explicitly. |
 | Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. The WebView displays the admitted thermal plugin; native stories verify file installation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
 | Remote Access | The Connections WebView proves native pairing export/import, independent profiles, shared execution and evidence, revocation, identity refusal, occupied storage and certificate rotation/recovery. `native-remote.ts` owns the listener's opaque revision. Application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
@@ -112,12 +125,12 @@ removal operation, preserving any earlier generator or user storage roots.
 | `desktop_backends_list`, `desktop_backend_import_pairing`, `desktop_backend_remove`, `desktop_backend_use` | Native saved pairing files and connection selection |
 | `desktop_pairing_create` | `Access.Listener.Get`, `Access.Listener.Set`, `Access.Pairings.Create` |
 | `desktop_firewall` | `Access.Listener.Get` plus native firewall registration |
-| `desktop_settings_read`, `desktop_settings_update` | `Settings.ReadApplicationSettings`, `Settings.UpdateApplicationSettings` |
+| `desktop_settings_read`, `desktop_settings_update` | `Settings.Get`, `Settings.Set` with the exact returned revision |
 | `rpc` | Unary operation from the operation table below |
 | `rpc_stream_open`, `rpc_stream_send`, `rpc_stream_finish`, `rpc_stream_cancel`, `rpc_stream_ack` | SDK Watch/transfer lifetime, bounded native delivery and cancellation |
-| `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | `Content.UploadArtifact` |
-| `desktop_artifact_deliver` | `Content.DownloadArtifact`, `Content.DownloadExecutionFile`, `Content.DownloadEvidence`, `Reports.DownloadCycleReport`, `Reports.DownloadExecutionReport` |
-| `desktop_media_prepare`, `desktop_media_release` | `Content.DownloadArtifact` / `Content.DownloadExecutionFile` plus native preview cache |
+| `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | Files.Uploads, then `content.Artifacts.Create` |
+| `desktop_artifact_deliver` | Product metadata/reference reads, then product `Files.Read` |
+| `desktop_media_prepare`, `desktop_media_release` | `content.Artifacts.Get` / `content.ExecutionFiles.Get` followed by `Files.Read` plus native preview cache |
 | `desktop_plugin_install_file` | `Plugins.Install` |
 | `desktop_plugin_release_check`, `desktop_plugin_release_install` | Missing typed host build target; both commands refuse before fetching or installing release candidates. Verified bundle file installation remains available. |
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
@@ -129,147 +142,39 @@ removal operation, preserving any earlier generator or user storage roots.
 | `desktop://session-status` | Native connection generation, ownership and startup state |
 | `desktop://remote-imported`, `desktop://remote-import-failed` | Native pairing import outcome |
 | `desktop://stopping` | Native orderly shutdown |
-| Tauri RPC stream channel | `executions.Progress.Watch`, `Observation.WatchRuntime`, `Evidence.WatchRecords`, `Telemetry.WatchSamples`, `Plots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
+| Tauri RPC stream channel | `executions.Progress.Watch`, `Backend.Overview.Watch`, `evidence.Records.Watch`, `evidence.Samples.Watch`, `plots.Snapshots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
 | Tauri install-progress channel | `Plugins.Install` transfer progress |
 
 ### Data Operations
 
-Method names below are the currently served contract. Resource grammar changes
-are confined to the native connection and frontend adapter, leaving components
-on their view models. `missing` identifies a host refusal, never an old-host fallback.
+Product calls use `dokime.client.v1`; shared vocabulary remains in `dokime.v1`.
+The native dispatch and frontend protobuf modules come from the checked-in product
+and pinned library descriptors through `tools/host-bindings.mjs`. Generated modules
+are rebuilt by their generators, never edited by hand.
 
-| Frontend Operation | New Host Operation |
+| Resource | Desktop Contract |
 | --- | --- |
-| `/dokime.v1.Appearance/GetAppearance` | `Appearance.GetAppearance` |
-| `/dokime.v1.Backend/CollectDiagnostics` | `Status.Diagnostics.Get` |
-| `/dokime.v1.Backend/GetAvailability` | `Status.Get` |
-| `/dokime.v1.Backend/GetHealth` | `Status.Get` |
-| `/dokime.v1.Backend/GetIdentity` | `Status.Get` |
-| `/dokime.v1.Backend/WatchLogs` | `Status.Logs.Watch` |
-| `/dokime.v1.Backend/WatchTrace` | `Status.TraceEvents.Watch` |
-| `/dokime.v1.Catalog/GetRecordSchema` | `Catalog.GetRecordSchema` |
-| `/dokime.v1.Catalog/GetSuite` | `Catalog.GetSuite` |
-| `/dokime.v1.Catalog/GetTelemetrySchema` | `Catalog.GetTelemetrySchema` |
-| `/dokime.v1.Catalog/ListRecordSchemas` | `Catalog.ListRecordSchemas` |
-| `/dokime.v1.Catalog/ListSuites` | `Catalog.ListSuites` |
-| `/dokime.v1.Catalog/ListTelemetrySchemas` | `Catalog.ListTelemetrySchemas` |
-| `/dokime.v1.Content/DownloadAppearanceAsset` | `missing` |
-| `/dokime.v1.Content/DownloadArtifact` | `Content.DownloadArtifact` |
-| `/dokime.v1.Content/DownloadEvidence` | `Content.DownloadEvidence` |
-| `/dokime.v1.Content/DownloadExecutionFile` | `Content.DownloadExecutionFile` |
-| `/dokime.v1.Content/FollowExecutionFile` | `Content.FollowExecutionFile` |
-| `/dokime.v1.Content/ListArtifacts` | `Content.ListArtifacts` |
-| `/dokime.v1.Content/ListExecutionFiles` | `Content.ListExecutionFiles` |
-| `/dokime.v1.Content/ReadExecutionFile` | `Content.ReadExecutionFile` |
-| `/dokime.v1.Content/UploadArtifact` | `Content.UploadArtifact` |
-| `/dokime.v1.Documents/CaptureCurrentDocument` | `Documents.CaptureCurrentDocument` |
-| `/dokime.v1.Documents/UpdatePlotSettings` | `Documents.UpdatePlotSettings` |
-| `/dokime.v1.Evidence/GetCapturedRecordSchema` | `Evidence.GetCapturedRecordSchema` |
-| `/dokime.v1.Evidence/ListRecords` | `Evidence.ListRecords` |
-| `/dokime.v1.Evidence/WatchRecords` | `Evidence.WatchRecords` |
-| `/dokime.v1.Execution/AppendExecutions` | `Execution.AppendExecutions` |
-| `/dokime.v1.Execution/CancelExecution` | `Execution.CancelExecution` |
-| `/dokime.v1.Execution/CreateCycle` | `Execution.CreateCycle` |
-| `/dokime.v1.Execution/DeleteCase` | `Execution.DeleteCase` |
-| `/dokime.v1.Execution/GetCase` | `Execution.GetCase` |
-| `/dokime.v1.Execution/GetCycle` | `Execution.GetCycle` |
-| `/dokime.v1.Execution/GetExecution` | `Execution.GetExecution` |
-| `/dokime.v1.Execution/GetExecutionCommand` | `Execution.GetExecutionCommand` |
-| `/dokime.v1.Execution/ListCaseParameters` | `Execution.ListCaseParameters` |
-| `/dokime.v1.Execution/ListCases` | `Execution.ListCases` |
-| `/dokime.v1.Execution/ListCycles` | `Execution.ListCycles` |
-| `/dokime.v1.Execution/ListExecutionParameters` | `Execution.ListExecutionParameters` |
-| `/dokime.v1.Execution/ListExecutionSteps` | `Execution.ListExecutionSteps` |
-| `/dokime.v1.Execution/ListExecutions` | `Execution.ListExecutions` |
-| `/dokime.v1.Execution/PauseCycle` | `Execution.PauseCycle` |
-| `/dokime.v1.Execution/PauseExecution` | `Execution.PauseExecution` |
-| `/dokime.v1.Execution/RenameCycle` | `Execution.RenameCycle` |
-| `/dokime.v1.Execution/RenameExecution` | `Execution.RenameExecution` |
-| `/dokime.v1.Execution/RerunCycle` | `Execution.RerunCycle` |
-| `/dokime.v1.Execution/ResumeCycle` | `Execution.ResumeCycle` |
-| `/dokime.v1.Execution/ResumeExecution` | `Execution.ResumeExecution` |
-| `/dokime.v1.Execution/SealCycle` | `Execution.SealCycle` |
-| `/dokime.v1.Execution/SetCycleArchived` | `Execution.SetCycleArchived` |
-| `/dokime.v1.Execution/SetExecutionArchived` | `Execution.SetExecutionArchived` |
-| `/dokime.v1.Execution/StartExecution` | `Execution.StartExecution` |
-| `/dokime.v1.Execution/StopExecution` | `Execution.StopExecution` |
-| `/dokime.v1.Execution/SubmitExecutionCommand` | `Execution.SubmitExecutionCommand` |
-| `/dokime.v1.Execution/UpdateCyclePolicy` | `Execution.UpdateCyclePolicy` |
-| `/dokime.v1.Health/ListHealth` | `Health.ListHealth` |
-| `/dokime.v1.History/BrowseCycles` | `History.BrowseCycles` |
-| `/dokime.v1.History/BrowseExecutions` | `History.BrowseExecutions` |
-| `/dokime.v1.History/DeleteExecution` | `History.DeleteExecution` |
-| `/dokime.v1.History/DownloadCheckpointArtifact` | `History.DownloadCheckpointArtifact` |
-| `/dokime.v1.History/GetCheckpointContext` | `History.GetCheckpointContext` |
-| `/dokime.v1.History/GetCheckpointDocument` | `History.GetCheckpointDocument` |
-| `/dokime.v1.History/GetCheckpointEvidence` | `History.GetCheckpointEvidence` |
-| `/dokime.v1.History/GetExecutionCheckpoint` | `History.GetExecutionCheckpoint` |
-| `/dokime.v1.History/ListCheckpointRecords` | `History.ListCheckpointRecords` |
-| `/dokime.v1.History/ListCheckpointTelemetry` | `History.ListCheckpointTelemetry` |
-| `/dokime.v1.History/ReadCheckpointOutput` | `History.ReadCheckpointOutput` |
-| `/dokime.v1.Media/AudioRecording` | `missing` |
-| `/dokime.v1.Media/CameraRecording` | `missing` |
-| `/dokime.v1.Media/Photo` | `missing` |
-| `/dokime.v1.Media/ScreenRecording` | `missing` |
-| `/dokime.v1.Media/Screenshot` | `missing` |
-| `/dokime.v1.Notes/CreateNote` | `Notes.CreateNote` |
-| `/dokime.v1.Notes/EditNote` | `Notes.EditNote` |
-| `/dokime.v1.Notes/ListNotes` | `Notes.ListNotes` |
-| `/dokime.v1.Observation/GetRuntimeShell` | `Observation.GetRuntimeShell` |
-| `/dokime.v1.Observation/GetTraceability` | `Observation.GetTraceability` |
-| `/dokime.v1.Observation/WatchExecutionProgress` | `Observation.WatchExecutionProgress` |
-| `/dokime.v1.Observation/WatchRuntime` | `Observation.WatchRuntime` |
-| `/dokime.v1.Planning/MaterializeTemplate` | `Planning.MaterializeTemplate` |
-| `/dokime.v1.Planning/PreviewSelection` | `Planning.PreviewSelection` |
-| `/dokime.v1.Planning/RegisterSelection` | `Planning.RegisterSelection` |
-| `/dokime.v1.Plots/ListAnalyses` | `Plots.ListAnalyses` |
-| `/dokime.v1.Plots/QuerySnapshots` | `Plots.QuerySnapshots` |
-| `/dokime.v1.Plots/Watch` | `Plots.Watch` |
-| `/dokime.v1.Plugins/GetInstallation` | `Plugins.GetInstallation` |
-| `/dokime.v1.Plugins/Install` | `Plugins.Install` |
-| `/dokime.v1.Plugins/ListAdmittedPlugins` | `Plugins.ListAdmittedPlugins` |
-| `/dokime.v1.Plugins/ListInstallations` | `Plugins.ListInstallations` |
-| `/dokime.v1.Plugins/Reload` | `Plugins.Reload` |
-| `/dokime.v1.Plugins/Remove` | `Plugins.Remove` |
-| `/dokime.v1.Plugins/SetEnabled` | `Plugins.SetEnabled` |
-| `/dokime.v1.Prompts/GetDefinition` | `Prompts.GetDefinition` |
-| `/dokime.v1.Prompts/GetPrompt` | `Prompts.GetPrompt` |
-| `/dokime.v1.Prompts/ListDefinitions` | `Prompts.ListDefinitions` |
-| `/dokime.v1.Prompts/ListPending` | `Prompts.ListPending` |
-| `/dokime.v1.Prompts/Respond` | `Prompts.Respond` |
-| `/dokime.v1.Query/Aggregate` | `missing` |
-| `/dokime.v1.Query/AggregateSamples` | `missing` |
-| `/dokime.v1.Query/ListCycles` | `missing` |
-| `/dokime.v1.Query/ListExecutions` | `Query.ListExecutions` |
-| `/dokime.v1.Query/ListRecords` | `missing` |
-| `/dokime.v1.Query/ListSamples` | `missing` |
-| `/dokime.v1.Remote/CreatePairing` | `Access.Pairings.Create` |
-| `/dokime.v1.Remote/ReadListener` | `Access.Listener.Get` |
-| `/dokime.v1.Remote/RegenerateCertificate` | `Access.Certificates.Create` |
-| `/dokime.v1.Remote/UpdateListener` | `Access.Listener.Set` |
-| `/dokime.v1.Reports/DownloadCycleReport` | `Reports.DownloadCycleReport` |
-| `/dokime.v1.Reports/DownloadExecutionReport` | `Reports.DownloadExecutionReport` |
-| `/dokime.v1.Reports/MaterializeReport` | `Reports.MaterializeReport` |
-| `/dokime.v1.Runtime/GetHealth` | `Status.Get` |
-| `/dokime.v1.Runtime/GetIdentity` | `Status.Get` |
-| `/dokime.v1.Secrets/Export` | `Secrets.Export` |
-| `/dokime.v1.Secrets/Import` | `Secrets.Import` |
-| `/dokime.v1.Secrets/List` | `Secrets.List` |
-| `/dokime.v1.Secrets/Lookup` | `Secrets.Lookup` |
-| `/dokime.v1.Secrets/Preview` | `Secrets.Preview` |
-| `/dokime.v1.Secrets/Put` | `Secrets.Put` |
-| `/dokime.v1.Secrets/Remove` | `Secrets.Remove` |
-| `/dokime.v1.Settings/GetPluginSettings` | `Settings.GetPluginSettings` |
-| `/dokime.v1.Settings/GetSettings` | `Settings.GetSettings` |
-| `/dokime.v1.Settings/ListStorageSources` | `Settings.ListStorageSources` |
-| `/dokime.v1.Settings/ReadApplicationSettings` | `Settings.ReadApplicationSettings` |
-| `/dokime.v1.Settings/ReorderStorageSources` | `Settings.ReorderStorageSources` |
-| `/dokime.v1.Settings/SetStorageSourceEnabled` | `Settings.SetStorageSourceEnabled` |
-| `/dokime.v1.Settings/UpdateApplicationSettings` | `Settings.UpdateApplicationSettings` |
-| `/dokime.v1.Settings/UpdatePluginSettings` | `Settings.UpdatePluginSettings` |
-| `/dokime.v1.Telemetry/ListSamples` | `Telemetry.ListSamples` |
-| `/dokime.v1.Telemetry/WatchSamples` | `Telemetry.WatchSamples` |
-| `/harmos.host.v1.Host/Catalog` | `CatalogEntries.List` |
+| `Suites`, `RecordSchemas`, `StreamSchemas`, `PromptDefinitions`, `Analyses` | Top-level registries; no parent registry resource. |
+| `Cases` | Create with `validate_only` for preview, or an identified atomic registration; Get, List, Parameters and Delete use resource names and parents. |
+| `Cycles` | Create and Seal have request identities. Get/Set mirror the whole writable value and opaque revision. Lists retain the returned cut and page token. |
+| `Executions` | Get/Set mirror the whole writable value and revision. Create appends explicit attempts; Start, Stop and Cancel use identified commands. List, Parameters and Steps use final resource names. |
+| `Executions.Progress` | Get/Watch use the named execution and issued position. Watch termination and connection replacement release the subscription. |
+| `Executions.Schemas` | Get pages freeze complete descriptor files by digest; the desktop verifies the assembled set before decoding. |
+| `Backend.Overview` | Get/Watch carry the runtime snapshot and retained cut; resynchronization failures trigger an explicit refresh. |
+| `Evidence.Records`, `Evidence.Samples`, `Evidence.HealthEvents`, `Evidence.Traceability` | Read and follow the returned cuts, retaining selection across continuation. |
+| `Evidence.Notes` | Create owns its identity; edits use the matching Get revision and replace the whole writable value. |
+| `Documents` | Get assembles ordered frame pages at one fixed cut without weakening structure, evidence or completion validation. |
+| `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
+| `Plugins` | Retained managed/remote installation calls remain until library composition; settings use `Plugins.Settings.Get/Set`. |
+| `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
+| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use library file production before artifact attachment. |
+| Library `Status`, `Access`, `Storage`, `Invocations` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
+
+Report creation renders a preview without publication. Publish names the prepared
+file and its digest revision. Native delivery checks bounded contiguous ranges,
+the retained cut, total length and SHA-256 before publishing a local file. The
+pinned library's product content-source composition remains a host dependency:
+a missing source fails the transfer explicitly and preserves the destination.
 
 ## About and Build Versions
 
@@ -474,7 +379,7 @@ Reports always show the full captured range, render once and omit live controls.
 
 Refresh sits to the left of the window slider and updates every plot in the view.
 Timed windows keep their automatic watch; Refresh requests fresh snapshots
-immediately. All uses one finite `Plots.QuerySnapshots` request per plot on entry
+immediately. All uses one finite `Plots.Snapshots.List` request per plot on entry
 and per button press, without polling, a plot watch or runtime-driven invalidation.
 Each plot has its own response budget and deadline; completed plots appear while
 others load, and a failed plot leaves the other plots available.

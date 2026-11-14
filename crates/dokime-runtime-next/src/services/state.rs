@@ -45,7 +45,7 @@ pub(super) struct State {
     pub status: std::sync::Arc<harmos_runtime::services::status::Status>,
     pub root: std::path::PathBuf,
     pub render_settings: crate::RenderSettings,
-    pub identity: v1::BackendIdentity,
+    pub identity: dokime_operations_next::client::HostIdentity,
     pub temporary_report_limit: usize,
 }
 
@@ -69,7 +69,7 @@ impl ClientHost for State {
     fn signal_change(&self) {
         self.host.signal_change();
     }
-    async fn start_existing(&self, execution: &str, mode: v1::ExecutionMode) -> Result<StartedCycle> {
+    async fn start_existing(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<StartedCycle> {
         let cycle = self.host.start_execution_mode(execution, mode).await.map_err(convert)?;
         Ok(StartedCycle {
             identifier: cycle.identifier,
@@ -88,7 +88,9 @@ impl ClientHost for State {
         self.host.signal_change();
         Ok(())
     }
-    fn submit_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
+    fn submit_command(
+        &self, request: dokime_protocol::client::executions::CommandsCreateRequest,
+    ) -> Result<dokime_protocol::client::executions::ExecutionCommandReceipt> {
         self.host.submit_execution_command(request).map_err(|error| Error::Precondition(error.to_string()))
     }
     fn now_ns(&self) -> i64 {
@@ -97,63 +99,62 @@ impl ClientHost for State {
     fn register_sensitive(&self, value: &str) -> Result<()> {
         self.status.redaction.register(value.to_owned()).map_err(|error| Error::Unavailable(format!("Register Secret Redaction: {error}")))
     }
-    fn bootstrap_paths(&self) -> v1::BootstrapPaths {
+    fn bootstrap_paths(&self) -> dokime_protocol::client::BootstrapPaths {
         let root = self.root.to_string_lossy().into_owned();
-        v1::BootstrapPaths {
+        dokime_protocol::client::BootstrapPaths {
             application: root.clone(),
             storage: root,
             plugins: self.root.join("plugins").to_string_lossy().into_owned(),
             logs: self.root.join("logs").to_string_lossy().into_owned(),
         }
     }
-    fn identity(&self) -> v1::BackendIdentity {
+    fn identity(&self) -> dokime_operations_next::client::HostIdentity {
         self.identity.clone()
     }
-    fn controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
+    fn controls(&self, execution: &str) -> Result<dokime_protocol::client::ExecutionControls> {
         self.host.execution_controls(execution).map_err(convert)
     }
     fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)> {
         self.host.current_document(scope, identifier).map_err(convert)
     }
-    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)> {
-        self.host.render_report(subject, at, &self.identity, self.render_settings)
+    fn render_report(
+        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+    ) -> Result<(std::fs::File, dokime_protocol::client::ReportMetadata)> {
+        self.host.render_report(subject, document_id, at, &self.identity, self.render_settings)
     }
-    fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()> {
+    fn retain_report(&self, file: std::fs::File, reference: harmos_protocol::storage::FileReference) -> Result<()> {
         self.host.reports.retain(file, reference, self.temporary_report_limit).map_err(convert)
     }
-    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>> {
+    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, harmos_protocol::storage::FileReference)>> {
         self.host.reports.temporary(identifier).map_err(convert)
     }
-    fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report> {
-        let snapshot = self.host.snapshot(execution).map_err(convert)?;
-        if snapshot.seal().is_empty() {
-            return Err(Error::Invalid("Publish Report: Seal the Execution Before Selecting Its Fixed Snapshot".into()));
-        }
-        let output = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
-        self.host.reports.publish(&output).map_err(convert)
+    fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {
+        self.host.reports.publish_prepared(prepared).map_err(convert)
     }
     async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse> {
         self.host.analyze(plugin, operation, request).await.map_err(convert)
     }
-    async fn add_remote(&self, url: &str) -> Result<v1::Plugin> {
+    async fn add_remote(&self, url: &str) -> Result<dokime_protocol::client::Plugin> {
         self.add_entry(url).await
     }
     async fn refresh_plugin_states(&self) -> Result<()> {
         self.refresh_entry_states().await
     }
-    fn plugins(&self) -> Result<Vec<v1::Plugin>> {
+    fn plugins(&self) -> Result<Vec<dokime_protocol::client::Plugin>> {
         self.list_entries()
     }
     async fn restore_managed_plugins(&self) -> Result<()> {
         self.restore_managed().await
     }
-    fn installations(&self) -> Result<Vec<v1::PluginInstallation>> {
+    fn installations(&self) -> Result<Vec<dokime_protocol::client::PluginInstallation>> {
         self.list_installations()
     }
-    async fn install_plugin_bundle(&self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>) -> Result<v1::PluginInstallation> {
+    async fn install_plugin_bundle(
+        &self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<dokime_protocol::client::PluginInstallation> {
         self.install_bundle(bytes, cancelled).await
     }
-    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation> {
+    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<dokime_protocol::client::PluginInstallation> {
         self.enable_managed(identifier, enabled).await
     }
     async fn remove_plugin_entry(&self, identifier: &str) -> Result<()> {
@@ -166,7 +167,7 @@ impl ClientHost for State {
         let ready: std::collections::HashSet<_> = self
             .list_entries()?
             .into_iter()
-            .filter(|plugin| plugin.state == v1::PluginState::Ready as i32)
+            .filter(|plugin| plugin.state == dokime_protocol::client::PluginState::Ready as i32)
             .filter_map(|plugin| plugin.description.map(|description| description.id))
             .collect();
         let plugins = lock(&self.host.plugins).map_err(convert)?;
@@ -205,8 +206,10 @@ impl ClientHost for State {
     fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
         self.host.answer(execution, answer).map_err(convert)
     }
-    fn record_answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
-        self.host.record_answer(execution, answer).map_err(convert)
+    fn record_answer(
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::v1::Receipt> {
+        self.host.record_answer(execution, request_id, fingerprint, answer).map_err(convert)
     }
 }
 

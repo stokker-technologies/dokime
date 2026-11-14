@@ -43,7 +43,8 @@ const COLORS: [&str; 6] = ["#4477aa", "#ee6677", "#228833", "#ccbb44", "#66ccee"
 /* === Public Functions === */
 
 pub(crate) fn render(
-    output: &mut impl Write, plot: &v1::Plot, envelope: &v1::PlotEnvelope, presentation: &v1::PlotPresentation,
+    output: &mut impl Write, plot: &v1::Plot, envelope: &dokime_protocol::client::plots::PlotEnvelope,
+    presentation: &dokime_protocol::client::PlotPresentation,
 ) -> Result<()> {
     let payload = envelope.payload.as_ref().ok_or_else(|| Error::Invalid("Render Plot: Query Its Fixed Snapshot First".into()))?;
     let count = envelope.diagnostics.as_ref().map_or(0, |diagnostics| diagnostics.raw_point_count);
@@ -59,7 +60,7 @@ pub(crate) fn render(
     if let Some(analysis) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            v1::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 let max = histogram.series.iter().flat_map(|series| &series.bins).map(|bin| bin.count).max().unwrap_or(1).max(1) as f64;
                 let total = histogram.series.iter().map(|series| series.bins.len()).sum::<usize>().max(1);
                 let mut index = 0;
@@ -82,7 +83,7 @@ pub(crate) fn render(
                     }
                 }
             }
-            v1::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 let min = boxes.series.iter().map(|series| series.min).reduce(f64::min).unwrap_or(0.0);
                 let max = boxes.series.iter().map(|series| series.max).reduce(f64::max).unwrap_or(1.0);
                 let y = |value| 220.0 - 200.0 * (value - min) / (max - min).max(f64::EPSILON);
@@ -105,7 +106,7 @@ pub(crate) fn render(
                     }
                 }
             }
-            v1::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 let bins = interval.series.iter().flat_map(|series| &series.bins).collect::<Vec<_>>();
                 let min_x = bins.iter().map(|bin| bin.x).reduce(f64::min).unwrap_or(0.0);
                 let max_x = bins.iter().map(|bin| bin.x).reduce(f64::max).unwrap_or(1.0);
@@ -126,18 +127,22 @@ pub(crate) fn render(
                     }
                 }
             }
-            v1::plot_analysis_result::Kind::Contour(grid) => render_contour(output, plot, grid, &envelope.selection)?,
-            v1::plot_analysis_result::Kind::GridChart(grid) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => {
+                render_contour(output, plot, grid, &envelope.selection)?
+            }
+            dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid) => {
                 if let Some(frame) = grid.frames.first() {
                     grid_frame(output, grid, frame)?;
                 }
             }
-            v1::plot_analysis_result::Kind::Error(error) => return Err(Error::Invalid(format!("Render Plot: {}", error.message))),
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Error(error) => {
+                return Err(Error::Invalid(format!("Render Plot: {}", error.message)));
+            }
         }
     }
     render_references(output, payload, presentation)?;
     write!(output, "</svg>")?;
-    if let Some(v1::plot_analysis_result::Kind::GridChart(grid)) =
+    if let Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid)) =
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         for frame in grid.frames.iter().skip(1) {
@@ -156,7 +161,10 @@ pub(crate) fn render(
 
 /* === Private Functions === */
 
-fn render_references(output: &mut impl Write, payload: &v1::PlotPayload, presentation: &v1::PlotPresentation) -> Result<()> {
+fn render_references(
+    output: &mut impl Write, payload: &dokime_protocol::client::plots::PlotPayload,
+    presentation: &dokime_protocol::client::PlotPresentation,
+) -> Result<()> {
     if presentation.reference_lines.is_empty() && presentation.reference_bands.is_empty() {
         return Ok(());
     }
@@ -169,23 +177,23 @@ fn render_references(output: &mut impl Write, payload: &v1::PlotPayload, present
     if let Some(analysis) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            v1::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 values.extend(histogram.series.iter().flat_map(|series| series.bins.iter().map(|bin| bin.count as f64)))
             }
-            v1::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 values.extend(boxes.series.iter().flat_map(|series| [series.min, series.max]))
             }
-            v1::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 values.extend(interval.series.iter().flat_map(|series| series.bins.iter().flat_map(|bin| [bin.lower, bin.upper])))
             }
-            v1::plot_analysis_result::Kind::Contour(grid) => values.extend(&grid.y_edges),
+            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => values.extend(&grid.y_edges),
             _ => (),
         }
     }
     let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0).min(0.0);
     let max = values.iter().copied().reduce(f64::max).unwrap_or(1.0);
     let y = |value| 220.0 - 200.0 * (value - min) / (max - min).max(f64::EPSILON);
-    let constant = |value: Option<&v1::PlotReferenceValue>| value.and_then(|value| value.constant);
+    let constant = |value: Option<&dokime_protocol::client::PlotReferenceValue>| value.and_then(|value| value.constant);
     for band in &presentation.reference_bands {
         let bounds = match (
             constant(band.min.as_ref()),
@@ -224,7 +232,7 @@ fn render_references(output: &mut impl Write, payload: &v1::PlotPayload, present
     }
     Ok(())
 }
-fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &v1::PlotFrame) -> Result<()> {
+fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &dokime_protocol::client::plots::PlotFrame) -> Result<()> {
     let kind = v1::PlotKind::try_from(plot.kind).unwrap_or(v1::PlotKind::TimeSeries);
     if kind == v1::PlotKind::Pie {
         let values = frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).collect::<Vec<_>>();
@@ -352,7 +360,9 @@ fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &v1::PlotFrame)
     }
     Ok(())
 }
-fn render_contour(output: &mut impl Write, plot: &v1::Plot, grid: &v1::ContourGrid, identity: &str) -> Result<()> {
+fn render_contour(
+    output: &mut impl Write, plot: &v1::Plot, grid: &dokime_protocol::client::plots::ContourGrid, identity: &str,
+) -> Result<()> {
     let rows = grid.rows as usize;
     let columns = grid.columns as usize;
     if rows == 0 || columns == 0 {
@@ -479,7 +489,9 @@ fn contour_coordinate(position: f64, edges: &[f64], logarithmic: bool, origin: f
     let to = transform(edges[cell + 1]);
     origin + span * ((from + (to - from) * (position - cell as f64) - first) / (last - first).max(f64::EPSILON))
 }
-fn grid_frame(output: &mut impl Write, grid: &v1::GridFrames, frame: &v1::GridFrame) -> Result<()> {
+fn grid_frame(
+    output: &mut impl Write, grid: &dokime_protocol::client::plots::GridFrames, frame: &dokime_protocol::client::plots::GridFrame,
+) -> Result<()> {
     let width = 600.0 / grid.columns.len().max(1) as f64;
     let height = 200.0 / grid.rows.len().max(1) as f64;
     for row in 0..grid.rows.len() {

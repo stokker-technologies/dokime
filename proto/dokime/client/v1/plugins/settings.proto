@@ -1,0 +1,38 @@
+syntax = "proto3";
+package dokime.client.v1.plugins;
+option csharp_namespace = "Dokime.Protocol.Client.V1.PluginsResources";
+import "dokime/v1/scalar.proto";
+import "dokime/v1/settings.proto";
+import "harmos/v1/types.proto";
+
+message SecretAvailability {
+  string identifier = 1;
+  bool available = 2;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message SettingsGetRequest { string name = 1; .harmos.v1.ReadCut at = 90; }
+
+message SettingsGetResponse {
+  .dokime.v1.MapValue value = 1;
+  bytes revision = 2;
+  .dokime.v1.SettingsDeclarations schema = 3;
+  repeated .dokime.client.v1.plugins.SecretAvailability secrets = 4;
+  .dokime.v1.MapValue discovered = 5;
+  .harmos.v1.ReadCut resolved_at = 90;
+}
+
+message SettingsSetRequest { string name = 1; .dokime.v1.MapValue value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message SettingsSetResponse { .dokime.v1.MapValue value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+service Settings {
+  // Public. Identity: dokime.client.v1.plugins.Settings/Get
+  rpc Get(.dokime.client.v1.plugins.SettingsGetRequest) returns (.dokime.client.v1.plugins.SettingsGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.plugins.SettingsSetRequest) returns (.dokime.client.v1.plugins.SettingsSetResponse);
+}

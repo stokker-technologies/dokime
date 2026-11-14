@@ -12,8 +12,8 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
-import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/documents_pb.js";
-import { LineStyle } from "@host/dokime/v1/client_types_pb.js";
+import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/plots_pb.js";
+import { LineStyle } from "@host/dokime/v1/plots_pb.js";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -559,7 +559,7 @@ test("Refresh Failure", async () => {
   await view.choose(6);
   const firstTime = view.window().refresh.updatedAt;
   await view.runtimeUpdate();
-  refreshFixture.read.mockRejectedValueOnce(new NativeApiLimitError("Plots.QuerySnapshots", "plot response exceeds transport limit"));
+  refreshFixture.read.mockRejectedValueOnce(new NativeApiLimitError("Plots.Snapshots.List", "plot response exceeds transport limit"));
   await view.advance(1_000);
   await view.click();
   await view.advance();

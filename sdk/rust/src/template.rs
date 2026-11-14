@@ -292,7 +292,7 @@ impl Template {
             let handler = operation::wire(
                 operation.clone(),
                 harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<v1::StepRequest>| {
+                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::StepsExecuteRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
                     let present = context.test_case()?.steps.iter().any(|step| {
@@ -302,7 +302,7 @@ impl Template {
                         return Err(Error::Invalid("Step Does Not Match the Frozen Test Case".into()));
                     }
                     step.handler.execute(&context).await?;
-                    Ok(Wire(v1::StepResponse {}))
+                    Ok(Wire(dokime_protocol::plugin::StepsExecuteResponse {}))
                 },
             )
             .policy(step.policy);
@@ -321,7 +321,7 @@ impl Template {
             plugin = plugin.operation(operation::wire(
                 operation.clone(),
                 harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<v1::CriterionRequest>| {
+                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::CriteriaEvaluateRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
                     let present = context.test_case()?.criteria.iter().any(|criterion| {
@@ -332,7 +332,7 @@ impl Template {
                         return Err(Error::Invalid("Criterion Does Not Match the Frozen Test Case".into()));
                     }
                     let passed = criterion.handler.execute(&context).await?;
-                    Ok(Wire(v1::CriterionResponse { passed }))
+                    Ok(Wire(dokime_protocol::plugin::CriteriaEvaluateResponse { passed }))
                 },
             ));
         }
@@ -346,7 +346,7 @@ impl Template {
         plugin = plugin.operation(operation::wire(
             self.definition.materialize.clone(),
             harmos::Visibility::Protected,
-            async move |transport: &harmos::Context, Wire(request): Wire<v1::MaterializeRequest>| {
+            async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::TestCasesMaterializeRequest>| {
                 if transport.scope().is_ok() {
                     return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
                 }
@@ -380,7 +380,7 @@ impl Template {
                 {
                     return Err(Error::Invalid("Materialization References an Undeclared Operation or Stream".into()));
                 }
-                Ok(Wire(case))
+                Ok(Wire(dokime_protocol::plugin::TestCasesMaterializeResponse { test_case: Some(case) }))
             },
         ));
         if let Some(initialize) = self.initialize {
@@ -392,11 +392,11 @@ impl Template {
             plugin = plugin.operation(operation::wire(
                 operation,
                 harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<v1::InitializeRequest>| {
+                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::ExecutionsInitializeRequest>| {
                     let context =
                         Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
                     initialize.execute(&context).await?;
-                    Ok(Wire(v1::InitializeResponse {}))
+                    Ok(Wire(dokime_protocol::plugin::ExecutionsInitializeResponse {}))
                 },
             ));
         }
@@ -407,7 +407,7 @@ impl Template {
         plugin = plugin.operation(operation::wire(
             self.definition.cleanup.clone().expect("SDK Cleanup Operation"),
             harmos::Visibility::Protected,
-            async move |transport: &harmos::Context, Wire(request): Wire<v1::CleanupRequest>| {
+            async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::ExecutionsCleanupRequest>| {
                 let context =
                     Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
                 let _end = context.end(store.clone());
@@ -415,7 +415,7 @@ impl Template {
                 if let Some(cleanup) = &self.cleanup {
                     cleanup.execute(&context).await?;
                 }
-                Ok(Wire(v1::CleanupResponse {}))
+                Ok(Wire(dokime_protocol::plugin::ExecutionsCleanupResponse {}))
             },
         ));
         for register in self.registrations {

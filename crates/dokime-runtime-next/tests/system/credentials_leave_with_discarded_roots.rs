@@ -66,17 +66,22 @@ async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::err
             // Start Through the Product Journey and Read Its Published Credential by Name
             let root = super::support::tempdir()?;
             let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &[]).await?;
-            let mut secrets = dokime::v1::secrets_client::SecretsClient::connect(process.url.clone()).await?;
-            let initial = secrets.list(dokime::v1::SecretsListRequest {}).await?.into_inner();
+            let mut secrets = dokime_protocol::client::secrets_client::SecretsClient::connect(process.url.clone()).await?;
+            let initial = secrets.list(dokime_protocol::client::SecretsListRequest { ..Default::default() }).await?.into_inner();
+            let value = uuid::Uuid::now_v7().to_string();
             secrets
-                .put(dokime::v1::SecretsPutRequest {
-                    metadata: Some(dokime::v1::Metadata {
-                        identifier: "story.access".into(),
-                        label: "Story Access".into(),
-                        ..Default::default()
+                .set(dokime_protocol::client::SecretsSetRequest {
+                    name: "story.access".into(),
+                    value: Some(dokime_protocol::client::SecretWritable {
+                        metadata: Some(dokime::v1::Metadata {
+                            identifier: "story.access".into(),
+                            label: "Story Access".into(),
+                            ..Default::default()
+                        }),
+                        value: Some(value.clone()),
                     }),
-                    value: Some("credential-story-value".into()),
-                    generation: initial.generation,
+                    expected_revision: initial.generation.to_be_bytes().to_vec(),
+                    request_id: "credential".into(),
                 })
                 .await?;
             let store = dokime_storage::Store::open(root.path())?;
@@ -89,7 +94,7 @@ async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::err
                 "dokime.shared-secrets",
                 &format!("{host_id}:{}", pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot),
             )?;
-            assert_eq!(secret.get_password()?, "credential-story-value");
+            assert_eq!(secret.get_password()?, value);
             drop(store);
 
             // A Disposable Root Can Also Own a Nested Backend Root.

@@ -18,11 +18,12 @@ from harmos import Failure, Operation, operation
 
 # Local Imports
 from . import plot
+from ._client import Client, Cycle, MissingServiceError, connect
 from ._context import HOST_OPERATIONS, Context
+from ._plugin import Endpoint, Plugin, serve
 from .authoring import Case, Criterion, Record, Step, Stream, Suite, Template, criterion, materialize, observer, step, stream, suite
-from .client import Client, Cycle, MissingServiceError, connect
 from .documents import Document, Section, Summary
-from .plugin import Endpoint, Plugin, serve
+from .schemas import FrozenSchemaCache
 
 # Type Checking Imports
 
@@ -38,6 +39,7 @@ __all__ = [
     "Document",
     "Endpoint",
     "Failure",
+    "FrozenSchemaCache",
     "MissingServiceError",
     "Operation",
     "Plugin",

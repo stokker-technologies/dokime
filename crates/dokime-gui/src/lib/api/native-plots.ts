@@ -15,9 +15,10 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as v1 from "@host/dokime/v1/client_types_pb.js";
-import * as document from "@host/dokime/v1/documents_pb.js";
-import type { Wire } from "@/lib/rpc/canonical";
+import * as protocolV1Plots from "@host/dokime/v1/plots_pb.js";
+import * as protocolClientV1PlotsSnapshots from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import * as protocolV1Expressions from "@host/dokime/v1/expressions_pb.js";
+import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
@@ -43,7 +44,7 @@ import type {
   RecordScope,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import { mapParameter } from "@/lib/host/catalog";
+import { mapParameter } from "@/lib/host/suites";
 import {
   jsonToNativeValue,
   mapNativeValueFormat,
@@ -52,12 +53,12 @@ import {
   nativeValueToJson,
   recordScopeFromNative,
 } from "@/lib/host/values";
-import { NativeApiLimitError, safeNumber } from "./native-values";
+import { NativeApiLimitError, NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber } from "./native-values";
 
 /* === Canonical Types === */
 
-type PlotRequest = Wire<v1.PlotRequest>;
-type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsQuerySnapshots>>>["envelopes"][number];
+type PlotRequest = Wire<protocolV1Plots.PlotRequest>;
+type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["envelopes"][number];
 type DataExpression = NonNullable<PlotRequest["xExpression"]>;
 type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
 type NativeAnalysisComputation = NonNullable<NativePlotPayload["computed"]>;
@@ -74,9 +75,9 @@ type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotFrame["mode"]>;
 
-const PlotRequestSchema = v1.PlotRequestSchema;
-type PlotStreamFrame = Wire<v1.PlotStreamFrame>;
-type PlotStreamUpdate = PlotStreamFrame["updates"][number];
+const PlotRequestSchema = protocolV1Plots.PlotRequestSchema;
+type PlotWatchPage = Wire<protocolClientV1PlotsSnapshots.SnapshotsWatchResponse>;
+type PlotStreamUpdate = PlotWatchPage["updates"][number];
 type PlotStreamKind = PlotStreamUpdate["kind"];
 
 /* === Constants === */
@@ -171,15 +172,15 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
   return create(PlotRequestSchema, {
     arrangement: input.arrangement
       ? input.arrangement === "grouped"
-        ? document.BarArrangement.GROUPED
-        : document.BarArrangement.STACKED
+        ? protocolV1Plots.BarArrangement.GROUPED
+        : protocolV1Plots.BarArrangement.STACKED
       : undefined,
     pareto: input.pareto ?? false,
     hole: input.hole ?? undefined,
-    xyInterval: input.xyInterval ? document.XyInterval.SIGMA : undefined,
-    render: input.render === "bands" ? document.ContourRender.BANDS : document.ContourRender.CELLS,
+    xyInterval: input.xyInterval ? protocolV1Plots.XyInterval.SIGMA : undefined,
+    render: input.render === "bands" ? protocolV1Plots.ContourRender.BANDS : protocolV1Plots.ContourRender.CELLS,
     reduction: input.reduction
-      ? { mean: document.Reduction.MEAN, min: document.Reduction.MIN, max: document.Reduction.MAX }[input.reduction]
+      ? { mean: protocolV1Plots.Reduction.MEAN, min: protocolV1Plots.Reduction.MIN, max: protocolV1Plots.Reduction.MAX }[input.reduction]
       : undefined,
     grid: input.grid
       ? {
@@ -210,9 +211,12 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
         }
       : undefined,
     plotType: plotType(input.plotType),
-    style: { line: v1.LineStyle.LINE, points: v1.LineStyle.POINTS, line_points: v1.LineStyle.LINE_POINTS, step: v1.LineStyle.STEP }[
-      input.style ?? "line"
-    ],
+    style: {
+      line: protocolV1Plots.LineStyle.LINE,
+      points: protocolV1Plots.LineStyle.POINTS,
+      line_points: protocolV1Plots.LineStyle.LINE_POINTS,
+      step: protocolV1Plots.LineStyle.STEP,
+    }[input.style ?? "line"],
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
     ...(input.zExpression == null ? {} : { zExpression: dataExpression(input.zExpression) }),
@@ -221,13 +225,13 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
       : {
           fft: {
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
-            window: input.fft.window === "rectangular" ? v1.FftWindow.RECTANGULAR : v1.FftWindow.HANN,
-            detrend: input.fft.detrend === "none" ? v1.FftDetrend.NONE : v1.FftDetrend.MEAN,
+            window: input.fft.window === "rectangular" ? protocolV1Plots.FftWindow.RECTANGULAR : protocolV1Plots.FftWindow.HANN,
+            detrend: input.fft.detrend === "none" ? protocolV1Plots.FftDetrend.NONE : protocolV1Plots.FftDetrend.MEAN,
             levelUnit: {
-              linear: v1.FrequencyLevelUnit.LINEAR,
-              dB: v1.FrequencyLevelUnit.DB,
-              dBu: v1.FrequencyLevelUnit.DBU,
-              dBm: v1.FrequencyLevelUnit.DBM,
+              linear: protocolV1Plots.FrequencyLevelUnit.LINEAR,
+              dB: protocolV1Plots.FrequencyLevelUnit.DB,
+              dBu: protocolV1Plots.FrequencyLevelUnit.DBU,
+              dBm: protocolV1Plots.FrequencyLevelUnit.DBM,
             }[input.fft.level_unit],
             includeDc: input.fft.include_dc,
             minFrequencyHz: input.fft.min_frequency_hz ?? undefined,
@@ -279,12 +283,31 @@ export async function fetchNativePlotPayloads(
   requests: readonly PlotPayloadRequestInput[],
   options: NativePlotReadOptions = {},
 ): Promise<NativePlotPayloadEnvelope[]> {
-  boundedRequestCount(requests.length, "Plots.QuerySnapshots");
+  boundedRequestCount(requests.length, "Plots.Snapshots.List");
   ensureActive(session, options.signal);
   try {
-    const response = await rpc.plotsQuerySnapshots(session, { requests: requests.map(toNativePlotRequest) });
-    ensureActive(session, options.signal);
-    return response.envelopes.map(mapNativePlotEnvelope);
+    const envelopes: NativePlotPayloadEnvelope[] = [];
+    const nativeRequests = requests.map(toNativePlotRequest);
+    let at: Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["resolvedAt"];
+    let token = "";
+    const seen = new Set<string>();
+    for (let page = 0; page < NATIVE_MAX_PAGES; page += 1) {
+      const response = await rpc.plotsSnapshotsList(session, {
+        requests: nativeRequests,
+        at,
+        page: { pageSize: NATIVE_PAGE_SIZE, pageToken: token },
+      });
+      ensureActive(session, options.signal);
+      const resolved = required(response.resolvedAt, "Read Plot Snapshots: Missing Read Cut");
+      if (at && cutKey(at) !== cutKey(resolved)) throw new Error("Read Plot Snapshots: Read Cut Changed");
+      at = resolved;
+      envelopes.push(...response.envelopes.map(mapNativePlotEnvelope));
+      token = response.nextPageToken;
+      if (!token) return envelopes;
+      if (seen.has(token)) throw new Error("Read Plot Snapshots: Repeated Continuation");
+      seen.add(token);
+    }
+    throw new NativeApiLimitError("Read Plot Snapshots", "page budget exhausted");
   } catch (error) {
     throw normalizeCancellation(error, session, options.signal);
   }
@@ -304,9 +327,9 @@ export async function openNativePlotStream(
   ensureActive(session, options.signal);
   const nativeRequests = requests.map((request) => toNativePlotRequest(request));
 
-  let source: Awaited<ReturnType<typeof rpc.plotsWatch>> | null = null;
+  let source: Awaited<ReturnType<typeof rpc.plotsSnapshotsWatch>> | null = null;
   try {
-    source = await rpc.plotsWatch(session, { requests: nativeRequests });
+    source = await rpc.plotsSnapshotsWatch(session, { requests: nativeRequests });
     ensureActive(session, options.signal);
   } catch (error) {
     await source?.cancel().catch(() => undefined);
@@ -347,7 +370,7 @@ export async function openNativePlotStream(
           return { done: true, value: undefined };
         }
         ensureActive(session, options.signal);
-        return { done: false, value: mapNativePlotStreamFrame(result.value) };
+        return { done: false, value: mapNativePlotWatchPage(result.value) };
       } catch (error) {
         await cancel().catch(() => undefined);
         throw normalizeCancellation(error, session, options.signal);
@@ -387,7 +410,8 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
  * may carry no payload or diagnostics; it maps to an empty payload
  * with its warnings rather than ending the whole stream on a mapping throw.
  */
-export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
+export function mapNativePlotWatchPage(frame: PlotWatchPage): NativePlotStreamMessage {
+  if (frame.resyncRequired) throw new Error("Watch Plot Snapshots: Resynchronization Required");
   if (frame.updates.length === 0) throw new Error("Native plot revision has no updates.");
   return { updates: frame.updates.map(mapNativePlotStreamUpdate) };
 }
@@ -395,7 +419,7 @@ export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStre
 function mapNativePlotStreamUpdate(frame: PlotStreamUpdate): NativePlotStreamUpdate {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
-  if (frame.kind === v1.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
+  if (frame.kind === protocolClientV1PlotsSnapshots.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
     return { kind: "pending", plot_id: frame.envelope.plotId };
   }
   const kind = plotStreamKind(frame.kind);
@@ -476,26 +500,26 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
     const type = requiredText(transform.type, "data transform type");
     if (type === "aggregate") {
       const name = requiredText(transform.aggregate, "aggregate");
-      const kinds: Record<string, document.Aggregate> = {
-        count: document.Aggregate.COUNT,
-        sum: document.Aggregate.SUM,
-        min: document.Aggregate.MIN,
-        max: document.Aggregate.MAX,
-        mean: document.Aggregate.MEAN,
-        std: document.Aggregate.STDDEV,
-        median: document.Aggregate.MEDIAN,
-        rms: document.Aggregate.RMS,
-        first: document.Aggregate.FIRST,
-        last: document.Aggregate.LAST,
+      const kinds: Record<string, protocolV1Expressions.Aggregate> = {
+        count: protocolV1Expressions.Aggregate.COUNT,
+        sum: protocolV1Expressions.Aggregate.SUM,
+        min: protocolV1Expressions.Aggregate.MIN,
+        max: protocolV1Expressions.Aggregate.MAX,
+        mean: protocolV1Expressions.Aggregate.MEAN,
+        std: protocolV1Expressions.Aggregate.STDDEV,
+        median: protocolV1Expressions.Aggregate.MEDIAN,
+        rms: protocolV1Expressions.Aggregate.RMS,
+        first: protocolV1Expressions.Aggregate.FIRST,
+        last: protocolV1Expressions.Aggregate.LAST,
       };
       const rank = /^p(\d{1,3})$/.exec(name)?.[1];
       const percentile = rank === undefined ? 0 : Number(rank);
-      const kind = rank !== undefined && percentile <= 100 ? document.Aggregate.PERCENTILE : kinds[name];
+      const kind = rank !== undefined && percentile <= 100 ? protocolV1Expressions.Aggregate.PERCENTILE : kinds[name];
       if (kind === undefined) throw new Error(`Unsupported aggregate: ${name}`);
       expression = { label: "", kind: { case: "aggregate", value: { input: expression, kind, percentile } } };
       continue;
     }
-    let kind: Wire<document.TransformExpression>["kind"];
+    let kind: Wire<protocolV1Expressions.TransformExpression>["kind"];
     switch (type) {
       case "scale":
       case "offset": {
@@ -530,19 +554,19 @@ function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): Pl
 }
 
 function plotType(value?: DocumentPlotType | null): PlotType {
-  const kinds: Record<DocumentPlotType, document.PlotKind> = {
-    time_series: document.PlotKind.TIME_SERIES,
-    bar: document.PlotKind.BAR,
-    xy: document.PlotKind.XY,
-    trajectory: document.PlotKind.TRAJECTORY,
-    contour: document.PlotKind.CONTOUR,
-    grid_chart: document.PlotKind.GRID_CHART,
-    frequency_series: document.PlotKind.FREQUENCY_SERIES,
-    histogram: document.PlotKind.HISTOGRAM,
-    box_plot: document.PlotKind.BOX_PLOT,
-    pie: document.PlotKind.PIE,
+  const kinds: Record<DocumentPlotType, protocolV1Plots.PlotKind> = {
+    time_series: protocolV1Plots.PlotKind.TIME_SERIES,
+    bar: protocolV1Plots.PlotKind.BAR,
+    xy: protocolV1Plots.PlotKind.XY,
+    trajectory: protocolV1Plots.PlotKind.TRAJECTORY,
+    contour: protocolV1Plots.PlotKind.CONTOUR,
+    grid_chart: protocolV1Plots.PlotKind.GRID_CHART,
+    frequency_series: protocolV1Plots.PlotKind.FREQUENCY_SERIES,
+    histogram: protocolV1Plots.PlotKind.HISTOGRAM,
+    box_plot: protocolV1Plots.PlotKind.BOX_PLOT,
+    pie: protocolV1Plots.PlotKind.PIE,
   };
-  if (value == null) return document.PlotKind.UNSPECIFIED;
+  if (value == null) return protocolV1Plots.PlotKind.UNSPECIFIED;
   const kind = kinds[value];
   if (kind === undefined) throw new Error(`Unsupported document plot type: ${String(value)}`);
   return kind;
@@ -550,30 +574,30 @@ function plotType(value?: DocumentPlotType | null): PlotType {
 
 function downsampleTechnique(value?: DocumentDownsampleTechnique | null): DownsampleTechnique {
   return value === "raw"
-    ? v1.Downsample.RAW
+    ? protocolV1Plots.Downsample.RAW
     : value === "min_max"
-      ? v1.Downsample.MIN_MAX
+      ? protocolV1Plots.Downsample.MIN_MAX
       : value === "lttb"
-        ? v1.Downsample.LTTB
-        : v1.Downsample.AUTO;
+        ? protocolV1Plots.Downsample.LTTB
+        : protocolV1Plots.Downsample.AUTO;
 }
 
 function axisScale(value?: DocumentAxisScale | null): AxisScale {
-  if (value === "log") return document.AxisScale.LOG;
-  if (value === "linear" || value == null) return document.AxisScale.LINEAR;
+  if (value === "log") return protocolV1Plots.AxisScale.LOG;
+  if (value === "linear" || value == null) return protocolV1Plots.AxisScale.LINEAR;
   throw new Error(`Unsupported plot axis scale: ${String(value)}`);
 }
 
 function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
   const operator = {
-    eq: document.FilterOperator.EQ,
-    ne: document.FilterOperator.NE,
-    gt: document.FilterOperator.GT,
-    gte: document.FilterOperator.GE,
-    lt: document.FilterOperator.LT,
-    lte: document.FilterOperator.LE,
-    contains: document.FilterOperator.CONTAINS,
-    exists: document.FilterOperator.EXISTS,
+    eq: protocolV1Expressions.FilterOperator.EQ,
+    ne: protocolV1Expressions.FilterOperator.NE,
+    gt: protocolV1Expressions.FilterOperator.GT,
+    gte: protocolV1Expressions.FilterOperator.GE,
+    lt: protocolV1Expressions.FilterOperator.LT,
+    lte: protocolV1Expressions.FilterOperator.LE,
+    contains: protocolV1Expressions.FilterOperator.CONTAINS,
+    exists: protocolV1Expressions.FilterOperator.EXISTS,
   }[value];
   if (operator === undefined) throw new Error(`Unsupported plot filter operator: ${String(value)}`);
   return operator;
@@ -800,15 +824,15 @@ function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): Pl
 
 function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"] {
   switch (value) {
-    case v1.PlotStreamKind.SNAPSHOT:
+    case protocolClientV1PlotsSnapshots.PlotStreamKind.SNAPSHOT:
       return "snapshot";
-    case v1.PlotStreamKind.REPLACE:
+    case protocolClientV1PlotsSnapshots.PlotStreamKind.REPLACE:
       return "replace";
-    case v1.PlotStreamKind.DELTA:
+    case protocolClientV1PlotsSnapshots.PlotStreamKind.DELTA:
       return "delta";
-    case v1.PlotStreamKind.STATISTICS:
+    case protocolClientV1PlotsSnapshots.PlotStreamKind.STATISTICS:
       return "statistics";
-    case v1.PlotStreamKind.ERROR:
+    case protocolClientV1PlotsSnapshots.PlotStreamKind.ERROR:
       return "error";
     default:
       throw new Error("Native plot stream returned an unspecified kind.");
@@ -817,9 +841,9 @@ function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"]
 
 function cartesianMode(value: PlotCartesianMode | undefined): PlotCartesianFrame["mode"] {
   switch (value) {
-    case v1.PlotCartesianMode.ALIGNED:
+    case protocolClientV1PlotsSnapshots.PlotCartesianMode.ALIGNED:
       return "aligned";
-    case v1.PlotCartesianMode.FACETED:
+    case protocolClientV1PlotsSnapshots.PlotCartesianMode.FACETED:
       return "faceted";
     default:
       throw new Error("Native Cartesian frame returned an unspecified mode.");

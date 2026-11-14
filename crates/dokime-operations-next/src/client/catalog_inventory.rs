@@ -21,9 +21,13 @@
 
 // Local Imports
 use crate::{Error, Result, client::Context};
+use dokime_protocol::client::PluginState;
 use dokime_protocol::v1;
+use dokime_protocol::v1::Suite;
+use harmos_protocol::v1::Catalog;
 use prost::Message;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind};
+use std::collections::BTreeMap;
 
 /* === Constants === */
 
@@ -49,14 +53,29 @@ impl Inventory {
     pub async fn read(context: &Context) -> Result<Self> {
         context.host.refresh_plugin_states().await?;
         let plugins = context.host.plugins()?;
-        let mut records = std::collections::BTreeMap::new();
-        let mut streams = std::collections::BTreeMap::new();
-        for plugin in plugins.iter().filter(|plugin| plugin.state == v1::PluginState::Ready as i32) {
-            let catalog = plugin
-                .description
-                .as_ref()
-                .and_then(|description| description.catalog.as_ref())
-                .ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect the Plugin with Its Catalog".into()))?;
+        let mut catalogs = Vec::new();
+        for plugin in plugins.iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
+            catalogs.push(
+                plugin
+                    .description
+                    .as_ref()
+                    .and_then(|description| description.catalog.clone())
+                    .ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect the Plugin with Its Catalog".into()))?,
+            );
+        }
+        Self::from_catalogs(catalogs, context.host.suites()?)
+    }
+
+    pub fn captured(context: &Context, parent: &str) -> Result<Self> {
+        let snapshot = context.host.store().metadata(parent)?;
+        let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
+        Self::from_catalogs(vec![catalog], Vec::new())
+    }
+
+    fn from_catalogs(catalogs: Vec<Catalog>, suites: Vec<(String, Suite)>) -> Result<Self> {
+        let mut records = BTreeMap::new();
+        let mut streams = BTreeMap::new();
+        for catalog in catalogs {
             let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect with Message Descriptors".into()))?;
             let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| Error::Invalid(error.to_string()))?;
             for section in &catalog.sections {
@@ -80,6 +99,7 @@ impl Inventory {
                         .collect();
                     let schema = v1::RecordSchema {
                         record_type: id.clone(),
+                        message_name: record.message,
                         schema_version: 1,
                         metadata: record.metadata,
                         fields,
@@ -106,6 +126,7 @@ impl Inventory {
                     .collect();
                 let schema = v1::TelemetrySchema {
                     stream: stream.id.clone(),
+                    message_name: stream.row.clone(),
                     schema_version: 1,
                     columns,
                     metadata: Some(v1::Metadata {
@@ -121,7 +142,7 @@ impl Inventory {
             }
         }
         Ok(Self {
-            suites: context.host.suites()?,
+            suites,
             records: records.into_values().collect(),
             streams: streams.into_values().collect(),
         })

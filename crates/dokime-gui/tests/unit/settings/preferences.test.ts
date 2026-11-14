@@ -17,7 +17,7 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 // Local Imports
-import type { SettingsSnapshot } from "@generated/application-settings";
+import type { PreferencesSnapshot } from "@generated/application-settings";
 import defaults from "@generated/application-settings.json";
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -41,14 +41,14 @@ const fixture = vi.hoisted(() => ({
   invalidate: vi.fn(),
   appearance: vi.fn(),
   session: null as { identity: { generation: string } } | null,
-  snapshot: null as SettingsSnapshot | null,
+  snapshot: null as PreferencesSnapshot | null,
   loading: false,
   backendError: null as unknown,
   saveError: null as unknown,
-  queries: [] as { queryKey: readonly string[]; queryFn: () => Promise<SettingsSnapshot>; retry: boolean }[],
+  queries: [] as { queryKey: readonly string[]; queryFn: () => Promise<PreferencesSnapshot>; retry: boolean }[],
   mutations: [] as {
-    mutationFn: (input: { previous: SettingsSnapshot; settings: SettingsSnapshot["settings"] }) => Promise<SettingsSnapshot>;
-    onSuccess: (snapshot: SettingsSnapshot) => void;
+    mutationFn: (input: { previous: PreferencesSnapshot; settings: PreferencesSnapshot["settings"] }) => Promise<PreferencesSnapshot>;
+    onSuccess: (snapshot: PreferencesSnapshot) => void;
   }[],
 }));
 
@@ -65,9 +65,9 @@ function SavePreferencesProbe({ scope }: { scope: "local" | "backend" }) {
   return null;
 }
 
-function snapshot(): SettingsSnapshot {
+function snapshot(): PreferencesSnapshot {
   return {
-    revision: 7,
+    revision: [7],
     settings: {
       appearance: { theme_mode: "dark", theme_family: "fixture", density: "compact" },
       report: { ...defaults.report, plot_points: 3210, plot_downsample: "lttb" },
@@ -137,7 +137,7 @@ beforeEach(() => {
   fixture.queries.length = 0;
   fixture.mutations.length = 0;
   fixture.read.mockResolvedValue(fixture.snapshot);
-  fixture.update.mockResolvedValue({ ...fixture.snapshot, revision: 8 });
+  fixture.update.mockResolvedValue({ ...fixture.snapshot, revision: [8] });
 });
 
 test("Advanced Reveals Additional Preference Fields", () => {
@@ -210,10 +210,10 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
         certificate_names: ["other.local"],
       };
     }
-    const saved = { revision: 8, settings };
+    const saved = { revision: [8], settings };
     fixture.update.mockResolvedValueOnce(saved);
     assert.deepEqual(await mutation.mutationFn({ previous, settings }), saved);
-    assert.deepEqual(fixture.update.mock.calls.at(-1), [scope, { expected_revision: 7, settings }]);
+    assert.deepEqual(fixture.update.mock.calls.at(-1), [scope, { expected_revision: [7], settings }]);
     mutation.onSuccess(saved);
     assert.deepEqual(fixture.cache.mock.calls.at(-1), [preferencesKey(scope), saved]);
     assert.deepEqual(previous, snapshot());
@@ -234,7 +234,7 @@ test("Failed Saves Preserve Revisions", async () => {
     assert.ok(fixture.notices.mock.calls.length > 0);
     assert.doesNotMatch(html, /role="alert"/);
     assert.equal(fixture.cache.mock.calls.length, 0);
-    assert.equal(fixture.snapshot?.revision, 7);
+    assert.deepEqual(fixture.snapshot?.revision, [7]);
   }
 });
 
@@ -431,14 +431,14 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
   assert.ok(inputs.length > 0);
   let revision = 7;
   for (const input of inputs) {
-    let finish: ((saved: SettingsSnapshot) => void) | undefined;
+    let finish: ((saved: PreferencesSnapshot) => void) | undefined;
     fixture.update.mockImplementationOnce(
       () =>
-        new Promise<SettingsSnapshot>((resolve) => {
+        new Promise<PreferencesSnapshot>((resolve) => {
           finish = resolve;
         }),
     );
-    fixture.update.mockImplementation((_scope, request) => ({ revision: ++revision, settings: request.settings }));
+    fixture.update.mockImplementation((_scope, request) => ({ revision: [++revision], settings: request.settings }));
     input.focus();
     for (const value of ["", "2", "25", "250", "2500"]) {
       await act(async () => {
@@ -451,7 +451,7 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
         assert.ok(complete, "the earlier draft is saving");
         const request = fixture.update.mock.calls.at(-1)?.[1];
         assert.ok(request);
-        const saved = { revision: ++revision, settings: request.settings };
+        const saved = { revision: [++revision], settings: request.settings };
         fixture.snapshot = saved;
         await act(async () => complete(saved));
       }

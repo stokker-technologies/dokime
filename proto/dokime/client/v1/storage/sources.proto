@@ -1,0 +1,35 @@
+syntax = "proto3";
+package dokime.client.v1.storage;
+option csharp_namespace = "Dokime.Protocol.Client.V1.StorageResources";
+import "harmos/v1/types.proto";
+
+message StorageSource {
+  string identifier = 1;
+  string adapter = 2;
+  int64 priority = 3;
+  bool enabled = 4;
+}
+
+message StorageSources {
+  repeated .dokime.client.v1.storage.StorageSource sources = 1;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message SourcesGetRequest {  .harmos.v1.ReadCut at = 90; }
+
+message SourcesGetResponse { .dokime.client.v1.storage.StorageSources value = 1; bytes revision = 2;  .harmos.v1.ReadCut resolved_at = 90; }
+
+message SourcesSetRequest {  .dokime.client.v1.storage.StorageSources value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message SourcesSetResponse { .dokime.client.v1.storage.StorageSources value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+service Sources {
+  // Public. Identity: dokime.client.v1.storage.Sources/Get
+  rpc Get(.dokime.client.v1.storage.SourcesGetRequest) returns (.dokime.client.v1.storage.SourcesGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.storage.SourcesSetRequest) returns (.dokime.client.v1.storage.SourcesSetResponse);
+}

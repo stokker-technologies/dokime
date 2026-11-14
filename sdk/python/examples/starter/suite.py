@@ -28,57 +28,24 @@ __all__ = ["Capture", "plugin"]
 
 # === Constants === #
 
-READING = dokime.Stream("example.reading")
-DOCUMENT = dokime.Document("Capture").section(
-    dokime.Section("Evidence")
-    .plot(dokime.plot.time_series(READING.field()))
-    .summary(dokime.Summary().tile("Maximum", READING.field().max()))
-)
-
 # === Types === #
 
 # === Classes === #
 
 
-@dokime.suite(
-    "example.capture",
-    label="Capture",
-    parameters=[message("Parameter", metadata={"identifier": "limit", "label": "Limit"}, type=4, expression={"literal": {"number": 10.0}})],
-    documents=[DOCUMENT],
-)
 class Capture:
-    async def initialize(self, ctx):
-        self.reading = 0.0
-        self.limit = ctx.parameters["limit"]
-        self.attempts = 0
-
-    @dokime.stream("Reading", identifier="example.reading")
-    @dokime.observer(interval_ms=200)
-    def reading_sample(self, ctx):
-        return self.reading
-
-    @dokime.step("Measure", retries=1)
-    async def measure(self, ctx):
-        self.attempts += 1
-        self.reading = self.limit - 1.0
-        await ctx.record("example.confirmation", value=True)
-        await ctx.progress(1, 2, label="Measured")
-        await ctx.sleep(0.2)
-
-    @dokime.step("Confirm")
+    @dokime.step("Confirm", identifier="confirm")
     async def confirm(self, ctx):
-        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
-        await ctx.record("example.confirmation", value=answer == "Yes")
-        await ctx.sleep(1.0)
+        question = next(operation for operation in HOST_OPERATIONS if operation.id == "dokime.plugin.host.v1.Prompts/Create")
+        answer = await ctx.operation(question)(
+            message("dokime.plugin.host.v1.PromptsCreateRequest", prompt="confirmation", prompt_type="example.confirmation")
+        )
+        await ctx.record("example.confirmation", value=answer.accepted and answer.action == "yes")
 
-    @dokime.criterion("Within Limit")
-    async def within_limit(self, ctx):
-        statistics = await ctx.statistics("example.reading", step="measure")
-        confirmation = await ctx.records("example.confirmation").last()
-        return statistics.count > 0 and statistics.max < self.limit and confirmation is not None and confirmation.value
-
-    async def cleanup(self, ctx):
-        await ctx.log("Capture resources released")
+    @dokime.criterion("Confirmed", identifier="confirmed")
+    async def confirmed(self, ctx):
+        confirmation = await ctx.records("example.confirmation", step="confirm").last()
+        return confirmation is not None and confirmation.value
 
 
 # === Public Functions === #
@@ -86,20 +53,27 @@ class Capture:
 
 def plugin():
     needed = {
-        "dokime.context.v1.Prompts/Create",
-        "dokime.context.v1.evidence.Records/Append",
-        "dokime.context.v1.evidence.Records/List",
-        "dokime.context.v1.Evidence/Statistics",
-        "dokime.context.v1.executions.Progress/Get",
-        "dokime.context.v1.executions.Progress/Set",
-        "dokime.context.v1.evidence.Logs/Append",
-        "harmos.context.v1.Time/Sleep",
+        "dokime.plugin.host.v1.Prompts/Create",
+        "dokime.plugin.host.v1.evidence.Records/Append",
+        "dokime.plugin.host.v1.evidence.Records/List",
     }
+    definition = message(
+        "PromptDefinitions",
+        prompts=[
+            message(
+                "Prompt",
+                metadata={"identifier": "example.confirmation", "label": "Confirmation"},
+                message="Continue?",
+                actions=[{"identifier": "yes", "label": "Yes"}, {"identifier": "no", "label": "No"}],
+            )
+        ],
+    )
     return dokime.Plugin(
         "example",
         "0.1.0",
-        suites=[Capture],
+        suites=[dokime.Suite("example", [dokime.Template("example.capture", Capture, "Capture")], "Example")],
         records=[dokime.Record("example.confirmation", BoolValue, "Confirmation")],
+        sections=[definition],
         requires=[operation for operation in HOST_OPERATIONS if operation.id in needed],
     )
 

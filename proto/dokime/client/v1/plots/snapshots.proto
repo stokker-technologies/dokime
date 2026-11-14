@@ -1,0 +1,303 @@
+syntax = "proto3";
+package dokime.client.v1.plots;
+option csharp_namespace = "Dokime.Protocol.Client.V1.PlotsResources";
+import "dokime/v1/analyses.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/formatting.proto";
+import "dokime/v1/plots.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/v1/types.proto";
+
+message AnalysisComputation {
+  .dokime.v1.Analysis definition = 1;
+  .dokime.v1.AnalysisSelection selection = 2;
+  .dokime.client.v1.plots.AnalysisEvidence source = 3;
+  repeated .dokime.client.v1.plots.AnalysisSeries series = 4;
+}
+
+message AnalysisEvidence {
+  string store = 1;
+  string epoch = 2;
+  uint64 position = 3;
+  string stream = 4;
+  .dokime.v1.EvidenceScope scope = 5;
+  optional double window_s = 6;
+  repeated string fields = 7;
+  string x_key = 8;
+}
+
+message AnalysisSeries {
+  string key = 1;
+  string label = 2;
+  optional string origin = 3;
+  uint64 input_samples = 4;
+  double first_axis = 5;
+  double last_axis = 6;
+  repeated .dokime.v1.AnalysisValues outputs = 7;
+}
+
+message ContourGrid {
+  uint32 columns = 1;
+  uint32 rows = 2;
+  repeated double x_edges = 3;
+  repeated double y_edges = 4;
+  repeated double values = 5;
+  repeated bool valid = 6;
+}
+
+message GridCell {
+  uint32 row = 1;
+  uint32 column = 2;
+  string label = 3;
+}
+
+message GridFrame {
+  string instant = 1;
+  repeated double values = 2;
+  repeated bool valid = 3;
+  repeated .dokime.client.v1.plots.GridCell highlights = 4;
+}
+
+message GridFrames {
+  repeated .dokime.v1.GridAxisEntry rows = 1;
+  repeated .dokime.v1.GridAxisEntry columns = 2;
+  repeated .dokime.client.v1.plots.GridFrame frames = 3;
+  string summary_label = 4;
+}
+
+message NullableNumber {
+  optional double value = 1;
+}
+
+message PlotAnalysis {
+  .dokime.client.v1.plots.PlotAnalysisResult result = 1;
+}
+
+message PlotAnalysisError {
+  string message = 1;
+}
+
+message PlotAnalysisResult {
+  oneof kind {
+    .dokime.client.v1.plots.ContourGrid contour = 1;
+    .dokime.client.v1.plots.GridFrames grid_chart = 2;
+    .dokime.client.v1.plots.PlotHistogramAnalysis histogram = 3;
+    .dokime.client.v1.plots.PlotBoxSummaryAnalysis box_plot = 4;
+    .dokime.client.v1.plots.PlotSigmaIntervalAnalysis sigma_interval = 5;
+    .dokime.client.v1.plots.PlotAnalysisError error = 6;
+  }
+}
+
+message PlotBoxSummary {
+  string key = 1;
+  uint64 count = 2;
+  double min = 3;
+  double q1 = 4;
+  double median = 5;
+  double q3 = 6;
+  double max = 7;
+  double lower_whisker = 8;
+  double upper_whisker = 9;
+  repeated double outliers = 10;
+  string label = 11;
+}
+
+message PlotBoxSummaryAnalysis {
+  repeated .dokime.client.v1.plots.PlotBoxSummary series = 1;
+  uint64 total = 2;
+}
+
+enum PlotCartesianMode {
+  PLOT_CARTESIAN_MODE_UNSPECIFIED = 0;
+  PLOT_CARTESIAN_MODE_ALIGNED = 1;
+  PLOT_CARTESIAN_MODE_FACETED = 2;
+}
+
+message PlotColumn {
+  repeated string instants = 1;
+  repeated .dokime.v1.Value x = 2;
+  repeated .dokime.client.v1.plots.NullableNumber y = 3;
+  repeated .dokime.client.v1.plots.NullableNumber z = 4;
+}
+
+message PlotDomain {
+  double min = 1;
+  double max = 2;
+}
+
+message PlotEnvelope {
+  string plot_id = 1;
+  uint64 revision = 2;
+  string epoch = 3;
+  string selection = 4;
+  .dokime.client.v1.plots.PlotPayload payload = 5;
+  .dokime.client.v1.plots.PlotPayloadDiagnostics diagnostics = 6;
+  repeated string warnings = 7;
+}
+
+message PlotFrame {
+  optional .dokime.client.v1.plots.PlotCartesianMode mode = 1;
+  repeated double time = 2;
+  repeated .dokime.client.v1.plots.PlotColumn series = 3;
+  .dokime.client.v1.plots.PlotDomain x_domain = 4;
+  .dokime.client.v1.plots.PlotDomain y_domain = 5;
+  uint64 point_count = 6;
+  string signature = 7;
+}
+
+message PlotHistogramAnalysis {
+  repeated .dokime.client.v1.plots.PlotHistogramSeries series = 1;
+}
+
+message PlotHistogramBin {
+  double lower = 1;
+  double upper = 2;
+  uint64 count = 3;
+}
+
+message PlotHistogramSeries {
+  string key = 1;
+  repeated .dokime.client.v1.plots.PlotHistogramBin bins = 2;
+  uint64 count = 3;
+  .dokime.client.v1.plots.PlotHistogramStatistics statistics = 4;
+}
+
+message PlotHistogramStatistics {
+  double mean = 1;
+  double median = 2;
+  double std = 3;
+  double rms = 4;
+  double min = 5;
+  double max = 6;
+}
+
+message PlotMarker {
+  .dokime.v1.Value x = 1;
+  string label = 2;
+  string record_type = 3;
+  string color = 4;
+}
+
+message PlotPayload {
+  string stream = 1;
+  string x_key = 2;
+  optional string series_by = 3;
+  .dokime.v1.Value context = 4;
+  repeated .dokime.client.v1.plots.PlotSeries series = 5;
+  .dokime.client.v1.plots.PlotFrame frame = 6;
+  repeated .dokime.client.v1.plots.PlotMarker markers = 7;
+  uint64 max_points = 8;
+  optional double window_s = 9;
+  string generated_at = 10;
+  .dokime.v1.ValueFormat x_format = 11;
+  optional string run_started_at = 12;
+  optional string cycle_started_at = 13;
+  .dokime.client.v1.plots.PlotAnalysis analysis = 14;
+  .dokime.client.v1.plots.AnalysisComputation computed = 15;
+  repeated .dokime.client.v1.plots.PlotSeriesSummary summaries = 16;
+  optional double bucket_width_s = 17;
+  .dokime.v1.PlotWindow bucket_window = 18;
+  repeated double replaced_buckets = 19;
+}
+
+message PlotPayloadDiagnostics {
+  // Number of retained source rows consumed by this window reduction.
+  uint64 examined_rows = 7;
+  // Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+  uint64 resolution_nanos = 8;
+  uint64 series_count = 1;
+  uint64 point_count = 2;
+  uint64 raw_point_count = 3;
+  bool downsampled = 4;
+  uint64 max_points = 5;
+  optional double window_s = 6;
+}
+
+message PlotSeries {
+  string key = 1;
+  string label = 2;
+  optional string unit = 3;
+  uint64 raw_points = 4;
+  bool downsampled = 5;
+  .dokime.v1.ValueFormat format = 6;
+}
+
+message PlotSeriesSummary {
+  string series_id = 1;
+  uint64 count = 2;
+  optional double min = 3;
+  optional double max = 4;
+  optional double mean = 5;
+  optional double median = 6;
+  optional double std = 7;
+  optional double rms = 8;
+  .dokime.v1.PlotWindow window = 9;
+}
+
+message PlotSigmaBin {
+  double x = 1;
+  uint64 count = 2;
+  double mean = 3;
+  double lower = 4;
+  double upper = 5;
+}
+
+message PlotSigmaIntervalAnalysis {
+  repeated .dokime.client.v1.plots.PlotSigmaSeries series = 1;
+}
+
+message PlotSigmaSeries {
+  string key = 1;
+  repeated .dokime.client.v1.plots.PlotSigmaBin bins = 2;
+  uint64 raw_points = 3;
+}
+
+enum PlotStreamKind {
+  PLOT_STREAM_KIND_UNSPECIFIED = 0;
+  PLOT_STREAM_KIND_SNAPSHOT = 1;
+  PLOT_STREAM_KIND_REPLACE = 2;
+  PLOT_STREAM_KIND_DELTA = 3;
+  PLOT_STREAM_KIND_STATISTICS = 4;
+  PLOT_STREAM_KIND_ERROR = 5;
+}
+
+message PlotStreamUpdate {
+  .dokime.client.v1.plots.PlotStreamKind kind = 1;
+  .dokime.client.v1.plots.PlotEnvelope envelope = 2;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message SnapshotsListRequest {
+  repeated .dokime.v1.PlotRequest requests = 1;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message SnapshotsListResponse {
+  repeated .dokime.client.v1.plots.PlotEnvelope envelopes = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message SnapshotsWatchRequest {
+  repeated .dokime.v1.PlotRequest requests = 1;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message SnapshotsWatchResponse {
+  repeated .dokime.client.v1.plots.PlotStreamUpdate updates = 1;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Snapshots {
+  // Public. Identity: dokime.client.v1.plots.Snapshots/List
+  rpc List(.dokime.client.v1.plots.SnapshotsListRequest) returns (.dokime.client.v1.plots.SnapshotsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.plots.SnapshotsWatchRequest) returns (stream .dokime.client.v1.plots.SnapshotsWatchResponse);
+}

@@ -27,7 +27,7 @@ use dokime_protocol::{context::executions::ProgressSetRequest, context::executio
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.executions.Progress/Set";
+pub const ID: &str = "dokime.plugin.host.v1.executions.Progress/Set";
 
 /* === Macros === */
 

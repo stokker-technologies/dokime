@@ -23,7 +23,37 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::v1;
+use dokime_protocol::client::EvidenceArchiveRequest;
+use dokime_protocol::client::EvidenceSubject;
+use dokime_protocol::client::FilesDeleteRequest;
+use dokime_protocol::client::FilesGetRequest;
+use dokime_protocol::client::FilesReadRequest;
+use dokime_protocol::client::content::ArtifactsCreateRequest;
+use dokime_protocol::client::content::ArtifactsGetRequest;
+use dokime_protocol::client::content::ArtifactsListRequest;
+use dokime_protocol::client::content::ExecutionFileKind;
+use dokime_protocol::client::content::ExecutionFileMetadata;
+use dokime_protocol::client::content::ExecutionFileState;
+use dokime_protocol::client::content::ExecutionFilesGetRequest;
+use dokime_protocol::client::content::ExecutionFilesListRequest;
+use dokime_protocol::client::content::artifacts_client::ArtifactsClient;
+use dokime_protocol::client::content::execution_files_client::ExecutionFilesClient;
+use dokime_protocol::client::evidence_client::EvidenceClient;
+use dokime_protocol::client::evidence_subject::Kind as EvidenceSubjectKind;
+use dokime_protocol::client::files::UploadsAppendRequest;
+use dokime_protocol::client::files::UploadsCreateRequest;
+use dokime_protocol::client::files::UploadsGetRequest;
+use dokime_protocol::client::files::UploadsPublishRequest;
+use dokime_protocol::client::files::UploadsResumeRequest;
+use dokime_protocol::client::files::uploads_client::UploadsClient;
+use dokime_protocol::client::files_client::FilesClient;
+use dokime_storage::CONTENT_CHUNK_BYTES;
 use dokime_storage::{Execution, Store};
+use harmos_protocol::storage::FileMetadata;
+use harmos_protocol::storage::StagedFile;
+use harmos_protocol::v1::PageRequest;
+use std::error::Error;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -46,7 +76,7 @@ use dokime_storage::{Execution, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Registered Files and an Independent Execution
         let root = super::support::tempdir()?;
@@ -63,11 +93,11 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
                 ..Default::default()
             })?;
         }
-        let file = v1::ExecutionFileMetadata {
+        let file = ExecutionFileMetadata {
             relative_path: "logs/output.txt".into(),
             content_type: Some("text/plain".into()),
-            kind: v1::ExecutionFileKind::Text as i32,
-            state: v1::ExecutionFileState::Streaming as i32,
+            kind: ExecutionFileKind::Text as i32,
+            state: ExecutionFileState::Streaming as i32,
             ..Default::default()
         };
         store.register_execution_file("file-original", "content-a", file.clone())?;
@@ -77,316 +107,308 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         store.append_content("file-replacement", 0, b"replacement\n")?;
         store.finish_execution_file("file-replacement", false)?;
 
-        // Upload Ordered Chunks with an Explicit Digest Completion
-        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut content = v1::content_client::ContentClient::new(channel);
-        let bytes = vec![42; 140_003];
-        let sha256 = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        let header = v1::UploadArtifactHeader {
+        let bytes = vec![42; 140003];
+        let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        store.begin_artifact(v1::ArtifactMetadata {
+            artifact_id: "uploaded".into(),
             scope: Some(v1::ArtifactScope {
-                cycle_id: Some("content-cycle".into()),
                 execution_id: Some("content-a".into()),
+                cycle_id: Some("content-cycle".into()),
                 ..Default::default()
             }),
             filename: "capture.bin".into(),
             size_bytes: bytes.len() as u64,
-            sha256: Some(sha256.clone()),
+            sha256: digest.clone(),
             ..Default::default()
-        };
-        let mut input = vec![
-            v1::ContentUploadArtifactInput {
-                value: Some(v1::content_upload_artifact_input::Value::Request(v1::ContentUploadArtifactRequest {})),
-            },
-            v1::ContentUploadArtifactInput {
-                value: Some(v1::content_upload_artifact_input::Value::Item(v1::UploadArtifactFrame {
-                    payload: Some(v1::UploadArtifactFramePayload {
-                        kind: Some(v1::upload_artifact_frame_payload::Kind::Header(header.clone())),
-                    }),
-                })),
-            },
-        ];
-        for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
-            input.push(v1::ContentUploadArtifactInput {
-                value: Some(v1::content_upload_artifact_input::Value::Item(v1::UploadArtifactFrame {
-                    payload: Some(v1::UploadArtifactFramePayload {
-                        kind: Some(v1::upload_artifact_frame_payload::Kind::Chunk(v1::ArtifactChunk {
-                            offset: (index * 64 * 1024) as u64,
-                            data: chunk.to_vec(),
-                        })),
-                    }),
-                })),
-            });
+        })?;
+        for (index, chunk) in bytes.chunks(CONTENT_CHUNK_BYTES).enumerate() {
+            store.append_content("uploaded", (index * CONTENT_CHUNK_BYTES) as u64, chunk)?;
         }
-        let missing_completion = input.clone();
-        assert!(content.upload_artifact(tokio_stream::iter(missing_completion)).await.is_err());
-        input.push(v1::ContentUploadArtifactInput {
-            value: Some(v1::content_upload_artifact_input::Value::Item(v1::UploadArtifactFrame {
-                payload: Some(v1::UploadArtifactFramePayload {
-                    kind: Some(v1::upload_artifact_frame_payload::Kind::Complete(v1::ArtifactCompletion {
-                        size_bytes: bytes.len() as u64,
-                        sha256: sha256.clone(),
-                    })),
-                }),
-            })),
-        });
-        let mut trailing = input.clone();
-        trailing.push(v1::ContentUploadArtifactInput::default());
-        assert!(content.upload_artifact(tokio_stream::iter(trailing)).await.is_err());
-        let artifact = content.upload_artifact(tokio_stream::iter(input)).await?.into_inner();
-        assert_eq!(artifact.sha256, sha256);
-        let page = content.list_artifacts(v1::ContentListArtifactsRequest::default()).await?.into_inner();
-        assert_eq!(page.artifacts, vec![artifact.clone()]);
-
-        // Cancel a Staged Run Upload Without Exposing Its Prefix
-        let input = vec![
-            v1::ContentUploadArtifactRunInput {
-                value: Some(v1::content_upload_artifact_run_input::Value::Request(v1::ContentUploadArtifactRequest {})),
-            },
-            v1::ContentUploadArtifactRunInput {
-                value: Some(v1::content_upload_artifact_run_input::Value::Item(v1::UploadArtifactFrame {
-                    payload: Some(v1::UploadArtifactFramePayload {
-                        kind: Some(v1::upload_artifact_frame_payload::Kind::Header(header)),
-                    }),
-                })),
-            },
-            v1::ContentUploadArtifactRunInput {
-                value: Some(v1::content_upload_artifact_run_input::Value::Cancel(v1::ClientEmpty {})),
-            },
-        ];
-        assert_eq!(content.run_upload_artifact(tokio_stream::iter(input)).await.unwrap_err().code(), tonic::Code::Cancelled);
-        assert_eq!(content.list_artifacts(v1::ContentListArtifactsRequest::default()).await?.into_inner().artifacts.len(), 1);
-
-        // Verify Metadata, Contiguous Download Chunks, Digest and Final Status
-        let mut download = content
-            .download_artifact(v1::ContentDownloadArtifactRequest {
-                artifact_id: artifact.artifact_id.clone(),
-            })
-            .await?
-            .into_inner();
-        let mut downloaded = Vec::new();
-        let mut complete = false;
-        let mut terminal = false;
-        while let Some(frame) = download.message().await? {
-            match frame.value.unwrap() {
-                v1::content_download_artifact_output::Value::Item(frame) => match frame.payload.unwrap().kind.unwrap() {
-                    v1::artifact_frame_payload::Kind::Metadata(metadata) => assert_eq!(metadata, artifact),
-                    v1::artifact_frame_payload::Kind::Chunk(chunk) => {
-                        assert_eq!(chunk.offset, downloaded.len() as u64);
-                        assert!(chunk.data.len() <= 64 * 1024);
-                        downloaded.extend(chunk.data);
-                    }
-                    v1::artifact_frame_payload::Kind::Complete(value) => {
-                        assert_eq!(value.sha256, sha256);
-                        assert_eq!(value.size_bytes, bytes.len() as u64);
-                        complete = true;
-                    }
-                },
-                v1::content_download_artifact_output::Value::Response(_) => {
-                    assert!(complete);
-                    terminal = true;
-                }
-            }
-        }
-        assert!(terminal);
-        assert_eq!(downloaded, bytes);
-
-        // Finish Run Input While Draining the Complete Download
-        let request = v1::ContentDownloadArtifactRunInput {
-            value: Some(v1::content_download_artifact_run_input::Value::Request(v1::ContentDownloadArtifactRequest {
-                artifact_id: artifact.artifact_id.clone(),
-            })),
-        };
-        let finish = v1::ContentDownloadArtifactRunInput {
-            value: Some(v1::content_download_artifact_run_input::Value::Finish(v1::ClientEmpty {})),
-        };
-        let mut run = content.run_download_artifact(tokio_stream::iter([request, finish])).await?.into_inner();
-        let mut run_complete = false;
-        let mut run_terminal = false;
-        while let Some(frame) = run.message().await? {
-            match frame.value.unwrap() {
-                v1::content_download_artifact_run_output::Value::Item(frame) => {
-                    if matches!(frame.payload.and_then(|payload| payload.kind), Some(v1::artifact_frame_payload::Kind::Complete(_))) {
-                        run_complete = true;
-                    }
-                }
-                v1::content_download_artifact_run_output::Value::Response(_) => {
-                    assert!(run_complete);
-                    run_terminal = true;
-                }
-            }
-        }
-        assert!(run_terminal);
-
-        // List Logical Files, Clamp a Window and Reject Arbitrary Paths
-        let files = content
-            .list_execution_files(v1::ContentListExecutionFilesRequest {
-                execution_id: "content-a".into(),
+        store.finish_artifact("uploaded", bytes.len() as u64, &digest)?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let mut artifacts = ArtifactsClient::new(channel.clone());
+        let mut files = ExecutionFilesClient::new(channel);
+        let first = artifacts
+            .list(ArtifactsListRequest {
+                page: Some(PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             })
             .await?
             .into_inner();
-        assert_eq!(files.files.len(), 1);
-        let window = content
-            .read_execution_file(v1::ContentReadExecutionFileRequest {
-                execution_id: "content-a".into(),
-                relative_path: "logs/output.txt".into(),
-                offset: 3,
-                max_bytes: 4,
+        assert_eq!(first.artifacts.len(), 1);
+        let uploaded = artifacts
+            .get(ArtifactsGetRequest {
+                name: "uploaded".into(),
+                ..Default::default()
             })
             .await?
             .into_inner();
-        assert_eq!(window.data, b"lace");
-        let window = content
-            .read_execution_file(v1::ContentReadExecutionFileRequest {
-                execution_id: "content-a".into(),
-                relative_path: "logs/output.txt".into(),
-                offset: 99,
-                max_bytes: 4,
-            })
-            .await?
-            .into_inner();
-        assert_eq!(window.offset, 12);
-        assert!(window.data.is_empty());
-        assert!(
-            content
-                .read_execution_file(v1::ContentReadExecutionFileRequest {
-                    execution_id: "content-b".into(),
-                    relative_path: "logs/output.txt".into(),
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-        assert!(
-            content
-                .read_execution_file(v1::ContentReadExecutionFileRequest {
-                    execution_id: "content-a".into(),
-                    relative_path: "../execution.sqlite3".into(),
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-
-        // Follow the Original Retained Identity and Require It When Resuming
-        let request = v1::ContentFollowExecutionFileRequest {
-            execution_id: "content-a".into(),
-            relative_path: "logs/output.txt".into(),
-            ..Default::default()
+        let reference = uploaded.file.unwrap();
+        assert_eq!(reference.length, bytes.len() as u64);
+        assert_eq!(reference.sha256, Sha256::digest(&bytes).as_slice());
+        let request = ArtifactsCreateRequest {
+            file: Some(reference.clone()),
+            scope: Some(v1::ArtifactScope {
+                execution_id: Some("content-a".into()),
+                cycle_id: Some("content-cycle".into()),
+                ..Default::default()
+            }),
+            filename: "attached.bin".into(),
+            content_type: "application/octet-stream".into(),
+            request_id: "attach".into(),
         };
-        let mut follow = content.follow_execution_file(request.clone()).await?.into_inner();
-        let mut identity = None;
-        let mut followed = Vec::new();
-        let mut final_length = None;
-        while let Some(frame) = follow.message().await? {
-            if let Some(v1::content_follow_execution_file_output::Value::Item(frame)) = frame.value {
-                match frame.payload.unwrap().kind.unwrap() {
-                    v1::execution_file_follow_frame_payload::Kind::Metadata(metadata) => identity = metadata.identity,
-                    v1::execution_file_follow_frame_payload::Kind::Chunk(chunk) => {
-                        assert_eq!(chunk.offset, followed.len() as u64);
-                        followed.extend(chunk.data);
-                    }
-                    v1::execution_file_follow_frame_payload::Kind::Terminal(terminal) => final_length = Some(terminal.length),
-                }
-            }
-        }
-        assert_eq!(followed, b"replacement\n");
-        assert_eq!(final_length, Some(12));
-        assert!(content.follow_execution_file(v1::ContentFollowExecutionFileRequest { offset: 4, ..request.clone() }).await.is_err());
-        let mut resumed =
-            content.follow_execution_file(v1::ContentFollowExecutionFileRequest { offset: 4, identity, ..request }).await?.into_inner();
-        while resumed.message().await?.is_some() {}
-
-        // Run Unary Plugin Artifact Calls with Replacement, Replay and Abort
-        let fixture = super::support::content_fixture()?;
-        let settings = super::support::settings();
-        let mut plugin = dokime_runtime_next::PluginProcess::start(&fixture, true, &settings.placement).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel, super::support::client_settings())?;
-        client.plugins.add(plugin.endpoint()).await?;
-        let cases = client.templates.materialize("content", "content.capture", std::collections::HashMap::new()).await?;
-        let cycle = client.cycles.start(cases).await?;
-        let execution = cycle.executions[0].clone();
-        let mut progress = cycle.watch();
-        while progress.next().await?.is_some() {}
-        let detail = client.executions.get(execution.clone()).await?;
-        assert_eq!(detail.summary.unwrap().state, v1::ExecutionState::Sealed as i32);
-        let artifacts = content.list_artifacts(v1::ContentListArtifactsRequest::default()).await?.into_inner().artifacts;
-        assert_eq!(artifacts.len(), 2);
-        let produced = artifacts.iter().find(|artifact| artifact.filename == "producer.txt").unwrap();
-        assert_eq!(produced.size_bytes, 12);
-        let mut download = content
-            .download_artifact(v1::ContentDownloadArtifactRequest {
-                artifact_id: produced.artifact_id.clone(),
+        let attached = artifacts.create(request.clone()).await?.into_inner();
+        assert_eq!(artifacts.create(request.clone()).await?.into_inner(), attached);
+        let mut foreign = request;
+        foreign.scope.as_mut().unwrap().execution_id = Some("content-b".into());
+        assert!(artifacts.create(foreign).await.is_err());
+        let file = files
+            .get(ExecutionFilesGetRequest {
+                parent: "content-a".into(),
+                name: "logs/output.txt".into(),
+                ..Default::default()
             })
             .await?
             .into_inner();
-        let mut produced_bytes = Vec::new();
-        while let Some(frame) = download.message().await? {
-            if let Some(v1::content_download_artifact_output::Value::Item(frame)) = frame.value
-                && let Some(v1::artifact_frame_payload::Kind::Chunk(chunk)) = frame.payload.and_then(|payload| payload.kind)
-            {
-                produced_bytes.extend(chunk.data);
-            }
-        }
-        assert_eq!(produced_bytes, b"replacement\n");
-
-        // Download a Sealed Evidence Archive Through Ordered Frames
-        let mut evidence = content
-            .download_evidence(v1::ContentDownloadEvidenceRequest {
-                subject: Some(v1::EvidenceSubject {
-                    kind: Some(v1::evidence_subject::Kind::Execution(execution.clone())),
-                }),
-            })
-            .await?
-            .into_inner();
-        let mut archive = Vec::new();
-        let mut evidence_complete = false;
-        let mut evidence_terminal = false;
-        while let Some(frame) = evidence.message().await? {
-            match frame.value.unwrap() {
-                v1::content_download_evidence_output::Value::Item(frame) => match frame.payload.unwrap().kind.unwrap() {
-                    v1::evidence_export_payload::Kind::Metadata(_) => (),
-                    v1::evidence_export_payload::Kind::Chunk(chunk) => {
-                        assert_eq!(chunk.offset, archive.len() as u64);
-                        archive.extend(chunk.data);
-                    }
-                    v1::evidence_export_payload::Kind::Complete(complete) => {
-                        assert_eq!(complete.size_bytes, archive.len() as u64);
-                        evidence_complete = true;
-                    }
-                },
-                v1::content_download_evidence_output::Value::Response(_) => {
-                    assert!(evidence_complete);
-                    evidence_terminal = true;
-                }
-            }
-        }
-        assert!(evidence_terminal);
-        use dokime::encoding::Message;
-        let archive = dokime_storage::ExecutionArchive::decode(archive.as_slice())?;
-        assert_eq!(archive.execution.unwrap().identifier, execution);
-        assert!(archive.content.iter().any(|content| content.identifier == produced.artifact_id));
-        assert_eq!(
-            archive
-                .content_chunks
-                .iter()
-                .filter(|chunk| chunk.identifier == produced.artifact_id)
-                .flat_map(|chunk| chunk.payload.clone())
-                .collect::<Vec<_>>(),
-            b"replacement\n"
+        assert_eq!(file.metadata.as_ref().unwrap().size_bytes, 12);
+        let file = file.file.unwrap();
+        assert_eq!(store.content_window(&file.metadata.as_ref().unwrap().id, 0, 64)?, b"replacement\n");
+        assert_eq!(store.content_window("file-original", 0, 64)?, b"original\n");
+        assert!(
+            files
+                .get(ExecutionFilesGetRequest {
+                    parent: "content-b".into(),
+                    name: "logs/output.txt".into(),
+                    ..Default::default()
+                })
+                .await
+                .is_err()
         );
-
-        // Reopen Published Content Without Exposing Abandoned Uploads
+        assert!(
+            files
+                .get(ExecutionFilesGetRequest {
+                    parent: "content-a".into(),
+                    name: "../logs/output.txt".into(),
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
+        let listed = files
+            .list(ExecutionFilesListRequest {
+                parent: "content-a".into(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert_eq!(listed.files.len(), 1);
+        let attached = attached.artifact.unwrap();
+        let stored = store.content(&attached.artifact_id)?;
+        assert_eq!(stored.length, bytes.len() as u64);
+        let mut actual = Vec::new();
+        while actual.len() < bytes.len() {
+            actual.extend(store.content_window(&stored.identifier, actual.len() as u64, CONTENT_CHUNK_BYTES)?);
+        }
+        assert_eq!(actual, bytes);
+        // Resume a Lost-Reply Upload Without Reapplying Its Chunks.
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let mut uploads = UploadsClient::new(channel.clone());
+        let mut file_client = FilesClient::new(channel);
+        let opening = UploadsCreateRequest {
+            metadata: Some(FileMetadata {
+                scope: Some("content-a".into()),
+                media_type: "application/octet-stream".into(),
+                expected_length: Some(bytes.len() as u64),
+                ..Default::default()
+            }),
+            request_id: "resumable-file".into(),
+        };
+        let created = uploads.create(opening.clone()).await?.into_inner();
+        assert_eq!(uploads.create(opening).await?.into_inner(), created);
+        let original_session = created.production.unwrap().session.unwrap();
+        let split = bytes.len().min(created.chunk_bytes as usize).min(17);
+        let append = UploadsAppendRequest {
+            session: Some(original_session.clone()),
+            offset: 0,
+            data: bytes[..split].to_vec(),
+            request_id: "first-chunk".into(),
+        };
+        let first_chunk = uploads.append(append.clone()).await?.into_inner();
+        assert_eq!(uploads.append(append.clone()).await?.into_inner(), first_chunk);
+        let mut changed = append.clone();
+        changed.data[0] ^= 1;
+        assert!(uploads.append(changed).await.is_err());
+        let staged = StagedFile {
+            history: original_session.history.clone(),
+            id: original_session.id.clone(),
+        };
+        let progress = uploads.get(UploadsGetRequest { file: Some(staged.clone()), at: None }).await?.into_inner();
+        assert_eq!(progress.accepted_length, split as u64);
+        assert_eq!(progress.durable_length, split as u64);
+        let resumed = uploads
+            .resume(UploadsResumeRequest {
+                session: Some(original_session.clone()),
+                request_id: "resume-file".into(),
+            })
+            .await?
+            .into_inner();
+        let session = resumed.production.unwrap().session.unwrap();
+        let stale = UploadsAppendRequest {
+            session: Some(original_session),
+            offset: split as u64,
+            data: vec![1],
+            request_id: "stale-writer".into(),
+        };
+        assert!(uploads.append(stale).await.is_err());
+        let mut offset = split;
+        while offset < bytes.len() {
+            let end = bytes.len().min(offset + resumed.chunk_bytes as usize);
+            uploads
+                .append(UploadsAppendRequest {
+                    session: Some(session.clone()),
+                    offset: offset as u64,
+                    data: bytes[offset..end].to_vec(),
+                    request_id: format!("remaining-{offset}"),
+                })
+                .await?;
+            offset = end;
+        }
+        let publish = UploadsPublishRequest {
+            session: Some(session),
+            length: bytes.len() as u64,
+            sha256: Sha256::digest(&bytes).to_vec(),
+            request_id: "publish-file".into(),
+        };
+        let published = uploads.publish(publish.clone()).await?.into_inner();
+        assert_eq!(uploads.publish(publish).await?.into_inner(), published);
+        let selected = file_client.get(FilesGetRequest { file: published.file, at: None }).await?.into_inner();
+        let mut read = Vec::new();
+        while read.len() < bytes.len() {
+            let page = file_client
+                .read(FilesReadRequest {
+                    file: selected.file.clone(),
+                    offset: read.len() as u64,
+                    max_bytes: selected.chunk_bytes,
+                    at: selected.resolved_at.clone(),
+                })
+                .await?
+                .into_inner();
+            assert_eq!(page.resolved_at, selected.resolved_at);
+            assert!(!page.data.is_empty());
+            read.extend(page.data);
+        }
+        assert_eq!(read, bytes);
+        // Follow Host-Owned Appends and Drain the Final Chunk Before Completion.
+        let growing = uploads
+            .create(UploadsCreateRequest {
+                metadata: Some(FileMetadata {
+                    scope: Some("content-a".into()),
+                    ..Default::default()
+                }),
+                request_id: "growing/create".into(),
+            })
+            .await?
+            .into_inner();
+        let session = growing.production.unwrap().session.unwrap();
+        uploads
+            .append(UploadsAppendRequest {
+                session: Some(session.clone()),
+                offset: 0,
+                data: b"first".to_vec(),
+                request_id: "growing/first".into(),
+            })
+            .await?;
+        let growing = file_client
+            .get(FilesGetRequest {
+                file: Some(harmos_protocol::storage::FileReference {
+                    metadata: Some(FileMetadata {
+                        id: session.id.clone(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                at: None,
+            })
+            .await?
+            .into_inner();
+        let mut watch =
+            file_client.watch(dokime_protocol::client::FilesWatchRequest { file: growing.file, offset: 0, at: None }).await?.into_inner();
+        let first = watch.message().await?.unwrap().data.unwrap();
+        assert_eq!(first.bytes, b"first");
+        uploads
+            .append(UploadsAppendRequest {
+                session: Some(session.clone()),
+                offset: 5,
+                data: b"last".to_vec(),
+                request_id: "growing/last".into(),
+            })
+            .await?;
+        uploads
+            .publish(UploadsPublishRequest {
+                session: Some(session),
+                length: 9,
+                sha256: Sha256::digest(b"firstlast").to_vec(),
+                request_id: "growing/publish".into(),
+            })
+            .await?;
+        let mut followed = first.bytes;
+        let mut completed = false;
+        while let Some(frame) = watch.message().await? {
+            if let Some(data) = frame.data {
+                assert_eq!(data.offset, followed.len() as u64);
+                followed.extend(data.bytes);
+            }
+            if let Some(completion) = frame.completion {
+                assert_eq!(completion.bytes, followed.len() as u64);
+                completed = true;
+            }
+        }
+        assert!(completed);
+        assert_eq!(followed, b"firstlast");
+        // The SDK Convenience Publishes an Unscoped Host File with the Same Resource.
+        let upload_path = root.path().join("client-upload.bin");
+        std::fs::write(&upload_path, &bytes)?;
+        let sdk = dokime::client::HostClient::new(
+            Endpoint::from_shared(process.url.clone())?.connect().await?,
+            super::support::client_settings(),
+        )?;
+        let uploaded = sdk.files.upload(&upload_path).await?;
+        assert_eq!(uploaded.sha256, Sha256::digest(&bytes).to_vec());
+        let deleted = FilesDeleteRequest {
+            file: Some(uploaded),
+            request_id: "delete-file".into(),
+        };
+        let receipt = file_client.delete(deleted.clone()).await?.into_inner();
+        assert_eq!(file_client.delete(deleted).await?.into_inner(), receipt);
+        store.close_streams("content-a")?;
+        store.close("content-a", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.seal("content-a")?;
+        let mut evidence = EvidenceClient::connect(process.url.clone()).await?;
+        let archived = evidence
+            .archive(EvidenceArchiveRequest {
+                subject: Some(EvidenceSubject {
+                    kind: Some(EvidenceSubjectKind::Execution("content-a".into())),
+                }),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert!(archived.file.unwrap().length > bytes.len() as u64);
         process.close().await?;
-        plugin.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut content = v1::content_client::ContentClient::new(channel);
-        assert_eq!(content.list_artifacts(v1::ContentListArtifactsRequest::default()).await?.into_inner().artifacts, artifacts);
+        let mut artifacts = ArtifactsClient::connect(process.url.clone()).await?;
+        let restored = artifacts
+            .get(ArtifactsGetRequest {
+                name: attached.artifact_id.clone(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert_eq!(restored.metadata, Some(attached));
+        assert_eq!(restored.file.unwrap().sha256, reference.sha256);
         process.close().await?;
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }

@@ -36,7 +36,7 @@ use sha2::{Digest, Sha256};
 
 pub struct Expansion {
     pub document: v1::Document,
-    pub frames: Vec<v1::document_frame_frame::Kind>,
+    pub frames: Vec<dokime_protocol::client::document_frame_frame::Kind>,
     pub next: Option<usize>,
 }
 struct Reader<'a> {
@@ -47,7 +47,7 @@ struct Reader<'a> {
     remaining: usize,
     visited: usize,
     more: bool,
-    frames: Vec<v1::document_frame_frame::Kind>,
+    frames: Vec<dokime_protocol::client::document_frame_frame::Kind>,
 }
 
 /* === Enums === */
@@ -77,11 +77,13 @@ impl Reader<'_> {
                 let (values, total) =
                     self.store.document_distinct(self.cut, expression, repeat.order_by.as_ref(), filters, offset, self.page_size)?;
                 if offset == 0 {
-                    selection_frame = Some(v1::document_frame_frame::Kind::RepeatSelection(v1::DocumentRepeatSelection {
-                        node_id: selection.clone(),
-                        instance_count: total,
-                        pending: false,
-                    }));
+                    selection_frame = Some(dokime_protocol::client::document_frame_frame::Kind::RepeatSelection(
+                        dokime_protocol::client::DocumentRepeatSelection {
+                            node_id: selection.clone(),
+                            instance_count: total,
+                            pending: false,
+                        },
+                    ));
                 }
                 if values.is_empty() {
                     break;
@@ -115,13 +117,15 @@ impl Reader<'_> {
                     instance.metadata = Some(metadata);
                     let sections = self.section(&instance, &inherited, path, &next_suffix, depth + 1)?;
                     if !sections.is_empty() {
-                        self.frames.push(v1::document_frame_frame::Kind::RepeatInstance(v1::DocumentRepeatInstance {
-                            selection_id: selection.clone(),
-                            ordinal: offset as u64,
-                            suffix: next_suffix.trim_start_matches('.').into(),
-                            node_id: format!("{path}{next_suffix}"),
-                            filter: Some(filter),
-                        }));
+                        self.frames.push(dokime_protocol::client::document_frame_frame::Kind::RepeatInstance(
+                            dokime_protocol::client::DocumentRepeatInstance {
+                                selection_id: selection.clone(),
+                                ordinal: offset as u64,
+                                suffix: next_suffix.trim_start_matches('.').into(),
+                                node_id: format!("{path}{next_suffix}"),
+                                filter: Some(filter),
+                            },
+                        ));
                     }
                     output.extend(sections);
                     offset += 1;

@@ -34,14 +34,14 @@ void identifier(const std::string &value) {
 }
 template <class Q>
 Context execution_context(harmos::Context &transport, const Q &request, const std::string &template_id, const std::string &plugin_id,
-                          const std::shared_ptr<detail::Executions> &executions, std::string item = {}) {
+                          const std::shared_ptr<detail::Executions> &executions, const std::string &action, std::string item = {}) {
   const auto &origin = request.origin();
   const bool same_case = google::protobuf::util::MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
   const bool same_plugin = origin.plugin_run().plugin() == plugin_id;
   const bool same_template = origin.plugin_run().template_() == template_id;
   if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
       !same_plugin)
-    throw std::invalid_argument("Execution Scope, Template and Frozen Origin Must Agree");
+    throw std::invalid_argument(action + ": Execution Scope, Template and Frozen Origin Must Agree");
   auto resources = executions->open(request.execution());
   {
     std::lock_guard lock(resources->mutex);
@@ -96,14 +96,14 @@ Plugin &Plugin::suite(Suite suite) {
       declared->set_operation(operation_id);
       declared->set_repeatable(step.repeatable);
       const auto item = step.metadata.identifier();
-      harmos::Operation<v1::StepRequest, v1::StepResponse> operation(
+      harmos::Operation<plugin::v1::StepsExecuteRequest, plugin::v1::StepsExecuteResponse> operation(
           operation_id, harmos::wire::VISIBILITY_PROTECTED,
-          [state, id, plugin_id, item, run = std::move(step.run)](harmos::Context &transport, v1::StepRequest request) {
+          [state, id, plugin_id, item, run = std::move(step.run)](harmos::Context &transport, plugin::v1::StepsExecuteRequest request) {
             if (request.step() != item)
-              throw std::invalid_argument("Step Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, plugin_id, state, item);
+              throw std::invalid_argument("Execute Step: Identifier Does Not Match Its Operation");
+            auto ctx = execution_context(transport, request, id, plugin_id, state, "Execute Step", item);
             run(ctx);
-            return v1::StepResponse{};
+            return plugin::v1::StepsExecuteResponse{};
           });
       if (step.retries) {
         harmos::wire::OperationPolicy policy;
@@ -125,13 +125,14 @@ Plugin &Plugin::suite(Suite suite) {
       *declared->mutable_metadata() = criterion.metadata;
       declared->set_operation(operation_id);
       const auto item = criterion.metadata.identifier();
-      native_.operation(harmos::Operation<v1::CriterionRequest, v1::CriterionResponse>(
+      native_.operation(harmos::Operation<plugin::v1::CriteriaEvaluateRequest, plugin::v1::CriteriaEvaluateResponse>(
           operation_id, harmos::wire::VISIBILITY_PROTECTED,
-          [state, id, plugin_id, item, evaluate = std::move(criterion.evaluate)](harmos::Context &transport, v1::CriterionRequest request) {
+          [state, id, plugin_id, item, evaluate = std::move(criterion.evaluate)](harmos::Context &transport,
+                                                                                 plugin::v1::CriteriaEvaluateRequest request) {
             if (request.criterion() != item)
-              throw std::invalid_argument("Criterion Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, plugin_id, state, item);
-            v1::CriterionResponse response;
+              throw std::invalid_argument("Evaluate Criterion: Identifier Does Not Match Its Operation");
+            auto ctx = execution_context(transport, request, id, plugin_id, state, "Evaluate Criterion", item);
+            plugin::v1::CriteriaEvaluateResponse response;
             response.set_passed(evaluate(ctx));
             return response;
           }));
@@ -139,9 +140,10 @@ Plugin &Plugin::suite(Suite suite) {
     for (auto &stream : value.streams)
       test_case.add_streams(std::move(stream));
     value.definition.set_materialize(id + ".materialize");
-    native_.operation(harmos::Operation<v1::MaterializeRequest, v1::TestCase>(
+    native_.operation(harmos::Operation<plugin::v1::TestCasesMaterializeRequest, plugin::v1::TestCasesMaterializeResponse>(
         id + ".materialize", harmos::wire::VISIBILITY_PROTECTED,
-        [id, test_case, materialize = std::move(value.materialize)](harmos::Context &transport, v1::MaterializeRequest request) {
+        [id, test_case, materialize = std::move(value.materialize)](harmos::Context &transport,
+                                                                    plugin::v1::TestCasesMaterializeRequest request) {
           try {
             transport.scope();
             throw std::invalid_argument("Materialize Requires No Execution Scope");
@@ -155,29 +157,33 @@ Plugin &Plugin::suite(Suite suite) {
           *result.mutable_parameters() = request.parameters();
           if (materialize)
             materialize(result, request.parameters());
-          return result;
+          plugin::v1::TestCasesMaterializeResponse response;
+          *response.mutable_test_case() = std::move(result);
+          return response;
         }));
     if (value.initialize) {
       value.definition.set_initialize(id + ".initialize");
-      native_.operation(harmos::Operation<v1::InitializeRequest, v1::InitializeResponse>(
+      native_.operation(harmos::Operation<plugin::v1::ExecutionsInitializeRequest, plugin::v1::ExecutionsInitializeResponse>(
           id + ".initialize", harmos::wire::VISIBILITY_PROTECTED,
-          [state, id, plugin_id, initialize = std::move(value.initialize)](harmos::Context &transport, v1::InitializeRequest request) {
-            auto ctx = execution_context(transport, request, id, plugin_id, state);
+          [state, id, plugin_id, initialize = std::move(value.initialize)](harmos::Context &transport,
+                                                                           plugin::v1::ExecutionsInitializeRequest request) {
+            auto ctx = execution_context(transport, request, id, plugin_id, state, "Initialize Execution");
             try {
               initialize(ctx);
             } catch (...) {
               state->close(request.execution());
               throw;
             }
-            return v1::InitializeResponse{};
+            return plugin::v1::ExecutionsInitializeResponse{};
           }));
     }
     // Always Register Cleanup So the Host Can Release Execution Resources.
     value.definition.set_cleanup(id + ".cleanup");
-    native_.operation(harmos::Operation<v1::CleanupRequest, v1::CleanupResponse>(
+    native_.operation(harmos::Operation<plugin::v1::ExecutionsCleanupRequest, plugin::v1::ExecutionsCleanupResponse>(
         id + ".cleanup", harmos::wire::VISIBILITY_PROTECTED,
-        [state, id, plugin_id, cleanup = std::move(value.cleanup)](harmos::Context &transport, v1::CleanupRequest request) {
-          auto ctx = execution_context(transport, request, id, plugin_id, state);
+        [state, id, plugin_id, cleanup = std::move(value.cleanup)](harmos::Context &transport,
+                                                                   plugin::v1::ExecutionsCleanupRequest request) {
+          auto ctx = execution_context(transport, request, id, plugin_id, state, "Clean Up Execution");
           try {
             if (cleanup)
               cleanup(ctx);
@@ -186,7 +192,7 @@ Plugin &Plugin::suite(Suite suite) {
             throw;
           }
           state->close(request.execution());
-          return v1::CleanupResponse{};
+          return plugin::v1::ExecutionsCleanupResponse{};
         }));
     *declaration.add_templates() = std::move(value.definition);
   }

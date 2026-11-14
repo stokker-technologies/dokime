@@ -126,7 +126,7 @@ impl ExecutionManager {
         self.reap_finished().await?;
         crate::execution::start(self.clone(), origins).await
     }
-    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
+    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Execution")?;
         self.reap_finished().await?;

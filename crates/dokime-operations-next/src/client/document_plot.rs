@@ -95,8 +95,10 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
     })
 }
 
-pub fn presentation(store: &dokime_storage::Store, cut: &dokime_storage::ExecutionCut, plot: &v1::Plot) -> Result<v1::PlotPresentation> {
-    let value = |expression: Option<&v1::DataExpression>| -> Result<Option<v1::PlotReferenceValue>> {
+pub fn presentation(
+    store: &dokime_storage::Store, cut: &dokime_storage::ExecutionCut, plot: &v1::Plot,
+) -> Result<dokime_protocol::client::PlotPresentation> {
+    let value = |expression: Option<&v1::DataExpression>| -> Result<Option<dokime_protocol::client::PlotReferenceValue>> {
         let Some(expression) = expression else {
             return Ok(None);
         };
@@ -107,11 +109,11 @@ pub fn presentation(store: &dokime_storage::Store, cut: &dokime_storage::Executi
             Some(v1::value::Kind::UnsignedInteger(value)) => value as f64,
             _ => return Err(Error::Invalid("Render Plot Reference: Select a Numeric Scalar".into())),
         };
-        Ok(Some(v1::PlotReferenceValue { constant: Some(value), expression: None }))
+        Ok(Some(dokime_protocol::client::PlotReferenceValue { constant: Some(value), expression: None }))
     };
     let mut reference_lines = Vec::new();
     for line in &plot.reference_lines {
-        reference_lines.push(v1::PlotReferenceLine {
+        reference_lines.push(dokime_protocol::client::PlotReferenceLine {
             value: value(line.value.as_ref())?,
             label: Some(line.label.clone()),
             color: line.color.clone(),
@@ -119,7 +121,7 @@ pub fn presentation(store: &dokime_storage::Store, cut: &dokime_storage::Executi
     }
     let mut reference_bands = Vec::new();
     for band in &plot.reference_bands {
-        reference_bands.push(v1::PlotReferenceBand {
+        reference_bands.push(dokime_protocol::client::PlotReferenceBand {
             min: value(band.min.as_ref())?,
             max: value(band.max.as_ref())?,
             center: value(band.center.as_ref())?,
@@ -128,7 +130,7 @@ pub fn presentation(store: &dokime_storage::Store, cut: &dokime_storage::Executi
             color: band.color.clone(),
         });
     }
-    Ok(v1::PlotPresentation {
+    Ok(dokime_protocol::client::PlotPresentation {
         style: plot.style,
         reference_lines,
         reference_bands,

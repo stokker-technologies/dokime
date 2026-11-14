@@ -14,6 +14,7 @@
 import hashlib
 import json
 from difflib import unified_diff
+from importlib import import_module
 from importlib.resources import files
 from pathlib import Path
 
@@ -63,6 +64,7 @@ def main():
     for definition in descriptors().file:
         if not definition.package.startswith(("dokime.", "harmos.")):
             continue
+        import_module(definition.name.removesuffix(".proto").replace("/", ".") + "_pb2")
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()
         runtime.CopyToProto(actual_definition)

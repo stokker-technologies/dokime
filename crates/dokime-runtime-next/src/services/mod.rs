@@ -12,36 +12,50 @@
 /* === Modules === */
 
 mod access_credentials;
-mod appearance;
+mod aggregates;
+mod analyses;
+mod backend;
+mod backend_overview;
 mod bundle_permissions;
 mod bundles;
-mod catalog;
+mod cases;
+mod catalog_prompt_definitions;
+mod catalog_record_schemas;
+mod catalog_stream_schemas;
+mod catalog_suites;
 mod clock;
 mod composition;
-mod content;
+mod content_artifacts;
+mod content_execution_files;
+mod cycles;
 mod documents;
 mod evidence;
+mod evidence_health_events;
+mod evidence_notes;
+mod evidence_records;
+mod evidence_samples;
 mod evidence_traceability;
-mod execution;
+mod executions;
+mod executions_commands;
 mod executions_progress;
-mod health;
-mod history;
+mod executions_schemas;
+mod files;
+mod files_uploads;
 mod managed_plugins;
-mod media;
-mod notes;
-mod observation;
-mod planning;
-mod plots;
+mod media_captures;
+mod plots_settings;
+mod plots_snapshots;
 mod plugin_entries;
 mod plugins;
+mod plugins_settings;
 mod prompts;
-mod query;
+mod prompts_answers;
 mod reports;
 mod secrets;
 mod settings;
 mod state;
 mod status;
-mod telemetry;
+mod storage_sources;
 
 /* === Re-Exports === */
 
@@ -57,7 +71,50 @@ use std::{net::SocketAddr, path::Path, sync::Arc};
 
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
-use dokime_protocol::v1;
+use dokime_operations_next::client::Context;
+use dokime_operations_next::client::HostIdentity;
+use dokime_protocol::client::aggregates_server::AggregatesServer;
+use dokime_protocol::client::analyses_server::AnalysesServer;
+use dokime_protocol::client::backend::overview_server::OverviewServer;
+use dokime_protocol::client::backend_server::BackendServer;
+use dokime_protocol::client::cases_server::CasesServer;
+use dokime_protocol::client::content::artifacts_server::ArtifactsServer;
+use dokime_protocol::client::content::execution_files_server::ExecutionFilesServer;
+use dokime_protocol::client::cycles_server::CyclesServer;
+use dokime_protocol::client::documents_server::DocumentsServer;
+use dokime_protocol::client::evidence::health_events_server::HealthEventsServer;
+use dokime_protocol::client::evidence::notes_server::NotesServer;
+use dokime_protocol::client::evidence::records_server::RecordsServer;
+use dokime_protocol::client::evidence::samples_server::SamplesServer;
+use dokime_protocol::client::evidence::traceability_server::TraceabilityServer;
+use dokime_protocol::client::evidence_server::EvidenceServer;
+use dokime_protocol::client::executions::commands_server::CommandsServer;
+use dokime_protocol::client::executions::progress_server::ProgressServer;
+use dokime_protocol::client::executions::schemas_server::SchemasServer;
+use dokime_protocol::client::executions_server::ExecutionsServer;
+use dokime_protocol::client::files::uploads_server::UploadsServer;
+use dokime_protocol::client::files_server::FilesServer;
+use dokime_protocol::client::media::captures_server::CapturesServer;
+use dokime_protocol::client::plots::snapshots_server::SnapshotsServer;
+use dokime_protocol::client::plugins::settings_server::SettingsServer;
+use dokime_protocol::client::plugins_server::PluginsServer;
+use dokime_protocol::client::prompt_definitions_server::PromptDefinitionsServer;
+use dokime_protocol::client::prompts::answers_server::AnswersServer;
+use dokime_protocol::client::prompts_server::PromptsServer;
+use dokime_protocol::client::record_schemas_server::RecordSchemasServer;
+use dokime_protocol::client::reports_server::ReportsServer;
+use dokime_protocol::client::secrets_server::SecretsServer;
+use dokime_protocol::client::storage::sources_server::SourcesServer;
+use dokime_protocol::client::stream_schemas_server::StreamSchemasServer;
+use dokime_protocol::client::suites_server::SuitesServer;
+use dokime_storage::Store;
+use prost_types::Timestamp;
+use std::fs::OpenOptions;
+use std::fs::TryLockError;
+use std::num::NonZeroUsize;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 /* === Constants === */
 
@@ -69,16 +126,16 @@ use dokime_protocol::v1;
 
 #[derive(Clone)]
 struct Services {
-    context: dokime_operations_next::client::Context,
+    context: Context,
 }
 pub struct Server {
     endpoint: SocketAddr,
     host: Host,
     runtime: harmos_runtime::Runtime<composition::Application>,
     listener: Option<harmos_runtime::grpc::Attached>,
-    close_timeout: std::time::Duration,
+    close_timeout: Duration,
     status: Arc<harmos_runtime::services::status::Status>,
-    status_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    status_task: Option<JoinHandle<Result<()>>>,
     _status_registration: Arc<harmos_runtime::services::status::Registration>,
 }
 
@@ -124,14 +181,14 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     if !root.join("backend-id").is_file() {
         return Ok(());
     }
-    let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
+    let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
     match lease.try_lock() {
         Ok(()) => {}
-        Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),
-        Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+        Err(TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),
+        Err(TryLockError::Error(error)) => return Err(error.into()),
     }
     let host_id = std::fs::read_to_string(root.join("backend-id"))?;
-    let storage = dokime_storage::Store::open(root)?;
+    let storage = Store::open(root)?;
     dokime_operations_next::client::remove_root_secrets(&storage)?;
     access_credentials::Store::new(storage, host_id).remove()?;
     Ok(())
@@ -154,40 +211,34 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let clock = host_settings.clock.clone();
     let host = Host::open(root, host_settings)?;
     let backend_id = host.store.identity().to_owned();
-    let identity = v1::BackendIdentity {
+    let identity = HostIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
-        api: Some(v1::ApiIdentity {
-            package: "dokime.v1".into(),
-            version: "v1".into(),
-            descriptor_sha256: Vec::new(),
-        }),
         product_version: env!("CARGO_PKG_VERSION").into(),
         target: bundles::native_target().into(),
-        started_at: Some(prost_types::Timestamp {
+        started_at: Some(Timestamp {
             seconds: host.now_ns().div_euclid(1_000_000_000),
             nanos: host.now_ns().rem_euclid(1_000_000_000) as i32,
         }),
         display_name: "Dokime Execution Host".into(),
-        ..Default::default()
     };
     let runtime = composition::launch(clock).await?;
     let status = runtime.services().configure_status(status::settings(&settings, backend_id.clone()))?;
-    let administration = Arc::new(tokio::sync::Mutex::new(()));
+    let administration = Arc::new(Mutex::new(()));
     let state = state::State {
         administration: administration.clone(),
         status: status.clone(),
         root: root.to_owned(),
         host: host.clone(),
         render_settings: crate::RenderSettings {
-            page_size: std::num::NonZeroUsize::new(settings.page_items).unwrap(),
-            display_points: std::num::NonZeroUsize::new(settings.page_items).unwrap(),
+            page_size: NonZeroUsize::new(settings.page_items).unwrap(),
+            display_points: NonZeroUsize::new(settings.page_items).unwrap(),
         },
         identity,
         temporary_report_limit: settings.max_cases,
     };
     let close_timeout = settings.mutation_timeout;
-    let context = dokime_operations_next::client::Context {
+    let context = Context {
         administration,
         host: Arc::new(state),
         settings: settings.clone(),
@@ -238,114 +289,116 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 fn register_services(manager: &harmos_runtime::grpc::GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
     manager.register_service(
-        v1::evidence::traceability_server::TraceabilityServer::new(services.clone())
+        FilesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        UploadsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        AggregatesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        BackendServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        CasesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        AnalysesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        PluginsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        CyclesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        DocumentsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        EvidenceServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        SchemasServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        ExecutionsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        PromptsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        ReportsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        SecretsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::client::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::executions::progress_server::ProgressServer::new(services.clone())
+        OverviewServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        PromptDefinitionsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        RecordSchemasServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        StreamSchemasServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        SuitesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        ArtifactsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        ExecutionFilesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        HealthEventsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        NotesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        RecordsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        SamplesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        TraceabilityServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        CommandsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        ProgressServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        CapturesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::client::plots::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::appearance_server::AppearanceServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
+        SnapshotsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::catalog_server::CatalogServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
+        SettingsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::content_server::ContentServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
+        AnswersServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        v1::documents_server::DocumentsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::media_server::MediaServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::notes_server::NotesServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::plots_server::PlotsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::evidence_server::EvidenceServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::execution_server::ExecutionServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::health_server::HealthServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::history_server::HistoryServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::observation_server::ObservationServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::planning_server::PlanningServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::plugins_server::PluginsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::prompts_server::PromptsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::query_server::QueryServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::reports_server::ReportsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::secrets_server::SecretsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::settings_server::SettingsServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        v1::telemetry_server::TelemetryServer::new(services.clone())
-            .max_decoding_message_size(message_bytes)
-            .max_encoding_message_size(message_bytes),
+        SourcesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     Ok(())
 }

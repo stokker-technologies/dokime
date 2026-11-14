@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -45,8 +46,8 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
-    let value = client.list(dokime::v1::ListPlugins {}).await?.into_inner();
+    let mut client = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor());
+    let value = client.list(client::ListPlugins {}).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

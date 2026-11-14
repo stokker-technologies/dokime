@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics;
-using Dokime.V1;
+using Dokime.Protocol.V1;
+using Dokime.Protocol.Plugin.V1;
 using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -40,27 +41,27 @@ public sealed class AuthorRunsThePackagedStarter
       var description = await wire.DescribeAsync();
       var section = Suites.Parser.ParseFrom(description.Catalog.Sections.Single(item => item.Type == "dokime.v1.Suites").Payload);
       var template = Assert.Single(Assert.Single(section.Suites_).Templates);
-      var testCase = await wire.InvokeAsync<TestCase>(description, template.Materialize,
-          new MaterializeRequest { Template = template.Metadata.Identifier });
+      var testCase = (await wire.InvokeAsync<TestCasesMaterializeResponse>(description, template.Materialize,
+          new TestCasesMaterializeRequest { Template = template.Metadata.Identifier })).TestCase;
       var step = Assert.Single(testCase.Steps);
       var origin = new Origin { PluginRun = new PluginRun { Plugin = description.Id, Template = template.Metadata.Identifier, TestCase = testCase } };
 
       // Execute the Measurement and Acknowledge Its Host Log Call.
-      global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest? log = null;
-      await wire.InvokeAsync<StepResponse>(description, step.Operation,
-          new StepRequest { Execution = "starter-execution", Step = step.Metadata.Identifier, TestCase = testCase, Origin = origin },
+      global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendRequest? log = null;
+      await wire.InvokeAsync<StepsExecuteResponse>(description, step.Operation,
+          new StepsExecuteRequest { Execution = "starter-execution", Step = step.Metadata.Identifier, TestCase = testCase, Origin = origin },
           "starter-execution", child =>
           {
             Assert.Equal(Dokime.Host.Log.Contract.Id, child.Operation);
-            log = global::Dokime.Protocol.Context.V1.Evidence.LogsAppendRequest.Parser.ParseFrom(child.Payload);
-            return new global::Dokime.Protocol.Context.V1.Evidence.LogsAppendResponse().ToByteString();
+            log = global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendRequest.Parser.ParseFrom(child.Payload);
+            return new global::Dokime.Protocol.Plugin.Host.V1.EvidenceResources.LogsAppendResponse().ToByteString();
           });
       Assert.Equal("starter-execution", log!.Execution);
       Assert.Equal(Severity.Info, log.Severity);
 
       // Clean Up and Send Stop; Managed Placement Must Exit Successfully.
-      await wire.InvokeAsync<CleanupResponse>(description, template.Cleanup,
-          new CleanupRequest { Execution = "starter-execution", TestCase = testCase, Origin = origin }, "starter-execution");
+      await wire.InvokeAsync<ExecutionsCleanupResponse>(description, template.Cleanup,
+          new ExecutionsCleanupRequest { Execution = "starter-execution", TestCase = testCase, Origin = origin }, "starter-execution");
       using var stopped = channel.CreateCallInvoker().AsyncUnaryCall(
           Wire.Method<InstanceStopRequest, InstanceStopResponse>(MethodType.Unary, "harmos.plugin.v1.Instance", "Stop"), null, new CallOptions(), new InstanceStopRequest());
       await stopped.ResponseAsync;

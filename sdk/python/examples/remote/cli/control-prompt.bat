@@ -6,7 +6,7 @@ rem Connection Parameters
 set "PAIRING_FILE=../lab.pair"
 
 rem Case and Execution Parameters
-set "TEMPLATE=obc.checks.pulse"
+set "TEMPLATE=example.checks.pulse"
 set "CYCLE_LABEL=Remote Confirmation Demonstration"
 set "ANSWER=yes"
 set "WAIT_S=60"

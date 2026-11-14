@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 using Google.Protobuf.WellKnownTypes;
 using Harmos.Sdk;
 using ThermalStory;
@@ -8,14 +8,14 @@ using ThermalStory;
 var door = new Dokime.Record<Door>("thermal.door", "Door Check");
 var temperature = new Dokime.Stream<Temperature>("thermal.temperature");
 var template = new Template("thermal.cycle", "Thermal Cycle")
-    .Parameter(new Parameter { Metadata = new Metadata { Identifier = "limit", Label = "Limit" }, Type = Dokime.V1.ValueType.Number, Expression = new ParameterExpression { Literal = new Dokime.V1.Value { Number = 85 } } })
+    .Parameter(new Parameter { Metadata = new Metadata { Identifier = "limit", Label = "Limit" }, Type = Dokime.Protocol.V1.ValueType.Number, Expression = new ParameterExpression { Literal = new Dokime.Protocol.V1.Value { Number = 85 } } })
     .Resource(context => Task.FromResult<IAsyncDisposable>(new Bench(context.Parameters["limit"].Number)))
     .Initialize(async context => await context.LogAsync(Severity.Info, "Initialized"))
     .Observer(new Observer<Temperature>(temperature, new Duration { Seconds = 1 }, context => Task.FromResult(new Temperature { Celsius = context.Resource<Bench>().Limit - 1 })))
     .Step(new Dokime.Step("ramp", "Ramp to Target", async context => await context.ProgressAsync(1, 2, "Ramp to Target"), Retries: 2))
     .Step(new Dokime.Step("hold", "Hold", async context =>
     {
-      var answer = await context.OperationAsync(Host.Prompt, new global::Dokime.Protocol.Context.V1.PromptsCreateRequest { Prompt = "door", PromptType = "thermal.door" });
+      var answer = await context.OperationAsync(Host.Prompt, new global::Dokime.Protocol.Plugin.Host.V1.PromptsCreateRequest { Prompt = "door", PromptType = "thermal.door" });
       await context.RecordAsync(door, new Door { Closed = answer.Action == "yes" && answer.Accepted });
       await context.SleepAsync(new Duration { Seconds = 2, Nanos = 500000000 });
       await context.ProgressAsync(2, 2, "Hold");
@@ -29,7 +29,7 @@ var template = new Template("thermal.cycle", "Thermal Cycle")
     .Cleanup(async context => await context.LogAsync(Severity.Info, "Cleaned Up"));
 var plugin = new Dokime.Plugin("thermal", "1.0.0", new Dokime.Suite("thermal", "Thermal", template))
     .Record(door).Requires(Host.Prompt).Requires(Host.Record).Requires(Host.Records).Requires(Host.Statistics).Requires(Host.ProgressGet).Requires(Host.ProgressSet).Requires(Host.Log).Requires(Clock.Sleep);
-plugin.Build().Section(new PromptCatalog { Prompts = { new Prompt { Metadata = new Metadata { Identifier = "thermal.door", Label = "Door Check" }, Message = "Is the Door Closed?", Archetype = PromptArchetype.Confirmation, Actions = { new PromptAction { Identifier = "yes", Label = "Yes" }, new PromptAction { Identifier = "no", Label = "No" } } } } });
+plugin.Build().Section(new PromptDefinitions { Prompts = { new Prompt { Metadata = new Metadata { Identifier = "thermal.door", Label = "Door Check" }, Message = "Is the Door Closed?", Archetype = PromptArchetype.Confirmation, Actions = { new PromptAction { Identifier = "yes", Label = "Yes" }, new PromptAction { Identifier = "no", Label = "No" } } } } });
 await plugin.ServeAsync(remote: args.Contains("--remote"));
 
 internal sealed class Bench(double limit) : IAsyncDisposable

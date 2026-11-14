@@ -22,6 +22,7 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
+use dokime_protocol::dokime::plugin::v1::*;
 use dokime_protocol::v1::*;
 
 /* === Constants === */
@@ -71,41 +72,41 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
     });
 
     // Initialize, Step, Evaluate and Clean Up Through the Same Frozen Origin.
-    let initialize = InitializeRequest {
+    let initialize = ExecutionsInitializeRequest {
         execution: "execution".into(),
         test_case: Some(test_case.clone()),
         origin: origin.clone(),
     };
-    let initialize = InitializeRequest::decode(initialize.encode_to_vec().as_slice()).unwrap();
+    let initialize = ExecutionsInitializeRequest::decode(initialize.encode_to_vec().as_slice()).unwrap();
     assert_eq!(initialize.validate_origin().unwrap(), &run);
-    let step = StepRequest {
+    let step = StepsExecuteRequest {
         execution: "execution".into(),
         step: "measure".into(),
         test_case: Some(test_case.clone()),
         origin: origin.clone(),
     };
-    let step = StepRequest::decode(step.encode_to_vec().as_slice()).unwrap();
+    let step = StepsExecuteRequest::decode(step.encode_to_vec().as_slice()).unwrap();
     assert_eq!(step.validate_origin().unwrap(), &run);
-    let criterion = CriterionRequest {
+    let criterion = CriteriaEvaluateRequest {
         execution: "execution".into(),
         criterion: "limit".into(),
         test_case: Some(test_case.clone()),
         origin: origin.clone(),
     };
-    let criterion = CriterionRequest::decode(criterion.encode_to_vec().as_slice()).unwrap();
+    let criterion = CriteriaEvaluateRequest::decode(criterion.encode_to_vec().as_slice()).unwrap();
     assert_eq!(criterion.validate_origin().unwrap(), &run);
-    let cleanup = CleanupRequest {
+    let cleanup = ExecutionsCleanupRequest {
         execution: "execution".into(),
         termination: Termination::Interrupted as i32,
         test_case: Some(test_case.clone()),
         origin,
     };
-    let cleanup = CleanupRequest::decode(cleanup.encode_to_vec().as_slice()).unwrap();
+    let cleanup = ExecutionsCleanupRequest::decode(cleanup.encode_to_vec().as_slice()).unwrap();
     assert_eq!(cleanup.validate_origin().unwrap(), &run);
 
     // Decode Using the Same Authoritative Descriptor as Host Registration.
     let dynamic = prost_reflect::DynamicMessage::decode(step.descriptor(), step.encode_to_vec().as_slice()).unwrap();
-    assert_eq!(dynamic.transcode_to::<StepRequest>().unwrap(), step);
+    assert_eq!(dynamic.transcode_to::<StepsExecuteRequest>().unwrap(), step);
 
     // Refuse a Changed Case and Incomplete Identity Before Calling the Plugin.
     let changed = TestCase {
@@ -113,7 +114,7 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
         ..test_case
     };
     assert!(
-        InitializeRequest {
+        ExecutionsInitializeRequest {
             test_case: Some(changed.clone()),
             ..initialize
         }
@@ -121,7 +122,7 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
         .is_err()
     );
     assert!(
-        StepRequest {
+        StepsExecuteRequest {
             test_case: Some(changed.clone()),
             ..step.clone()
         }
@@ -129,17 +130,17 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
         .is_err()
     );
     assert!(
-        CriterionRequest {
+        CriteriaEvaluateRequest {
             test_case: Some(changed.clone()),
             ..criterion
         }
         .validate_origin()
         .is_err()
     );
-    assert!(CleanupRequest { test_case: Some(changed), ..cleanup }.validate_origin().is_err());
-    assert!(StepRequest { origin: None, ..step.clone() }.validate_origin().is_err());
-    assert!(StepRequest { test_case: None, ..step.clone() }.validate_origin().is_err());
-    assert!(StepRequest { execution: String::new(), ..step }.validate_origin().is_err());
+    assert!(ExecutionsCleanupRequest { test_case: Some(changed), ..cleanup }.validate_origin().is_err());
+    assert!(StepsExecuteRequest { origin: None, ..step.clone() }.validate_origin().is_err());
+    assert!(StepsExecuteRequest { test_case: None, ..step.clone() }.validate_origin().is_err());
+    assert!(StepsExecuteRequest { execution: String::new(), ..step }.validate_origin().is_err());
     assert!(PluginRun { started_at: None, ..run.clone() }.validate().is_err());
     assert!(PluginRun { digest: Vec::new(), ..run }.validate().is_err());
 }
@@ -172,7 +173,7 @@ fn import_provenance_round_trips_without_a_plugin_and_cannot_drive_one() {
     assert_eq!(decoded, origin);
 
     // Refuse Plugin Calls Even If a Caller Supplies an Empty Case.
-    let request = StepRequest {
+    let request = StepsExecuteRequest {
         execution: "imported-execution".into(),
         step: "measure".into(),
         test_case: Some(TestCase::default()),
@@ -180,7 +181,7 @@ fn import_provenance_round_trips_without_a_plugin_and_cannot_drive_one() {
     };
     assert!(request.validate_origin().is_err());
     assert!(
-        StepRequest {
+        StepsExecuteRequest {
             origin: Some(Origin::default()),
             ..request
         }

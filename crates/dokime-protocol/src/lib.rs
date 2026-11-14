@@ -24,7 +24,7 @@ include!("generated/modules.rs");
 
 /* === Re-Exports === */
 
-pub use dokime::{context::v1 as context, v1};
+pub use dokime::{client::v1 as client, plugin::host::v1 as context, plugin::v1 as plugin, v1};
 pub use sources::SOURCES;
 
 /* === Imports === */

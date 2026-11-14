@@ -22,7 +22,10 @@ use std::{io::Write, path::PathBuf};
 use sha2::Digest;
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::client;
+use dokime_protocol::client::{FilesGetRequest, FilesReadRequest};
+use sha2::Sha256;
+use std::path::Path;
 
 /* === Constants === */
 
@@ -34,6 +37,9 @@ use dokime_protocol::v1;
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
+    request_id: Option<String>,
+
     execution: String,
 
     #[arg(long)]
@@ -49,60 +55,56 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, true).await?;
-    let mut client = dokime::v1::reports_client::ReportsClient::with_interceptor(channel, settings.interceptor());
-    let mut stream =
-        client.download_execution_report(v1::ReportsDownloadExecutionReportRequest { execution_id: args.execution }).await?.into_inner();
-    let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    let client = settings.sdk(endpoint, false).await?;
+    let request = client::ReportsCreateRequest {
+        subject: Some(client::ReportSubject {
+            kind: Some(client::report_subject::Kind::Execution(args.execution)),
+        }),
+        request_id: settings.request_id(args.request_id)?,
+        ..Default::default()
+    };
+    let report = client.reports.create(settings.request(request)).await?.into_inner();
+    let reference = report.file.ok_or("Fetch Report: Missing File Reference")?;
+    let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
     let mut offset = 0;
-    let mut hash = sha2::Sha256::new();
-    let mut metadata = false;
-    let mut complete = false;
-    let mut terminal = false;
-    while let Some(frame) = stream.message().await? {
-        if terminal {
-            return Err("Fetch Report: Data Follows the Terminal Response".into());
-        }
-        match frame.value.ok_or("Fetch Report: Missing Envelope Value")? {
-            v1::reports_download_execution_report_output::Value::Item(frame) => {
-                if complete {
-                    return Err("Fetch Report: Data Follows Completion".into());
-                }
-                match frame.payload.and_then(|value| value.kind).ok_or("Fetch Report: Missing Payload")? {
-                    v1::report_html_frame_payload::Kind::Report(_) => {
-                        if metadata || offset != 0 {
-                            return Err("Fetch Report: Duplicate or Late Metadata".into());
-                        }
-                        metadata = true;
-                    }
-                    v1::report_html_frame_payload::Kind::Chunk(chunk) => {
-                        if !metadata || chunk.offset != offset || chunk.data.is_empty() {
-                            return Err("Fetch Report: Missing or Out-of-Order Chunk".into());
-                        }
-                        file.write_all(&chunk.data)?;
-                        offset += chunk.data.len() as u64;
-                        hash.update(&chunk.data);
-                    }
-                    v1::report_html_frame_payload::Kind::Complete(value) => {
-                        let digest = hash.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-                        if !metadata || value.size_bytes != offset || value.sha256 != digest {
-                            return Err("Fetch Report: Size or SHA-256 Does Not Match".into());
-                        }
-                        complete = true;
-                    }
-                }
-            }
-            v1::reports_download_execution_report_output::Value::Response(_) => {
-                if !complete {
-                    return Err("Fetch Report: Terminal Response Precedes Completion".into());
-                }
-                terminal = true;
-            }
-        }
+    let mut hash = Sha256::new();
+    let selected = client.files.get(settings.request(FilesGetRequest { file: Some(reference.clone()), at: None })).await?.into_inner();
+    let selected_file = selected.file.ok_or("Fetch Report: Missing Selected File")?;
+    if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
+        return Err("Fetch Report: Selected File Identity Changed".into());
     }
-    if !terminal {
-        return Err("Fetch Report: Missing Terminal Response".into());
+    let mut at = selected.resolved_at;
+    while offset < reference.length {
+        let max_bytes = (settings.message_bytes.get().saturating_sub(1024) as u64)
+            .min(selected.chunk_bytes)
+            .min(selected.message_bytes.saturating_sub(1024))
+            .min(reference.length - offset);
+        if max_bytes == 0 {
+            return Err(crate::error::Error::Capacity("Fetch Report: Increase message_bytes".into()));
+        }
+        let request = FilesReadRequest {
+            file: Some(reference.clone()),
+            offset,
+            max_bytes,
+            at: at.clone(),
+        };
+        let page = client.files.read(settings.request(request)).await?.into_inner();
+        if page.total_length != reference.length
+            || page.sha256 != reference.sha256
+            || page.data.is_empty()
+            || page.data.len() as u64 > max_bytes
+            || (at.is_some() && page.resolved_at != at)
+        {
+            return Err("Fetch Report: File Identity, Range or Retained Cut Changed".into());
+        }
+        file.write_all(&page.data)?;
+        offset += page.data.len() as u64;
+        hash.update(&page.data);
+        at = page.resolved_at;
+    }
+    if hash.finalize().as_slice() != reference.sha256 {
+        return Err("Fetch Report: SHA-256 Does Not Match".into());
     }
     file.as_file().sync_all()?;
     file.persist_noclobber(&args.out)?;

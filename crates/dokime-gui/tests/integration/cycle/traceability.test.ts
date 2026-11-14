@@ -17,9 +17,9 @@ import { create } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { TraceabilityGetResponseSchema } from "@host/dokime/v1/evidence/traceability_pb.js";
+import { TraceabilityGetResponseSchema } from "@host/dokime/client/v1/evidence/traceability_pb.js";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
-import type { Wire } from "@/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 
 /* === Re-Exports === */
 
@@ -74,7 +74,7 @@ test("Traceability Pages Retain Scope, Read Cut and Snapshot Order", async () =>
   const result = await fetchNativeTraceability(session, scope);
   assert.equal(boundary.unary.mock.calls.length, 2);
   for (const call of boundary.unary.mock.calls) {
-    assert.equal(call[0], "/dokime.v1.evidence.Traceability/Get");
+    assert.equal(call[0], "/dokime.client.v1.evidence.Traceability/Get");
     assert.equal(call[3], session);
     assert.equal(call[4].scope.cycleId, "cycle");
     assert.equal(call[4].scope.executionId, "execution");
@@ -110,25 +110,25 @@ test.each([
   [
     "Foreign Cut",
     (response: Response) => {
-      response.resolvedAt!.positions[0].history!.epoch = "other";
+      required(required(response.resolvedAt, "Fixture Cut").positions[0].history, "Fixture History").epoch = "other";
     },
   ],
   [
     "Duplicate History",
     (response: Response) => {
-      response.resolvedAt!.positions.push(response.resolvedAt!.positions[0]);
+      required(response.resolvedAt, "Fixture Cut").positions.push(required(response.resolvedAt, "Fixture Cut").positions[0]);
     },
   ],
   [
     "Missing History",
     (response: Response) => {
-      response.resolvedAt!.positions[0].history = undefined;
+      required(response.resolvedAt, "Fixture Cut").positions[0].history = undefined;
     },
   ],
   [
     "Revision Cut",
     (response: Response) => {
-      response.resolvedAt!.revisions.push({ name: "resource", revision: new Uint8Array([1]) });
+      required(response.resolvedAt, "Fixture Cut").revisions.push({ name: "resource", revision: new Uint8Array([1]) });
     },
   ],
   [
@@ -140,19 +140,19 @@ test.each([
   [
     "Outside Cut",
     (response: Response) => {
-      response.snapshots[0].resolvedAt!.sequence = 10n;
+      required(response.snapshots[0].resolvedAt, "Fixture Position").sequence = 10n;
     },
   ],
   [
     "Foreign Store",
     (response: Response) => {
-      response.snapshots[0].resolvedAt!.history!.store = "other";
+      required(required(response.snapshots[0].resolvedAt, "Fixture Position").history, "Fixture History").store = "other";
     },
   ],
   [
     "Foreign Scope",
     (response: Response) => {
-      response.snapshots[0].scope!.stepId = "other";
+      required(response.snapshots[0].scope, "Fixture Scope").stepId = "other";
     },
   ],
   [
@@ -196,16 +196,16 @@ test.each([
   corrupt(response);
   boundary.unary.mockResolvedValueOnce(response);
   await assert.rejects(fetchNativeTraceability(session, scope), (error: Error) => {
-    assert.ok(error.message.startsWith("Evidence.Traceability.Get"));
+    assert.ok(error.message.startsWith("Traceability.Get"));
     return true;
   });
 });
 
 test("Traceability Rejects Changed Cuts Between Pages", async () => {
   const second = page(5n);
-  second.resolvedAt!.positions[0].sequence = 10n;
+  required(second.resolvedAt, "Fixture Cut").positions[0].sequence = 10n;
   boundary.unary.mockResolvedValueOnce(page(2n, "next")).mockResolvedValueOnce(second);
-  await assert.rejects(fetchNativeTraceability(session, scope), /Evidence.Traceability.Get/);
+  await assert.rejects(fetchNativeTraceability(session, scope), /Traceability.Get/);
 });
 
 test.each(["Repeated Token", "Empty Continuation", "Repeated Snapshot", "Reversed Snapshot"])("Traceability Rejects %s", async (kind) => {
@@ -215,7 +215,7 @@ test.each(["Repeated Token", "Empty Continuation", "Repeated Snapshot", "Reverse
   );
   if (kind === "Empty Continuation") second.snapshots = [];
   boundary.unary.mockResolvedValueOnce(page(2n, "next")).mockResolvedValueOnce(second);
-  await assert.rejects(fetchNativeTraceability(session, scope), /Evidence.Traceability.Get/);
+  await assert.rejects(fetchNativeTraceability(session, scope), /Traceability.Get/);
 });
 
 test("Traceability Refuses a Replaced Connection After Awaiting a Page", async () => {
@@ -224,5 +224,5 @@ test("Traceability Refuses a Replaced Connection After Awaiting a Page", async (
     current = false;
     return page(2n);
   });
-  await assert.rejects(fetchNativeTraceability({ generation: "7", isCurrent: () => current }, scope), /Evidence.Traceability.Get/);
+  await assert.rejects(fetchNativeTraceability({ generation: "7", isCurrent: () => current }, scope), /Traceability.Get/);
 });

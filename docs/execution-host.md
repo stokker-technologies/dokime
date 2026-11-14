@@ -607,11 +607,11 @@ series plus typed parameters and returns its declared `AnalysisValues`.
 
 ## Desktop Integration
 
-The desktop native package is temporarily excluded from Cargo membership while
-its independent host switch is completed. Restore workspace/default membership,
-native Product builds, generated settings checks, hosted native/system stories,
-benchmarks, distribution/installer packaging and signing together using the task
-in `openspec/changes/grpc-plugins/tasks.md`. The frontend source remains present.
+The desktop is a Cargo workspace and default member on the execution host.
+Its native connection owner uses the product SDK for embedded and remote hosts;
+Product builds, fixtures, native stories and both WebView lanes include it.
+The remaining adapter work is the final resource grammar migration described in
+the consumer work order below; its current adapters still use the earlier names.
 
 ## Context Protocol Packages
 
@@ -647,149 +647,404 @@ Issued positions remain readable across restart until execution deletion. An
 observer's cancellation leaves its execution running. The plugin journey is
 `client_observes_revisioned_traceability`.
 
-Lifecycle identities remain Protected bindings on Instance.Invoke. The rest of
-the client resource split, Effects, HostValues and library
-plugin/transfer composition remain open. Existing context groups are replaced
-without wire aliases.
+Lifecycle identities remain independent Protected dotted bindings on Instance.Invoke.
+The plugin face now owns their five shared request/response pairs and declares no
+second dispatch service. Context Artifacts.Create attaches published content;
+Effects.Create/Get/Set declares durable inverse preparation and whole-value
+confirmation under revision and request identity. Records.Append, Logs.Append
+and Documents.AppendParts carry semantic request identities and durable receipts;
+Records.List and Statistics carry returned durable positions. The definition
+pass does not implement their remaining host handlers. Existing settings/secret
+and artifact-transfer payloads remain until HostValues/plugin/storage composition.
+The work order below names every final face contract and pending composition.
 
 ## Present Operation to Grammar Name
 
-The locked client mapping below is the desktop adapter's rename inventory.
-Each automatic `Run` twin maps to the same destination and is removed. A `+`
-separates workflow calls. Service groups migrate with their consumers; the
-operation-grammar task list records which replacements are implemented.
+This work order starts from the definitions at `db4269b54`, immediately before
+the boundary amendment of 2026-11-13. Present identities below are the actual
+pre-amendment wire names, not the names from earlier grammar proposals. Wire
+identities use `package.Service/Method`; plugin lifecycle bindings remain dotted.
+`moved` records an amended definition, `done` an unchanged binding or composed
+library definition, and `awaits composition` a retained ordinary declaration or
+library destination. These states do not claim that consumers compile.
 
-| Present Operation | Grammar Name |
+`dokime.v1` is shared vocabulary only. Clients call `dokime.client.v1`; plugins
+implement the independent Protected bindings using `dokime.plugin.v1` messages;
+plugins call the host through `dokime.plugin.host.v1` messages. The SDK object
+is still named `context`. Plugin lifecycle payloads use the pinned library
+Instance.Invoke carrier. Plugin-host Files declares its resource contracts; unary
+methods use invocation-scoped child calls. Private bindings stay local.
+
+The retained Plugins service lives in `client/v1/plugins.proto` and stays excluded
+from generated client roots until direct library composition. Product Files and
+Files.Uploads are generated client resources. Pending settings and secret messages
+live with their plugin-host resources. The library vendoring and revision remain pinned.
+
+| Present Identity | Final Wire Identity or Lifecycle Binding | Request | Response | Boundary | State |
+| --- | --- | --- | --- | --- | --- |
+| `dokime.v1.Aggregates/Get` | `dokime.client.v1.Aggregates/Get` | `dokime.client.v1.AggregatesGetRequest` | `dokime.client.v1.AggregatesGetResponse` | Client | moved |
+| `dokime.v1.Backend/Appearance` | `dokime.client.v1.Backend/Appearance` | `dokime.client.v1.BackendAppearanceRequest` | `dokime.client.v1.BackendAppearanceResponse` | Client | moved |
+| `dokime.v1.backend.Overview/Get` | `dokime.client.v1.backend.Overview/Get` | `dokime.client.v1.backend.OverviewGetRequest` | `dokime.client.v1.backend.OverviewGetResponse` | Client | moved |
+| `dokime.v1.backend.Overview/Watch` | `dokime.client.v1.backend.Overview/Watch` | `dokime.client.v1.backend.OverviewWatchRequest` | `dokime.client.v1.backend.OverviewWatchResponse` | Client | moved |
+| `dokime.v1.Cases/Create` | `dokime.client.v1.Cases/Create` | `dokime.client.v1.CasesCreateRequest` | `dokime.client.v1.CasesCreateResponse` | Client | moved |
+| `dokime.v1.Cases/Get` | `dokime.client.v1.Cases/Get` | `dokime.client.v1.CasesGetRequest` | `dokime.client.v1.CasesGetResponse` | Client | moved |
+| `dokime.v1.Cases/List` | `dokime.client.v1.Cases/List` | `dokime.client.v1.CasesListRequest` | `dokime.client.v1.CasesListResponse` | Client | moved |
+| `dokime.v1.Cases/Watch` | `dokime.client.v1.Cases/Watch` | `dokime.client.v1.CasesWatchRequest` | `dokime.client.v1.CasesWatchResponse` | Client | moved |
+| `dokime.v1.Cases/Delete` | `dokime.client.v1.Cases/Delete` | `dokime.client.v1.CasesDeleteRequest` | `dokime.client.v1.CasesDeleteResponse` | Client | moved |
+| `dokime.v1.Cases/Parameters` | `dokime.client.v1.Cases/Parameters` | `dokime.client.v1.CasesParametersRequest` | `dokime.client.v1.CasesParametersResponse` | Client | moved |
+| `dokime.v1.Catalog/Analyses` | `dokime.client.v1.Analyses/List` | `dokime.client.v1.AnalysesListRequest` | `dokime.client.v1.AnalysesListResponse` | Client | moved |
+| `dokime.v1.catalog.PromptDefinitions/Get` | `dokime.client.v1.PromptDefinitions/Get` | `dokime.client.v1.PromptDefinitionsGetRequest` | `dokime.client.v1.PromptDefinitionsGetResponse` | Client | moved |
+| `dokime.v1.catalog.PromptDefinitions/List` | `dokime.client.v1.PromptDefinitions/List` | `dokime.client.v1.PromptDefinitionsListRequest` | `dokime.client.v1.PromptDefinitionsListResponse` | Client | moved |
+| `dokime.v1.catalog.RecordSchemas/Get` | `dokime.client.v1.RecordSchemas/Get` | `dokime.client.v1.RecordSchemasGetRequest` | `dokime.client.v1.RecordSchemasGetResponse` | Client | moved |
+| `dokime.v1.catalog.RecordSchemas/List` | `dokime.client.v1.RecordSchemas/List` | `dokime.client.v1.RecordSchemasListRequest` | `dokime.client.v1.RecordSchemasListResponse` | Client | moved |
+| `dokime.v1.catalog.StreamSchemas/Get` | `dokime.client.v1.StreamSchemas/Get` | `dokime.client.v1.StreamSchemasGetRequest` | `dokime.client.v1.StreamSchemasGetResponse` | Client | moved |
+| `dokime.v1.catalog.StreamSchemas/List` | `dokime.client.v1.StreamSchemas/List` | `dokime.client.v1.StreamSchemasListRequest` | `dokime.client.v1.StreamSchemasListResponse` | Client | moved |
+| `dokime.v1.catalog.Suites/Get` | `dokime.client.v1.Suites/Get` | `dokime.client.v1.SuitesGetRequest` | `dokime.client.v1.SuitesGetResponse` | Client | moved |
+| `dokime.v1.catalog.Suites/List` | `dokime.client.v1.Suites/List` | `dokime.client.v1.SuitesListRequest` | `dokime.client.v1.SuitesListResponse` | Client | moved |
+| `dokime.v1.Plugins/GetInstallation` | `dokime.client.v1.Plugins/GetInstallation` | `dokime.client.v1.PluginsGetInstallationRequest` | `dokime.client.v1.PluginInstallation` | Client | awaits composition |
+| `dokime.v1.Plugins/Install` | `dokime.client.v1.Plugins/Install` | `dokime.client.v1.PluginsInstallInput` | `dokime.client.v1.PluginInstallation` | Client | awaits composition |
+| `dokime.v1.Plugins/ListAdmittedPlugins` | `dokime.client.v1.Plugins/ListAdmittedPlugins` | `dokime.client.v1.PluginsListAdmittedPluginsRequest` | `dokime.client.v1.AdmittedPluginPage` | Client | awaits composition |
+| `dokime.v1.Plugins/ListInstallations` | `dokime.client.v1.Plugins/ListInstallations` | `dokime.client.v1.PluginsListInstallationsRequest` | `dokime.client.v1.InstallationPage` | Client | awaits composition |
+| `dokime.v1.Plugins/Reload` | `dokime.client.v1.Plugins/Reload` | `dokime.client.v1.PluginsReloadRequest` | `dokime.v1.ClientEmpty` | Client | awaits composition |
+| `dokime.v1.Plugins/Remove` | `dokime.client.v1.Plugins/Remove` | `dokime.client.v1.RemovePlugin` | `dokime.client.v1.RemovePluginResponse` | Client | awaits composition |
+| `dokime.v1.Plugins/SetEnabled` | `dokime.client.v1.Plugins/SetEnabled` | `dokime.client.v1.PluginsSetEnabledRequest` | `dokime.client.v1.PluginInstallation` | Client | awaits composition |
+| `dokime.v1.Plugins/List` | `dokime.client.v1.Plugins/List` | `dokime.client.v1.ListPlugins` | `dokime.client.v1.PluginEntries` | Client | awaits composition |
+| `dokime.v1.Plugins/Add` | `dokime.client.v1.Plugins/Add` | `dokime.client.v1.AddRemotePlugin` | `dokime.client.v1.Plugin` | Client | awaits composition |
+| `dokime.v1.content.Artifacts/Get` | `dokime.client.v1.content.Artifacts/Get` | `dokime.client.v1.content.ArtifactsGetRequest` | `dokime.client.v1.content.ArtifactsGetResponse` | Client | moved |
+| `dokime.v1.content.Artifacts/Create` | `dokime.client.v1.content.Artifacts/Create` | `dokime.client.v1.content.ArtifactsCreateRequest` | `dokime.client.v1.content.ArtifactsCreateResponse` | Client | moved |
+| `dokime.v1.content.Artifacts/List` | `dokime.client.v1.content.Artifacts/List` | `dokime.client.v1.content.ArtifactsListRequest` | `dokime.client.v1.content.ArtifactsListResponse` | Client | moved |
+| `dokime.v1.content.Artifacts/Watch` | `dokime.client.v1.content.Artifacts/Watch` | `dokime.client.v1.content.ArtifactsWatchRequest` | `dokime.client.v1.content.ArtifactsWatchResponse` | Client | moved |
+| `dokime.v1.content.ExecutionFiles/Get` | `dokime.client.v1.content.ExecutionFiles/Get` | `dokime.client.v1.content.ExecutionFilesGetRequest` | `dokime.client.v1.content.ExecutionFilesGetResponse` | Client | moved |
+| `dokime.v1.content.ExecutionFiles/List` | `dokime.client.v1.content.ExecutionFiles/List` | `dokime.client.v1.content.ExecutionFilesListRequest` | `dokime.client.v1.content.ExecutionFilesListResponse` | Client | moved |
+| `dokime.v1.content.ExecutionFiles/Watch` | `dokime.client.v1.content.ExecutionFiles/Watch` | `dokime.client.v1.content.ExecutionFilesWatchRequest` | `dokime.client.v1.content.ExecutionFilesWatchResponse` | Client | moved |
+| `dokime.v1.Cycles/Get` | `dokime.client.v1.Cycles/Get` | `dokime.client.v1.CyclesGetRequest` | `dokime.client.v1.CyclesGetResponse` | Client | moved |
+| `dokime.v1.Cycles/Set` | `dokime.client.v1.Cycles/Set` | `dokime.client.v1.CyclesSetRequest` | `dokime.client.v1.CyclesSetResponse` | Client | moved |
+| `dokime.v1.Cycles/List` | `dokime.client.v1.Cycles/List` | `dokime.client.v1.CyclesListRequest` | `dokime.client.v1.CyclesListResponse` | Client | moved |
+| `dokime.v1.Cycles/Watch` | `dokime.client.v1.Cycles/Watch` | `dokime.client.v1.CyclesWatchRequest` | `dokime.client.v1.CyclesWatchResponse` | Client | moved |
+| `dokime.v1.Cycles/Create` | `dokime.client.v1.Cycles/Create` | `dokime.client.v1.CyclesCreateRequest` | `dokime.client.v1.CyclesCreateResponse` | Client | moved |
+| `dokime.v1.Cycles/Seal` | `dokime.client.v1.Cycles/Seal` | `dokime.client.v1.CyclesSealRequest` | `dokime.client.v1.CyclesSealResponse` | Client | moved |
+| `dokime.v1.Documents/Get` | `dokime.client.v1.Documents/Get` | `dokime.client.v1.DocumentsGetRequest` | `dokime.client.v1.DocumentsGetResponse` | Client | moved |
+| `dokime.v1.Documents/Watch` | `dokime.client.v1.Documents/Watch` | `dokime.client.v1.DocumentsWatchRequest` | `dokime.client.v1.DocumentsWatchResponse` | Client | moved |
+| `dokime.v1.Evidence/Statistics` | `dokime.client.v1.Evidence/Statistics` | `dokime.client.v1.EvidenceStatisticsRequest` | `dokime.client.v1.EvidenceStatisticsResponse` | Client | moved |
+| `dokime.v1.Evidence/Archive` | `dokime.client.v1.Evidence/Archive` | `dokime.client.v1.EvidenceArchiveRequest` | `dokime.client.v1.EvidenceArchiveResponse` | Client | moved |
+| `dokime.v1.evidence.HealthEvents/List` | `dokime.client.v1.evidence.HealthEvents/List` | `dokime.client.v1.evidence.HealthEventsListRequest` | `dokime.client.v1.evidence.HealthEventsListResponse` | Client | moved |
+| `dokime.v1.evidence.HealthEvents/Watch` | `dokime.client.v1.evidence.HealthEvents/Watch` | `dokime.client.v1.evidence.HealthEventsWatchRequest` | `dokime.client.v1.evidence.HealthEventsWatchResponse` | Client | moved |
+| `dokime.v1.evidence.Notes/Get` | `dokime.client.v1.evidence.Notes/Get` | `dokime.client.v1.evidence.NotesGetRequest` | `dokime.client.v1.evidence.NotesGetResponse` | Client | moved |
+| `dokime.v1.evidence.Notes/Set` | `dokime.client.v1.evidence.Notes/Set` | `dokime.client.v1.evidence.NotesSetRequest` | `dokime.client.v1.evidence.NotesSetResponse` | Client | moved |
+| `dokime.v1.evidence.Notes/List` | `dokime.client.v1.evidence.Notes/List` | `dokime.client.v1.evidence.NotesListRequest` | `dokime.client.v1.evidence.NotesListResponse` | Client | moved |
+| `dokime.v1.evidence.Notes/Watch` | `dokime.client.v1.evidence.Notes/Watch` | `dokime.client.v1.evidence.NotesWatchRequest` | `dokime.client.v1.evidence.NotesWatchResponse` | Client | moved |
+| `dokime.v1.evidence.Notes/Create` | `dokime.client.v1.evidence.Notes/Create` | `dokime.client.v1.evidence.NotesCreateRequest` | `dokime.client.v1.evidence.NotesCreateResponse` | Client | moved |
+| `dokime.v1.evidence.Records/List` | `dokime.client.v1.evidence.Records/List` | `dokime.client.v1.evidence.RecordsListRequest` | `dokime.client.v1.evidence.RecordsListResponse` | Client | moved |
+| `dokime.v1.evidence.Records/Watch` | `dokime.client.v1.evidence.Records/Watch` | `dokime.client.v1.evidence.RecordsWatchRequest` | `dokime.client.v1.evidence.RecordsWatchResponse` | Client | moved |
+| `dokime.v1.evidence.Samples/List` | `dokime.client.v1.evidence.Samples/List` | `dokime.client.v1.evidence.SamplesListRequest` | `dokime.client.v1.evidence.SamplesListResponse` | Client | moved |
+| `dokime.v1.evidence.Samples/Watch` | `dokime.client.v1.evidence.Samples/Watch` | `dokime.client.v1.evidence.SamplesWatchRequest` | `dokime.client.v1.evidence.SamplesWatchResponse` | Client | moved |
+| `dokime.v1.evidence.Traceability/Get` | `dokime.client.v1.evidence.Traceability/Get` | `dokime.client.v1.evidence.TraceabilityGetRequest` | `dokime.client.v1.evidence.TraceabilityGetResponse` | Client | moved |
+| `dokime.v1.evidence.Traceability/Watch` | `dokime.client.v1.evidence.Traceability/Watch` | `dokime.client.v1.evidence.TraceabilityWatchRequest` | `dokime.client.v1.evidence.TraceabilityWatchResponse` | Client | moved |
+| `dokime.v1.Executions/Get` | `dokime.client.v1.Executions/Get` | `dokime.client.v1.ExecutionsGetRequest` | `dokime.client.v1.ExecutionsGetResponse` | Client | moved |
+| Embedded `Executions.FrozenSchemas.catalog` | `dokime.client.v1.executions.Schemas/Get` | `dokime.client.v1.executions.SchemasGetRequest` | `dokime.client.v1.executions.SchemasGetResponse` | Client | replaced by digest and paged descriptors |
+| `dokime.v1.Executions/Set` | `dokime.client.v1.Executions/Set` | `dokime.client.v1.ExecutionsSetRequest` | `dokime.client.v1.ExecutionsSetResponse` | Client | moved |
+| `dokime.v1.Executions/List` | `dokime.client.v1.Executions/List` | `dokime.client.v1.ExecutionsListRequest` | `dokime.client.v1.ExecutionsListResponse` | Client | moved |
+| `dokime.v1.Executions/Watch` | `dokime.client.v1.Executions/Watch` | `dokime.client.v1.ExecutionsWatchRequest` | `dokime.client.v1.ExecutionsWatchResponse` | Client | moved |
+| `dokime.v1.Executions/Create` | `dokime.client.v1.Executions/Create` | `dokime.client.v1.ExecutionsCreateRequest` | `dokime.client.v1.ExecutionsCreateResponse` | Client | moved |
+| `dokime.v1.Executions/Start` | `dokime.client.v1.Executions/Start` | `dokime.client.v1.ExecutionsStartRequest` | `dokime.client.v1.ExecutionsStartResponse` | Client | moved |
+| `dokime.v1.Executions/Stop` | `dokime.client.v1.Executions/Stop` | `dokime.client.v1.ExecutionsStopRequest` | `dokime.client.v1.ExecutionsStopResponse` | Client | moved |
+| `dokime.v1.Executions/Cancel` | `dokime.client.v1.Executions/Cancel` | `dokime.client.v1.ExecutionsCancelRequest` | `dokime.client.v1.ExecutionsCancelResponse` | Client | moved |
+| `dokime.v1.Executions/Delete` | `dokime.client.v1.Executions/Delete` | `dokime.client.v1.ExecutionsDeleteRequest` | `dokime.client.v1.ExecutionsDeleteResponse` | Client | moved |
+| `dokime.v1.Executions/Parameters` | `dokime.client.v1.Executions/Parameters` | `dokime.client.v1.ExecutionsParametersRequest` | `dokime.client.v1.ExecutionsParametersResponse` | Client | moved |
+| `dokime.v1.Executions/Steps` | `dokime.client.v1.Executions/Steps` | `dokime.client.v1.ExecutionsStepsRequest` | `dokime.client.v1.ExecutionsStepsResponse` | Client | moved |
+| `dokime.v1.executions.Commands/Get` | `dokime.client.v1.executions.Commands/Get` | `dokime.client.v1.executions.CommandsGetRequest` | `dokime.client.v1.executions.CommandsGetResponse` | Client | moved |
+| `dokime.v1.executions.Commands/Create` | `dokime.client.v1.executions.Commands/Create` | `dokime.client.v1.executions.CommandsCreateRequest` | `dokime.client.v1.executions.CommandsCreateResponse` | Client | moved |
+| `dokime.v1.executions.Progress/Get` | `dokime.client.v1.executions.Progress/Get` | `dokime.client.v1.executions.ProgressGetRequest` | `dokime.client.v1.executions.ProgressGetResponse` | Client | moved |
+| `dokime.v1.executions.Progress/Watch` | `dokime.client.v1.executions.Progress/Watch` | `dokime.client.v1.executions.ProgressWatchRequest` | `dokime.client.v1.executions.ProgressWatchResponse` | Client | moved |
+| `dokime.v1.media.Captures/Create` | `dokime.client.v1.media.Captures/Create` | `dokime.client.v1.media.CapturesCreateRequest` | `dokime.client.v1.media.CapturesCreateResponse` | Client | moved |
+| `dokime.v1.media.Captures/Get` | `dokime.client.v1.media.Captures/Get` | `dokime.client.v1.media.CapturesGetRequest` | `dokime.client.v1.media.CapturesGetResponse` | Client | moved |
+| `dokime.v1.media.Captures/Watch` | `dokime.client.v1.media.Captures/Watch` | `dokime.client.v1.media.CapturesWatchRequest` | `dokime.client.v1.media.CapturesWatchResponse` | Client | moved |
+| `dokime.v1.media.Captures/Stop` | `dokime.client.v1.media.Captures/Stop` | `dokime.client.v1.media.CapturesStopRequest` | `dokime.client.v1.media.CapturesStopResponse` | Client | moved |
+| `dokime.v1.plots.Settings/Get` | `dokime.client.v1.plots.Settings/Get` | `dokime.client.v1.plots.SettingsGetRequest` | `dokime.client.v1.plots.SettingsGetResponse` | Client | moved |
+| `dokime.v1.plots.Settings/Set` | `dokime.client.v1.plots.Settings/Set` | `dokime.client.v1.plots.SettingsSetRequest` | `dokime.client.v1.plots.SettingsSetResponse` | Client | moved |
+| `dokime.v1.plots.Snapshots/List` | `dokime.client.v1.plots.Snapshots/List` | `dokime.client.v1.plots.SnapshotsListRequest` | `dokime.client.v1.plots.SnapshotsListResponse` | Client | moved |
+| `dokime.v1.plots.Snapshots/Watch` | `dokime.client.v1.plots.Snapshots/Watch` | `dokime.client.v1.plots.SnapshotsWatchRequest` | `dokime.client.v1.plots.SnapshotsWatchResponse` | Client | moved |
+| `dokime.v1.plugins.Settings/Get` | `dokime.client.v1.plugins.Settings/Get` | `dokime.client.v1.plugins.SettingsGetRequest` | `dokime.client.v1.plugins.SettingsGetResponse` | Client | moved |
+| `dokime.v1.plugins.Settings/Set` | `dokime.client.v1.plugins.Settings/Set` | `dokime.client.v1.plugins.SettingsSetRequest` | `dokime.client.v1.plugins.SettingsSetResponse` | Client | moved |
+| `dokime.v1.Prompts/Get` | `dokime.client.v1.Prompts/Get` | `dokime.client.v1.PromptsGetRequest` | `dokime.client.v1.PromptsGetResponse` | Client | moved |
+| `dokime.v1.Prompts/List` | `dokime.client.v1.Prompts/List` | `dokime.client.v1.PromptsListRequest` | `dokime.client.v1.PromptsListResponse` | Client | moved |
+| `dokime.v1.Prompts/Watch` | `dokime.client.v1.Prompts/Watch` | `dokime.client.v1.PromptsWatchRequest` | `dokime.client.v1.PromptsWatchResponse` | Client | moved |
+| `dokime.v1.prompts.Answers/Create` | `dokime.client.v1.prompts.Answers/Create` | `dokime.client.v1.prompts.AnswersCreateRequest` | `dokime.client.v1.prompts.AnswersCreateResponse` | Client | moved |
+| `dokime.v1.Reports/Get` | `dokime.client.v1.Reports/Get` | `dokime.client.v1.ReportsGetRequest` | `dokime.client.v1.ReportsGetResponse` | Client | moved |
+| `dokime.v1.Reports/Create` | `dokime.client.v1.Reports/Create` | `dokime.client.v1.ReportsCreateRequest` | `dokime.client.v1.ReportsCreateResponse` | Client | moved |
+| `dokime.v1.Reports/Publish` | `dokime.client.v1.Reports/Publish` | `dokime.client.v1.ReportsPublishRequest` | `dokime.client.v1.ReportsPublishResponse` | Client | moved |
+| `dokime.v1.Secrets/Get` | `dokime.client.v1.Secrets/Get` | `dokime.client.v1.SecretsGetRequest` | `dokime.client.v1.SecretsGetResponse` | Client | moved |
+| `dokime.v1.Secrets/Set` | `dokime.client.v1.Secrets/Set` | `dokime.client.v1.SecretsSetRequest` | `dokime.client.v1.SecretsSetResponse` | Client | moved |
+| `dokime.v1.Secrets/List` | `dokime.client.v1.Secrets/List` | `dokime.client.v1.SecretsListRequest` | `dokime.client.v1.SecretsListResponse` | Client | moved |
+| `dokime.v1.Secrets/Watch` | `dokime.client.v1.Secrets/Watch` | `dokime.client.v1.SecretsWatchRequest` | `dokime.client.v1.SecretsWatchResponse` | Client | moved |
+| `dokime.v1.Secrets/Delete` | `dokime.client.v1.Secrets/Delete` | `dokime.client.v1.SecretsDeleteRequest` | `dokime.client.v1.SecretsDeleteResponse` | Client | moved |
+| `dokime.v1.Secrets/Export` | `dokime.client.v1.Secrets/Export` | `dokime.client.v1.SecretsExportRequest` | `dokime.client.v1.SecretsExportResponse` | Client | moved |
+| `dokime.v1.Secrets/Import` | `dokime.client.v1.Secrets/Import` | `dokime.client.v1.SecretsImportRequest` | `dokime.client.v1.SecretsImportResponse` | Client | moved |
+| `dokime.v1.Settings/Get` | `dokime.client.v1.Settings/Get` | `dokime.client.v1.SettingsGetRequest` | `dokime.client.v1.SettingsGetResponse` | Client | moved |
+| `dokime.v1.Settings/Set` | `dokime.client.v1.Settings/Set` | `dokime.client.v1.SettingsSetRequest` | `dokime.client.v1.SettingsSetResponse` | Client | moved |
+| `dokime.v1.Settings/Schema` | `dokime.client.v1.Settings/Schema` | `dokime.client.v1.SettingsSchemaRequest` | `dokime.client.v1.SettingsSchemaResponse` | Client | moved |
+| `dokime.v1.storage.Sources/Get` | `dokime.client.v1.storage.Sources/Get` | `dokime.client.v1.storage.SourcesGetRequest` | `dokime.client.v1.storage.SourcesGetResponse` | Client | moved |
+| `dokime.v1.storage.Sources/Set` | `dokime.client.v1.storage.Sources/Set` | `dokime.client.v1.storage.SourcesSetRequest` | `dokime.client.v1.storage.SourcesSetResponse` | Client | moved |
+| `dokime.context.v1.Backend/Environment` | `dokime.plugin.host.v1.Backend/Environment` | `dokime.plugin.host.v1.BackendEnvironmentRequest` | `dokime.plugin.host.v1.BackendEnvironmentResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.content.Artifacts/Create` | `dokime.plugin.host.v1.content.Artifacts/Create` | `dokime.plugin.host.v1.content.ArtifactsCreateRequest` | `dokime.plugin.host.v1.content.ArtifactsCreateResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Documents/AppendParts` | `dokime.plugin.host.v1.Documents/AppendParts` | `dokime.plugin.host.v1.DocumentsAppendPartsRequest` | `dokime.plugin.host.v1.DocumentsAppendPartsResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Effects/Create` | `dokime.plugin.host.v1.Effects/Create` | `dokime.plugin.host.v1.EffectsCreateRequest` | `dokime.plugin.host.v1.EffectsCreateResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Effects/Get` | `dokime.plugin.host.v1.Effects/Get` | `dokime.plugin.host.v1.EffectsGetRequest` | `dokime.plugin.host.v1.EffectsGetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Effects/Set` | `dokime.plugin.host.v1.Effects/Set` | `dokime.plugin.host.v1.EffectsSetRequest` | `dokime.plugin.host.v1.EffectsSetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Evidence/Statistics` | `dokime.plugin.host.v1.Evidence/Statistics` | `dokime.plugin.host.v1.EvidenceStatisticsRequest` | `dokime.plugin.host.v1.EvidenceStatisticsResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.evidence.Logs/Append` | `dokime.plugin.host.v1.evidence.Logs/Append` | `dokime.plugin.host.v1.evidence.LogsAppendRequest` | `dokime.plugin.host.v1.evidence.LogsAppendResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.evidence.Records/Append` | `dokime.plugin.host.v1.evidence.Records/Append` | `dokime.plugin.host.v1.evidence.RecordsAppendRequest` | `dokime.plugin.host.v1.evidence.RecordsAppendResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.evidence.Records/List` | `dokime.plugin.host.v1.evidence.Records/List` | `dokime.plugin.host.v1.evidence.RecordsListRequest` | `dokime.plugin.host.v1.evidence.RecordsListResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.evidence.Traceability/Get` | `dokime.plugin.host.v1.evidence.Traceability/Get` | `dokime.plugin.host.v1.evidence.TraceabilityGetRequest` | `dokime.plugin.host.v1.evidence.TraceabilityGetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.evidence.Traceability/Set` | `dokime.plugin.host.v1.evidence.Traceability/Set` | `dokime.plugin.host.v1.evidence.TraceabilitySetRequest` | `dokime.plugin.host.v1.evidence.TraceabilitySetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.executions.Progress/Get` | `dokime.plugin.host.v1.executions.Progress/Get` | `dokime.plugin.host.v1.executions.ProgressGetRequest` | `dokime.plugin.host.v1.executions.ProgressGetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.executions.Progress/Set` | `dokime.plugin.host.v1.executions.Progress/Set` | `dokime.plugin.host.v1.executions.ProgressSetRequest` | `dokime.plugin.host.v1.executions.ProgressSetResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Files/Capture` | `dokime.plugin.host.v1.Files/Capture` | `dokime.plugin.host.v1.FilesCaptureRequest` | `dokime.plugin.host.v1.FilesCaptureResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.files.Captures/Start` | `dokime.plugin.host.v1.files.Captures/Start` | `dokime.plugin.host.v1.files.CapturesStartRequest` | `dokime.plugin.host.v1.files.CapturesStartResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.files.Captures/Stop` | `dokime.plugin.host.v1.files.Captures/Stop` | `dokime.plugin.host.v1.files.CapturesStopRequest` | `dokime.plugin.host.v1.files.CapturesStopResponse` | Plugin Host (Public) | moved |
+| `dokime.context.v1.Prompts/Create` | `dokime.plugin.host.v1.Prompts/Create` | `dokime.plugin.host.v1.PromptsCreateRequest` | `dokime.plugin.host.v1.PromptsCreateResponse` | Plugin Host (Public) | moved |
+| `<template>.materialize` | `<template>.materialize` | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeResponse` | Plugin (Protected) | done |
+| `<template>.initialize` | `<template>.initialize` | `dokime.plugin.v1.ExecutionsInitializeRequest` | `dokime.plugin.v1.ExecutionsInitializeResponse` | Plugin (Protected) | done |
+| `Step.operation (plugin-authored dotted identity)` | `Step.operation (plugin-authored dotted identity)` | `dokime.plugin.v1.StepsExecuteRequest` | `dokime.plugin.v1.StepsExecuteResponse` | Plugin (Protected) | done |
+| `Criterion.operation (plugin-authored dotted identity)` | `Criterion.operation (plugin-authored dotted identity)` | `dokime.plugin.v1.CriteriaEvaluateRequest` | `dokime.plugin.v1.CriteriaEvaluateResponse` | Plugin (Protected) | done |
+| `<template>.cleanup` | `<template>.cleanup` | `dokime.plugin.v1.ExecutionsCleanupRequest` | `dokime.plugin.v1.ExecutionsCleanupResponse` | Plugin (Protected) | done |
+| `dokime.settings.read` | `harmos.context.v1.HostValues/Get` | `dokime.plugin.host.v1.ReadSettings` | `dokime.plugin.host.v1.SavedSettings` | Plugin Host | awaits composition |
+| `dokime.secrets.read` | `harmos.context.v1.HostValues/Get` | `dokime.plugin.host.v1.ReadSecret` | `dokime.plugin.host.v1.Secret` | Plugin Host | awaits composition |
+| `harmos.v1.status.Diagnostics/Get` | `harmos.v1.status.Diagnostics/Get` | `harmos.v1.status.DiagnosticsGetRequest` | `harmos.v1.status.DiagnosticsGetResponse` | Client | done |
+| `harmos.v1.Status/Get` | `harmos.v1.Status/Get` | `harmos.v1.StatusGetRequest` | `harmos.v1.StatusGetResponse` | Client | done |
+| `harmos.v1.status.Logs/Watch` | `harmos.v1.status.Logs/Watch` | `harmos.v1.status.LogsWatchRequest` | `harmos.v1.status.LogsWatchResponse` | Client | done |
+| `harmos.v1.status.TraceEvents/Watch` | `harmos.v1.status.TraceEvents/Watch` | `harmos.v1.status.TraceEventsWatchRequest` | `harmos.v1.status.TraceEventsWatchResponse` | Client | done |
+| `harmos.v1.Plugins/Get` | `harmos.v1.Plugins/Get` | `harmos.v1.PluginsGetRequest` | `harmos.v1.PluginsGetResponse` | Client | awaits composition |
+| `harmos.v1.Plugins/Create` | `harmos.v1.Plugins/Create` | `harmos.v1.PluginsCreateRequest` | `harmos.v1.PluginsCreateResponse` | Client | awaits composition |
+| `harmos.v1.Plugins/List` | `harmos.v1.Plugins/List` | `harmos.v1.PluginsListRequest` | `harmos.v1.PluginsListResponse` | Client | awaits composition |
+| `harmos.v1.Plugins/Restart` | `harmos.v1.Plugins/Restart` | `harmos.v1.PluginsRestartRequest` | `harmos.v1.PluginsRestartResponse` | Client | awaits composition |
+| `harmos.v1.Plugins/Delete` | `harmos.v1.Plugins/Delete` | `harmos.v1.PluginsDeleteRequest` | `harmos.v1.PluginsDeleteResponse` | Client | awaits composition |
+| `harmos.v1.Plugins/Set` | `harmos.v1.Plugins/Set` | `harmos.v1.PluginsSetRequest` | `harmos.v1.PluginsSetResponse` | Client | awaits composition |
+| `harmos.v1.access.Pairings/Create` | `harmos.v1.access.Pairings/Create` | `harmos.v1.access.PairingsCreateRequest` | `harmos.v1.access.PairingsCreateResponse` | Client | done |
+| `harmos.v1.access.Listener/Get` | `harmos.v1.access.Listener/Get` | `harmos.v1.access.ListenerGetRequest` | `harmos.v1.access.ListenerGetResponse` | Client | done |
+| `harmos.v1.access.Certificates/Create` | `harmos.v1.access.Certificates/Create` | `harmos.v1.access.CertificatesCreateRequest` | `harmos.v1.access.CertificatesCreateResponse` | Client | done |
+| `harmos.v1.access.Listener/Set` | `harmos.v1.access.Listener/Set` | `harmos.v1.access.ListenerSetRequest` | `harmos.v1.access.ListenerSetResponse` | Client | done |
+| `harmos.context.v1.Time/Get` | `harmos.context.v1.Time/Get` | `harmos.context.v1.TimeGetRequest` | `harmos.context.v1.TimeGetResponse` | Plugin Host | done |
+| `harmos.context.v1.Time/Sleep` | `harmos.context.v1.Time/Sleep` | `harmos.context.v1.TimeSleepRequest` | `harmos.context.v1.TimeSleepResponse` | Plugin Host | done |
+
+| File Transfer | `dokime.client.v1.Files/Get` | `dokime.client.v1.FilesGetRequest` | `dokime.client.v1.FilesGetResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Read` | `dokime.client.v1.FilesReadRequest` | `dokime.client.v1.FilesReadResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Watch` | `dokime.client.v1.FilesWatchRequest` | `dokime.client.v1.FilesWatchResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.Files/Delete` | `dokime.client.v1.FilesDeleteRequest` | `dokime.client.v1.FilesDeleteResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Create` | `dokime.client.v1.files.UploadsCreateRequest` | `dokime.client.v1.files.UploadsCreateResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Get` | `dokime.client.v1.files.UploadsGetRequest` | `dokime.client.v1.files.UploadsGetResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Resume` | `dokime.client.v1.files.UploadsResumeRequest` | `dokime.client.v1.files.UploadsResumeResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Append` | `dokime.client.v1.files.UploadsAppendRequest` | `dokime.client.v1.files.UploadsAppendResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Publish` | `dokime.client.v1.files.UploadsPublishRequest` | `dokime.client.v1.files.UploadsPublishResponse` | Client | declared |
+| File Transfer | `dokime.client.v1.files.Uploads/Delete` | `dokime.client.v1.files.UploadsDeleteRequest` | `dokime.client.v1.files.UploadsDeleteResponse` | Client | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Get` | `dokime.plugin.host.v1.FilesGetRequest` | `dokime.plugin.host.v1.FilesGetResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Read` | `dokime.plugin.host.v1.FilesReadRequest` | `dokime.plugin.host.v1.FilesReadResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Watch` | `dokime.plugin.host.v1.FilesWatchRequest` | `dokime.plugin.host.v1.FilesWatchResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.Files/Delete` | `dokime.plugin.host.v1.FilesDeleteRequest` | `dokime.plugin.host.v1.FilesDeleteResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Create` | `dokime.plugin.host.v1.files.UploadsCreateRequest` | `dokime.plugin.host.v1.files.UploadsCreateResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Get` | `dokime.plugin.host.v1.files.UploadsGetRequest` | `dokime.plugin.host.v1.files.UploadsGetResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Resume` | `dokime.plugin.host.v1.files.UploadsResumeRequest` | `dokime.plugin.host.v1.files.UploadsResumeResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Append` | `dokime.plugin.host.v1.files.UploadsAppendRequest` | `dokime.plugin.host.v1.files.UploadsAppendResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Publish` | `dokime.plugin.host.v1.files.UploadsPublishRequest` | `dokime.plugin.host.v1.files.UploadsPublishResponse` | Plugin Host | declared |
+| File Transfer | `dokime.plugin.host.v1.files.Uploads/Delete` | `dokime.plugin.host.v1.files.UploadsDeleteRequest` | `dokime.plugin.host.v1.files.UploadsDeleteResponse` | Plugin Host | declared |
+
+Decision: product file resources own transfer; Create, Get and Resume return chunk/message limits.
+Schema retrieval returns frozen record/stream `message_name` bindings on every descriptor page.
+Descriptor files are the page unit; each encoded response obeys the smaller of
+`PageRequest.max_bytes` (when set) and the existing host unary message limit.
+
+Each lifecycle binding keeps its own Protected visibility, policy and handler;
+only its shared request/response pair is reused. There is no lifecycle dispatch
+service. Documents.Get retains its ordered bounded frames, counters and fixed cut.
+No field number, scalar type, cardinality, oneof, reserved tag or streaming shape
+changes in this amendment. ReadSettings/SavedSettings and ReadSecret/Secret
+library request/response shapes; their rows deliberately await composition.
+
+Product RecordSchemas and StreamSchemas remain distinct from library registries:
+`crates/dokime-operations-next/src/client/catalog_inventory.rs` projects admitted
+and frozen record contracts/stream rows; `catalog_record_schemas_list.rs` and
+`catalog_stream_schemas_list.rs` select those projections by parent. At the pinned
+library revision, `crates/harmos-operations/src/host/catalog.rs` instead reads
+StorageSchema and StoredIdentity for its schema/stream kinds. Keep product
+RecordSchemas/StreamSchemas; do not merge them with library Schemas/Streams.
+
+The former Catalog.Analyses becomes Analyses.List, preserving its single method
+and payload fields; Suites, RecordSchemas, StreamSchemas and PromptDefinitions
+lose their catalog parent. SettingsCatalog and PromptCatalog become the shared
+SettingsDeclarations and PromptDefinitions message names. `FrozenSchemas` carries
+a SHA-256 descriptor digest plus bound record/stream identities. Its former embedded
+`harmos.v1.Catalog` is removed. `Executions.Schemas.Get` returns the complete frozen
+`FileDescriptorSet` in file order through bounded pages, independently of plugin
+availability. SDK caches retain complete sets by digest, including across executions.
+No product Catalog declaration remains.
+
+### Protocol File Inventory
+
+All paths below are relative to `proto/dokime/`; braces enumerate files.
+
+- `v1/{analyses,appearance,cycles,documents,empty,evidence,execution,expressions,files,formatting,metadata,notes,parameters,plots,prompts,record_contracts,scalar,schemas,settings,suites,traceability}.proto`
+- `client/v1/{aggregates,analyses,backend,backend/overview,cases,content,content/artifacts,content/execution_files,cycles,documents,evidence,evidence/health_events,evidence/notes,evidence/records,evidence/samples,evidence/traceability,executions,executions/commands,executions/progress,executions/schemas,media/captures,plots/settings,plots/snapshots,plugins,plugins/settings,prompt_definitions,prompts,prompts/answers,record_schemas,reports,secrets,settings,storage/sources,stream_schemas,suites}.proto`
+- `plugin/v1/{criteria,executions,steps,test_cases}.proto`
+- `plugin/host/v1/{backend,content/artifacts,documents,effects,evidence,evidence/logs,evidence/records,evidence/traceability,executions/progress,files,files/captures,prompts,secrets,settings}.proto`
+
+Shared files contain messages and enums only:
+
+| Shared File | Vocabulary |
 | --- | --- |
-| `Appearance.GetAppearance` | `Backend.Appearance` |
-| `Backend.CollectDiagnostics` | `Status.Diagnostics.Get` |
-| `Backend.GetAvailability` | `Status.Get` |
-| `Backend.GetHealth` | `Status.Get` |
-| `Backend.GetIdentity` | `Status.Get` |
-| `Backend.WatchLogs` | `Status.Logs.Watch` |
-| `Backend.WatchTrace` | `Status.TraceEvents.Watch` |
-| `Catalog.GetRecordSchema` | `Catalog.RecordSchemas.Get` |
-| `Catalog.GetSuite` | `Catalog.Suites.Get` |
-| `Catalog.GetTelemetrySchema` | `Catalog.StreamSchemas.Get` |
-| `Catalog.ListRecordSchemas` | `Catalog.RecordSchemas.List` |
-| `Catalog.ListSuites` | `Catalog.Suites.List` |
-| `Catalog.ListTelemetrySchemas` | `Catalog.StreamSchemas.List` |
-| `Content.DownloadAppearanceAsset` | `Storage.GetFileBytes` |
-| `Content.DownloadArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` |
-| `Content.DownloadEvidence` | `Evidence.Archive` + `Storage.GetFileBytes` |
-| `Content.DownloadExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.GetFileBytes` |
-| `Content.FollowExecutionFile` | `Content.ExecutionFiles.Get` + `Storage.WatchFileBytes` |
-| `Content.ListArtifacts` | `Content.Artifacts.List` |
-| `Content.ListExecutionFiles` | `Content.ExecutionFiles.List` |
-| `Content.ReadExecutionFile` | `Content.ExecutionFiles.Get` |
-| `Content.UploadArtifact` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Content.Artifacts.Create` |
-| `Documents.CaptureCurrentDocument` | `Documents.Get` |
-| `Documents.UpdatePlotSettings` | `Plots.Settings.Set` |
-| `Evidence.GetCapturedRecordSchema` | `Catalog.RecordSchemas.Get` |
-| `Evidence.ListRecords` | `Evidence.Records.List` |
-| `Evidence.WatchRecords` | `Evidence.Records.Watch` |
-| `Execution.AppendExecutions` | `Executions.Create` |
-| `Execution.CancelExecution` | `Executions.Cancel` |
-| `Execution.CreateCycle` | `Cycles.Create` |
-| `Execution.DeleteCase` | `Cases.Delete` |
-| `Execution.GetCase` | `Cases.Get` |
-| `Execution.GetCycle` | `Cycles.Get` |
-| `Execution.GetExecution` | `Executions.Get` |
-| `Execution.GetExecutionCommand` | `Executions.Commands.Get` |
-| `Execution.ListCaseParameters` | `Cases.Parameters` |
-| `Execution.ListCases` | `Cases.List` |
-| `Execution.ListCycles` | `Cycles.List` |
-| `Execution.ListExecutionParameters` | `Executions.Parameters` |
-| `Execution.ListExecutionSteps` | `Executions.Steps` |
-| `Execution.ListExecutions` | `Executions.List` |
-| `Execution.PauseCycle` | `Cycles.Set` |
-| `Execution.PauseExecution` | `Executions.Set` |
-| `Execution.RenameCycle` | `Cycles.Set` |
-| `Execution.RenameExecution` | `Executions.Set` |
-| `Execution.RerunCycle` | `Cycles.Create` |
-| `Execution.ResumeCycle` | `Cycles.Set` |
-| `Execution.ResumeExecution` | `Executions.Set` |
-| `Execution.SealCycle` | `Cycles.Seal` |
-| `Execution.SetCycleArchived` | `Cycles.Set` |
-| `Execution.SetExecutionArchived` | `Executions.Set` |
-| `Execution.StartExecution` | `Executions.Start` |
-| `Execution.StopExecution` | `Executions.Stop` |
-| `Execution.SubmitExecutionCommand` | `Executions.Commands.Create` |
-| `Execution.UpdateCyclePolicy` | `Cycles.Set` |
-| `Health.ListHealth` | `Evidence.HealthEvents.List` |
-| `History.BrowseCycles` | `Cycles.List` |
-| `History.BrowseExecutions` | `Executions.List` |
-| `History.DeleteExecution` | `Executions.Delete` |
-| `History.DownloadCheckpointArtifact` | `Content.Artifacts.Get` + `Storage.GetFileBytes` |
-| `History.GetCheckpointContext` | `Executions.Get` + `Cycles.Get` + `Documents.Get` + `Prompts.List` + `Evidence.HealthEvents.List` + `Evidence.Notes.List` + `Evidence.Traceability.Get` + `Backend.Appearance` |
-| `History.GetCheckpointDocument` | `Documents.Get` |
-| `History.GetCheckpointEvidence` | `Content.Artifacts.List` + `Content.ExecutionFiles.List` + `Catalog.RecordSchemas.List` + `Catalog.StreamSchemas.List` |
-| `History.GetExecutionCheckpoint` | `Executions.Get` |
-| `History.ListCheckpointRecords` | `Evidence.Records.List` |
-| `History.ListCheckpointTelemetry` | `Evidence.Samples.List` |
-| `History.ReadCheckpointOutput` | `Content.ExecutionFiles.Get` |
-| `Media.AudioRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
-| `Media.CameraRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
-| `Media.Photo` | `Media.Captures.Create` |
-| `Media.ScreenRecording` | `Media.Captures.Create` + `Media.Captures.Watch` + `Media.Captures.Stop` |
-| `Media.Screenshot` | `Media.Captures.Create` |
-| `Notes.CreateNote` | `Evidence.Notes.Create` |
-| `Notes.EditNote` | `Evidence.Notes.Set` |
-| `Notes.ListNotes` | `Evidence.Notes.List` |
-| `Observation.GetRuntimeShell` | `Backend.Overview.Get` |
-| `Observation.GetTraceability` | `Evidence.Traceability.Get` |
-| `Observation.WatchExecutionProgress` | `Executions.Progress.Watch` |
-| `Observation.WatchRuntime` | `Backend.Overview.Watch` |
-| `Planning.MaterializeTemplate` | `Cases.Create` |
-| `Planning.PreviewSelection` | `Cases.Create` |
-| `Planning.RegisterSelection` | `Cases.Create` |
-| `Plots.ListAnalyses` | `Catalog.Analyses` |
-| `Plots.QuerySnapshots` | `Plots.Snapshots.List` |
-| `Plots.Watch` | `Plots.Snapshots.Watch` |
-| `Plugins.GetInstallation` | `Plugins.Get` |
-| `Plugins.Install` | `Storage.CreateFileProduction` + `Storage.GetFileProduction` + `Storage.CreateFileWriter` + `Storage.AppendFileBytes` + `Storage.DeleteFileProduction` + `Storage.PublishFileProduction` + `Plugins.Create` |
-| `Plugins.ListAdmittedPlugins` | `Plugins.List` |
-| `Plugins.ListInstallations` | `Plugins.List` |
-| `Plugins.Reload` | `Plugins.Restart` |
-| `Plugins.Remove` | `Plugins.Delete` |
-| `Plugins.SetEnabled` | `Plugins.Set` |
-| `Plugins.List` | `Plugins.List` |
-| `Plugins.Add` | `Plugins.Create` |
-| `Prompts.GetDefinition` | `Catalog.PromptDefinitions.Get` |
-| `Prompts.GetPrompt` | `Prompts.Get` |
-| `Prompts.ListDefinitions` | `Catalog.PromptDefinitions.List` |
-| `Prompts.ListPending` | `Prompts.List` |
-| `Prompts.Respond` | `Prompts.Answers.Create` |
-| `Query.Aggregate` | `Aggregates.Get` |
-| `Query.AggregateSamples` | `Evidence.Statistics` |
-| `Query.ListCycles` | `Cycles.List` |
-| `Query.ListExecutions` | `Executions.List` |
-| `Query.ListRecords` | `Evidence.Records.List` |
-| `Query.ListSamples` | `Evidence.Samples.List` |
-| `Remote.CreatePairing` | `Access.Pairings.Create` |
-| `Remote.ReadListener` | `Access.Listener.Get` |
-| `Remote.RegenerateCertificate` | `Access.Certificates.Create` |
-| `Remote.UpdateListener` | `Access.Listener.Set` |
-| `Reports.PublishExecutionReport` | `Reports.Publish` |
-| `Reports.DownloadCycleReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` |
-| `Reports.DownloadExecutionReport` | `Reports.Get` + `Storage.GetFileBytes` + `Reports.Create` |
-| `Reports.MaterializeReport` | `Reports.Create` |
-| `Runtime.GetHealth` | `Status.Get` |
-| `Runtime.GetIdentity` | `Status.Get` |
-| `Secrets.Export` | `Secrets.Export` |
-| `Secrets.Import` | `Secrets.Import` |
-| `Secrets.List` | `Secrets.List` |
-| `Secrets.Lookup` | `Secrets.Get` |
-| `Secrets.Preview` | `Secrets.Import` |
-| `Secrets.Put` | `Secrets.Set` |
-| `Secrets.Remove` | `Secrets.Delete` |
-| `Settings.GetPluginSettings` | `Plugins.Settings.Get` |
-| `Settings.GetSettings` | `Settings.Schema` |
-| `Settings.ListStorageSources` | `Storage.Sources.Get` |
-| `Settings.ReadApplicationSettings` | `Settings.Get` |
-| `Settings.ReorderStorageSources` | `Storage.Sources.Set` |
-| `Settings.SetStorageSourceEnabled` | `Storage.Sources.Set` |
-| `Settings.UpdateApplicationSettings` | `Settings.Set` |
-| `Settings.UpdatePluginSettings` | `Plugins.Settings.Set` |
-| `Telemetry.ListSamples` | `Evidence.Samples.List` |
-| `Telemetry.WatchSamples` | `Evidence.Samples.Watch` |
+| `v1/analyses.proto` | Immutable analysis declarations, selections and plugin operation payloads |
+| `v1/appearance.proto` | Asset references and metadata shared by appearance and content |
+| `v1/cycles.proto` | Cycle summaries, phases, states and archive selection |
+| `v1/documents.proto` | Document authoring, cards, summaries and selection scope |
+| `v1/empty.proto` | Empty response shared by retained ordinary services |
+| `v1/evidence.proto` | Evidence scope, origins, conditions, time windows, severity and artifact metadata |
+| `v1/execution.proto` | Frozen cases/origins, steps, criteria, outcomes and progress values |
+| `v1/expressions.proto` | Data, aggregate, transform and filter expression trees |
+| `v1/files.proto` | File selection and captured-file/gap vocabulary |
+| `v1/formatting.proto` | Scalar presentation, units and time formats |
+| `v1/metadata.proto` | Named metadata and typed attributes |
+| `v1/notes.proto` | Annotation ownership and selection |
+| `v1/parameters.proto` | Parameter definitions, expansion and expression trees |
+| `v1/plots.proto` | Plot declarations, query options, shared grids and rendering enums |
+| `v1/prompts.proto` | Prompt definitions, validation, actions, values and responses |
+| `v1/record_contracts.proto` | Plugin record declarations and listener bindings |
+| `v1/scalar.proto` | Typed scalar/list values, null and maps |
+| `v1/schemas.proto` | Record/stream schemas and fields |
+| `v1/settings.proto` | Plugin settings declarations and launch operation payload |
+| `v1/suites.proto` | Suite and template declarations |
+| `v1/traceability.proto` | Named traceability entries |
+
+The former resources.proto, catalog_types.proto, document_types.proto, values.proto,
+host.proto, catalog.proto and client_pending_*.proto are dissolved. Message owners
+are determined by resource use across both boundaries; public plugin declaration
+types remain shared with their client readers. Unreferenced analysis request/results
+and prompt-section declarations remain shared public vocabulary. Appearance failures
+belong to Backend. There are no aliases, compatibility files or catch-all payload files.
+
+### Generated Module Rename Recipe
+
+The protocol Rust exports are now `v1` (shared), `client`, `plugin` and `context`
+(the latter exports `dokime.plugin.host.v1`). Generated modules follow the actual
+package tree. Apply the table to operation IDs, descriptor lookups, raw gRPC paths,
+frozen type names, fixtures and imports together; do not change library names.
+
+| Old Module or Namespace | New Module or Namespace |
+| --- | --- |
+| `dokime.v1.<resource wrappers>` | `dokime.client.v1.<resource wrappers>` |
+| `dokime.v1.{backend,content,evidence,executions,media,plots,plugins,prompts,storage}` | `dokime.client.v1.<same nested package>` |
+| `dokime.v1.catalog.<Message>` | `dokime.client.v1.<Message>` (top level) |
+| `dokime.context.v1[.<nested>]` | `dokime.plugin.host.v1[.<same nested>]` |
+| `dokime.plugin.v1` | `dokime.plugin.v1` (unchanged) |
+| `dokime_protocol::v1::<resource wrapper>` | `dokime_protocol::client::<resource wrapper>` |
+| `dokime_protocol::v1::<nested>::<Message>` | `dokime_protocol::client::<nested>::<Message>` |
+| `dokime_protocol::v1::catalog::<Message>` | `dokime_protocol::client::<Message>` |
+| `dokime_protocol::context[::<nested>]` | Same Rust export; descriptor identity becomes `dokime.plugin.host.v1[.<nested>]` |
+| `dokime_protocol::dokime::context::v1` | `dokime_protocol::dokime::plugin::host::v1` |
+| `Dokime.Protocol.V1.<resource wrapper>` | `Dokime.Protocol.Client.V1.<resource wrapper>` |
+| `Dokime.Protocol.V1.<Name>Resources` | `Dokime.Protocol.Client.V1.<Name>Resources` |
+| `Dokime.Protocol.V1.CatalogResources` | `Dokime.Protocol.Client.V1` |
+| `Dokime.Protocol.Context.V1[.<Name>]` | `Dokime.Protocol.Plugin.Host.V1[.<Name>Resources]` |
+| `dokime::v1::<resource wrapper>` | `dokime::client::v1::<resource wrapper>` |
+| `dokime::v1::catalog::<Message>` | `dokime::client::v1::<Message>` |
+| `dokime::v1::<nested>` | `dokime::client::v1::<nested>` |
+| `dokime::context::v1[::<nested>]` | `dokime::plugin::host::v1[::<nested>]` |
+
+All nested C# client and plugin-host packages use the `<Name>Resources` namespace
+suffix, including ContentResources, EvidenceResources, ExecutionsResources and
+FilesResources. Root Client.V1 and Plugin.Host.V1 do not gain a suffix. Plugin.V1
+and shared Protocol.V1 stay unchanged, except for explicitly relocated types.
+
+The following payload relocation table is the exception list for former shared
+`dokime.v1` imports. Types not listed retain `dokime.v1`. Request/response wrappers
+already appear in the wire table; all other moved messages/enums are listed here.
+
+| Previous Qualified Package | Final Qualified Package | Messages and Enums |
+| --- | --- | --- |
+| `dokime.context.v1` | `dokime.plugin.host.v1` | `EffectWritable` |
+| `dokime.v1` | `dokime.client.v1` | `AddRemotePlugin`, `AdmittedPlugin`, `AdmittedPluginCursor`, `AdmittedPluginPage`, `AggregateReply`, `AppearanceFailure`, `AppearanceFailureKind`, `AppearanceLogo`, `AppearanceSnapshot`, `ApplicationAppearance`, `ApplicationSettings`, `BootstrapPaths`, `CachedRefresh`, `CaseActions`, `CaseDetail`, `CaseParameter`, `CaseStatus`, `CaseSummary`, `ClientPreferences`, `CriterionStatus`, `CycleFilter`, `CycleOrder`, `CycleOrderKey`, `CycleSelection`, `CycleWritable`, `Density`, `Diagnostic`, `DocumentBinding`, `DocumentBindingResult`, `DocumentCard`, `DocumentCardBody`, `DocumentCardBudget`, `DocumentCardFailure`, `DocumentCardKind`, `DocumentCompletion`, `DocumentDensity`, `DocumentEvidenceCut`, `DocumentFrame`, `DocumentFrameFrame`, `DocumentFrontiers`, `DocumentHeader`, `DocumentLayoutNode`, `DocumentLayoutNodeNode`, `DocumentOwnerReference`, `DocumentPage`, `DocumentPlacement`, `DocumentPlotDefinition`, `DocumentRail`, `DocumentRepeat`, `DocumentRepeatInstance`, `DocumentRepeatSelection`, `DocumentSection`, `DocumentSectionIdentity`, `DocumentSpan`, `DocumentSummary`, `DocumentSummaryCondition`, `DocumentSummaryFormat`, `DocumentSummaryGroup`, `DocumentSummaryGroupDefinition`, `DocumentSummaryPresentation`, `DocumentSummaryStat`, `DocumentSummaryState`, `DocumentSummaryTile`, `DocumentSummaryTileDefinition`, `DocumentTable`, `DocumentTableRow`, `DocumentTelemetryCut`, `DocumentWarning`, `EvidenceSubject`, `ExecutionBinding`, `ExecutionControls`, `ExecutionDetail`, `ExecutionFilter`, `ExecutionMode`, `ExecutionOrder`, `ExecutionOrderKey`, `ExecutionOutcomeCounts`, `ExecutionParameterSet`, `ExecutionSelection`, `ExecutionStep`, `ExecutionSummary`, `ExecutionWritable`, `FrozenSchemas`, `HostCardBlock`, `HostCardBlockKind`, `HostCardBody`, `HostCardKeyValue`, `HostCardKeyValueList`, `HostCardMetric`, `HostCardMetrics`, `HostCardStatus`, `HostCardTone`, `InstallPluginChunk`, `InstallPluginFrame`, `InstallPluginFrameFrame`, `InstallPluginHeader`, `InstallationCursor`, `InstallationPage`, `ListPlugins`, `LiveExecutionState`, `LogoVariant`, `ManagedPlugin`, `ManualRefresh`, `MaterializedParameter`, `OnDemandRefresh`, `OrganizationIdentity`, `Output`, `ParameterSource`, `PlannedCase`, `PlotAxisKind`, `PlotPresentation`, `PlotReferenceBand`, `PlotReferenceLine`, `PlotReferenceValue`, `Plugin`, `PluginEntries`, `PluginIdentity`, `PluginInstallation`, `PluginInstallationState`, `PluginMetadata`, `PluginPreferences`, `PluginState`, `PluginsInstallInput`, `PromptInstance`, `PromptKind`, `PromptView`, `QueryAggregate`, `QueryFilter`, `QueryFilterOperator`, `QueryRow`, `QuerySource`, `RegisteredSelection`, `RegisteredSelectionFilesEntry`, `RegisteredSelectionParametersEntry`, `RemoteListenerSettings`, `RemotePlugin`, `RemovePlugin`, `ReportDefaults`, `ReportMetadata`, `ReportOrigin`, `ReportState`, `ReportStatus`, `ReportSubject`, `RerunCaseNotice`, `SecretArchive`, `SecretImportAction`, `SecretImportChoice`, `SecretImportEntry`, `SecretImportPreview`, `SecretSnapshot`, `SecretSummary`, `SecretWritable`, `SelectedFile`, `SelectedFileKind`, `SelectionPlan`, `SelectionValues`, `SettingsCard`, `SettingsCardRefreshPolicy`, `SettingsCardRefreshPolicyPolicy`, `SettingsCardState`, `SettingsFrame`, `SettingsSection`, `SettingsSectionOwner`, `Statistics`, `StepCriterion`, `StepStatus`, `TelemetryPreferences`, `ThemeCornerRadii`, `ThemeFamily`, `ThemeMode`, `ThemeModePolicy`, `ThemeVariant` |
+| `dokime.v1` | `dokime.client.v1.backend` | `EvidenceCounts`, `RuntimeShellSnapshot` |
+| `dokime.v1` | `dokime.client.v1.content` | `ExecutionFileKind`, `ExecutionFileMetadata`, `ExecutionFileState` |
+| `dokime.v1` | `dokime.client.v1.evidence` | `Bucket`, `BucketValue`, `CapturedErrorCause`, `CapturedRecord`, `CapturedRecordError`, `CapturedRecordSelection`, `CycleScope`, `HealthItem`, `OperatorNote`, `RecordScope`, `SampleRow`, `StatisticValue`, `TelemetrySample`, `TraceabilitySnapshot` |
+| `dokime.v1` | `dokime.client.v1.executions` | `ExecutionCommandAction`, `ExecutionCommandPhase`, `ExecutionCommandReceipt` |
+| `dokime.v1` | `dokime.client.v1.media` | `RecordingAudio`, `RecordingProgress` |
+| `dokime.v1` | `dokime.client.v1.plots` | `AnalysisComputation`, `AnalysisEvidence`, `AnalysisSeries`, `ContourGrid`, `GridCell`, `GridFrame`, `GridFrames`, `NullableNumber`, `PlotAnalysis`, `PlotAnalysisError`, `PlotAnalysisResult`, `PlotBoxSummary`, `PlotBoxSummaryAnalysis`, `PlotCartesianMode`, `PlotColumn`, `PlotDomain`, `PlotEnvelope`, `PlotFrame`, `PlotHistogramAnalysis`, `PlotHistogramBin`, `PlotHistogramSeries`, `PlotHistogramStatistics`, `PlotMarker`, `PlotPayload`, `PlotPayloadDiagnostics`, `PlotSeries`, `PlotSeriesSummary`, `PlotSigmaBin`, `PlotSigmaIntervalAnalysis`, `PlotSigmaSeries`, `PlotStreamKind`, `PlotStreamUpdate` |
+| `dokime.v1` | `dokime.client.v1.plugins` | `SecretAvailability` |
+| `dokime.v1` | `dokime.client.v1.storage` | `StorageSource`, `StorageSources` |
+| `dokime.v1` | `dokime.plugin.host.v1` | `ReadSecret`, `ReadSettings`, `SavedSettings`, `Secret` |
+| `dokime.v1` | `dokime.plugin.host.v1.content` | Artifacts.Create request/response |
+| `dokime.v1` | `dokime.plugin.host.v1.evidence` | `Record` |
+| `dokime.v1` | `dokime.plugin.host.v1.files` | `CaptureMode`, `LineField`, `LineMarker`, `LineMatcher`, `MirrorCapture`, `StreamCapture` |
+| `dokime.v1` | `dokime.v1` | `PromptCatalog → PromptDefinitions`, `SettingsCatalog → SettingsDeclarations` |
+| `dokime.v1.evidence` | `dokime.client.v1.evidence` | `NoteWritable` |
+| `dokime.v1.media` | `dokime.client.v1.media` | `Capture`, `CaptureKind` |
+| `dokime.v1.plots` | `dokime.client.v1.plots` | `PlotSettingsValue` |
+
+The resource-local file moves also change Python `_pb2` modules and C++ `.pb.h`
+include paths even when a type stays in the same package. Replace imports/includes
+from resources, catalog_types, document_types, values and host using the file
+inventory above and the generated descriptor owner for that type. Shared packages
+do not imply a shared file: e.g. Metadata is in metadata, Value is in scalar,
+Document is in documents, Plot is in plots and DataExpression is in expressions.
+
+### Host Handlers and Operations
+
+- Regenerated Rust modules: `dokime.client.v1` and its backend/content/evidence/executions/media/plots/plugins/prompts/storage children; `dokime.plugin.host.v1` and content/evidence/executions/files children; shared `dokime.v1`; unchanged `dokime.plugin.v1`.
+- Mechanical recipe: apply the Rust rows above to service trait/client/server imports and operation wrappers; move former `v1::catalog::*` to `client::*`; apply the payload exception table; keep `context::*` imports while rebinding descriptor/operation IDs to plugin.host. Rename CatalogAnalyses to AnalysesList, SettingsCatalog to SettingsDeclarations and PromptCatalog to PromptDefinitions. Compose the retained library destinations in their separate work.
+
+### Rust SDK
+
+- Regenerated output: `sdk/rust/src/client/resources.rs` and the protocol modules listed for the host. The generator resolves product client request/response types through `dokime_protocol::client`.
+- Mechanical recipe: `dokime_protocol::v1::<operation wrapper> -> dokime_protocol::client::<operation wrapper>`; `v1::<nested> -> client::<nested>`; `v1::catalog::<Message> -> client::<Message>`; use the payload exception table for former shared data. `context` remains the handler object/module name; replace descriptor strings with plugin.host. Client roots keep their resource hierarchy except the explicitly flattened catalog resources (`client.suites`, `client.record_schemas`, `client.stream_schemas`, `client.prompt_definitions`, `client.analyses.list`).
+
+### Python SDK
+
+- Regenerated root metadata: `sdk/python/src/dokime/resources.json`; protobuf imports become `dokime.client.v1.*_pb2`, `dokime.plugin.host.v1.*_pb2`, shared named `dokime.v1.*_pb2` and unchanged `dokime.plugin.v1.*_pb2`. Generate protobuf messages through the SDK task before adapting helpers.
+- Move all resource imports and frozen descriptors by file owner; remove catalog parent imports; use `context` for the handler object. Migrate lifecycle/context helpers, typed wrappers, examples and tests against the wire table.
+
+### C# SDK
+
+- Regenerated outputs: `sdk/csharp/Dokime/Resources.cs` and `ClientResources.cs`. Proto namespaces are `Dokime.Protocol.Client.V1`, its `<Name>Resources` children, `Dokime.Protocol.Plugin.Host.V1`, its `<Name>Resources` children, shared `Dokime.Protocol.V1` and unchanged `Dokime.Protocol.Plugin.V1`.
+- Mechanical recipe: `Dokime.Protocol.V1.<resource wrapper> -> Dokime.Protocol.Client.V1.<resource wrapper>`; `Dokime.Protocol.V1.<Name>Resources -> Dokime.Protocol.Client.V1.<Name>Resources`; `CatalogResources.<Message> -> Client.V1.<Message>`; `Dokime.Protocol.Context.V1.<Name> -> Dokime.Protocol.Plugin.Host.V1.<Name>Resources`. Apply the payload exception table, rename the three declaration families, rebuild generated/frozen descriptors and keep the Context object.
+
+### C++ SDK
+
+- Regenerated output: `sdk/cpp/include/dokime/resources.hpp`. Message namespaces become `dokime::client::v1[::<nested>]` and `dokime::plugin::host::v1[::<nested>]`; shared `dokime::v1` and plugin `dokime::plugin::v1` remain.
+- Mechanical recipe: `dokime::v1::<resource wrapper> -> dokime::client::v1::<resource wrapper>`; `dokime::v1::<nested> -> dokime::client::v1::<nested>`; `dokime::v1::catalog::<Message> -> dokime::client::v1::<Message>`; `dokime::context::v1 -> dokime::plugin::host::v1`. Apply the payload exception table and map `dokime/v1/<resource>.pb.h -> dokime/client/v1/<resource>.pb.h`, `dokime/context/v1/<resource>.pb.h -> dokime/plugin/host/v1/<resource>.pb.h`; shared includes follow the named-file inventory. Keep the context handler object and update publication/frozen-descriptor fixtures.
+
+### Command-Line Tool
+
+- Regenerated modules: Rust client/shared/context exports and nested modules listed above; generated Rust SDK roots. Start from final wire identities, including flattened registry resources.
+- Migrate typed/raw calls, discovery, examples, retained paging, revisioned mutations and library content workflows. Apply the payload exception table; do not mechanically move shared vocabulary into the client package.
+
+### Desktop Adapter
+
+- Generated frontend/native message paths become `dokime/client/v1/{backend,content,evidence,executions,media,plots,plugins,prompts,storage}` plus root client resource files, `dokime/plugin/host/v1` child-call messages, shared named `dokime/v1` files and unchanged plugin files.
+- Regenerate the desktop adapter from final descriptors after host migration; migrate request/response decoding and typed/raw call paths. Preserve document frame ordering/cuts/counters, settings revisions and direct library workflows. Native and both WebView journeys remain consumer-owned proof.
+
+## Product File Resources
+
+`dokime.client.v1.Files` serves Get, Read, Watch and Delete; its `files.Uploads`
+resource serves Create, Get, Resume, Append, Publish and Delete. Plugin-host
+unary transfers use the corresponding `dokime.plugin.host.v1` identities through
+invocation-scoped child calls. File references, writer sessions, receipts and cuts
+reuse the vendored shared vocabulary. Uploads.Create/Get/Resume and Files.Get
+return chunk and message limits; there is no separate capability negotiation.
+Create/Append/Resume/Publish/Delete retain request IDs and original receipts.
+Accepted and durable upload lengths are reported separately; this store commits
+both in the same SQLite transaction. A resumed writer invalidates the older
+writer. Publication verifies length and SHA-256 before returning its reference.
+The file tables extend the development v1 layout; incompatible existing roots
+are refused with backup/fresh-root guidance and remain untouched.
+Appearance metadata carries the published asset's file reference; the desktop
+reads verified bytes through Files, and reports missing provider content explicitly.
+
+At pinned library revision `81d32d3`, externally served gRPC services cannot
+contribute authoritative operation discovery. `GrpcManager::register_service`
+reserves the service but accepts no contracts or descriptor/policy registrations;
+operation admission rejects a native gRPC binding for an already reserved service.
+`CatalogEntries.List` reports only operation-registry bindings. The missing library
+capability is registration of externally served methods with their contracts,
+request/response descriptors, policies and actual gRPC availability. Product
+operation discovery remains unavailable; it is not synthesized in the product.
+The invocation child carrier also has one reply per child and cannot carry a
+Files.Watch stream; plugin-host Watch requires library child-stream support.
+Client Files.Watch is served and follows store change notifications.

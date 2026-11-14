@@ -22,7 +22,6 @@
 // Local Imports
 use super::state::State;
 use dokime_operations_next::{Error, Result};
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -39,27 +38,28 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl State {
-    pub(super) fn saved_entries(&self) -> Result<v1::PluginEntries> {
+    pub(super) fn saved_entries(&self) -> Result<dokime_protocol::client::PluginEntries> {
         Ok(self.host.store.administration("plugin-entries")?.unwrap_or_default())
     }
-    pub(super) fn save_entries(&self, entries: &v1::PluginEntries) -> Result<()> {
+    pub(super) fn save_entries(&self, entries: &dokime_protocol::client::PluginEntries) -> Result<()> {
         self.host.store.save_administration("plugin-entries", entries)?;
         self.host.signal_change();
         Ok(())
     }
-    pub(super) async fn connect_entry(&self, mut entry: v1::Plugin) -> Result<v1::Plugin> {
-        let managed = matches!(entry.placement, Some(v1::plugin::Placement::Managed(_)));
+    pub(super) async fn connect_entry(&self, mut entry: dokime_protocol::client::Plugin) -> Result<dokime_protocol::client::Plugin> {
+        let managed = matches!(entry.placement, Some(dokime_protocol::client::plugin::Placement::Managed(_)));
         let mut placement = self.host.settings.placement.clone();
-        let preferences: Option<v1::SettingsSnapshot> = self.host.store.administration("preferences")?;
-        let preferences =
-            preferences.unwrap_or_else(dokime_operations_next::client::settings_read_application_settings::initial_preferences);
-        if let Some(plugins) = preferences.settings.and_then(|settings| settings.plugins) {
+        let preferences: Option<dokime_protocol::client::ApplicationSettings> = self.host.store.administration("preferences")?;
+        let preferences = preferences.unwrap_or_else(|| dokime_operations_next::client::settings_get::initial_preferences().value.unwrap());
+        if let Some(plugins) = preferences.plugins {
             placement.connect_timeout = std::time::Duration::from_secs(plugins.startup_timeout_s.into());
             placement.stop_grace = std::time::Duration::from_secs(plugins.stop_timeout_s.into());
         }
         let result = match &entry.placement {
-            Some(v1::plugin::Placement::Remote(remote)) => self.host.add_remote_configured(&remote.url, &placement).await,
-            Some(v1::plugin::Placement::Managed(_)) => {
+            Some(dokime_protocol::client::plugin::Placement::Remote(remote)) => {
+                self.host.add_remote_configured(&remote.url, &placement).await
+            }
+            Some(dokime_protocol::client::plugin::Placement::Managed(_)) => {
                 self.host.add_managed_configured(&self.managed_executable(&entry.entry)?, &placement).await
             }
             None => return Err(Error::Invalid("Reconnect a Remote URL or Reinstall Its Managed Bundle".into())),
@@ -67,11 +67,13 @@ impl State {
         match result {
             Ok(identifier) => {
                 entry.description = Some(self.host.description(&identifier).map_err(convert)?);
-                entry.state = v1::PluginState::Ready as i32;
+                entry.state = dokime_protocol::client::PluginState::Ready as i32;
                 entry.reason.clear();
             }
             Err(error) => {
-                entry.state = if managed { v1::PluginState::Failed } else { v1::PluginState::Unavailable } as i32;
+                entry.state =
+                    if managed { dokime_protocol::client::PluginState::Failed } else { dokime_protocol::client::PluginState::Unavailable }
+                        as i32;
                 entry.reason = format!("Check Plugin Settings and Secrets, Then Reload Its Entry: {error}");
             }
         }
@@ -82,7 +84,7 @@ impl State {
         self.save_entries(&entries)?;
         Ok(entry)
     }
-    pub(super) async fn add_entry(&self, url: &str) -> Result<v1::Plugin> {
+    pub(super) async fn add_entry(&self, url: &str) -> Result<dokime_protocol::client::Plugin> {
         if !(url.starts_with("http://") || url.starts_with("https://")) || url.contains('@') || url.contains('#') {
             return Err(Error::Invalid("Add Plugin: Supply an HTTP or HTTPS URL Without Embedded Credentials or a Fragment".into()));
         }
@@ -101,10 +103,10 @@ impl State {
             }
             return self.connect_entry(entry).await;
         }
-        let entry = v1::Plugin {
+        let entry = dokime_protocol::client::Plugin {
             entry: identifier,
-            placement: Some(v1::plugin::Placement::Remote(v1::RemotePlugin { url: url.into() })),
-            state: v1::PluginState::Connecting as i32,
+            placement: Some(dokime_protocol::client::plugin::Placement::Remote(dokime_protocol::client::RemotePlugin { url: url.into() })),
+            state: dokime_protocol::client::PluginState::Connecting as i32,
             ..Default::default()
         };
         entries.plugins.push(entry.clone());
@@ -116,7 +118,7 @@ impl State {
         let mut entries = self.saved_entries()?;
         let mut changed = false;
         for entry in &mut entries.plugins {
-            if entry.state != v1::PluginState::Ready as i32 {
+            if entry.state != dokime_protocol::client::PluginState::Ready as i32 {
                 continue;
             }
             let Some(description) = entry.description.as_ref() else {
@@ -127,8 +129,8 @@ impl State {
                 Err(_) => continue,
             };
             let endpoint = match &entry.placement {
-                Some(v1::plugin::Placement::Remote(remote)) => remote.url.clone(),
-                Some(v1::plugin::Placement::Managed(_)) => {
+                Some(dokime_protocol::client::plugin::Placement::Remote(remote)) => remote.url.clone(),
+                Some(dokime_protocol::client::plugin::Placement::Managed(_)) => {
                     let process = native.process.lock().await;
                     let Some(process) = process.as_ref() else {
                         continue;
@@ -163,8 +165,10 @@ impl State {
             if matches!(tokio::time::timeout(settings.connect_timeout, probe).await, Ok(Ok(true))) {
                 continue;
             }
-            let managed = matches!(entry.placement, Some(v1::plugin::Placement::Managed(_)));
-            entry.state = if managed { v1::PluginState::Failed } else { v1::PluginState::Unavailable } as i32;
+            let managed = matches!(entry.placement, Some(dokime_protocol::client::plugin::Placement::Managed(_)));
+            entry.state =
+                if managed { dokime_protocol::client::PluginState::Failed } else { dokime_protocol::client::PluginState::Unavailable }
+                    as i32;
             entry.reason = "The Plugin Stopped or Changed; Check Its Settings and Reload the Entry".into();
             // Keep Active Execution Resources Until Their Cleanup Has Settled.
             let _ = self.host.detach_plugin(&description.id).await;
@@ -175,31 +179,34 @@ impl State {
         }
         Ok(())
     }
-    pub(super) fn list_entries(&self) -> Result<Vec<v1::Plugin>> {
+    pub(super) fn list_entries(&self) -> Result<Vec<dokime_protocol::client::Plugin>> {
         let mut entries = self.saved_entries()?.plugins;
         let live = crate::host::lock(&self.host.plugins).map_err(convert)?.clone();
         let installations = self.saved_installations()?;
         for entry in &mut entries {
             if installations.installations.iter().any(|installation| {
-                installation.install_id == entry.entry && installation.state == v1::PluginInstallationState::Disabled as i32
+                installation.install_id == entry.entry
+                    && installation.state == dokime_protocol::client::PluginInstallationState::Disabled as i32
             }) {
-                entry.state = v1::PluginState::Unavailable as i32;
+                entry.state = dokime_protocol::client::PluginState::Unavailable as i32;
                 entry.reason = "Enable This Plugin to Start It".into();
                 continue;
             }
             let Some(description) = &entry.description else {
                 continue;
             };
-            if entry.state == v1::PluginState::Ready as i32
+            if entry.state == dokime_protocol::client::PluginState::Ready as i32
                 && live.get(&description.id).is_some_and(|native| {
                     native.state == crate::EntryState::Ready && native.description.started_at == description.started_at
                 })
             {
-                entry.state = v1::PluginState::Ready as i32;
+                entry.state = dokime_protocol::client::PluginState::Ready as i32;
                 entry.reason.clear();
             } else {
-                let managed = matches!(entry.placement, Some(v1::plugin::Placement::Managed(_)));
-                entry.state = if managed { v1::PluginState::Failed } else { v1::PluginState::Unavailable } as i32;
+                let managed = matches!(entry.placement, Some(dokime_protocol::client::plugin::Placement::Managed(_)));
+                entry.state =
+                    if managed { dokime_protocol::client::PluginState::Failed } else { dokime_protocol::client::PluginState::Unavailable }
+                        as i32;
                 entry.reason = if managed {
                     "Check Plugin Settings and Secrets, Then Reload Its Entry"
                 } else {
@@ -212,10 +219,14 @@ impl State {
             if entries.iter().any(|entry| entry.description.as_ref().is_some_and(|description| description.id == identifier)) {
                 continue;
             }
-            entries.push(v1::Plugin {
+            entries.push(dokime_protocol::client::Plugin {
                 entry: identifier.clone(),
                 description: Some(self.host.description(&identifier).map_err(convert)?),
-                state: if state == crate::EntryState::Ready { v1::PluginState::Ready as i32 } else { v1::PluginState::Unavailable as i32 },
+                state: if state == crate::EntryState::Ready {
+                    dokime_protocol::client::PluginState::Ready as i32
+                } else {
+                    dokime_protocol::client::PluginState::Unavailable as i32
+                },
                 ..Default::default()
             });
         }
@@ -230,7 +241,7 @@ impl State {
             .find(|entry| entry.entry == identifier)
             .cloned()
             .ok_or_else(|| Error::Invalid("Remove Plugin: Refresh the Entry List and Select an Existing Entry".into()))?;
-        if matches!(entry.placement, Some(v1::plugin::Placement::Managed(_))) {
+        if matches!(entry.placement, Some(dokime_protocol::client::plugin::Placement::Managed(_))) {
             return self.remove_managed(identifier).await;
         }
         if let Some(description) = &entry.description {
@@ -242,12 +253,9 @@ impl State {
         Ok(())
     }
     pub(super) async fn reload_entry(&self, identifier: &str) -> Result<()> {
-        if self
-            .saved_installations()?
-            .installations
-            .iter()
-            .any(|installation| installation.install_id == identifier && installation.state == v1::PluginInstallationState::Disabled as i32)
-        {
+        if self.saved_installations()?.installations.iter().any(|installation| {
+            installation.install_id == identifier && installation.state == dokime_protocol::client::PluginInstallationState::Disabled as i32
+        }) {
             return Err(Error::Invalid("Reload Plugin: Enable Its Disabled Installation First".into()));
         }
         let entry = self
@@ -260,7 +268,7 @@ impl State {
             self.host.detach_plugin(&description.id).await.map_err(convert)?;
         }
         let result = self.connect_entry(entry).await?;
-        if result.state != v1::PluginState::Ready as i32 {
+        if result.state != dokime_protocol::client::PluginState::Ready as i32 {
             return Err(Error::Invalid(result.reason));
         }
         Ok(())

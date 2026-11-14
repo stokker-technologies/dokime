@@ -11,10 +11,11 @@
 
 /* === Modules === */
 
-pub mod artifact;
 pub mod client;
+pub mod content_artifacts_create;
 pub mod environment;
 mod error;
+pub mod files;
 pub mod log;
 pub mod progress_get;
 pub mod progress_set;
@@ -45,7 +46,23 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::context::BackendEnvironmentRequest;
+use dokime_protocol::context::EvidenceStatisticsRequest;
+use dokime_protocol::context::PromptsCreateRequest;
+use dokime_protocol::context::ReadSecret;
+use dokime_protocol::context::ReadSettings;
+use dokime_protocol::context::content::ArtifactsCreateRequest;
+use dokime_protocol::context::evidence::LogsAppendRequest;
+use dokime_protocol::context::evidence::RecordsAppendRequest;
+use dokime_protocol::context::evidence::RecordsListRequest;
+use dokime_protocol::context::evidence::TraceabilityGetRequest;
+use dokime_protocol::context::evidence::TraceabilitySetRequest;
+use dokime_protocol::context::executions::ProgressGetRequest;
+use dokime_protocol::context::executions::ProgressSetRequest;
+use harmos_protocol::context::TimeGetRequest;
+use harmos_protocol::context::TimeSleepRequest;
+use prost_types::FileDescriptorSet;
+use std::sync::OnceLock;
 
 /* === Constants === */
 
@@ -66,11 +83,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 /* === Public Functions === */
 
 pub fn declarations() -> Result<&'static [h::OperationContract]> {
-    static DECLARATIONS: std::sync::OnceLock<std::result::Result<Vec<h::OperationContract>, String>> = std::sync::OnceLock::new();
+    static DECLARATIONS: OnceLock<std::result::Result<Vec<h::OperationContract>, String>> = OnceLock::new();
     let declarations = DECLARATIONS.get_or_init(|| {
         let declarations = || -> Result<Vec<h::OperationContract>> {
-            Ok(vec![
-                artifact::declaration()?,
+            let mut declarations = vec![
+                content_artifacts_create::declaration()?,
                 environment::declaration()?,
                 time::declaration()?,
                 log::declaration()?,
@@ -85,7 +102,9 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
                 secret::declaration()?,
                 settings::declaration()?,
                 sleep::declaration()?,
-            ])
+            ];
+            declarations.extend(files::declarations()?);
+            Ok(declarations)
         };
         declarations().map_err(|error| error.to_string())
     });
@@ -101,47 +120,30 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
         return Err(Error::Invalid(format!("Rebuild the Plugin Against the Host Contract for {}", request.operation)));
     }
     resources.check_action_scope(&resources.execution, &request.operation)?;
+    if request.operation.starts_with("dokime.plugin.host.v1.Files/")
+        || request.operation.starts_with("dokime.plugin.host.v1.files.Uploads/")
+    {
+        return files::dispatch(resources, request).await;
+    }
     let payload = request.payload.as_slice();
     match request.operation.as_str() {
-        environment::ID => {
-            Ok(environment::handle(resources, dokime_protocol::context::BackendEnvironmentRequest::decode(payload)?).await?.encode_to_vec())
+        environment::ID => Ok(environment::handle(resources, BackendEnvironmentRequest::decode(payload)?).await?.encode_to_vec()),
+        time::ID => Ok(time::handle(resources, TimeGetRequest::decode(payload)?).await?.encode_to_vec()),
+        content_artifacts_create::ID => {
+            Ok(content_artifacts_create::handle(resources, ArtifactsCreateRequest::decode(payload)?).await?.encode_to_vec())
         }
-        time::ID => Ok(time::handle(resources, harmos_protocol::context::TimeGetRequest::decode(payload)?).await?.encode_to_vec()),
-        artifact::ID => Ok(artifact::handle(resources, v1::PublishArtifact::decode(payload)?).await?.encode_to_vec()),
-        log::ID => {
-            Ok(log::handle(resources, dokime_protocol::context::evidence::LogsAppendRequest::decode(payload)?).await?.encode_to_vec())
-        }
-        progress_get::ID => Ok(progress_get::handle(resources, dokime_protocol::context::executions::ProgressGetRequest::decode(payload)?)
-            .await?
-            .encode_to_vec()),
-        progress_set::ID => Ok(progress_set::handle(resources, dokime_protocol::context::executions::ProgressSetRequest::decode(payload)?)
-            .await?
-            .encode_to_vec()),
-        traceability_get::ID => {
-            Ok(traceability_get::handle(resources, dokime_protocol::context::evidence::TraceabilityGetRequest::decode(payload)?)
-                .await?
-                .encode_to_vec())
-        }
-        traceability_set::ID => {
-            Ok(traceability_set::handle(resources, dokime_protocol::context::evidence::TraceabilitySetRequest::decode(payload)?)
-                .await?
-                .encode_to_vec())
-        }
-        record::ID => {
-            Ok(record::handle(resources, dokime_protocol::context::evidence::RecordsAppendRequest::decode(payload)?).await?.encode_to_vec())
-        }
-        records::ID => {
-            Ok(records::handle(resources, dokime_protocol::context::evidence::RecordsListRequest::decode(payload)?).await?.encode_to_vec())
-        }
-        statistics::ID => {
-            Ok(statistics::handle(resources, dokime_protocol::context::EvidenceStatisticsRequest::decode(payload)?).await?.encode_to_vec())
-        }
-        prompt::ID => {
-            Ok(prompt::handle(resources, dokime_protocol::context::PromptsCreateRequest::decode(payload)?).await?.encode_to_vec())
-        }
-        secret::ID => Ok(secret::handle(resources, v1::ReadSecret::decode(payload)?).await?.encode_to_vec()),
-        settings::ID => Ok(settings::handle(resources, v1::ReadSettings::decode(payload)?).await?.encode_to_vec()),
-        sleep::ID => Ok(sleep::handle(resources, harmos_protocol::context::TimeSleepRequest::decode(payload)?).await?.encode_to_vec()),
+        log::ID => Ok(log::handle(resources, LogsAppendRequest::decode(payload)?).await?.encode_to_vec()),
+        progress_get::ID => Ok(progress_get::handle(resources, ProgressGetRequest::decode(payload)?).await?.encode_to_vec()),
+        progress_set::ID => Ok(progress_set::handle(resources, ProgressSetRequest::decode(payload)?).await?.encode_to_vec()),
+        traceability_get::ID => Ok(traceability_get::handle(resources, TraceabilityGetRequest::decode(payload)?).await?.encode_to_vec()),
+        traceability_set::ID => Ok(traceability_set::handle(resources, TraceabilitySetRequest::decode(payload)?).await?.encode_to_vec()),
+        record::ID => Ok(record::handle(resources, RecordsAppendRequest::decode(payload)?).await?.encode_to_vec()),
+        records::ID => Ok(records::handle(resources, RecordsListRequest::decode(payload)?).await?.encode_to_vec()),
+        statistics::ID => Ok(statistics::handle(resources, EvidenceStatisticsRequest::decode(payload)?).await?.encode_to_vec()),
+        prompt::ID => Ok(prompt::handle(resources, PromptsCreateRequest::decode(payload)?).await?.encode_to_vec()),
+        secret::ID => Ok(secret::handle(resources, ReadSecret::decode(payload)?).await?.encode_to_vec()),
+        settings::ID => Ok(settings::handle(resources, ReadSettings::decode(payload)?).await?.encode_to_vec()),
+        sleep::ID => Ok(sleep::handle(resources, TimeSleepRequest::decode(payload)?).await?.encode_to_vec()),
         _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
     }
 }
@@ -149,7 +151,7 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
 /* === Private Functions === */
 
 pub(crate) fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
-    id: &str, types: prost_types::FileDescriptorSet,
+    id: &str, types: FileDescriptorSet,
 ) -> Result<h::OperationContract> {
     let request = Q::default().descriptor().full_name().to_owned();
     let response = R::default().descriptor().full_name().to_owned();

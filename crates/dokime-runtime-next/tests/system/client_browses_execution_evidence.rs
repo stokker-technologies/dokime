@@ -59,7 +59,7 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
                     label: "Reading".into(),
                     ..Default::default()
                 }),
-                message: "dokime.context.v1.evidence.LogsAppendRequest".into(),
+                message: "dokime.plugin.host.v1.evidence.LogsAppendRequest".into(),
             }],
         };
         let catalog = harmos_protocol::v1::Catalog {
@@ -117,98 +117,68 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
         }
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = dokime::client::HostClient::new(channel.clone(), super::support::client_settings())?;
-        let identity = client
-            .status
-            .get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {}))
-            .await?
-            .into_inner()
-            .status
-            .unwrap()
-            .identity
-            .unwrap();
-        let mut evidence = v1::evidence_client::EvidenceClient::new(channel);
-
-        // Resolve a Captured Schema Without Connecting Its Plugin
-        let schema = evidence
-            .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
-                record_type: "reading".into(),
+        let mut schemas = dokime_protocol::client::record_schemas_client::RecordSchemasClient::new(channel.clone());
+        let mut records = dokime_protocol::client::evidence::records_client::RecordsClient::new(channel);
+        let schema = schemas
+            .get(dokime_protocol::client::RecordSchemasGetRequest {
+                name: "reading".into(),
+                parent: "evidence-a".into(),
                 schema_version: 1,
-                epoch: identity.host_id.clone(),
+                ..Default::default()
             })
             .await?
-            .into_inner();
-        assert_eq!(schema.record_type, "reading");
+            .into_inner()
+            .value
+            .unwrap();
         assert!(schema.fields.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "message")
             && field.value_type == v1::ValueType::Text as i32));
 
-        // Capture a Fixed Cursor and Read a Tail Isolated to One Execution
-        let selection = v1::CapturedRecordSelection {
+        // Continue One Fixed Selection Without Repeating a Record.
+        let selection = dokime_protocol::client::evidence::CapturedRecordSelection {
             scope: Some(v1::EvidenceScope {
                 execution_id: Some("evidence-a".into()),
                 ..Default::default()
             }),
             ..Default::default()
         };
-        let page = evidence
-            .list_records(v1::EvidenceListRecordsRequest {
-                selection: Some(selection.clone()),
-                latest: 3,
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        assert_eq!(page.records.iter().map(|record| record.payload.clone()).collect::<Vec<_>>(), vec![vec![4], vec![5], vec![6]]);
-        assert!(page.replay_complete);
-        let empty = evidence
-            .list_records(v1::EvidenceListRecordsRequest {
-                selection: Some(selection.clone()),
-                after: page.scanned.clone(),
-                through: page.through.clone(),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
-        assert!(empty.records.is_empty() && empty.replay_complete);
+        let mut request = dokime_protocol::client::evidence::RecordsListRequest {
+            selection: Some(selection.clone()),
+            page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),
+            ..Default::default()
+        };
+        let first = records.list(request.clone()).await?.into_inner();
+        assert_eq!(first.records.iter().map(|record| record.payload.clone()).collect::<Vec<_>>(), vec![vec![0], vec![1], vec![2]]);
+        let mut all = first.records.clone();
+        let mut page = first.clone();
+        while !page.next_page_token.is_empty() {
+            request.at = page.resolved_at.clone();
+            request.page.as_mut().unwrap().page_token = page.next_page_token;
+            page = records.list(request.clone()).await?.into_inner();
+            all.extend(page.records.clone());
+        }
+        assert_eq!(all.len(), 7);
+        assert!(all.iter().all(|record| record.scope.as_ref().unwrap().execution_id.as_deref() == Some("evidence-a")));
+        assert_eq!(all.iter().map(|record| &record.record_id).collect::<std::collections::BTreeSet<_>>().len(), 7);
 
-        // Reject Cursors Reused for Another Selection or Future Position
-        let mut wrong = page.scanned.clone().unwrap();
-        wrong.position += 1;
-        assert!(
-            evidence
-                .list_records(v1::EvidenceListRecordsRequest {
-                    selection: Some(selection.clone()),
-                    after: Some(wrong),
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-        assert!(
-            evidence
-                .list_records(v1::EvidenceListRecordsRequest {
-                    selection: Some(v1::CapturedRecordSelection::default()),
-                    after: page.scanned,
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
+        // Reject Foreign Histories and Changed Continuation Selections.
+        let mut foreign = request.clone();
+        foreign.at = first.resolved_at.clone();
+        foreign.at.as_mut().unwrap().positions[0].history.as_mut().unwrap().store = "foreign".into();
+        assert!(records.list(foreign).await.is_err());
+        let mut changed = request.clone();
+        changed.at = first.resolved_at.clone();
+        changed.page.as_mut().unwrap().page_token = first.next_page_token.clone();
+        changed.selection = Some(dokime_protocol::client::evidence::CapturedRecordSelection::default());
+        assert!(records.list(changed).await.is_err());
+        let mut tiny = request.clone();
+        tiny.page.as_mut().unwrap().max_bytes = 1;
+        assert!(records.list(tiny).await.is_err());
 
-        let log_schema = evidence
-            .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
-                record_type: "dokime.log".into(),
-                schema_version: 1,
-                epoch: identity.host_id.clone(),
-            })
+        // Logs Are an Explicit Record Type, with Their Frozen Schema.
+        let logs = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
             .await?
-            .into_inner();
-        assert!(log_schema.fields.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "message")));
-
-        // Read Logs Through Their Explicit Evidence Type
-        let logs = evidence
-            .list_records(v1::EvidenceListRecordsRequest {
-                selection: Some(v1::CapturedRecordSelection {
+            .list(dokime_protocol::client::evidence::RecordsListRequest {
+                selection: Some(dokime_protocol::client::evidence::CapturedRecordSelection {
                     record_types: vec!["dokime.log".into()],
                     severities: vec![v1::Severity::Warning as i32],
                     ..selection.clone()
@@ -218,114 +188,51 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             .await?
             .into_inner();
         assert_eq!(logs.records.len(), 1);
-        assert_eq!(logs.records[0].message.as_deref(), Some("Review the sensor"));
+        assert_eq!(logs.records[0].severity, v1::Severity::Warning as i32);
+        let schema = schemas
+            .get(dokime_protocol::client::RecordSchemasGetRequest {
+                name: "dokime.log".into(),
+                schema_version: 1,
+                ..Default::default()
+            })
+            .await?
+            .into_inner()
+            .value
+            .unwrap();
+        assert!(schema.fields.iter().any(|field| field.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "message")));
 
-        // Replay a Sealed Execution and Observe Its Terminal Envelope
-        let mut watch = evidence
-            .watch_records(v1::EvidenceWatchRecordsRequest {
-                selection: Some(selection),
+        // A Sealed Execution Finishes Its Bounded Opening with Successful Status.
+        let mut watch = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
+            .await?
+            .watch(dokime_protocol::client::evidence::RecordsWatchRequest {
+                selection: Some(selection.clone()),
                 ..Default::default()
             })
             .await?
             .into_inner();
-        let mut count = 0;
-        let mut terminal = false;
+        let mut watched = Vec::new();
         while let Some(frame) = watch.message().await? {
-            match frame.value.unwrap() {
-                v1::evidence_watch_records_output::Value::Item(page) => count += page.records.len(),
-                v1::evidence_watch_records_output::Value::Response(_) => terminal = true,
-            }
+            assert!(frame.opening);
+            assert!(frame.resync_required.is_none());
+            watched.extend(frame.records);
         }
-        assert_eq!(count, 7);
-        assert!(terminal);
+        assert_eq!(watched, all);
+        process.close().await?;
 
-        // Invoke the Same Operations Through Their Bidirectional Envelopes
-        let mut run = evidence
-            .run_get_captured_record_schema(tokio_stream::iter([v1::EvidenceGetCapturedRecordSchemaRunInput {
-                value: Some(v1::evidence_get_captured_record_schema_run_input::Value::Request(
-                    v1::EvidenceGetCapturedRecordSchemaRequest {
-                        record_type: "reading".into(),
-                        schema_version: 1,
-                        epoch: identity.host_id,
-                    },
-                )),
-            }]))
-            .await?
-            .into_inner();
-        assert!(matches!(
-            run.message().await?.unwrap().value,
-            Some(v1::evidence_get_captured_record_schema_run_output::Value::Response(_))
-        ));
-        assert!(run.message().await?.is_none());
-        let mut run = evidence
-            .run_list_records(tokio_stream::iter([v1::EvidenceListRecordsRunInput {
-                value: Some(v1::evidence_list_records_run_input::Value::Request(v1::EvidenceListRecordsRequest {
-                    latest: 2,
-                    ..Default::default()
-                })),
-            }]))
-            .await?
-            .into_inner();
-        assert!(matches!(run.message().await?.unwrap().value, Some(v1::evidence_list_records_run_output::Value::Response(_))));
-        assert!(run.message().await?.is_none());
-        let mut run = evidence
-            .run_watch_records(tokio_stream::iter([v1::EvidenceWatchRecordsRunInput {
-                value: Some(v1::evidence_watch_records_run_input::Value::Request(v1::EvidenceWatchRecordsRequest {
-                    selection: Some(v1::CapturedRecordSelection {
-                        scope: Some(v1::EvidenceScope {
-                            execution_id: Some("evidence-b".into()),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                })),
-            }]))
-            .await?
-            .into_inner();
-        let mut terminal = false;
-        while let Some(frame) = run.message().await? {
-            terminal |= matches!(frame.value, Some(v1::evidence_watch_records_run_output::Value::Response(_)));
-        }
-        assert!(terminal);
+        // Returned Positions Continue to Resolve After Restart.
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        // Refuse Ambiguous Wire Shapes Even When Names and Field Types Match
-        let mut changed = catalog.clone();
-        for file in &mut changed.types.as_mut().unwrap().file {
-            if file.package.as_deref() != Some("dokime.context.v1.evidence") {
-                continue;
-            }
-            for message in &mut file.message_type {
-                if message.name.as_deref() != Some("LogsAppendRequest") {
-                    continue;
-                }
-                for field in &mut message.field {
-                    if field.name.as_deref() == Some("message") {
-                        field.number = Some(17);
-                    }
-                }
-            }
-        }
-        store.create(&Execution {
-            identifier: "evidence-conflict".into(),
-            cycle: "evidence-cycle".into(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
-            }),
-            catalog: changed.encode_to_vec(),
-            ..Default::default()
-        })?;
-        assert!(
-            evidence
-                .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
-                    record_type: "reading".into(),
-                    schema_version: 1,
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-        client.close();
+        let replay = dokime_protocol::client::evidence::records_client::RecordsClient::connect(process.url.clone())
+            .await?
+            .list(dokime_protocol::client::evidence::RecordsListRequest {
+                selection: Some(selection),
+                at: first.resolved_at.clone(),
+                page: Some(harmos_protocol::v1::PageRequest { page_size: 3, ..Default::default() }),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        assert_eq!(replay, first);
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })

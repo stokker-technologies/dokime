@@ -1,288 +1,148 @@
 # Remote CLI Workflows
 
-Scripts: `sdk/python/examples/remote/cli/`. Commands below run from that folder.
+Use `dokime-next` from the same candidate as the host. The command-line tool
+uses the Rust SDK and the host's final client protocol. See the
+[Product Guide](../product-guide.md#interfaces) for output shapes and current
+integration limitations, and [Tooling](../tooling.md) for focused builds.
 
-Control the simulated OBC device, run independent attempts with live observations,
-and answer a confirmation using an installed Dokime CLI on another computer.
-Start with the [shared candidate-artifact walkthrough](overview.md) to obtain
-the matching CLI and host plugin, configure the host and transfer secrets.
-A matching published release combination is not claimed; native execution and
-interruption behavior still require platform validation.
+## Export Access
 
-## Bootstrap Windows Tools
-
-The default setup installs the released Dokime CLI from its official GitHub release asset using mise.
-Edit `DOKIME_VERSION` at the top of `bootstrap.ps1` to select the exact release.
-Its official Windows binary must already be published;
-an unavailable release fails setup without compiling from source or fetching
-third-party builds.
-
-**For this candidate walkthrough**, set `$INSTALL_DOKIME = $false` first and
-install the matching candidate with the native installer described in the
-[shared guide](overview.md#install-dokime). This also provides a tools-only
-setup for Python users. Both launchers read that same editable option.
-
-From the extracted `cli/` directory, run the batch launcher in a normal,
-unelevated Command Prompt:
-
-```bat
-bootstrap.bat
-```
-
-Or start the same setup from built-in Windows PowerShell:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
-```
-
-Both use `bootstrap.ps1`, whose installation commands and PATH updates are
-written in order without helper functions. It installs PowerShell **7.6.7** from
-Microsoft's official self-contained ZIP, verifies its pinned SHA-256, installs mise using
-its official Windows installer, then runs `mise use -g uv` and `mise reshim`.
-With `INSTALL_DOKIME` enabled on Windows x64, mise installs the selected version's official `dokime-cli` release asset and exposes its `dokime.exe` command. This uses the GitHub release backend with an exact asset name; registry and source-build fallbacks are absent.
-It needs no administrator rights, WinGet, Git, existing `pwsh`, or repository
-checkout. The execution-policy option applies only to that process; it does not
-change the machine's policy or override organization-enforced Group Policy.
-
-PowerShell lives under `%LOCALAPPDATA%\Programs\PowerShell\7.6.7-<architecture>\`.
-Mise and `mise-shim.exe` stay together under `%USERPROFILE%\.local\bin\`.
-The installer adds mise's bin and shims directories to your **user PATH**,
-preserving existing entries. Shims default to `%LOCALAPPDATA%\mise\shims`;
-existing mise directory overrides are respected. The script also adds the
-PowerShell directory and appends mise activation to PowerShell 7's
-`$PROFILE.CurrentUserAllHosts`, preserving the rest of that file. This loads
-project environment variables at the prompt; shims serve Command Prompt and
-editors. No `MISE_DATA_DIR` or other directory override is needed for defaults.
-The CLI installs under `%LOCALAPPDATA%\Programs\DokimeCLI\bin\`, which is added
-to user PATH after the installed `dokime.exe --version` succeeds. This installs
-the remote client; `dokime server`, `dokime gui` and the host PC still require
-the matching desktop/server installation.
-
-Close and reopen your terminal and editor after setup, then verify:
-
-```powershell
-pwsh --version
-mise doctor
-uv --version
-```
-
-After the default CLI installation, also check:
-
-```powershell
-dokime --version
-```
-
-If PowerShell refuses to load your profile under the default Restricted policy,
-Microsoft's usual personal-machine setting is
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Review your organization's
-policy before applying it. The bootstrap leaves this persistent choice to you.
-Use `mise exec -- <command>` when shell activation cannot be enabled.
-
-Re-running setup reuses the installed PowerShell version, lets the official mise
-installer retain or update mise, updates the global uv selection and ensures
-the selected CLI version is installed when enabled. It does not automatically
-trust project configurations. To develop from a checkout, review its
-`mise.toml`, then run `mise trust` and `mise install`.
-
-Use Windows PowerShell **5.1** on Windows 10 **1607 or newer**, or Windows 11,
-with x64 or ARM64 Windows and HTTPS access to GitHub, mise and uv's
-downloads. The CLI also needs a published native asset for that architecture.
-TLS 1.2 is enabled for the bootstrap process so older PowerShell defaults do
-not prevent downloads; certificate validation remains enabled. Older Windows
-images may still need Windows updates, root certificates or runtime
-prerequisites that a user-level script cannot install. Microsoft's current
-Windows 10 support is edition/lifecycle dependent; this bootstrap does not
-extend OS support. The Dokime candidates in this walkthrough remain x86-64.
-
-The setup follows [Microsoft's ZIP installation guidance](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows#install-the-zip-package),
-[mise's Windows installer guidance](https://mise.jdx.dev/installing-mise.html#windows)
-and [mise's shell activation guidance](https://mise.jdx.dev/shell-setup.html).
-CLI installation follows [mise's GitHub backend](https://mise.jdx.dev/dev-tools/backends/github.html).
-See also [Microsoft's PowerShell execution policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies)
-and [supported Windows releases](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions).
-
-## Configure a Script
-
-Install Dokime on `PATH`, restart the host after admitting the matching OBC
-plugin, and import the host-created pairing once:
+On the host computer, start the loopback bootstrap listener with an explicit
+storage root. Keep its terminal open until the host is stopped:
 
 ```sh
+dokime-next --endpoint 127.0.0.1:7000 server --storage ./bench-data
 ```
 
-Edit the globals at the top of each script before running it. Names, grouping,
-order and meanings match the [Python examples](python.md):
-
-| Group | Parameters |
-| --- | --- |
-| Connection Parameters | `PAIRING_FILE` |
-| Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_S` for tests; `ANSWER`, `WAIT_S` for prompts |
-| Observation Filters | `RECORD_TYPES`, `STREAMS` for tests |
-| Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
-
-Set `PAIRING_FILE` to the `.pair` file, normally `../lab.pair`.
-It supplies the label, ordered endpoints, expected backend identity, self-signed
-server certificate and access key. The CLI reads it directly without importing a
-profile or accessing an OS credential store.
-
-POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
-`set "NAME=value"`. Each test call shows one record filter and
-one stream filter. Quote globs such as `obc.run.*`; add explicit
-`--record-type` or `--stream` arguments to teach additional selections.
-`EXECUTION_COUNT` selects one or both of the two explicitly written attempts;
-`SAMPLE_COUNT` controls samples per pulse. `WAIT_S` is the positive
-deadline for each blocking wait. `ANSWER` is `yes` or `no`.
-
-The scripts call literal `dokime` from `PATH`. Run them without arguments:
+From another local terminal, export a pairing through that bootstrap listener:
 
 ```sh
-sh ./control-device.sh
-sh ./control-test.sh
-sh ./control-prompt.sh
+dokime-next --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.dokime-remote --json
 ```
 
-PowerShell 7.3 or newer preserves inline JSON through Standard native argument
-passing:
+Export enables the saved authenticated listener when needed. Transfer the
+`.dokime-remote` file to the client computer through your chosen secure channel.
+It contains ordered endpoints, the expected backend identity, pinned certificate
+and bearer credential. Treat the file as a credential. Existing output files
+are refused; exporting another pairing does not replace one.
 
-```powershell
-.\control-device.ps1
-.\control-test.ps1
-.\control-prompt.ps1
-```
+## Connect and Discover
 
-Command Prompt needs only Dokime and cmd.exe:
-
-```bat
-control-device.bat
-control-test.bat
-control-prompt.bat
-```
-
-## Control the Device
-
-The device script lists operations, reads the manual device, powers it on,
-reads it again, powers it off and performs a final read. Powered state reports
-230 V RMS; off state reports zero. Manual control is independent of execution
-devices and is not execution evidence.
-
-Each device call names its response file directly: `before.json`, `power-on.json`,
-`running.json`, `power-off.json` and `after.json` in the current working directory.
-The native `--output` option refuses an existing response file unless that call
-explicitly adds `--overwrite`. Responses are ordered event arrays ending in completion.
-Ctrl+C stops waiting; read device state before resending an unconfirmed command.
-
-## Run Independent Attempts
-
-Read each script from top to bottom: every `dokime` call shows the command
-and arguments, with no workflow functions or loops over steps. The test script
-checks output destinations, materializes one `TEMPLATE` case with `sample_count`,
-creates a cycle and explicitly appends two independent attempts without starting
-work. Use `EXECUTION_COUNT=1` to study only the first attempt; larger stories
-need additional explicit calls and evidence destinations.
-The create call saves `cycle.json` in the current directory; its `cycle_id`
-becomes the cycle UUID. Append and prompt discovery use literal `execution.id`
-and `prompt.id` files for native identity transport. They remain uncaptured so
-PowerShell does not terminate their Ctrl+C recovery. Each call is one line,
-and no script interprets native exit codes.
-These cycles use `continue_automatically=false`. Explicit execution Stop
-durably sets that policy to false; a later explicit Start runs only the selected
-attempt until the user explicitly re-enables the policy.
-
-Each execution then runs sequentially through the blocking `execution run`
-command. Record and stream filters select live observations; the command returns
-after the durable outcome and final listener drain. The script saves
-`execution-1.zip` and `execution-2.zip` after their respective runs.
-It seals its cycle explicitly and saves `cycle.zip`. POSIX `set -e` and
-PowerShell native Stop mode can end the script on a nonzero command before later
-exports; Command Prompt continues subsequent calls. Inspect the actual outcomes
-and printed identities rather than treating script completion as a verdict gate.
-No mutation is retried automatically.
-
-## Answer One Confirmation
-
-The prompt script materializes one case with `require_confirmation=true`,
-appends its attempt and explicitly calls `execution start`. The blocking
-`execution prompt next` discovers its prompt; the following calls display and
-answer the pending confirmation using both the execution and
-prompt UUIDs. The read-only prompt display is saved as `prompt.json` in the
-current directory. Sampling begins after confirmation. The script waits for the
-durable result, saves `execution.zip`, seals its cycle and saves `cycle.zip`.
-
-## Preserve and Inspect Evidence
-
-Choose a separate `OUTPUT_DIRECTORY` for each workflow. Existing bundle
-destinations fail preflight unless `OVERWRITE` is enabled. CLI downloads verify
-checksums and replace files atomically; download retries never rerun hardware.
-The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
-shell redirection. The `.id` files retain confirmed native identities.
-
-Bundles contain `manifest.json`, `evidence.sqlite`, captured `artifacts/`,
-Arrow IPC files of produced or captured samples under `telemetry/` and saved `reports/`.
-Complete finalized producer files retain their original bytes; shared observer
-files contribute only the execution's captured ranges at the saved frontier.
-Cycle bundles
-place artifacts and telemetry under `executions/<execution-id>/`. Join the
-SQLite catalogs and verify manifest checksums.
-An execution bundle saved before the cycle is sealed records an Active cycle;
-the final cycle bundle includes all members and its sealed phase.
-
-## Download HTML Reports
-
-Download a report for a running or sealed execution, or a cycle:
+Pass the pairing file directly; the CLI validates its version, suffix and identity.
+It tries the saved endpoints with pinned TLS trust and verifies the backend before
+using the connection. Local bootstrap URLs use `--endpoint`; authenticated remote
+commands use `--remote`:
 
 ```sh
-dokime execution report <execution-id> --remote lab.pair --output execution.html
-dokime cycle report <cycle-id> --remote lab.pair --output cycle.html
+dokime-next --remote operator.dokime-remote status --json
+dokime-next --remote operator.dokime-remote plugin list --json
+dokime-next --remote operator.dokime-remote catalog list --json
+dokime-next --remote operator.dokime-remote operation list --json
+dokime-next --remote operator.dokime-remote operation show harmos.v1.Status/Get --json
+dokime-next --remote operator.dokime-remote operation call harmos.v1.Status/Get --json '{}'
 ```
 
-Cycle reports default to `cycle.summary`; use `--identifier` to select another
-report identifier. Running reports describe the saved evidence frontier at the
-requested cut; sealed reports retain their final cut. Downloading does not stop
-or rerun an execution.
+`DOKIME_REMOTE` supplies the pairing path when `--remote` is omitted. An explicit
+`--endpoint` selects a bootstrap connection instead. `--config FILE` reads the
+CLI's TOML settings for connection, operation, watch, message and retained-byte
+bounds. Credentials are not printed in successful export summaries or errors.
 
-The discoverable operation form uses the same verified download path:
+`catalog list/show` reads the top-level Suites resource. `operation list/show/call`
+uses library CatalogEntries.List and the returned descriptors, visibility and
+fingerprint. Unary calls accept canonical protobuf JSON through `--json` or
+`--input-file`; typed streaming and managed contracts require their typed clients.
+Public plugin operations without a direct gRPC binding use Invocations.Invoke.
+Product wire identities use `dokime.client.v1`; library identities retain their
+library package. Product contracts are currently absent from host discovery,
+so raw product calls are blocked until that registration is composed.
+
+## Materialize and Run
+
+Replace the suite and template identifiers below with declarations returned by
+`catalog list` and `catalog show SUITE`. Save this CasesCreateRequest as `plan.json`:
+
+```json
+{
+  "plan": {
+    "selections": [{"suite_id": "SUITE", "template_id": "TEMPLATE"}],
+    "max_cases": 1
+  },
+  "request_id": "selection-1"
+}
+```
+
+Preview validates without registration. Register admits the complete plan and
+retains its response for an unchanged request identity:
 
 ```sh
-dokime operation call dokime.reports.download_execution_report --remote lab.pair --json '{"execution_id":"<execution-id>"}' --output execution.html
-dokime operation call dokime.reports.download_cycle_report --remote lab.pair --json '{"cycle_id":"<cycle-id>","identifier":"cycle.summary"}' --output cycle.html
+dokime-next --remote operator.dokime-remote plan preview --input-file plan.json --json
+dokime-next --remote operator.dokime-remote plan register --input-file plan.json --out cases.pb --json
+dokime-next --remote operator.dokime-remote cycle create --cases cases.pb --request-id cycle-1 --json
 ```
 
-For header/chunk/complete download streams, `--output` writes raw chunk bytes
-with bounded memory, verifies contiguous offsets, final size, SHA-256 and final
-RPC status, then publishes atomically. Stdout contains a JSON summary with `path`,
-`size_bytes`, `sha256` and header `metadata`. Existing files require `--overwrite`;
-a failed or interrupted download preserves them and removes partial output.
-Other operations continue to save ordered JSON event arrays. Byte fields on
-stdout use base64 within the JSON byte ceiling; larger responses require
-`--output` for chunked downloads. Other byte-bearing responses keep base64 JSON
-within the ceiling, written directly to the JSON output file; larger responses
-without a chunked download protocol require a typed client.
+`plan materialize --suite SUITE --template TEMPLATE --out cases.pb` also registers
+cases. Its optional `--parameters FILE` reads a JSON object mapping parameter names
+to arrays of shared Dokime Value messages. It accepts `--request-id` for retries.
 
-## Interruption and Recovery
+Cycle creation starts its frozen origins automatically and returns a `cycle`
+response field. Read execution identities from the cycle's execution pages; replace
+`CYCLE` and `EXECUTION` below with those returned identities:
 
-Append, Start, blocking run, execution wait/export and prompt discovery,
-display/answer pass `--cancel-on-interrupt`, `--owned-cycle` and
-`--recovery-directory` to the native CLI on every platform.
-Ctrl+C stops the selected execution, seals that script-owned cycle, waits for
-durable evidence and saves `execution-<UUID>.zip` and `cycle-<UUID>.zip` under
-`recovery/`. Sealing cancels that cycle's unstarted members. Other cycles and
-the shared server remain available. Batch delegates recovery to the native CLI
-because cmd.exe cannot reliably own Ctrl+C cleanup.
+```sh
+dokime-next --remote operator.dokime-remote execution list --cycle CYCLE --page-size 1 --json
+dokime-next --remote operator.dokime-remote execution show EXECUTION --json
+dokime-next --remote operator.dokime-remote execution wait EXECUTION --json
+```
 
-PowerShell and POSIX shell also attempt scoped cleanup when interrupted between
-commands after cycle creation is confirmed.
-The durable cycle seal settles every member before recovery exports it; a
-Cancelled verdict does not prevent that evidence from being saved.
-Batch cannot reliably handle Ctrl+C between native commands or before their
-signal listener is installed, including connection setup. If cycle creation's
-reply is lost, no script can infer its
-unknown cycle UUID. These cases, another interruption during recovery, and lost
-connections or a nonzero command during cleanup can leave the result unconfirmed.
-Retain printed identities,
-reconnect to the same server and inspect before resubmitting. Do not retry an
-uncertain mutation automatically. Existing evidence is preserved.
+List prints one response per page and continues with the returned cut, token and
+unchanged selection. Execution detail is in `execution`, with its `summary`,
+controls, outcome and schema digest. `execution show EXECUTION --schemas --json`
+fetches complete descriptor-file pages through Executions.Schemas.Get. Multiple
+execution arguments reuse descriptor sets by digest within that command. Automatic
+record/stream payload decoding awaits a frozen ID-to-message-name binding.
 
-## Institute Plugins
+`cycle append --request FILE` consumes an encoded
+`dokime.client.v1.ExecutionsCreateRequest` containing `parent`, explicit execution
+bindings and `request_id`. `execution start`, `execution stop`, `cycle rerun` and
+`cycle seal` retain their typed operations and accept `--request-id`. Whole-value
+metadata changes use Get's value and revision in the final Set request, with
+`expected_revision` and a retained request identity; raw product delivery awaits
+the discovery registration described above.
 
-Keep the same lifecycle for institute plugins, replacing operation IDs,
-template and parameters with their discovered contracts. The OBC voltage and
-fault behavior apply only to this demonstration.
+## Answer a Prompt
+
+For a running execution that requests operator input:
+
+```sh
+dokime-next --remote operator.dokime-remote execution prompt next EXECUTION --json
+dokime-next --remote operator.dokime-remote execution prompt show PROMPT --json
+dokime-next --remote operator.dokime-remote execution prompt answer EXECUTION --prompt PROMPT --action ACTION --accepted --request-id answer-1 --json
+```
+
+Use the prompt identity and declared action returned by the host. Omit `--accepted`
+for a negative answer. Without `--prompt`, answer requires exactly one pending
+prompt for that execution. Waiting follows progress events and refuses an execution
+that finishes without a pending prompt; it does not use polling sleeps.
+
+## Read Reports and Recover
+
+The report commands use Reports.Create for a pure preview and product
+Files.Read for bounded ranges:
+
+```sh
+dokime-next --remote operator.dokime-remote execution report EXECUTION --out execution.html
+dokime-next --remote operator.dokime-remote cycle report CYCLE --out cycle.html
+```
+
+They verify the returned cut, total length and SHA-256 before atomically saving
+the file, and refuse existing destinations. Rendering or downloading does not
+publish a report. Files.Get returns the file metadata and its transfer limits;
+Files.Read returns a bounded chunk and its retained cut.
+Failed downloads leave no final output and preserve existing destinations.
+
+Losing a wait or connection leaves admitted work running. Reconnect to the same
+backend, inspect the returned identities and controls, and reuse the same request
+identity only for an unchanged mutation. The CLI adds no automatic mutation retry,
+cycle sealing or evidence export on interruption. Existing storage roots and
+evidence are retained; incompatible development storage requires an explicit
+fresh-root or backup/reset decision. See [Remote Access](overview.md).

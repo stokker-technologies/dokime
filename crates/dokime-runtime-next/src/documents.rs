@@ -84,14 +84,14 @@ impl RenderedDocument {
 }
 impl Host {
     pub(crate) fn render_report(
-        &self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>, identity: &v1::BackendIdentity,
-        render_settings: crate::RenderSettings,
-    ) -> dokime_operations_next::Result<(std::fs::File, v1::ReportMetadata)> {
+        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
+        identity: &dokime_operations_next::client::HostIdentity, render_settings: crate::RenderSettings,
+    ) -> dokime_operations_next::Result<(std::fs::File, dokime_protocol::client::ReportMetadata)> {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
-            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
-            Some(v1::report_subject::Kind::Cycle(id)) => (None, id.clone()),
+            Some(dokime_protocol::client::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
+            Some(dokime_protocol::client::report_subject::Kind::Cycle(id)) => (None, id.clone()),
             None => return Err(dokime_operations_next::Error::Invalid("Render Report: Select an Execution or Cycle".into())),
         };
         let mut snapshots = Vec::new();
@@ -115,19 +115,24 @@ impl Host {
                     execution_id: id,
                 };
                 let (document, mut cut) = self
-                    .current_document_in(&store, &scope, "")
+                    .current_document_in(&store, &scope, document_id)
                     .map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
                 if let Some(at) = at {
-                    let history = v1::StoreHistory {
+                    let history = harmos_protocol::v1::History {
                         store: identity.backend_id.clone(),
                         epoch: scope.execution_id.clone(),
                     };
-                    if execution.is_none() || at.history.as_ref() != Some(&history) || at.sequence > cut.frontier {
+                    if execution.is_none()
+                        || at.positions.len() != 1
+                        || !at.revisions.is_empty()
+                        || at.positions[0].history.as_ref() != Some(&history)
+                        || at.positions[0].sequence > cut.frontier
+                    {
                         return Err(dokime_operations_next::Error::Invalid(
                             "Render Report: Refresh the Execution's Fixed Evidence Cursor".into(),
                         ));
                     }
-                    cut.frontier = at.sequence;
+                    cut.frontier = at.positions[0].sequence;
                 }
                 snapshots.push((
                     document,
@@ -166,11 +171,11 @@ impl Host {
             output.rewind().map_err(|error| dokime_operations_next::Error::Invalid(error.to_string()))?;
             output
         };
-        let metadata = v1::ReportMetadata {
+        let metadata = dokime_protocol::client::ReportMetadata {
             test_cycle_id: cycle,
             test_execution_id: execution.map(str::to_owned),
             identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
-            origin: v1::ReportOrigin::Current as i32,
+            origin: dokime_protocol::client::ReportOrigin::Current as i32,
             ..Default::default()
         };
         Ok((file, metadata))
@@ -435,7 +440,7 @@ fn render_plot(
     request.filters.extend_from_slice(filters);
     request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
     let (store, _cancel_on_drop) = snapshot.store.read_session()?;
-    let envelope = dokime_operations_next::client::plots_query_snapshots::snapshot_at(
+    let envelope = dokime_operations_next::client::plots_snapshots_list::snapshot_at(
         &store,
         &snapshot.cut,
         &request,

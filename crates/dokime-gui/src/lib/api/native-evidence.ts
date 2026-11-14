@@ -11,12 +11,13 @@
 
 /* === External Imports === */
 
-import { create, createFileRegistry, fromBinary, ScalarType, type DescMessage } from "@bufbuild/protobuf";
-import { FileDescriptorSetSchema, FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
+import { type createFileRegistry, fromBinary, ScalarType } from "@bufbuild/protobuf";
+import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
-import { RecordContractsSchema } from "@host/dokime/v1/catalog_pb.js";
-import { Severity } from "@host/dokime/v1/execution_pb.js";
-import { LogsAppendRequestSchema } from "@host/dokime/context/v1/evidence/logs_pb.js";
+import { executionSchemas, recordMessage } from "@/lib/host/schemas";
+import { required, cutKey } from "@/lib/rpc/canonical";
+import { Severity } from "@host/dokime/v1/evidence_pb.js";
+import { LogsAppendRequestSchema } from "@host/dokime/plugin/host/v1/evidence/logs_pb.js";
 
 /* === Local Imports === */
 
@@ -25,7 +26,7 @@ import { fallbackRecordDisplay } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 
-type Cursor = NonNullable<RecordPage["scanned"]>;
+type Cursor = NonNullable<RecordPage["resolvedAt"]>;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, RecordScope, JsonObject } from "@/lib/types";
@@ -33,7 +34,7 @@ import { mapBounded, NativeIntegerValue, NativeNumberValue, NativeApiLimitError,
 
 /* === Canonical Types === */
 
-type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceListRecords>>>;
+type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceRecordsList>>>;
 type CapturedRecord = RecordPage["records"][number];
 
 /* === Constants === */
@@ -59,13 +60,27 @@ export type RecordTail = { records: HubRecord[]; cursor: Cursor | null };
  * it read through; `openNativeRecordStream` continues from that cursor.
  */
 export async function fetchNativeRecordTail(session: SessionIdentity, scope: RecordScope | null): Promise<RecordTail> {
-  const reply: RecordPage = await rpc.evidenceListRecords(session, {
-    selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
-    latest: RECORD_TAIL,
-  });
-  if (!reply.replayComplete) throw new NativeApiLimitError("Evidence.ListRecords", "the record tail did not complete in one page");
-  const records = await decodeRecords(session, reply.records, new Map());
-  return { cursor: reply.through ?? null, records };
+  let pageToken = "";
+  let at: Cursor | undefined;
+  const records: CapturedRecord[] = [];
+  const tokens = new Set<string>();
+  for (let index = 0; index < 4096; index++) {
+    const reply = await rpc.evidenceRecordsList(session, {
+      selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
+      at,
+      page: { pageSize: RECORD_TAIL, pageToken },
+    });
+    const cut = required(reply.resolvedAt, "Read Records Cut");
+    if (at && cutKey(at) !== cutKey(cut)) throw new Error("Read Records: Retained Cut Changed");
+    at = cut;
+    records.push(...reply.records);
+    if (records.length > RECORD_TAIL) records.splice(0, records.length - RECORD_TAIL);
+    if (!reply.nextPageToken) return { cursor: at, records: await decodeRecords(session, records) };
+    if (tokens.has(reply.nextPageToken)) throw new Error("Read Records: Repeated Page Token");
+    pageToken = reply.nextPageToken;
+    tokens.add(pageToken);
+  }
+  throw new NativeApiLimitError("Evidence.Records.List", "Page Budget Reached");
 }
 
 /**
@@ -88,7 +103,7 @@ export interface NativeEvidenceSession extends SessionIdentity {
 }
 
 /**
- * A scope's live tail: `Evidence.WatchRecords` for one scope from `after`,
+ * A scope's live tail: `Evidence.Records.Watch` for one scope from `after`,
  * already projected. The frames arrive as pages, and each page is handed on
  * whole, with the cursor it was read through, so a holder appends once per
  * page rather than per record.
@@ -98,10 +113,9 @@ export async function openNativeRecordStream(
   scope: RecordScope | null,
   after?: Cursor | null,
 ): Promise<NativeStream<{ records: HubRecord[]; cursor: Cursor | null }>> {
-  const catalogs = new Map<string, Promise<FrozenRecords>>();
-  const reader = await rpc.evidenceWatchRecords(session, {
+  const reader = await rpc.evidenceRecordsWatch(session, {
     selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
-    after: after ?? undefined,
+    at: after ?? undefined,
   });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
@@ -123,8 +137,9 @@ export async function openNativeRecordStream(
     let exhausted = false;
     try {
       for await (const page of reader) {
-        const records = await decodeRecords(session, page.records, catalogs);
-        yield { cursor: page.scanned ?? null, records };
+        const records = await decodeRecords(session, page.records);
+        if (page.resyncRequired) throw new Error(`Watch Records: ${page.resyncRequired.message}; Refresh the Record Tail`);
+        yield { cursor: page.resolvedAt ?? null, records };
       }
       exhausted = true;
     } finally {
@@ -191,41 +206,25 @@ function mapNativeRecord(record: CapturedRecord, details: JsonObject): HubRecord
   };
 }
 
-type FrozenRecords = { messages: Map<string, DescMessage> };
-
-async function decodeRecords(
-  session: SessionIdentity,
-  records: CapturedRecord[],
-  catalogs: Map<string, Promise<FrozenRecords>>,
-): Promise<HubRecord[]> {
+async function decodeRecords(session: SessionIdentity, records: CapturedRecord[]): Promise<HubRecord[]> {
+  const details = new Map<string, Promise<Awaited<ReturnType<typeof rpc.executionsGet>>>>();
   return mapBounded(records, async (record) => {
     if (!session.isCurrent()) throw new Error("Read Records: Owning Connection Changed");
     if (record.recordType === "dokime.log") {
       const log = fromBinary(LogsAppendRequestSchema, record.payload);
       return mapNativeRecord(record, { message: log.message, severity: log.severity });
     }
-    const executionId = record.scope?.executionId;
-    if (!executionId) throw new Error("Read Record: Missing Frozen Execution Identity");
-    let pending = catalogs.get(executionId);
+    const name = required(record.scope?.executionId, "Read Record Execution Identity");
+    let pending = details.get(name);
     if (!pending) {
-      if (catalogs.size >= RECORD_TAIL) {
-        const oldest = catalogs.keys().next().value;
-        if (oldest !== undefined) catalogs.delete(oldest);
-      }
-      pending = (async () => {
-        const execution = await rpc.executionGetExecution(session, { executionId });
-        const catalog = execution.schemas?.catalog;
-        if (!catalog?.types) throw new Error("Read Record: Missing Frozen Descriptors; Restore This Execution's Catalog");
-        return frozenRecords(catalog);
-      })();
-      catalogs.set(executionId, pending);
+      pending = rpc.executionsGet(session, { name });
+      details.set(name, pending);
     }
-    const catalog = await pending;
-    if (!session.isCurrent()) throw new Error("Read Records: Owning Connection Changed");
-    const message = catalog.messages.get(record.recordType);
+    const detail = required((await pending).execution, "Read Record Execution");
+    const registry = await executionSchemas(session).get(session, detail);
+    const message = recordMessage(registry, record.recordType, detail.schemas?.records);
     if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
-    const decoded = fromBinary(message, record.payload);
-    return mapNativeRecord(record, recordFields(reflect(message, decoded), 0));
+    return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
   });
 }
 
@@ -263,33 +262,18 @@ function recordValue(value: unknown, scalar: ScalarType | undefined, depth: numb
   return value;
 }
 
-function frozenRecords(
-  catalog: NonNullable<NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>["schemas"]>["catalog"]>,
-): FrozenRecords {
-  if (!catalog.types) throw new Error("Read Record: Missing Frozen Descriptors; Restore This Execution's Catalog");
-  const registry = createFileRegistry(create(FileDescriptorSetSchema, catalog.types));
-  const messages = new Map<string, DescMessage>();
-  for (const section of catalog.sections) {
-    if (section.type !== "dokime.v1.RecordContracts") continue;
-    for (const contract of fromBinary(RecordContractsSchema, section.payload).records) {
-      const identifier = contract.metadata?.identifier;
-      const message = registry.getMessage(contract.message);
-      if (!identifier || !message || messages.has(identifier)) throw new Error("Read Record: Invalid Frozen Contract Identity");
-      messages.set(identifier, message);
-    }
-  }
-  return { messages };
-}
-
-/** Decode Immutable Evidence Only With Its Captured Schemas. */
-export function decodeFrozenRecords(records: CapturedRecord[], catalog?: Parameters<typeof frozenRecords>[0]): HubRecord[] {
-  const schemas = catalog ? frozenRecords(catalog) : undefined;
+/** Decode Immutable Evidence With Its Verified Frozen Registry. */
+export function decodeFrozenRecords(
+  records: CapturedRecord[],
+  registry?: ReturnType<typeof createFileRegistry>,
+  recordsBindings?: readonly { recordType: string; messageName: string }[],
+): HubRecord[] {
   return records.map((record) => {
     if (record.recordType === "dokime.log") {
       const log = fromBinary(LogsAppendRequestSchema, record.payload);
       return mapNativeRecord(record, { message: log.message, severity: log.severity });
     }
-    const message = schemas?.messages.get(record.recordType);
+    const message = registry ? recordMessage(registry, record.recordType, recordsBindings) : undefined;
     if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
     return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
   });

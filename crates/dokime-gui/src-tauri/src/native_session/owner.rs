@@ -13,6 +13,8 @@
 
 /* === Imports === */
 
+use dokime_protocol::client;
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
@@ -363,14 +365,14 @@ impl DesktopSession {
                     message: error.to_string(),
                     diagnostics: None,
                 })?;
-                let snapshot: dokime_sdk::v1::SettingsSnapshot = session
-                    .unary("/dokime.v1.Settings/ReadApplicationSettings", dokime_sdk::v1::SettingsReadApplicationSettingsRequest {})
+                let snapshot: client::SettingsGetResponse = session
+                    .unary("/dokime.client.v1.Settings/Get", dokime_protocol::client::SettingsGetRequest::default())
                     .await
                     .map_err(|error| Error::Startup {
                         message: error.to_string(),
                         diagnostics: None,
                     })?;
-                snapshot.settings.and_then(|settings| settings.client).ok_or_else(|| Error::Startup {
+                snapshot.value.and_then(|settings| settings.client).ok_or_else(|| Error::Startup {
                     message: "Read Local Preferences: Host Omitted Client Settings".into(),
                     diagnostics: None,
                 })

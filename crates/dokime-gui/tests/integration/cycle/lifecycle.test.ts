@@ -17,17 +17,16 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
-import { ExecutionMode, PromptKind, ExecutionState, ResultStatus, LiveExecutionState } from "@host/dokime/v1/client_types_pb.js";
-import { create, createFileRegistry, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { PromptFieldKind, StreamMatchOperator } from "@host/dokime/v1/host_pb.js";
+import { ExecutionMode, LiveExecutionState } from "@host/dokime/client/v1/executions_pb.js";
+import { PromptKind } from "@host/dokime/client/v1/prompts_pb.js";
+import { ExecutionState, ResultStatus } from "@host/dokime/v1/execution_pb.js";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { PromptFieldKind } from "@host/dokime/v1/prompts_pb.js";
+import { StreamMatchOperator } from "@host/dokime/v1/evidence_pb.js";
 import { FileDescriptorSetSchema, FieldDescriptorProto_Type } from "@bufbuild/protobuf/wkt";
 import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
 import { fetchNativeDocument } from "@/lib/api/native-documents";
-import { sha256Hex } from "@/lib/api/native-values";
-import { ArtifactState } from "@host/dokime/v1/client_types_pb.js";
-import { RecordContractsSchema } from "@host/dokime/v1/catalog_pb.js";
-import { fetchNativeRecordTail, openNativeRecordStream } from "@/lib/api/native-evidence";
-import { Severity } from "@host/dokime/v1/execution_pb.js";
+import { Severity } from "@host/dokime/v1/evidence_pb.js";
 import { previewNativeTestCycle, projectExecutionStatus } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
 import { openNativeRuntimeStream, openNativeExecutionProgressStream } from "@/lib/api/native-observation";
@@ -74,7 +73,10 @@ const session = { generation: "lifecycle", isCurrent: () => true };
 /* === Private Functions === */
 
 function accepted() {
-  return { outcome: { kind: { case: "accepted", value: { commandId: "execution", jobId: null } } } };
+  return {
+    execution: { summary: { executionId: "execution" }, controls: { requestId: "execution" } },
+    receipt: { requestId: "execution", completed: true },
+  };
 }
 
 /* === Entry Point === */
@@ -88,13 +90,13 @@ beforeEach(() => {
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const operations: Record<string, typeof fixture.append> = {
-      "/dokime.v1.Execution/AppendExecutions": fixture.append,
-      "/dokime.v1.Execution/StartExecution": fixture.start,
-      "/dokime.v1.Execution/StopExecution": fixture.stop,
-      "/dokime.v1.Execution/SealCycle": fixture.seal,
-      "/dokime.v1.Execution/GetExecution": fixture.detail,
-      "/dokime.v1.Execution/ListExecutionParameters": fixture.parameters,
-      "/dokime.v1.Execution/ListExecutionSteps": fixture.steps,
+      "/dokime.client.v1.Executions/Create": fixture.append,
+      "/dokime.client.v1.Executions/Start": fixture.start,
+      "/dokime.client.v1.Executions/Stop": fixture.stop,
+      "/dokime.client.v1.Cycles/Seal": fixture.seal,
+      "/dokime.client.v1.Executions/Get": fixture.detail,
+      "/dokime.client.v1.Executions/Parameters": fixture.parameters,
+      "/dokime.client.v1.Executions/Steps": fixture.steps,
     };
     const operation = operations[path];
     const reply = operation ? await operation(identity, request) : await fixture.extra(path, decoded);
@@ -103,7 +105,7 @@ beforeEach(() => {
 });
 
 test("Execution Detail Uses Embedded Criteria", async () => {
-  fixture.detail.mockResolvedValue({ cycleId: "cycle", summary: { executionId: "execution", caseId: "case" } });
+  fixture.detail.mockResolvedValue({ execution: { cycleId: "cycle", summary: { executionId: "execution", caseId: "case" } } });
   fixture.parameters.mockResolvedValue({ parameters: [] });
   const steps = Array.from({ length: 20 }, (_, ordinal) => ({
     stepId: `step-${ordinal}`,
@@ -129,10 +131,14 @@ test("Append Without Start", async () => {
   const second = await appendNativeCaseAttempt(session, "cycle", "case");
   assert.notEqual(first, second);
   assert.match(first, /^[0-9a-f-]{36}$/);
-  assert.deepEqual(fixture.append.mock.calls, [
-    [session, { cycleId: "cycle", executions: [{ executionId: first, caseId: "case" }] }],
-    [session, { cycleId: "cycle", executions: [{ executionId: second, caseId: "case" }] }],
-  ]);
+  assert.deepEqual(
+    fixture.append.mock.calls.map((call) => ({ parent: call[1].parent, executions: call[1].executions })),
+    [
+      { parent: "cycle", executions: [{ executionId: first, caseId: "case" }] },
+      { parent: "cycle", executions: [{ executionId: second, caseId: "case" }] },
+    ],
+  );
+  assert.notEqual(fixture.append.mock.calls[0][1].requestId, fixture.append.mock.calls[1][1].requestId);
   assert.equal(fixture.start.mock.calls.length, 0);
 });
 
@@ -140,27 +146,20 @@ test("Start Reuses Identity", async () => {
   fixture.start.mockResolvedValue(accepted());
   await startNativeTestExecution(session, "execution");
   await startNativeTestExecution(session, "execution");
-  const request = { executionId: "execution", mode: ExecutionMode.AUTOMATIC };
-  assert.deepEqual(fixture.start.mock.calls, [
-    [session, request],
-    [session, request],
-  ]);
+  assert.deepEqual(
+    fixture.start.mock.calls.map((call) => ({ name: call[1].name, mode: call[1].mode })),
+    [
+      { name: "execution", mode: ExecutionMode.AUTOMATIC },
+      { name: "execution", mode: ExecutionMode.AUTOMATIC },
+    ],
+  );
+  assert.notEqual(fixture.start.mock.calls[0][1].requestId, fixture.start.mock.calls[1][1].requestId);
 });
 
 test("Start Admission Refusal", async () => {
-  fixture.start.mockResolvedValue({
-    outcome: {
-      kind: {
-        case: "rejected",
-        value: {
-          code: "cycle_sealed",
-          message: "Cycle Is Sealed",
-          issues: [{ path: "execution_id", message: "Admission Closed" }],
-        },
-      },
-    },
-  });
-  await assert.rejects(startNativeTestExecution(session, "execution"), /cycle_sealed: Cycle Is Sealed.*execution_id: Admission Closed/);
+  const refusal = { kind: "grpc", detail: { code: 9, message: "cycle_sealed", details: [] } };
+  fixture.start.mockRejectedValue(refusal);
+  await assert.rejects(startNativeTestExecution(session, "execution"), (error) => error === refusal);
 });
 
 test("Durable Stop Seal", async () => {
@@ -180,7 +179,8 @@ test("Durable Stop Seal", async () => {
   finishStop();
   await stop;
   assert.equal(stopped, true);
-  assert.deepEqual(fixture.stop.mock.calls, [[session, { executionId: "execution" }]]);
+  assert.equal(fixture.stop.mock.calls[0][1].name, "execution");
+  assert.ok(fixture.stop.mock.calls[0][1].requestId);
 
   let failSeal!: (error: Error) => void;
   fixture.seal.mockImplementation(
@@ -193,7 +193,8 @@ test("Durable Stop Seal", async () => {
   const rejected = assert.rejects(seal, /Persistence Failed/);
   failSeal(new Error("Persistence Failed"));
   await rejected;
-  assert.deepEqual(fixture.seal.mock.calls, [[session, { cycleId: "cycle" }]]);
+  assert.equal(fixture.seal.mock.calls[0][1].name, "cycle");
+  assert.ok(fixture.seal.mock.calls[0][1].requestId);
 });
 
 test("Container Seal Controls", () => {
@@ -282,13 +283,18 @@ test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
 test("Planning Preserves Selection Order and Exact Recursive Parameters", async () => {
   const requests: Record<string, unknown>[] = [];
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.v1.Catalog/ListSuites") return { suites: [{ suiteId: "fixture", source: "fixture" }] };
-    if (path === "/dokime.v1.Catalog/GetSuite")
+    if (path === "/dokime.client.v1.Suites/List")
+      return {
+        values: [
+          { metadata: { identifier: "fixture", label: "Fixture" }, templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }] },
+        ],
+      };
+    if (path === "/dokime.client.v1.Suites/Get")
       return {
         metadata: { identifier: "fixture", label: "Fixture" },
         templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }],
       };
-    assert.equal(path, "/dokime.v1.Planning/PreviewSelection");
+    assert.equal(path, "/dokime.client.v1.Cases/Create");
     requests.push(request);
     return {
       cases: [
@@ -338,49 +344,53 @@ test("Planning Preserves Selection Order and Exact Recursive Parameters", async 
 test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async () => {
   const replies: unknown[] = [];
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.v1.Prompts/ListPending") {
+    if (path === "/dokime.client.v1.Prompts/List") {
       assert.equal(request.cycleId, "cycle");
-      return { prompts: [{ promptId: "prompt" }] };
-    }
-    if (path === "/dokime.v1.Prompts/GetPrompt")
       return {
-        prompt: {
-          promptId: "prompt",
-          kind: PromptKind.FORM,
-          createdAt: { seconds: 7n },
-          scope: { cycleId: "cycle", executionId: "execution" },
-          definition: {
-            metadata: { identifier: "fixture.answer", label: "Answer" },
-            level: Severity.WARNING,
-            template: "fixture.run",
-            fields: [
-              {
-                metadata: { identifier: "count", label: "Count" },
-                kind: PromptFieldKind.INTEGER,
-                defaultValue: jsonToNativeValue(18446744073709551615n),
-              },
-            ],
-            actions: [{ identifier: "confirm", label: "Confirm", requiresCondition: true }],
-            condition: {
-              kind: {
-                case: "all",
-                value: {
-                  conditions: [
-                    { kind: { case: "stream", value: { stream: "temperature", field: "value", operator: StreamMatchOperator.EXISTS } } },
-                  ],
+        prompts: [
+          {
+            prompt: {
+              promptId: "prompt",
+              kind: PromptKind.FORM,
+              createdAt: { seconds: 7n },
+              scope: { cycleId: "cycle", executionId: "execution" },
+              definition: {
+                metadata: { identifier: "fixture.answer", label: "Answer" },
+                level: Severity.WARNING,
+                template: "fixture.run",
+                fields: [
+                  {
+                    metadata: { identifier: "count", label: "Count" },
+                    kind: PromptFieldKind.INTEGER,
+                    defaultValue: jsonToNativeValue(18446744073709551615n),
+                  },
+                ],
+                actions: [{ identifier: "confirm", label: "Confirm", requiresCondition: true }],
+                condition: {
+                  kind: {
+                    case: "all",
+                    value: {
+                      conditions: [
+                        {
+                          kind: { case: "stream", value: { stream: "temperature", field: "value", operator: StreamMatchOperator.EXISTS } },
+                        },
+                      ],
+                    },
+                  },
                 },
               },
             },
           },
-        },
+        ],
       };
-    assert.equal(path, "/dokime.v1.Prompts/Respond");
+    }
+    assert.equal(path, "/dokime.client.v1.prompts.Answers/Create");
     replies.push(request);
     assert.equal(request.values.values.count.kind.case, "unsignedInteger");
     assert.equal(request.values.values.count.kind.value, 18446744073709551615n);
     assert.equal(request.action, "confirm");
     assert.equal(request.accepted, true);
-    return { commandId: "answer", promptId: "prompt", committedRevision: 9007199254740993n, acceptedAt: { seconds: 8n } };
+    return { answer: { promptId: "prompt", submittedAt: { seconds: 8n } }, receipt: { requestId: "answer", completed: true } };
   });
   const [prompt] = await fetchNativePendingPrompts(session, { cycleId: "cycle" });
   assert.equal(prompt.kind, "form");
@@ -390,7 +400,8 @@ test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async (
   assert.equal(prompt.scope?.test_execution_id, "execution");
   assert.equal(prompt.verification?.condition.kind, "host");
   const receipt = await respondNativePrompt(session, prompt.correlation_id, "confirm", { count: prompt.fields[0].default });
-  assert.equal(receipt.result?.committed_revision, "9007199254740993");
+  assert.equal(receipt.command_id, "answer");
+  assert.equal(receipt.result?.accepted, true);
   assert.equal(replies.length, 1);
 });
 
@@ -407,13 +418,12 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   };
   fixture.stream.mockImplementation(async (path, input, output, identity, request, envelope) => {
     assert.equal(identity, observation);
-    if (path.endsWith("WatchRuntime")) assert.ok(envelope.typeName.endsWith("Output"));
-    else assert.equal(envelope, undefined);
+    assert.equal(envelope, undefined);
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
-    const frame = path.endsWith("WatchRuntime")
-      ? { resynchronized: true, cursor: { epoch: "host", stream: "runtime", position: 9n } }
+    const frame = path.endsWith("Overview/Watch")
+      ? { opening: true, resolvedAt: { positions: [{ history: { store: "host", epoch: "runtime" }, sequence: 9n }] } }
       : { finished: true };
-    if (path === "/dokime.v1.executions.Progress/Watch") {
+    if (path === "/dokime.client.v1.executions.Progress/Watch") {
       assert.ok("name" in decoded);
       assert.equal(decoded.name, "execution");
     }
@@ -426,8 +436,8 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   });
   const runtime = await openNativeRuntimeStream(observation);
   for await (const frame of runtime) {
-    assert.equal(frame.resynchronized, true);
-    assert.equal(frame.cursor?.position, 9n);
+    assert.equal(frame.opening, true);
+    assert.equal(frame.resolvedAt?.positions[0]?.sequence, 9n);
     break;
   }
   assert.equal(canceled.mock.calls.length, 1);
@@ -465,185 +475,100 @@ test("Imported and Unevaluated Outcomes Never Gain Run Capabilities", () => {
   assert.equal(String(nativeValueToJson(jsonToNativeValue(JSON.parse(JSON.stringify(exact))))), exact.decimal);
 });
 
-test("Live and Saved Records Decode with Each Execution's Frozen Descriptor", async () => {
-  const unsigned = create(FileDescriptorSetSchema, {
+test("Frozen Descriptor Pages Are Verified and Reused Across Executions", async () => {
+  const { FrozenSchemaCache } = await import("@/lib/host/schemas");
+  const types = create(FileDescriptorSetSchema, {
     file: [
       {
         name: "reading.proto",
         package: "fixture",
         syntax: "proto3",
-        messageType: [
-          {
-            name: "Reading",
-            field: [
-              { name: "count", number: 1, type: FieldDescriptorProto_Type.UINT64 },
-              { name: "voltage", number: 2, type: FieldDescriptorProto_Type.DOUBLE },
-            ],
-          },
-        ],
+        messageType: [{ name: "Reading", field: [{ name: "count", number: 1, type: FieldDescriptorProto_Type.UINT64 }] }],
       },
     ],
   });
-  const text = create(FileDescriptorSetSchema, {
-    file: [
-      {
-        name: "reading.proto",
-        package: "fixture",
-        syntax: "proto3",
-        messageType: [{ name: "Reading", field: [{ name: "count", number: 1, type: FieldDescriptorProto_Type.STRING }] }],
-      },
-    ],
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", toBinary(FileDescriptorSetSchema, types)));
+  const at = { history: { store: "host", epoch: "execution" }, sequence: 7n };
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/dokime.client.v1.executions.Schemas/Get");
+    assert.equal(request.name, "one");
+    return { digest, types, resolvedAt: at };
   });
-  const unsignedType = createFileRegistry(unsigned).getMessage("fixture.Reading");
-  const textType = createFileRegistry(text).getMessage("fixture.Reading");
-  assert.ok(unsignedType);
-  assert.ok(textType);
-  const contracts = toBinary(
-    RecordContractsSchema,
-    create(RecordContractsSchema, { records: [{ metadata: { identifier: "fixture.reading" }, message: "fixture.Reading" }] }),
-  );
-  const cursor = { epoch: "host", stream: "records", position: 3n };
-  const records = [
-    {
-      recordId: "unsigned:1",
-      sequence: 1n,
-      timestamp: { seconds: 1n },
-      recordType: "fixture.reading",
-      severity: Severity.INFO,
-      scope: { executionId: "unsigned", cycleId: "cycle", origin: { kind: { kind: { case: "stepAttemptId", value: "attempt" } } } },
-      payload: toBinary(unsignedType, create(unsignedType, { count: 18446744073709551615n, voltage: -0 })),
-    },
-    {
-      recordId: "text:2",
-      sequence: 2n,
-      timestamp: { seconds: 2n },
-      recordType: "fixture.reading",
-      severity: Severity.INFO,
-      scope: { executionId: "text", cycleId: "cycle" },
-      payload: toBinary(textType, create(textType, { count: "changed-schema" })),
-    },
-  ];
-  fixture.detail.mockImplementation(async (_identity, request) => ({
-    schemas: {
-      catalog: {
-        types: request.executionId === "unsigned" ? unsigned : text,
-        sections: [{ type: "dokime.v1.RecordContracts", payload: contracts }],
-      },
-    },
-  }));
-  fixture.extra.mockImplementation(async (path) => {
-    assert.equal(path, "/dokime.v1.Evidence/ListRecords");
-    return { records, scanned: cursor, through: cursor, replayComplete: true };
-  });
-  const tail = await fetchNativeRecordTail(session, { test_cycle_id: "cycle" });
-  assert.equal(String(tail.records[0].details.count), "18446744073709551615");
-  assert.ok(Object.is(Number(tail.records[0].details.voltage), -0));
-  assert.equal(tail.records[0].scope?.origin?.kind, "step_attempt");
-  assert.equal(tail.records[1].details.count, "changed-schema");
-  const cancel = vi.fn(async () => {});
-  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
-    assert.equal(path, "/dokime.v1.Evidence/WatchRecords");
-    const decoded = fromBinary(input, toBinary(input, create(input, request)));
-    assert.ok("after" in decoded);
-    assert.deepEqual(decoded.after, { $typeName: "dokime.v1.Cursor", ...cursor });
-    return {
-      cancel,
-      async *[Symbol.asyncIterator]() {
-        yield create(output, {
-          records: [records[0]],
-          scanned: { ...cursor, position: 4n },
-          through: { ...cursor, position: 4n },
-          replayComplete: true,
-        });
-      },
-    };
-  });
-  const release = vi.fn();
-  const stream = await openNativeRecordStream({ ...session, own: () => release }, { test_cycle_id: "cycle" }, tail.cursor);
-  for await (const page of stream) {
-    assert.equal(page.cursor?.position, 4n);
-    assert.equal(String(page.records[0].details.count), "18446744073709551615");
-    break;
-  }
-  assert.equal(cancel.mock.calls.length, 1);
-  assert.equal(release.mock.calls.length, 1);
+  const cache = new FrozenSchemaCache();
+  const detail = (executionId: string) => create(awaitedExecutionSchema, { summary: { executionId }, schemas: { digest } });
+  const awaitedExecutionSchema = (await import("@host/dokime/client/v1/executions_pb.js")).ExecutionDetailSchema;
+  const first = await cache.get(session, detail("one"));
+  const second = await cache.get(session, detail("two"));
+  assert.equal(first, second);
+  assert.ok(first.getMessage("fixture.Reading"));
+  assert.equal(fixture.extra.mock.calls.length, 1);
+  const corrupt = new FrozenSchemaCache();
+  fixture.extra.mockResolvedValue({ digest, types: { file: [] }, resolvedAt: at });
+  await assert.rejects(corrupt.get(session, detail("three")));
 });
 
-test("Artifact Bytes Require Canonical Metadata Contiguous Chunks and Verified Completion", async () => {
-  const data = new TextEncoder().encode("verified-content");
-  const digest = await sha256Hex(data);
-  let gap = false;
-  const canceled = vi.fn(async () => {});
-  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
-    assert.equal(path, "/dokime.v1.Content/DownloadArtifact");
-    const decoded = fromBinary(input, toBinary(input, create(input, request)));
-    assert.ok("artifactId" in decoded);
-    assert.equal(decoded.artifactId, "attachment");
-    return {
-      cancel: canceled,
-      async *[Symbol.asyncIterator]() {
-        yield create(output, {
-          payload: {
-            kind: {
-              case: "metadata",
-              value: {
-                artifactId: "attachment",
-                filename: "reading.txt",
-                sizeBytes: BigInt(data.length),
-                sha256: digest,
-                state: ArtifactState.COMPLETE,
-              },
-            },
-          },
-        });
-        yield create(output, { payload: { kind: { case: "chunk", value: { offset: gap ? 1n : 0n, data } } } });
-        yield create(output, { payload: { kind: { case: "complete", value: { sizeBytes: BigInt(data.length), sha256: digest } } } });
-      },
-    };
+test("Artifact Ranges Require a Stable Cut and Verified Digest", async () => {
+  const data = new Uint8Array([1, 2, 3, 4]);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+  const at = { positions: [{ history: { store: "files", epoch: "one" }, sequence: 1n }] };
+  let corrupt = false;
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path === "/dokime.client.v1.content.Artifacts/Get") return { file: { length: 4n, sha256: digest }, resolvedAt: at };
+    if (path === "/dokime.client.v1.Files/Get")
+      return { file: { length: 4n, sha256: digest }, chunkBytes: 2n, messageBytes: 1024n, resolvedAt: at };
+    assert.equal(path, "/dokime.client.v1.Files/Read");
+    assert.ok(request.offset === 0n || request.offset === 2n);
+    assert.equal(request.maxBytes, 2n);
+    const selected = corrupt ? new Uint8Array([4, 3, 2, 1]) : data;
+    return { data: selected.slice(Number(request.offset), Number(request.offset) + 2), totalLength: 4n, sha256: digest, resolvedAt: at };
   });
-  const release = vi.fn();
-  const owned = { ...session, own: () => release };
+  const owned = { ...session, own: () => () => undefined };
   assert.deepEqual(await fetchNativeArtifactBytes(owned, "attachment"), data);
-  gap = true;
+  corrupt = true;
   await assert.rejects(fetchNativeArtifactBytes(owned, "attachment"));
-  assert.equal(canceled.mock.calls.length, 2);
-  assert.equal(release.mock.calls.length, 2);
 });
 
-test("Default Execution Documents Keep the Host's Selected Identity and Epoch", async () => {
-  const canceled = vi.fn(async () => {});
-  fixture.stream.mockImplementation(async (path, input, output, _identity, request) => {
-    assert.equal(path, "/dokime.v1.Documents/CaptureCurrentDocument");
-    const decoded = fromBinary(input, toBinary(input, create(input, request)));
-    assert.ok("documentId" in decoded);
-    assert.equal(decoded.documentId, "");
-    return {
-      cancel: canceled,
-      async *[Symbol.asyncIterator]() {
-        yield create(output, {
-          frame: {
-            kind: {
-              case: "header",
-              value: {
-                documentId: "execution",
-                scope: { executionId: "execution", cycleId: "cycle" },
-                metadata: { identifier: "execution", label: "Execution" },
-                frontiers: { processEpoch: "product-epoch", stateRevision: 3n },
+test("Default Execution Documents Preserve Ordered Frames Across Unary Pages", async () => {
+  const at = { positions: [{ history: { store: "host", epoch: "execution" }, sequence: 0n }] };
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/dokime.client.v1.Documents/Get");
+    assert.equal(request.documentId, "");
+    if (!request.pageToken)
+      return {
+        frames: [
+          {
+            frame: {
+              kind: {
+                case: "header",
+                value: {
+                  documentId: "execution",
+                  metadata: { identifier: "execution" },
+                  scope: { executionId: "execution", cycleId: "cycle" },
+                  frontiers: { processEpoch: "product-epoch", stateRevision: 3n },
+                },
               },
             },
           },
-        });
-        yield create(output, { frame: { kind: { case: "structureComplete", value: { frameCount: 2n } } } });
-        yield create(output, {
+          { frame: { kind: { case: "structureComplete", value: { frameCount: 2n } } } },
+        ],
+        resolvedAt: at,
+        nextPageToken: "next",
+      };
+    assert.equal(request.pageToken, "next");
+    assert.equal(request.at.positions[0].sequence, 0n);
+    return {
+      frames: [
+        {
           frame: {
             kind: {
               case: "evidenceCut",
               value: { cut: { store: "host", epoch: "execution", position: 0n }, telemetry: true, cacheable: false },
             },
           },
-        });
-        yield create(output, { frame: { kind: { case: "completion", value: { frameCount: 4n } } } });
-      },
+        },
+        { frame: { kind: { case: "completion", value: { frameCount: 4n } } } },
+      ],
+      resolvedAt: at,
     };
   });
   const release = vi.fn();
@@ -654,113 +579,72 @@ test("Default Execution Documents Keep the Host's Selected Identity and Epoch", 
   assert.equal(document.header.documentId, "execution");
   assert.equal(document.complete, true);
   assert.equal(release.mock.calls.length, 1);
+  assert.equal(fixture.extra.mock.calls.length, 2);
 });
 
-test("History Projects Attributed Outcomes Without Inventing Criterion Counts", async () => {
+test("History Projects Declared Outcomes Without Inventing Criterion Counts", async () => {
   const { fetchNativeExecutionPage } = await import("@/lib/api/native-checkpoints");
-  const { ExecutionAvailability, ArchiveScope } = await import("@host/dokime/v1/client_types_pb.js");
-  fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.v1.History/BrowseExecutions");
-    assert.equal(request.filter.archive, ArchiveScope.ALL);
+  const at = { positions: [{ history: { store: "host", epoch: "inventory" }, sequence: 1n }] };
+  fixture.extra.mockImplementation(async (path) => {
+    if (path === "/dokime.client.v1.Cycles/List") return { cycles: [], resolvedAt: at };
+    assert.equal(path, "/dokime.client.v1.Executions/List");
     return {
-      discoveryComplete: true,
-      entries: [
+      executions: [
         {
-          metadata: {
-            executionId: "imported",
-            caseId: "case",
-            title: "Imported Result",
-            status: ExecutionState.SEALED,
-            outcome: { attribution: { case: "declared", value: { status: ResultStatus.PASSED } } },
-          },
-          availability: ExecutionAvailability.STORED,
+          summary: { executionId: "imported", caseId: "case", state: ExecutionState.SEALED },
+          outcome: { attribution: { case: "declared", value: { status: ResultStatus.PASSED } } },
         },
       ],
+      resolvedAt: at,
     };
   });
-  const page = await fetchNativeExecutionPage(session, null, undefined, {
-    filter: { text: "", archive: ArchiveScope.ALL, statuses: [], templateIds: [], cycleIds: [] },
-  });
+  const page = await fetchNativeExecutionPage(session, null);
   assert.equal(page.entries[0].metadata.status, "passed");
   assert.equal(page.entries[0].metadata.result, null);
 });
 
-test("Checkpoint Records Use Frozen Evidence and Preserve the Captured Log", async () => {
-  const { fetchNativeCheckpointRecords, nativeRecordText } = await import("@/lib/api/native-checkpoints");
-  const { LogsAppendRequestSchema } = await import("@host/dokime/context/v1/evidence/logs_pb.js");
-  const position = { history: { store: "stored", epoch: "captured" }, sequence: 7n };
-  const checkpoint = { executionIdentifier: "archived", position, evidenceThrough: position, version: new Uint8Array([1]) };
-  fixture.extra.mockImplementation(async (path) => {
-    if (path === "/dokime.v1.History/ListCheckpointRecords")
-      return {
-        checkpoint,
-        records: [
-          {
-            epoch: "captured",
-            ordinal: 1n,
-            record: {
-              timestamp: { seconds: 1n, nanos: 0 },
-              recordId: "log",
-              recordType: "dokime.log",
-              source: "thermal",
-              severity: Severity.INFO,
-              payload: toBinary(
-                LogsAppendRequestSchema,
-                create(LogsAppendRequestSchema, { severity: Severity.INFO, message: "Captured Measurement" }),
-              ),
-            },
-          },
-        ],
-      };
-    assert.equal(path, "/dokime.v1.History/GetCheckpointDocument");
-    return { checkpoint, document: { execution: { executionId: "archived", status: ExecutionState.SEALED } } };
-  });
-  const page = await fetchNativeCheckpointRecords(session, checkpoint);
-  assert.equal(page.records[0].decoded?.details.message, "Captured Measurement");
-  assert.ok(page.records[0].record);
-  assert.equal(nativeRecordText(page.records[0].record, page.records[0].decoded).severity, "info");
-  assert.equal(fixture.extra.mock.calls.length, 2);
-});
-
 test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", async () => {
   const { createNativeNote } = await import("@/lib/api/native-annotations");
-  const { NotePublication } = await import("@host/dokime/v1/client_types_pb.js");
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.v1.Notes/CreateNote");
-    assert.equal(request.epoch, "execution-epoch");
+    assert.equal(path, "/dokime.client.v1.evidence.Notes/Create");
     assert.deepEqual(request.owner.owner.kind, {
       case: "execution",
-      value: create((await import("@host/dokime/v1/client_types_pb.js")).ExecutionNoteOwnerSchema, {
+      value: create((await import("@host/dokime/v1/notes_pb.js")).ExecutionNoteOwnerSchema, {
         cycleId: "cycle",
         executionId: "run",
       }),
     });
-    assert.ok(request.mutationId);
-    return { note: { noteId: "note", createdAt: { seconds: 1n, nanos: 0 } }, publication: NotePublication.CONFIRMED };
+    assert.ok(request.requestId);
+    return { note: { noteId: "note", createdAt: { seconds: 1n, nanos: 0 } }, receipt: { completed: true, requestId: request.requestId } };
   });
-  const receipt = await createNativeNote(session, "execution-epoch", "Measured", { test_cycle_id: "cycle", test_execution_id: "run" });
-  assert.equal(receipt.result?.publication, "confirmed");
+  const receipt = await createNativeNote(session, "Measured", { test_cycle_id: "cycle", test_execution_id: "run" });
+  assert.equal(receipt.result?.accepted, true);
 });
 
 test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   const { fetchNativeSettingsFrame, getNativePluginSettings, updateNativePluginSettings } = await import("@/lib/api/native-settings");
-  const { SettingsCardState } = await import("@host/dokime/v1/client_types_pb.js");
+  const { SettingsCardState } = await import("@host/dokime/client/v1/settings_pb.js");
   const settings = {
-    settings: {
+    schema: {
       settings: [{ metadata: { identifier: "power", label: "Power" }, kind: { case: "boolean", value: { defaultValue: false } } }],
     },
-    values: { values: { power: jsonToNativeValue(true) } },
+    value: { values: { power: jsonToNativeValue(true) } },
+    revision: new Uint8Array([4]),
   };
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path.endsWith("/GetSettings"))
+    if (path.endsWith("Settings/Schema"))
       return {
-        sections: [{ sectionId: "entry", owner: { kind: { case: "installedPluginId", value: "entry" } } }],
-        cards: [
-          { cardId: "state", state: SettingsCardState.READY, body: { blocks: [{ kind: { kind: { case: "text", value: "Ready" } } }] } },
-        ],
+        schema: {
+          sections: [{ sectionId: "entry", owner: { kind: { case: "installedPluginId", value: "entry" } } }],
+          cards: [
+            { cardId: "state", state: SettingsCardState.READY, body: { blocks: [{ kind: { kind: { case: "text", value: "Ready" } } }] } },
+          ],
+        },
       };
-    if (path.endsWith("/UpdatePluginSettings")) assert.equal(nativeValueToJson(request.values.values.power), false);
-    else assert.ok(path.endsWith("/GetPluginSettings"));
+    if (path.endsWith("plugins.Settings/Set")) {
+      assert.equal(nativeValueToJson(request.value.values.power), false);
+      assert.deepEqual(request.expectedRevision, new Uint8Array([4]));
+    } else assert.ok(path.endsWith("plugins.Settings/Get"));
     return settings;
   });
   const frame = await fetchNativeSettingsFrame(session);
@@ -851,4 +735,24 @@ test("Remote Listener Saves with Its Own Revision and Rotates Certificates", asy
   assert.equal(saved.listeningAddress, "127.0.0.1:4321");
   await assert.rejects(updateNativeListener(session, current, { ...current.settings, tlsEnabled: false }));
   assert.equal((await regenerateNativeCertificate(session)).certificatePem, "rotated");
+});
+
+test("Plot Snapshot Continuations Keep Their Read Cut", async () => {
+  const { fetchNativePlotPayloads } = await import("@/lib/api/native-plots");
+  const at = { positions: [{ history: { store: "host", epoch: "evidence" }, sequence: 7n }] };
+  fixture.extra.mockImplementation(async (path, request) => {
+    assert.equal(path, "/dokime.client.v1.plots.Snapshots/List");
+    if (!request.page.pageToken) {
+      assert.equal(request.at, undefined);
+      return { resolvedAt: at, nextPageToken: "next" };
+    }
+    assert.equal(request.page.pageToken, "next");
+    assert.equal(request.at.positions[0].sequence, 7n);
+    assert.equal(request.at.positions[0].history.epoch, "evidence");
+    return { resolvedAt: at };
+  });
+  assert.deepEqual(await fetchNativePlotPayloads(session, []), []);
+  assert.equal(fixture.extra.mock.calls.length, 2);
+  fixture.extra.mockImplementation(async (_path, request) => ({ resolvedAt: request.at ? { positions: [] } : at, nextPageToken: "next" }));
+  await assert.rejects(fetchNativePlotPayloads(session, []));
 });

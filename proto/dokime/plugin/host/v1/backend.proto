@@ -1,0 +1,9 @@
+syntax = "proto3";
+package dokime.plugin.host.v1;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1";
+import "harmos/v1/types.proto";
+
+// Public child-call declarations, carried by Instance.Invoke.
+message BackendEnvironmentRequest { .harmos.v1.Position at = 1; }
+
+message BackendEnvironmentResponse { uint32 backend_pid = 1; bool in_step = 2; .harmos.v1.Position resolved_at = 3; }

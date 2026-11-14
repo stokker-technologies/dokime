@@ -22,8 +22,6 @@
 // Local Imports
 use crate::{Error, Result, client::Context};
 
-use dokime_protocol::v1;
-
 /* === Constants === */
 
 pub const ID: &str = "dokime.plugins.get_installation";
@@ -43,9 +41,14 @@ pub const ID: &str = "dokime.plugins.get_installation";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::PluginsGetInstallationRequest, v1::PluginInstallation>(ID, settings.read_timeout)
+    super::declaration::<dokime_protocol::client::PluginsGetInstallationRequest, dokime_protocol::client::PluginInstallation>(
+        ID,
+        settings.read_timeout,
+    )
 }
-pub async fn handle(context: &Context, request: v1::PluginsGetInstallationRequest) -> Result<v1::PluginInstallation> {
+pub async fn handle(
+    context: &Context, request: dokime_protocol::client::PluginsGetInstallationRequest,
+) -> Result<dokime_protocol::client::PluginInstallation> {
     super::complete(ID, context.settings.read_timeout, async {
         context.host.refresh_plugin_states().await?;
         context

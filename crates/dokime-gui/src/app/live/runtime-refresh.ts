@@ -94,11 +94,9 @@ export function createExecutionFileRefresh(refresh: () => void, intervalMs: numb
   const throttled = createThrottledRefresh(refresh, intervalMs);
   let observed: string | undefined;
   return {
-    observe(frame: Pick<RuntimeStateFrame, "cursor" | "operations" | "resynchronized">): void {
-      const revision = JSON.stringify([frame.cursor, frame.operations], (_, value: unknown) =>
-        typeof value === "bigint" ? value.toString() : value,
-      );
-      if (revision === observed && !frame.resynchronized) return;
+    observe(frame: Pick<RuntimeStateFrame, "resolvedAt" | "opening">): void {
+      const revision = JSON.stringify(frame.resolvedAt, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value));
+      if (revision === observed && !frame.opening) return;
       observed = revision;
       throttled.request();
     },

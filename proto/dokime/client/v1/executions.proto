@@ -1,0 +1,334 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/cycles.proto";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/execution.proto";
+import "dokime/v1/formatting.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "dokime/v1/schemas.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+// Schemas frozen for this execution, from its plugin catalog or its import-local catalog. Import schemas do not
+// register a plugin or overwrite global definitions.
+message FrozenSchemas {
+  // SHA-256 of the serialized frozen google.protobuf.FileDescriptorSet, in file order.
+  // Fetch descriptors through Executions.Schemas.Get only on a cache miss.
+  bytes digest = 3;
+  repeated .dokime.v1.RecordSchema records = 1;
+  repeated .dokime.v1.TelemetrySchema streams = 2;
+}
+
+// Live manager state, never persisted as an execution state or a Run object.
+enum LiveExecutionState {
+  LIVE_EXECUTION_STATE_UNSPECIFIED = 0;
+  LIVE_EXECUTION_STATE_QUEUED = 1;
+  LIVE_EXECUTION_STATE_INITIALIZING = 2;
+  LIVE_EXECUTION_STATE_STEPPING = 3;
+  LIVE_EXECUTION_STATE_EVALUATING = 4;
+  LIVE_EXECUTION_STATE_CLEANING_UP = 5;
+  LIVE_EXECUTION_STATE_FINISHED = 6;
+  LIVE_EXECUTION_STATE_CANCELLED = 7;
+  LIVE_EXECUTION_STATE_INTERRUPTED = 8;
+}
+
+enum CriterionStatus {
+  CRITERION_STATUS_UNSPECIFIED = 0;
+  CRITERION_STATUS_PENDING = 1;
+  CRITERION_STATUS_PASSED = 2;
+  CRITERION_STATUS_FAILED = 3;
+  CRITERION_STATUS_INDETERMINATE = 4;
+  CRITERION_STATUS_SKIPPED = 5;
+}
+
+message Diagnostic {
+  string message = 1;
+  repeated string chain = 2;
+  string location = 3;
+  repeated string span_trace = 4;
+  string backtrace = 5;
+}
+
+// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
+message ExecutionBinding {
+  string execution_id = 1;
+  string case_id = 2;
+}
+
+message ExecutionControls {
+  optional string request_id = 1;
+  bool paused = 2;
+  bool stop_requested = 3;
+  bool can_pause = 4;
+  bool can_resume = 5;
+  bool can_stop = 6;
+  .dokime.client.v1.ExecutionMode mode = 7;
+  bool can_start = 8;
+  bool can_rerun = 9;
+  bool can_cancel = 10;
+  bool can_inspect = 11;
+  bool can_export = 12;
+}
+
+// Evidence identity, origin, outcome, schemas and capabilities are independent of optional live manager state.
+// Cancel is available only while that manager drives this execution. Import drafts have no start/rerun/cancel
+// capability.
+message ExecutionOutcomeCounts {
+  uint64 evaluated_count = 1;
+  uint64 not_evaluated_count = 2;
+  uint64 declared_count = 3;
+  optional .dokime.v1.ResultStatus result_status = 4;
+}
+
+message ExecutionDetail {
+  .dokime.v1.ExecutionProgressValue progress = 20;
+  .harmos.v1.Position resolved_at = 21;
+  // Counts and evaluated-only verdict for all executions in this cycle.
+  .dokime.client.v1.ExecutionOutcomeCounts cycle_counts = 19;
+  // Verified digest of the sealed immutable execution and evidence.
+  bytes seal = 18;
+  .dokime.client.v1.ReportStatus report = 1;
+  .dokime.client.v1.ExecutionSummary summary = 2;
+  string cycle_id = 3;
+  .dokime.v1.EvidenceScope scope = 4;
+  .dokime.v1.Metadata admitted_suite = 5;
+  .dokime.v1.Metadata admitted_template = 6;
+  .google.protobuf.Timestamp started_at = 7;
+  .google.protobuf.Timestamp finished_at = 8;
+  uint64 input_parameter_count = 9;
+  uint64 output_parameter_count = 10;
+  uint64 step_count = 11;
+  .dokime.client.v1.ExecutionControls controls = 13;
+  .dokime.v1.Origin origin = 14;
+  .dokime.v1.ExecutionOutcome outcome = 15;
+  .dokime.client.v1.FrozenSchemas schemas = 16;
+  optional .dokime.client.v1.LiveExecutionState live_state = 17;
+}
+
+message ExecutionFilter {
+  string text = 1;
+  repeated .dokime.v1.ExecutionState statuses = 2;
+  repeated string template_ids = 3;
+  repeated string cycle_ids = 4;
+  .google.protobuf.Timestamp started_after = 5;
+  .google.protobuf.Timestamp started_before = 6;
+  optional .dokime.v1.ArchiveScope archive = 7;
+}
+
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  EXECUTION_MODE_AUTOMATIC = 1;
+  EXECUTION_MODE_INTERACTIVE = 2;
+}
+
+message ExecutionOrder {
+  .dokime.client.v1.ExecutionOrderKey key = 1;
+  bool descending = 2;
+}
+
+enum ExecutionOrderKey {
+  EXECUTION_ORDER_KEY_UNSPECIFIED = 0;
+  EXECUTION_ORDER_KEY_STARTED_AT = 1;
+  EXECUTION_ORDER_KEY_FINISHED_AT = 2;
+  EXECUTION_ORDER_KEY_TITLE = 3;
+}
+
+enum ExecutionParameterSet {
+  EXECUTION_PARAMETER_SET_UNSPECIFIED = 0;
+  EXECUTION_PARAMETER_SET_INPUTS = 1;
+  EXECUTION_PARAMETER_SET_OUTPUTS = 2;
+}
+
+message ExecutionSelection {
+  repeated string template_ids = 1;
+  repeated string cycle_ids = 2;
+  repeated .dokime.v1.ExecutionState statuses = 3;
+  .dokime.v1.Window started_at = 4;
+  optional .dokime.v1.ArchiveScope archive = 5;
+}
+
+message ExecutionStep {
+  string step_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.client.v1.StepStatus status = 3;
+  .google.protobuf.Timestamp started_at = 4;
+  .google.protobuf.Timestamp finished_at = 5;
+  uint64 measurement_count = 6;
+  uint64 criterion_count = 7;
+  uint64 ordinal = 8;
+  .dokime.client.v1.Diagnostic detail = 9;
+  repeated .dokime.client.v1.StepCriterion criteria = 10;
+}
+
+message ExecutionSummary {
+  .dokime.client.v1.ExecutionControls controls = 7;
+  string execution_id = 1;
+  string case_id = 2;
+  uint64 ordinal = 3;
+  bool archived = 4;
+  .dokime.v1.ExecutionState state = 5;
+  .dokime.v1.ExecutionOutcome outcome = 6;
+}
+
+message MaterializedParameter {
+  string name = 1;
+  .dokime.v1.Metadata metadata = 2;
+  optional string group_id = 3;
+  .dokime.client.v1.ParameterSource source = 4;
+  .dokime.v1.Value value = 5;
+  .dokime.v1.MeasurementUnit unit = 6;
+}
+
+enum ParameterSource {
+  PARAMETER_SOURCE_UNSPECIFIED = 0;
+  PARAMETER_SOURCE_DEFINITION = 1;
+  PARAMETER_SOURCE_TRACEABILITY = 2;
+  PARAMETER_SOURCE_ENVIRONMENT = 3;
+  PARAMETER_SOURCE_RESOURCE = 4;
+  PARAMETER_SOURCE_OPERATOR = 5;
+  PARAMETER_SOURCE_RUNTIME = 6;
+  PARAMETER_SOURCE_TELEMETRY = 7;
+  PARAMETER_SOURCE_RECORD = 8;
+  PARAMETER_SOURCE_OUTPUT = 9;
+}
+
+enum ReportState {
+  REPORT_STATE_UNSPECIFIED = 0;
+  REPORT_STATE_PENDING = 1;
+  REPORT_STATE_READY = 2;
+  REPORT_STATE_FAILED = 3;
+}
+
+message ReportStatus {
+  .dokime.client.v1.ReportState state = 1;
+  optional string failure = 2;
+}
+
+message StepCriterion {
+  string criterion_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.client.v1.CriterionStatus status = 3;
+  .dokime.v1.Value observed = 4;
+  optional string message = 5;
+  uint64 ordinal = 6;
+}
+
+enum StepStatus {
+  STEP_STATUS_UNSPECIFIED = 0;
+  STEP_STATUS_PENDING = 1;
+  STEP_STATUS_RUNNING = 2;
+  STEP_STATUS_PASSED = 3;
+  STEP_STATUS_FAILED = 4;
+  STEP_STATUS_SKIPPED = 5;
+  STEP_STATUS_CANCELLED = 6;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message ExecutionWritable { string label = 1; bool paused = 2; bool archived = 3; }
+
+message ExecutionsGetRequest { string name = 1; .harmos.v1.Position at = 90; }
+
+message ExecutionsGetResponse {
+  .dokime.client.v1.ExecutionWritable value = 1;
+  bytes revision = 2;
+  .dokime.client.v1.ExecutionDetail execution = 3;
+  .dokime.v1.ExecutionProgressValue progress = 4;
+  .harmos.v1.Position resolved_at = 90;
+}
+
+message ExecutionsSetRequest { string name = 1; .dokime.client.v1.ExecutionWritable value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+message ExecutionsSetResponse { .dokime.client.v1.ExecutionWritable value = 1; bytes revision = 2; .harmos.v1.Receipt receipt = 3; }
+
+message ExecutionsListRequest {
+  string parent = 1;
+  .dokime.client.v1.ExecutionSelection selection = 2;
+  .dokime.client.v1.ExecutionFilter filter = 3;
+  .dokime.client.v1.ExecutionOrder order = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message ExecutionsListResponse {
+  repeated .dokime.client.v1.ExecutionDetail executions = 1;
+  .dokime.client.v1.ExecutionOutcomeCounts outcome_counts = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message ExecutionsWatchRequest {
+  string parent = 1;
+  .dokime.client.v1.ExecutionSelection selection = 2;
+  .dokime.client.v1.ExecutionFilter filter = 3;
+  .dokime.client.v1.ExecutionOrder order = 4;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message ExecutionsWatchResponse {
+  repeated .dokime.client.v1.ExecutionDetail executions = 1;
+  .dokime.client.v1.ExecutionOutcomeCounts outcome_counts = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+message ExecutionsCreateRequest { string parent = 1; repeated .dokime.client.v1.ExecutionBinding executions = 2; string request_id = 3; }
+
+message ExecutionsCreateResponse { repeated .dokime.client.v1.ExecutionDetail executions = 1; .harmos.v1.Receipt receipt = 2; }
+
+message ExecutionsStartRequest { string name = 1; string request_id = 2; .dokime.client.v1.ExecutionMode mode = 3; }
+
+message ExecutionsStartResponse { .dokime.client.v1.ExecutionDetail execution = 1; .harmos.v1.Receipt receipt = 2; }
+
+message ExecutionsStopRequest { string name = 1; string request_id = 2; }
+
+message ExecutionsStopResponse { .dokime.client.v1.ExecutionDetail execution = 1; .harmos.v1.Receipt receipt = 2; }
+
+message ExecutionsCancelRequest { string name = 1; string request_id = 2; }
+
+message ExecutionsCancelResponse { .dokime.client.v1.ExecutionDetail execution = 1; .harmos.v1.Receipt receipt = 2; }
+
+message ExecutionsDeleteRequest { string name = 1; string request_id = 2; }
+
+message ExecutionsDeleteResponse { .dokime.client.v1.ExecutionDetail execution = 1; .harmos.v1.Receipt receipt = 2; }
+
+message ExecutionsParametersRequest { string name = 1; .dokime.client.v1.ExecutionParameterSet set = 2; .harmos.v1.Position at = 90; }
+
+message ExecutionsParametersResponse { repeated .dokime.client.v1.MaterializedParameter parameters = 1; .harmos.v1.Position resolved_at = 90; }
+
+message ExecutionsStepsRequest { string name = 1; .harmos.v1.Position at = 90; }
+
+message ExecutionsStepsResponse { repeated .dokime.client.v1.ExecutionStep steps = 1; .harmos.v1.Position resolved_at = 90; }
+
+service Executions {
+  // Public. Identity: dokime.client.v1.Executions/Get
+  rpc Get(.dokime.client.v1.ExecutionsGetRequest) returns (.dokime.client.v1.ExecutionsGetResponse);
+  // Public. Replace the whole writable value using the matching Get revision.
+  // Same request_id and normalized payload replay the original receipt; changed
+  // payload or a stale revision conflicts. Get again before retrying a conflict.
+  rpc Set(.dokime.client.v1.ExecutionsSetRequest) returns (.dokime.client.v1.ExecutionsSetResponse);
+  // Public. Identity: dokime.client.v1.Executions/List
+  rpc List(.dokime.client.v1.ExecutionsListRequest) returns (.dokime.client.v1.ExecutionsListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.ExecutionsWatchRequest) returns (stream .dokime.client.v1.ExecutionsWatchResponse);
+  // Public. Identity: dokime.client.v1.Executions/Create
+  rpc Create(.dokime.client.v1.ExecutionsCreateRequest) returns (.dokime.client.v1.ExecutionsCreateResponse);
+  // Public. Activate an existing unstarted execution; acceptance is not completion.
+  rpc Start(.dokime.client.v1.ExecutionsStartRequest) returns (.dokime.client.v1.ExecutionsStartResponse);
+  // Public. Finish at a safe scheduling boundary and retain required cleanup.
+  rpc Stop(.dokime.client.v1.ExecutionsStopRequest) returns (.dokime.client.v1.ExecutionsStopResponse);
+  // Public. Interrupt only a running execution; refuse queued cancellation with an action-named failure.
+  rpc Cancel(.dokime.client.v1.ExecutionsCancelRequest) returns (.dokime.client.v1.ExecutionsCancelResponse);
+  // Public. Require the sealed boundary; invalidate retained reads explicitly.
+  rpc Delete(.dokime.client.v1.ExecutionsDeleteRequest) returns (.dokime.client.v1.ExecutionsDeleteResponse);
+  // Public. Identity: dokime.client.v1.Executions/Parameters
+  rpc Parameters(.dokime.client.v1.ExecutionsParametersRequest) returns (.dokime.client.v1.ExecutionsParametersResponse);
+  // Public. Identity: dokime.client.v1.Executions/Steps
+  rpc Steps(.dokime.client.v1.ExecutionsStepsRequest) returns (.dokime.client.v1.ExecutionsStepsResponse);
+}

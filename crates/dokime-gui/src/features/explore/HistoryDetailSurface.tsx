@@ -279,20 +279,20 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
       <ErrorCard failure={failureOf("The checkpoint identity is missing.", "Checkpoint Unavailable", "missing-checkpoint-identity")} />
     );
   }
-  const execution = query.data.document?.execution;
+  const execution = query.data.execution;
   if (!execution) {
     return <ErrorCard failure={failureOf("The execution document is missing.", "Checkpoint Unavailable", "missing-checkpoint-document")} />;
   }
   return (
     <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured Execution">
-      <h2 className="font-semibold">{query.data.document?.cycle?.metadata?.label ?? entry.metadata.title}</h2>
+      <h2 className="font-semibold">{query.data.cycle?.metadata?.label ?? entry.metadata.title}</h2>
       <p className="break-all text-xs text-muted-foreground">
         Checkpoint {(query.data.checkpoint?.position?.sequence ?? checkpoint?.position.sequence)?.toString()}
       </p>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Recorded Status</dt>
-          <dd>{executionStatusLabel(execution.status, execution.outcome, execution.startedAt !== undefined)}</dd>
+          <dd>{executionStatusLabel(execution.summary?.state, execution.outcome, execution.startedAt !== undefined)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Acquisition</dt>
@@ -308,8 +308,8 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         </div>
       </dl>
       <h3 className="text-sm font-semibold">Recorded Steps</h3>
-      {(execution.steps ?? []).length ? (
-        (execution.steps ?? []).map((step) => (
+      {query.data.steps.length ? (
+        query.data.steps.map((step) => (
           <div className="flex justify-between gap-3 border-t py-2 text-sm" key={step.stepId}>
             <span>{step.metadata?.label ?? step.stepId}</span>
             <Badge variant="outline">{checkpointStepStatus(step.status)}</Badge>

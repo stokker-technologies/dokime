@@ -21,7 +21,7 @@
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-use dokime::v1::executions::{ProgressGetRequest, ProgressWatchRequest};
+use dokime_protocol::client::executions::{ProgressGetRequest, ProgressWatchRequest};
 
 /* === Constants === */
 
@@ -55,11 +55,30 @@ async fn client_observes_revisioned_progress() -> Result<(), Box<dyn std::error:
         let mut plugin = dokime_runtime_next::PluginProcess::start(&support::content_fixture()?, true, &settings.placement).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let host = dokime::client::HostClient::new(channel.clone(), support::client_settings())?;
-        let client = dokime::Client::from_channel(channel, support::client_settings())?;
+        let client = dokime::Client::from_channel(channel.clone(), support::client_settings())?;
         host.plugins.add(plugin.endpoint()).await?;
         let cases = host.templates.materialize("content", "content.progress", std::collections::HashMap::new()).await?;
-        let cycle = host.cycles.start(cases).await?;
-        let name = cycle.executions[0].clone();
+        let cycle = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone())
+            .create(dokime_protocol::client::CyclesCreateRequest {
+                origins: cases.into_iter().map(|case| case.origin.unwrap()).collect(),
+                request_id: uuid::Uuid::now_v7().to_string(),
+                continue_automatically: true,
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let admitted = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone())
+            .list(dokime_protocol::client::ExecutionsListRequest {
+                parent: cycle.cycle.unwrap().cycle_id,
+                at: Some(harmos_protocol::v1::ReadCut {
+                    positions: vec![cycle.receipt.unwrap().durable_at.unwrap()],
+                    revisions: Vec::new(),
+                }),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let name = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
 
         // Open the Descriptor-Derived Hierarchy and Retain a Durable Read
         let mut watch =
@@ -73,8 +92,7 @@ async fn client_observes_revisioned_progress() -> Result<(), Box<dyn std::error:
         let first =
             client.executions.progress.get(tonic::Request::new(ProgressGetRequest { name: name.clone(), at: None })).await?.into_inner();
         assert_eq!(first.value.as_ref().unwrap().completed, 1);
-        assert_eq!(first.value.as_ref().unwrap().label, "First Value");
-        let prompt = host.prompts.pending(name.clone()).await?.prompts[0].prompt_id.clone();
+        let prompt = host.prompts.pending(name.clone()).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         host.prompts.respond(prompt, "continue", true).await?;
         let mut finished = false;
         while let Some(response) = watch.next().await? {
@@ -88,7 +106,12 @@ async fn client_observes_revisioned_progress() -> Result<(), Box<dyn std::error:
         assert_eq!(current.value.as_ref().unwrap().completed, 2);
         assert!(current.value.as_ref().unwrap().label.is_empty());
         assert_ne!(current.revision, first.revision);
-        let detail = host.executions.get(name.clone()).await?;
+        let detail = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone())
+            .get(dokime_protocol::client::ExecutionsGetRequest { name: name.clone(), at: None })
+            .await?
+            .into_inner()
+            .execution
+            .unwrap();
         assert_eq!(detail.progress, current.value);
         assert_eq!(detail.resolved_at, current.resolved_at);
         let pinned = ProgressGetRequest {

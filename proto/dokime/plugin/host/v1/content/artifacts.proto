@@ -1,0 +1,17 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.content;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.ContentResources";
+import "dokime/v1/metadata.proto";
+import "harmos/v1/storage_types.proto";
+import "harmos/v1/types.proto";
+
+// Public child calls on Instance.Invoke; no client service or byte-transfer API.
+message ArtifactsCreateRequest {
+  string execution = 1;
+  .harmos.storage.v1.FileReference file = 2;
+  .dokime.v1.Metadata metadata = 3;
+  string media_type = 4;
+  string request_id = 5;
+}
+
+message ArtifactsCreateResponse { string name = 1; .harmos.v1.Receipt receipt = 2; }

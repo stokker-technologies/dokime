@@ -6,15 +6,15 @@ rem Connection Parameters
 set "PAIRING_FILE=../lab.pair"
 
 rem Case and Execution Parameters
-set "TEMPLATE=obc.checks.pulse"
+set "TEMPLATE=example.checks.pulse"
 set "CYCLE_LABEL=Remote Pulse Demonstration"
 set "SAMPLE_COUNT=8"
 set "EXECUTION_COUNT=2"
 set "WAIT_S=60"
 
 rem Observation Filters
-set RECORD_TYPES="obc.run.*"
-set STREAMS="obc.pulse"
+set RECORD_TYPES="example.run.*"
+set STREAMS="example.pulse"
 
 rem Evidence Files
 set "OUTPUT_DIRECTORY=test-evidence"

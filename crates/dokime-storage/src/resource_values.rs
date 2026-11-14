@@ -47,6 +47,45 @@ pub struct ResourceValue {
 /* === Implementations === */
 
 impl Store {
+    pub fn requested_evidence(
+        &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8],
+    ) -> Result<Option<(Evidence, Receipt)>> {
+        let connection = self.lock()?;
+        let saved: Option<(Vec<u8>, i64)> = connection
+            .query_row(
+                "SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",
+                params![execution, operation, request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((saved, sequence)) = saved else {
+            return Ok(None);
+        };
+        if saved != fingerprint {
+            return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));
+        }
+        let payload: Vec<u8> = connection.query_row(
+            "SELECT payload FROM evidence WHERE execution=?1 AND position=?2",
+            params![execution, sequence],
+            |row| row.get(0),
+        )?;
+        let position = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: execution.into(),
+            }),
+            sequence: sequence as u64,
+        };
+        Ok(Some((
+            Evidence::decode(payload.as_slice())?,
+            Receipt {
+                request_id: request_id.into(),
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            },
+        )))
+    }
     pub fn resource_value(&self, execution: &str, resource: &str, at: Option<&Position>) -> Result<ResourceValue> {
         let mut connection = self.lock()?;
         if self.cancelled.is_some() {
@@ -56,6 +95,24 @@ impl Store {
         let value = resolve_value(&transaction, &self.identity, execution, resource, at)?;
         transaction
             .execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![execution, value.resolved_at.sequence as i64])?;
+        transaction.commit()?;
+        Ok(value)
+    }
+
+    /// Read Immutable Frozen Descriptors at an Issued Execution Cut.
+    pub fn execution_schemas(&self, execution: &str, at: Option<&Position>) -> Result<ResourceValue> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let mut value = resolve_value(&transaction, &self.identity, execution, "schemas", at)?;
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let execution = crate::Execution::decode(payload.as_slice())?;
+        let catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice())?;
+        value.payload = catalog.types.unwrap_or_default().encode_to_vec();
+        value.revision = Sha256::digest(&value.payload).to_vec();
+        transaction.execute(
+            "INSERT OR IGNORE INTO read_positions VALUES (?1,?2)",
+            params![execution.identifier, value.resolved_at.sequence as i64],
+        )?;
         transaction.commit()?;
         Ok(value)
     }
@@ -155,7 +212,10 @@ impl Store {
             }
             let position = crate::store::next_position(&transaction, execution)?;
             evidence.position = position;
-            transaction.execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, position as i64, evidence.encode_to_vec()])?;
+            transaction.execute(
+                "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
+                params![execution, position as i64, evidence.encode_to_vec()],
+            )?;
             transaction.execute(
                 "INSERT INTO resource_values VALUES (?1,?2,?3,?4)",
                 params![execution, resource, position as i64, evidence.payload],

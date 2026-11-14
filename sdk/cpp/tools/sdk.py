@@ -90,7 +90,11 @@ def main() -> None:
             formatter = str(Path(installation) / "VC/Tools/Llvm/bin/clang-format.exe")
         if not formatter:
             parser.error("Install clang-format and Put It on PATH")
-        sources = [args.source] if args.source else sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp")])
+        sources = (
+            [args.source]
+            if args.source
+            else sorted(source for source in [*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp")] if source != sdk / "include/dokime/resources.hpp")
+        )
         command = [formatter, "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
         command += ["--dry-run", "--Werror"] if args.check else ["-i"]
         command += [str(source) for source in sources]

@@ -24,11 +24,11 @@ use crate::{
     Result,
     client::{Context, Output},
 };
-use dokime_protocol::v1::evidence::{TraceabilityGetRequest, TraceabilityWatchRequest, TraceabilityWatchResponse};
+use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityWatchRequest, TraceabilityWatchResponse};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.evidence.Traceability/Watch";
+pub const ID: &str = "dokime.client.v1.evidence.Traceability/Watch";
 
 /* === Macros === */
 

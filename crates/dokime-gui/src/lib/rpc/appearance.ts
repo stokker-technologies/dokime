@@ -4,11 +4,13 @@
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import type { Wire } from "./canonical.js";
 import * as rpc from "../host/client";
-import { LogoVariant } from "@host/dokime/v1/appearance_pb.js";
+import { LogoVariant } from "@host/dokime/client/v1/backend_pb.js";
 
 import type { SessionIdentity } from "./transport.js";
 
-type AppearanceSnapshot = Wire<Awaited<ReturnType<typeof rpc.appearanceGetAppearance>>>;
+import { readFileReference } from "@/lib/api/native-content";
+import { required } from "./canonical";
+type AppearanceSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendAppearance>>["appearance"]>>;
 
 export interface AppearanceResource {
   appearance: AppearanceSnapshot;
@@ -28,7 +30,7 @@ function invalid(): never {
  * of its installed appearance assets.
  */
 export async function loadAppearance(session: SessionIdentity): Promise<AppearanceResource> {
-  const appearance = await rpc.appearanceGetAppearance(session, {});
+  const appearance = required((await rpc.backendAppearance(session, {})).appearance, "Read Appearance");
   const logos: RuntimeAppLogo[] = [];
   let disposed = false;
   const dispose = () => {
@@ -44,15 +46,24 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
       const variant = logoVariant(logo);
       if (variants.has(variant)) invalid();
       variants.add(variant);
+      const asset = logo.asset;
+      if (asset?.file) {
+        const bytes = await readFileReference(session, asset.file);
+        current(session);
+        const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: asset.contentType }));
+        const reference = required(asset.reference, "Read Appearance Asset Identity");
+        logos.push({ variant, url, plugin_id: reference.pluginId, asset_id: reference.assetId });
+      }
     }
     current(session);
     return {
       appearance,
       logos,
       dispose,
-      unavailableReason: appearance.logos.length
-        ? "Host logo assets are unavailable until the host supplies appearance content delivery."
-        : undefined,
+      unavailableReason:
+        appearance.logos.length !== logos.length
+          ? "Host logo assets are unavailable until the host supplies appearance content delivery."
+          : undefined,
     };
   } catch (error) {
     dispose();

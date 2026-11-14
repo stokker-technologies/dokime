@@ -44,13 +44,14 @@ creates no sampling thread or wall-clock timer. Device producers use
 initialize, so they must tolerate unavailable execution resources if the host
 opens their stream early.
 
-`Prompt` and `Record` are generated catalog values. `record<Row>` includes the
-row descriptor through an empty typed Harmos section alongside `RecordContracts`.
+`Prompt` and `Record` are generated shared declaration values. `record<Row>`
+includes the row descriptor through an empty typed Harmos section alongside
+`RecordContracts`.
 The host must ignore unknown typed sections. `context_operations()` declares the
 standard context requirements; explicit `requires_operation` declares narrower
 custom dependencies. Context methods include prompt, settings, secrets, record
-publication and reads, statistics, progress, logs, artifact chunks, traceability,
-document parts, and host-clock sleep/now. File capture and effects remain ordinary
+publication and reads, statistics, progress, logs, artifact file references,
+traceability, document parts, and host-clock sleep/now. File capture and effects remain ordinary
 typed `ctx.operation` calls. These calls inherit the execution scope. They add no
 deadline or retry policy. Operation and transport failures retain Harmos's types.
 
@@ -78,17 +79,40 @@ Pass a credentialed channel or credentials to `connect` for authenticated TLS
 connections. Client/channel/stub ownership uses RAII; no global connection is
 created. Generated streaming APIs remain directly available.
 
-CMake generates the declared Dokime services. The composed descriptor-derived
-hierarchy exposes `client.executions.progress.get(context, request)` and
+CMake generates client services under `dokime::client::v1`, shared messages under
+`dokime::v1`, plugin messages under `dokime::plugin::v1`, and host-call messages
+under `dokime::plugin::host::v1`. The handler object remains `context`.
+Lifecycle bindings retain independent Protected dotted identities and policies.
+Artifact publication attaches a library file reference through
+`dokime.plugin.host.v1.content.Artifacts/Create`.
+The composed descriptor-derived hierarchy exposes `client.executions.progress.get(context, request)` and
 `.watch(context, request)` with caller-owned gRPC contexts. Plugin progress uses
 separate context Get/Set declarations and whole-value revision checks; declare
 both when selecting requirements. Clients have no progress Set.
-`dokime/client.hpp` exposes every generated service header.
-Use `client.stub<dokime::v1::Plugins>()` for plugin Add/List and the other plugin
+`dokime/client.hpp` exposes every generated service header. Registry resources are
+top-level: `client.suites`, `client.record_schemas`, `client.stream_schemas`,
+`client.prompt_definitions` and `client.analyses.list`.
+Use `client.stub<dokime::client::v1::Plugins>()` for plugin Add/List and the other plugin
 operations. The in-process client story uses the generated Backend and Plugins
 services for authentication refusal, identity, complete log stream envelopes,
 plugin Add/List and typed server errors. It defines no substitute protocol.
 Real-host execution remains separate integration proof.
+
+Execution details retain `schemas().digest()` and display identities. Fetch frozen
+descriptors only on a digest cache miss:
+
+```cpp
+dokime::FrozenSchemaCache schemas;
+auto types = schemas.get(client, detail);
+```
+
+The caller owns the cache lifetime and synchronizes access when sharing it between
+threads. `get` fetches one file per `executions.schemas.get` page at one cut and
+verifies the complete SHA-256 digest before retaining an immutable shared set.
+Equal digests reuse it across executions. An optional context configuration callback
+forwards metadata, cancellation setup and deadline overrides to every page;
+operation policies supply deadlines otherwise. Assemble all files before resolving
+descriptor dependencies when using raw calls.
 
 ## Source Distribution and Starter
 
@@ -163,9 +187,9 @@ See [Execution Host](execution-host.md) for prerequisites and focused runs.
 ## Composed Client Services
 
 `dokime::Client` exposes the library `access`, `status` and `storage` resource
-roots over its channel, such as `client.access.listener.get(request)`.
-The pinned library root currently creates its own gRPC client context; authenticated
-root calls need the metadata/cancellation capability recorded in Library Requests.
+roots over its channel, such as `client.access.listener.get(context, request)`.
+Caller-owned gRPC contexts supply authentication metadata, cancellation and
+explicit deadline overrides for unary and streaming calls.
 
 If CMake reports a cached generator/platform mismatch, rerun the existing configure
 task with --fresh to refresh its configuration while retaining compiled outputs:
@@ -173,8 +197,13 @@ task with --fresh to refresh its configuration while retaining compiled outputs:
     mise -C sdk/cpp run configure -- --fresh --fetch-dependencies
 
 
-Traceability entries use distinct context `evidence.Traceability.Get/Set`
-contracts. Get selects the execution and entry name and returns its revision;
+Traceability entries use distinct `dokime.plugin.host.v1.evidence.Traceability/Get`
+and `dokime.plugin.host.v1.evidence.Traceability/Set` contracts. Get selects the execution and entry name and returns its revision;
 Set replaces the whole entry with that revision and a caller-retained request ID.
 The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
 position-resolved history pages and a bounded durable change stream.
+
+`client.files.upload(path)` publishes a local file through Files.Uploads, using
+its returned transfer limits and verifying the published length and SHA-256.
+`FrozenSchemaCache::message_name(detail, identity)` resolves record and stream
+aliases to the fully qualified protobuf message in the frozen descriptors.

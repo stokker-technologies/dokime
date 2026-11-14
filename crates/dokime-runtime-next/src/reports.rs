@@ -26,7 +26,7 @@ use std::{
 
 // Local Imports
 use crate::{Error, RenderedDocument, Result, host::lock};
-use dokime_protocol::v1;
+
 use dokime_storage::{Report, Store};
 
 /* === Constants === */
@@ -45,7 +45,7 @@ pub(crate) struct ReportManager {
 #[derive(Default)]
 struct Publication {
     closed: bool,
-    temporary: BTreeMap<String, (File, v1::FileReference)>,
+    temporary: BTreeMap<String, (File, harmos_protocol::storage::FileReference)>,
 }
 
 /* === Enums === */
@@ -68,7 +68,19 @@ impl ReportManager {
         }
         Ok(self.store.publish_report(&output.execution, &output.execution_seal, output.document.clone(), output.html()?)?)
     }
-    pub(crate) fn retain(&self, file: File, reference: v1::FileReference, limit: usize) -> Result<()> {
+    pub(crate) fn publish_prepared(&self, prepared: Report) -> Result<Report> {
+        let state = lock(&self.state)?;
+        if state.closed {
+            return Err(Error::Invalid("Publish Report: Reconnect to a Running Host".into()));
+        }
+        Ok(self.store.publish_report(
+            &prepared.execution,
+            &prepared.execution_seal,
+            prepared.document.ok_or_else(|| Error::Invalid("Publish Report: Restore Its Frozen Document".into()))?,
+            prepared.html,
+        )?)
+    }
+    pub(crate) fn retain(&self, file: File, reference: harmos_protocol::storage::FileReference, limit: usize) -> Result<()> {
         let identifier =
             reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Retain Report: Supply Its Temporary Identity".into()))?.id.clone();
         let mut state = lock(&self.state)?;
@@ -87,7 +99,7 @@ impl ReportManager {
         state.temporary.insert(identifier, (file, reference));
         Ok(())
     }
-    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<(File, v1::FileReference)>> {
+    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<(File, harmos_protocol::storage::FileReference)>> {
         let state = lock(&self.state)?;
         if state.closed {
             return Err(Error::Invalid("Read Temporary Report: Reconnect to a Running Host".into()));

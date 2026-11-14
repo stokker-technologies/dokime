@@ -1,0 +1,42 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/metadata.proto";
+
+message SettingsDeclarations { repeated .dokime.v1.Setting settings = 1; }
+
+message Setting {
+  .dokime.v1.Metadata metadata = 1;
+  oneof kind {
+    .dokime.v1.BooleanSetting boolean = 2;
+    .dokime.v1.TextSetting text = 3;
+    .dokime.v1.PathSetting path = 4;
+    .dokime.v1.NumberSetting number = 5;
+    .dokime.v1.ChoiceSetting choice = 6;
+    .dokime.v1.SecretSetting secret = 7;
+  }
+}
+
+message BooleanSetting { bool default_value = 1; }
+
+message TextSetting { string default_value = 1; bool required = 2; }
+
+message PathSetting { string default_value = 1; bool required = 2; }
+
+message NumberSetting { double default_value = 1; optional double min = 2; optional double max = 3; optional double step = 4; }
+
+message ChoiceSetting {
+  string default_value = 1;
+  repeated .dokime.v1.SettingChoice choices = 2;
+  optional string provider = 3;
+}
+
+message SettingChoice { string value = 1; string label = 2; }
+
+message SecretSetting { bool required = 1; }
+
+message RunStart {
+  // Serialized request for a declared operation, using its protobuf contract.
+  string operation = 1;
+  bytes request = 2;
+}

@@ -1,0 +1,30 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+
+message FileSource {
+  oneof kind { .dokime.v1.FileLocation file = 1; .dokime.v1.FileSelection tree = 2; .dokime.v1.FileSelection newest = 3; }
+}
+
+message FileLocation { oneof kind { string local = 1; .dokime.v1.FtpLocation ftp = 2; } }
+
+message FtpLocation { string url = 1; optional string secret_id = 2; }
+
+message FileSelection { .dokime.v1.FileLocation root = 1; repeated .dokime.v1.FileRule rules = 2; }
+
+// Last matching rule wins. No rules selects every relative path.
+message FileRule { string glob = 1; .dokime.v1.FileRuleAction action = 2; }
+
+enum FileRuleAction { FILE_RULE_ACTION_UNSPECIFIED = 0; FILE_RULE_ACTION_INCLUDE = 1; FILE_RULE_ACTION_EXCLUDE = 2; }
+
+message CapturedArtifact { string artifact = 1; uint64 size_bytes = 2; }
+
+message CaptureGap { string path = 1; uint64 offset = 2; .dokime.v1.CaptureGapReason reason = 3; }
+
+enum CaptureGapReason {
+  CAPTURE_GAP_REASON_UNSPECIFIED = 0;
+  CAPTURE_GAP_REASON_TRUNCATED = 1;
+  CAPTURE_GAP_REASON_REPLACED = 2;
+  CAPTURE_GAP_REASON_VANISHED = 3;
+  CAPTURE_GAP_REASON_RESUME_UNSUPPORTED = 4;
+}

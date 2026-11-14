@@ -19,7 +19,8 @@ use tokio_stream::StreamExt;
 
 // Local Imports
 use crate::support::server::Fixture;
-use dokime_sdk::{client::v1 as library, v1};
+use dokime_protocol::client;
+use dokime_sdk::client::v1 as library;
 
 /* === Constants === */
 
@@ -62,12 +63,9 @@ fn disconnect_joins_the_idle_watch() {
         // Open a Real Host Watch Before Disconnecting Its Connection Generation
         let fixture = Fixture::new().await;
         let client = fixture.client().await;
-        let mut watch = client.watch_raw("/dokime.v1.Observation/WatchRuntime", &[]).await.unwrap();
+        let mut watch = client.watch_raw("/dokime.client.v1.backend.Overview/Watch", &[]).await.unwrap();
         let opening = watch.next().await.unwrap().unwrap();
-        assert!(matches!(
-            v1::ObservationWatchRuntimeOutput::decode(opening.as_slice()).unwrap().value,
-            Some(v1::observation_watch_runtime_output::Value::Item(_))
-        ));
+        assert!(client::backend::OverviewWatchResponse::decode(opening.as_slice()).unwrap().opening);
         fixture.close().await;
         assert!(client.cancellation().is_cancelled());
         while let Some(frame) = watch.next().await {

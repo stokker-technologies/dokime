@@ -1,0 +1,29 @@
+syntax = "proto3";
+package dokime.plugin.host.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1.EvidenceResources";
+import "dokime/v1/traceability.proto";
+import "harmos/v1/types.proto";
+
+// Public invocation child calls; no independent client service.
+// Each named entry is one independently revisioned whole writable value.
+message TraceabilityGetRequest { string name = 1; string entry = 2; }
+
+message TraceabilityGetResponse {
+  .dokime.v1.TraceabilityEntry value = 1;
+  bytes revision = 2;
+  .harmos.v1.Position resolved_at = 3;
+}
+
+message TraceabilitySetRequest {
+  string name = 1;
+  .dokime.v1.TraceabilityEntry value = 2;
+  bytes expected_revision = 3;
+  string request_id = 4;
+  string entry = 5;
+}
+
+message TraceabilitySetResponse {
+  .dokime.v1.TraceabilityEntry value = 1;
+  bytes revision = 2;
+  .harmos.v1.Receipt receipt = 3;
+}

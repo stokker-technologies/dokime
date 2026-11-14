@@ -107,12 +107,12 @@ fn main() -> Result<()> {
         .suite(Suite::new("execution", "Execution").template(template))
         .record(Record::<Attempt>::new("execution.attempt", "Attempt"))
         .prompt(Prompt::new("execution.continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host::<dokime::protocol::context::v1::PromptsCreateRequest>()
-        .requires_host::<dokime::protocol::context::v1::evidence::RecordsAppendRequest>()
-        .requires_host::<dokime::protocol::context::v1::evidence::RecordsListRequest>()
-        .requires_host::<dokime::protocol::context::v1::EvidenceStatisticsRequest>()
-        .requires_host::<dokime::protocol::context::v1::evidence::LogsAppendRequest>()
-        .requires_host::<dokime::protocol::context::v1::BackendEnvironmentRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::PromptsCreateRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsAppendRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsListRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::EvidenceStatisticsRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest>()
+        .requires_host::<dokime::protocol::plugin::host::v1::BackendEnvironmentRequest>()
         .requires::<dokime::clock::TimeGetRequest>()
         .requires::<dokime::clock::TimeSleepRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
 
 async fn initialize(ctx: &Context) -> Result<()> {
     // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host(dokime::protocol::context::v1::BackendEnvironmentRequest {}).await?;
+    let environment = ctx.host(dokime::protocol::plugin::host::v1::BackendEnvironmentRequest { at: None }).await?;
     if environment.backend_pid == 0 || environment.in_step {
         return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
     }
@@ -141,7 +141,7 @@ async fn baseline(ctx: &Context) -> Result<()> {
 
 async fn measure(ctx: &Context) -> Result<()> {
     if ctx.attempt() == 1 {
-        ctx.prompt(dokime::protocol::context::v1::PromptsCreateRequest {
+        ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
             prompt: "continue".into(),
             prompt_type: "execution.continue".into(),
             ..Default::default()
@@ -150,13 +150,13 @@ async fn measure(ctx: &Context) -> Result<()> {
     }
     let bench = ctx.get::<Bench>()?;
     let refused = ctx
-        .host(dokime::protocol::context::v1::evidence::LogsAppendRequest {
+        .host(dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest {
             execution: "missing-execution".into(),
             message: "out-of-scope".into(),
             ..Default::default()
         })
         .await;
-    let scope_refused = refused.is_err_and(|error| error.to_string().contains("dokime.context.v1.evidence.Logs/Append"));
+    let scope_refused = refused.is_err_and(|error| error.to_string().contains("dokime.plugin.host.v1.evidence.Logs/Append"));
     ctx.record(
         &Record::<Attempt>::new("execution.attempt", "Attempt"),
         Attempt {

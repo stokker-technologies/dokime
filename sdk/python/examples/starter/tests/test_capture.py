@@ -42,19 +42,19 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(host.close)
         await host.client.plugins.add(endpoint.url)
         suites = await host.client.suites.list()
-        suite = await host.client.suites.get(suites[0].suite_id)
-        self.assertEqual(len(suite.templates[0].documents[0].sections[0].cards), 2)
-        cases = await host.client.templates.materialize(suites[0].suite_id, "example.capture", {"limit": [12]})
+        suite = await host.client.suites.get(suites[0].metadata.identifier)
+        self.assertEqual(suite.metadata.identifier, "example")
+        cases = await host.client.templates.materialize(suites[0].metadata.identifier, "example.capture", {})
         case = cases[0].origin.plugin_run.test_case
-        self.assertEqual([item.metadata.identifier for item in case.steps], ["measure", "confirm"])
+        self.assertEqual([item.metadata.identifier for item in case.steps], ["confirm"])
 
         # Await The Operator Question And Answer With The Client Root.
         cycle = await host.client.cycles.start(cases)
         async for progress in cycle.watch():
             if progress.phase == "prompt":
                 prompts = await host.client.prompts.pending(cycle.executions[0])
-                asked = await host.client.prompts.get(prompts[0].prompt_id)
-                await host.client.prompts.respond(asked.prompt_id, asked.definition.actions[0].identifier, accepted=True)
+                asked = await host.client.prompts.get(prompts[0].prompt.prompt_id)
+                await host.client.prompts.respond(asked.prompt.prompt_id, asked.prompt.definition.actions[0].identifier, accepted=True)
         execution = await host.client.executions.get(cycle.executions[0])
         self.assertEqual(
             execution.outcome.evaluated.status,
@@ -63,10 +63,11 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
 
         # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
         records = await host.client.records.list(cycle.executions[0])
-        self.assertEqual(len(records.records), 2)
+        self.assertEqual(len(records.records), 1)
         self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))
-        samples = await host.client.samples.list(cycle.executions[0])
-        self.assertTrue(samples.samples)
+        cache = dokime.FrozenSchemaCache()
+        value = await cache.decode(host.client, execution, "google.protobuf.BoolValue", records.records[0].payload)
+        self.assertTrue(BoolValue.FromString(value.SerializeToString()).value)
         self.assertFalse(endpoint.plugin._sessions)
         await host.client.plugins.remove((await host.client.plugins.list()).plugins[0].entry)
         self.assertEqual((await host.client.plugins.list()).plugins, [])

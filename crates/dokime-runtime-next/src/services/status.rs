@@ -55,8 +55,8 @@ impl Contribution for Facts {
             reason: String::new(),
         }];
         for plugin in host.plugins()? {
-            let state = match dokime_protocol::v1::PluginState::try_from(plugin.state) {
-                Ok(dokime_protocol::v1::PluginState::Ready) => v1::ComponentState::Healthy,
+            let state = match dokime_protocol::client::PluginState::try_from(plugin.state) {
+                Ok(dokime_protocol::client::PluginState::Ready) => v1::ComponentState::Healthy,
                 _ => v1::ComponentState::Degraded,
             };
             components.push(v1::HealthComponent {

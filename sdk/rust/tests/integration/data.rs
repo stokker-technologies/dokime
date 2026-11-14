@@ -87,7 +87,7 @@ fn compose_typed_data_and_refuse_invalid_catalogs_at_startup() -> Result<()> {
     let decoded = <Payload as dokime::encoding::Message>::decode(bytes.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
     assert_eq!(decoded.signed, -9);
     assert_eq!(decoded.bytes, [0, 255]);
-    assert!(catalog.sections.iter().any(|section| section.r#type == "dokime.v1.SettingsCatalog"));
+    assert!(catalog.sections.iter().any(|section| section.r#type == "dokime.v1.SettingsDeclarations"));
 
     // Reject Duplicate Step Identifiers Before Serving Any Request.
     let template = Template::new("data.duplicate", "Duplicate")

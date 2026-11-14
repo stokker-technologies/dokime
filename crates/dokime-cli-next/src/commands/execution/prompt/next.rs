@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -46,43 +47,30 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, true).await?;
-    let mut client = dokime::v1::prompts_client::PromptsClient::with_interceptor(channel.clone(), settings.interceptor());
-    let pending = client
-        .list_pending(dokime::v1::PromptsListPendingRequest {
-            execution_id: Some(args.execution.clone()),
-            ..Default::default()
-        })
-        .await?
-        .into_inner();
+    let client = settings.sdk(endpoint, true).await?;
+    let request = client::PromptsListRequest {
+        execution_id: Some(args.execution.clone()),
+        pending_only: true,
+        ..Default::default()
+    };
+    let pending = client.prompts.list(settings.request(request.clone())).await?.into_inner();
     if let Some(prompt) = pending.prompts.first() {
         return crate::output::print(prompt, args.json);
     }
-    let mut observation =
-        dokime::v1::executions::progress_client::ProgressClient::with_interceptor(channel.clone(), settings.interceptor());
-    let request = dokime::v1::executions::ProgressWatchRequest { name: args.execution.clone(), at: None };
-    let mut events = observation.watch(request).await?.into_inner();
-    while let Some(frame) = events.message().await? {
-        if frame.phase == "prompt" {
-            let pending = client
-                .list_pending(dokime::v1::PromptsListPendingRequest {
-                    execution_id: Some(args.execution),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner();
-            let prompt = pending.prompts.first().ok_or("Await Prompt: Prompt Event Has No Pending Prompt")?;
-            return crate::output::print(prompt, args.json);
+    let progress = client::executions::ProgressWatchRequest { name: args.execution, at: None };
+    let mut events = client.executions.progress.watch(settings.request(progress)).await?;
+    while let Some(frame) = events.next().await? {
+        if frame.phase == "prompt" || frame.finished {
+            let pending = client.prompts.list(settings.request(request.clone())).await?.into_inner();
+            if let Some(prompt) = pending.prompts.first() {
+                return crate::output::print(prompt, args.json);
+            }
+        }
+        if frame.finished {
+            return Err("Await Prompt: Execution Finished Without a Pending Prompt".into());
         }
     }
-    let mut client = dokime::v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor());
-    let execution = client.get_execution(dokime::v1::ExecutionGetExecutionRequest { execution_id: args.execution }).await?.into_inner();
-    let reason = match execution.outcome.and_then(|outcome| outcome.attribution) {
-        Some(dokime::v1::execution_outcome::Attribution::Evaluated(outcome)) => outcome.reason,
-        Some(dokime::v1::execution_outcome::Attribution::NotEvaluated(outcome)) => outcome.reason,
-        _ => String::new(),
-    };
-    Err(format!("Await Prompt: Execution Finished Without a Pending Prompt; {reason}").into())
+    Err("Await Prompt: Progress Watch Closed Without Settlement".into())
 }
 
 /* === Private Functions === */

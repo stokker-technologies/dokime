@@ -23,7 +23,7 @@ use sha2::Digest;
 use tokio::io::AsyncReadExt;
 
 // Local Imports
-use dokime::v1;
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -70,25 +70,25 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     use tokio::io::AsyncSeekExt;
     file.rewind().await?;
-    let header = v1::InstallPluginHeader {
+    let header = client::InstallPluginHeader {
         size_bytes: size,
         sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect(),
     };
     let (sender, receiver) = tokio::sync::mpsc::channel(settings.stream_buffer.get());
     let producer = tokio::spawn(async move {
         sender
-            .send(v1::PluginsInstallInput {
-                value: Some(v1::plugins_install_input::Value::Request(v1::PluginsInstallRequest {})),
+            .send(client::PluginsInstallInput {
+                value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
             })
             .await?;
-        let frame = v1::InstallPluginFrame {
-            frame: Some(v1::InstallPluginFrameFrame {
-                kind: Some(v1::install_plugin_frame_frame::Kind::Header(header)),
+        let frame = client::InstallPluginFrame {
+            frame: Some(client::InstallPluginFrameFrame {
+                kind: Some(client::install_plugin_frame_frame::Kind::Header(header)),
             }),
         };
         sender
-            .send(v1::PluginsInstallInput {
-                value: Some(v1::plugins_install_input::Value::Item(frame)),
+            .send(client::PluginsInstallInput {
+                value: Some(client::plugins_install_input::Value::Item(frame)),
             })
             .await?;
         let mut offset = 0;
@@ -97,15 +97,15 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             if count == 0 {
                 break;
             }
-            let chunk = v1::InstallPluginChunk { offset, data: buffer[..count].to_vec() };
-            let frame = v1::InstallPluginFrame {
-                frame: Some(v1::InstallPluginFrameFrame {
-                    kind: Some(v1::install_plugin_frame_frame::Kind::Chunk(chunk)),
+            let chunk = client::InstallPluginChunk { offset, data: buffer[..count].to_vec() };
+            let frame = client::InstallPluginFrame {
+                frame: Some(client::InstallPluginFrameFrame {
+                    kind: Some(client::install_plugin_frame_frame::Kind::Chunk(chunk)),
                 }),
             };
             sender
-                .send(v1::PluginsInstallInput {
-                    value: Some(v1::plugins_install_input::Value::Item(frame)),
+                .send(client::PluginsInstallInput {
+                    value: Some(client::plugins_install_input::Value::Item(frame)),
                 })
                 .await?;
             offset += count as u64;
@@ -113,7 +113,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
     });
     let channel = settings.channel(endpoint, false).await?;
-    let response = v1::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor())
+    let response = client::plugins_client::PluginsClient::with_interceptor(channel, settings.interceptor())
         .max_encoding_message_size(settings.message_bytes.get())
         .max_decoding_message_size(settings.message_bytes.get())
         .install(tokio_stream::wrappers::ReceiverStream::new(receiver))

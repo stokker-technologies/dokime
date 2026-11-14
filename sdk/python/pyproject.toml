@@ -7,7 +7,7 @@
 # ***
 
 [build-system]
-requires = ["hatchling==1.33.0", "grpcio-tools==1.85.1"]
+requires = ["hatchling==1.33.0", "grpcio-tools==1.85.1", "mypy-protobuf==5.1.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -21,6 +21,9 @@ dependencies = [
   "protobuf>=7.35.1,<8",
   "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@81d32d3bc9ab3e2121746923712ec9508cee3ec7#subdirectory=sdk/python",
 ]
+
+[dependency-groups]
+stubs = ["mypy==2.4.1", "types-protobuf==7.35.1.20260906", "types-grpcio==1.85.0.20261028"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

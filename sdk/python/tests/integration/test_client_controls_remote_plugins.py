@@ -36,12 +36,12 @@ from dokime.v1 import message
 class ClientStory(unittest.IsolatedAsyncioTestCase):
     async def test_add_list_remove_and_close(self):
         # Implement the Authoritative Services in Process.
-        descriptor = descriptor_pool.Default().FindServiceByName("dokime.v1.Plugins")
+        descriptor = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Plugins")
         status_rpc = import_module("harmos.v1.status_pb2_grpc")
         status_wire = import_module("harmos.v1.status_pb2")
         logs_rpc = import_module("harmos.v1.status.logs_pb2_grpc")
         logs_wire = import_module("harmos.v1.status.logs_pb2")
-        plugins_rpc = import_module("dokime.v1.client_plugins_pb2_grpc")
+        plugins_rpc = import_module("dokime.client.v1.plugins_pb2_grpc")
         entries = {}
         authorization = []
 
@@ -50,17 +50,17 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 authorization.append(dict(context.invocation_metadata()).get("authorization"))
                 if not request.url.startswith("http://"):
                     await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Plugin URL is required")
-                entry = message("Plugin", entry=f"entry-{len(entries)}", remote={"url": request.url}, state=3)
+                entry = message("dokime.client.v1.Plugin", entry=f"entry-{len(entries)}", remote={"url": request.url}, state=3)
                 entries[entry.entry] = entry
                 return entry
 
             async def List(self, request, context):
-                return message("PluginEntries", plugins=entries.values())
+                return message("dokime.client.v1.PluginEntries", plugins=entries.values())
 
             async def Remove(self, request, context):
                 if entries.pop(request.entry, None) is None:
                     await context.abort(grpc.StatusCode.NOT_FOUND, "Plugin entry is absent")
-                return message("RemovePluginResponse")
+                return message("dokime.client.v1.RemovePluginResponse")
 
         class Status(status_rpc.StatusServicer):
             async def Get(self, request, context):
@@ -95,7 +95,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         entry = await client.plugins.add("http://127.0.0.1:7001")
         self.assertEqual((entry.remote.url, entry.state), ("http://127.0.0.1:7001", 3))
         self.assertEqual(authorization, ["Bearer test-key"])
-        listed = await client.stubs["dokime.v1.Plugins"].List(message("ListPlugins"))
+        listed = await client.stubs["dokime.client.v1.Plugins"].List(message("dokime.client.v1.ListPlugins"))
         self.assertEqual(listed.plugins, [entry])
         self.assertEqual((await client.plugins.list()).plugins, [entry])
 
@@ -107,10 +107,10 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
 
         # Preserve Server Refusals And Validate The Input Descriptor.
         with self.assertRaises(grpc.aio.AioRpcError) as failed:
-            await client.call(message("AddRemotePlugin", url="invalid"), method=descriptor.methods_by_name["Add"])
+            await client.call(message("dokime.client.v1.AddRemotePlugin", url="invalid"), method=descriptor.methods_by_name["Add"])
         self.assertEqual(failed.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
         with self.assertRaises(TypeError):
-            client.call(message("RemovePlugin"), method=descriptor.methods_by_name["Add"])
+            client.call(message("dokime.client.v1.RemovePlugin"), method=descriptor.methods_by_name["Add"])
 
         # Remove The Entry And Observe Its Absence Before Closing.
         await client.plugins.remove(entry.entry)
@@ -118,7 +118,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         await client.close()
         await client.close()
         with self.assertRaises(RuntimeError):
-            client.call(message("ListPlugins"))
+            client.call(message("dokime.client.v1.ListPlugins"))
 
 
 # === Public Functions === #

@@ -1,0 +1,23 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/prompts.proto";
+import "harmos/v1/types.proto";
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message PromptDefinitionsGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.v1.ReadCut at = 90; }
+
+message PromptDefinitionsGetResponse { .dokime.v1.Prompt value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+message PromptDefinitionsListRequest { string parent = 1; .harmos.v1.ReadCut at = 90; }
+
+message PromptDefinitionsListResponse { repeated .dokime.v1.Prompt values = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service PromptDefinitions {
+  // Public. Identity: dokime.client.v1.PromptDefinitions/Get
+  rpc Get(.dokime.client.v1.PromptDefinitionsGetRequest) returns (.dokime.client.v1.PromptDefinitionsGetResponse);
+  // Public. Identity: dokime.client.v1.PromptDefinitions/List
+  rpc List(.dokime.client.v1.PromptDefinitionsListRequest) returns (.dokime.client.v1.PromptDefinitionsListResponse);
+}

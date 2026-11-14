@@ -43,9 +43,9 @@ pub const ID: &str = "dokime.plugins.reload";
 /* === Public Functions === */
 
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<v1::PluginsReloadRequest, v1::ClientEmpty>(ID, settings.mutation_timeout)
+    super::declaration::<dokime_protocol::client::PluginsReloadRequest, v1::ClientEmpty>(ID, settings.mutation_timeout)
 }
-pub async fn handle(context: &Context, request: v1::PluginsReloadRequest) -> Result<v1::ClientEmpty> {
+pub async fn handle(context: &Context, request: dokime_protocol::client::PluginsReloadRequest) -> Result<v1::ClientEmpty> {
     super::complete(ID, context.settings.mutation_timeout, async {
         if request.install_id.is_some() == request.plugin_id.is_some() {
             return Err(Error::Invalid("Reload Plugin: Supply Exactly One Installation or Plugin Entry Identifier".into()));

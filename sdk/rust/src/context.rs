@@ -221,14 +221,14 @@ impl Context {
     ) -> Result<dokime_protocol::context::PromptsCreateResponse> {
         self.host(question).await
     }
-    pub async fn settings(&self) -> Result<v1::SavedSettings> {
-        self.host(v1::ReadSettings {}).await
+    pub async fn settings(&self) -> Result<dokime_protocol::context::SavedSettings> {
+        self.host(dokime_protocol::context::ReadSettings {}).await
     }
     pub async fn typed_settings<T: Message>(&self) -> Result<T> {
         data::decode(&self.settings().await?.values)
     }
-    pub async fn secret(&self, identifier: impl Into<String>) -> Result<v1::Secret> {
-        self.host(v1::ReadSecret { identifier: identifier.into() }).await
+    pub async fn secret(&self, identifier: impl Into<String>) -> Result<dokime_protocol::context::Secret> {
+        self.host(dokime_protocol::context::ReadSecret { identifier: identifier.into() }).await
     }
 
     pub async fn record<T: Message>(
@@ -238,7 +238,8 @@ impl Context {
             execution: self.execution_id().into(),
             kind: record.identifier().into(),
             payload: value.encode_to_vec(),
-            at: None,
+            source_at: None,
+            request_id: uuid::Uuid::now_v7().to_string(),
         })
         .await
     }
@@ -250,7 +251,8 @@ impl Context {
             execution: self.execution_id().into(),
             kind: kind.into(),
             step: step.into(),
-            limit,
+            page: Some(harmos_protocol::v1::PageRequest { page_size: limit, ..Default::default() }),
+            at: None,
         })
         .await
     }
@@ -263,6 +265,7 @@ impl Context {
             stream: stream.into(),
             field: field.into(),
             step: step.into(),
+            at: None,
         })
         .await
     }
@@ -285,6 +288,7 @@ impl Context {
             severity: severity as i32,
             message: message.into(),
             at: None,
+            request_id: uuid::Uuid::now_v7().to_string(),
         })
         .await?;
         Ok(())

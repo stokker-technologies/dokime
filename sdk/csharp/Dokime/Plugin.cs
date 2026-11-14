@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Concurrent;
-using Dokime.V1;
+using Dokime.Protocol.V1;
+using Dokime.Protocol.Plugin.V1;
 using Google.Protobuf;
 using Harmos.Sdk;
 using Harmos.V1;
@@ -46,7 +47,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     foreach (var suite in suites)
     {
       Unique(identifiers, suite.Metadata.Identifier);
-      var definition = new V1.Suite { Metadata = suite.Metadata.Clone() };
+      var definition = new Dokime.Protocol.V1.Suite { Metadata = suite.Metadata.Clone() };
       foreach (var template in suite.Templates)
       {
         Unique(identifiers, template.Definition.Metadata.Identifier);
@@ -67,7 +68,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     finally { await DisposeResourcesAsync(); }
   }
 
-  private void Register(Template template, V1.Suite suite, HashSet<string> identifiers)
+  private void Register(Template template, Dokime.Protocol.V1.Suite suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;
     var definition = template.Definition.Clone();
@@ -84,30 +85,30 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     {
       Unique(local, step.Identifier);
       var operation = $"{name}.step.{index}";
-      testCase.Steps.Add(new V1.Step { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
+      testCase.Steps.Add(new Dokime.Protocol.V1.Step { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
       var policy = step.Retries == 0 ? null : new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = checked(step.Retries + 1), Initial = new Google.Protobuf.WellKnownTypes.Duration { Nanos = 100_000_000 } } };
-      transport.Operation(new Operation<StepRequest, StepResponse>(operation, Visibility.Protected, policy: policy, replaySafe: step.Retries > 0), async (raw, request) =>
+      transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: policy, replaySafe: step.Retries > 0), async (raw, request) =>
       {
-        Validate(raw, request.Execution, name, request.TestCase, request.Origin);
+        Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
-          throw new ArgumentException("Step does not match the frozen case");
+          throw new ArgumentException($"{operation}: Step Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
         await step.Run(context);
-        return new StepResponse();
+        return new StepsExecuteResponse();
       });
     }
     foreach (var (criterion, index) in template.Criteria.Select((criterion, index) => (criterion, index)))
     {
       Unique(local, criterion.Identifier);
       var operation = $"{name}.criterion.{index}";
-      testCase.Criteria.Add(new V1.Criterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
-      transport.Operation(new Operation<CriterionRequest, CriterionResponse>(operation, Visibility.Protected), async (raw, request) =>
+      testCase.Criteria.Add(new Dokime.Protocol.V1.Criterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
+      transport.Operation(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected), async (raw, request) =>
       {
-        Validate(raw, request.Execution, name, request.TestCase, request.Origin);
+        Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
-          throw new ArgumentException("Criterion does not match the frozen case");
+          throw new ArgumentException($"{operation}: Criterion Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
-        return new CriterionResponse { Passed = await criterion.Evaluate(context) };
+        return new CriteriaEvaluateResponse { Passed = await criterion.Evaluate(context) };
       });
     }
     foreach (var stream in template.Streams)
@@ -116,36 +117,36 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       testCase.Streams.Add(stream.Identifier);
       stream.Register(transport, raw => ObserverContext(raw, name));
     }
-    transport.Operation(new Operation<MaterializeRequest, TestCase>(definition.Materialize, Visibility.Protected), (raw, request) =>
+    transport.Operation(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected), (raw, request) =>
     {
       try
       {
         raw.Scope();
-        throw new ArgumentException("Materialization requires no execution scope");
+        throw new ArgumentException($"{definition.Materialize}: Materialization Requires No Execution Scope");
       }
       catch (PluginFailureException error) when (error.Failure.Code == "scope_required") { }
       if (request.Template != name)
-        throw new ArgumentException("Materialization requires the named template and no execution scope");
+        throw new ArgumentException($"{definition.Materialize}: Materialization Requires the Named Template and No Execution Scope");
       var result = testCase.Clone();
       result.Parameters.Add(request.Parameters.ToDictionary(item => item.Key, item => item.Value.Clone()));
       result = template.MaterializeBody?.Invoke(result, result.Parameters) ?? result;
       if (result.Steps.Any(item => !testCase.Steps.Any(known => known.Operation == item.Operation)) ||
               result.Criteria.Any(item => !testCase.Criteria.Any(known => known.Operation == item.Operation)) ||
               result.Streams.Any(item => !testCase.Streams.Contains(item)))
-        throw new ArgumentException("Materialized case refers to an unregistered operation or stream");
-      return Task.FromResult(result);
+        throw new ArgumentException($"{definition.Materialize}: Materialized Case Refers to an Unregistered Operation or Stream");
+      return Task.FromResult(new TestCasesMaterializeResponse { TestCase = result });
     });
     if (definition.HasInitialize)
-      transport.Operation(new Operation<InitializeRequest, InitializeResponse>(definition.Initialize, Visibility.Protected), async (raw, request) =>
+      transport.Operation(new Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(definition.Initialize, Visibility.Protected), async (raw, request) =>
       {
-        Validate(raw, request.Execution, name, request.TestCase, request.Origin);
+        Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Initialize);
         var context = await GetContextAsync(raw, template, request.TestCase);
         if (template.InitializeBody is not null) await template.InitializeBody(context);
-        return new InitializeResponse();
+        return new ExecutionsInitializeResponse();
       });
-    transport.Operation(new Operation<CleanupRequest, CleanupResponse>(definition.Cleanup, Visibility.Protected), async (raw, request) =>
+    transport.Operation(new Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(definition.Cleanup, Visibility.Protected), async (raw, request) =>
     {
-      Validate(raw, request.Execution, name, request.TestCase, request.Origin);
+      Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Cleanup);
       var key = $"{name}/{raw.Scope()}";
       resources.TryGetValue(key, out var pending);
       var owned = pending is null ? null : await pending.Value;
@@ -158,7 +159,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       {
         if (resources.TryRemove(key, out _) && owned?.Resource is { } resource) await resource.DisposeAsync();
       }
-      return new CleanupResponse();
+      return new ExecutionsCleanupResponse();
     });
   }
 
@@ -186,11 +187,11 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     return new Context(raw, new TestCase());
   }
 
-  private void Validate(Harmos.Sdk.Context raw, string execution, string template, TestCase testCase, Origin origin)
+  private void Validate(Harmos.Sdk.Context raw, string execution, string template, TestCase testCase, Origin origin, string action)
   {
     if (string.IsNullOrWhiteSpace(execution) || raw.Scope() != execution || testCase is null ||
         origin?.PluginRun is not { } run || run.Plugin != identifier || run.Template != template || !testCase.Equals(run.TestCase))
-      throw new ArgumentException("Execution scope, origin and frozen case must agree");
+      throw new ArgumentException($"{action}: Execution Scope, Origin and Frozen Case Must Agree");
   }
 
   private async Task DisposeResourcesAsync()

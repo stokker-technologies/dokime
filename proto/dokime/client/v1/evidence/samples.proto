@@ -1,0 +1,117 @@
+syntax = "proto3";
+package dokime.client.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Client.V1.EvidenceResources";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/expressions.proto";
+import "dokime/v1/scalar.proto";
+import "dokime/v1/schemas.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message Bucket {
+  .google.protobuf.Timestamp start = 1;
+  .google.protobuf.Timestamp end = 2;
+  string execution_id = 3;
+  string stream = 4;
+  string source = 5;
+  repeated uint32 versions = 6;
+  uint64 sample_count = 7;
+  repeated .dokime.client.v1.evidence.BucketValue fields = 8;
+}
+
+message BucketRequest {
+  uint64 every_nanos = 1;
+  .dokime.v1.Aggregate aggregate = 2;
+}
+
+message BucketValue {
+  string field = 1;
+  uint64 count = 2;
+  .dokime.client.v1.evidence.StatisticValue value = 3;
+  optional string unit = 4;
+  .dokime.v1.Aggregate reducer = 5;
+}
+
+message SampleRow {
+  oneof kind {
+    .dokime.client.v1.evidence.TelemetrySample raw = 1;
+    .dokime.client.v1.evidence.Bucket bucket = 2;
+  }
+}
+
+message StatisticValue {
+  oneof kind {
+    uint64 count = 1;
+    double number = 2;
+  }
+}
+
+message TelemetrySample {
+  // Original row bytes interpreted using the frozen stream descriptor.
+  bytes payload = 12;
+  string sample_id = 1;
+  string stream = 2;
+  uint32 schema_version = 3;
+  uint64 sequence = 4;
+  .google.protobuf.Timestamp timestamp = 5;
+  .google.protobuf.Timestamp received_at = 6;
+  string source = 7;
+  .dokime.v1.EvidenceScope scope = 8;
+  .dokime.v1.MapValue values = 9;
+  .dokime.v1.MapValue summary = 10;
+  .dokime.v1.MapValue metadata = 11;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message SamplesListRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  repeated string streams = 2;
+  repeated uint32 versions = 3;
+  repeated string fields = 4;
+  repeated string sources = 5;
+  repeated string signals = 6;
+  .dokime.v1.Window between = 7;
+  .dokime.client.v1.evidence.BucketRequest bucket = 8;
+  bool latest = 9;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message SamplesListResponse {
+  repeated .dokime.client.v1.evidence.SampleRow samples = 1;
+  .dokime.v1.Schema schema = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+message SamplesWatchRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  repeated string streams = 2;
+  repeated uint32 versions = 3;
+  repeated string fields = 4;
+  repeated string sources = 5;
+  repeated string signals = 6;
+  .dokime.v1.Window between = 7;
+  .dokime.client.v1.evidence.BucketRequest bucket = 8;
+  bool latest = 9;
+  .harmos.v1.ReadCut at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+message SamplesWatchResponse {
+  repeated .dokime.client.v1.evidence.SampleRow samples = 1;
+  .dokime.v1.Schema schema = 2;
+  .harmos.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.v1.Failure resync_required = 92;
+}
+
+service Samples {
+  // Public. Identity: dokime.client.v1.evidence.Samples/List
+  rpc List(.dokime.client.v1.evidence.SamplesListRequest) returns (.dokime.client.v1.evidence.SamplesListResponse);
+  // Public. Opening snapshot at resolved_at, then durable changes strictly after it.
+  // Missing retained cuts or delivery gaps require explicit resynchronization.
+  rpc Watch(.dokime.client.v1.evidence.SamplesWatchRequest) returns (stream .dokime.client.v1.evidence.SamplesWatchResponse);
+}

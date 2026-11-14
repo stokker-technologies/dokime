@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::client;
 
 /* === Constants === */
 
@@ -31,6 +32,9 @@
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
+    request_id: Option<String>,
+
     execution: String,
 
     #[arg(long)]
@@ -46,15 +50,13 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let channel = settings.channel(endpoint, false).await?;
-    let mut client = dokime::v1::execution_client::ExecutionClient::with_interceptor(channel, settings.interceptor())
-        .max_decoding_message_size(settings.message_bytes.get())
-        .max_encoding_message_size(settings.message_bytes.get());
-    let request = dokime::v1::ExecutionStartExecutionRequest {
-        execution_id: args.execution,
-        mode: dokime::v1::ExecutionMode::Automatic as i32,
+    let client = settings.sdk(endpoint, false).await?;
+    let request = client::ExecutionsStartRequest {
+        name: args.execution,
+        request_id: settings.request_id(args.request_id)?,
+        mode: client::ExecutionMode::Automatic as i32,
     };
-    let value = client.start_execution(request).await?.into_inner();
+    let value = client.executions.start(settings.request(request)).await?.into_inner();
     crate::output::print(&value, args.json)
 }
 

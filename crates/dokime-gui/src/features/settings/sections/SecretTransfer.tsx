@@ -30,7 +30,7 @@ import {
   importSecrets,
   pickSecretArchive,
   previewSecrets,
-  type SecretCatalog,
+  type SecretSnapshot,
   type SecretPreview,
 } from "@/lib/api/native-secrets";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -41,7 +41,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Types === */
 
-type Props = { session: SessionIdentity; catalog: SecretCatalog; onImported: (catalog: SecretCatalog) => void };
+type Props = { session: SessionIdentity; catalog: SecretSnapshot; onImported: (catalog: SecretSnapshot) => void };
 
 /* === Components === */
 

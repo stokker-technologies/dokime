@@ -388,7 +388,7 @@ export function useAddNoteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ scope, text }: AddNoteVariables) => createNativeNote(session.identity, nativeEpoch(session), text, scope),
+    mutationFn: ({ scope, text }: AddNoteVariables) => createNativeNote(session.identity, text, scope),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
@@ -403,7 +403,7 @@ export function useEditNoteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, text }: EditNoteVariables) => editNativeNote(session.identity, nativeEpoch(session), noteId, text),
+    mutationFn: ({ noteId, text }: EditNoteVariables) => editNativeNote(session.identity, noteId, text),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() });
     },

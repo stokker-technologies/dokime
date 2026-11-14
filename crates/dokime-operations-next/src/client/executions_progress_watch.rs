@@ -24,11 +24,11 @@ use crate::{
     Result,
     client::{Context, Output},
 };
-use dokime_protocol::v1::executions::{ProgressGetRequest, ProgressWatchRequest, ProgressWatchResponse};
+use dokime_protocol::client::executions::{ProgressGetRequest, ProgressWatchRequest, ProgressWatchResponse};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.executions.Progress/Watch";
+pub const ID: &str = "dokime.client.v1.executions.Progress/Watch";
 
 /* === Macros === */
 

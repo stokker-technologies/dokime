@@ -86,7 +86,7 @@ export async function invoke(desktop, command, args = {}) {
 }
 
 export async function call(desktop, service, method, request = {}) {
-  const path = `/${service.includes(".") ? service : `dokime.v1.${service}`}/${method}`;
+  const path = `/${service.includes(".") ? service : `dokime.client.v1.${service}`}/${method}`;
   const declaration = inventory.match(new RegExp(`unary\\("${path}", (\\w+), (\\w+),`));
   assert.ok(declaration, `Canonical unary contract exists for ${path}`);
   const input = await schema(declaration[1]);

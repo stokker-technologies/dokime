@@ -1,0 +1,55 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/execution.proto";
+import "dokime/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+enum ArchiveScope {
+  ARCHIVE_SCOPE_UNSPECIFIED = 0;
+  ARCHIVE_SCOPE_UNARCHIVED = 1;
+  ARCHIVE_SCOPE_ARCHIVED = 2;
+  ARCHIVE_SCOPE_ALL = 3;
+}
+
+enum CyclePhase {
+  CYCLE_PHASE_UNSPECIFIED = 0;
+  CYCLE_PHASE_ACTIVE = 1;
+  CYCLE_PHASE_SEALING = 2;
+  CYCLE_PHASE_SEALED = 3;
+  CYCLE_PHASE_SEAL_FAILED = 4;
+}
+
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_READY = 1;
+  CYCLE_STATUS_RUNNING = 2;
+  CYCLE_STATUS_PAUSED = 3;
+  CYCLE_STATUS_STOPPING = 4;
+  CYCLE_STATUS_COMPLETED = 5;
+  CYCLE_STATUS_FAILED = 6;
+  CYCLE_STATUS_BLOCKED = 7;
+  CYCLE_STATUS_STOPPED = 8;
+}
+
+message CycleSummary {
+  string cycle_id = 1;
+  .dokime.v1.Metadata metadata = 2;
+  .dokime.v1.CyclePhase phase = 3;
+  .dokime.v1.CycleStatus status = 4;
+  uint64 case_count = 5;
+  uint64 execution_count = 6;
+  bool continue_automatically = 7;
+  .harmos.v1.ReadCut observed_cursor = 8;
+  .google.protobuf.Timestamp created_at = 9;
+  .google.protobuf.Timestamp started_at = 10;
+  .google.protobuf.Timestamp updated_at = 11;
+  .dokime.v1.ResultSummary result = 12;
+  bool archived = 13;
+  bool sealed = 14;
+  uint64 running_count = 15;
+  uint64 queued_count = 16;
+  optional string seal_failure = 17;
+  optional string rerun_of = 18;
+}

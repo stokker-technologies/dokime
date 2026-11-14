@@ -1,0 +1,60 @@
+syntax = "proto3";
+package dokime.client.v1.executions;
+option csharp_namespace = "Dokime.Protocol.Client.V1.ExecutionsResources";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+enum ExecutionCommandAction {
+  EXECUTION_COMMAND_ACTION_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_ACTION_NEXT = 1;
+  EXECUTION_COMMAND_ACTION_RUN_STEP = 2;
+  EXECUTION_COMMAND_ACTION_FINISH = 3;
+}
+
+enum ExecutionCommandPhase {
+  EXECUTION_COMMAND_PHASE_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_PHASE_ACCEPTED = 1;
+  EXECUTION_COMMAND_PHASE_DISPATCHING = 2;
+  EXECUTION_COMMAND_PHASE_RUNNING = 3;
+  EXECUTION_COMMAND_PHASE_COMPLETED = 4;
+  EXECUTION_COMMAND_PHASE_REFUSED = 5;
+  EXECUTION_COMMAND_PHASE_FAILED = 6;
+  EXECUTION_COMMAND_PHASE_INTERRUPTED = 7;
+}
+
+message ExecutionCommandReceipt {
+  string request_id = 1;
+  string command_id = 2;
+  string execution_id = 3;
+  .dokime.client.v1.executions.ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+  .dokime.client.v1.executions.ExecutionCommandPhase phase = 6;
+  optional string attempt_id = 7;
+  .google.protobuf.Timestamp accepted_at = 8;
+  .google.protobuf.Timestamp updated_at = 9;
+  optional string detail = 10;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message CommandsGetRequest { string name = 1; string parent = 2; .harmos.v1.Position at = 90; }
+
+message CommandsGetResponse { .dokime.client.v1.executions.ExecutionCommandReceipt command = 1; .harmos.v1.Position resolved_at = 90; }
+
+message CommandsCreateRequest {
+  string parent = 1;
+  string request_id = 2;
+  string command_id = 3;
+  .dokime.client.v1.executions.ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+}
+
+message CommandsCreateResponse { .dokime.client.v1.executions.ExecutionCommandReceipt command = 1; .harmos.v1.Receipt receipt = 2; }
+
+service Commands {
+  // Public. Identity: dokime.client.v1.executions.Commands/Get
+  rpc Get(.dokime.client.v1.executions.CommandsGetRequest) returns (.dokime.client.v1.executions.CommandsGetResponse);
+  // Public. Identity: dokime.client.v1.executions.Commands/Create
+  rpc Create(.dokime.client.v1.executions.CommandsCreateRequest) returns (.dokime.client.v1.executions.CommandsCreateResponse);
+}

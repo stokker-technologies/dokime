@@ -11,8 +11,8 @@
 
 /* === External Imports === */
 
-import { PluginInstallationState as InstallationState } from "@host/dokime/v1/client_types_pb.js";
-import { PluginState } from "@host/dokime/v1/plugins_pb.js";
+import { PluginInstallationState as InstallationState } from "@host/dokime/client/v1/plugins_pb.js";
+import { PluginState } from "@host/dokime/client/v1/plugins_pb.js";
 import { Channel } from "@tauri-apps/api/core";
 
 /* === Local Imports === */

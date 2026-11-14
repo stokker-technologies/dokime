@@ -1,0 +1,30 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+
+message AnnotationOwner {
+  .dokime.v1.AnnotationOwnerOwner owner = 1;
+}
+
+message AnnotationOwnerOwner {
+  oneof kind {
+    string cycle_id = 1;
+    .dokime.v1.PlannedCaseNoteOwner planned_case = 2;
+    .dokime.v1.ExecutionNoteOwner execution = 3;
+  }
+}
+
+message AnnotationSelection {
+  .dokime.v1.AnnotationOwner owner = 1;
+  bool include_context = 2;
+}
+
+message ExecutionNoteOwner {
+  string cycle_id = 1;
+  string execution_id = 2;
+}
+
+message PlannedCaseNoteOwner {
+  string cycle_id = 1;
+  string case_id = 2;
+}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+package dokime.plugin.host.v1;
+option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1";
+import "dokime/v1/scalar.proto";
+
+message ReadSettings {}
+
+message SavedSettings {
+  // Saved values of the calling plugin's settings, by identifier.
+  map<string, .dokime.v1.Value> values = 1;
+}

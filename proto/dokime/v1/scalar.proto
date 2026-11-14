@@ -1,0 +1,38 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "google/protobuf/timestamp.proto";
+
+// A resolved parameter, setting or evidence scalar. No JSON encoding or object bag.
+// An unset kind is invalid; null is explicit. Integers retain their full precision.
+message Value {
+  oneof kind {
+    .dokime.v1.Null null = 1;
+    bool boolean = 2;
+    sint64 integer = 3;
+    uint64 unsigned_integer = 4;
+    double number = 5;
+    string text = 6;
+    bytes data = 7;
+    .dokime.v1.ValueList list = 8;
+    .google.protobuf.Timestamp datetime = 9;
+  }
+}
+
+message Null {}
+
+message ValueList { repeated .dokime.v1.Value values = 1; }
+
+enum ValueType {
+  VALUE_TYPE_UNSPECIFIED = 0;
+  VALUE_TYPE_BOOLEAN = 1;
+  VALUE_TYPE_INTEGER = 2;
+  VALUE_TYPE_UNSIGNED_INTEGER = 3;
+  VALUE_TYPE_NUMBER = 4;
+  VALUE_TYPE_TEXT = 5;
+  VALUE_TYPE_BYTES = 6;
+  VALUE_TYPE_LIST = 7;
+  VALUE_TYPE_DATETIME = 8;
+}
+
+message MapValue { map<string, .dokime.v1.Value> values = 1; }

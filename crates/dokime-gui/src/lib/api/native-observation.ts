@@ -12,24 +12,25 @@
 /* === Local Imports === */
 
 import { defaultBrand } from "@/lib/brand";
-import type { Wire } from "@/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { CycleStatus, ResultStatus, type EvidenceScope as HostEvidenceScope } from "@host/dokime/v1/client_types_pb.js";
+import { CycleStatus } from "@host/dokime/v1/cycles_pb.js";
+import { ResultStatus } from "@host/dokime/v1/execution_pb.js";
+import type { EvidenceScope as HostEvidenceScope } from "@host/dokime/v1/evidence_pb.js";
 import { nativeValueToJson, nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
 export type RuntimeStateFrame = Wire<
-  Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame> ? Frame : never
+  Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never
 >;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
+import { listNativeCycles } from "./native-planning";
 import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, nowIso, safeNumber, timestampIso } from "./native-values";
-
-const GUI_SMALL_PAGE_ITEMS = 100;
 
 /* === Types === */
 
-type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
+type RuntimeShellSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendOverviewGet>>["overview"]>>;
 interface ExecutionProgressFrame {
   progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
   finished: boolean;
@@ -46,28 +47,10 @@ export async function fetchNativeRuntimeShell(session: SessionIdentity, cycleId:
 }
 
 async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<RuntimeShellSnapshot[]> {
-  const snapshots: RuntimeShellSnapshot[] = [];
-  let afterCycleId = "";
-  let cursor: RuntimeShellSnapshot["observedCursor"];
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const snapshot = await rpc.observationGetRuntimeShell(session, {
-      limit: GUI_SMALL_PAGE_ITEMS,
-      afterCycleId,
-      ...(cursor ? { cursor } : {}),
-    });
-    snapshots.push(snapshot);
-    const nextAfterCycleId = snapshot.nextAfterCycleId ?? "";
-    if (!nextAfterCycleId) return snapshots;
-    if (nextAfterCycleId === afterCycleId) {
-      throw new NativeApiLimitError("Observation.GetRuntimeShell", "cycle pagination did not advance");
-    }
-    afterCycleId = nextAfterCycleId;
-    cursor = snapshot.observedCursor;
-    if (!cursor) {
-      throw new NativeApiLimitError("Observation.GetRuntimeShell", "cycle page omitted its cursor");
-    }
-  }
-  throw new NativeApiLimitError("Observation.GetRuntimeShell", `more than ${NATIVE_MAX_PAGES} cycle pages`);
+  const reply = await rpc.backendOverviewGet(session, {});
+  const snapshot = required(reply.overview, "Read Backend Overview");
+  const cycles = await listNativeCycles(session);
+  return [{ ...snapshot, cycleSummaries: cycles }];
 }
 
 export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycleId: string): HubLiveState {
@@ -79,7 +62,7 @@ export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycl
   const cycle = cycles.find((candidate) => candidate.cycleId === cycleId) ?? null;
   const title = cycle?.metadata?.label || first.hubMetadata?.label || defaultBrand.label;
   const updatedAt = timestampIso(cycle?.updatedAt) ?? timestampIso(cycle?.createdAt) ?? nowIso();
-  const revision = safeNumber(first.revision, "Observation.RuntimeShell revision");
+  const revision = safeNumber(first.revision, "Backend.Overview.Get revision");
   return {
     run: {
       session_id: first.sessionId,
@@ -118,7 +101,7 @@ type TraceabilityResponse = Awaited<ReturnType<typeof rpc.evidenceTraceabilityGe
 
 /** Read ordered traceability snapshots at one generation-bound, scoped read cut. */
 export async function fetchNativeTraceability(session: SessionIdentity, scope?: RecordScope | null): Promise<TraceabilitySnapshot> {
-  const operation = "Evidence.Traceability.Get";
+  const operation = "Traceability.Get";
   const requestedScope = nativeEvidenceScope(scope);
   const items: NativeTraceabilitySnapshot[] = [];
   const tokens = new Set<string>();
@@ -206,8 +189,8 @@ function validateTraceabilityResponse(
     }
     if (previous?.resolvedAt) {
       const earlier = previous.resolvedAt;
-      const epoch = position.history!.epoch;
-      const earlierEpoch = earlier.history!.epoch;
+      const epoch = required(position.history, "Read Traceability History").epoch;
+      const earlierEpoch = required(earlier.history, "Read Previous Traceability History").epoch;
       if (epoch < earlierEpoch || (epoch === earlierEpoch && position.sequence <= earlier.sequence)) {
         throw new NativeApiLimitError(operation, "snapshots were not in strict history order");
       }
@@ -315,9 +298,9 @@ export interface NativeObservationSession extends SessionIdentity {
 
 export async function openNativeRuntimeStream(
   session: NativeObservationSession,
-  cursor?: Parameters<typeof rpc.observationWatchRuntime>[1]["cursor"],
+  at?: Parameters<typeof rpc.backendOverviewWatch>[1]["at"],
 ): Promise<NativeStream<RuntimeStateFrame>> {
-  const reader = await rpc.observationWatchRuntime(session, { cursor });
+  const reader = await rpc.backendOverviewWatch(session, { at });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
   const cancelReader = (): Promise<void> => {
@@ -337,7 +320,10 @@ export async function openNativeRuntimeStream(
   const forward = (async function* () {
     let exhausted = false;
     try {
-      for await (const frame of reader) yield frame;
+      for await (const frame of reader) {
+        if (frame.resyncRequired) throw new Error(`Watch Backend Overview: ${frame.resyncRequired.message}; Refresh the Overview`);
+        yield frame;
+      }
       exhausted = true;
     } finally {
       if (!exhausted) await cancelReader().catch(() => undefined);

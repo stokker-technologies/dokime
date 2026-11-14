@@ -92,7 +92,7 @@ pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -
                     return Err("Incompatible Evidence Root".into());
                 }
                 let mut total = 0u64;
-                for name in ["execution.sqlite3", "execution.sqlite3-wal", "execution.sqlite3-shm"] {
+                for name in ["backend-id", "execution.sqlite3", "execution.sqlite3-wal", "execution.sqlite3-shm"] {
                     let path = root.join(name);
                     if !path.exists() {
                         continue;

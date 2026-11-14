@@ -29,7 +29,20 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample, streams};
+use dokime_protocol::context::evidence::RecordsAppendRequest;
 use dokime_protocol::v1;
+use harmos_protocol::v1::Catalog;
+use harmos_protocol::v1::History;
+use harmos_protocol::v1::Receipt;
+use prost_reflect::DescriptorPool;
+use prost_reflect::DynamicMessage;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use tokio::sync::watch::Sender;
 
 /* === Constants === */
 
@@ -46,16 +59,16 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 #[derive(Clone)]
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
-    database: Arc<std::path::PathBuf>,
+    database: Arc<PathBuf>,
     pub(crate) identity: Arc<str>,
-    pub(crate) cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
+    pub(crate) cancelled: Option<Arc<AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
-    pub(crate) changed: tokio::sync::watch::Sender<u64>,
+    pub(crate) changed: Sender<u64>,
 }
 
 pub struct ReadCancellation {
-    cancelled: Arc<std::sync::atomic::AtomicBool>,
+    cancelled: Arc<AtomicBool>,
     interrupt: rusqlite::InterruptHandle,
 }
 
@@ -67,7 +80,7 @@ pub struct ReadCancellation {
 
 impl Drop for ReadCancellation {
     fn drop(&mut self) {
-        self.cancelled.store(true, std::sync::atomic::Ordering::Release);
+        self.cancelled.store(true, Ordering::Release);
         self.interrupt.interrupt();
     }
 }
@@ -100,8 +113,6 @@ impl Store {
             if tables
                 != [
                     "administration",
-                    "artifact_calls",
-                    "artifact_transfers",
                     "attempts",
                     "bindings",
                     "cases",
@@ -112,9 +123,11 @@ impl Store {
                     "cycles",
                     "deletions",
                     "evidence",
+                    "evidence_reads",
                     "executions",
+                    "file_requests",
+                    "file_uploads",
                     "notes",
-                    "plot_preferences",
                     "plugins",
                     "read_positions",
                     "record_fields",
@@ -130,12 +143,19 @@ impl Store {
             {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
+            let response_column: bool =
+                connection
+                    .query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('deletions') WHERE name='response')", [], |row| row.get(0))?;
+            if !response_column {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
         } else {
             connection.execute_batch(&format!("PRAGMA application_id={APPLICATION_ID}; PRAGMA user_version=1;
                 CREATE TABLE administration(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE INDEX executions_cycle ON executions(cycle,id);
-                CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
+                CREATE TABLE evidence(sequence INTEGER PRIMARY KEY AUTOINCREMENT, execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, UNIQUE(execution,position));
+                CREATE TABLE evidence_reads(position INTEGER PRIMARY KEY);
                 CREATE TABLE attempts(execution TEXT NOT NULL REFERENCES executions(id), step TEXT NOT NULL, operation TEXT NOT NULL, attempt INTEGER NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,step,operation,attempt,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
@@ -144,14 +164,13 @@ impl Store {
                 CREATE TABLE sample_batches(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
                 CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position,number);
-                CREATE TABLE artifact_transfers(execution TEXT NOT NULL REFERENCES executions(id), transfer TEXT NOT NULL, object TEXT NOT NULL, sequence INTEGER NOT NULL, terminal INTEGER NOT NULL, PRIMARY KEY(execution,transfer));
-                CREATE TABLE artifact_calls(execution TEXT NOT NULL, transfer TEXT NOT NULL, sequence INTEGER NOT NULL, fingerprint BLOB NOT NULL, receipt BLOB NOT NULL, PRIMARY KEY(execution,transfer,sequence));
-                CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL REFERENCES executions(id), path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
+                CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL, path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
+                CREATE TABLE file_uploads(id TEXT PRIMARY KEY REFERENCES content_objects(id), metadata BLOB NOT NULL, generation INTEGER NOT NULL);
+                CREATE TABLE file_requests(sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, response BLOB NOT NULL, UNIQUE(operation,request));
                 CREATE TABLE content_chunks(object TEXT NOT NULL REFERENCES content_objects(id), offset INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(object,offset));
                 CREATE INDEX content_path ON content_objects(execution,path);
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
-                CREATE TABLE plot_preferences(execution TEXT NOT NULL REFERENCES executions(id), document TEXT NOT NULL, plot TEXT NOT NULL, points INTEGER, technique INTEGER NOT NULL, PRIMARY KEY(execution,document,plot));
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
@@ -160,7 +179,7 @@ impl Store {
                 CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
                 CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
                 CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
-                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL);
+                CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL, response BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
@@ -172,14 +191,31 @@ impl Store {
         let identity = if identity_path.exists() {
             std::fs::read_to_string(&identity_path)?
         } else {
-            use std::io::Write;
             let identity = uuid::Uuid::now_v7().to_string();
-            let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(identity_path)?;
+            let mut file = OpenOptions::new().write(true).create_new(true).open(identity_path)?;
             file.write_all(identity.as_bytes())?;
             file.sync_all()?;
             identity
         };
         uuid::Uuid::parse_str(&identity).map_err(|_| Error::Incompatible(root.display().to_string()))?;
+        let evidence_history: Option<Vec<u8>> =
+            connection.query_row("SELECT payload FROM administration WHERE id='evidence-read-history'", [], |row| row.get(0)).optional()?;
+        if let Some(history) = evidence_history {
+            let history = History::decode(history.as_slice())?;
+            if history.store != identity || uuid::Uuid::parse_str(&history.epoch).is_err() {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
+        } else {
+            let populated: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM evidence)", [], |row| row.get(0))?;
+            if populated {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
+            let history = History {
+                store: identity.clone(),
+                epoch: uuid::Uuid::now_v7().to_string(),
+            };
+            connection.execute("INSERT INTO administration VALUES('evidence-read-history',?1)", [history.encode_to_vec()])?;
+        }
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
@@ -191,12 +227,12 @@ impl Store {
         })
     }
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
-        if self.cancelled.as_ref().is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+        if self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) {
             return Err(Error::Invalid("Read Storage: The Query Was Cancelled; Start a New Read".into()));
         }
         let connection =
             self.connection.lock().map_err(|_| Error::Invalid("Restart the Host After the Evidence Store Lock Failed".into()))?;
-        if self.cancelled.as_ref().is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+        if self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) {
             return Err(Error::Invalid("Read Storage: The Query Was Cancelled; Start a New Read".into()));
         }
         Ok(connection)
@@ -213,7 +249,7 @@ impl Store {
         configure_read_functions(&connection)?;
         connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
-        let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let cancelled = Arc::new(AtomicBool::new(false));
         let session = Self {
             connection: Arc::new(Mutex::new(connection)),
             database: self.database.clone(),
@@ -250,7 +286,7 @@ impl Store {
             |row| row.get(0),
         )?)
     }
-    pub fn cycle_execution_page(&self, cycle: &str, after: &str, limit: std::num::NonZeroUsize) -> Result<Vec<String>> {
+    pub fn cycle_execution_page(&self, cycle: &str, after: &str, limit: NonZeroUsize) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3")?;
         Ok(query.query_map(params![cycle, after, limit.get() as i64], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
@@ -309,59 +345,59 @@ impl Store {
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        evidence.position = next_position(&transaction, execution)?;
-        transaction
-            .execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
-        if evidence.kind == "attempt:start" {
-            transaction.execute(
-                "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
-                params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
-            )?;
-        }
-        if let Some(kind) = evidence.kind.strip_prefix("record:") {
-            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
-            let definition = Execution::decode(payload.as_slice())?;
-            let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
-            for section in &catalog.sections {
-                if section.r#type != "dokime.v1.RecordContracts" {
-                    continue;
-                }
-                let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
-                let Some(contract) = contracts
-                    .records
-                    .iter()
-                    .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
-                else {
-                    continue;
-                };
-                let Some(types) = catalog.types.clone() else {
-                    continue;
-                };
-                let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
-                    continue;
-                };
-                let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
-                    continue;
-                };
-                let Ok(record) = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
-                    continue;
-                };
-                let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
-                    continue;
-                };
-                for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
-                    transaction.execute(
-                        "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
-                    )?;
-                }
-            }
-        }
-
+        insert_evidence(&transaction, execution, &mut evidence)?;
         transaction.commit()?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
+    }
+    pub fn append_requested(
+        &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
+    ) -> Result<(u64, Receipt)> {
+        use harmos_protocol::v1::{History, Position, Receipt};
+        if request_id.is_empty() {
+            return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
+        }
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let saved: Option<(Vec<u8>, i64)> = transaction
+            .query_row(
+                "SELECT fingerprint,position FROM resource_requests WHERE execution=?1 AND resource=?2 AND request=?3",
+                params![execution, operation, request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let position = if let Some((saved, position)) = saved {
+            if saved != fingerprint {
+                return Err(Error::Conflict(format!("{operation}: Use a New Request ID for Changed Content")));
+            }
+            position as u64
+        } else {
+            insert_evidence(&transaction, execution, &mut evidence)?;
+            transaction.execute(
+                "INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",
+                params![execution, operation, request_id, fingerprint, evidence.position as i64],
+            )?;
+            evidence.position
+        };
+        transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)", params![execution, position as i64])?;
+        transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
+        let durable = Position {
+            history: Some(History {
+                store: self.identity.to_string(),
+                epoch: execution.into(),
+            }),
+            sequence: position,
+        };
+        Ok((
+            position,
+            Receipt {
+                request_id: request_id.into(),
+                accepted_at: Some(durable.clone()),
+                durable_at: Some(durable),
+                completed: true,
+            },
+        ))
     }
     pub fn open_stream(&self, execution: &str, stream: &str) -> Result<()> {
         let connection = self.lock()?;
@@ -465,6 +501,60 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn insert_evidence(transaction: &rusqlite::Transaction<'_>, execution: &str, evidence: &mut Evidence) -> Result<()> {
+    require_open(transaction, execution)?;
+    evidence.position = next_position(transaction, execution)?;
+    transaction.execute(
+        "INSERT INTO evidence(execution,position,payload) VALUES (?1,?2,?3)",
+        params![execution, evidence.position as i64, evidence.encode_to_vec()],
+    )?;
+    if evidence.kind == "attempt:start" {
+        transaction.execute(
+            "INSERT INTO attempts VALUES (?1,?2,?3,?4,?5)",
+            params![execution, evidence.step, evidence.operation, evidence.attempt, evidence.position as i64],
+        )?;
+    }
+    if let Some(kind) = evidence.kind.strip_prefix("record:") {
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let definition = Execution::decode(payload.as_slice())?;
+        let catalog = Catalog::decode(definition.catalog.as_slice())?;
+        for section in &catalog.sections {
+            if section.r#type != "dokime.v1.RecordContracts" {
+                continue;
+            }
+            let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
+            let Some(contract) =
+                contracts.records.iter().find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
+            else {
+                continue;
+            };
+            let Some(types) = catalog.types.clone() else {
+                continue;
+            };
+            let Ok(pool) = DescriptorPool::from_file_descriptor_set(types) else {
+                continue;
+            };
+            let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
+                continue;
+            };
+            let Ok(record) = RecordsAppendRequest::decode(evidence.payload.as_slice()) else {
+                continue;
+            };
+            let Ok(row) = DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
+                continue;
+            };
+            for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
+                transaction.execute(
+                    "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
 
 fn configure_read_functions(connection: &Connection) -> Result<()> {
     connection.create_scalar_function(

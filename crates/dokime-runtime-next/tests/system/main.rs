@@ -39,6 +39,7 @@ mod client_reads_bounded_telemetry;
 mod client_reads_interrupted_execution;
 mod client_reads_runtime;
 mod client_renders_fixed_documents;
+mod client_reuses_frozen_schemas;
 mod client_runs_thermal_suite_over_grpc;
 mod client_transfers_execution_content;
 mod cpp_plugin_matches_rust_thermal_evidence;

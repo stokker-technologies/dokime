@@ -1,0 +1,74 @@
+syntax = "proto3";
+package dokime.client.v1;
+option csharp_namespace = "Dokime.Protocol.Client.V1";
+import "dokime/v1/expressions.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/v1/types.proto";
+
+// Columns are group-by fields in request order followed by aggregate aliases in request order; every row follows
+// that order. complete=false means additional groups exceeded the effective result limit.
+message AggregateReply {
+  repeated string columns = 1;
+  repeated .dokime.client.v1.QueryRow rows = 2;
+  bool complete = 3;
+}
+
+// The aggregate vocabulary is shared with document expressions. Percentile requires a rank in the inclusive
+// range 0..100. Aliases are unique and distinct from group-by columns. Count without a column counts rows; null
+// inputs are skipped for other aggregates.
+message QueryAggregate {
+  .dokime.v1.Aggregate aggregate = 1;
+  string column = 2;
+  string alias = 3;
+  optional double percentile = 4;
+}
+
+message QueryFilter {
+  string column = 1;
+  .dokime.client.v1.QueryFilterOperator op = 2;
+  repeated .dokime.v1.Value values = 3;
+}
+
+enum QueryFilterOperator {
+  QUERY_FILTER_OPERATOR_UNSPECIFIED = 0;
+  QUERY_FILTER_OPERATOR_EQ = 1;
+  QUERY_FILTER_OPERATOR_NEQ = 2;
+  QUERY_FILTER_OPERATOR_IN = 3;
+  QUERY_FILTER_OPERATOR_GT = 4;
+  QUERY_FILTER_OPERATOR_GTE = 5;
+  QUERY_FILTER_OPERATOR_LT = 6;
+  QUERY_FILTER_OPERATOR_LTE = 7;
+  QUERY_FILTER_OPERATOR_IS_NULL = 8;
+}
+
+message QueryRow {
+  repeated .dokime.v1.Value values = 1;
+}
+
+enum QuerySource {
+  QUERY_SOURCE_UNSPECIFIED = 0;
+  QUERY_SOURCE_CYCLES = 1;
+  QUERY_SOURCE_CASES = 2;
+  QUERY_SOURCE_EXECUTIONS = 3;
+  QUERY_SOURCE_STEPS = 4;
+  QUERY_SOURCE_RECORDS = 5;
+}
+
+// Reads resolve latest durable once, without flushing accepted writes. Only
+// returned cuts or seals are accepted as at; continuations bind cut, selection,
+// ordering and schema. Missing positions and gaps fail explicitly.
+message AggregatesGetRequest {
+  .dokime.client.v1.QuerySource source = 1;
+  repeated .dokime.client.v1.QueryFilter filters = 2;
+  repeated string group_by = 3;
+  repeated .dokime.client.v1.QueryAggregate aggregates = 4;
+  uint32 limit = 5;
+  .harmos.v1.ReadCut at = 90;
+}
+
+message AggregatesGetResponse { .dokime.client.v1.AggregateReply value = 1; .harmos.v1.ReadCut resolved_at = 90; }
+
+service Aggregates {
+  // Public. Identity: dokime.client.v1.Aggregates/Get
+  rpc Get(.dokime.client.v1.AggregatesGetRequest) returns (.dokime.client.v1.AggregatesGetResponse);
+}

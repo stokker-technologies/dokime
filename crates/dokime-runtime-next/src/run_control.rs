@@ -44,7 +44,7 @@ struct State {
     next: usize,
     completed: HashSet<usize>,
     invoked: HashSet<usize>,
-    command: Option<v1::ExecutionCommandReceipt>,
+    command: Option<dokime_protocol::client::executions::ExecutionCommandReceipt>,
 }
 #[derive(Default)]
 pub(crate) struct RunControl {
@@ -79,7 +79,7 @@ impl RunControl {
     }
     pub(crate) async fn next(
         &self, case: &v1::TestCase, cancellation: &CancellationToken,
-    ) -> Result<Option<(usize, Option<v1::ExecutionCommandReceipt>)>> {
+    ) -> Result<Option<(usize, Option<dokime_protocol::client::executions::ExecutionCommandReceipt>)>> {
         loop {
             let changed = self.changed.notified();
             {
@@ -90,14 +90,17 @@ impl RunControl {
                 if !state.paused && (!state.interactive || state.command.is_some()) {
                     let command = state.command.clone();
                     let index = match command.as_ref() {
-                        Some(command) if command.action == v1::ExecutionCommandAction::Finish as i32 => return Ok(None),
-                        Some(command) if command.action == v1::ExecutionCommandAction::RunStep as i32 => case
-                            .steps
-                            .iter()
-                            .position(|step| {
-                                step.metadata.as_ref().is_some_and(|metadata| Some(&metadata.identifier) == command.step_id.as_ref())
-                            })
-                            .ok_or_else(|| Error::Invalid("Run Step: Select a Frozen Step".into()))?,
+                        Some(command) if command.action == dokime_protocol::client::executions::ExecutionCommandAction::Finish as i32 => {
+                            return Ok(None);
+                        }
+                        Some(command) if command.action == dokime_protocol::client::executions::ExecutionCommandAction::RunStep as i32 => {
+                            case.steps
+                                .iter()
+                                .position(|step| {
+                                    step.metadata.as_ref().is_some_and(|metadata| Some(&metadata.identifier) == command.step_id.as_ref())
+                                })
+                                .ok_or_else(|| Error::Invalid("Run Step: Select a Frozen Step".into()))?
+                        }
                         Some(_) => (0..case.steps.len()).find(|index| !state.completed.contains(index)).unwrap_or(case.steps.len()),
                         _ => {
                             while state.completed.contains(&state.next) {
@@ -127,7 +130,7 @@ impl RunControl {
         state.command = None;
         Ok(())
     }
-    pub(crate) fn take_pending(&self) -> Result<Option<v1::ExecutionCommandReceipt>> {
+    pub(crate) fn take_pending(&self) -> Result<Option<dokime_protocol::client::executions::ExecutionCommandReceipt>> {
         Ok(lock(&self.state)?.command.take())
     }
 }
@@ -154,13 +157,13 @@ impl ExecutionManager {
         self.signal_change();
         Ok(())
     }
-    pub fn execution_controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
+    pub fn execution_controls(&self, execution: &str) -> Result<dokime_protocol::client::ExecutionControls> {
         let capabilities = self.capabilities(execution)?;
         let active = lock(&self.inner.active)?;
         let control = active.get(execution).map(|active| lock(&active.control.state)).transpose()?;
         let paused = control.as_ref().is_some_and(|state| state.paused);
         let stopping = control.as_ref().is_some_and(|state| state.stopping);
-        Ok(v1::ExecutionControls {
+        Ok(dokime_protocol::client::ExecutionControls {
             request_id: control.as_ref().map(|_| execution.into()),
             paused,
             stop_requested: stopping,
@@ -168,9 +171,9 @@ impl ExecutionManager {
             can_resume: control.is_some() && paused && !stopping,
             can_stop: control.is_some() && !stopping,
             mode: if control.as_ref().is_some_and(|state| state.interactive) {
-                v1::ExecutionMode::Interactive
+                dokime_protocol::client::ExecutionMode::Interactive
             } else {
-                v1::ExecutionMode::Automatic
+                dokime_protocol::client::ExecutionMode::Automatic
             } as i32,
             can_start: capabilities.start,
             can_rerun: capabilities.rerun,
@@ -199,72 +202,78 @@ impl ExecutionManager {
         self.signal_change();
         Ok(())
     }
-    pub fn submit_execution_command(&self, request: v1::ExecutionSubmitExecutionCommandRequest) -> Result<v1::ExecutionCommandReceipt> {
-        if request.request_id != request.execution_id || request.command_id.trim().is_empty() {
+    pub fn submit_execution_command(
+        &self, request: dokime_protocol::client::executions::CommandsCreateRequest,
+    ) -> Result<dokime_protocol::client::executions::ExecutionCommandReceipt> {
+        if request.request_id.trim().is_empty() || request.parent.trim().is_empty() || request.command_id.trim().is_empty() {
             return Err(Error::Invalid("Submit Execution Command: Use the Run Request ID and a Stable Command ID".into()));
         }
-        if let Some(previous) = self.inner.store.command(&request.request_id, &request.command_id)? {
-            if previous.execution_id != request.execution_id || previous.action != request.action || previous.step_id != request.step_id {
+        if let Some(previous) = self.inner.store.command(&request.parent, &request.command_id)? {
+            if previous.execution_id != request.parent || previous.action != request.action || previous.step_id != request.step_id {
                 return Err(Error::Invalid("Submit Execution Command: Use a New Command ID for a Changed Action".into()));
             }
             return Ok(previous);
         }
-        let snapshot = self.inner.store.cut(&request.execution_id)?;
+        let snapshot = self.inner.store.cut(&request.parent)?;
         let case = match snapshot.execution.origin.and_then(|origin| origin.kind) {
             Some(v1::origin::Kind::PluginRun(run)) => run.test_case.unwrap(),
             _ => return Err(Error::Invalid("Submit Execution Command: Select an Active Plugin Run".into())),
         };
         let active = lock(&self.inner.active)?;
-        let active = active
-            .get(&request.execution_id)
-            .ok_or_else(|| Error::Invalid("Submit Execution Command: Start an Interactive Run First".into()))?;
+        let active =
+            active.get(&request.parent).ok_or_else(|| Error::Invalid("Submit Execution Command: Start an Interactive Run First".into()))?;
         let mut state = lock(&active.control.state)?;
         if !state.interactive || state.stopping || state.busy || state.command.is_some() {
             return Err(Error::Invalid("Submit Execution Command: Wait for an Idle Interactive Run".into()));
         }
-        let refusal = match (v1::ExecutionCommandAction::try_from(request.action), request.step_id.as_ref()) {
-            (Ok(v1::ExecutionCommandAction::Next), None) => {
-                if state.completed.len() >= case.steps.len() {
-                    Some("Choose Finish; Every Frozen Step Has an Effective Invocation".to_owned())
-                } else {
-                    None
+        let refusal =
+            match (dokime_protocol::client::executions::ExecutionCommandAction::try_from(request.action), request.step_id.as_ref()) {
+                (Ok(dokime_protocol::client::executions::ExecutionCommandAction::Next), None) => {
+                    if state.completed.len() >= case.steps.len() {
+                        Some("Choose Finish; Every Frozen Step Has an Effective Invocation".to_owned())
+                    } else {
+                        None
+                    }
                 }
-            }
-            (Ok(v1::ExecutionCommandAction::Finish), None) => None,
-            (Ok(v1::ExecutionCommandAction::RunStep), Some(identifier)) => {
-                let index = case
-                    .steps
-                    .iter()
-                    .position(|step| step.metadata.as_ref().is_some_and(|metadata| &metadata.identifier == identifier))
-                    .ok_or_else(|| Error::Invalid("Run Step: Select a Frozen Step Identifier".into()))?;
-                if state.invoked.contains(&index) && !case.steps[index].repeatable {
-                    Some("Choose a Repeatable Step or Start a New Execution".into())
-                } else if case
-                    .steps
-                    .iter()
-                    .enumerate()
-                    .skip(index + 1)
-                    .any(|(position, step)| state.invoked.contains(&position) && !step.repeatable)
-                {
-                    Some("Start a New Execution; Repeating This Step Would Invalidate an Invoked Nonrepeatable Downstream Step".into())
-                } else {
-                    None
+                (Ok(dokime_protocol::client::executions::ExecutionCommandAction::Finish), None) => None,
+                (Ok(dokime_protocol::client::executions::ExecutionCommandAction::RunStep), Some(identifier)) => {
+                    let index = case
+                        .steps
+                        .iter()
+                        .position(|step| step.metadata.as_ref().is_some_and(|metadata| &metadata.identifier == identifier))
+                        .ok_or_else(|| Error::Invalid("Run Step: Select a Frozen Step Identifier".into()))?;
+                    if state.invoked.contains(&index) && !case.steps[index].repeatable {
+                        Some("Choose a Repeatable Step or Start a New Execution".into())
+                    } else if case
+                        .steps
+                        .iter()
+                        .enumerate()
+                        .skip(index + 1)
+                        .any(|(position, step)| state.invoked.contains(&position) && !step.repeatable)
+                    {
+                        Some("Start a New Execution; Repeating This Step Would Invalidate an Invoked Nonrepeatable Downstream Step".into())
+                    } else {
+                        None
+                    }
                 }
-            }
-            _ => return Err(Error::Invalid("Submit Execution Command: Match Next, RunStep or Finish with Its Step Identifier".into())),
-        };
+                _ => return Err(Error::Invalid("Submit Execution Command: Match Next, RunStep or Finish with Its Step Identifier".into())),
+            };
         let now = self.now_ns();
         let at = prost_types::Timestamp {
             seconds: now.div_euclid(1_000_000_000),
             nanos: now.rem_euclid(1_000_000_000) as i32,
         };
-        let receipt = v1::ExecutionCommandReceipt {
+        let receipt = dokime_protocol::client::executions::ExecutionCommandReceipt {
             request_id: request.request_id,
             command_id: request.command_id,
-            execution_id: request.execution_id,
+            execution_id: request.parent,
             action: request.action,
             step_id: request.step_id,
-            phase: if refusal.is_some() { v1::ExecutionCommandPhase::Refused } else { v1::ExecutionCommandPhase::Accepted } as i32,
+            phase: if refusal.is_some() {
+                dokime_protocol::client::executions::ExecutionCommandPhase::Refused
+            } else {
+                dokime_protocol::client::executions::ExecutionCommandPhase::Accepted
+            } as i32,
             detail: refusal.clone(),
             accepted_at: Some(at),
             updated_at: Some(at),

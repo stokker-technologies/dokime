@@ -1,0 +1,102 @@
+syntax = "proto3";
+package dokime.v1;
+option csharp_namespace = "Dokime.Protocol.V1";
+import "dokime/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_DEBUG = 1;
+  SEVERITY_INFO = 2;
+  SEVERITY_WARNING = 3;
+  SEVERITY_ERROR = 4;
+}
+
+message EvidenceCondition {
+  oneof kind {
+    .dokime.v1.RecordMatch record = 1;
+    .dokime.v1.StreamMatch stream = 2;
+    .dokime.v1.EvidenceConditions all = 3;
+    .dokime.v1.EvidenceConditions any = 4;
+  }
+}
+
+message EvidenceConditions { repeated .dokime.v1.EvidenceCondition conditions = 1; }
+
+message RecordMatch { string kind = 1; map<string, .dokime.v1.Value> fields = 2; }
+
+message StreamMatch {
+  string stream = 1;
+  string field = 2;
+  .dokime.v1.StreamMatchOperator operator = 3;
+  .dokime.v1.Value target = 4;
+  optional double tolerance = 5;
+}
+
+enum StreamMatchOperator {
+  STREAM_MATCH_OPERATOR_UNSPECIFIED = 0;
+  STREAM_MATCH_OPERATOR_EXISTS = 1;
+  STREAM_MATCH_OPERATOR_EQ = 2;
+  STREAM_MATCH_OPERATOR_GT = 3;
+  STREAM_MATCH_OPERATOR_GE = 4;
+  STREAM_MATCH_OPERATOR_LT = 5;
+  STREAM_MATCH_OPERATOR_LE = 6;
+  STREAM_MATCH_OPERATOR_WITHIN = 7;
+}
+
+message ArtifactMetadata {
+  string artifact_id = 1;
+  string upload_id = 2;
+  .dokime.v1.ArtifactScope scope = 3;
+  string filename = 4;
+  optional string content_type = 5;
+  uint64 size_bytes = 6;
+  string sha256 = 7;
+  .dokime.v1.ArtifactState state = 8;
+  .google.protobuf.Timestamp created_at = 9;
+  optional string error = 10;
+}
+
+message ArtifactScope {
+  optional string cycle_id = 1;
+  optional string case_id = 2;
+  optional string execution_id = 3;
+}
+
+enum ArtifactState {
+  ARTIFACT_STATE_UNSPECIFIED = 0;
+  ARTIFACT_STATE_COMPLETE = 1;
+  ARTIFACT_STATE_CANCELLED = 2;
+  ARTIFACT_STATE_REJECTED = 3;
+  ARTIFACT_STATE_FAILED = 4;
+}
+
+message EvidenceOrigin {
+  .dokime.v1.EvidenceOriginKind kind = 1;
+}
+
+message EvidenceOriginKind {
+  oneof kind {
+    bool default = 1;
+    bool initialization = 2;
+    string step_attempt_id = 3;
+    bool cleanup = 4;
+  }
+}
+
+message EvidenceScope {
+  optional string session_id = 1;
+  optional string cycle_id = 2;
+  optional string case_id = 3;
+  optional string execution_id = 4;
+  optional string step_id = 5;
+  optional string criterion_id = 6;
+  optional string template_id = 7;
+  optional string suite_id = 8;
+  .dokime.v1.EvidenceOrigin origin = 9;
+}
+
+message Window {
+  .google.protobuf.Timestamp start = 1;
+  .google.protobuf.Timestamp end = 2;
+}

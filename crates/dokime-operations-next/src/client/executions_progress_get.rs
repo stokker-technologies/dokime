@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read Execution Progress at a Returned Durable Position
+// Executions Progress Get
 
 /* === Modules === */
 
@@ -23,13 +23,13 @@ use prost::Message;
 // Local Imports
 use crate::{Result, client::Context};
 use dokime_protocol::{
+    client::executions::{ProgressGetRequest, ProgressGetResponse},
     v1::ExecutionProgressValue,
-    v1::executions::{ProgressGetRequest, ProgressGetResponse},
 };
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.v1.executions.Progress/Get";
+pub const ID: &str = "dokime.client.v1.executions.Progress/Get";
 
 /* === Macros === */
 

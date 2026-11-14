@@ -20,10 +20,11 @@
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { commands } from "@/lib/desktop/commands";
 // Local Imports
+import { required } from "@/lib/rpc/canonical";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { SecretImportAction } from "@host/dokime/v1/client_types_pb.js";
-import type { Metadata } from "@host/dokime/v1/values_pb.js";
+import { SecretImportAction } from "@host/dokime/client/v1/secrets_pb.js";
+import type { Metadata } from "@host/dokime/v1/metadata_pb.js";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Re-Exports === */
@@ -40,8 +41,13 @@ type Snapshot = Wire<Awaited<ReturnType<typeof rpc.secretsList>>>;
 type Entry = Snapshot["entries"][number];
 export type SecretMetadata = Pick<Wire<Metadata>, "identifier" | "label"> & Partial<Omit<Wire<Metadata>, "identifier" | "label">>;
 export type SecretEntry = Omit<Entry, "metadata"> & { metadata: SecretMetadata };
-export type SecretCatalog = Omit<Snapshot, "entries"> & { entries: SecretEntry[] };
-type WirePreview = Wire<Awaited<ReturnType<typeof rpc.secretsPreview>>>;
+export type SecretSnapshot = Omit<Snapshot, "entries"> & {
+  entries: SecretEntry[];
+  hostId: string;
+  hostLabel: string;
+  cleanupPending?: boolean;
+};
+type WirePreview = Wire<NonNullable<Awaited<ReturnType<typeof rpc.secretsImport>>["preview"]>>;
 export type SecretPreview = Omit<WirePreview, "entries"> & {
   entries: (Omit<WirePreview["entries"][number], "metadata"> & { metadata: SecretMetadata })[];
 };
@@ -50,20 +56,38 @@ export type SecretPreview = Omit<WirePreview, "entries"> & {
 
 /* === Public Functions === */
 
-export async function readSecrets(session: SessionIdentity): Promise<SecretCatalog> {
-  return catalog(await rpc.secretsList(session, {}));
+export async function readSecrets(session: SessionIdentity): Promise<SecretSnapshot> {
+  const [snapshot, status] = await Promise.all([rpc.secretsList(session, {}), rpc.statusGet(session, {})]);
+  const identity = required(status.status?.identity, "Read Secret Host Identity");
+  return { ...catalog(snapshot), hostId: identity.hostId, hostLabel: identity.applicationName || identity.hostId };
 }
 
 export async function putSecret(session: SessionIdentity, metadata: SecretMetadata, value: string | undefined, generation: bigint) {
-  return catalog(await rpc.secretsPut(session, { metadata, value, generation }));
+  const current = await rpc.secretsGet(session, { name: metadata.identifier });
+  if ((await rpc.secretsList(session, {})).generation !== generation) throw new Error("Set Secret: Storage Changed; Refresh Before Saving");
+  await rpc.secretsSet(session, {
+    name: metadata.identifier,
+    value: { metadata, value },
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+  });
+  return readSecrets(session);
 }
 
 export async function removeSecret(session: SessionIdentity, identifier: string, generation: bigint) {
-  return catalog(await rpc.secretsRemove(session, { identifiers: [identifier], generation }));
+  const current = await rpc.secretsGet(session, { name: identifier });
+  if ((await rpc.secretsList(session, {})).generation !== generation)
+    throw new Error("Delete Secret: Storage Changed; Refresh Before Deleting");
+  const reply = await rpc.secretsDelete(session, {
+    names: [identifier],
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+  });
+  return { ...(await readSecrets(session)), cleanupPending: reply.cleanupPending };
 }
 
 export async function exportSecrets(session: SessionIdentity, identifiers: string[], generation: bigint) {
-  const archive = await rpc.secretsExport(session, { identifiers, generation });
+  const archive = required((await rpc.secretsExport(session, { names: identifiers, generation })).archive, "Export Secrets");
   if (archive.data.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
   return saveNativeDocument(session, { kind: "secret_archive", filename: "secrets.b64", bytes: archive.data });
 }
@@ -79,7 +103,10 @@ export async function pickSecretArchive(session: SessionIdentity): Promise<Uint8
 }
 
 export async function previewSecrets(session: SessionIdentity, data: Uint8Array): Promise<SecretPreview> {
-  const preview = await rpc.secretsPreview(session, { data });
+  const preview = required(
+    (await rpc.secretsImport(session, { data, validateOnly: true, requestId: crypto.randomUUID() })).preview,
+    "Preview Secrets",
+  );
   const entries = preview.entries.map((entry) => {
     if (!entry.metadata) throw new Error("Backend omitted imported secret metadata");
     return { ...entry, metadata: entry.metadata };
@@ -92,12 +119,13 @@ export async function importSecrets(session: SessionIdentity, data: Uint8Array, 
     identifier: entry.metadata.identifier,
     action: replace.has(entry.metadata.identifier) ? SecretImportAction.REPLACE : SecretImportAction.SKIP,
   }));
-  return catalog(await rpc.secretsImport(session, { data, choices, generation: preview.generation }));
+  await rpc.secretsImport(session, { data, choices, generation: preview.generation, requestId: crypto.randomUUID() });
+  return readSecrets(session);
 }
 
 /* === Private Functions === */
 
-function catalog(snapshot: Snapshot): SecretCatalog {
+function catalog(snapshot: Snapshot): Omit<SecretSnapshot, "hostId" | "hostLabel"> {
   const entries = snapshot.entries.map((entry) => {
     if (!entry.metadata) throw new Error("Backend omitted secret metadata");
     return { ...entry, metadata: entry.metadata };

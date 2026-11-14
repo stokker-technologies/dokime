@@ -1,0 +1,47 @@
+syntax = "proto3";
+package dokime.client.v1.evidence;
+option csharp_namespace = "Dokime.Protocol.Client.V1.EvidenceResources";
+import "dokime/v1/evidence.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/traceability.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/v1/types.proto";
+
+message TraceabilitySnapshot {
+  bytes revision = 6;
+  .harmos.v1.Position resolved_at = 7;
+  string traceability_id = 1;
+  .dokime.v1.EvidenceScope scope = 2;
+  .google.protobuf.Timestamp created_at = 3;
+  repeated .dokime.v1.TraceabilityEntry entries = 4;
+  .dokime.v1.Metadata metadata = 5;
+}
+
+message TraceabilityGetRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  .harmos.v1.PageRequest page = 2;
+  .harmos.v1.ReadCut at = 3;
+}
+
+message TraceabilityGetResponse {
+  repeated .dokime.client.v1.evidence.TraceabilitySnapshot snapshots = 1;
+  .harmos.v1.ReadCut resolved_at = 2;
+  string next_page_token = 3;
+}
+
+message TraceabilityWatchRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  .harmos.v1.PageRequest page = 2;
+  .harmos.v1.ReadCut at = 3;
+}
+
+message TraceabilityWatchResponse {
+  repeated .dokime.client.v1.evidence.TraceabilitySnapshot snapshots = 1;
+  .harmos.v1.ReadCut resolved_at = 2;
+  bool opening = 3;
+}
+
+service Traceability {
+  rpc Get(.dokime.client.v1.evidence.TraceabilityGetRequest) returns (.dokime.client.v1.evidence.TraceabilityGetResponse);
+  rpc Watch(.dokime.client.v1.evidence.TraceabilityWatchRequest) returns (stream .dokime.client.v1.evidence.TraceabilityWatchResponse);
+}

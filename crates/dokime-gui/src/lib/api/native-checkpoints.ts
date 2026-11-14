@@ -1,381 +1,436 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/* Native immutable history and checkpoint adapters for the original routed UI. */
+// Dokime — SPDX-License-Identifier: Apache-2.0
+// History Projects Final Execution Resources and Their Retained Cuts.
 
 /* === External Imports === */
 
+import { create, fromJson, toJson } from "@bufbuild/protobuf";
+import { ReadCutSchema, type ReadCut } from "@host/harmos/v1/types_pb.js";
+import type { ExecutionDetail } from "@host/dokime/client/v1/executions_pb.js";
+import type { CapturedRecord } from "@host/dokime/client/v1/evidence/records_pb.js";
+import * as protocolV1Execution from "@host/dokime/v1/execution_pb.js";
+import * as protocolV1Evidence from "@host/dokime/v1/evidence_pb.js";
+import * as protocolClientV1ContentExecutionFiles from "@host/dokime/client/v1/content/execution_files_pb.js";
+import { Severity as HostSeverity } from "@host/dokime/v1/evidence_pb.js";
+import { CyclePhase, type CycleSummary } from "@host/dokime/v1/cycles_pb.js";
+
 /* === Local Imports === */
 
-import * as v1 from "@host/dokime/v1/client_types_pb.js";
-import { Severity as HostSeverity } from "@host/dokime/v1/execution_pb.js";
-import { mapCyclePhase, mapStepStatus, projectExecutionStatus } from "./native-planning";
-import { decodeFrozenRecords } from "./native-evidence";
-import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
+import { executionSchemas } from "@/lib/host/schemas";
+import { required, cutKey, type Wire } from "@/lib/rpc/canonical";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
-  CheckpointCursor,
   ExecutionBrowseCycle,
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
   SavedCycleSummary,
 } from "@/lib/types/view-contracts";
+import { mapCyclePhase, mapStepStatus, projectExecutionStatus, listNativeCycles } from "./native-planning";
+import { decodeFrozenRecords } from "./native-evidence";
+import { fetchNativeDocument } from "./native-documents";
+import { readFileReference } from "./native-content";
+import { NATIVE_PAGE_SIZE, NATIVE_MAX_PAGES, safeNumber, timestampIso } from "./native-values";
 
-import { NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
+/* === Constants === */
 
-const GUI_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
-const GUI_CHECKPOINT_IDENTITY_BYTES = 4_096;
-const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
+export const NATIVE_CHECKPOINT_WINDOW_BYTES = 65_536;
+export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
 
-type NativeExecutionCheckpoint = Wire<v1.ExecutionCheckpoint>;
-type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
-type ExecutionStatus = v1.ExecutionState;
-type ResultStatus = v1.ResultStatus;
+/* === Types === */
+
+type ExecutionStatus = protocolV1Execution.ExecutionState;
+type ResultStatus = protocolV1Execution.ResultStatus;
 type Severity = HostSeverity;
-type NativeExecutionBrowsePage = Wire<v1.ExecutionBrowsePage>;
-type CheckpointRecordPage = Omit<Wire<v1.CheckpointRecordPage>, "records"> & {
-  records: (Wire<v1.SavedRecord> & { decoded?: import("@/lib/types").HubRecord })[];
-};
-type ArtifactFrame = Wire<v1.ArtifactFrame>;
-type ArtifactMetadata = Wire<v1.ArtifactMetadata>;
-type ArtifactState = Wire<v1.ArtifactState>;
-type ExecutionFileKind = Wire<v1.ExecutionFileKind>;
-type ExecutionFileState = Wire<v1.ExecutionFileState>;
-type ExecutionFileMetadata = Wire<v1.ExecutionFileMetadata>;
-type ExecutionFileWindow = Wire<v1.ExecutionFileWindow>;
-type CapturedRecord = Wire<v1.CapturedRecord>;
-type CheckpointContext = Wire<v1.CheckpointContext>;
-type CheckpointDocument = Wire<v1.CheckpointDocument>;
-type CheckpointEvidence = Wire<v1.CheckpointEvidence>;
-type CheckpointTelemetryPage = Wire<v1.CheckpointTelemetryPage>;
-type ExecutionAvailability = Wire<v1.ExecutionAvailability>;
-type ExecutionBrowseLifecycle = Wire<v1.ExecutionBrowseLifecycle>;
-type HistoricalExecutionMetadata = Wire<v1.HistoricalExecutionMetadata>;
-type HistoryIssue = Wire<v1.HistoryIssue>;
-
-/* === Limits and session ownership === */
-
-export const NATIVE_CHECKPOINT_WINDOW_BYTES = GUI_CHECKPOINT_WINDOW_BYTES;
-export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = GUI_CHECKPOINT_ARTIFACT_BYTES;
-
+type ExecutionFileMetadata = Wire<protocolClientV1ContentExecutionFiles.ExecutionFileMetadata>;
+type ExecutionFileKind = protocolClientV1ContentExecutionFiles.ExecutionFileKind;
+type ExecutionFileState = protocolClientV1ContentExecutionFiles.ExecutionFileState;
+type ArtifactState = protocolV1Evidence.ArtifactState;
 export interface NativeCheckpointSession extends SessionIdentity {
-  /** Keep an artifact stream owned by the selected connection generation. */
   own(dispose: () => void): () => void;
 }
-
 export type CheckpointReference = ExecutionCheckpoint;
+export type NativeCycleContinuation = { at: Wire<ReadCut>; pageToken: string };
+export type NativeCyclePage = { entries: SavedCycleSummary[]; next: NativeCycleContinuation | null };
+export type NativeExecutionSelection = {
+  filter?: Parameters<typeof rpc.executionsList>[1]["filter"];
+  order?: Parameters<typeof rpc.executionsList>[1]["order"];
+};
 
-/** Identity preserves the opaque revision and both original native cursors. */
-export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionCheckpoint): string {
+/* === Public Functions === */
+
+export function checkpointKey(checkpoint: CheckpointReference): string {
   if (
     !checkpoint.executionIdentifier ||
-    checkpoint.executionIdentifier.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
-    !(checkpoint.version instanceof Uint8Array) ||
-    checkpoint.version.length === 0 ||
-    checkpoint.version.length > GUI_CHECKPOINT_IDENTITY_BYTES
-  ) {
-    throw new Error("Invalid checkpoint identity or revision token.");
-  }
-  const positionCursor = checkpointCursor(checkpoint.position);
-  const evidenceCursor = checkpointCursor(checkpoint.evidenceThrough);
-  const position = cursorKey(positionCursor);
-  const evidence = cursorKey(evidenceCursor);
-  if (position[0] !== evidence[0] || position[1] !== evidence[1] || evidenceCursor.sequence > positionCursor.sequence) {
-    throw new Error("Checkpoint evidence differs from inspected history.");
-  }
-  const version = Array.from(checkpoint.version, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return JSON.stringify([checkpoint.executionIdentifier, position, version, evidence]);
+    !checkpoint.version.length ||
+    !checkpoint.position.history.store ||
+    !checkpoint.position.history.epoch ||
+    checkpoint.position.sequence < 0n ||
+    cutKey(checkpoint.position.history) !== cutKey(checkpoint.evidenceThrough.history) ||
+    checkpoint.evidenceThrough.sequence > checkpoint.position.sequence
+  )
+    throw new Error("Read Checkpoint: Invalid Identity, Seal or Position");
+  return cutKey(checkpoint);
 }
 
-/** The cursor narrowed to its validated fields; throws when it is absent or out of bounds. */
-function checkpointCursor(cursor: CheckpointReference["position"] | NativeStorageCursor | undefined): CheckpointCursor {
-  if (
-    !cursor?.history?.store ||
-    !cursor.history.epoch ||
-    cursor.history.store.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
-    cursor.history.epoch.length > GUI_CHECKPOINT_IDENTITY_BYTES ||
-    typeof cursor.sequence !== "bigint" ||
-    cursor.sequence < 0n ||
-    cursor.sequence > 0xffffffffffffffffn
-  ) {
-    throw new Error("Invalid checkpoint storage cursor.");
-  }
-  return {
-    history: { store: cursor.history.store, epoch: cursor.history.epoch },
-    sequence: cursor.sequence,
-  };
+function assertActive(session: SessionIdentity, signal: AbortSignal | undefined, action: string): void {
+  if (!session.isCurrent() || signal?.aborted) throw new Error(`${action}: Owning Connection Changed or Read Cancelled`);
 }
 
-function cursorKey(cursor: CheckpointCursor) {
-  return [cursor.history.store, cursor.history.epoch, cursor.sequence.toString()] as const;
-}
-
-function nativeCheckpoint(checkpoint: CheckpointReference): NativeExecutionCheckpoint {
+function evidenceCut(checkpoint: CheckpointReference): Wire<ReadCut> {
   checkpointKey(checkpoint);
-  return checkpoint;
+  return { positions: [checkpoint.evidenceThrough], revisions: [] };
 }
 
-function assertActive(session: SessionIdentity, signal: AbortSignal | undefined, operation: string): void {
-  if (signal?.aborted) throw new Error(`${operation} was cancelled.`);
-  if (!session.isCurrent()) throw new Error(`${operation} lost its owning connection.`);
+async function executionAt(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
+  assertActive(session, signal, "Read Execution Checkpoint");
+  const reply = await rpc.executionsGet(session, { name: checkpoint.executionIdentifier, at: checkpoint.position });
+  const execution = required(reply.execution, "Read Execution Checkpoint");
+  if (cutKey(execution.seal) !== cutKey(checkpoint.version) || execution.summary?.executionId !== checkpoint.executionIdentifier)
+    throw new Error("Read Execution Checkpoint: Seal or Identity Changed");
+  assertActive(session, signal, "Read Execution Checkpoint");
+  return execution;
 }
-
-function assertCheckpoint(actual: NativeExecutionCheckpoint | undefined, expected: CheckpointReference, operation: string): void {
-  if (!actual || checkpointKey(actual) !== checkpointKey(expected)) {
-    throw new Error(`${operation} returned a different checkpoint.`);
-  }
-}
-
-function pageLimit(limit: number | undefined, operation: string): number {
-  const value = limit ?? NATIVE_PAGE_SIZE;
-  if (!Number.isSafeInteger(value) || value < 1 || value > NATIVE_PAGE_SIZE) {
-    throw new NativeApiLimitError(operation, `limit must be between 1 and ${NATIVE_PAGE_SIZE}`);
-  }
-  return value;
-}
-
-function mapIssue(issue: HistoryIssue): {
-  source: string | null;
-  dataset: string | null;
-  message: string;
-} {
-  return {
-    source: issue.source ?? null,
-    dataset: issue.dataset ?? null,
-    message: issue.message,
-  };
-}
-
-/* === History discovery === */
-
-export type NativeCycleContinuation = { at: CheckpointCursor; after: bigint };
-
-export type NativeCyclePage = {
-  entries: SavedCycleSummary[];
-  next: NativeCycleContinuation | null;
-};
 
 export async function fetchNativeCyclePage(
   session: SessionIdentity,
   after: NativeCycleContinuation | null,
   signal: AbortSignal | undefined,
-  filter: NonNullable<Parameters<typeof rpc.historyBrowseCycles>[1]["filter"]>,
+  filter: NonNullable<Parameters<typeof rpc.cyclesList>[1]["filter"]>,
 ): Promise<NativeCyclePage> {
-  assertActive(session, signal, "History.BrowseCycles");
-  const page = await rpc.historyBrowseCycles(session, {
-    limit: NATIVE_PAGE_SIZE,
-    at: after?.at,
-    afterSequence: after?.after ?? 0n,
+  assertActive(session, signal, "List Saved Cycles");
+  const reply = await rpc.cyclesList(session, {
     filter,
+    selection: { phases: [CyclePhase.SEALED] },
+    at: after?.at,
+    page: { pageSize: NATIVE_PAGE_SIZE, pageToken: after?.pageToken ?? "" },
   });
-  assertActive(session, signal, "History.BrowseCycles");
-  const at = checkpointCursor(page.at);
-  if (after && cursorKey(at).join("/") !== cursorKey(after.at).join("/")) {
-    throw new Error("History.BrowseCycles returned a different snapshot.");
-  }
-  const next = page.nextAfterSequence;
-  if (next !== undefined && (next <= (after?.after ?? 0n) || next > at.sequence)) {
-    throw new Error("History.BrowseCycles returned a continuation that did not advance within its snapshot.");
-  }
-  const entries = page.entries.map((cycle): SavedCycleSummary => {
-    const created = timestampIso(cycle.createdAt);
-    const updated = timestampIso(cycle.updatedAt);
-    if (!cycle.cycleId || !cycle.metadata || mapCyclePhase(cycle.phase) !== "sealed" || !created || !updated) {
-      throw new Error("History.BrowseCycles returned an invalid sealed cycle header.");
-    }
-    return {
+  const at = required(reply.resolvedAt, "List Saved Cycles Cut");
+  if (after && cutKey(after.at) !== cutKey(at)) throw new Error("List Saved Cycles: Retained Cut Changed");
+  if (reply.nextPageToken && reply.nextPageToken === after?.pageToken) throw new Error("List Saved Cycles: Continuation Did Not Advance");
+  return {
+    entries: reply.cycles.map((cycle) => ({
       cycle_id: cycle.cycleId,
-      label: cycle.metadata.label,
+      label: cycle.metadata?.label || cycle.cycleId,
       phase: "sealed",
-      created_at: created,
-      updated_at: updated,
-      execution_count: safeNumber(cycle.executionCount, "historical cycle execution count"),
+      created_at: required(timestampIso(cycle.createdAt), "Read Saved Cycle Creation"),
+      updated_at: required(timestampIso(cycle.updatedAt), "Read Saved Cycle Update"),
+      execution_count: safeNumber(cycle.executionCount, "Saved Cycle Executions"),
       archived: cycle.archived,
-    };
-  });
-  return { entries, next: next === undefined ? null : { at, after: next } };
+    })),
+    next: reply.nextPageToken ? { at, pageToken: reply.nextPageToken } : null,
+  };
 }
 
-/** Read one bounded immutable execution page and retain the old grouping view model. */
-/**
- * Server-side selection and ordering for the merged execution browse.
- *
- * `text` matches an entry's title, its execution identifier and its suite
- * label; an empty string selects everything. Repeated fields are disjunctive
- * within themselves and an empty one is no constraint.
- */
-export type NativeExecutionSelection = {
-  filter?: NonNullable<Parameters<typeof rpc.historyBrowseExecutions>[1]["filter"]>;
-  order?: NonNullable<Parameters<typeof rpc.historyBrowseExecutions>[1]["order"]>;
-};
-
-/**
- * One page of History.BrowseExecutions under one unchanged selection.
- *
- * `filter` and `order` go out verbatim on every continuation: the contract
- * rejects a changed selection, a changed order, or an `after_execution_id` the
- * filter excludes rather than silently restarting the read, so the caller owns
- * one selection object and this forwards exactly it.
- */
 export async function fetchNativeExecutionPage(
   session: SessionIdentity,
   after: string | null,
   signal?: AbortSignal,
   selection: NativeExecutionSelection = {},
 ): Promise<ExecutionBrowsePage> {
-  assertActive(session, signal, "History.BrowseExecutions");
-  const page = await rpc.historyBrowseExecutions(session, {
-    limit: NATIVE_PAGE_SIZE,
-    afterExecutionId: after ?? "",
-    filter: selection.filter,
-    order: selection.order,
+  assertActive(session, signal, "List Executions");
+  const continuation = after ? (JSON.parse(after) as { at: Parameters<typeof fromJson>[1]; token: string }) : undefined;
+  const at = continuation ? fromJson(ReadCutSchema, continuation.at) : undefined;
+  const reply = await rpc.executionsList(session, {
+    ...selection,
+    at,
+    page: { pageSize: NATIVE_PAGE_SIZE, pageToken: continuation?.token ?? "" },
   });
-  assertActive(session, signal, "History.BrowseExecutions");
-  const next = page.nextAfterExecutionId ?? null;
-  if (next !== null && next === (after ?? "")) {
-    throw new NativeApiLimitError("History.BrowseExecutions", "pagination did not advance");
-  }
+  const cut = required(reply.resolvedAt, "List Executions Cut");
+  if (at && cutKey(at) !== cutKey(cut)) throw new Error("List Executions: Retained Cut Changed");
+  if (reply.nextPageToken && reply.nextPageToken === continuation?.token) throw new Error("List Executions: Continuation Did Not Advance");
+  const cycles = await listNativeCycles(session);
+  assertActive(session, signal, "List Executions");
   return {
-    entries: page.entries.map(mapBrowseEntry),
-    next,
-    discovery_complete: page.discoveryComplete,
-    conflicts: [...page.conflicts],
-    omitted_conflicts: page.omittedConflicts,
-    issues: page.issues.map(mapIssue),
-    omitted_issues: page.omittedIssues,
-    cycles: page.cycles.map(mapBrowseCycle),
+    entries: reply.executions.map(mapBrowseEntry),
+    next: reply.nextPageToken
+      ? JSON.stringify({ at: toJson(ReadCutSchema, create(ReadCutSchema, cut)), token: reply.nextPageToken })
+      : null,
+    discovery_complete: true,
+    conflicts: [],
+    omitted_conflicts: 0,
+    issues: [],
+    omitted_issues: 0,
+    cycles: cycles.map(mapBrowseCycle),
   };
 }
 
-/** Permanently delete one sealed execution using a caller-stable retry identity. */
-export async function deleteNativeExecution(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  requestIdentifier: string,
-): Promise<{
-  request_identifier: string;
-  execution_identifier: string;
-  local_complete: boolean;
-}> {
-  if (!requestIdentifier || new TextEncoder().encode(requestIdentifier).byteLength > 256) {
-    throw new Error("History.DeleteExecution requires a request identifier of 1 to 256 UTF-8 bytes.");
-  }
-
-  assertActive(session, undefined, "History.DeleteExecution");
-  const reply = await rpc.historyDeleteExecution(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-    requestIdentifier,
-  });
-  assertActive(session, undefined, "History.DeleteExecution");
-
-  if (reply.requestIdentifier !== requestIdentifier) {
-    throw new Error("History.DeleteExecution returned a different request identifier.");
-  }
-  if (reply.executionIdentifier !== checkpoint.executionIdentifier) {
-    throw new Error("History.DeleteExecution returned a different execution identifier.");
-  }
-
+function mapBrowseEntry(execution: Wire<ExecutionDetail>): ExecutionBrowseEntry {
+  const summary = required(execution.summary, "Read Execution Summary");
+  const position = execution.resolvedAt;
+  const checkpoint =
+    summary.state === protocolV1Execution.ExecutionState.SEALED && execution.seal.length && position?.history
+      ? {
+          executionIdentifier: summary.executionId,
+          version: execution.seal,
+          position: { history: position.history, sequence: position.sequence },
+          evidenceThrough: { history: position.history, sequence: position.sequence },
+        }
+      : null;
   return {
-    request_identifier: reply.requestIdentifier,
-    execution_identifier: reply.executionIdentifier,
-    local_complete: reply.localComplete,
+    metadata: {
+      execution_id: summary.executionId,
+      cycle_id: execution.cycleId || null,
+      case_id: summary.caseId,
+      template_id: execution.admittedTemplate?.identifier ?? null,
+      suite_label: execution.admittedSuite?.label ?? null,
+      title: execution.admittedTemplate?.label || summary.executionId,
+      status: executionStatusLabel(summary.state, execution.outcome, !!execution.startedAt),
+      started_at: timestampIso(execution.startedAt),
+      finished_at: timestampIso(execution.finishedAt),
+      result: null,
+      origin: execution.origin,
+      outcome: execution.outcome,
+    },
+    checkpoint,
+    availability:
+      summary.state === protocolV1Execution.ExecutionState.SEALED ? "stored" : execution.controls?.requestId ? "live" : "uncheckpointed",
+    archived: summary.archived,
   };
 }
 
-function mapBrowseEntry(entry: NativeExecutionBrowsePage["entries"][number]): ExecutionBrowseEntry {
-  const metadata = entry.metadata;
-  if (!metadata) throw new Error("History.BrowseExecutions returned an entry without metadata.");
-  return {
-    metadata: mapExecutionMetadata(metadata),
-    checkpoint: entry.checkpoint ? mapCheckpoint(entry.checkpoint) : null,
-    availability: mapAvailability(entry.availability),
-    archived: entry.archived,
-  };
-}
-
-function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): ExecutionBrowseCycle {
-  const count = (value: bigint, label: string) => safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
+function mapBrowseCycle(cycle: Wire<CycleSummary>): ExecutionBrowseCycle {
+  const result = cycle.result;
   return {
     cycle_id: cycle.cycleId,
-    label: cycle.label ?? null,
-    phase: cycle.phase ? mapCyclePhase(cycle.phase) : null,
-    lifecycle: mapBrowseLifecycle(cycle.lifecycle),
-    result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
-    case_count: count(cycle.caseCount, "case"),
-    execution_count: count(cycle.executionCount, "execution"),
-    unrun_count: count(cycle.unrunCount, "unrun"),
-    queued_count: count(cycle.queuedCount, "queued"),
-    running_count: count(cycle.runningCount, "running"),
-    passed_count: count(cycle.passedCount, "passed"),
-    failed_count: count(cycle.failedCount, "failed"),
-    blocked_count: count(cycle.blockedCount, "blocked"),
+    label: cycle.metadata?.label || null,
+    phase: mapCyclePhase(cycle.phase),
+    lifecycle: cycle.runningCount ? "running" : cycle.sealed ? "completed" : "pending",
+    result_status: result ? mapResultStatus(result.status) : null,
+    case_count: safeNumber(cycle.caseCount, "Cycle Cases"),
+    execution_count: safeNumber(cycle.executionCount, "Cycle Executions"),
+    unrun_count: safeNumber(cycle.queuedCount, "Cycle Unrun Executions"),
+    queued_count: safeNumber(cycle.queuedCount, "Cycle Queued Executions"),
+    running_count: safeNumber(cycle.runningCount, "Cycle Running Executions"),
+    passed_count: result?.passed ?? 0,
+    failed_count: result?.failed ?? 0,
+    blocked_count: result?.blocked ?? 0,
     started_at: timestampIso(cycle.startedAt),
-    finished_at: timestampIso(cycle.finishedAt),
+    finished_at: cycle.sealed ? timestampIso(cycle.updatedAt) : null,
   };
 }
 
-function mapBrowseLifecycle(value: ExecutionBrowseLifecycle | undefined): ExecutionBrowseCycle["lifecycle"] {
-  switch (value) {
-    case v1.ExecutionBrowseLifecycle.RUNNING:
-      return "running";
-    case v1.ExecutionBrowseLifecycle.INTERRUPTED:
-      return "interrupted";
-    case v1.ExecutionBrowseLifecycle.UNCHECKPOINTED:
-      return "uncheckpointed";
-    case v1.ExecutionBrowseLifecycle.COMPLETED:
-      return "completed";
-    default:
-      return "pending";
+export async function deleteNativeExecution(session: SessionIdentity, checkpoint: CheckpointReference, requestIdentifier: string) {
+  await executionAt(session, checkpoint);
+  const reply = await rpc.executionsDelete(session, { name: checkpoint.executionIdentifier, requestId: requestIdentifier });
+  if (reply.receipt?.requestId !== requestIdentifier) throw new Error("Delete Execution: Mutation Receipt Changed");
+  return {
+    request_identifier: requestIdentifier,
+    execution_identifier: checkpoint.executionIdentifier,
+    local_complete: reply.receipt.completed,
+  };
+}
+
+export async function fetchNativeCheckpointDocument(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
+  const execution = await executionAt(session, checkpoint, signal);
+  const [steps, cycle] = await Promise.all([
+    rpc.executionsSteps(session, { name: checkpoint.executionIdentifier, at: checkpoint.position }),
+    rpc.cyclesGet(session, { name: execution.cycleId }),
+  ]);
+  return {
+    checkpoint,
+    acquisitionFinished: !!execution.finishedAt,
+    execution,
+    steps: steps.steps,
+    cycle: required(cycle.cycle, "Read Checkpoint Cycle"),
+  };
+}
+
+export async function fetchNativeCheckpointEvidence(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
+  const execution = await executionAt(session, checkpoint, signal);
+  const at = evidenceCut(checkpoint);
+  const outputs: Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["files"] = [];
+  const artifacts: Wire<Awaited<ReturnType<typeof rpc.contentArtifactsList>>>["artifacts"] = [];
+  let pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.contentExecutionFilesList(session, {
+      parent: checkpoint.executionIdentifier,
+      at,
+      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+    });
+    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Files: Retained Cut Changed");
+    outputs.push(...reply.files);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
+      throw new Error("Read Checkpoint Files: Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
   }
+  pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.contentArtifactsList(session, {
+      scope: { executionId: checkpoint.executionIdentifier },
+      at,
+      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+    });
+    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Artifacts: Retained Cut Changed");
+    artifacts.push(...reply.artifacts);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
+      throw new Error("Read Checkpoint Artifacts: Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+  }
+  assertActive(session, signal, "Read Checkpoint Evidence");
+  return { outputs, artifacts, telemetryTables: execution.schemas?.streams.map((schema) => ({ table: schema.stream, schema })) ?? [] };
 }
 
-function mapCheckpoint(checkpoint: NativeExecutionCheckpoint): ExecutionCheckpoint {
-  checkpointKey(checkpoint);
+export async function fetchNativeCheckpointRecords(
+  session: SessionIdentity,
+  checkpoint: CheckpointReference,
+  options: { after?: string | null; limit?: number } = {},
+  signal?: AbortSignal,
+) {
+  const execution = await executionAt(session, checkpoint, signal);
+  const at = evidenceCut(checkpoint);
+  const reply = await rpc.evidenceRecordsList(session, {
+    selection: { scope: { executionId: checkpoint.executionIdentifier } },
+    at,
+    page: { pageSize: options.limit ?? NATIVE_PAGE_SIZE, pageToken: options.after ?? "" },
+  });
+  if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Records: Retained Cut Changed");
+  const registry = await executionSchemas(session).get(session, execution);
+  const decoded = decodeFrozenRecords(reply.records, registry, execution.schemas?.records);
   return {
-    executionIdentifier: checkpoint.executionIdentifier,
-    position: checkpointCursor(checkpoint.position),
-    version: checkpoint.version.slice(),
-    evidenceThrough: checkpointCursor(checkpoint.evidenceThrough),
+    records: reply.records.map((record, index) => ({ record, epoch: checkpoint.position.history.epoch, decoded: decoded[index] })),
+    nextAfter: reply.nextPageToken || null,
   };
 }
 
-function mapExecutionMetadata(metadata: HistoricalExecutionMetadata) {
-  return {
-    execution_id: metadata.executionId,
-    cycle_id: metadata.cycleId ?? null,
-    case_id: metadata.caseId,
-    /* The frozen case template and admitted suite label this entry belongs
-       to: what `ExecutionFilter` selects on, so a client can read back what it
-       asked for. Absent when the stored row no longer resolves its case or
-       suite revision. */
-    template_id: metadata.templateId ?? null,
-    suite_label: metadata.suiteLabel ?? null,
-    title: metadata.title || metadata.executionId,
-    status: executionStatusLabel(metadata.status, metadata.outcome, metadata.startedAt !== undefined),
-    started_at: timestampIso(metadata.startedAt),
-    finished_at: timestampIso(metadata.finishedAt),
-    result: null,
-    origin: metadata.origin,
-    outcome: metadata.outcome,
+export async function fetchNativeCheckpointTelemetry(
+  session: SessionIdentity,
+  checkpoint: CheckpointReference,
+  table: string,
+  options: { after?: string | null; limit?: number } = {},
+  signal?: AbortSignal,
+) {
+  await executionAt(session, checkpoint, signal);
+  const at = evidenceCut(checkpoint);
+  const reply = await rpc.evidenceSamplesList(session, {
+    scope: { executionId: checkpoint.executionIdentifier },
+    streams: [table],
+    at,
+    page: { pageSize: options.limit ?? NATIVE_PAGE_SIZE, pageToken: options.after ?? "" },
+  });
+  if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Samples: Retained Cut Changed");
+  return { samples: reply.samples, nextAfter: reply.nextPageToken || null };
+}
+
+export async function fetchNativeCheckpointContext(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
+  const execution = await executionAt(session, checkpoint, signal);
+  const at = evidenceCut(checkpoint);
+  const selection = {
+    owner: {
+      owner: { kind: { case: "execution" as const, value: { cycleId: execution.cycleId, executionId: checkpoint.executionIdentifier } } },
+    },
+    includeContext: true,
   };
+  const notes = [] as Awaited<ReturnType<typeof rpc.evidenceNotesList>>["notes"];
+  const health = [] as Awaited<ReturnType<typeof rpc.evidenceHealthEventsList>>["events"];
+  let pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.evidenceNotesList(session, { selection, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
+    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Notes: Retained Cut Changed");
+    notes.push(...reply.notes);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
+      throw new Error("Read Checkpoint Notes: Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+  }
+  pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.evidenceHealthEventsList(session, { selection, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
+    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Health: Retained Cut Changed");
+    health.push(...reply.events);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
+      throw new Error("Read Checkpoint Health: Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+  }
+  const prompts = [] as Awaited<ReturnType<typeof rpc.promptsList>>["prompts"];
+  pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await rpc.promptsList(session, {
+      executionId: checkpoint.executionIdentifier,
+      at,
+      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+    });
+    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Prompts: Retained Cut Changed");
+    prompts.push(...reply.prompts);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
+      throw new Error("Read Checkpoint Prompts: Continuation Did Not Advance");
+    pageToken = reply.nextPageToken;
+  }
+  const cycle = await rpc.cyclesGet(session, { name: execution.cycleId });
+  const overview = await rpc.backendOverviewGet(session, {});
+  const document = await fetchNativeDocument(
+    { ...session, own: () => () => undefined },
+    {
+      cycleId: execution.cycleId,
+      executionId: checkpoint.executionIdentifier,
+      documentId: "",
+      epoch: required(overview.overview, "Read Checkpoint Host Epoch").sessionId,
+      at,
+      structureOnly: true,
+    },
+    signal,
+  );
+  return { cycle: cycle.cycle, notes, health, prompts, document };
+}
+
+export async function readNativeCheckpointOutput(
+  session: SessionIdentity,
+  checkpoint: CheckpointReference,
+  relativePath: string,
+  options: { offset?: bigint; maxBytes?: number } = {},
+  signal?: AbortSignal,
+) {
+  await executionAt(session, checkpoint, signal);
+  const item = await rpc.contentExecutionFilesGet(session, {
+    parent: checkpoint.executionIdentifier,
+    name: relativePath,
+    at: evidenceCut(checkpoint),
+  });
+  const file = required(item.file, "Read Checkpoint File");
+  const offset = options.offset ?? 0n;
+  const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
+  if (offset < 0n || maxBytes < 1 || maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES) throw new Error("Read Checkpoint File: Invalid Window");
+  const reply = await rpc.filesRead(session, { file, offset, maxBytes: BigInt(maxBytes) });
+  if (reply.data.length > maxBytes || reply.totalLength !== file.length || cutKey(reply.sha256) !== cutKey(file.sha256))
+    throw new Error("Read Checkpoint File: Invalid Range or Digest");
+  return { ...required(item.metadata, "Read Checkpoint File Metadata"), offset, data: reply.data, observedSizeBytes: reply.totalLength };
+}
+
+export async function downloadNativeCheckpointArtifact(
+  session: NativeCheckpointSession,
+  checkpoint: CheckpointReference,
+  artifactId: string,
+  signal?: AbortSignal,
+) {
+  await executionAt(session, checkpoint, signal);
+  const item = await rpc.contentArtifactsGet(session, { name: artifactId, at: evidenceCut(checkpoint) });
+  const metadata = required(item.metadata, "Read Checkpoint Artifact Metadata");
+  if (metadata.artifactId !== artifactId || metadata.scope?.executionId !== checkpoint.executionIdentifier)
+    throw new Error("Read Checkpoint Artifact: Identity Changed");
+  const bytes = await readFileReference(
+    session,
+    required(item.file, "Read Checkpoint Artifact File"),
+    signal,
+    NATIVE_CHECKPOINT_ARTIFACT_BYTES,
+  );
+  return { metadata, bytes };
 }
 
 export function executionStatusLabel(
   state: ExecutionStatus | undefined,
-  outcome?: Wire<v1.ExecutionOutcome>,
+  outcome?: Wire<protocolV1Execution.ExecutionOutcome>,
   started = false,
 ): "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" | "skipped" {
-  if (state === v1.ExecutionState.OPEN) return started ? "running" : "pending";
+  if (state === protocolV1Execution.ExecutionState.OPEN) return started ? "running" : "pending";
   const attribution = outcome?.attribution;
-  if ((attribution?.case === "evaluated" || attribution?.case === "declared") && attribution.value.status === v1.ResultStatus.BLOCKED)
+  if (
+    (attribution?.case === "evaluated" || attribution?.case === "declared") &&
+    attribution.value.status === protocolV1Execution.ResultStatus.BLOCKED
+  )
     return "blocked";
   const status = projectExecutionStatus(state, outcome);
   if (status === "stopped") return "cancelled";
@@ -388,320 +443,18 @@ export function executionStatusLabel(
 
 function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
   switch (status) {
-    case v1.ResultStatus.PASSED:
+    case protocolV1Execution.ResultStatus.PASSED:
       return "passed";
-    case v1.ResultStatus.FAILED:
+    case protocolV1Execution.ResultStatus.FAILED:
       return "failed";
-    case v1.ResultStatus.BLOCKED:
+    case protocolV1Execution.ResultStatus.BLOCKED:
       return "blocked";
-    case v1.ResultStatus.CANCELLED:
+    case protocolV1Execution.ResultStatus.CANCELLED:
       return "cancelled";
     default:
       return "pending";
   }
 }
-
-function mapAvailability(value: ExecutionAvailability | undefined): ExecutionBrowseEntry["availability"] {
-  switch (value) {
-    case v1.ExecutionAvailability.LIVE:
-      return "live";
-    case v1.ExecutionAvailability.STORED:
-      return "stored";
-    case v1.ExecutionAvailability.INTERRUPTED:
-      return "interrupted";
-    default:
-      return "uncheckpointed";
-  }
-}
-
-/* === Checkpoint reads === */
-
-export async function fetchNativeCheckpointDocument(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  signal?: AbortSignal,
-): Promise<Omit<CheckpointDocument, "checkpoint"> & { checkpoint: ExecutionCheckpoint }> {
-  assertActive(session, signal, "History.GetCheckpointDocument");
-  const reply = await rpc.historyGetCheckpointDocument(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-  });
-  assertActive(session, signal, "History.GetCheckpointDocument");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.GetCheckpointDocument");
-  if (!reply.document?.execution) {
-    throw new Error("History.GetCheckpointDocument returned no execution document.");
-  }
-  if (!reply.checkpoint) throw new Error("History.GetCheckpointDocument returned no checkpoint.");
-  return { ...reply, checkpoint: mapCheckpoint(reply.checkpoint) };
-}
-
-export async function fetchNativeCheckpointEvidence(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  signal?: AbortSignal,
-): Promise<CheckpointEvidence> {
-  assertActive(session, signal, "History.GetCheckpointEvidence");
-  const reply = await rpc.historyGetCheckpointEvidence(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-    sections: [
-      v1.EvidenceSection.OUTPUTS,
-      v1.EvidenceSection.ARTIFACTS,
-      v1.EvidenceSection.RECORD_SCHEMAS,
-      v1.EvidenceSection.TELEMETRY_TABLES,
-    ],
-  });
-  assertActive(session, signal, "History.GetCheckpointEvidence");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.GetCheckpointEvidence");
-  return reply;
-}
-
-export async function fetchNativeCheckpointRecords(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  options: { after?: string | null; limit?: number } = {},
-  signal?: AbortSignal,
-): Promise<CheckpointRecordPage> {
-  const limit = pageLimit(options.limit, "History.ListCheckpointRecords");
-  const after = options.after ?? "";
-  assertActive(session, signal, "History.ListCheckpointRecords");
-  const reply = await rpc.historyListCheckpointRecords(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-    limit,
-    after,
-  });
-  assertActive(session, signal, "History.ListCheckpointRecords");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.ListCheckpointRecords");
-  if (reply.nextAfter !== undefined && reply.nextAfter === after) {
-    throw new NativeApiLimitError("History.ListCheckpointRecords", "pagination did not advance");
-  }
-  if (reply.records.some((row) => !row.epoch || !row.record)) {
-    throw new NativeApiLimitError("History.ListCheckpointRecords", "record source identity is missing");
-  }
-  const document = await fetchNativeCheckpointDocument(session, checkpoint, signal);
-  const catalog = document.document?.execution?.schemas?.catalog;
-  const records = reply.records.map((row) => {
-    if (!row.record) throw new Error("Read Checkpoint Records: Missing Captured Record");
-    return row.record;
-  });
-  const decoded = decodeFrozenRecords(records, catalog);
-  return { ...reply, records: reply.records.map((row, index) => ({ ...row, decoded: decoded[index] })) };
-}
-
-export async function fetchNativeCheckpointTelemetry(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  table: string,
-  options: { after?: string | null; limit?: number } = {},
-  signal?: AbortSignal,
-): Promise<CheckpointTelemetryPage> {
-  if (!table.trim()) throw new Error("History.ListCheckpointTelemetry requires a table.");
-  const limit = pageLimit(options.limit, "History.ListCheckpointTelemetry");
-  const after = options.after ?? "";
-  assertActive(session, signal, "History.ListCheckpointTelemetry");
-  const reply = await rpc.historyListCheckpointTelemetry(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-    table,
-    limit,
-    after,
-  });
-  assertActive(session, signal, "History.ListCheckpointTelemetry");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.ListCheckpointTelemetry");
-  if (reply.table !== table) throw new Error("History.ListCheckpointTelemetry returned another table.");
-  if (reply.rows.some((row) => !row.epoch || !row.sample || row.sample.stream !== table)) {
-    throw new NativeApiLimitError("History.ListCheckpointTelemetry", "sample source identity differs");
-  }
-  if (reply.nextAfter !== undefined && reply.nextAfter === after) {
-    throw new NativeApiLimitError("History.ListCheckpointTelemetry", "pagination did not advance");
-  }
-  return reply;
-}
-
-export async function fetchNativeCheckpointContext(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  signal?: AbortSignal,
-): Promise<CheckpointContext> {
-  assertActive(session, signal, "History.GetCheckpointContext");
-  const reply = await rpc.historyGetCheckpointContext(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-  });
-  assertActive(session, signal, "History.GetCheckpointContext");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.GetCheckpointContext");
-  return reply;
-}
-
-export async function readNativeCheckpointOutput(
-  session: SessionIdentity,
-  checkpoint: CheckpointReference,
-  relativePath: string,
-  options: { offset?: bigint; maxBytes?: number } = {},
-  signal?: AbortSignal,
-): Promise<ExecutionFileWindow> {
-  const offset = options.offset ?? 0n;
-  const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
-  if (offset < 0n) throw new NativeApiLimitError("History.ReadCheckpointOutput", "offset is negative");
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES) {
-    throw new NativeApiLimitError("History.ReadCheckpointOutput", `max_bytes must be between 0 and ${NATIVE_CHECKPOINT_WINDOW_BYTES}`);
-  }
-  if (!relativePath || relativePath.includes("\0")) {
-    throw new Error("History.ReadCheckpointOutput requires a relative path.");
-  }
-  assertActive(session, signal, "History.ReadCheckpointOutput");
-  const reply = await rpc.historyReadCheckpointOutput(session, {
-    checkpoint: nativeCheckpoint(checkpoint),
-    relativePath,
-    offset,
-    maxBytes,
-  });
-  assertActive(session, signal, "History.ReadCheckpointOutput");
-  assertCheckpoint(reply.checkpoint, checkpoint, "History.ReadCheckpointOutput");
-  const content = reply.content;
-  if (!content) throw new Error("History.ReadCheckpointOutput returned no content window.");
-  if (content.relativePath !== relativePath || content.offset !== offset) {
-    throw new Error("History.ReadCheckpointOutput returned a different window.");
-  }
-  if (content.data.byteLength > maxBytes || content.observedSizeBytes < content.offset + BigInt(content.data.byteLength)) {
-    throw new NativeApiLimitError("History.ReadCheckpointOutput", "invalid response window");
-  }
-  return content;
-}
-
-/* === Verified checkpoint artifact transfer === */
-
-export interface NativeCheckpointArtifact {
-  metadata: ArtifactMetadata;
-  bytes: Uint8Array;
-}
-
-export async function downloadNativeCheckpointArtifact(
-  session: NativeCheckpointSession,
-  checkpoint: CheckpointReference,
-  artifactId: string,
-  signal?: AbortSignal,
-): Promise<NativeCheckpointArtifact> {
-  if (!artifactId.trim()) throw new Error("History.DownloadCheckpointArtifact requires an artifact id.");
-  assertActive(session, signal, "History.DownloadCheckpointArtifact");
-  let reader: NativeStream<ArtifactFrame> | undefined;
-  let release: (() => void) | undefined;
-  let cancelPromise: Promise<void> | undefined;
-  const cancelReader = async (): Promise<void> => {
-    if (!reader) return;
-    cancelPromise ??= reader.cancel();
-    await cancelPromise;
-  };
-  const abort = () => void cancelReader().catch(() => undefined);
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    reader = await rpc.historyDownloadCheckpointArtifact(session, {
-      checkpoint: nativeCheckpoint(checkpoint),
-      artifactId,
-    });
-    assertActive(session, signal, "History.DownloadCheckpointArtifact");
-    release = session.own(() => void cancelReader().catch(() => undefined));
-    return await assembleCheckpointArtifact(reader, artifactId, () => !signal?.aborted && session.isCurrent());
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    await cancelReader().catch(() => undefined);
-    release?.();
-  }
-}
-
-async function assembleCheckpointArtifact(
-  reader: NativeStream<ArtifactFrame>,
-  artifactId: string,
-  active: () => boolean,
-): Promise<NativeCheckpointArtifact> {
-  let metadata: ArtifactMetadata | undefined;
-  let expectedOffset = 0n;
-  let completionSize: bigint | undefined;
-  let completionSha: string | undefined;
-  let complete = false;
-  const chunks: Uint8Array[] = [];
-  let total = 0n;
-  for await (const frame of reader) {
-    if (!active()) throw new Error("History.DownloadCheckpointArtifact was cancelled.");
-    if (complete) throw new Error("History.DownloadCheckpointArtifact continued after completion.");
-    switch (frame.payload?.kind.case) {
-      case "metadata": {
-        if (metadata || !frame.payload.kind.value || frame.payload.kind.value.artifactId !== artifactId) {
-          throw new Error("History.DownloadCheckpointArtifact metadata identity is invalid.");
-        }
-        metadata = frame.payload.kind.value;
-        validateArtifactMetadata(metadata);
-        break;
-      }
-      case "chunk": {
-        if (!metadata) throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
-        const chunk = frame.payload.kind.value;
-        if (!chunk) throw new Error("Artifact chunk payload is missing.");
-        if (chunk.offset !== expectedOffset) {
-          throw new Error("History.DownloadCheckpointArtifact chunks are not contiguous.");
-        }
-        total += BigInt(chunk.data.byteLength);
-        if (total > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
-          throw new NativeApiLimitError("History.DownloadCheckpointArtifact", "artifact is too large");
-        }
-        chunks.push(chunk.data);
-        expectedOffset = total;
-        break;
-      }
-      case "complete": {
-        if (!metadata) throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
-        const completion = frame.payload.kind.value;
-        if (!completion) throw new Error("Artifact completion payload is missing.");
-        completionSize = completion.sizeBytes;
-        completionSha = normalizedSha(completion.sha256, "artifact completion");
-        complete = true;
-        break;
-      }
-      default:
-        throw new Error("History.DownloadCheckpointArtifact contained an unknown frame.");
-    }
-  }
-  if (!metadata || !complete || completionSize === undefined || !completionSha) {
-    throw new Error("History.DownloadCheckpointArtifact ended before metadata and completion.");
-  }
-  if (metadata.sizeBytes !== total || completionSize !== total) {
-    throw new Error("History.DownloadCheckpointArtifact size does not match its metadata.");
-  }
-  if (normalizedSha(metadata.sha256, "artifact metadata") !== completionSha) {
-    throw new Error("History.DownloadCheckpointArtifact digest metadata disagrees.");
-  }
-  const bytes = new Uint8Array(Number(total));
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  if (!active()) throw new Error("History.DownloadCheckpointArtifact was cancelled.");
-  const actualSha = hex(new Uint8Array(digest));
-  if (actualSha !== completionSha) {
-    throw new Error("History.DownloadCheckpointArtifact digest verification failed.");
-  }
-  return { metadata, bytes };
-}
-
-function validateArtifactMetadata(metadata: ArtifactMetadata): void {
-  if (metadata.state !== v1.ArtifactState.COMPLETE) {
-    throw new Error("History.DownloadCheckpointArtifact metadata is not complete.");
-  }
-  if (metadata.sizeBytes > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
-    throw new NativeApiLimitError("History.DownloadCheckpointArtifact", "artifact is too large");
-  }
-  normalizedSha(metadata.sha256, "artifact metadata");
-}
-
-function normalizedSha(value: string, label: string): string {
-  const normalized = value.toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(normalized)) throw new Error(`Invalid ${label} SHA-256.`);
-  return normalized;
-}
-
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
-}
-
-/* === Small display helpers consumed by the original evidence panels === */
 
 export function checkpointFileLabel(file: ExecutionFileMetadata): string {
   return `${file.relativePath} · ${file.sizeBytes.toString()} bytes · ${fileStateLabel(file.state)}`;
@@ -709,11 +462,11 @@ export function checkpointFileLabel(file: ExecutionFileMetadata): string {
 
 export function checkpointFileKind(kind: ExecutionFileKind | undefined): "text" | "binary" | "media" | "unknown" {
   switch (kind) {
-    case v1.ExecutionFileKind.TEXT:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.TEXT:
       return "text";
-    case v1.ExecutionFileKind.BINARY:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.BINARY:
       return "binary";
-    case v1.ExecutionFileKind.MEDIA:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -726,11 +479,11 @@ export function checkpointFileState(state: ExecutionFileState | undefined): stri
 
 function fileStateLabel(state: ExecutionFileState | undefined): string {
   switch (state) {
-    case v1.ExecutionFileState.STREAMING:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING:
       return "streaming";
-    case v1.ExecutionFileState.FINALIZED:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.FINALIZED:
       return "finalized";
-    case v1.ExecutionFileState.INTERRUPTED:
+    case protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "unspecified";
@@ -739,13 +492,13 @@ function fileStateLabel(state: ExecutionFileState | undefined): string {
 
 export function artifactStateLabel(state: ArtifactState | undefined): string {
   switch (state) {
-    case v1.ArtifactState.COMPLETE:
+    case protocolV1Evidence.ArtifactState.COMPLETE:
       return "complete";
-    case v1.ArtifactState.CANCELLED:
+    case protocolV1Evidence.ArtifactState.CANCELLED:
       return "cancelled";
-    case v1.ArtifactState.REJECTED:
+    case protocolV1Evidence.ArtifactState.REJECTED:
       return "rejected";
-    case v1.ArtifactState.FAILED:
+    case protocolV1Evidence.ArtifactState.FAILED:
       return "failed";
     default:
       return "unspecified";
@@ -753,7 +506,7 @@ export function artifactStateLabel(state: ArtifactState | undefined): string {
 }
 
 export function nativeRecordText(
-  record: CapturedRecord,
+  record: Wire<CapturedRecord>,
   decoded?: import("@/lib/types").HubRecord,
 ): {
   timestamp: string;

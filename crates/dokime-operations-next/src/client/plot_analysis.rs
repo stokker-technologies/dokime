@@ -41,7 +41,7 @@ use sha2::{Digest, Sha256};
 
 /* === Public Functions === */
 
-pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result<v1::PlotEnvelope> {
+pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
     if !matches!(v1::PlotKind::try_from(request.plot_type), Ok(v1::PlotKind::Unspecified | v1::PlotKind::TimeSeries))
         || request.x_key.as_ref().is_some_and(|key| key != "timestamp")
         || request.max_points == Some(0)
@@ -63,7 +63,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
     }
     let mut providers = Vec::new();
     for plugin in context.host.plugins()? {
-        if plugin.state != v1::PluginState::Ready as i32 {
+        if plugin.state != dokime_protocol::client::PluginState::Ready as i32 {
             continue;
         }
         let Some(description) = plugin.description else {
@@ -145,7 +145,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
     raw.analysis = None;
     raw.technique = v1::Downsample::Raw as i32;
     raw.max_points = Some(input_limit as u64);
-    let mut envelope = super::plots_query_snapshots::query_base(context, raw).await?;
+    let mut envelope = super::plots_snapshots_list::query_base(context, raw).await?;
     let payload = envelope.payload.as_mut().ok_or_else(|| Error::Invalid("Query Analysis: Capture Its Raw Source Window".into()))?;
     let frame = payload.frame.take().ok_or_else(|| Error::Invalid("Query Analysis: Select a Time-Series Source".into()))?;
     if frame.series.len() != payload.series.len() {
@@ -228,7 +228,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
             display_count += output.display_indices.len();
             outputs.push(output);
         }
-        computed.push(v1::AnalysisSeries {
+        computed.push(dokime_protocol::client::plots::AnalysisSeries {
             key: series.key.clone(),
             label: series.label.clone(),
             origin: Some(super::projection::timestamp((origin * 1e9) as i64).to_string()),
@@ -238,10 +238,10 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
             outputs,
         });
     }
-    payload.computed = Some(v1::AnalysisComputation {
+    payload.computed = Some(dokime_protocol::client::plots::AnalysisComputation {
         definition: Some(definition),
         selection: Some(selection),
-        source: Some(v1::AnalysisEvidence {
+        source: Some(dokime_protocol::client::plots::AnalysisEvidence {
             store: context.host.identity().backend_id,
             epoch: super::projection::execution_scope(request.scope.as_ref())?.into(),
             position: envelope.revision,

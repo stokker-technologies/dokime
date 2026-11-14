@@ -218,10 +218,10 @@ impl<C: CatalogTypes> Plugin<C> {
             });
         }
         if !prompts.is_empty() {
-            inner = inner.section(Wire(v1::PromptCatalog { prompts }));
+            inner = inner.section(Wire(v1::PromptDefinitions { prompts }));
         }
         if !settings.is_empty() {
-            inner = inner.section(Wire(v1::SettingsCatalog { settings }));
+            inner = inner.section(Wire(v1::SettingsDeclarations { settings }));
         }
         for register in registrations {
             inner = register(inner, executions.clone());

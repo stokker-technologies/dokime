@@ -63,20 +63,9 @@ pub struct Report {
 
 impl Store {
     pub fn plot_preferences(&self, execution: &str, document: &str, plot: &str) -> Result<Option<(Option<u32>, i32)>> {
-        use rusqlite::OptionalExtension;
         Ok(self
-            .lock()?
-            .query_row(
-                "SELECT points,technique FROM plot_preferences WHERE execution=?1 AND document=?2 AND plot=?3",
-                params![execution, document, plot],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?)
-    }
-    pub fn save_plot_preferences(&self, execution: &str, document: &str, plot: &str, points: Option<u32>, technique: i32) -> Result<()> {
-        self.metadata(execution)?;
-        self.lock()?.execute("INSERT INTO plot_preferences VALUES(?1,?2,?3,?4,?5) ON CONFLICT(execution,document,plot) DO UPDATE SET points=excluded.points,technique=excluded.technique",params![execution,document,plot,points,technique])?;
-        Ok(())
+            .administration::<dokime_protocol::client::plots::PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
+            .map(|value| (value.display_points, value.downsample)))
     }
     pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: v1::Document, html: Vec<u8>) -> Result<Report> {
         let mut connection = self.lock()?;

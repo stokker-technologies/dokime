@@ -12,7 +12,14 @@
 /* === Imports === */
 
 #include "dokime/context.hpp"
-#include "dokime/v1/catalog.pb.h"
+#include "dokime/plugin/v1/criteria.pb.h"
+#include "dokime/plugin/v1/executions.pb.h"
+#include "dokime/plugin/v1/steps.pb.h"
+#include "dokime/plugin/v1/test_cases.pb.h"
+#include "dokime/v1/prompts.pb.h"
+#include "dokime/v1/record_contracts.pb.h"
+#include "dokime/v1/scalar.pb.h"
+#include "dokime/v1/suites.pb.h"
 
 /* === Macros === */
 
@@ -123,7 +130,7 @@ private:
   harmos::Plugin native_;
   std::string identifier_;
   v1::Suites suites_;
-  v1::PromptCatalog prompts_;
+  v1::PromptDefinitions prompts_;
   v1::RecordContracts records_;
   std::shared_ptr<detail::Executions> executions_;
 };

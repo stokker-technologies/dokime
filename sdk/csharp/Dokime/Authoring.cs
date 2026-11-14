@@ -3,7 +3,7 @@
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Harmos.Sdk;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 
 namespace Dokime;
 
@@ -60,7 +60,7 @@ public sealed class Template(string identifier, string label)
   internal Func<Context, Task>? InitializeBody { get; private set; }
   internal Func<Context, Task>? CleanupBody { get; private set; }
   internal Func<Context, Task<IAsyncDisposable>>? CreateResource { get; private set; }
-  internal Func<TestCase, IReadOnlyDictionary<string, V1.Value>, TestCase>? MaterializeBody { get; private set; }
+  internal Func<TestCase, IReadOnlyDictionary<string, Dokime.Protocol.V1.Value>, TestCase>? MaterializeBody { get; private set; }
   public Template Step(Step step) { Steps.Add(step); return this; }
   public Template Criterion(Criterion criterion) { Criteria.Add(criterion); return this; }
   public Template Stream(IStream stream) { Streams.Add(stream); return this; }
@@ -68,7 +68,7 @@ public sealed class Template(string identifier, string label)
   public Template Initialize(Func<Context, Task> initialize) { InitializeBody = initialize; return this; }
   public Template Cleanup(Func<Context, Task> cleanup) { CleanupBody = cleanup; return this; }
   public Template Resource(Func<Context, Task<IAsyncDisposable>> create) { CreateResource = create; return this; }
-  public Template Materialize(Func<TestCase, IReadOnlyDictionary<string, V1.Value>, TestCase> materialize) { MaterializeBody = materialize; return this; }
+  public Template Materialize(Func<TestCase, IReadOnlyDictionary<string, Dokime.Protocol.V1.Value>, TestCase> materialize) { MaterializeBody = materialize; return this; }
   public Template Parameter(Parameter parameter) { Definition.Parameters.Add(parameter.Clone()); return this; }
   public Template Document(Document document) { Definition.Documents.Add(document.Clone()); return this; }
 }

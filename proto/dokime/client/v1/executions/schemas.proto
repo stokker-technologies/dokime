@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Schemas
+//
+// Frozen Execution Descriptor Reads
+
+syntax = "proto3";
+
+package dokime.client.v1.executions;
+
+// === Imports === //
+
+import "google/protobuf/descriptor.proto";
+import "dokime/v1/schemas.proto";
+import "harmos/v1/types.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Client.V1.ExecutionsResources";
+
+// === Services === //
+
+// Frozen Descriptors for One Execution, Independent of Plugin Availability.
+service Schemas {
+  // Public. Executions.Schemas.Get. Read without flushing accepted writes.
+  // Pages contain complete descriptor files in their frozen order. Continue with
+  // resolved_at and next_page_token; tokens bind execution, cut and digest.
+  rpc Get(SchemasGetRequest) returns (SchemasGetResponse);
+}
+
+// === Requests and Responses === //
+
+// Fetch the Descriptors Needed to Decode Frozen Execution Payloads.
+message SchemasGetRequest {
+  string name = 1;
+  .harmos.v1.Position at = 90;
+  .harmos.v1.PageRequest page = 91;
+}
+
+// One Descriptor Page, Bounded by PageRequest and the Host Unary Message Limit.
+// Assemble all files before decoding: dependencies may occur on later pages.
+// A single file exceeding the requested byte bound fails explicitly; retry with
+// a larger page bound up to the host limit. No descriptor is truncated or omitted.
+message SchemasGetResponse {
+  // SHA-256 of the complete serialized FileDescriptorSet, before paging.
+  bytes digest = 1;
+  .google.protobuf.FileDescriptorSet types = 2;
+  // Frozen identities and their protobuf message bindings, repeated on every page.
+  repeated .dokime.v1.RecordSchema records = 3;
+  repeated .dokime.v1.TelemetrySchema streams = 4;
+  .harmos.v1.Position resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Resources === //
+
+// === Enums === //

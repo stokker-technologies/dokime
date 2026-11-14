@@ -41,7 +41,7 @@ use rusqlite::params;
 impl Store {
     pub fn sampled_time_series_window(
         &self, window: NumericWindow<'_>, technique: v1::Downsample, limit: usize,
-    ) -> Result<(v1::PlotColumn, v1::PlotSeriesSummary, u64)> {
+    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
         if limit == 0 || technique == v1::Downsample::Lttb && limit < 3 {
             return Err(crate::Error::Invalid("Query Sampled Plot: Supply a Positive Raw Limit or at Least Three LTTB Vertices".into()));
         }
@@ -113,10 +113,10 @@ impl Store {
             connection.execute_batch("DROP TABLE temp.plot_lttb")?;
         }
         Ok((
-            v1::PlotColumn {
+            dokime_protocol::client::plots::PlotColumn {
                 x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
                 instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-                y: points.iter().map(|(_, value)| v1::NullableNumber { value: Some(*value) }).collect(),
+                y: points.iter().map(|(_, value)| dokime_protocol::client::plots::NullableNumber { value: Some(*value) }).collect(),
                 ..Default::default()
             },
             summary,
@@ -190,6 +190,7 @@ impl Store {
         )?;
         let _ = squares;
         Ok(dokime_protocol::context::EvidenceStatisticsResponse {
+            resolved_at: None,
             count: count as u64,
             min: min.unwrap(),
             max: max.unwrap(),
@@ -203,7 +204,9 @@ impl Store {
             last,
         })
     }
-    pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(v1::PlotColumn, v1::PlotSeriesSummary, u64)> {
+    pub fn time_series_window(
+        &self, window: NumericWindow<'_>,
+    ) -> Result<(dokime_protocol::client::plots::PlotColumn, dokime_protocol::client::plots::PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let count = bins.iter().map(|bin| bin.count).sum::<u64>();
         let mut points = Vec::with_capacity(bins.len() * 4);
@@ -216,14 +219,14 @@ impl Store {
                 }
             }
         }
-        let column = v1::PlotColumn {
+        let column = dokime_protocol::client::plots::PlotColumn {
             x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
             instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-            y: points.iter().map(|(_, value)| v1::NullableNumber { value: Some(*value) }).collect(),
+            y: points.iter().map(|(_, value)| dokime_protocol::client::plots::NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
         let mean = (count > 0).then(|| bins.iter().map(|bin| bin.mean * bin.count as f64 / count as f64).sum::<f64>());
-        let summary = v1::PlotSeriesSummary {
+        let summary = dokime_protocol::client::plots::PlotSeriesSummary {
             count,
             min: bins.iter().map(|bin| bin.min).reduce(f64::min),
             max: bins.iter().map(|bin| bin.max).reduce(f64::max),
@@ -233,17 +236,17 @@ impl Store {
         };
         Ok((column, summary, count))
     }
-    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<v1::PlotHistogramSeries> {
+    pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<dokime_protocol::client::plots::PlotHistogramSeries> {
         let statistics = self.numeric_statistics(&window)?;
         let count = statistics.count;
         if count == 0 {
-            return Ok(v1::PlotHistogramSeries::default());
+            return Ok(dokime_protocol::client::plots::PlotHistogramSeries::default());
         }
         let width = if statistics.max == statistics.min { 1.0 } else { (statistics.max - statistics.min) / bins as f64 };
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT MIN(CAST((number-?8)/?9 AS INTEGER),?10),COUNT(*) FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL GROUP BY 1 ORDER BY 1")?;
         let mut histogram = (0..bins)
-            .map(|index| v1::PlotHistogramBin {
+            .map(|index| dokime_protocol::client::plots::PlotHistogramBin {
                 lower: statistics.min + index as f64 * width,
                 upper: statistics.min + (index + 1) as f64 * width,
                 count: 0,
@@ -267,10 +270,10 @@ impl Store {
             let (index, count) = entry?;
             histogram[index as usize].count = count as u64;
         }
-        Ok(v1::PlotHistogramSeries {
+        Ok(dokime_protocol::client::plots::PlotHistogramSeries {
             bins: histogram,
             count,
-            statistics: Some(v1::PlotHistogramStatistics {
+            statistics: Some(dokime_protocol::client::plots::PlotHistogramStatistics {
                 mean: statistics.mean,
                 median: statistics.median,
                 std: statistics.stddev,
@@ -281,10 +284,10 @@ impl Store {
             ..Default::default()
         })
     }
-    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<v1::PlotBoxSummary> {
+    pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<dokime_protocol::client::plots::PlotBoxSummary> {
         let statistics = self.numeric_statistics(&window)?;
         if statistics.count == 0 {
-            return Ok(v1::PlotBoxSummary::default());
+            return Ok(dokime_protocol::client::plots::PlotBoxSummary::default());
         }
         let connection = self.lock()?;
         let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
@@ -345,7 +348,7 @@ impl Store {
                 |row| row.get(0),
             )?
             .collect::<std::result::Result<_, _>>()?;
-        Ok(v1::PlotBoxSummary {
+        Ok(dokime_protocol::client::plots::PlotBoxSummary {
             count: statistics.count,
             min: statistics.min,
             max: statistics.max,

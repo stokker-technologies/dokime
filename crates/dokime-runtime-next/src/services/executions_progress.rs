@@ -7,7 +7,7 @@
  * ***
  */
 
-// Execution Progress Client Service
+// Executions Progress Resource Service
 
 /* === Modules === */
 
@@ -21,7 +21,6 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::v1::executions;
 
 /* === Constants === */
 
@@ -38,23 +37,23 @@ use dokime_protocol::v1::executions;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl executions::progress_server::Progress for Services {
+impl dokime_protocol::client::executions::progress_server::Progress for Services {
     async fn get(
-        &self, request: tonic::Request<executions::ProgressGetRequest>,
-    ) -> Result<tonic::Response<executions::ProgressGetResponse>, tonic::Status> {
-        let response = dokime_operations_next::client::executions_progress_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::client::executions::ProgressGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::client::executions::ProgressGetResponse>, tonic::Status> {
+        let reply = dokime_operations_next::client::executions_progress_get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
-        Ok(tonic::Response::new(response))
+        Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations_next::client::Output<executions::ProgressWatchResponse>;
+    type WatchStream = dokime_operations_next::client::Output<dokime_protocol::client::executions::ProgressWatchResponse>;
     async fn watch(
-        &self, request: tonic::Request<executions::ProgressWatchRequest>,
+        &self, request: tonic::Request<dokime_protocol::client::executions::ProgressWatchRequest>,
     ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        let response = dokime_operations_next::client::executions_progress_watch::handle(&self.context, request.into_inner())
+        let reply = dokime_operations_next::client::executions_progress_watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations_next::client::status)?;
-        Ok(tonic::Response::new(response))
+        Ok(tonic::Response::new(reply))
     }
 }
 

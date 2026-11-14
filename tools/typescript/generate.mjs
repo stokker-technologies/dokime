@@ -129,7 +129,9 @@ function preferenceType(name) {
   models.set(typeName, `export interface ${typeName} {\n${fields.join("\n")}\n}`);
   return typeName;
 }
-for (const name of ["ApplicationSettings", "SettingsSnapshot", "UpdateSettings"]) preferenceType(`.dokime.v1.${name}`);
+preferenceType(".dokime.client.v1.ApplicationSettings");
+models.set("PreferencesSnapshot", "export interface PreferencesSnapshot { revision: number[]; settings: ApplicationSettings; }");
+models.set("PreferencesUpdate", "export interface PreferencesUpdate { expected_revision: number[]; settings: ApplicationSettings; }");
 const registry = readFileSync(resolve(gui, "src-tauri/src/connection/registry.rs"), "utf8");
 for (const name of ["Document", "Profile"]) {
   const declaration = registry.match(new RegExp(`pub struct ${name} \{([^}]+)\}`));
@@ -146,7 +148,7 @@ writeFileSync(resolve(output, "application-settings.ts"), `// Generated From Hos
 // Read Defaults Exported Through the Desktop's Real Embedded Host.
 const { createFileRegistry } = require("@bufbuild/protobuf");
 const registryTypes = createFileRegistry(set);
-const snapshotType = registryTypes.getMessage("dokime.v1.SettingsSnapshot");
+const snapshotType = registryTypes.getMessage("dokime.client.v1.SettingsGetResponse");
 const defaults = fromBinary(snapshotType, readFileSync(options.defaults ?? resolve(root, "target/generated/preferences/defaults.bin")));
 function project(message, descriptor) {
   const value = {};
@@ -161,5 +163,5 @@ function project(message, descriptor) {
   }
   return value;
 }
-const settingsField = snapshotType.fields.find((field) => field.name === "settings");
-writeFileSync(resolve(output, "application-settings.json"), `${JSON.stringify(project(defaults.settings, settingsField.message), null, 2)}\n`);
+const settingsField = snapshotType.fields.find((field) => field.name === "value");
+writeFileSync(resolve(output, "application-settings.json"), `${JSON.stringify(project(defaults.value, settingsField.message), null, 2)}\n`);

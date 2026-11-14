@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -46,6 +47,7 @@ def main() -> None:
     parser.add_argument("--generated-only", action="store_true")
     options = parser.parse_args()
     root = Path.cwd()
+    stub_requirements = tomllib.loads((root / "sdk/python/pyproject.toml").read_text(encoding="utf-8"))["dependency-groups"]["stubs"]
     wheels = list((paths.output(root, "build", options.profile, "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
         raise ValueError("build:python must export exactly one Python wheel")
@@ -63,7 +65,7 @@ def main() -> None:
         shutil.copytree(root / "sdk/python/examples/starter", starter)
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
-            ["uv", "pip", "install", "--no-cache", "--python", str(python), str(wheels[0])],
+            ["uv", "pip", "install", "--python", str(python), str(wheels[0]), *(stub_requirements if options.stubs else [])],
             [
                 str(python),
                 "-I",
@@ -81,6 +83,7 @@ def main() -> None:
             commands.append([str(python), "-m", "unittest", "discover", "-s", "tests", "-v"])
         if options.stubs:
             commands.append([str(python), "-I", str(root / "sdk/python/tools/generated.py")])
+            commands.append([str(python), "-I", str(root / "sdk/python/tools/stubs.py")])
         for command in commands:
             result = subprocess.run(
                 command, cwd=starter, env=environment, creationflags=spawn_flags(), capture_output=True, text=True, check=False

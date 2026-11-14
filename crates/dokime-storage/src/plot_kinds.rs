@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 
 /* === Type Aliases === */
 
-pub type CartesianRead = (v1::PlotFrame, u64, Vec<(String, u64)>);
+pub type CartesianRead = (dokime_protocol::client::plots::PlotFrame, u64, Vec<(String, u64)>);
 
 /* === Structs === */
 
@@ -77,7 +77,7 @@ impl Store {
                 row.get::<_, Value>(4)?,
             ))
         })?;
-        let mut columns: BTreeMap<String, v1::PlotColumn> = BTreeMap::new();
+        let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
         let mut points = 0;
         for row in rows {
             let (time, x, y, z, group) = row?;
@@ -88,8 +88,8 @@ impl Store {
             let column = columns.entry(text(group)).or_default();
             column.instants.push(instant(time));
             column.x.push(value(x));
-            column.y.push(v1::NullableNumber { value: Some(y) });
-            column.z.push(v1::NullableNumber { value: z });
+            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(y) });
+            column.z.push(dokime_protocol::client::plots::NullableNumber { value: z });
         }
         let mut raw_counts = BTreeMap::new();
         for row in connection
@@ -104,8 +104,8 @@ impl Store {
         }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
-            v1::PlotFrame {
-                mode: Some(v1::PlotCartesianMode::Faceted as i32),
+            dokime_protocol::client::plots::PlotFrame {
+                mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
                 series: columns.into_values().collect(),
                 point_count: points as u64,
                 ..Default::default()
@@ -134,7 +134,7 @@ impl Store {
         let rows = statement.query_map(bind(&request), |row| {
             Ok((row.get::<_, Value>(0)?, row.get::<_, f64>(1)?, row.get::<_, Value>(2)?, row.get::<_, i64>(3)?))
         })?;
-        let mut columns: BTreeMap<String, v1::PlotColumn> = BTreeMap::new();
+        let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
         let mut points = 0;
         let mut count = 0;
         let mut raw_counts = BTreeMap::<String, u64>::new();
@@ -155,12 +155,12 @@ impl Store {
             *raw_counts.entry(group.clone()).or_default() += n as u64;
             let column = columns.entry(group).or_default();
             column.x.push(value(x));
-            column.y.push(v1::NullableNumber { value: Some(y) });
+            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(y) });
         }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
-            v1::PlotFrame {
-                mode: Some(v1::PlotCartesianMode::Faceted as i32),
+            dokime_protocol::client::plots::PlotFrame {
+                mode: Some(dokime_protocol::client::plots::PlotCartesianMode::Faceted as i32),
                 series: columns.into_values().collect(),
                 point_count: points as u64,
                 ..Default::default()
@@ -169,7 +169,9 @@ impl Store {
             keys,
         ))
     }
-    pub fn sigma_window(&self, request: KindWindow<'_>, options: v1::PlotIntervalOptions) -> Result<(v1::PlotSigmaIntervalAnalysis, u64)> {
+    pub fn sigma_window(
+        &self, request: KindWindow<'_>, options: v1::PlotIntervalOptions,
+    ) -> Result<(dokime_protocol::client::plots::PlotSigmaIntervalAnalysis, u64)> {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
             return Err(Error::Invalid("Query XY Sigma: Supply Positive Finite Bin Width and Sigma".into()));
         }
@@ -183,7 +185,7 @@ impl Store {
             request.limit + 1
         );
         let mut statement = connection.prepare(&query)?;
-        let mut series = BTreeMap::<String, v1::PlotSigmaSeries>::new();
+        let mut series = BTreeMap::<String, dokime_protocol::client::plots::PlotSigmaSeries>::new();
         let mut count = 0;
         let mut points = 0;
         for row in statement.query_map(bind(&request), |row| {
@@ -210,11 +212,11 @@ impl Store {
                 upper = upper.min(max);
             }
             let group = text(group);
-            let output = series.entry(group.clone()).or_insert_with(|| v1::PlotSigmaSeries {
+            let output = series.entry(group.clone()).or_insert_with(|| dokime_protocol::client::plots::PlotSigmaSeries {
                 key: if group.is_empty() { request.window.field.into() } else { format!("{}/{group}", request.window.field) },
                 ..Default::default()
             });
-            output.bins.push(v1::PlotSigmaBin {
+            output.bins.push(dokime_protocol::client::plots::PlotSigmaBin {
                 x: (bin as f64 + 0.5) * width,
                 count: n as u64,
                 mean,
@@ -224,17 +226,17 @@ impl Store {
             output.raw_points += n as u64;
             count += n as u64;
         }
-        Ok((v1::PlotSigmaIntervalAnalysis { series: series.into_values().collect() }, count))
+        Ok((dokime_protocol::client::plots::PlotSigmaIntervalAnalysis { series: series.into_values().collect() }, count))
     }
     pub fn contour_window(
         &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
-    ) -> Result<(v1::ContourGrid, u64)> {
+    ) -> Result<(dokime_protocol::client::plots::ContourGrid, u64)> {
         self.contour_scaled_window(request, x_view, y_view, reduction, false, false)
     }
     pub fn contour_scaled_window(
         &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
         x_log: bool, y_log: bool,
-    ) -> Result<(v1::ContourGrid, u64)> {
+    ) -> Result<(dokime_protocol::client::plots::ContourGrid, u64)> {
         let connection = self.lock()?;
         let input = input();
         let valid = format!(
@@ -255,7 +257,7 @@ impl Store {
             },
         )?;
         let (Some(x_min), Some(x_max), Some(y_min), Some(y_max)) = bounds else {
-            return Ok((v1::ContourGrid::default(), 0));
+            return Ok((dokime_protocol::client::plots::ContourGrid::default(), 0));
         };
         let (x_min, mut x_max) = x_view.map_or((x_min, x_max), |view| (view.from, view.to));
         let (y_min, mut y_max) = y_view.map_or((y_min, y_max), |view| (view.from, view.to));
@@ -284,7 +286,7 @@ impl Store {
         let y_end = if y_log { y_max.ln() } else { y_max };
         let width = (x_end - x_start) / columns as f64;
         let height = (y_end - y_start) / rows as f64;
-        let mut grid = v1::ContourGrid {
+        let mut grid = dokime_protocol::client::plots::ContourGrid {
             columns: columns as u32,
             rows: rows as u32,
             x_edges: (0..=columns)
@@ -335,7 +337,7 @@ impl Store {
 
     pub fn grid_window(
         &self, request: KindWindow<'_>, definition: &v1::GridDefinition, reduction: v1::Reduction,
-    ) -> Result<(v1::GridFrames, u64)> {
+    ) -> Result<(dokime_protocol::client::plots::GridFrames, u64)> {
         let connection = self.lock()?;
         let input = input();
         let reduce = match reduction {
@@ -391,7 +393,7 @@ impl Store {
                 "Read Grid Chart: Narrow the Window or Reduce Declared Cells and Frames to Fit the Resolution".into(),
             ));
         }
-        let mut frames: BTreeMap<String, v1::GridFrame> = BTreeMap::new();
+        let mut frames: BTreeMap<String, dokime_protocol::client::plots::GridFrame> = BTreeMap::new();
         let mut count = 0;
         for (row, column, frame, value, n) in records {
             let row = text(row);
@@ -408,7 +410,7 @@ impl Store {
                 Value::Integer(time) if request.group.is_none() => instant(time),
                 value => text(value),
             };
-            let output = frames.entry(frame.clone()).or_insert_with(|| v1::GridFrame {
+            let output = frames.entry(frame.clone()).or_insert_with(|| dokime_protocol::client::plots::GridFrame {
                 instant: frame,
                 values: vec![0.0; rows.len() * columns.len()],
                 valid: vec![false; rows.len() * columns.len()],
@@ -454,7 +456,7 @@ impl Store {
                 let row = rows.iter().position(|axis| axis.key == text(row.clone()));
                 let column = columns.iter().position(|axis| axis.key == text(column.clone()));
                 if let (Some(row), Some(column), Some(frame)) = (row, column, frames.get_mut(&frame)) {
-                    frame.highlights.push(v1::GridCell {
+                    frame.highlights.push(dokime_protocol::client::plots::GridCell {
                         row: row as u32,
                         column: column as u32,
                         label: highlight.label.clone(),
@@ -463,7 +465,7 @@ impl Store {
             }
         }
         Ok((
-            v1::GridFrames {
+            dokime_protocol::client::plots::GridFrames {
                 rows,
                 columns,
                 frames: frames.into_values().collect(),
@@ -472,7 +474,9 @@ impl Store {
             count,
         ))
     }
-    pub fn spectrum_window(&self, request: KindWindow<'_>, options: &v1::PlotFftOptions) -> Result<(v1::PlotColumn, u64)> {
+    pub fn spectrum_window(
+        &self, request: KindWindow<'_>, options: &v1::PlotFftOptions,
+    ) -> Result<(dokime_protocol::client::plots::PlotColumn, u64)> {
         let connection = self.lock()?;
         let window = &request.window;
         let mut statement=connection.prepare("SELECT source_ns,number FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position LIMIT ?8")?;
@@ -497,7 +501,7 @@ impl Store {
             ));
         }
         if rows.len() < 2 {
-            return Ok((v1::PlotColumn::default(), rows.len() as u64));
+            return Ok((dokime_protocol::client::plots::PlotColumn::default(), rows.len() as u64));
         }
         let sample_rate = options.sample_rate_hz.unwrap_or(1e9 / (rows[1].0 - rows[0].0) as f64);
         if !sample_rate.is_finite() || sample_rate <= 0.0 {
@@ -525,7 +529,7 @@ impl Store {
         if gain <= 0.0 {
             return Err(Error::Invalid("Read Frequency Plot: Select a Rectangular Window or Include More Samples".into()));
         }
-        let mut column = v1::PlotColumn::default();
+        let mut column = dokime_protocol::client::plots::PlotColumn::default();
         for frequency in 0..=count / 2 {
             if frequency == 0 && !options.include_dc {
                 continue;
@@ -549,11 +553,11 @@ impl Store {
                 _ => amplitude,
             };
             column.x.push(value(Value::Real(hz)));
-            column.y.push(v1::NullableNumber { value: Some(level) });
+            column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(level) });
         }
         if column.y.len() > window.bins.get() {
             let width = column.y.len().div_ceil(window.bins.get());
-            let mut reduced = v1::PlotColumn::default();
+            let mut reduced = dokime_protocol::client::plots::PlotColumn::default();
             for (index, chunk) in column.y.chunks(width).enumerate() {
                 let peak = chunk
                     .iter()

@@ -126,7 +126,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
     }
     match command {
         Command::Call { operation, json, input_file } => {
-            let discovered = find(&client, &operation).await?;
+            let discovered = find(&client, &operation, &settings).await?;
             let contract = discovered.contract.ok_or("Operation Has No Contract")?;
             if contract.visibility != dokime::client::v1::Visibility::Public as i32 {
                 return Err(tonic::Status::permission_denied(format!("{operation}: Public Visibility Required")).into());
@@ -152,22 +152,28 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
             deserializer
                 .end()
                 .map_err(|error| crate::error::Error::Invalid(format!("{operation}: Correct the Typed JSON Request: {error}")))?;
-            let grpc = contract
-                .grpc
-                .filter(|_| discovered.grpc_available)
-                .ok_or_else(|| format!("{operation}: Host Must Expose This Public Operation Through Its Generic Invocation Service"))?;
-            if grpc.managed {
-                return Err(crate::error::Error::Invalid(format!("{operation}: Use a Typed Managed Client for This Contract")));
-            }
-            let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method)
-                .parse()
-                .map_err(|error| format!("{operation}: Invalid gRPC Mapping: {error}"))?;
-            let reply: WireMessage = client
-                .transport()
-                .transport_handle()
-                .unary(path, settings.request(WireMessage(request.encode_to_vec())), response.clone())
-                .await?
-                .into_inner();
+            let reply: WireMessage = if let Some(grpc) = contract.grpc.filter(|_| discovered.grpc_available) {
+                if grpc.managed {
+                    return Err(crate::error::Error::Invalid(format!("{operation}: Use a Typed Managed Client for This Contract")));
+                }
+                let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method)
+                    .parse()
+                    .map_err(|error| format!("{operation}: Invalid gRPC Mapping: {error}"))?;
+                client
+                    .transport()
+                    .transport_handle()
+                    .unary(path, settings.request(WireMessage(request.encode_to_vec())), response.clone())
+                    .await?
+                    .into_inner()
+            } else {
+                let request = dokime::client::v1::InvocationsInvokeRequest {
+                    operation: operation.clone(),
+                    fingerprint: contract.fingerprint,
+                    payload: request.encode_to_vec(),
+                };
+                let reply = client.invocations.invoke(settings.request(request)).await?.into_inner();
+                WireMessage(reply.payload)
+            };
             if reply.0.len() > settings.retained_bytes.get() {
                 return Err(crate::error::Error::Capacity(format!("{operation}: Response Exceeds retained_bytes")));
             }
@@ -175,7 +181,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
             crate::output::print(&reply, true)
         }
         Command::Show { operation, json } => {
-            let discovered = find(&client, &operation).await?;
+            let discovered = find(&client, &operation, &settings).await?;
             let contract = discovered.contract.as_ref().ok_or("Operation Has No Contract")?;
             let mut value = crate::output::value(&discovered)?;
             if let Some(protobuf) = &contract.protobuf {
@@ -198,7 +204,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
                 kind: dokime::client::CatalogKind::Operations as i32,
                 ..Default::default()
             };
-            let reply = client.catalog(request).await?.into_inner();
+            let reply = client.catalog_entries.list(settings.request(request)).await?.into_inner();
             crate::output::print(&reply, json)
         }
     }
@@ -206,12 +212,15 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
 
 /* === Private Functions === */
 
-async fn find(client: &dokime::Client, operation: &str) -> crate::Result<dokime::client::DiscoveredOperation> {
+async fn find(
+    client: &dokime::Client, operation: &str, settings: &crate::settings::Settings,
+) -> crate::Result<dokime::client::DiscoveredOperation> {
     let reply = client
-        .catalog(dokime::client::CatalogEntriesListRequest {
+        .catalog_entries
+        .list(settings.request(dokime::client::CatalogEntriesListRequest {
             kind: dokime::client::CatalogKind::Operations as i32,
             ..Default::default()
-        })
+        }))
         .await?
         .into_inner();
     reply

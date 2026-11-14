@@ -144,7 +144,9 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<v1::Origin>) -> R
     launch(host, identifier, executions, prepared)
 }
 
-pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str, mode: v1::ExecutionMode) -> Result<Cycle> {
+pub(crate) async fn start_existing_mode(
+    host: ExecutionManager, execution: &str, mode: dokime_protocol::client::ExecutionMode,
+) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
     if cut.state != dokime_storage::ExecutionState::Open || cut.frontier != 0 {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
@@ -171,7 +173,7 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
             Active {
                 plugin: run.plugin.clone(),
                 cancellation: CancellationToken::new(),
-                control: Arc::new(if mode == v1::ExecutionMode::Interactive {
+                control: Arc::new(if mode == dokime_protocol::client::ExecutionMode::Interactive {
                     crate::run_control::RunControl::interactive()
                 } else {
                     crate::run_control::RunControl::default()
@@ -338,9 +340,9 @@ async fn drive(
         }
         if let Some(operation) = &template.initialize {
             dispatch
-                .invoke::<_, v1::InitializeResponse>(
+                .invoke::<_, dokime_protocol::plugin::ExecutionsInitializeResponse>(
                     operation,
-                    v1::InitializeRequest {
+                    dokime_protocol::plugin::ExecutionsInitializeRequest {
                         execution: execution.clone(),
                         test_case: Some(case.clone()),
                         origin: Some(origin.clone()),
@@ -359,7 +361,7 @@ async fn drive(
             dispatch.resources.as_mut().unwrap().step = identifier.clone();
             let position = dispatch.resources.as_ref().unwrap().evidence("step:start", Vec::new(), None)?;
             if let Some(command) = &mut command {
-                command.phase = v1::ExecutionCommandPhase::Running as i32;
+                command.phase = dokime_protocol::client::executions::ExecutionCommandPhase::Running as i32;
                 command.attempt_id = Some(format!("{execution}/{position}"));
                 let now = host.now_ns();
                 command.updated_at = Some(prost_types::Timestamp {
@@ -370,9 +372,9 @@ async fn drive(
             }
             host.signal_change();
             let result = dispatch
-                .invoke::<_, v1::StepResponse>(
+                .invoke::<_, dokime_protocol::plugin::StepsExecuteResponse>(
                     &step.operation,
-                    v1::StepRequest {
+                    dokime_protocol::plugin::StepsExecuteRequest {
                         execution: execution.clone(),
                         step: identifier,
                         test_case: Some(case.clone()),
@@ -385,8 +387,11 @@ async fn drive(
                 dispatch.resources.as_ref().unwrap().evidence("step:failure", Vec::new(), None)?;
             }
             if let Some(mut command) = command {
-                command.phase =
-                    if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Failed } as i32;
+                command.phase = if result.is_ok() {
+                    dokime_protocol::client::executions::ExecutionCommandPhase::Completed
+                } else {
+                    dokime_protocol::client::executions::ExecutionCommandPhase::Failed
+                } as i32;
                 command.detail = result.as_ref().err().map(ToString::to_string);
                 let now = host.now_ns();
                 command.updated_at = Some(prost_types::Timestamp {
@@ -409,10 +414,10 @@ async fn drive(
                 .ok_or_else(|| Error::Invalid("Materialize Criteria with Identifiers".into()))?
                 .identifier
                 .clone();
-            let response: v1::CriterionResponse = dispatch
+            let response: dokime_protocol::plugin::CriteriaEvaluateResponse = dispatch
                 .invoke(
                     &criterion.operation,
-                    v1::CriterionRequest {
+                    dokime_protocol::plugin::CriteriaEvaluateRequest {
                         execution: execution.clone(),
                         criterion: identifier.clone(),
                         test_case: Some(case.clone()),
@@ -427,7 +432,11 @@ async fn drive(
     }
     .await;
     if let Some(mut command) = control.take_pending()? {
-        command.phase = if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Interrupted } as i32;
+        command.phase = if result.is_ok() {
+            dokime_protocol::client::executions::ExecutionCommandPhase::Completed
+        } else {
+            dokime_protocol::client::executions::ExecutionCommandPhase::Interrupted
+        } as i32;
         host.inner.store.save_command(&command)?;
     }
     let mut termination = match &result {
@@ -442,9 +451,9 @@ async fn drive(
     dispatch.resources.as_mut().unwrap().step.clear();
     if initialized && let Some(operation) = &template.cleanup {
         let cleanup = dispatch
-            .invoke::<_, v1::CleanupResponse>(
+            .invoke::<_, dokime_protocol::plugin::ExecutionsCleanupResponse>(
                 operation,
-                v1::CleanupRequest {
+                dokime_protocol::plugin::ExecutionsCleanupRequest {
                     execution: execution.clone(),
                     termination: termination as i32,
                     test_case: Some(case.clone()),

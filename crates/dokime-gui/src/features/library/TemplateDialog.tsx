@@ -126,7 +126,7 @@ export function TemplateDialog({
         {
           notificationFailure: {
             reason: "validation",
-            operation: "Planning.PreviewSelection",
+            operation: "Cases.Create",
             problems: editorProblems(rows, fileRows, template.file_definitions),
           },
         },
@@ -225,7 +225,7 @@ export function TemplateDialog({
     }
   }
 
-  /* Next expands the selection through Planning.PreviewSelection with the
+  /* Next expands the selection through Cases.Create with the
      edited values; a failure keeps the operator on step 1 with their input.
      A preview with nothing to review (`summaryNeeded`) adds at once. */
   async function next() {

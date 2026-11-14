@@ -26,7 +26,7 @@ use crate::{Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.context.v1.evidence.Records/Append";
+pub const ID: &str = "dokime.plugin.host.v1.evidence.Records/Append";
 
 /* === Macros === */
 
@@ -52,11 +52,18 @@ pub async fn handle(
     resources: &Resources, request: dokime_protocol::context::evidence::RecordsAppendRequest,
 ) -> Result<dokime_protocol::context::evidence::RecordsAppendResponse> {
     resources.check_action_scope(&request.execution, ID)?;
-    let source = request.at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
-    let position = resources.evidence(&format!("record:{}", request.kind), request.encode_to_vec(), source)?;
+    let source = request.source_at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
+    let (position, receipt) = resources.evidence_requested(
+        ID,
+        &request.request_id,
+        &request.encode_to_vec(),
+        &format!("record:{}", request.kind),
+        request.encode_to_vec(),
+        source,
+    )?;
     let snapshot = resources.store.read(&resources.execution)?;
     let ordinal = snapshot.records(&request.kind).into_iter().filter(|entry| entry.position <= position).count() as u64;
-    Ok(dokime_protocol::context::evidence::RecordsAppendResponse { ordinal })
+    Ok(dokime_protocol::context::evidence::RecordsAppendResponse { ordinal, receipt: Some(receipt) })
 }
 
 /* === Private Functions === */

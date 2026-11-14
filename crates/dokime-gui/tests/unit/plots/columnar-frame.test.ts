@@ -21,8 +21,9 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { PlotStreamFrameSchema as WatchFrameSchema, PlotStreamKind, PlotCartesianMode } from "@host/dokime/v1/client_types_pb.js";
-import { mapNativePlotStreamFrame } from "@/lib/api/native-plots";
+import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { PlotStreamKind, PlotCartesianMode } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import { jsonToNativeValue } from "@/lib/host/values";
 
 /* === Re-Exports === */
@@ -69,7 +70,7 @@ test("Aligned Columns Decode With One Shared Time Array and No Point Copies", ()
       },
     ],
   });
-  const decoded = mapNativePlotStreamFrame(wire).updates[0];
+  const decoded = mapNativePlotWatchPage(wire).updates[0];
   assert.ok(decoded.kind !== "pending");
   const frame = decoded.payload.cartesian;
   assert.deepEqual(frame?.series[0].x, [1, 2, 3]);
@@ -103,7 +104,7 @@ test("Cartesian Columns Reject Mismatched Lengths and Nonfinite Coordinates", ()
         },
       ],
     });
-    const decoded = mapNativePlotStreamFrame(wire).updates[0];
+    const decoded = mapNativePlotWatchPage(wire).updates[0];
     assert.ok(decoded.kind !== "pending");
     assert.equal(decoded.payload.cartesian, null);
   }
@@ -130,7 +131,7 @@ test("Independent Columns Preserve Categorical Axes and Z Values", () => {
       },
     ],
   });
-  const decoded = mapNativePlotStreamFrame(wire).updates[0];
+  const decoded = mapNativePlotWatchPage(wire).updates[0];
   assert.ok(decoded.kind !== "pending");
   assert.deepEqual(decoded.payload.series[0].points, [{ x: "Category", y: 2, z: 7, instant: null }]);
   assert.equal(decoded.payload.cartesian, null);

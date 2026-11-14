@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Dokime;
-using Dokime.V1;
+using Dokime.Protocol.V1;
 
 var template = new Template("example.measurement", "Measurement")
     .Step(new Dokime.Step("measure", "Measure", async context =>
