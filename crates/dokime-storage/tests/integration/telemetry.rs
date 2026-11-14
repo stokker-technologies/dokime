@@ -384,15 +384,17 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
             kind: Some(v1::data_expression::Kind::Literal(v1::Value { kind: Some(kind.clone()) })),
             ..Default::default()
         };
-        let expression = v1::DataExpression {
-            kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
-                input: Some(Box::new(input)),
-                kind: v1::Aggregate::Percentile as i32,
-                percentile: 95.0,
-            }))),
-            ..Default::default()
-        };
-        assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(kind));
+        for aggregate in [v1::Aggregate::Median, v1::Aggregate::Percentile] {
+            let expression = v1::DataExpression {
+                kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+                    input: Some(Box::new(input.clone())),
+                    kind: aggregate as i32,
+                    percentile: 95.0,
+                }))),
+                ..Default::default()
+            };
+            assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(kind.clone()));
+        }
     }
     let statistics = store.numeric_statistics(&numeric(101))?;
     for (value, expected) in [

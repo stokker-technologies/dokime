@@ -146,8 +146,10 @@ impl Store {
             })?;
             return Ok(edge.unwrap_or(ScalarValue::Missing));
         }
-        if kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 {
-            let rank = percentile as u8;
+        if kind == Aggregate::Median
+            || kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0
+        {
+            let rank = if kind == Aggregate::Median { 50 } else { percentile as u8 };
             let values = crate::telemetry::aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
                 &[rank],
