@@ -81,6 +81,9 @@ pub enum Error {
     #[error("Read Stream Summary: Restore a Valid Backup: {0}")]
     Json(#[from] serde_json::Error),
 
+    #[error("Read Stream Preview: Restore a Valid Backup: {0}")]
+    Preview(#[from] postcard::Error),
+
     #[error("Export Evidence: Check the Archive Destination: {0}")]
     Zip(#[from] zip::result::ZipError),
 }

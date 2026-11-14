@@ -1620,6 +1620,7 @@ dependencies = [
  "harmos-storage",
  "num-bigint 0.5.1",
  "num-traits",
+ "postcard",
  "prost",
  "prost-reflect",
  "prost-types",

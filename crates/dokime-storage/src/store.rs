@@ -159,7 +159,7 @@ impl Store {
                 connection
                     .query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('evidence') WHERE name='kind')", [], |row| row.get(0))?;
             let preview_bounds: bool = connection.query_row(
-                "SELECT COUNT(*)=2 FROM pragma_table_info('telemetry_previews') WHERE name IN ('start_ns','end_ns')",
+                "SELECT COUNT(*)=3 FROM pragma_table_info('telemetry_previews') WHERE name IN ('start_ns','end_ns','encoding')",
                 [],
                 |row| row.get(0),
             )?;
@@ -640,7 +640,7 @@ pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>
         "SELECT b.file,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.start_ns,b.end_ns,b.first_position,b.last_position FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 ORDER BY b.file,b.offset",
         "SELECT s.file,s.field,s.moments FROM telemetry_summaries s JOIN telemetry_files f ON f.id=s.file WHERE f.execution=?1 ORDER BY s.file,s.field",
         "SELECT s.file,s.offset,s.field,s.first_position,s.last_position,s.start_ns,s.end_ns,s.moments FROM telemetry_checkpoints s JOIN telemetry_files f ON f.id=s.file WHERE f.execution=?1 ORDER BY s.file,s.offset,s.field",
-        "SELECT p.file,p.field,p.through,p.start_ns,p.end_ns,p.payload FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 ORDER BY p.file,p.field",
+        "SELECT p.file,p.field,p.through,p.start_ns,p.end_ns,p.encoding,p.payload FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 ORDER BY p.file,p.field",
     ] {
         let mut query = connection.prepare(sql)?;
         let columns = query.column_count();

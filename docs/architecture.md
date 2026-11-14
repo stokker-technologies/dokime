@@ -462,7 +462,9 @@ The root uses `execution.sqlite3` (plus WAL/SHM), `backend-id`, `local.lock` and
 execution, stream and frozen descriptor identity. Samples have no SQLite payload
 or scalar-projection tables. Their only durable representation is typed compressed
 Arrow IPC. SQLite stores file and batch digests/checkpoints, ranges, stream state,
-incremental numeric moments, adaptive previews and per-field preview time bounds. Existing records, resources,
+incremental numeric moments, compact binary adaptive previews and per-field preview
+time bounds. The derived preview payload has an explicit encoding marker; it does
+not encode sample rows. Existing records, resources,
 files, execution metadata and reports retain their SQLite owners.
 
 `ipc.rs` and `ipc/projection.rs` restore the old append/checkpoint/footer machinery
@@ -499,7 +501,9 @@ f64 presentation boundary.
 
 `Backend::for_execution` implements the pinned `StorageBackend` lifecycle, retained
 snapshots and native Arrow scans for an execution history. Native schema identities
-name its declared streams and scan columns use `_storage.*`/`values.*`. Generic
+name its declared streams at baseline v1 and scan columns use `_storage.*`/`values.*`.
+Retained tokens bind their original cursor; changing that cursor or schema version
+is refused. Generic
 schema/object/record/sample ports refuse because this pin's `PayloadEncoding`
 contains only `PostcardV1`, while current evidence freezes protobuf descriptors.
 The generic file ports also refuse: current product File resources own a separate
