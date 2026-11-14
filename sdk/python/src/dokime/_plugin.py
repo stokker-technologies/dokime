@@ -185,7 +185,7 @@ class Plugin:
         )(execute)
 
     def _execution(
-        self, template: Template, kind: str, handler: FunctionType | None = None, retries: int = 0
+        self, template: Template, kind: str, handler: Callable[..., object] | None = None, retries: int = 0
     ) -> Callable[..., Awaitable[Message]]:
         request_type, response_type = {
             "step": (StepsExecuteRequest, StepsExecuteResponse),

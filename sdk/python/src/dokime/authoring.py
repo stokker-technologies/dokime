@@ -67,7 +67,7 @@ _SUITES: WeakKeyDictionary[type, "Suite"] = WeakKeyDictionary()
 @dataclass(frozen=True)
 class Step:
     label: str
-    handler: FunctionType
+    handler: Callable[..., object]
     identifier: str = ""
     retries: int = 0
     repeatable: bool = False
@@ -76,7 +76,7 @@ class Step:
 @dataclass(frozen=True)
 class Criterion:
     label: str
-    handler: FunctionType
+    handler: Callable[..., object]
     identifier: str = ""
 
 
@@ -124,7 +124,7 @@ class Template:
             method.__dokime_stream__ for method in self._methods.values() if hasattr(method, "__dokime_stream__")
         )
 
-    def operation(self, handler: FunctionType, kind: str) -> str:
+    def operation(self, handler: Callable[..., object], kind: str) -> str:
         definitions: Sequence[Step | Criterion] = self.steps if kind == "step" else self.criteria
         position = next(index for index, item in enumerate(definitions) if item.handler is handler)
         return f"{self.identifier}.{kind}.{position}"
@@ -179,15 +179,15 @@ class Case:
             parameters={key: encode(value) for key, value in parameters.items()},
             streams=[item.identifier for item in template.streams],
         )
-        self.bindings: dict[tuple[str, str], tuple[FunctionType, dict[str, object]]] = {}
+        self.bindings: dict[tuple[str, str], tuple[Callable[..., object], dict[str, object]]] = {}
 
-    def step(self, label: str, handler: FunctionType, *, identifier: str = "", **arguments: object) -> "Case":
+    def step(self, label: str, handler: Callable[..., object], *, identifier: str = "", **arguments: object) -> "Case":
         return self._add("step", label, handler, identifier, arguments)
 
-    def criterion(self, label: str, handler: FunctionType, *, identifier: str = "", **arguments: object) -> "Case":
+    def criterion(self, label: str, handler: Callable[..., object], *, identifier: str = "", **arguments: object) -> "Case":
         return self._add("criterion", label, handler, identifier, arguments)
 
-    def _add(self, kind: str, label: str, handler: FunctionType, identifier: str, arguments: dict[str, object]) -> "Case":
+    def _add(self, kind: str, label: str, handler: Callable[..., object], identifier: str, arguments: dict[str, object]) -> "Case":
         definitions = self.template.steps if kind == "step" else self.template.criteria
         definition = next((item for item in definitions if item.handler is handler), None)
         if definition is None:
@@ -207,43 +207,55 @@ class Case:
 # === Public Functions === #
 
 
-def step(label: str, *, identifier: str = "", retries: int = 0, repeatable: bool = False) -> Callable[[FunctionType], FunctionType]:
+def step[**P, R](
+    label: str, *, identifier: str = "", retries: int = 0, repeatable: bool = False
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     if retries < 0:
         raise ValueError("Retries must be nonnegative")
 
-    def decorate(handler: FunctionType) -> FunctionType:
+    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
+        if not isinstance(handler, FunctionType):
+            raise TypeError("Register Definition: Supply a Function")
         vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable)
         return handler
 
     return decorate
 
 
-def criterion(label: str, *, identifier: str = "") -> Callable[[FunctionType], FunctionType]:
-    def decorate(handler: FunctionType) -> FunctionType:
+def criterion[**P, R](label: str, *, identifier: str = "") -> Callable[[Callable[P, R]], Callable[P, R]]:
+    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
+        if not isinstance(handler, FunctionType):
+            raise TypeError("Register Definition: Supply a Function")
         vars(handler)["__dokime_criterion__"] = Criterion(label, handler, identifier)
         return handler
 
     return decorate
 
 
-def materialize(handler: FunctionType) -> FunctionType:
+def materialize[**P, R](handler: Callable[P, R]) -> Callable[P, R]:
+    if not isinstance(handler, FunctionType):
+        raise TypeError("Register Materializer: Supply a Function")
     vars(handler)["__dokime_materialize__"] = True
     return handler
 
 
-def observer(*, interval_ms: int = 1000, interval_setting: str = "") -> Callable[[FunctionType], FunctionType]:
+def observer[**P, R](*, interval_ms: int = 1000, interval_setting: str = "") -> Callable[[Callable[P, R]], Callable[P, R]]:
     if interval_ms <= 0:
         raise ValueError("Observer interval must be positive")
 
-    def decorate(handler: FunctionType) -> FunctionType:
+    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
+        if not isinstance(handler, FunctionType):
+            raise TypeError("Register Definition: Supply a Function")
         vars(handler)["__dokime_observer__"] = (interval_ms, interval_setting)
         return handler
 
     return decorate
 
 
-def stream(label: str, *, identifier: str, row: type[Message] = DoubleValue) -> Callable[[FunctionType], FunctionType]:
-    def decorate(handler: FunctionType) -> FunctionType:
+def stream[**P, R](label: str, *, identifier: str, row: type[Message] = DoubleValue) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
+        if not isinstance(handler, FunctionType):
+            raise TypeError("Register Definition: Supply a Function")
         vars(handler)["__dokime_stream__"] = Stream(identifier, row, label)
         return handler
 
