@@ -70,12 +70,12 @@ struct Lease {
 }
 impl Drop for Lease {
     fn drop(&mut self) {
-        if let Ok(mut pins) = self.pins.lock() {
-            if let Some(count) = pins.get_mut(&self.execution) {
-                *count -= 1;
-                if *count == 0 {
-                    pins.remove(&self.execution);
-                }
+        if let Ok(mut pins) = self.pins.lock()
+            && let Some(count) = pins.get_mut(&self.execution)
+        {
+            *count -= 1;
+            if *count == 0 {
+                pins.remove(&self.execution);
             }
         }
     }

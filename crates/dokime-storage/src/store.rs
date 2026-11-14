@@ -192,7 +192,7 @@ impl Store {
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
                 CREATE INDEX resource_values_position ON resource_values(execution,position);
-                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format!("{}{}{}",crate::telemetry::catalog::SCHEMA,crate::telemetry::aggregates::SCHEMA,crate::telemetry::previews::SCHEMA)))?;
+                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}{}",crate::telemetry::catalog::SCHEMA,crate::telemetry::aggregates::SCHEMA,crate::telemetry::previews::SCHEMA)))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
         connection.execute_batch("CREATE TEMP TABLE accepted(execution TEXT PRIMARY KEY, position INTEGER NOT NULL)")?;

@@ -113,7 +113,7 @@ impl Store {
                 point_count: points as u64,
                 ..Default::default()
             },
-            count as u64,
+            count,
             keys,
         ))
     }
@@ -254,13 +254,14 @@ impl Store {
     ) -> Result<(ContourGrid, u64)> {
         let mut bounds = (None::<f64>, None::<f64>, None::<f64>, None::<f64>);
         self.kind_values(&request, |row| {
-            if let (Some(x), Some(_)) = (scalar::number(&row.x), scalar::number(&row.z)) {
-                if (!x_log || x > 0.0) && (!y_log || row.y > 0.0) {
-                    bounds.0 = Some(bounds.0.map_or(x, |v| v.min(x)));
-                    bounds.1 = Some(bounds.1.map_or(x, |v| v.max(x)));
-                    bounds.2 = Some(bounds.2.map_or(row.y, |v| v.min(row.y)));
-                    bounds.3 = Some(bounds.3.map_or(row.y, |v| v.max(row.y)));
-                }
+            if let (Some(x), Some(_)) = (scalar::number(&row.x), scalar::number(&row.z))
+                && (!x_log || x > 0.0)
+                && (!y_log || row.y > 0.0)
+            {
+                bounds.0 = Some(bounds.0.map_or(x, |v| v.min(x)));
+                bounds.1 = Some(bounds.1.map_or(x, |v| v.max(x)));
+                bounds.2 = Some(bounds.2.map_or(row.y, |v| v.min(row.y)));
+                bounds.3 = Some(bounds.3.map_or(row.y, |v| v.max(row.y)));
             }
             Ok(())
         })?;
@@ -432,7 +433,7 @@ impl Store {
             let index = row * columns.len() + column;
             output.values[index] = value;
             output.valid[index] = true;
-            count += n as u64;
+            count += n;
         }
         for highlight in &definition.highlights {
             let field = |expression: Option<&DataExpression>| -> Result<String> {

@@ -555,7 +555,7 @@ fn align(base: &Table, right: &Table, name: &str) -> Result<Table> {
         let joined = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
         output.push(&joined, &mut || Ok(())).map_err(|e| ArrowError::ExternalError(Box::new(e)))
     })?;
-    return Ok(output.finish()?);
+    Ok(output.finish()?)
 }
 fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, String)>) {
     match expression.kind.as_ref() {
