@@ -20,6 +20,17 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::Client;
+use dokime::Metadata;
+use dokime::SecretWritable;
+use dokime::client::SecretImportAction;
+use dokime::client::SecretImportChoice;
+use dokime::client::SecretsDeleteOptions;
+use dokime::client::SecretsImportOptions;
+use dokime::client::SecretsSetOptions;
+use std::error::Error;
+use tonic::Code;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -42,10 +53,8 @@
 /* === Tests === */
 
 #[tokio::test]
-async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_manages_secret_storage() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        use dokime::v1;
-
         // Save a Secret by Identifier and Reject Stale Edits
         let root = super::support::tempdir()?;
         let storage = root.path().to_owned();
@@ -53,158 +62,109 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut secrets = dokime_protocol::host::secrets_client::SecretsClient::connect(process.url.clone()).await?;
-        let initial = secrets.list(dokime_protocol::host::SecretsListRequest::default()).await?.into_inner();
+        let secrets =
+            Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                .secrets
+                .clone();
+        let initial = secrets.list().await?;
         let secret = uuid::Uuid::now_v7().to_string();
-        let metadata = dokime_protocol::model::Metadata {
+        let metadata = Metadata {
             identifier: "bench.access".into(),
             label: "Bench Access".into(),
             ..Default::default()
         };
         let saved = secrets
-            .set(dokime_protocol::host::SecretsSetRequest {
-                name: metadata.identifier.clone(),
-                value: Some(dokime_protocol::host::SecretWritable {
+            .set_with(
+                metadata.identifier.clone(),
+                SecretWritable {
                     metadata: Some(metadata.clone()),
                     value: Some(secret.clone()),
-                }),
-                expected_revision: initial.generation.to_be_bytes().to_vec(),
-                request_id: "save".into(),
-            })
-            .await?
-            .into_inner();
-        let actual = secrets
-            .get(dokime_protocol::host::SecretsGetRequest {
-                name: metadata.identifier.clone(),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
+                },
+                initial.generation.to_be_bytes().to_vec(),
+                SecretsSetOptions {
+                    request_id: Some("save".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let actual = secrets.get(metadata.identifier.clone()).await?;
         assert_eq!(actual.value.unwrap().value.as_ref(), Some(&secret));
         assert_eq!(
             secrets
-                .set(dokime_protocol::host::SecretsSetRequest {
-                    name: metadata.identifier.clone(),
-                    value: Some(dokime_protocol::host::SecretWritable {
+                .set_with(
+                    metadata.identifier.clone(),
+                    SecretWritable {
                         metadata: Some(metadata.clone()),
                         value: None
-                    }),
-                    expected_revision: initial.generation.to_be_bytes().to_vec(),
-                    request_id: "stale".into(),
-                })
+                    },
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsSetOptions {
+                        request_id: Some("stale".into()),
+                        ..Default::default()
+                    }
+                )
                 .await
                 .unwrap_err()
                 .code(),
-            tonic::Code::Aborted
+            Code::Aborted
         );
         let generation = u64::from_be_bytes(saved.revision.as_slice().try_into()?);
-        let archive = secrets
-            .export(dokime_protocol::host::SecretsExportRequest {
-                names: vec![metadata.identifier.clone()],
-                generation,
-                ..Default::default()
-            })
-            .await?
-            .into_inner()
-            .archive
-            .unwrap();
-        let preview = secrets
-            .import(dokime_protocol::host::SecretsImportRequest {
-                data: archive.data.clone(),
-                validate_only: true,
-                ..Default::default()
-            })
-            .await?
-            .into_inner()
-            .preview
-            .unwrap();
+        let archive = secrets.export(vec![metadata.identifier.clone()], generation).await?.archive.unwrap();
+        let preview = secrets.import(archive.data.clone(), Default::default(), Default::default(), true).await?.preview.unwrap();
         assert!(preview.entries[0].exists);
-        assert!(
-            secrets
-                .import(dokime_protocol::host::SecretsImportRequest {
-                    data: b"invalid".to_vec(),
-                    validate_only: true,
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
+        assert!(secrets.import(b"invalid".to_vec(), Default::default(), Default::default(), true).await.is_err());
         process.close().await?;
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
-        let mut secrets = dokime_protocol::host::secrets_client::SecretsClient::connect(process.url.clone()).await?;
-        assert_eq!(
-            secrets
-                .get(dokime_protocol::host::SecretsGetRequest {
-                    name: metadata.identifier.clone(),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner()
-                .value
-                .unwrap()
-                .value
-                .as_ref(),
-            Some(&secret)
-        );
+        let secrets =
+            Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                .secrets
+                .clone();
+        assert_eq!(secrets.get(metadata.identifier.clone()).await?.value.unwrap().value.as_ref(), Some(&secret));
         secrets
-            .delete(dokime_protocol::host::SecretsDeleteRequest {
-                names: vec![metadata.identifier.clone()],
-                expected_revision: saved.revision,
-                request_id: "remove".into(),
-            })
-            .await?;
-        assert!(
-            secrets
-                .get(dokime_protocol::host::SecretsGetRequest {
-                    name: metadata.identifier.clone(),
+            .delete_with(
+                vec![metadata.identifier.clone()],
+                saved.revision,
+                SecretsDeleteOptions {
+                    request_id: Some("remove".into()),
                     ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-        let empty = secrets.list(dokime_protocol::host::SecretsListRequest::default()).await?.into_inner();
+                },
+            )
+            .await?;
+        assert!(secrets.get(metadata.identifier.clone()).await.is_err());
+        let empty = secrets.list().await?;
         let imported = secrets
-            .import(dokime_protocol::host::SecretsImportRequest {
-                data: archive.data,
-                choices: vec![dokime_protocol::host::SecretImportChoice {
+            .import_with(
+                archive.data,
+                vec![SecretImportChoice {
                     identifier: metadata.identifier.clone(),
-                    action: dokime_protocol::host::SecretImportAction::Replace as i32,
+                    action: SecretImportAction::Replace as i32,
                 }],
-                generation: empty.generation,
-                request_id: "import".into(),
-                ..Default::default()
-            })
+                empty.generation,
+                Default::default(),
+                SecretsImportOptions {
+                    request_id: Some("import".into()),
+                    ..Default::default()
+                },
+            )
             .await?
-            .into_inner()
             .snapshot
             .unwrap();
-        assert_eq!(
-            secrets
-                .get(dokime_protocol::host::SecretsGetRequest {
-                    name: metadata.identifier.clone(),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner()
-                .value
-                .unwrap()
-                .value
-                .as_ref(),
-            Some(&secret)
-        );
+        assert_eq!(secrets.get(metadata.identifier.clone()).await?.value.unwrap().value.as_ref(), Some(&secret));
         let cleaned = secrets
-            .delete(dokime_protocol::host::SecretsDeleteRequest {
-                names: vec![metadata.identifier],
-                expected_revision: imported.generation.to_be_bytes().to_vec(),
-                request_id: "cleanup".into(),
-            })
-            .await?
-            .into_inner();
+            .delete_with(
+                vec![metadata.identifier],
+                imported.generation.to_be_bytes().to_vec(),
+                SecretsDeleteOptions {
+                    request_id: Some("cleanup".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert!(!cleaned.cleanup_pending);
-        assert!(secrets.list(dokime_protocol::host::SecretsListRequest::default()).await?.into_inner().entries.is_empty());
+        assert!(secrets.list().await?.entries.is_empty());
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

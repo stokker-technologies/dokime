@@ -16,14 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::model;
-use dokime_runtime::{ControlledClock, Host, RenderSettings};
+use dokime::Document;
+use dokime::Termination;
+use dokime::Value;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_runtime::ControlledClock;
+use dokime_runtime::Error as DokimeRuntimeError;
+use dokime_runtime::Host;
+use dokime_runtime::RenderSettings;
 use dokime_storage::ExecutionState;
+use std::collections::HashMap;
+use std::error::Error;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 /* === Constants === */
 
@@ -46,7 +56,7 @@ use dokime_storage::ExecutionState;
 /* === Tests === */
 
 #[tokio::test]
-async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn std::error::Error>> {
+async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Admit Two Executions on the Controlled Clock
         let root = super::support::tempdir()?;
@@ -55,16 +65,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
         let host = Host::open(root.path(), settings.clone())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
-            .materialize(
-                &entry,
-                "thermal.cycle",
-                HashMap::from([(
-                    "limit".into(),
-                    dokime_protocol::model::Value {
-                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-                    },
-                )]),
-            )
+            .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
             .await?;
         let cycle = host.start_cycle(vec![origin.clone(), origin.clone()]).await?;
         let executions = cycle.executions.clone();
@@ -80,7 +81,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
         for execution in &executions {
             let snapshot = host.execution(execution)?;
             assert_eq!(snapshot.state, ExecutionState::Sealed);
-            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Cancelled as i32);
+            assert_eq!(snapshot.execution.termination, Termination::Cancelled as i32);
             assert!(host.streams_closed(execution)?);
             assert!(
                 snapshot.evidence.iter().any(|row| row.kind == "log"
@@ -99,33 +100,24 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
         }
         assert!(host.pending_prompts()?.is_empty());
         host.shutdown().await?;
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }
 
 #[tokio::test]
-async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std::error::Error>> {
+async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Refuse Cancel While the Admitted Execution Is Still Queued
         let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
-            .materialize(
-                &entry,
-                "thermal.cycle",
-                HashMap::from([(
-                    "limit".into(),
-                    dokime_protocol::model::Value {
-                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-                    },
-                )]),
-            )
+            .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
             .await?;
         let cycle = host.start_cycle(vec![origin.clone()]).await?;
         let execution = cycle.executions[0].clone();
-        assert!(matches!(host.cancel(&execution), Err(dokime_runtime::Error::Invalid(_))));
+        assert!(matches!(host.cancel(&execution), Err(DokimeRuntimeError::Invalid(_))));
         assert!(!host.capabilities(&execution)?.cancel);
 
         // Stop Leaves the Current Question Available Until Its Safe Boundary
@@ -133,7 +125,7 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
         host.stop_execution(&execution)?;
         assert_eq!(host.execution(&execution)?.state, ExecutionState::Open);
         assert_eq!(host.pending_prompts()?.len(), 1);
-        let answer = dokime_protocol::host::PromptsCreateResponse {
+        let answer = PromptsCreateResponse {
             prompt: question.prompt,
             accepted: true,
             action: "continue".into(),
@@ -155,13 +147,13 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
         assert!(host.pending_prompts()?.is_empty());
         assert!(super::support::answer(&host, &execution, question).is_err());
         assert!(host.next_prompt(&execution).await.is_err());
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }
 
 #[tokio::test]
-async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn std::error::Error>> {
+async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run and Seal the Evidence Before Rendering
         let root = super::support::tempdir()?;
@@ -169,16 +161,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         let host = Host::open(root.path(), settings.clone())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
-            .materialize(
-                &entry,
-                "thermal.cycle",
-                HashMap::from([(
-                    "limit".into(),
-                    dokime_protocol::model::Value {
-                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-                    },
-                )]),
-            )
+            .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
             .await?;
         let cycle = host.start_cycle(vec![origin]).await?;
         let execution = cycle.executions[0].clone();
@@ -186,7 +169,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         super::support::answer(&host, &execution, question)?;
         cycle.wait().await?;
         let before = host.execution(&execution)?;
-        let document = dokime_protocol::model::Document::new("Execution Evidence");
+        let document = Document::new("Execution Evidence");
         let snapshot = host.snapshot(&execution)?;
         let output = host.render_document(
             &snapshot,
@@ -211,7 +194,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         assert_eq!(host.reports(&execution)?, vec![report.clone()]);
         let rendered = host.render_document(
             &snapshot,
-            dokime_protocol::model::Document::new("Preview"),
+            Document::new("Preview"),
             RenderSettings {
                 page_size: NonZeroUsize::new(2).unwrap(),
                 display_points: NonZeroUsize::new(2).unwrap(),
@@ -225,7 +208,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         assert_eq!(host.reports(&execution)?, vec![report]);
         assert_eq!(host.execution(&execution)?, before);
         host.shutdown().await?;
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }

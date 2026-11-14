@@ -20,7 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::{Error, Host};
+use dokime_runtime::Error;
+use dokime_runtime::Host;
+use std::error::Error as ErrorError;
+use std::fs::OpenOptions;
 
 /* === Constants === */
 
@@ -43,10 +46,10 @@ use dokime_runtime::{Error, Host};
 /* === Tests === */
 
 #[tokio::test]
-async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn std::error::Error>> {
+async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn ErrorError>> {
     // Refuse An External Lease Before Creating The Evidence Database
     let root = super::support::tempdir()?;
-    let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.path().join("local.lock"))?;
+    let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.path().join("local.lock"))?;
     lease.try_lock()?;
     let refused = Host::open(root.path(), super::support::settings());
     assert!(matches!(refused, Err(Error::OccupiedRoot(path)) if path == root.path()));

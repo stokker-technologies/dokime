@@ -16,14 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
 
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::model;
-use dokime_runtime::{Host, RunState};
+use dokime::Termination;
+use dokime::Value;
+use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_runtime::Host;
+use dokime_runtime::RunState;
 use dokime_storage::ExecutionState;
+use std::collections::HashMap;
+use std::error::Error;
 
 /* === Constants === */
 
@@ -44,18 +48,13 @@ use dokime_storage::ExecutionState;
 /* === Private Functions === */
 
 #[tokio::test]
-async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::error::Error>> {
+async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Add the Shared Suite as a Managed Plugin
         let root = super::support::tempdir()?;
         let host = Host::open(root.path(), super::support::settings())?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
-        let parameters = HashMap::from([(
-            "limit".into(),
-            dokime_protocol::model::Value {
-                kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-            },
-        )]);
+        let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
         let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
 
         // Cancel While the Hold Step Waits for the Operator
@@ -70,7 +69,7 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::err
             vec![RunState::Queued, RunState::Initializing, RunState::Stepping, RunState::CleaningUp, RunState::Cancelled]
         );
         assert_eq!(snapshot.state, ExecutionState::Sealed);
-        assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Cancelled as i32);
+        assert_eq!(snapshot.execution.termination, Termination::Cancelled as i32);
         assert_eq!(result.counts.evaluated, 0);
         assert_eq!(result.counts.not_evaluated, 1);
         assert_eq!(result.counts.verdict, None);
@@ -88,7 +87,7 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::err
         let host = Host::open(root.path(), super::support::settings())?;
         assert_eq!(host.execution(&execution)?, *snapshot);
         host.shutdown().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

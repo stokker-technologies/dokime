@@ -16,15 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, process::Stdio};
 
 // Third Party Imports
-use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Local Imports
-use dokime_protocol::model;
-use dokime_runtime::{EntryState, Host, PluginProcess};
-use dokime_storage::{ExecutionState, Store};
+use dokime::Termination;
+use dokime_runtime::EntryState;
+use dokime_runtime::Host;
+use dokime_runtime::PluginProcess;
+use dokime_storage::ExecutionState;
+use dokime_storage::Store;
+use std::error::Error;
+use std::io::Error as IoError;
+use std::io::Write;
+use std::path::Path;
+use std::process::Stdio;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
+use tokio::process::Command;
 
 /* === Constants === */
 
@@ -47,11 +56,11 @@ use dokime_storage::{ExecutionState, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
+async fn process_interruption() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run the Production Host in a Separately Killable Process
         if let Some(root) = std::env::var_os("DOKIME_INTERRUPTION_CHILD") {
-            let host = Host::open(std::path::Path::new(&root), super::support::settings())?;
+            let host = Host::open(Path::new(&root), super::support::settings())?;
             let entry = host.add_remote(&std::env::var("DOKIME_INTERRUPTION_ENDPOINT")?).await?;
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(19.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
@@ -66,7 +75,7 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         let root = super::support::tempdir()?;
         let settings = super::support::settings();
         let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;
-        let mut child = tokio::process::Command::from(dokime_runtime::process::command(std::env::current_exe()?))
+        let mut child = Command::from(dokime_runtime::process::command(std::env::current_exe()?))
             .args(["--exact", "process_interruption::process_interruption", "--nocapture"])
             .env("DOKIME_INTERRUPTION_CHILD", root.path())
             .env("DOKIME_INTERRUPTION_ENDPOINT", plugin.endpoint())
@@ -78,10 +87,10 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         let execution = async {
             while let Some(line) = lines.next_line().await? {
                 if let Some(identifier) = line.strip_prefix("HOST_READY ") {
-                    return Ok::<_, std::io::Error>(identifier.to_owned());
+                    return Ok::<_, IoError>(identifier.to_owned());
                 }
             }
-            Err(std::io::Error::other("Host Exited Before the Step Prompt"))
+            Err(IoError::other("Host Exited Before the Step Prompt"))
         }
         .await?;
         let store = Store::open(root.path())?;
@@ -97,12 +106,12 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         let host = Host::open(root.path(), settings.clone())?;
         let recovered = host.execution(&execution)?;
         assert_eq!(recovered.state, ExecutionState::Sealed);
-        assert_eq!(recovered.execution.termination, dokime_protocol::model::Termination::Interrupted as i32);
+        assert_eq!(recovered.execution.termination, Termination::Interrupted as i32);
         assert_eq!(recovered.evidence, before.evidence);
         assert_eq!(recovered.samples, before.samples);
         assert!(host.streams_closed(&execution)?);
         assert_eq!(host.entry_state("execution")?, EntryState::Unavailable);
-        assert!(host.description("execution")?.catalog.is_some());
+        assert!(host.description("execution")?.declarations.is_some());
         assert!(!host.capabilities(&execution)?.cancel);
 
         // Reattach Without Replaying Operations or Samples
@@ -115,7 +124,7 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(host.execution(&execution)?, recovered);
         host.shutdown().await?;
         plugin.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

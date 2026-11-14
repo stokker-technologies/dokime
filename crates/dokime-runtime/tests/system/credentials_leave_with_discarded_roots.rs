@@ -20,6 +20,13 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::Client;
+use dokime::Metadata;
+use dokime::SecretWritable;
+use dokime::client::SecretsSetOptions;
+use dokime_storage::Store;
+use std::error::Error;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -60,31 +67,37 @@ struct SecretSlot {
 /* === Tests === */
 
 #[tokio::test]
-async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::error::Error>> {
+async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         for fails in [false, true] {
             // Start Through the Product Journey and Read Its Published Credential by Name
             let root = super::support::tempdir()?;
             let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &[]).await?;
-            let mut secrets = dokime_protocol::host::secrets_client::SecretsClient::connect(process.url.clone()).await?;
-            let initial = secrets.list(dokime_protocol::host::SecretsListRequest { ..Default::default() }).await?.into_inner();
+            let secrets =
+                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                    .secrets
+                    .clone();
+            let initial = secrets.list().await?;
             let value = uuid::Uuid::now_v7().to_string();
             secrets
-                .set(dokime_protocol::host::SecretsSetRequest {
-                    name: "story.access".into(),
-                    value: Some(dokime_protocol::host::SecretWritable {
-                        metadata: Some(dokime::v1::Metadata {
+                .set_with(
+                    "story.access",
+                    SecretWritable {
+                        metadata: Some(Metadata {
                             identifier: "story.access".into(),
                             label: "Story Access".into(),
                             ..Default::default()
                         }),
                         value: Some(value.clone()),
-                    }),
-                    expected_revision: initial.generation.to_be_bytes().to_vec(),
-                    request_id: "credential".into(),
-                })
+                    },
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsSetOptions {
+                        request_id: Some("credential".into()),
+                        ..Default::default()
+                    },
+                )
                 .await?;
-            let store = dokime_storage::Store::open(root.path())?;
+            let store = Store::open(root.path())?;
             let pointer: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
             let host_id = std::fs::read_to_string(root.path().join("backend-id"))?;
             let entry = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", pointer.key_slot))?;
@@ -100,7 +113,7 @@ async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::err
             // A Disposable Root Can Also Own a Nested Backend Root.
             let nested = root.path().join("nested");
             let child = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&nested, &[]).await?;
-            let store = dokime_storage::Store::open(&nested)?;
+            let store = Store::open(&nested)?;
             let pointer: AccessPointer = store.administration("access")?.ok_or("Read Nested Credential: Missing Publication")?;
             let host_id = std::fs::read_to_string(nested.join("backend-id"))?;
             let nested_entry = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", pointer.key_slot))?;
@@ -108,11 +121,11 @@ async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::err
             drop(store);
             child.close().await?;
             process.close().await?;
-            drop(dokime_storage::Store::open(&root.path().join("storage-only"))?);
+            drop(Store::open(&root.path().join("storage-only"))?);
 
             if fails {
                 // The Durable Write Intent Also Owns Cleanup Without a Published Pointer.
-                let store = dokime_storage::Store::open(root.path())?;
+                let store = Store::open(root.path())?;
                 store.delete_administration("access")?;
                 store.delete_administration("secrets")?;
                 assert!(!entry.get_password()?.is_empty());
@@ -135,7 +148,7 @@ async fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn std::err
             assert!(matches!(secret.get_password(), Err(keyring::Error::NoEntry)));
             assert!(matches!(nested_entry.get_password(), Err(keyring::Error::NoEntry)));
         }
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

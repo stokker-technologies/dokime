@@ -21,8 +21,29 @@
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::v1;
-use dokime_storage::{Execution, Store};
+use dokime::Client;
+use dokime::Import;
+use dokime::Origin;
+use dokime::Termination;
+use dokime::client::EvidenceAnnotationOwner;
+use dokime::client::EvidenceAnnotationOwnerOwner;
+use dokime::client::EvidenceAnnotationSelection;
+use dokime::client::EvidenceExecutionNoteOwner;
+use dokime::client::EvidenceNoteWritable;
+use dokime::client::EvidenceNotesCreateOptions;
+use dokime::client::EvidenceNotesGetOptions;
+use dokime::client::EvidenceNotesListOptions;
+use dokime::client::EvidenceNotesSetOptions;
+use dokime::client::ExecutionOutcome;
+use dokime_protocol::host::evidence::NotesCreateRequest;
+use dokime_protocol::host::evidence::NotesSetRequest;
+use dokime_protocol::host::evidence::annotation_owner_owner::Kind as AnnotationOwnerOwnerKind;
+use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_storage::Execution;
+use dokime_storage::Store;
+use harmos_protocol::model::PageRequest;
+use std::error::Error;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -45,7 +66,7 @@ use dokime_storage::{Execution, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Independent Draft Executions
         let root = super::support::tempdir()?;
@@ -56,8 +77,8 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
             store.create(&Execution {
                 identifier: id.into(),
                 cycle: "notes-cycle".into(),
-                origin: Some(dokime_protocol::model::Origin {
-                    kind: Some(model::origin::Kind::Import(dokime_protocol::model::Import::default())),
+                origin: Some(Origin {
+                    kind: Some(OriginKind::Import(Import::default())),
                 }),
                 ..Default::default()
             })?;
@@ -65,62 +86,118 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
 
         // Create a Note and Resolve a Retried Mutation
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut notes = dokime_protocol::host::evidence::notes_client::NotesClient::new(channel);
-        let owner = dokime_protocol::host::evidence::AnnotationOwner {
-            owner: Some(dokime_protocol::host::evidence::AnnotationOwnerOwner {
-                kind: Some(model::annotation_owner_owner::Kind::Execution(dokime_protocol::host::evidence::ExecutionNoteOwner {
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let notes = Client::from_channel(channel, super::support::client_settings())?.evidence.notes.clone();
+        let owner = EvidenceAnnotationOwner {
+            owner: Some(EvidenceAnnotationOwnerOwner {
+                kind: Some(AnnotationOwnerOwnerKind::Execution(EvidenceExecutionNoteOwner {
                     cycle_id: "notes-cycle".into(),
                     execution_id: "notes-a".into(),
                 })),
             }),
         };
-        let value = dokime_protocol::host::evidence::NoteWritable {
+        let value = EvidenceNoteWritable {
             message: uuid::Uuid::now_v7().to_string(),
         };
-        let request = dokime_protocol::host::evidence::NotesCreateRequest {
+        let request = NotesCreateRequest {
             owner: Some(owner.clone()),
             value: Some(value.clone()),
             request_id: uuid::Uuid::now_v7().to_string(),
         };
-        let receipt = notes.create(request.clone()).await?.into_inner();
-        assert_eq!(notes.create(request.clone()).await?.into_inner(), receipt);
+        let receipt = notes
+            .create_with(
+                ((request.clone()).owner).unwrap_or_default(),
+                ((request.clone()).value).unwrap_or_default(),
+                EvidenceNotesCreateOptions {
+                    request_id: Some((request.clone()).request_id),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(
+            notes
+                .create_with(
+                    ((request.clone()).owner).unwrap_or_default(),
+                    ((request.clone()).value).unwrap_or_default(),
+                    EvidenceNotesCreateOptions {
+                        request_id: Some((request.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await?,
+            receipt
+        );
         let mut conflict = request;
         conflict.value.as_mut().unwrap().message.push('x');
-        assert!(notes.create(conflict).await.is_err());
+        assert!(
+            notes
+                .create_with(
+                    ((conflict.clone()).owner).unwrap_or_default(),
+                    ((conflict.clone()).value).unwrap_or_default(),
+                    EvidenceNotesCreateOptions {
+                        request_id: Some((conflict.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         let name = receipt.note.unwrap().note_id;
-        let first =
-            notes.get(dokime_protocol::host::evidence::NotesGetRequest { name: name.clone(), ..Default::default() }).await?.into_inner();
-        let changed = dokime_protocol::host::evidence::NoteWritable {
+        let first = notes.get(name.clone()).await?;
+        let changed = EvidenceNoteWritable {
             message: uuid::Uuid::now_v7().to_string(),
         };
-        let update = dokime_protocol::host::evidence::NotesSetRequest {
+        let update = NotesSetRequest {
             name: name.clone(),
             value: Some(changed.clone()),
             expected_revision: first.revision.clone(),
             request_id: "edit".into(),
         };
-        let saved = notes.set(update.clone()).await?.into_inner();
+        let saved = notes
+            .set_with(
+                (update.clone()).name,
+                ((update.clone()).value).unwrap_or_default(),
+                (update.clone()).expected_revision,
+                EvidenceNotesSetOptions {
+                    request_id: Some((update.clone()).request_id),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(saved.value, Some(changed.clone()));
-        assert_eq!(notes.set(update.clone()).await?.into_inner(), saved);
-        let selection = Some(dokime_protocol::host::evidence::AnnotationSelection {
+        assert_eq!(
+            notes
+                .set_with(
+                    (update.clone()).name,
+                    ((update.clone()).value).unwrap_or_default(),
+                    (update.clone()).expected_revision,
+                    EvidenceNotesSetOptions {
+                        request_id: Some((update.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await?,
+            saved
+        );
+        let selection = Some(EvidenceAnnotationSelection {
             owner: Some(owner),
             include_context: true,
         });
         let page = notes
-            .list(dokime_protocol::host::evidence::NotesListRequest {
-                selection: selection.clone(),
-                page: Some(harmos_protocol::model::PageRequest { page_size: 1, ..Default::default() }),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
+            .list_with(
+                (selection.clone()).unwrap_or_default(),
+                EvidenceNotesListOptions {
+                    page: Some(PageRequest { page_size: 1, ..Default::default() }),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(page.notes.len(), 1);
         assert_eq!(page.notes[0].scope.as_ref().unwrap().execution_id.as_deref(), Some("notes-a"));
         assert_eq!(page.notes[0].message, changed.message);
-        let other = dokime_protocol::host::evidence::AnnotationOwner {
-            owner: Some(dokime_protocol::host::evidence::AnnotationOwnerOwner {
-                kind: Some(model::annotation_owner_owner::Kind::Execution(dokime_protocol::host::evidence::ExecutionNoteOwner {
+        let other = EvidenceAnnotationOwner {
+            owner: Some(EvidenceAnnotationOwnerOwner {
+                kind: Some(AnnotationOwnerOwnerKind::Execution(EvidenceExecutionNoteOwner {
                     cycle_id: "notes-cycle".into(),
                     execution_id: "notes-b".into(),
                 })),
@@ -128,40 +205,73 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn std::error::Error>
         };
         assert!(
             notes
-                .list(dokime_protocol::host::evidence::NotesListRequest {
-                    selection: Some(dokime_protocol::host::evidence::AnnotationSelection {
+                .list_with(
+                    EvidenceAnnotationSelection {
                         owner: Some(other),
                         include_context: false
-                    }),
-                    at: page.resolved_at,
-                    ..Default::default()
-                })
+                    },
+                    EvidenceNotesListOptions {
+                        at: page.resolved_at,
+                        ..Default::default()
+                    }
+                )
                 .await
                 .is_err()
         );
         let pinned = notes
-            .get(dokime_protocol::host::evidence::NotesGetRequest {
-                name: name.clone(),
-                at: first.resolved_at.clone(),
-            })
-            .await?
-            .into_inner();
+            .get_with(
+                name.clone(),
+                EvidenceNotesGetOptions {
+                    at: first.resolved_at.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(pinned.value, Some(value));
-        store.close("notes-a", dokime_protocol::model::Termination::Completed, dokime_protocol::host::ExecutionOutcome::default())?;
+        store.close("notes-a", Termination::Completed, ExecutionOutcome::default())?;
         store.seal("notes-a")?;
         let mut closed = update;
         closed.request_id = "closed".into();
         closed.expected_revision = saved.revision.clone();
-        assert!(notes.set(closed.clone()).await.is_err());
+        assert!(
+            notes
+                .set_with(
+                    (closed.clone()).name,
+                    ((closed.clone()).value).unwrap_or_default(),
+                    (closed.clone()).expected_revision,
+                    EvidenceNotesSetOptions {
+                        request_id: Some((closed.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut notes = dokime_protocol::host::evidence::notes_client::NotesClient::connect(process.url.clone()).await?;
-        let page = notes.list(dokime_protocol::host::evidence::NotesListRequest { selection, ..Default::default() }).await?.into_inner();
+        let notes = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+            .evidence
+            .notes
+            .clone();
+        let page = notes.list((selection).unwrap_or_default()).await?;
         assert_eq!(page.notes[0].note_id, name);
         assert_eq!(page.notes[0].message, changed.message);
-        assert!(notes.set(closed).await.is_err());
+        assert!(
+            notes
+                .set_with(
+                    (closed.clone()).name,
+                    ((closed.clone()).value).unwrap_or_default(),
+                    (closed.clone()).expected_revision,
+                    EvidenceNotesSetOptions {
+                        request_id: Some((closed.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         process.close().await?;
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }

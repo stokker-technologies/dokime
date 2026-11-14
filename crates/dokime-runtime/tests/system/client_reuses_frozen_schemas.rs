@@ -16,23 +16,32 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{error::Error, sync::Arc};
 
 // Third Party Imports
-use harmos_protocol::model::PageRequest;
-use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, Value};
-use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::client::{FrozenSchemaCache, HostClient};
-use dokime_protocol::host::RemovePlugin;
+use dokime::Client;
+use dokime::EvidenceRecordScope;
+use dokime::MapValue;
+use dokime::client::ExecutionsSchemasGetOptions;
+use dokime::client::FrozenSchemaCache;
+use dokime::client::PluginPlacement;
+use dokime::client::PluginRemote;
+use dokime::client::PluginValue;
+use dokime::record_scope::Kind as RecordScopeKind;
 use dokime_protocol::host::executions::SchemasGetRequest;
-use dokime_protocol::host::executions::schemas_client::SchemasClient;
-use dokime_protocol::host::plugins_client::PluginsClient;
 use dokime_runtime::PluginProcess;
+use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::model::PageRequest;
+use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::DynamicMessage;
+use prost_reflect::Value;
+use std::error::Error;
+use std::sync::Arc;
 use tonic::Code;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -65,23 +74,34 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = HostClient::new(channel.clone(), super::support::client_settings())?;
-        let entry = client.plugins.add(plugin.endpoint()).await?;
+        let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
+        let entry = client
+            .plugins
+            .create(
+                "thermal",
+                PluginPlacement {
+                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                },
+                PluginValue { enabled: true },
+            )
+            .await?
+            .entry
+            .unwrap();
 
         // Run Two Executions with the Same Frozen Descriptors.
-        let cases = client.templates.materialize("thermal", "thermal.cycle", Default::default()).await?;
+        let cases = super::support::materialize(&client, "thermal", "thermal.cycle", Default::default()).await?;
         let mut executions = Vec::new();
         for case in [cases[0].clone(), cases[0].clone()] {
-            let cycle = client.cycles.start(vec![case]).await?;
-            let execution = cycle.executions[0].clone();
-            let mut progress = cycle.watch();
+            let cycle = super::support::admit(&client, vec![case]).await?;
+            let execution = cycle[0].clone();
+            let mut progress = client.executions.progress.watch(cycle[0].clone()).await?;
             while let Some(frame) = progress.next().await? {
                 if frame.phase != "prompt" {
                     continue;
                 }
-                let pending = client.prompts.pending(execution.clone()).await?;
+                let pending = client.prompts.list(execution.clone(), true).await?;
                 for prompt in pending.prompts {
-                    client.prompts.respond(prompt.prompt.unwrap().prompt_id, "yes", true).await?;
+                    client.prompts.answers.create(prompt.prompt.unwrap().prompt_id, "yes", MapValue::default(), true).await?;
                 }
             }
             executions.push(execution);
@@ -91,11 +111,43 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         let first = first_reply.execution.unwrap();
         let second = client.executions.get(executions[1].clone()).await?.execution.unwrap();
         assert_eq!(first.schemas.as_ref().unwrap().digest, second.schemas.as_ref().unwrap().digest);
-        let records = client.records.list(executions[0].clone()).await?.records;
-        let second_records = client.records.list(executions[1].clone()).await?.records;
+        let records = client
+            .evidence
+            .records
+            .list(
+                EvidenceRecordScope {
+                    kind: Some(RecordScopeKind::Execution(executions[0].clone())),
+                },
+                String::new(),
+                Vec::new(),
+                Default::default(),
+                String::new(),
+                Default::default(),
+            )
+            .await?
+            .records;
+        let second_records = client
+            .evidence
+            .records
+            .list(
+                EvidenceRecordScope {
+                    kind: Some(RecordScopeKind::Execution(executions[1].clone())),
+                },
+                String::new(),
+                Vec::new(),
+                Default::default(),
+                String::new(),
+                Default::default(),
+            )
+            .await?
+            .records;
 
         // Fetch Complete Descriptors Once After the Plugin Stops and Decode a Payload.
-        PluginsClient::new(channel.clone()).remove(RemovePlugin { entry: entry.entry }).await?;
+        Client::from_channel(channel.clone(), super::support::client_settings())?
+            .plugins
+            .clone()
+            .delete(entry.name.clone(), entry.revision.clone())
+            .await?;
         plugin.close().await?;
         let mut cache = FrozenSchemaCache::default();
         let types = cache.get(&client, &first).await?;
@@ -105,7 +157,7 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));
 
         // Refuse Invalid Continuations and a Page Too Small for One Descriptor.
-        let mut schemas = SchemasClient::new(channel);
+        let schemas = Client::from_channel(channel, super::support::client_settings())?.executions.schemas.clone();
         let mut request = SchemasGetRequest {
             name: executions[0].clone(),
             at: first.resolved_at.clone(),
@@ -115,16 +167,66 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
                 ..Default::default()
             }),
         };
-        assert!(schemas.get(request.clone()).await.is_err());
+        assert!(
+            schemas
+                .get_with(
+                    (request.clone()).name,
+                    ExecutionsSchemasGetOptions {
+                        at: (request.clone()).at,
+                        page: (request.clone()).page,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         request.at = None;
-        assert!(schemas.get(request.clone()).await.is_err());
+        assert!(
+            schemas
+                .get_with(
+                    (request.clone()).name,
+                    ExecutionsSchemasGetOptions {
+                        at: (request.clone()).at,
+                        page: (request.clone()).page,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         request.name = executions[1].clone();
         request.at = first.resolved_at.clone();
         request.page.as_mut().unwrap().page_token.clear();
-        assert!(schemas.get(request.clone()).await.is_err());
+        assert!(
+            schemas
+                .get_with(
+                    (request.clone()).name,
+                    ExecutionsSchemasGetOptions {
+                        at: (request.clone()).at,
+                        page: (request.clone()).page,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         request.name = executions[0].clone();
         request.page.as_mut().unwrap().max_bytes = 1;
-        assert_eq!(schemas.get(request).await.unwrap_err().code(), Code::ResourceExhausted);
+        assert_eq!(
+            schemas
+                .get_with(
+                    (request.clone()).name,
+                    ExecutionsSchemasGetOptions {
+                        at: (request.clone()).at,
+                        page: (request.clone()).page,
+                        ..Default::default()
+                    }
+                )
+                .await
+                .unwrap_err()
+                .code(),
+            Code::ResourceExhausted
+        );
 
         // Close the Host: A Second Execution Must Decode Without Another Fetch.
         process.close().await?;
@@ -132,7 +234,7 @@ async fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
         assert!(Arc::ptr_eq(&types, &reused));
         let door = DynamicMessage::decode(message, second_records[0].payload.as_slice())?;
         assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));
-        client.close();
+
         Ok(())
     })
     .await?

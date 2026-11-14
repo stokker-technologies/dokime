@@ -21,28 +21,57 @@ mod sample_carrier;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    hint::black_box,
-    num::NonZeroUsize,
-    time::{Duration, Instant},
-};
 
 // Third Party Imports
-use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
-use harmos_protocol::model::Declarations;
-use prost::Message;
-use prost_types::{
-    DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
-    field_descriptor_proto::{Label, Type},
-};
-use tempfile::TempDir;
 
 // Local Imports
+use criterion::BenchmarkId;
+use criterion::Criterion;
+use criterion::SamplingMode;
+use criterion::Throughput;
+use dokime::Aggregate;
+use dokime::AggregateExpression;
+use dokime::Card;
+use dokime::DataExpression;
+use dokime::Document;
+use dokime::Downsample;
+use dokime::EvidenceScope;
+use dokime::FieldReference;
+use dokime::Import;
+use dokime::Metadata;
+use dokime::Origin;
+use dokime::Section;
+use dokime::Summary;
+use dokime::SummaryTile;
+use dokime::Termination;
+use dokime::client::ExecutionOutcome;
 use dokime_protocol::builders::Plot;
-use dokime_protocol::model;
-use dokime_protocol::model::Aggregate;
-use dokime_protocol::model::DataExpression;
-use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store};
+use dokime_protocol::model::card::Body;
+use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
+use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_storage::BatchSelection;
+use dokime_storage::Execution;
+use dokime_storage::NumericWindow;
+use dokime_storage::Sample;
+use dokime_storage::Store;
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::StreamDeclaration;
+use prost::Message;
+use prost_types::DescriptorProto;
+use prost_types::FieldDescriptorProto;
+use prost_types::FileDescriptorProto;
+use prost_types::FileDescriptorSet;
+use prost_types::Timestamp;
+use prost_types::field_descriptor_proto::Label;
+use prost_types::field_descriptor_proto::Type;
+use std::f64::consts::TAU;
+use std::hint::black_box;
+use std::num::NonZeroUsize;
+use std::time::Duration;
+use std::time::Instant;
+use tempfile::TempDir;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
 
 /* === Constants === */
 
@@ -84,7 +113,7 @@ struct Fixture {
     root: TempDir,
 }
 struct DocumentFixture {
-    document: dokime_protocol::model::Document,
+    document: Document,
     _fixture: Fixture,
     rows: usize,
     plots: usize,
@@ -137,9 +166,7 @@ impl Fixture {
     }
     fn seal(&self) {
         self.store.close_streams("execution").unwrap();
-        self.store
-            .close("execution", dokime_protocol::model::Termination::Completed, dokime_protocol::host::ExecutionOutcome::default())
-            .unwrap();
+        self.store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
         self.store.seal("execution").unwrap();
     }
 }
@@ -181,25 +208,17 @@ impl DocumentFixture {
         }
         fixture.store.flush_samples().unwrap();
         let mut cards = (0..plots)
-            .map(|i| dokime_protocol::model::Card {
-                body: Some(dokime_protocol::model::card::Body::Plot(
-                    Plot::time_series(dokime_protocol::model::FieldReference::new(format!("signal.{i}")).field("value")).message,
-                )),
+            .map(|i| Card {
+                body: Some(Body::Plot(Plot::time_series(FieldReference::new(format!("signal.{i}")).field("value")).message)),
                 ..Default::default()
             })
             .collect::<Vec<_>>();
-        let kinds = [
-            dokime_protocol::model::Aggregate::Count,
-            dokime_protocol::model::Aggregate::Min,
-            dokime_protocol::model::Aggregate::Max,
-            dokime_protocol::model::Aggregate::Mean,
-            dokime_protocol::model::Aggregate::Rms,
-        ]
-        .into_iter()
-        .chain(median.then_some(dokime_protocol::model::Aggregate::Median));
+        let kinds = [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Rms]
+            .into_iter()
+            .chain(median.then_some(Aggregate::Median));
         let tiles = kinds
-            .map(|kind| dokime_protocol::model::SummaryTile {
-                metadata: Some(dokime_protocol::model::Metadata {
+            .map(|kind| SummaryTile {
+                metadata: Some(Metadata {
                     identifier: format!("{kind:?}"),
                     label: format!("{kind:?}"),
                     ..Default::default()
@@ -210,13 +229,13 @@ impl DocumentFixture {
             .collect();
         cards.insert(
             0,
-            dokime_protocol::model::Card {
-                body: Some(dokime_protocol::model::card::Body::Summary(dokime_protocol::model::Summary { tiles })),
+            Card {
+                body: Some(Body::Summary(Summary { tiles })),
                 ..Default::default()
             },
         );
-        let document = dokime_protocol::model::Document {
-            sections: vec![dokime_protocol::model::Section { cards, ..Default::default() }],
+        let document = Document {
+            sections: vec![Section { cards, ..Default::default() }],
             ..Default::default()
         };
         Self { document, _fixture: fixture, rows, plots }
@@ -228,7 +247,7 @@ impl DocumentFixture {
         let (reader, _cancellation) = store.read_session().unwrap();
         let expansion = dokime_operations::host::documents::expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
         assert!(expansion.next.is_none());
-        let scope = dokime_protocol::model::EvidenceScope {
+        let scope = EvidenceScope {
             execution_id: Some("document".into()),
             cycle_id: Some("cycle".into()),
             ..Default::default()
@@ -237,12 +256,12 @@ impl DocumentFixture {
         for section in &expansion.document.sections {
             for card in &section.cards {
                 match card.body.as_ref().unwrap() {
-                    dokime_protocol::model::card::Body::Summary(summary) => {
+                    Body::Summary(summary) => {
                         for tile in &summary.tiles {
                             black_box(reader.document_value(&cut, tile.value.as_ref().unwrap()).unwrap());
                         }
                     }
-                    dokime_protocol::model::card::Body::Plot(plot) => {
+                    Body::Plot(plot) => {
                         let mut request = dokime_operations::host::documents::plot::request(plot, scope.clone()).unwrap();
                         request.max_points = Some(1500);
                         let envelope =
@@ -293,12 +312,12 @@ fn definition() -> Execution {
     Execution {
         identifier: "execution".into(),
         cycle: "cycle".into(),
-        origin: Some(dokime_protocol::model::Origin {
-            kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import::default())),
+        origin: Some(Origin {
+            kind: Some(OriginKind::Import(Import::default())),
         }),
         catalog: Declarations {
             types: Some(types),
-            streams: vec![harmos_protocol::model::StreamDeclaration {
+            streams: vec![StreamDeclaration {
                 id: "readings".into(),
                 row: "benchmark.Row".into(),
                 ..Default::default()
@@ -310,7 +329,7 @@ fn definition() -> Execution {
     }
 }
 fn timestamp(at: i64) -> String {
-    prost_types::Timestamp {
+    Timestamp {
         seconds: at.div_euclid(1_000_000_000),
         nanos: at.rem_euclid(1_000_000_000) as i32,
     }
@@ -320,7 +339,7 @@ fn waveform(index: usize) -> f64 {
     let index = index % 192;
     let ordinal = index / 3;
     let phase = index % 3;
-    12.0 * (std::f64::consts::TAU * ordinal as f64 / 64.0 - std::f64::consts::TAU * phase as f64 / 3.0).sin()
+    12.0 * (TAU * ordinal as f64 / 64.0 - TAU * phase as f64 / 3.0).sin()
 }
 fn samples(first: usize, count: usize) -> Vec<Sample> {
     (0..count)
@@ -354,11 +373,11 @@ fn window(count: u64) -> NumericWindow<'static> {
     }
 }
 fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
-    dokime_protocol::model::DataExpression {
-        kind: Some(dokime_protocol::model::data_expression::Kind::Aggregate(Box::new(dokime_protocol::model::AggregateExpression {
+    DataExpression {
+        kind: Some(DataExpressionKind::Aggregate(Box::new(AggregateExpression {
             kind: kind as i32,
-            input: Some(Box::new(dokime_protocol::model::DataExpression {
-                kind: Some(dokime_protocol::model::data_expression::Kind::Stream(dokime_protocol::model::FieldReference {
+            input: Some(Box::new(DataExpression {
+                kind: Some(DataExpressionKind::Stream(FieldReference {
                     identifier: stream.into(),
                     field: "value".into(),
                 })),
@@ -374,12 +393,12 @@ fn main() {
         if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
             publication::serve().unwrap();
         } else {
-            let executor = tokio::runtime::Runtime::new().unwrap();
+            let executor = Runtime::new().unwrap();
             executor.block_on(sample_carrier::serve(publication::samples)).unwrap();
         }
         return;
     }
-    let executor = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let executor = Builder::new_current_thread().enable_all().build().unwrap();
     let _entered = executor.enter();
     let mut criterion = Criterion::default().configure_from_args();
     let mut group = criterion.benchmark_group("storage");
@@ -427,27 +446,16 @@ fn main() {
         );
         group.bench_function(format!("window_full_scan_lttb_{temperature}/1000000"), |b| {
             let query = query.get_or_insert_with(|| Fixture::populated(QUERY_ROWS));
-            black_box(
-                query.store.sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500).unwrap(),
-            );
+            black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), Downsample::Lttb, 1500).unwrap());
             b.iter_custom(|iterations| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
                     let started = Instant::now();
                     if cold {
                         let store = Store::open(query.root.path()).unwrap();
-                        black_box(
-                            store
-                                .sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500)
-                                .unwrap(),
-                        );
+                        black_box(store.sampled_time_series_window(window(QUERY_ROWS as u64), Downsample::Lttb, 1500).unwrap());
                     } else {
-                        black_box(
-                            query
-                                .store
-                                .sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500)
-                                .unwrap(),
-                        );
+                        black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), Downsample::Lttb, 1500).unwrap());
                     }
                     elapsed += started.elapsed();
                 }

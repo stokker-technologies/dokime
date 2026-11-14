@@ -16,16 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{ffi::OsString, path::Path};
+#[cfg(windows)]
+use std::fs::OpenOptions;
+#[cfg(target_os = "linux")]
+use std::process::{Child, Command as ProcessCommand};
+use std::{error::Error, ffi::OsString, io::Result as IoResult, path::Path};
+use tempfile::TempDir;
 
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
-
-#[cfg(target_os = "linux")]
-const STARTUP_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25);
 
 /* === Macros === */
 
@@ -37,13 +39,13 @@ pub struct CredentialStore {
     pub environment: Vec<(&'static str, OsString)>,
 
     #[cfg(target_os = "linux")]
-    children: Vec<std::process::Child>,
+    children: Vec<Child>,
 
     #[cfg(target_os = "linux")]
-    _home: tempfile::TempDir,
+    _home: TempDir,
 }
 
-pub struct Root(Option<tempfile::TempDir>);
+pub struct Root(Option<TempDir>);
 
 /* === Enums === */
 
@@ -72,7 +74,7 @@ impl Drop for Root {
 }
 
 impl CredentialStore {
-    pub async fn start(root: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn start(root: &Path) -> Result<Self, Box<dyn Error>> {
         #[cfg(not(target_os = "linux"))]
         {
             let _ = root;
@@ -80,7 +82,10 @@ impl CredentialStore {
         }
         #[cfg(target_os = "linux")]
         {
-            use std::{io::Write, process::Stdio};
+            use std::{
+                io::{BufRead, BufReader, Error as IoError, Write},
+                process::Stdio,
+            };
             use tokio::process::Command;
 
             // Isolate Every Credential and Socket Under This Story's Root
@@ -95,23 +100,26 @@ impl CredentialStore {
             };
 
             // Start a Private Bus Without Inheriting the Desktop Session
-            let address_file = store._home.path().join("bus-address");
             let mut command = dokime_runtime::process::command("dbus-daemon");
             command
                 .args(["--session", "--nofork", "--print-address=1"])
                 .envs(store.environment.iter().cloned())
                 .stdin(Stdio::null())
-                .stdout(std::fs::File::create(&address_file)?)
+                .stdout(Stdio::piped())
                 .stderr(Stdio::inherit());
             store.spawn(command, "dbus")?;
-            let address = loop {
-                store.check_running()?;
-                let address = std::fs::read_to_string(&address_file)?;
-                if address.ends_with('\n') {
-                    break address.trim().to_owned();
-                }
-                tokio::time::sleep(STARTUP_POLL_INTERVAL).await;
-            };
+            let stdout = store.children.last_mut().unwrap().stdout.take().ok_or("Start Story Bus: Missing Readiness Pipe")?;
+            let address = tokio::task::spawn_blocking(move || {
+                let mut address = String::new();
+                BufReader::new(stdout).read_line(&mut address)?;
+                Ok::<String, IoError>(address)
+            })
+            .await??;
+            store.check_running()?;
+            if !address.ends_with('\n') {
+                return Err("Start Story Bus: Missing Readiness Event".into());
+            }
+            let address = address.trim().to_owned();
             store.environment.push(("DBUS_SESSION_BUS_ADDRESS", address.into()));
 
             // Unlock a Disposable Keyring Before Starting the Host
@@ -144,21 +152,20 @@ impl CredentialStore {
                 if result.status.success() && String::from_utf8_lossy(&result.stdout).contains("boolean true") {
                     break;
                 }
-                tokio::time::sleep(STARTUP_POLL_INTERVAL).await;
             }
             Ok(store)
         }
     }
 
     #[cfg(target_os = "linux")]
-    fn spawn(&mut self, mut command: std::process::Command, package: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn spawn(&mut self, mut command: ProcessCommand, package: &str) -> Result<(), Box<dyn Error>> {
         let child = command.spawn().map_err(|error| format!("Start Story Credential Store: Install the {package} Package: {error}"))?;
         self.children.push(child);
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
-    fn check_running(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn check_running(&mut self) -> Result<(), Box<dyn Error>> {
         for child in &mut self.children {
             if let Some(status) = child.try_wait()? {
                 return Err(format!("Story Credential Store Exited During Startup: {status}").into());
@@ -181,17 +188,17 @@ impl Drop for CredentialStore {
 
 /* === Public Functions === */
 
-pub fn tempdir() -> std::io::Result<Root> {
+pub fn tempdir() -> IoResult<Root> {
     tempfile::tempdir().map(|root| Root(Some(root)))
 }
 
 /* === Private Functions === */
 
 #[cfg(windows)]
-fn remove_credentials(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn remove_credentials(root: &Path) -> Result<(), Box<dyn Error>> {
     if root.join("backend-id").is_file() {
         // A Dropped Child Has Been Killed; Await Release Before Discarding Its Root.
-        let lease = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
+        let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
         lease.lock()?;
         drop(lease);
         dokime_runtime::services::remove_credentials(root)?;

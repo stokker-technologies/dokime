@@ -15,13 +15,6 @@
 
 /* === Imports === */
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-use super::support::bundles::{bundle, upload};
-
 /* === Constants === */
 
 /* === Macros === */
@@ -43,109 +36,70 @@ use super::support::bundles::{bundle, upload};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        // Package the Existing SDK Fixture with Verified Platform Metadata
-        let executable = std::fs::read(super::support::thermal_fixture()?)?;
-        let first_archive = bundle(&executable, "1.0.0")?;
-        let root = super::support::tempdir()?;
-        let credential_root = super::support::tempdir()?;
-        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut plugins = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        let installed = plugins.install(tokio_stream::iter(upload(first_archive.clone()))).await?.into_inner();
-        assert_eq!(installed.plugin.as_ref().unwrap().state, dokime_protocol::host::PluginState::Ready as i32);
-        assert!(matches!(installed.plugin.as_ref().unwrap().placement, Some(dokime_protocol::host::plugin::Placement::Managed(_))));
-        assert_eq!(
-            plugins
-                .get_installation(dokime_protocol::host::PluginsGetInstallationRequest { install_id: installed.install_id.clone() })
-                .await?
-                .into_inner(),
-            installed
-        );
-        let page = plugins
-            .list_installations(dokime_protocol::host::PluginsListInstallationsRequest { page_size: 1, after: None })
-            .await?
-            .into_inner();
-        assert_eq!(page.total_count, 1);
+async fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
+    tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+        // Upload a Verified Bundle Before Creating the Library Entry
+        let executable = std::fs::read(support::thermal_fixture()?)?;
+        let first_archive = bundle(&executable, "thermal", "1.0.0")?;
+        let root = support::tempdir()?;
+        let credential_root = support::tempdir()?;
+        let credentials = support::CredentialStore::start(credential_root.path()).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let client = Client::from_channel(channel, support::client_settings())?;
+        let content = upload(&client, first_archive.clone()).await?;
+        let placement = PluginPlacement {
+            kind: Some(PlacementKind::Managed(PluginManaged {
+                content: Some(content),
+                sha256: Sha256::digest(&first_archive).to_vec(),
+            })),
+        };
+        let installed = client.plugins.create("thermal", placement, PluginValue { enabled: true }).await?.entry.unwrap();
+        assert_eq!(installed.state, PluginState::Ready as i32);
+        assert!(installed.process.is_some());
+        assert_eq!(client.plugins.get("thermal").await?.entry, Some(installed.clone()));
+        assert_eq!(client.plugins.list().await?.entries, vec![installed.clone()]);
 
-        // Disable and Replace the Bundle While Keeping Its Disabled State
-        let disabled = plugins
-            .set_enabled(dokime_protocol::host::PluginsSetEnabledRequest {
-                install_id: installed.install_id.clone(),
-                enabled: false,
-            })
-            .await?
-            .into_inner();
-        assert_eq!(disabled.state, dokime_protocol::host::PluginInstallationState::Disabled as i32);
+        // Disabled Replacement Keeps Its Identity and Enablement
+        let disabled = client.plugins.set("thermal", PluginValue { enabled: false }, installed.revision).await?.entry.unwrap();
+        assert!(!disabled.value.as_ref().unwrap().enabled);
+        let second_archive = bundle(&executable, "thermal", "2.0.0")?;
+        let content = upload(&client, second_archive.clone()).await?;
+        let placement = PluginPlacement {
+            kind: Some(PlacementKind::Managed(PluginManaged {
+                content: Some(content),
+                sha256: Sha256::digest(&second_archive).to_vec(),
+            })),
+        };
+        let replacement = client.plugins.replace("thermal", placement, disabled.revision).await?.entry.unwrap();
+        assert_eq!(replacement.name, disabled.name);
+        assert!(!replacement.value.as_ref().unwrap().enabled);
+        let enabled = client.plugins.set("thermal", PluginValue { enabled: true }, replacement.revision).await?.entry.unwrap();
+        assert_eq!(enabled.state, PluginState::Ready as i32);
 
-        assert!(
-            dokime_protocol::host::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
-                .await?
-                .list(dokime_protocol::host::evidence::HealthEventsListRequest::default())
-                .await?
-                .into_inner()
-                .events
-                .is_empty()
-        );
-        let replacement = plugins.install(tokio_stream::iter(upload(bundle(&executable, "2.0.0")?))).await?.into_inner();
-        assert_eq!(replacement.state, dokime_protocol::host::PluginInstallationState::Disabled as i32);
-        assert!(
-            plugins
-                .get_installation(dokime_protocol::host::PluginsGetInstallationRequest { install_id: installed.install_id })
-                .await
-                .is_err()
-        );
-        let enabled = plugins
-            .set_enabled(dokime_protocol::host::PluginsSetEnabledRequest {
-                install_id: replacement.install_id.clone(),
-                enabled: true,
-            })
-            .await?
-            .into_inner();
-        assert_eq!(enabled.plugin.as_ref().unwrap().state, dokime_protocol::host::PluginState::Ready as i32);
-
-        // Reject an Incomplete Upload Without Changing the Installation Inventory
-        let mut incomplete = upload(first_archive);
-        incomplete.pop();
-        assert!(plugins.install(tokio_stream::iter(incomplete)).await.is_err());
-        assert_eq!(
-            plugins.list_installations(dokime_protocol::host::PluginsListInstallationsRequest::default()).await?.into_inner().total_count,
-            1
-        );
+        // A Bad Bundle Cannot Replace the Serving Entry
+        let content = upload(&client, b"invalid bundle".to_vec()).await?;
+        let invalid = PluginPlacement {
+            kind: Some(PlacementKind::Managed(PluginManaged {
+                content: Some(content),
+                sha256: Sha256::digest(b"invalid bundle").to_vec(),
+            })),
+        };
+        assert!(client.plugins.replace("thermal", invalid, enabled.revision.clone()).await.is_err());
+        assert_eq!(client.plugins.get("thermal").await?.entry, Some(enabled));
         process.close().await?;
 
-        // Restart Starts the Verified Managed Process, Then Remove Only Its Installation
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut plugins = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        let restarted = plugins
-            .get_installation(dokime_protocol::host::PluginsGetInstallationRequest {
-                install_id: replacement.install_id.clone(),
-            })
-            .await?
-            .into_inner();
-        assert_eq!(restarted.plugin.as_ref().unwrap().state, dokime_protocol::host::PluginState::Ready as i32);
-        dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-            .await?
-            .remove(dokime_protocol::host::RemovePlugin { entry: replacement.install_id })
-            .await?;
-        assert!(
-            dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-                .await?
-                .list(dokime_protocol::host::ListPlugins {})
-                .await?
-                .into_inner()
-                .plugins
-                .is_empty()
-        );
-        assert_eq!(
-            plugins.list_installations(dokime_protocol::host::PluginsListInstallationsRequest::default()).await?.into_inner().total_count,
-            0
-        );
+        // Restart Activates the Durable Managed Entry and Deletion Retires It
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let client = Client::from_channel(channel, support::client_settings())?;
+        let restarted = client.plugins.get("thermal").await?.entry.unwrap();
+        assert_eq!(restarted.state, PluginState::Ready as i32);
+        assert!(restarted.process.is_some());
+        client.plugins.delete(restarted.name, restarted.revision).await?;
+        assert!(client.plugins.list().await?.entries.is_empty());
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

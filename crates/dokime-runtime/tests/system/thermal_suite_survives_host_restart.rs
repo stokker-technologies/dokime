@@ -16,14 +16,23 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
 
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::model;
-use dokime_runtime::{Host, PluginProcess, RunState};
-use dokime_storage::{ExecutionState, OutcomeCounts};
+use dokime::Termination;
+use dokime::Value;
+use dokime::client::ResultStatus;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_runtime::Host;
+use dokime_runtime::PluginProcess;
+use dokime_runtime::RunState;
+use dokime_storage::ExecutionState;
+use dokime_storage::OutcomeCounts;
+use std::collections::HashMap;
+use std::error::Error;
 
 /* === Constants === */
 
@@ -44,7 +53,7 @@ use dokime_storage::{ExecutionState, OutcomeCounts};
 /* === Private Functions === */
 
 #[tokio::test]
-async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error::Error>> {
+async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare a Fresh Evidence Root and the Shared SDK Plugin
         let root = super::support::tempdir()?;
@@ -61,17 +70,12 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error:
             assert_eq!(catalog.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
 
             // Materialize Purely and Freeze Catalog and Process Identity
-            let parameters = HashMap::from([(
-                "limit".into(),
-                dokime_protocol::model::Value {
-                    kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-                },
-            )]);
+            let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
             let origin = host.materialize(&entry, "thermal.cycle", parameters.clone()).await?;
             assert_eq!(origin, host.materialize(&entry, "thermal.cycle", parameters).await?);
             assert!(host.executions()?.is_empty() || snapshots.len() == 1);
-            let Some(dokime_protocol::model::origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { panic!("Expected PluginRun") };
-            assert_eq!(run.digest, host.description(&entry)?.catalog.unwrap().digest);
+            let Some(OriginKind::PluginRun(run)) = origin.kind.as_ref() else { panic!("Expected PluginRun") };
+            assert_eq!(run.digest, host.description(&entry)?.declarations.unwrap().digest);
             assert_eq!(run.started_at, host.description(&entry)?.started_at);
             assert_eq!(run.test_case.as_ref().unwrap().steps.len(), 2);
 
@@ -83,7 +87,7 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error:
             let prompt = host.next_prompt(&execution).await?;
             host.answer(
                 &execution,
-                dokime_protocol::host::PromptsCreateResponse {
+                PromptsCreateResponse {
                     prompt: prompt.prompt,
                     action: "yes".into(),
                     accepted: true,
@@ -93,14 +97,14 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error:
             let result = cycle.wait().await?;
             let snapshot = &result.executions[0];
             assert_eq!(snapshot.state, ExecutionState::Sealed);
-            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Completed as i32);
+            assert_eq!(snapshot.execution.termination, Termination::Completed as i32);
             assert_eq!(
                 result.counts,
                 OutcomeCounts {
                     evaluated: 1,
                     not_evaluated: 0,
                     declared: 0,
-                    verdict: Some(dokime_protocol::host::ResultStatus::Passed)
+                    verdict: Some(ResultStatus::Passed)
                 }
             );
             assert_eq!(
@@ -140,7 +144,7 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn std::error:
         }
         host.shutdown().await?;
         remote.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

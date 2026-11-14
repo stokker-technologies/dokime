@@ -15,12 +15,6 @@
 
 /* === Imports === */
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 /* === Constants === */
 
 /* === Macros === */
@@ -42,121 +36,59 @@
 /* === Tests === */
 
 #[tokio::test]
-async fn client_manages_plugin_entries() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        // Add a Remote Plugin and Read Its Complete Entry
-        let root = super::support::tempdir()?;
-        let credential_root = super::support::tempdir()?;
-        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
-        let mut plugin =
-            dokime_runtime::PluginProcess::start(&super::support::thermal_fixture()?, true, &super::support::settings().placement).await?;
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut plugins = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        let entry = plugins.add(dokime_protocol::host::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
-        assert_eq!(entry.state, dokime_protocol::host::PluginState::Ready as i32);
-        assert!(matches!(entry.placement, Some(dokime_protocol::host::plugin::Placement::Remote(_))));
-        assert_eq!(
-            dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-                .await?
-                .list(dokime_protocol::host::ListPlugins {})
-                .await?
-                .into_inner()
-                .plugins,
-            vec![entry.clone()]
-        );
-        let admitted = plugins
-            .list_admitted_plugins(dokime_protocol::host::PluginsListAdmittedPluginsRequest { page_size: 1, after: None })
-            .await?
-            .into_inner();
-        assert_eq!(admitted.total_count, 1);
-        assert_eq!(admitted.plugins[0].plugin.as_ref(), Some(&entry));
-        assert!(plugins.add(dokime_protocol::host::AddRemotePlugin { url: "not a URL".into() }).await.is_err());
+async fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
+    tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+        // Create a Remote Entry Through the Composed Library Resource
+        let root = support::tempdir()?;
+        let credential_root = support::tempdir()?;
+        let credentials = support::CredentialStore::start(credential_root.path()).await?;
+        let mut plugin = PluginProcess::start(&support::thermal_fixture()?, true, &support::settings().placement).await?;
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let client = Client::from_channel(channel, support::client_settings())?;
+        let placement = PluginPlacement {
+            kind: Some(PlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+        };
+        let entry = client.plugins.create("thermal", placement.clone(), PluginValue { enabled: true }).await?.entry.unwrap();
+        assert_eq!(entry.name, "thermal");
+        assert_eq!(entry.state, PluginState::Ready as i32);
+        assert_eq!(entry.placement, Some(placement.clone()));
+        let admitted = client.plugins.list().await?;
+        assert_eq!(admitted.entries, vec![entry.clone()]);
+        let invalid = PluginPlacement {
+            kind: Some(PlacementKind::Remote(PluginRemote { url: "not a URL".into() })),
+        };
+        assert!(client.plugins.create("invalid", invalid, PluginValue { enabled: true }).await.is_err());
         process.close().await?;
 
-        // Retain Placement While Unavailable and Explicitly Reconnect
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut plugins = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        let saved = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-            .await?
-            .list(dokime_protocol::host::ListPlugins {})
-            .await?
-            .into_inner()
-            .plugins
-            .remove(0);
-        assert_eq!(saved.entry, entry.entry);
+        // Retain the Same Entry Across Restart and Fence Old Read Cuts
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let client = Client::from_channel(channel, support::client_settings())?;
+        let saved = client.plugins.get("thermal").await?.entry.unwrap();
+        assert_eq!(saved.name, entry.name);
         assert_eq!(saved.placement, entry.placement);
-        assert_eq!(saved.state, dokime_protocol::host::PluginState::Unavailable as i32);
-        plugins
-            .reload(dokime_protocol::host::PluginsReloadRequest {
-                plugin_id: Some(entry.entry.clone()),
-                install_id: None,
-            })
-            .await?;
-        assert_eq!(
-            dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-                .await?
-                .list(dokime_protocol::host::ListPlugins {})
-                .await?
-                .into_inner()
-                .plugins[0]
-                .state,
-            dokime_protocol::host::PluginState::Ready as i32
-        );
-        assert!(
-            plugins
-                .list_admitted_plugins(dokime_protocol::host::PluginsListAdmittedPluginsRequest {
-                    page_size: 1,
-                    after: Some(dokime_protocol::host::AdmittedPluginCursor {
-                        epoch: admitted.epoch,
-                        revision: admitted.revision,
-                        after_plugin_id: entry.entry.clone()
-                    }),
-                })
-                .await
-                .is_err()
-        );
+        let restarted = client.plugins.restart(saved.name.clone(), saved.revision.clone()).await?;
+        assert_eq!(restarted.state, PluginState::Ready as i32);
+        let options = PluginsListOptions {
+            at: admitted.resolved_at,
+            ..Default::default()
+        };
+        assert!(client.plugins.list_with(options).await.is_err());
 
-        // Removing a Remote Entry Leaves Its User-Owned Process Running
-        dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-            .await?
-            .remove(dokime_protocol::host::RemovePlugin { entry: entry.entry.clone() })
-            .await?;
-        assert!(
-            dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-                .await?
-                .list(dokime_protocol::host::ListPlugins {})
-                .await?
-                .into_inner()
-                .plugins
-                .is_empty()
-        );
-        let readded = plugins.add(dokime_protocol::host::AddRemotePlugin { url: plugin.endpoint().into() }).await?.into_inner();
-        assert_eq!(readded.entry, entry.entry);
+        // Deletion Leaves the User-Owned Remote Process Available for Reattachment
+        client.plugins.delete(restarted.name, restarted.revision).await?;
+        assert!(client.plugins.list().await?.entries.is_empty());
+        let readded = client.plugins.create("thermal", placement, PluginValue { enabled: true }).await?.entry.unwrap();
+        assert_eq!(readded.name, entry.name);
+        assert_eq!(readded.state, PluginState::Ready as i32);
         plugin.close().await?;
-        let unavailable = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-            .await?
-            .list(dokime_protocol::host::ListPlugins {})
-            .await?
-            .into_inner()
-            .plugins
-            .remove(0);
-        assert_eq!(unavailable.state, dokime_protocol::host::PluginState::Unavailable as i32);
-        assert_eq!(
-            plugins
-                .list_admitted_plugins(dokime_protocol::host::PluginsListAdmittedPluginsRequest::default())
-                .await?
-                .into_inner()
-                .total_count,
-            0
-        );
-        dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
-            .await?
-            .remove(dokime_protocol::host::RemovePlugin { entry: entry.entry })
-            .await?;
+        let unavailable = client.plugins.get("thermal").await?.entry.unwrap();
+        assert_eq!(unavailable.state, PluginState::Unavailable as i32);
+        assert_eq!(unavailable.description, readded.description);
+        client.plugins.delete(unavailable.name, unavailable.revision).await?;
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

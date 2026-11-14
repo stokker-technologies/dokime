@@ -15,16 +15,17 @@
 
 /* === Imports === */
 
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime_runtime::PluginProcess;
-use std::path::PathBuf;
-use tokio::process::Command;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use dokime_runtime::PluginProcess;
+use std::env::consts::EXE_SUFFIX;
+use std::error::Error;
+use std::path::PathBuf;
+use tokio::process::Command;
 
 /* === Constants === */
 
@@ -47,7 +48,7 @@ use tokio::process::Command;
 /* === Tests === */
 
 #[tokio::test]
-async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std::error::Error>> {
+async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
         let root = super::support::tempdir()?;
@@ -55,8 +56,8 @@ async fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn std:
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let python = std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
-            let directory = if std::env::consts::EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
-            repository.join(directory).join(format!("python{}", std::env::consts::EXE_SUFFIX))
+            let directory = if EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
+            repository.join(directory).join(format!("python{}", EXE_SUFFIX))
         });
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/system/client_thermal.py");
         let expected = root.path().join("expected.bin");

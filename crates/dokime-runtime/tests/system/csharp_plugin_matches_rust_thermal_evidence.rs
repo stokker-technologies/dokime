@@ -16,14 +16,21 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
 
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::model;
-use dokime_runtime::{Host, PluginProcess};
-use dokime_storage::{ExecutionState, OutcomeCounts};
+use dokime::Termination;
+use dokime::Value;
+use dokime::client::ResultStatus;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_runtime::Host;
+use dokime_runtime::PluginProcess;
+use dokime_storage::ExecutionState;
+use dokime_storage::OutcomeCounts;
+use std::collections::HashMap;
+use std::error::Error;
 
 /* === Constants === */
 
@@ -44,7 +51,7 @@ use dokime_storage::{ExecutionState, OutcomeCounts};
 /* === Private Functions === */
 
 #[tokio::test]
-async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::error::Error>> {
+async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run the Rust Reference and Each SDK Placement with the Same Controlled Inputs
         let mut reference = None;
@@ -68,19 +75,14 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
             };
 
             // Materialize the Complete Frozen Case and Await the Door Event
-            let parameters = HashMap::from([(
-                "limit".into(),
-                dokime_protocol::model::Value {
-                    kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
-                },
-            )]);
+            let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
             let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();
             let prompt = host.next_prompt(&execution).await?;
             host.answer(
                 &execution,
-                dokime_protocol::host::PromptsCreateResponse {
+                PromptsCreateResponse {
                     prompt: prompt.prompt,
                     action: "yes".into(),
                     accepted: true,
@@ -90,14 +92,14 @@ async fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std
             let result = cycle.wait().await?;
             let snapshot = result.executions[0].clone();
             assert_eq!(snapshot.state, ExecutionState::Sealed);
-            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Completed as i32);
+            assert_eq!(snapshot.execution.termination, Termination::Completed as i32);
             assert_eq!(
                 result.counts,
                 OutcomeCounts {
                     evaluated: 1,
                     not_evaluated: 0,
                     declared: 0,
-                    verdict: Some(dokime_protocol::host::ResultStatus::Passed)
+                    verdict: Some(ResultStatus::Passed)
                 }
             );
             assert_eq!(snapshot.samples.len(), 3);

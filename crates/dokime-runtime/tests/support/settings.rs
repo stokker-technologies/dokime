@@ -16,12 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings};
+use dokime_runtime::ControlledClock;
+use dokime_runtime::HostSettings;
+use dokime_runtime::PlacementSettings;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::time::Duration;
 
 /* === Constants === */
 

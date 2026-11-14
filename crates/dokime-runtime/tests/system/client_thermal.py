@@ -11,19 +11,37 @@
 
 # === Imports === #
 
-# Standard Library Imports
 import asyncio
 import sys
 from pathlib import Path
 
-# Local Imports
-import dokime
-from dokime import ExecutionDetail
-
-# Third Party Imports
-
-# Type Checking Imports
-
+from dokime import (
+    EvidenceCapturedRecordSelection,
+    EvidenceRecordScope,
+    EvidenceScope,
+    MapValue,
+    Metadata,
+    Value,
+    Window,
+)
+from dokime.client import (
+    RESULT_STATUS_PASSED,
+    Client,
+    EvidenceBucketRequest,
+    ExecutionDetail,
+    ExecutionFilter,
+    ExecutionOrder,
+    ExecutionSelection,
+    PluginPlacement,
+    PluginRemote,
+    PluginValue,
+    RegisteredSelection,
+    RegisteredSelectionParametersEntry,
+    ReportSubject,
+    SelectionPlan,
+    SelectionValues,
+)
+from dokime.schemas import FrozenSchemaCache
 
 # === Public Exports === #
 
@@ -37,75 +55,145 @@ from dokime import ExecutionDetail
 
 
 async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None:
-    # Connect with the Pure SDK's Generated Client Half
-    client = await dokime.connect(url)
+    # Connect Through the Composed Client Surface
+    client = Client.connect(url)
     try:
         if phase == "read":
-            # Read the Same Verified Execution, Records and Samples After Restart
-            saved = ExecutionDetail()
-            saved.ParseFromString(expected.read_bytes())
+            # Resolve the Original Frozen Evidence After Process Restart
+            saved = ExecutionDetail.FromString(expected.read_bytes())
             identifier = saved.summary.execution_id
-            detail = await client.executions.get(identifier)
+            detail = (await client.executions.get(identifier)).execution
             assert detail == saved
-            records = await client.records.list(identifier)
-            assert len(records.records) == 1 and records.records[0].payload
-            samples = await client.samples.list(identifier)
-            assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
-            assert [sample.raw.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
-            assert records.SerializeToString(deterministic=True) == expected.with_suffix(".records").read_bytes()
-            assert samples.SerializeToString(deterministic=True) == expected.with_suffix(".samples").read_bytes()
+            records = await client.evidence.records.list(
+                EvidenceRecordScope(execution=identifier),
+                "",
+                [],
+                Window(),
+                "",
+                EvidenceCapturedRecordSelection(),
+            )
+            samples = await client.evidence.samples.list(
+                EvidenceScope(execution_id=identifier),
+                [],
+                [],
+                [],
+                [],
+                [],
+                Window(),
+                EvidenceBucketRequest(),
+                False,
+            )
+            assert (
+                records.SerializeToString(deterministic=True)
+                == expected.with_suffix(".records").read_bytes()
+            )
+            assert (
+                samples.SerializeToString(deterministic=True)
+                == expected.with_suffix(".samples").read_bytes()
+            )
             return
 
-        # Add the Thermal URL and Read Its Catalog
-        entry = await client.plugins.add(plugin_url)
-        assert (await client.plugins.list()).plugins == [entry]
-        suites = await client.suites.list()
-        suite_id = suites[0].metadata.identifier
-        suite = await client.suites.get(suite_id)
+        # Create the Library Plugin Entry and Read Its Product Catalog
+        placement = PluginPlacement(remote=PluginRemote(url=plugin_url))
+        entry = (
+            await client.plugins.create("thermal", placement, PluginValue(enabled=True))
+        ).entry
+        assert (await client.plugins.list()).entries == [entry]
+        suites = await client.suites.list("")
+        suite_id = suites.values[0].metadata.identifier
+        suite = (await client.suites.get(suite_id, "", 0)).value
         assert suite.templates[0].metadata.identifier == "thermal.cycle"
 
-        # Materialize Parameters and Start Their Frozen Origins
-        cases = await client.templates.materialize(suite_id, "thermal.cycle", {"limit": [85.0]})
-        cycle = await client.cycles.start(cases)
-        identifier = cycle.executions[0]
+        # Preview the Selection and Admit Its Frozen Origin
+        selection = RegisteredSelection(
+            suite_id=suite_id,
+            template_id="thermal.cycle",
+            parameters=[
+                RegisteredSelectionParametersEntry(
+                    key="limit", value=SelectionValues(values=[Value(number=85.0)])
+                )
+            ],
+        )
+        cases = await client.cases.create(SelectionPlan(selections=[selection]), True)
+        cycle = await client.cycles.create(
+            [case.origin for case in cases.cases], Metadata(), True, ""
+        )
+        admitted = await client.executions.list(
+            cycle.cycle.cycle_id,
+            ExecutionSelection(),
+            ExecutionFilter(),
+            ExecutionOrder(),
+        )
+        identifier = admitted.executions[0].summary.execution_id
 
-        # Await the Door Event and Answer Through the Prompts Service
-        phases = []
-        async for progress in cycle.watch():
+        # Await the Prompt and Its Durable Answer Through Composed Resources
+        phases: list[str] = []
+        async for progress in client.executions.progress.watch(identifier):
             phases.append(progress.phase)
-            if progress.phase == "prompt":
-                pending = await client.prompts.pending(identifier)
-                prompt_id = pending[0].prompt.prompt_id
-                prompt = await client.prompts.get(prompt_id)
-                assert prompt.prompt.prompt_id == prompt_id
-                await client.prompts.respond(prompt_id, "yes", accepted=True)
+            if progress.phase != "prompt":
+                continue
+            pending = await client.prompts.list(identifier, True)
+            prompt_id = pending.prompts[0].prompt.prompt_id
+            prompt = await client.prompts.get(prompt_id)
+            assert prompt.prompt.prompt.prompt_id == prompt_id
+            await client.prompts.answers.create(prompt_id, "yes", MapValue(), True)
         assert "prompt" in phases and "finished" in phases
 
-        # Read the Sealed Execution, Record Payload and Controlled Stream Ticks
-        detail = await client.executions.get(identifier)
+        # Decode the Captured Record Using Its Frozen Descriptors
+        detail = (await client.executions.get(identifier)).execution
         assert detail.summary.state == 3 and detail.seal
-        assert (
-            detail.outcome.evaluated.status
-            == detail.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number
+        assert detail.outcome.evaluated.status == RESULT_STATUS_PASSED
+        listed = await client.executions.list(
+            "", ExecutionSelection(), ExecutionFilter(), ExecutionOrder()
         )
-        assert [execution.summary for execution in await client.executions.list()] == [detail.summary]
-        records = await client.records.list(identifier)
+        assert [execution.summary for execution in listed.executions] == [
+            detail.summary
+        ]
+        records = await client.evidence.records.list(
+            EvidenceRecordScope(execution=identifier),
+            "",
+            [],
+            Window(),
+            "",
+            EvidenceCapturedRecordSelection(),
+        )
         assert len(records.records) == 1 and records.records[0].payload
-        schemas = dokime.FrozenSchemaCache()
-        door = await schemas.decode(client, detail, records.records[0].record_type, records.records[0].payload)
-        assert door.closed
-        samples = await client.samples.list(identifier)
+        schemas = FrozenSchemaCache()
+        door = await schemas.decode(
+            client, detail, records.records[0].record_type, records.records[0].payload
+        )
+        fields = {field.name: value for field, value in door.ListFields()}
+        assert fields["closed"] is True
+        samples = await client.evidence.samples.list(
+            EvidenceScope(execution_id=identifier),
+            [],
+            [],
+            [],
+            [],
+            [],
+            Window(),
+            EvidenceBucketRequest(),
+            False,
+        )
         assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
         assert [sample.raw.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
         assert all(sample.raw.payload for sample in samples.samples)
-        assert all(sample.raw.values.values["celsius"].number == 84.0 for sample in samples.samples)
+        assert all(
+            sample.raw.values.values["celsius"].number == 84.0
+            for sample in samples.samples
+        )
 
-        # Verify the Ordered Report Stream and Its Digest Completion
-        data = await client.reports.download(identifier)
-        assert identifier in data.decode()
+        # Read the Prepared Report Through the Shared File Resource
+        prepared = await client.reports.create(ReportSubject(execution=identifier), "")
+        report = await client.files.read(prepared.file, 0, prepared.file.length)
+        assert identifier in report.data.decode()
         expected.write_bytes(detail.SerializeToString(deterministic=True))
-        expected.with_suffix(".records").write_bytes(records.SerializeToString(deterministic=True))
-        expected.with_suffix(".samples").write_bytes(samples.SerializeToString(deterministic=True))
+        expected.with_suffix(".records").write_bytes(
+            records.SerializeToString(deterministic=True)
+        )
+        expected.with_suffix(".samples").write_bytes(
+            samples.SerializeToString(deterministic=True)
+        )
     finally:
         await client.close()
 

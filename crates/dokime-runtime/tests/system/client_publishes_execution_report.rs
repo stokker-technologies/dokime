@@ -21,9 +21,20 @@
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use dokime::Client;
+use dokime::client::ExecutionsGetOptions;
+use dokime::client::ReportOrigin;
+use dokime::client::ReportState;
+use dokime::client::ReportSubject;
+use dokime::client::ReportsCreateOptions;
+use dokime::client::ReportsPublishOptions;
+use dokime_protocol::host::ReportsPublishRequest;
+use dokime_protocol::host::report_subject::Kind as ReportSubjectKind;
 use dokime_runtime::Host;
 use dokime_storage::Store;
 use sha2::Digest;
+use std::error::Error;
+use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -46,7 +57,7 @@ use sha2::Digest;
 /* === Tests === */
 
 #[tokio::test]
-async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare Sealed Evidence and Its Selected Document
         let root = super::support::tempdir()?;
@@ -65,42 +76,44 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
         host.shutdown().await?;
         drop(host);
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let mut reports = dokime_protocol::host::reports_client::ReportsClient::new(channel.clone());
-        let mut executions = dokime_protocol::host::executions_client::ExecutionsClient::new(channel);
-        let subject = dokime_protocol::host::ReportSubject {
-            kind: Some(dokime_protocol::host::report_subject::Kind::Execution(identifier.clone())),
+        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let reports = Client::from_channel(channel.clone(), super::support::client_settings())?.reports.clone();
+        let executions = Client::from_channel(channel, super::support::client_settings())?.executions.clone();
+        let subject = ReportSubject {
+            kind: Some(ReportSubjectKind::Execution(identifier.clone())),
         };
         let preview = reports
-            .create(dokime_protocol::host::ReportsCreateRequest {
-                subject: Some(subject.clone()),
-                document_id: document.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone()),
-                request_id: "preview".into(),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
+            .create_with(
+                subject.clone(),
+                document.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone()),
+                ReportsCreateOptions {
+                    request_id: Some("preview".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
         let file = preview.file.unwrap();
-        assert_eq!(preview.report.unwrap().origin, dokime_protocol::host::ReportOrigin::Current as i32);
+        assert_eq!(preview.report.unwrap().origin, ReportOrigin::Current as i32);
         let store = Store::open(root.path())?;
         assert!(store.reports(&identifier)?.is_empty());
         assert_eq!(store.read(&identifier)?, before);
         assert!(
             reports
-                .create(dokime_protocol::host::ReportsCreateRequest {
-                    subject: Some(subject.clone()),
-                    document_id: "missing".into(),
-                    request_id: "invalid-document".into(),
-                    ..Default::default()
-                })
+                .create_with(
+                    subject.clone(),
+                    "missing",
+                    ReportsCreateOptions {
+                        request_id: Some("invalid-document".into()),
+                        ..Default::default()
+                    }
+                )
                 .await
                 .is_err()
         );
         assert!(store.reports(&identifier)?.is_empty());
-        let current =
-            executions.get(dokime_protocol::host::ExecutionsGetRequest { name: identifier.clone(), at: None }).await?.into_inner();
-        assert_eq!(current.execution.unwrap().report.unwrap().state, dokime_protocol::host::ReportState::Pending as i32);
-        let request = dokime_protocol::host::ReportsPublishRequest {
+        let current = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
+        assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
+        let request = ReportsPublishRequest {
             name: file.metadata.as_ref().unwrap().id.clone(),
             subject: Some(subject.clone()),
             expected_revision: file.sha256.clone(),
@@ -108,9 +121,32 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
         };
         let mut stale = request.clone();
         stale.expected_revision[0] ^= 1;
-        assert!(reports.publish(stale).await.is_err());
+        assert!(
+            reports
+                .publish_with(
+                    (stale.clone()).name,
+                    ((stale.clone()).subject).unwrap_or_default(),
+                    (stale.clone()).expected_revision,
+                    ReportsPublishOptions {
+                        request_id: Some((stale.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await
+                .is_err()
+        );
         assert!(store.reports(&identifier)?.is_empty());
-        let metadata = reports.publish(request.clone()).await?.into_inner();
+        let metadata = reports
+            .publish_with(
+                (request.clone()).name,
+                ((request.clone()).subject).unwrap_or_default(),
+                (request.clone()).expected_revision,
+                ReportsPublishOptions {
+                    request_id: Some((request.clone()).request_id),
+                    ..Default::default()
+                },
+            )
+            .await?;
         let published = store.reports(&identifier)?;
         assert_eq!(published.len(), 1);
         assert_eq!(published[0].document.as_ref(), Some(&document));
@@ -119,36 +155,45 @@ async fn client_publishes_execution_report() -> Result<(), Box<dyn std::error::E
         assert_eq!(sha2::Sha256::digest(&published[0].html).as_slice(), file.sha256);
         assert!(std::str::from_utf8(&published[0].html)?.contains("<svg"));
         assert_eq!(store.read(&identifier)?, before);
-        assert_eq!(reports.publish(request).await?.into_inner().seal, metadata.seal);
+        assert_eq!(
+            reports
+                .publish_with(
+                    (request.clone()).name,
+                    ((request.clone()).subject).unwrap_or_default(),
+                    (request.clone()).expected_revision,
+                    ReportsPublishOptions {
+                        request_id: Some((request.clone()).request_id),
+                        ..Default::default()
+                    }
+                )
+                .await?
+                .seal,
+            metadata.seal
+        );
         assert_eq!(
             executions
-                .get(dokime_protocol::host::ExecutionsGetRequest { name: identifier.clone(), at: None })
+                .get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() })
                 .await?
-                .into_inner()
                 .execution
                 .unwrap()
                 .report
                 .unwrap()
                 .state,
-            dokime_protocol::host::ReportState::Ready as i32
+            ReportState::Ready as i32
         );
         drop(store);
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut reports = dokime_protocol::host::reports_client::ReportsClient::connect(process.url.clone()).await?;
-        let fetched = reports
-            .get(dokime_protocol::host::ReportsGetRequest {
-                subject: Some(subject),
-                name: published[0].identifier.clone(),
-                ..Default::default()
-            })
-            .await?
-            .into_inner();
+        let reports =
+            Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                .reports
+                .clone();
+        let fetched = reports.get(subject, published[0].identifier.clone()).await?;
         assert_eq!(fetched.report.as_ref().unwrap().identifier, published[0].identifier);
         assert_eq!(fetched.file.unwrap().sha256, file.sha256);
         assert_eq!(Store::open(root.path())?.reports(&identifier)?, published);
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

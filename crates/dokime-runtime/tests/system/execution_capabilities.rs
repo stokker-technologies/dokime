@@ -16,15 +16,28 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::error::Error as StdError;
 
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::model;
+use dokime::Import;
+use dokime::Origin;
+use dokime::Termination;
+use dokime::client::DeclaredOutcome;
+use dokime::client::ExecutionOutcome;
+use dokime::client::ResultStatus;
+use dokime::client::UnevaluatedOutcome;
+use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
+use dokime_protocol::model::origin::Kind as OriginKind;
 use dokime_runtime::Host;
-use dokime_storage::{Execution, ExecutionArchive, ExecutionState, Store};
+use dokime_storage::Execution;
+use dokime_storage::ExecutionArchive;
+use dokime_storage::ExecutionState;
+use dokime_storage::Store;
 use prost::Message;
+use std::error::Error as StdError;
+use std::io::Cursor;
+use std::io::Read;
 
 /* === Constants === */
 
@@ -67,9 +80,9 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         assert!(sealed.rerun && sealed.inspect && sealed.export);
         assert!(!sealed.start && !sealed.cancel);
         assert!(host.cancel(&execution).unwrap_err().to_string().to_lowercase().contains("cancel"));
-        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(host.export_execution(&execution)?))?;
+        let mut archive = zip::ZipArchive::new(Cursor::new(host.export_execution(&execution)?))?;
         let mut metadata = Vec::new();
-        std::io::Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
+        Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
         let exported = ExecutionArchive::decode(metadata.as_slice())?;
         assert_eq!(exported.execution.as_ref().unwrap().identifier, execution);
 
@@ -98,8 +111,8 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         super::support::answer(&host, "unstarted", prompt)?;
         cycle.wait().await?;
         assert!(!host.capabilities("unstarted")?.start);
-        let import = dokime_protocol::model::Origin {
-            kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import {
+        let import = Origin {
+            kind: Some(OriginKind::Import(Import {
                 importer: "sample.importer".into(),
                 processing: "Captured Measurements".into(),
                 ..Default::default()
@@ -115,28 +128,24 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         }
         store.close(
             "imported",
-            dokime_protocol::model::Termination::Completed,
-            dokime_protocol::host::ExecutionOutcome {
-                attribution: Some(dokime_protocol::host::execution_outcome::Attribution::Declared(
-                    dokime_protocol::host::DeclaredOutcome {
-                        status: dokime_protocol::host::ResultStatus::Passed as i32,
-                        importer: "sample.importer".into(),
-                        ..Default::default()
-                    },
-                )),
+            Termination::Completed,
+            ExecutionOutcome {
+                attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
+                    status: ResultStatus::Passed as i32,
+                    importer: "sample.importer".into(),
+                    ..Default::default()
+                })),
             },
         )?;
         store.seal("imported")?;
         store.close(
             "closed-import",
-            dokime_protocol::model::Termination::Completed,
-            dokime_protocol::host::ExecutionOutcome {
-                attribution: Some(dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(
-                    dokime_protocol::host::UnevaluatedOutcome {
-                        termination: dokime_protocol::model::Termination::Completed as i32,
-                        ..Default::default()
-                    },
-                )),
+            Termination::Completed,
+            ExecutionOutcome {
+                attribution: Some(ExecutionOutcomeAttribution::NotEvaluated(UnevaluatedOutcome {
+                    termination: Termination::Completed as i32,
+                    ..Default::default()
+                })),
             },
         )?;
         let closed = store.read("closed-import")?;
@@ -151,11 +160,11 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         assert!(host.rerun("imported").await.is_err());
         assert!(host.cancel("imported").is_err());
         let imported_bytes = host.export_execution("imported")?;
-        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&imported_bytes))?;
+        let mut archive = zip::ZipArchive::new(Cursor::new(&imported_bytes))?;
         let mut metadata = Vec::new();
-        std::io::Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
+        Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
         let export = ExecutionArchive::decode(metadata.as_slice())?;
-        assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(dokime_protocol::model::origin::Kind::Import(_))));
+        assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(OriginKind::Import(_))));
         let draft = store.read("draft")?;
         assert_eq!(draft.state, ExecutionState::Open);
         assert!(!host.capabilities("draft")?.start);
@@ -171,7 +180,7 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         assert_eq!(host.export_execution("imported")?, imported_bytes);
         assert!(!host.capabilities("draft")?.cancel);
         host.shutdown().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn StdError>>(())
     })
     .await?
 }

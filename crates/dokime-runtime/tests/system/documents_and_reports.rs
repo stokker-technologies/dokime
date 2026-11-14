@@ -20,9 +20,13 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::Document;
+use dokime::FieldReference;
+use dokime::Section;
 use dokime_protocol::builders::Plot;
-use dokime_protocol::model;
-use dokime_runtime::{Host, RenderSettings};
+use dokime_runtime::Host;
+use dokime_runtime::RenderSettings;
+use std::error::Error;
 use std::num::NonZeroUsize;
 
 /* === Constants === */
@@ -46,7 +50,7 @@ use std::num::NonZeroUsize;
 /* === Tests === */
 
 #[tokio::test]
-async fn documents_and_reports() -> Result<(), Box<dyn std::error::Error>> {
+async fn documents_and_reports() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Seal Evidence and Take a Fixed Snapshot
         let root = super::support::tempdir()?;
@@ -86,10 +90,8 @@ async fn documents_and_reports() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(one_at_a_time.html()?, html);
 
         // Refuse an Unresolvable Plot Without Publishing Any Partial Output
-        let invalid = dokime_protocol::model::Document::new("Missing Field").section(
-            dokime_protocol::model::Section::new("Measurements")
-                .plot(Plot::time_series(dokime_protocol::model::FieldReference::new("execution.reading").field("absent"))),
-        );
+        let invalid = Document::new("Missing Field")
+            .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.reading").field("absent"))));
         assert!(host.render_document(&fixed, invalid, settings).is_err());
         assert!(host.reports(&execution)?.is_empty());
 
@@ -108,7 +110,7 @@ async fn documents_and_reports() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(host.reports(&execution)?, vec![published]);
         assert_eq!(host.execution(&execution)?, before);
         host.shutdown().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }
