@@ -145,6 +145,9 @@ removal operation, preserving any earlier generator or user storage roots.
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
 | Dependency Removal | Native paths/distribution identity, local build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native stories, WebView drivers and the SDK stream benchmark use only the current host. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. |
 
+Execution evidence reads use the execution and cycle identities. A planned case
+identity selects planning state; it does not filter an execution’s records or plots.
+
 Frozen descriptor inventories verify their digest in transport order, then resolve
 imports before constructing the desktop registry. Inventory order does not require
 dependencies to precede their consumers. Missing and cyclic imports refuse decoding.

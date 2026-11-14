@@ -168,6 +168,9 @@ async function execute() {
   await until("Captured Record Rows in the Authored Document", () =>
     desktop.execute('return Boolean(document.querySelector("[data-testid=record-rows] li[data-window-row]"));'),
   );
+  await until("Captured Plot Data in the Authored Document", () =>
+    desktop.execute('return Boolean(document.querySelector("[data-plot-viewport] .plot-card canvas"));'),
+  );
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
