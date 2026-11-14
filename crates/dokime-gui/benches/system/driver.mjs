@@ -368,7 +368,12 @@ try {
         }
       }
       const durationMs = performance.now() - started;
-      elapsed += durationMs / 1000;
+      // Align The WebView's Monotonic Origin With The Producer's Handoff Marker.
+      const producerHandoffToChangedDrawingMs =
+        producerHandoffLeadMs === undefined ? null : observation.allVisibleMs - producerHandoffLeadMs;
+      const timedBoundaryMs = producerHandoffToChangedDrawingMs ?? observation.allVisibleMs;
+      if (timedBoundaryMs === null) throw new Error(`Draw Document ${count}/${condition}: No Completed Visible Drawing`);
+      elapsed += timedBoundaryMs / 1000;
       await resourceBoundary(Date.now());
       const samples = resources.filter((sample) => sample.epoch === epoch && sample.time_ms >= resourceStart);
       const boundary = resources.findLast((sample) => sample.epoch === epoch && sample.time_ms <= resourceStart);
@@ -382,8 +387,8 @@ try {
         backendMode,
         fixture: { ...fixture },
         ...observation,
-        // Monotonic Clocks Share Their Epoch Origins; Exclude The Driver's Reset Round Trip.
-        producerHandoffToChangedDrawingMs: producerHandoffLeadMs === undefined ? null : observation.allVisibleMs - producerHandoffLeadMs,
+        timedBoundaryMs,
+        producerHandoffToChangedDrawingMs,
         durationMs,
         queryMs: stages["plot.query"] ?? [],
         backendStages: stages,
