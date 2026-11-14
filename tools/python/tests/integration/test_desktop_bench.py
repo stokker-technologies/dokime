@@ -21,6 +21,8 @@ from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
+from dokime_tools.build import bench as bench_builder
+
 # Third Party Imports
 # Local Imports
 from dokime_tools.release import reports
@@ -38,6 +40,44 @@ from dokime_tools.test import desktop_bench, run
 
 
 class DesktopBench(unittest.TestCase):
+    def test_desktop_build_embeds_its_surface_without_replacing_shipping_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            live = directory / "crates/dokime-gui/dist/index.html"
+            live.parent.mkdir(parents=True)
+            live.write_bytes(b"shipping")
+            output = bench_builder.paths.output(directory, "build", "bench")
+            web = output / "web"
+
+            def bundle(command, **options):
+                self.assertEqual(command[:2], ["node", "benches/system/build.mjs"])
+                self.assertEqual(Path(command[2]), web)
+                web.mkdir(parents=True)
+                (web / "index.html").write_bytes(b"benchmark")
+
+            def compile(root, extra, selection, **options):
+                self.assertTrue((web / "index.html").is_file())
+                config = json.loads(options["environment"]["TAURI_CONFIG"])
+                self.assertEqual(Path(config["build"]["frontendDist"]), web)
+                self.assertEqual(config["bundle"], {"active": False})
+                self.assertIn("system-desktop", selection)
+                (output / "fixtures").mkdir()
+                (output / "fixtures/stamp.json").write_text('{"files":{},"metadata":{}}')
+                return output / "bench/compiler.json"
+
+            with (
+                patch.object(bench_builder.Path, "cwd", return_value=directory),
+                patch.object(bench_builder.sys, "argv", ["bench", "--binary", "system-desktop"]),
+                patch.dict(os.environ, {"TAURI_CONFIG": '{"bundle":{"active":false}}'}),
+                patch.object(bench_builder.subprocess, "run", side_effect=bundle),
+                patch.object(bench_builder, "build", side_effect=compile),
+                patch.object(bench_builder.generated, "stage"),
+                patch.object(bench_builder.archive, "stamp"),
+            ):
+                bench_builder.main()
+                self.assertEqual(os.environ["TAURI_CONFIG"], '{"bundle":{"active":false}}')
+            self.assertEqual(live.read_bytes(), b"shipping")
+
     def test_system_lanes_reclaim_child_scratch_and_keep_failure_reports(self) -> None:
         script = (
             "import json, os, pathlib, sys, tempfile; "
