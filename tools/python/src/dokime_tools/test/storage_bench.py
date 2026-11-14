@@ -23,6 +23,7 @@ from pathlib import Path
 from ..build import paths
 from ..process import spawn_flags
 from . import archive
+from .desktop_bench import credentials
 
 # Type Checking Imports
 
@@ -64,6 +65,7 @@ def main() -> None:
     report = directory / "target/benchmarks/storage/run.log"
     report.parent.mkdir(parents=True, exist_ok=True)
     with (
+        credentials(environment) as child_environment,
         report.open("w", encoding="utf-8") as written,
         subprocess.Popen(
             [
@@ -73,7 +75,7 @@ def main() -> None:
                 *([options.select] if options.select else []),
             ],
             cwd=directory,
-            env=environment,
+            env=child_environment,
             creationflags=spawn_flags(),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

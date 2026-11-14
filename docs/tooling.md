@@ -141,6 +141,8 @@ and its console report stay under `target/benchmarks/storage/`; desktop observat
 stay under `target/benchmarks/criterion/`. Run producers and consumers sequentially:
 the producer replaces its exported benchmark directory, which Windows locks while
 an executable is running. Storage selection needs no desktop frontend.
+On Linux its consumer owns the same isolated Secret Service as native host
+fixtures, so the runtime archive case needs no unlocked personal keyring.
 
 Each case prints its timed boundary. `--once` runs one measured iteration per case
 in the bench profile and prints an observation without a statistical estimate or
