@@ -140,6 +140,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [current composition](../crates/dokime-runtime-next/Cargo.toml),
    [product settings](../crates/dokime-operations-next/src/settings.rs).
+   Build-time preference export composes declared product settings and the listener
+   declaration used by Access configuration, without opening a host, storage or
+   credentials. Runtime startup failures retain underlying operation causes;
+   desktop diagnostics do not classify every startup failure as incompatible storage.
    **Proof:** `client_pairs_and_rotates_remote_access` exercises direct library
    composition, bearer authorization of product services, revocation, restart
    and live rotation. The new host serves library Access.Listener,
@@ -426,11 +430,6 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 | Deterministic story redesign (2026-11-10) | Correctness must be independent of workstation timing and load. | [test-stories](../openspec/changes/test-stories/design.md) |
 
 ## Product File Ownership
-
-Build-time preference export composes the product's declared settings and the
-listener declaration used by Access configuration. It opens no host, storage or
-credentials. Runtime startup failures retain the underlying operation causes;
-desktop diagnostics do not classify every startup failure as incompatible storage.
 
 Product Files and Files.Uploads own client transfers and scoped plugin-host unary
 transfers over the existing content store. They reuse library file/session/receipt

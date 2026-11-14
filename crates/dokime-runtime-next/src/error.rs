@@ -93,9 +93,11 @@ pub enum Error {
 
 fn library_failure(error: &RuntimeError) -> String {
     let mut message = error.to_string();
-    for cause in std::iter::successors(error.source(), |cause| cause.source()) {
+    let mut cause = error.source();
+    while let Some(source) = cause {
         message.push_str(": ");
-        message.push_str(&cause.to_string());
+        message.push_str(&source.to_string());
+        cause = source.source();
     }
     message
 }
