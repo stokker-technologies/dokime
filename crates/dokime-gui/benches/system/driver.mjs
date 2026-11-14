@@ -11,7 +11,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 // The Harness Parses Its Own Arguments; Criterion Arguments Belong To The Rust Owner.
 process.argv = [process.execPath, fileURLToPath(import.meta.url), "--profile", "bench"];
-const { startSession, prepareNativeFixture, terminate } = await import("../../e2e/native-fixture.mjs");
+const { startSession, prepareNativeFixture, discardHostCredentials, terminate } = await import("../../e2e/native-fixture.mjs");
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const DRAW_WAIT_MS = 600000;
 const native = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
@@ -166,6 +166,7 @@ async function startNative(mode) {
   await closeNative();
   if (nativeRoot && seedRoot && !seedRoot.startsWith(`${nativeRoot}${sep}`)) {
     assert.ok(nativeRoot.startsWith(`${work}${sep}`), "Owned native profile stays inside its fixture directory");
+    await discardHostCredentials(nativeRoot);
     await rm(nativeRoot, { recursive: true, force: true });
   }
   nativeRoot = await realpath(await mkdtemp(join(work, "native-")));

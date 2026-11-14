@@ -223,6 +223,14 @@ jobs:
         path: .cache/sdk-cpp/_deps
         key: sdk-cpp-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sdk/cpp/CMakeLists.txt', 'sdk/cpp/cmake/**', 'sdk/cpp/mise.toml', 'sdk/cpp/mise.lock', 'sdk/cpp/tools/sdk.py') }}
     - run: mise run build:host-fixtures -- --profile ${{ env.PROFILE }} --language ${{ inputs.fixture-language }} --export
+    - name: Preserve C++ Build Diagnostics
+      if: always() && inputs.fixture-language == 'cpp'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: diagnostics-host-cpp-${{ env.PROFILE }}-${{ matrix.platform }}
+        path: .cache/sdk-cpp/*.log
+        if-no-files-found: ignore
+        retention-days: 7
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: build-host-${{ inputs.fixture-language }}-${{ env.PROFILE }}-${{ matrix.platform }}

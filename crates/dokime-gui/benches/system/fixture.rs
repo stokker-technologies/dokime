@@ -18,9 +18,11 @@
 use dokime_protocol::client;
 
 // Standard Library Imports
-use std::{path::Path, time::Duration};
+use std::{num::NonZeroUsize, path::Path, time::Duration};
 
 // Third Party Imports
+use prost_types::Timestamp;
+use serde_json::Value;
 use tokio_stream::StreamExt;
 
 // Local Imports
@@ -28,7 +30,8 @@ use dokime_gui::{
     connection::{ConnectionSession, host::Session},
     native_session::{BackendSelection, DesktopSession, backend::Backend},
 };
-use dokime_sdk::{prelude::*, v1};
+use dokime_runtime_next::{PlacementSettings, PluginProcess};
+use dokime_sdk::{Result, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
 
 /* === Constants === */
 
@@ -55,7 +58,7 @@ pub struct Fixture {
     pub session: Session,
     pub cycle: String,
     pub execution: String,
-    plugin: Option<dokime_runtime_next::PluginProcess>,
+    plugin: Option<PluginProcess>,
 }
 
 /* === Enums === */
@@ -72,7 +75,7 @@ impl Fixture {
         let session = owner.local_client().await.unwrap();
         let manifest = root.join("bench-fixture.json");
         if restoring {
-            let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+            let saved: Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
             return Self {
                 owner,
                 session,
@@ -83,14 +86,14 @@ impl Fixture {
         }
 
         // Admit the SDK Fixture as a Remote Plugin Through the Host Adapter
-        let placement = dokime_runtime_next::PlacementSettings {
+        let placement = PlacementSettings {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stop_grace: Duration::from_secs(30),
-            stream_window: std::num::NonZeroUsize::new(8).unwrap(),
-            message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            stream_window: NonZeroUsize::new(8).unwrap(),
+            message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let plugin = dokime_runtime_next::PluginProcess::start(&std::env::current_exe().unwrap(), true, &placement).await.unwrap();
+        let plugin = PluginProcess::start(&std::env::current_exe().unwrap(), true, &placement).await.unwrap();
         let _: client::Plugin =
             session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
         let plan: client::CasesCreateResponse = session
@@ -229,22 +232,22 @@ impl Fixture {
 
 /* === Public Functions === */
 
-pub fn serve() -> dokime_sdk::Result<()> {
+pub fn serve() -> Result<()> {
     let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples").publish_on(publish);
     let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
         .step(Step::new("Capture", async |_: &Context| std::future::pending().await))
         .stream(stream);
-    Plugin::new("desktop-benchmark", "1.0.0")
+    Plugin::new("desktop.benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
-        .requires_host::<dokime_sdk::protocol::plugin::host::v1::PromptsCreateRequest>()
+        .requires_host::<PromptsCreateRequest>()
         .remote()
         .serve()
 }
 
 /* === Private Functions === */
 
-async fn publish(context: &Context, publisher: Publisher<Row>) -> dokime_sdk::Result<()> {
+async fn publish(context: &Context, publisher: Publisher<Row>) -> Result<()> {
     // Produce History Through the Same SDK Sample Carrier as Product Plugins
     let mut sequence = 0;
     let mut first = 0;
@@ -261,7 +264,7 @@ async fn publish(context: &Context, publisher: Publisher<Row>) -> dokime_sdk::Re
                         y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
                         y2: ((index / 8) % 8) as f64,
                     },
-                    Some(prost_types::Timestamp {
+                    Some(Timestamp {
                         seconds: source_ns.div_euclid(1_000_000_000),
                         nanos: source_ns.rem_euclid(1_000_000_000) as i32,
                     }),
@@ -270,7 +273,7 @@ async fn publish(context: &Context, publisher: Publisher<Row>) -> dokime_sdk::Re
         }
         sequence += count;
         let answer = context
-            .prompt(dokime_sdk::protocol::plugin::host::v1::PromptsCreateRequest {
+            .prompt(PromptsCreateRequest {
                 prompt: format!("next-{sequence}"),
                 prompt_type: "bench.next".into(),
                 ..Default::default()

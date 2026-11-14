@@ -236,7 +236,7 @@ def main() -> None:
         print(f"{archive}\nSHA256={digest}")
         return
 
-    # Preserve Complete Tool Output and Show a Bounded Diagnostic Tail.
+    # Preserve Complete Tool Output and Expose Every Failure Diagnostic.
     log = directory / f"{args.action}.log"
     if log.exists():
         attempt = len(list(directory.glob(f"{args.action}-*.log"))) + 1
@@ -244,7 +244,7 @@ def main() -> None:
     with log.open("w", encoding="utf-8") as output:
         result = subprocess.run(command, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=creationflags)
     lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
-    print("\n".join(lines[-60:]))
+    print("\n".join(lines if result.returncode else lines[-60:]))
     print(f"Complete Output: {log}")
     result.check_returncode()
     if args.action == "build":
