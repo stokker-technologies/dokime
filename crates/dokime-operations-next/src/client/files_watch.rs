@@ -15,7 +15,7 @@
 
 /* === Imports === */
 
-use super::{ClientSettings, Context};
+use super::{ClientSettings, Context, Output};
 use crate::Result;
 use dokime_protocol::client::content::ExecutionFileState;
 use dokime_protocol::client::{FilesGetRequest, FilesWatchRequest, FilesWatchResponse};
@@ -45,7 +45,7 @@ pub const ID: &str = "dokime.client.v1.Files/Watch";
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<FilesWatchRequest, FilesWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<super::Output<FilesWatchResponse>> {
+pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<Output<FilesWatchResponse>> {
     let mut storage = context.host.store().subscribe();
     let mut runtime = context.host.changes();
     let first = super::files_get::handle(

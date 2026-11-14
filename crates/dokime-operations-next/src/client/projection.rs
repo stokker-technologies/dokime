@@ -34,6 +34,7 @@ use dokime_protocol::client::evidence::TelemetrySample;
 use dokime_protocol::context::PromptsCreateRequest;
 use dokime_protocol::context::evidence::RecordsAppendRequest;
 use dokime_protocol::v1;
+use dokime_protocol::v1::{EvidenceScope, ExecutionOutcome, Prompt, Value as ProductValue};
 use dokime_storage::Evidence;
 use dokime_storage::OutcomeCounts;
 use dokime_storage::{ExecutionSnapshot, ExecutionState};
@@ -75,7 +76,7 @@ pub(super) fn scope(snapshot: &ExecutionSnapshot) -> v1::EvidenceScope {
         ..Default::default()
     }
 }
-pub(super) fn entry_scope(snapshot: &ExecutionSnapshot, entry: &Evidence) -> Result<v1::EvidenceScope> {
+pub(super) fn entry_scope(snapshot: &ExecutionSnapshot, entry: &Evidence) -> Result<EvidenceScope> {
     let mut scope = scope(snapshot);
     if !entry.step.is_empty() {
         scope.step_id = Some(entry.step.clone());
@@ -150,7 +151,7 @@ pub(super) fn execution_scope(scope: Option<&v1::EvidenceScope>) -> Result<&str>
         .filter(|identifier| !identifier.is_empty())
         .ok_or_else(|| Error::Invalid("Read Requires an Execution Identifier".into()))
 }
-pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &PromptsCreateRequest) -> Result<v1::Prompt> {
+pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &PromptsCreateRequest) -> Result<Prompt> {
     if let Some(definition) = &question.definition {
         return Ok(definition.clone());
     }
@@ -181,7 +182,7 @@ pub(super) fn summary(snapshot: &ExecutionSnapshot, controls: ExecutionControls)
         ..Default::default()
     }
 }
-pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> ExecutionOutcomeCounts {
+pub(super) fn counts<'a>(outcomes: impl IntoIterator<Item = &'a ExecutionOutcome>) -> ExecutionOutcomeCounts {
     let counts = OutcomeCounts::from_outcomes(outcomes);
     ExecutionOutcomeCounts {
         evaluated_count: counts.evaluated,
@@ -308,7 +309,7 @@ pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, Pr
 }
 /* === Private Functions === */
 
-pub(super) fn value(value: &Value) -> v1::Value {
+pub(super) fn value(value: &Value) -> ProductValue {
     use Value as V;
     use v1::value::Kind;
     let kind = match value {

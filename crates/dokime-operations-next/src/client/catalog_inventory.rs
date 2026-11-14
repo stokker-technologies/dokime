@@ -23,6 +23,7 @@
 use crate::{Error, Result, client::Context};
 use dokime_protocol::client::PluginState;
 use dokime_protocol::v1;
+use dokime_protocol::v1::Suite;
 use harmos_protocol::v1::Catalog;
 use prost::Message;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind};
@@ -71,7 +72,7 @@ impl Inventory {
         Self::from_catalogs(vec![catalog], Vec::new())
     }
 
-    fn from_catalogs(catalogs: Vec<Catalog>, suites: Vec<(String, v1::Suite)>) -> Result<Self> {
+    fn from_catalogs(catalogs: Vec<Catalog>, suites: Vec<(String, Suite)>) -> Result<Self> {
         let mut records = BTreeMap::new();
         let mut streams = BTreeMap::new();
         for catalog in catalogs {

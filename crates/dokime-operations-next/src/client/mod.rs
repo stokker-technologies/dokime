@@ -165,16 +165,19 @@ use dokime_protocol::client::executions::ExecutionCommandReceipt;
 use dokime_protocol::context::PromptsCreateRequest;
 use dokime_protocol::context::PromptsCreateResponse;
 use dokime_protocol::v1;
+use dokime_protocol::v1::{Document, DocumentScope};
 use dokime_storage::ExecutionCut;
 use dokime_storage::Report;
 use dokime_storage::Store;
 use harmos_protocol::storage::FileReference;
+use harmos_protocol::v1::OperationContract;
 use harmos_protocol::v1::ReadCut;
 use harmos_protocol::v1::Receipt;
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
 use prost_types::Timestamp;
 use std::fs::File;
+use std::result::Result as StandardResult;
 use tokio::sync::Mutex;
 use tokio::sync::oneshot::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
@@ -305,7 +308,7 @@ pub const METHODS: &[&str] = &[
 
 /* === Type Aliases === */
 
-pub type Output<T> = ReceiverStream<std::result::Result<T, Status>>;
+pub type Output<T> = ReceiverStream<StandardResult<T, Status>>;
 
 /* === Structs === */
 
@@ -371,7 +374,7 @@ pub trait Host: Send + Sync {
     fn bootstrap_paths(&self) -> BootstrapPaths;
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
-    fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)>;
+    fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)>;
     fn retain_report(&self, file: File, reference: FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(File, FileReference)>>;
@@ -399,7 +402,7 @@ pub trait Host: Send + Sync {
 
 /* === Public Functions === */
 
-pub fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(id: &str, timeout: Duration) -> Result<h::OperationContract> {
+pub fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(id: &str, timeout: Duration) -> Result<OperationContract> {
     let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
     let mut contract = crate::declaration::<Q, R>(id, types)?;
     let timeout = prost_types::Duration::try_from(timeout).map_err(|error| Error::Invalid(error.to_string()))?;

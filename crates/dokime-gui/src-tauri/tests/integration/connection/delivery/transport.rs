@@ -24,6 +24,7 @@ use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
 use super::{Gate, HttpRequest, HttpResponse, Service};
+use dokime_protocol::client::{FilesGetRequest, FilesReadRequest};
 use dokime_protocol::{client, v1};
 use dokime_sdk::client::v1 as library;
 use std::convert::Infallible;
@@ -140,7 +141,7 @@ impl UnaryService<client::content::ArtifactsGetRequest> for Metadata {
 impl UnaryService<client::FilesGetRequest> for FileInformation {
     type Response = client::FilesGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<client::FilesGetRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<FilesGetRequest>) -> Self::Future {
         Box::pin(async move {
             Ok(Response::new(client::FilesGetResponse {
                 file: request.into_inner().file,
@@ -164,7 +165,7 @@ impl UnaryService<client::FilesGetRequest> for FileInformation {
 impl UnaryService<client::FilesReadRequest> for Download {
     type Response = client::FilesReadResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<client::FilesReadRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<FilesReadRequest>) -> Self::Future {
         let settings = self.0.download.lock().unwrap().clone();
         Box::pin(async move {
             let request = request.into_inner();
