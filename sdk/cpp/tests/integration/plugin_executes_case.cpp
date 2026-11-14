@@ -12,15 +12,19 @@
 #include "../support/check.hpp"
 #include "../support/plugin_host.hpp"
 #include "dokime/dokime.hpp"
+#include "dokime/plugin/v1/analyses.pb.h"
 #include "dokime/plugin/v1/criteria.pb.h"
 #include "dokime/plugin/v1/executions.pb.h"
 #include "dokime/plugin/v1/steps.pb.h"
 #include "dokime/plugin/v1/test_cases.pb.h"
 #include <catch2/catch_session.hpp>
 
+using dokime::Analyses;
 using dokime::Origin;
 using dokime::Suites;
 using dokime::TERMINATION_COMPLETED;
+using dokime::plugin::v1::AnalysesComputeRequest;
+using dokime::plugin::v1::AnalysesComputeResponse;
 using dokime::plugin::v1::CriteriaEvaluateRequest;
 using dokime::plugin::v1::CriteriaEvaluateResponse;
 using dokime::plugin::v1::ExecutionsCleanupRequest;
@@ -32,6 +36,7 @@ using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
 using harmos::TransportError;
+using harmos::VISIBILITY_PROTECTED;
 
 using std::string;
 
@@ -61,6 +66,38 @@ TEST_CASE("Plugin Executes a Case") {
   PluginHost host(address);
   auto description = host.describe();
   check(description.id() == "sample", "Wrong Plugin Connected");
+
+  // Discover and Invoke a Protected Analysis with Raw Source-Time Coordinates.
+  Analyses analyses;
+  for (const auto &section : description.declarations().sections())
+    if (section.type() == Analyses::descriptor()->full_name())
+      check(analyses.ParseFromString(section.payload()), "Analyses Did Not Decode");
+  check(analyses.analyses_size() == 1, "Analysis Was Not Published");
+  const auto &analysis = analyses.analyses(0);
+  bool protected_analysis = false;
+  for (const auto &operation : description.declarations().operations())
+    if (operation.id() == analysis.metadata().identifier())
+      protected_analysis = operation.visibility() == VISIBILITY_PROTECTED &&
+                           operation.request() == AnalysesComputeRequest::descriptor()->full_name() &&
+                           operation.response() == AnalysesComputeResponse::descriptor()->full_name();
+  check(protected_analysis, "Analysis Lost Its Protected Binding");
+  AnalysesComputeRequest compute;
+  auto *samples = compute.mutable_samples();
+  samples->set_axis_unit(analysis.outputs(0).axis_unit());
+  samples->set_unit(analysis.outputs(0).unit());
+  samples->add_axis(0.125);
+  samples->add_axis(0.75);
+  samples->add_values(3);
+  samples->add_values(-2);
+  (*compute.mutable_parameters()->mutable_values())["gain"].set_number(4);
+  const auto computed = host.invoke<AnalysesComputeResponse>(analysis.metadata().identifier(), compute);
+  check(computed.outputs_size() == 1, "Analysis Output Was Lost");
+  const auto &output = computed.outputs(0);
+  check(output.axis_size() == 2 && output.axis(0) == samples->axis(0) && output.axis(1) == samples->axis(1), "Raw Analysis Axis Changed");
+  check(output.values_size() == 2 && output.values(0) == 12 && output.values(1) == -8, "Analysis Parameters or Values Changed");
+  check(output.key() == analysis.outputs(0).metadata().identifier() && output.unit() == samples->unit() &&
+            output.axis_unit() == samples->axis_unit(),
+        "Analysis Output Identity or Units Changed");
 
   // Preview a Materialized Case Without Creating Execution State.
   TestCasesMaterializeRequest materialize;

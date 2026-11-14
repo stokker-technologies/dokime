@@ -6,11 +6,9 @@ Harmos revision `299b7ce492e3a82bc4ddf61dc60c2161b6824110`.
 CMake consumes the pinned library archive's own targets and installable package;
 protobuf and gRPC use the same vcpkg graph for both SDKs.
 
-The generated client and plugin surfaces compile through `test:generation` on
-Windows. Request aliases include their resource owner, reserved operation words
-gain an underscore, and library policy/operation/watch types retain their owner.
+Request aliases include their resource owner, reserved operation words gain an
+underscore, and library policy/operation/watch types retain their owner.
 Artifacts.Create is shared by both callers and plugin AnalysisSamples is public.
-The full installed and real-host journeys remain consumer proof obligations.
 
 ## Public Surface
 
@@ -122,6 +120,13 @@ host calls. Calls require matching scope, template, plugin identity and frozen
 origin. Cleanup releases execution resources even when its callback throws;
 failed initialization and process shutdown release their resources too.
 
+`plugin.analysis(definition, compute, policy)` publishes an Analysis and binds its
+identifier to a Protected compute operation. The callback receives `Context&`,
+`const AnalysisSamples&` and `const MapValue&`, and returns
+`std::vector<AnalysisValues>`. Samples retain raw source-time axes, values and
+units. The test example scales values with a declared gain parameter while
+preserving the input axis; its managed and remote stories invoke that binding.
+
 `context.host()` returns the generated plugin-callable resource tree, including
 `evidence`, `executions.progress`, `files`, `plugins.settings`, `secrets` and `time`.
 Declare a generated dependency with
@@ -155,8 +160,8 @@ base-10 numerator and positive denominator without conversion through double.
 Statistics, including sum, and plot summaries retain typed fields and presence.
 Category totals remain Value entries separate from drawing coordinates.
 Document replies preserve the host's typed layout and completion states.
-The plugin AnalysisSamples export remains a definition obligation; analysis
-callbacks must preserve raw axes and values when that public export is supplied.
+Plugin analysis callbacks use the public AnalysisSamples export and preserve raw
+axes and values independently of plot drawing coordinates.
 
 ## Setup, Build, Test and Package
 
@@ -177,7 +182,7 @@ mise -C sdk/cpp run consumer -- --preset tests
 
 `generate` renders the six descriptor-derived C++ files in temporary storage and
 compares them byte for byte, without changing the frozen outputs. The formatter
-covers handwritten files in this SDK. `check` configures CMake and checks C++
+covers handwritten files in this SDK and its shared C++ fixtures. `check` configures CMake and checks C++
 formatting and Python lint, format and types. `build` is the compiler owner;
 `test`, `package` and `consumer` refuse when Ninja reports pending producer work,
 so a failed build cannot silently reuse older executables or libraries.

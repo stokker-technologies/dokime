@@ -157,7 +157,7 @@ TEST_CASE("Client Reads the Backend") {
   StatusLogsWatchOptions watching;
   watching.context = make_shared<ClientContext>();
   watching.context->AddMetadata("authorization", "Bearer test");
-  auto logs = client.status.logs.watch(watching);
+  auto logs = client.status.logs.watch(1024 * 1024, 1024, watching);
   const auto frame = logs.next();
   check(frame && frame->events(0).target() == "execution", "Log Was Lost");
   check(!logs.next(), "Log Stream Did Not Finish");

@@ -149,9 +149,7 @@ def main() -> None:
             else sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp"), *ROOT.glob("sdk/tests/fixtures/cpp/**/*.cpp")])
         )
         if not options.check:
-            sources = [
-                path for path in sources if path.is_relative_to(sdk) and not path.read_text(encoding="utf-8").startswith("// @generated")
-            ]
+            sources = [path for path in sources if not path.read_text(encoding="utf-8").startswith("// @generated")]
         if not sources:
             raise RuntimeError("Format C++ SDK: Select a Handwritten SDK Source")
         command = [formatter or "clang-format", "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]

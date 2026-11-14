@@ -57,6 +57,9 @@ public:
   Plugin(std::string identifier, std::string version);
   Plugin &suite(Suite suite);
   Plugin &prompt(Prompt prompt);
+  Plugin &analysis(Analysis definition,
+                   std::function<std::vector<AnalysisValues>(Context &, const AnalysisSamples &, const MapValue &)> compute,
+                   std::optional<harmos::OperationPolicy> policy = {});
   template <class T> Plugin &record(RecordContract record) {
     if (record.metadata().identifier().empty())
       throw std::invalid_argument("Record Identifier Is Required");
@@ -125,6 +128,7 @@ private:
   dokime::Suites suites_;
   PromptDefinitions prompts_;
   RecordContracts records_;
+  Analyses analyses_;
   std::shared_ptr<detail::Executions> executions_;
 };
 } // namespace dokime::plugin

@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /* === Imports === */
 
 // Standard Library Imports
@@ -17,7 +16,6 @@
 // Local Imports
 #include "dokime/client.hpp"
 #include "dokime/context.hpp"
-
 
 /* === Macros === */
 
@@ -40,7 +38,6 @@ void generated_surface(dokime::Client &client, dokime::plugin::Context &context)
   (void)analyses;
   (void)artifact;
 }
-
 
 /* === Private Functions === */
 

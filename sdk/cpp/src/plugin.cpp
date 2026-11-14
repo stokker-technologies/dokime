@@ -10,6 +10,7 @@
 /* === Imports === */
 
 #include "dokime/plugin.hpp"
+#include "dokime/plugin/v1/analyses.pb.h"
 #include "dokime/plugin/v1/criteria.pb.h"
 #include "dokime/plugin/v1/executions.pb.h"
 #include "dokime/plugin/v1/steps.pb.h"
@@ -52,6 +53,8 @@ using std::uint32_t;
 
 /* === Public Functions === */
 
+using dokime::plugin::v1::AnalysesComputeRequest;
+using dokime::plugin::v1::AnalysesComputeResponse;
 using dokime::plugin::v1::CriteriaEvaluateRequest;
 using dokime::plugin::v1::CriteriaEvaluateResponse;
 using dokime::plugin::v1::ExecutionsCleanupRequest;
@@ -62,6 +65,9 @@ using dokime::plugin::v1::StepsExecuteRequest;
 using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
+using std::function;
+using std::optional;
+using std::vector;
 
 namespace dokime::plugin {
 namespace {
@@ -240,6 +246,30 @@ Plugin &Plugin::prompt(Prompt prompt) {
   *prompts_.add_prompts() = move(prompt);
   return *this;
 }
+Plugin &Plugin::analysis(Analysis definition,
+                         function<vector<AnalysisValues>(Context &, const AnalysisSamples &, const MapValue &)> compute,
+                         optional<OperationPolicy> policy) {
+  const auto operation_id = definition.metadata().identifier();
+  if (operation_id.empty() || !compute)
+    throw invalid_argument("Declare Analysis: Identifier and Compute Handler Are Required");
+  for (const auto &existing : analyses_.analyses())
+    if (existing.metadata().identifier() == operation_id)
+      throw invalid_argument("Declare Analysis: Duplicate Identifier " + operation_id);
+  Operation<AnalysesComputeRequest, AnalysesComputeResponse> operation(
+      operation_id, VISIBILITY_PROTECTED, [compute = move(compute)](TransportContext &transport, AnalysesComputeRequest request) {
+        Context context(transport, {}, {}, make_shared<detail::Resources>());
+        auto outputs = compute(context, request.samples(), request.parameters());
+        AnalysesComputeResponse response;
+        for (auto &output : outputs)
+          *response.add_outputs() = move(output);
+        return response;
+      });
+  if (policy)
+    operation.policy(*policy);
+  native_.operation(operation);
+  *analyses_.add_analyses() = move(definition);
+  return *this;
+}
 Plugin &Plugin::context_operations() {
   requires_operation(HostOperation::PromptsCreate);
   requires_operation(HostOperation::PluginsSettingsList);
@@ -265,6 +295,8 @@ NativePlugin Plugin::compose() const {
     result.section(prompts_);
   if (records_.records_size())
     result.section(records_);
+  if (analyses_.analyses_size())
+    result.section(analyses_);
   return result;
 }
 Declarations Plugin::declarations() const { return compose().declarations(); }
