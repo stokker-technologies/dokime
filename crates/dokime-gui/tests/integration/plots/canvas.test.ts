@@ -16,7 +16,7 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { on, once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -150,17 +150,19 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const evaluate = async (expression: string) =>
       (await command("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))?.result?.value;
 
-    // Read This Document's Ready State; A Transient Loader Notification Is Not Retained.
+    // Attach Before Navigation And Await This Document's Loader.
+    const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
     await command("Page.enable", {});
-    const documentUrl = pathToFileURL(join(scratch, "frozen/report.html")).href;
-    const navigation = await command("Page.navigate", { url: documentUrl });
+    await command("Page.setLifecycleEventsEnabled", { enabled: true });
+    const navigation = await command("Page.navigate", { url: pathToFileURL(join(scratch, "frozen/report.html")).href });
     assert.ok(navigation?.loaderId && !navigation.errorText, JSON.stringify(navigation));
+    for await (const [event] of events) {
+      const message = JSON.parse(event.data);
+      if (message.method === "Page.lifecycleEvent" && message.params.name === "load" && message.params.loaderId === navigation.loaderId)
+        break;
+    }
     await evaluate(
-      `new Promise(resolve => {
-        const ready = () => location.href === ${JSON.stringify(documentUrl)} && document.readyState === 'complete' && window.canvasFixture
-          ? resolve(true) : requestAnimationFrame(ready);
-        ready();
-      })`,
+      `new Promise(resolve => { const ready = () => window.canvasFixture ? resolve(true) : requestAnimationFrame(ready); ready(); })`,
     );
     const results: unknown[] = [];
     for (const zoom of [false, true])
@@ -387,7 +389,11 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
-    if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });
+    connection.close();
+    if (browser.exitCode === null)
+      await once(browser, "exit", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
+        throw new Error("Close Canvas Browser: Process Did Not Exit After Closing Its Transport", { cause });
+      });
   } finally {
     socket?.close();
     if (child && child.exitCode === null && child.signalCode === null) {
