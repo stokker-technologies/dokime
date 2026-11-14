@@ -15,10 +15,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
 # Local Imports
-from dokime_tools.build.paths import output
 from dokime_tools.process import spawn_flags
+
+# Third Party Imports
+from harmos_tools.build.paths import output
 
 # Type Checking Imports
 

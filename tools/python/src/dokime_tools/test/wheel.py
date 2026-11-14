@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Install The Pure Wheel In A Fresh Environment And Run The Starter."""
 
 # === Imports === #
@@ -22,12 +21,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from ..build import paths
 from ..process import spawn_flags
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

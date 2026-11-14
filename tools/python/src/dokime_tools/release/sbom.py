@@ -25,9 +25,9 @@ import zipfile
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from .. import policy
-
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
 from ..process import spawn_flags
 

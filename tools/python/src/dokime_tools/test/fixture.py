@@ -14,8 +14,9 @@
 import sys
 
 # Third Party Imports
+from harmos_tools import temporary
+
 # Local Imports
-from .. import temporary
 
 # Type Checking Imports
 

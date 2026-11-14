@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Prepare desktop SDK fixtures without a retired host"""
 
 # === Imports === #
@@ -20,13 +19,14 @@ import subprocess
 import sys
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import configuration, paths
+from dokime_tools.build import configuration
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

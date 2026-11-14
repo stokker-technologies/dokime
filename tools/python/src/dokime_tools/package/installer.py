@@ -20,8 +20,10 @@ import sys
 from pathlib import Path
 
 # Local Imports
-from dokime_tools import temporary
-from dokime_tools.build import configuration, paths
+from harmos_tools import temporary
+from harmos_tools.build import paths
+
+from dokime_tools.build import configuration
 from dokime_tools.package.staging import stage_file
 from dokime_tools.process import spawn_flags
 

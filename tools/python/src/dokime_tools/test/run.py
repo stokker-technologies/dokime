@@ -26,11 +26,13 @@ from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools import temporary
+from harmos_tools.build import paths
+from harmos_tools.test import policy, vitest
+
 # Local Imports
-from .. import temporary
-from ..build import paths
 from ..process import spawn_flags
-from . import archive, desktop_bench, nextest, policy, pytest, report, traces, vitest
+from . import archive, desktop_bench, nextest, pytest, report, traces
 
 # Type Checking Imports
 
@@ -259,7 +261,8 @@ def bench(
     if "--test" in extra:
         print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
-    from .. import policy as project_policy
+    from harmos_tools.release import policy as project_policy
+
     from ..release import reports
 
     revision = os.environ.get("GITHUB_SHA") or project_policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()

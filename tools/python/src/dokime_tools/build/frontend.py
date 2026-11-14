@@ -18,10 +18,12 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
 from dokime_tools.package.staging import clear_output, sync_output
 
-from . import organization, paths
+from . import organization
 
 # Type Checking Imports
 
@@ -31,7 +33,6 @@ from . import organization, paths
 
 ROOT = Path(__file__).resolve().parents[5]
 WEB_ROOT = ROOT / "crates/dokime-gui"
-
 
 # === Types === #
 
@@ -113,7 +114,6 @@ def main() -> None:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

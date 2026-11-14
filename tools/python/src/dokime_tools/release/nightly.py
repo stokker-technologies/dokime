@@ -19,14 +19,13 @@ import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .. import policy
-
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
 from . import layout, registry, reports, run
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

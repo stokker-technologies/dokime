@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Receive And Export Task Artifacts Through The Single Archive Implementation."""
 
 # === Imports === #
@@ -17,12 +16,12 @@ import os
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build.paths import target
+from harmos_tools.ci import artifacts
+
 # Local Imports
-from ..build.paths import target
-from . import artifacts
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

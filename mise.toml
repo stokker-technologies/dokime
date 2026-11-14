@@ -216,7 +216,7 @@ run = [
 [tasks."check:repository"]
 hide = true
 description = "Check Repository Configuration"
-run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", "shellcheck --version", "actionlint"]
+run = [{ task = "format:toml --check" }, "{{vars.tools}} harmos_tools.ci.mise", "shellcheck --version", "actionlint"]
 
 [tasks."check:rust"]
 hide = true
@@ -589,7 +589,7 @@ run = "{{vars.tools}} dokime_tools.release.run publish"
 hide = true
 description = "Dry-Run Every Publication"
 run = [
-  "{{vars.tools}} dokime_tools.release.version check",
+  "{{vars.tools}} harmos_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
   "{{vars.tools}} dokime_tools.release.run crates-dry",
 ]

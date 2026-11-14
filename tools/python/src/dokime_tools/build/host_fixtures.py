@@ -21,8 +21,10 @@ import tomllib
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import cargo, configuration, paths, wheel
+from dokime_tools.build import cargo, configuration, wheel
 from dokime_tools.ci import transport
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive

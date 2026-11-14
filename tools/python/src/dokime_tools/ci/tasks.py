@@ -334,7 +334,8 @@ def main(arguments: list[str] | None = None) -> int:
         if args.channel == "nightly" and not args.dry:
             if args.stage:
                 parser.error("nightly publishes the complete package inventory")
-            from .. import policy
+            from harmos_tools.release import policy
+
             from ..release import nightly
 
             nightly.publish(policy.root())

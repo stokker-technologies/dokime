@@ -32,9 +32,10 @@ import zipfile
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.release import policy
+
 # Local Imports
-from .. import policy
-from ..build import paths
 from ..package.staging import stage_file
 from . import sbom
 

@@ -28,10 +28,11 @@ from unittest.mock import Mock, call, patch
 from environment import isolate_environment
 
 # Third Party Imports
+from harmos_tools.release import pins, policy
+
 # Local Imports
-from dokime_tools import policy
 from dokime_tools.ci import tasks, transport, workflow
-from dokime_tools.release import nightly, notices, pins, registry, run
+from dokime_tools.release import nightly, notices, registry, run
 
 # Type Checking Imports
 

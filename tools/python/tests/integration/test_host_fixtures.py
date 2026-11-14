@@ -19,8 +19,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import desktop_fixtures, host_fixtures, paths
+from dokime_tools.build import desktop_fixtures, host_fixtures
 
 # Type Checking Imports
 

@@ -5,6 +5,11 @@ installs the root `.venv/` and frontend dependencies. `prepare --without-fronten
 prepares SDK-only jobs without requiring Node or pnpm. Build, test and checks use
 project tasks; compiler caches belong to the workstation.
 
+`tools/python/src/dokime_tools/` holds only Dokime's own automation. Shared policy,
+paths, compiler caches, CI artifacts and release versioning come from `harmos-tools`
+at the Harmos revision pinned in the root `pyproject.toml`; bump it with the Cargo
+pin.
+
 ## Focused Development
 
 ```sh

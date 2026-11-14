@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Generate And Transfer Frontend Protobuf Modules."""
 
 # === Imports === #
@@ -17,12 +16,13 @@ import subprocess
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import cargo, paths
+from dokime_tools.build import cargo
 from dokime_tools.package.staging import sync_output
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

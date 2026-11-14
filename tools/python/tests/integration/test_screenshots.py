@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Published Screenshot Set Validation"""
 
 # === Imports === #
@@ -21,8 +20,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
-from dokime_tools import policy
 from dokime_tools.screenshots import run
 
 # Type Checking Imports

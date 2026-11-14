@@ -41,3 +41,4 @@ url = "https://pypi.org/simple"
 
 [tool.uv.sources]
 dokime-tools = { workspace = true }
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "81d32d3bc9ab3e2121746923712ec9508cee3ec7", subdirectory = "tools/python" }

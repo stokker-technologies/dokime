@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Own Provider Operations And Release Ordering Behind Project Tasks."""
 
 # === Imports === #
@@ -23,13 +22,13 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
-from .. import policy
 from ..process import spawn_flags
 from . import transport
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -180,7 +179,7 @@ def main(arguments: list[str] | None = None) -> int:
         if operation == "release-prepare":
             if run.main(["prepare"]):
                 return 1
-            from ..test import runners
+            from harmos_tools.test import runners
 
             token = os.environ.get("GH_TOKEN", "")
             os.environ["GH_TOKEN"] = os.environ["RUNNER_GROUP_READ_TOKEN"]

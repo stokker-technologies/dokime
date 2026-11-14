@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Rust Build Task"""
 
 # === Imports === #
@@ -16,8 +15,10 @@ import subprocess
 import sys
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import cargo, configuration, outputs, paths
+from dokime_tools.build import cargo, configuration, outputs
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports

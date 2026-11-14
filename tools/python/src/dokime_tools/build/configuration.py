@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Shared Build Configuration And Task Invocation"""
 
 # === Imports === #
@@ -21,9 +20,11 @@ from pathlib import Path
 from time import perf_counter
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.test import policy
+
 # Local Imports
-from dokime_tools.build import cargo, frontend, paths
-from dokime_tools.test import policy
+from dokime_tools.build import cargo, frontend
 
 # Type Checking Imports
 

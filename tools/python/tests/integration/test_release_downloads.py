@@ -22,8 +22,9 @@ from pathlib import Path
 from unittest import mock
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
-from dokime_tools import policy
 from dokime_tools.build import wheel
 from dokime_tools.package import run as package_run
 from dokime_tools.release import layout, registry, reports, run
