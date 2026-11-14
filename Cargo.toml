@@ -11,21 +11,21 @@
 [workspace]
 members = [
   "crates/dokime-gui/src-tauri",
-  "crates/dokime-cli-next",
+  "crates/dokime-cli",
   "crates/dokime-protocol",
   "crates/dokime-storage",
-  "crates/dokime-operations-next",
-  "crates/dokime-runtime-next",
+  "crates/dokime-operations",
+  "crates/dokime-runtime",
   "crates/dokime-packaging",
   "sdk/rust",
   "tools/protocol",
 ]
 default-members = [
   "crates/dokime-gui/src-tauri",
-  "crates/dokime-cli-next",
-  "crates/dokime-runtime-next",
+  "crates/dokime-cli",
+  "crates/dokime-runtime",
   "crates/dokime-storage",
-  "crates/dokime-operations-next",
+  "crates/dokime-operations",
   "sdk/rust",
   "crates/dokime-protocol",
   "crates/dokime-packaging",
@@ -47,10 +47,10 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
-dokime-operations-next = { version = "0.1.5", path = "crates/dokime-operations-next" }
+dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
-dokime-runtime-next = { version = "0.1.5", path = "crates/dokime-runtime-next" }
+dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 
 # Git

@@ -14,7 +14,7 @@ SDK dependencies stop at protocol. The host owns execution sequencing and cleanu
 
 The [Rust SDK](../../../docs/rust-sdk.md), [Python SDK](../../../sdk/python/README.md),
 [C# SDK](../../../docs/sdk-csharp.md) and [C++ SDK](../../../docs/sdk-cpp.md) own
-language examples. Generate projects with `dokime-next new <path> --lang <language>`.
+language examples. Generate projects with `dokime new <path> --lang <language>`.
 Use explicit invocation scope and operation visibility, pure materialization,
 execution-local resources and required cleanup. Query/document builders retain
 protocol values; supported variants are documented in the execution-host guide.

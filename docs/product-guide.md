@@ -103,7 +103,7 @@ storage root; the old folder is preserved. There is no reset or migration.
 
 ## Interfaces
 
-`dokime-next` is the current command-line binary from `crates/dokime-cli-next`.
+`dokime` is the current command-line binary from `crates/dokime-cli`.
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
@@ -115,9 +115,9 @@ so raw product calls remain blocked pending host registration. Typed product
 commands and library raw calls use these forms:
 
 ```sh
-dokime-next --endpoint http://127.0.0.1:7000 operation call harmos.v1.Status/Get --json '{}'
-dokime-next --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
-dokime-next --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
+dokime --endpoint http://127.0.0.1:7000 operation call harmos.v1.Status/Get --json '{}'
+dokime --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
+dokime --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
 ```
 
 Structured output follows the final response wrappers: suites are in `values`,
@@ -163,4 +163,4 @@ Other operation grammar and library composition slices remain locked work.
 - [Remote Access](remote/overview.md), [Tooling](tooling.md) and [Plugin Security](plugin-security.md).
 
 All SDKs provide plugin authoring and backend clients. SDK product dependencies
-stop at protocol; embedding the host uses `dokime-runtime-next`.
+stop at protocol; embedding the host uses `dokime-runtime`.

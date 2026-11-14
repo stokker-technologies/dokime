@@ -77,11 +77,11 @@ def build(profile: str, language: str = "auto") -> None:
                 "build",
                 "--locked",
                 "--package",
-                "dokime-runtime-next",
+                "dokime-runtime",
                 "--example",
                 "content_fixture",
                 "--bin",
-                "dokime-host-next",
+                "dokime-host",
             ],
             cwd=root,
             check=True,
@@ -91,7 +91,7 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
-        shutil.copy2(root / "target/debug" / f"dokime-host-next{extension}", output / f"dokime-host-next{extension}")
+        shutil.copy2(root / "target/debug" / f"dokime-host{extension}", output / f"dokime-host{extension}")
 
         # Build The Reference Host From The Same Library Revision As The Product.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))

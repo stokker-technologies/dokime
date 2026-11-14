@@ -35,7 +35,7 @@ use dokime_protocol::client::plots::{
 use dokime_protocol::client::{DocumentsGetRequest, DocumentsGetResponse, DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_protocol::v1::{Card, Document, DocumentScope, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_protocol::{client, v1};
-use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache, StorageTransferSettings};
 use dokime_storage::{Execution, Sample, Store};
 use harmos_protocol::v1::{Catalog, Section as CatalogSection, StreamDeclaration};

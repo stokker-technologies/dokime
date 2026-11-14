@@ -26,7 +26,7 @@ package = "zbus_names"
 version = "4.3.4"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zbus_names 4.3.4; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zbus_names 4.3.4 also remains. Latest stable owners still require zbus 5."
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zbus_names 4.3.4; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zbus_names 4.3.4 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
 expires = 2026-11-23
 
@@ -37,7 +37,7 @@ package = "zvariant"
 version = "5.15.0"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 also remains. Latest stable owners still require zbus 5."
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
 expires = 2026-11-23
 
@@ -48,7 +48,7 @@ package = "zvariant_derive"
 version = "5.15.0"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0; dokime-runtime-next -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0 also remains. Latest stable owners still require zbus 5."
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
 expires = 2026-11-23
 

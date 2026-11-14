@@ -50,7 +50,7 @@ fn typescript_native_bridge() {
         let harness = Harness::new(fixture.session.clone());
         let snapshot = fixture.session.status();
         let mut child = Process(
-            dokime_runtime_next::process::command("node")
+            dokime_runtime::process::command("node")
                 .env("DOKIME_TEST_GENERATION", snapshot.generation)
                 .env("DOKIME_TEST_BACKEND_ID", snapshot.backend.unwrap().backend_id)
                 .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-rpc-interop.mjs"))

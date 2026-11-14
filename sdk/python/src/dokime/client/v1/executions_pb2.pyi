@@ -278,7 +278,7 @@ Global___Diagnostic: _TypeAlias = Diagnostic  # noqa: Y015
 
 @_typing.final
 class ExecutionBinding(_message.Message):
-    """Source: crates/dokime-operations-next/src/client/execution_append_executions.rs"""
+    """Source: crates/dokime-operations/src/client/execution_append_executions.rs"""
 
     DESCRIPTOR: _descriptor.Descriptor
 

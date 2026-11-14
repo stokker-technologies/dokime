@@ -46,7 +46,7 @@ def build(profile: str, language: str = "rust") -> None:
 
     # Build the CLI Through the Project Task.
     subprocess.run(
-        ["mise", "run", "build", "--", "--package", "dokime-cli-next"],
+        ["mise", "run", "build", "--", "--package", "dokime-cli"],
         cwd=root,
         check=True,
         creationflags=spawn_flags(),
@@ -54,7 +54,7 @@ def build(profile: str, language: str = "rust") -> None:
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
-    cli = root / "target/debug" / f"dokime-next{extension}"
+    cli = root / "target/debug" / f"dokime{extension}"
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
@@ -135,7 +135,7 @@ def build(profile: str, language: str = "rust") -> None:
                 with (project / "pyproject.toml").open("a", encoding="utf-8") as manifest:
                     manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
                 environment["DOKIME_TEST_HOST"] = str(
-                    paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host-next{extension}"
+                    paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}"
                 )
                 subprocess.run(
                     ["mise", "-C", str(project), "run", "build"],

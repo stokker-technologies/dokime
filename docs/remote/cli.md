@@ -1,6 +1,6 @@
 # Remote CLI Workflows
 
-Use `dokime-next` from the same candidate as the host. The command-line tool
+Use `dokime` from the same candidate as the host. The command-line tool
 uses the Rust SDK and the host's final client protocol. See the
 [Product Guide](../product-guide.md#interfaces) for output shapes and current
 integration limitations, and [Tooling](../tooling.md) for focused builds.
@@ -11,13 +11,13 @@ On the host computer, start the loopback bootstrap listener with an explicit
 storage root. Keep its terminal open until the host is stopped:
 
 ```sh
-dokime-next --endpoint 127.0.0.1:7000 server --storage ./bench-data
+dokime --endpoint 127.0.0.1:7000 server --storage ./bench-data
 ```
 
 From another local terminal, export a pairing through that bootstrap listener:
 
 ```sh
-dokime-next --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.dokime-remote --json
+dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.dokime-remote --json
 ```
 
 Export enables the saved authenticated listener when needed. Transfer the
@@ -34,12 +34,12 @@ using the connection. Local bootstrap URLs use `--endpoint`; authenticated remot
 commands use `--remote`:
 
 ```sh
-dokime-next --remote operator.dokime-remote status --json
-dokime-next --remote operator.dokime-remote plugin list --json
-dokime-next --remote operator.dokime-remote catalog list --json
-dokime-next --remote operator.dokime-remote operation list --json
-dokime-next --remote operator.dokime-remote operation show harmos.v1.Status/Get --json
-dokime-next --remote operator.dokime-remote operation call harmos.v1.Status/Get --json '{}'
+dokime --remote operator.dokime-remote status --json
+dokime --remote operator.dokime-remote plugin list --json
+dokime --remote operator.dokime-remote catalog list --json
+dokime --remote operator.dokime-remote operation list --json
+dokime --remote operator.dokime-remote operation show harmos.v1.Status/Get --json
+dokime --remote operator.dokime-remote operation call harmos.v1.Status/Get --json '{}'
 ```
 
 `DOKIME_REMOTE` supplies the pairing path when `--remote` is omitted. An explicit
@@ -75,9 +75,9 @@ Preview validates without registration. Register admits the complete plan and
 retains its response for an unchanged request identity:
 
 ```sh
-dokime-next --remote operator.dokime-remote plan preview --input-file plan.json --json
-dokime-next --remote operator.dokime-remote plan register --input-file plan.json --out cases.pb --json
-dokime-next --remote operator.dokime-remote cycle create --cases cases.pb --request-id cycle-1 --json
+dokime --remote operator.dokime-remote plan preview --input-file plan.json --json
+dokime --remote operator.dokime-remote plan register --input-file plan.json --out cases.pb --json
+dokime --remote operator.dokime-remote cycle create --cases cases.pb --request-id cycle-1 --json
 ```
 
 `plan materialize --suite SUITE --template TEMPLATE --out cases.pb` also registers
@@ -89,9 +89,9 @@ response field. Read execution identities from the cycle's execution pages; repl
 `CYCLE` and `EXECUTION` below with those returned identities:
 
 ```sh
-dokime-next --remote operator.dokime-remote execution list --cycle CYCLE --page-size 1 --json
-dokime-next --remote operator.dokime-remote execution show EXECUTION --json
-dokime-next --remote operator.dokime-remote execution wait EXECUTION --json
+dokime --remote operator.dokime-remote execution list --cycle CYCLE --page-size 1 --json
+dokime --remote operator.dokime-remote execution show EXECUTION --json
+dokime --remote operator.dokime-remote execution wait EXECUTION --json
 ```
 
 List prints one response per page and continues with the returned cut, token and
@@ -114,9 +114,9 @@ the discovery registration described above.
 For a running execution that requests operator input:
 
 ```sh
-dokime-next --remote operator.dokime-remote execution prompt next EXECUTION --json
-dokime-next --remote operator.dokime-remote execution prompt show PROMPT --json
-dokime-next --remote operator.dokime-remote execution prompt answer EXECUTION --prompt PROMPT --action ACTION --accepted --request-id answer-1 --json
+dokime --remote operator.dokime-remote execution prompt next EXECUTION --json
+dokime --remote operator.dokime-remote execution prompt show PROMPT --json
+dokime --remote operator.dokime-remote execution prompt answer EXECUTION --prompt PROMPT --action ACTION --accepted --request-id answer-1 --json
 ```
 
 Use the prompt identity and declared action returned by the host. Omit `--accepted`
@@ -130,8 +130,8 @@ The report commands use Reports.Create for a pure preview and product
 Files.Read for bounded ranges:
 
 ```sh
-dokime-next --remote operator.dokime-remote execution report EXECUTION --out execution.html
-dokime-next --remote operator.dokime-remote cycle report CYCLE --out cycle.html
+dokime --remote operator.dokime-remote execution report EXECUTION --out execution.html
+dokime --remote operator.dokime-remote cycle report CYCLE --out cycle.html
 ```
 
 They verify the returned cut, total length and SHA-256 before atomically saving

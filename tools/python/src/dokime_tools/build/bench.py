@@ -116,7 +116,7 @@ def main() -> None:
     options = parser.parse_args()
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
     if options.binary == "storage":
-        print(build(Path.cwd(), extra, ("--package", "dokime-runtime-next", "--bench", "storage")))
+        print(build(Path.cwd(), extra, ("--package", "dokime-runtime", "--bench", "storage")))
         return
     subprocess.run(["mise", "run", "build:typescript", "--profile", "dev"], check=True, creationflags=spawn_flags())
     selection = (
@@ -124,11 +124,11 @@ def main() -> None:
             "--package",
             "dokime-gui",
             "--package",
-            "dokime-runtime-next",
+            "dokime-runtime",
             "--bin",
             "dokime-gui",
             "--bin",
-            "dokime-host-next",
+            "dokime-host",
             "--bench",
             options.binary,
         )

@@ -35,7 +35,7 @@ use tokio_stream::StreamExt;
 // Local Imports
 use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
-use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
 use dokime_sdk::client::{ClientSettings, StorageTransferSettings};
 use dokime_sdk::{Result, clock::TimeSleepRequest, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
 

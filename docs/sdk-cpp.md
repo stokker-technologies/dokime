@@ -160,7 +160,7 @@ target_link_libraries(my_plugin PRIVATE Dokime::Cpp)
 
 `consumer` builds `sdk/cpp/starter` through this installed package, with no
 SDK source-tree access. `consumer -- --source /path/to/generated-project` builds
-a project produced by `dokime-next new` against the same package. Generated
+a project produced by `dokime new` against the same package. Generated
 projects accept the installed archive URL and SHA-256 through their CMake preset;
 set `VCPKG_ROOT` to the pinned vcpkg checkout for standalone builds.
 The current Harmos pin predates its own installable

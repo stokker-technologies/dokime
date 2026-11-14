@@ -37,7 +37,7 @@ use tonic::Code;
 use dokime_gui::connection::ConnectionError;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairing};
 use dokime_protocol::{client, v1};
-use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, services};
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services};
 use dokime_sdk::client::{
     ClientSettings, StorageTransferSettings,
     v1::{self as library, access},
@@ -64,7 +64,7 @@ use dokime_sdk::client::{
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
-            storage: dokime_runtime_next::storage_defaults(),
+            storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
@@ -143,7 +143,7 @@ fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> 
         std::fs::write(&evidence, original)?;
         let mut owner = Connection::new(settings())?;
         let error = owner.start(existing.path()).await.err().ok_or("Start Host: Expected Incompatible Storage Refusal")?;
-        assert!(matches!(error, Error::Host(dokime_runtime_next::Error::Storage(_))));
+        assert!(matches!(error, Error::Host(dokime_runtime::Error::Storage(_))));
         assert_eq!(std::fs::read(&evidence)?, original);
         let mut entries =
             std::fs::read_dir(existing.path())?.map(|entry| entry.map(|entry| entry.file_name())).collect::<Result<Vec<_>, _>>()?;

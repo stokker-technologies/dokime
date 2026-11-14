@@ -78,19 +78,19 @@ impl Fixture {
         self.owner.local_client().await.unwrap()
     }
 
-    pub async fn thermal(&self) -> dokime_runtime_next::PluginProcess {
+    pub async fn thermal(&self) -> dokime_runtime::PluginProcess {
         // Use the Shared SDK Fixture Produced Before This Story
         let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
-        let placement = dokime_runtime_next::PlacementSettings {
+        let placement = dokime_runtime::PlacementSettings {
             connect_timeout: std::time::Duration::from_secs(30),
             reconnect_delay: std::time::Duration::from_millis(25),
             stop_grace: std::time::Duration::from_secs(30),
             stream_window: std::num::NonZeroUsize::new(8).unwrap(),
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &placement).await.unwrap();
+        let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
         let _: client::Plugin = self
             .client()
             .await

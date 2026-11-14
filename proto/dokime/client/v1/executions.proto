@@ -51,7 +51,7 @@ message Diagnostic {
   string backtrace = 5;
 }
 
-// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
+// Source: crates/dokime-operations/src/client/execution_append_executions.rs
 message ExecutionBinding {
   string execution_id = 1;
   string case_id = 2;

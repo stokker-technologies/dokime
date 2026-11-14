@@ -45,7 +45,7 @@ testing = []
 [dependencies]
 # Local
 dokime-sdk = { package = "dokime", path = "../../../sdk/rust" }
-dokime-runtime-next = { workspace = true }
+dokime-runtime = { workspace = true }
 dokime-protocol = { workspace = true }
 
 # Git

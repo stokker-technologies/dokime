@@ -211,7 +211,7 @@ class StageTests(unittest.TestCase):
                     {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
                 ]
                 settings = {**SETTINGS, "targets": ["windows-x86_64"]}
-                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime-next"}]}}
+                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
                 with (
                     mock.patch.object(run.sbom, "shell", side_effect=shell),
                     mock.patch.object(run.sbom, "workspace", return_value=[]),
@@ -221,7 +221,7 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
                     mock.patch.object(run.packages, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime-next", "binary": binary, "output": "cli.zip"}]
+                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
                     ),
                     mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),

@@ -38,7 +38,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    between a plugin and anyone else; faces never replace per-operation visibility.
    **Why:** Public exposure must not grant direct instance access or client management
    to plugins. **Where:** [face inventory](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
-   [current protocol](../proto/dokime/v1), [current host](../crates/dokime-runtime-next/src/services/mod.rs).
+   [current protocol](../proto/dokime/v1), [current host](../crates/dokime-runtime/src/services/mod.rs).
    **Proof:** No proof yet; task A2 must guard all three audiences and generation filters.
    **Status:** locked direction (`operation-grammar`); separate package roots and
    product lifecycle/client declarations are not fully landed. Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment now have separate context wrappers and no client gRPC entry methods. The host now calls the pinned library's
@@ -57,7 +57,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    "a plugin should be able to call another operation in another plugin if exposed".
    **Where:** [visibility, enum, built-in mapping and SDK audit](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
    [requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-catalog-visibility-and-admission),
-   [current host admission](../crates/dokime-runtime-next/src/plugin.rs).
+   [current host admission](../crates/dokime-runtime/src/plugin.rs).
    **Today:** The pinned library implements all three levels with explicit SDK
    visibility and local Private dispatch. Product template lifecycle declarations
    and host admission now use Protected in all four languages. The additive host
@@ -73,8 +73,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    structured failures and caller-to-child cancellation. A requirement grants no access.
    **Why:** Exposure exists to permit plugin composition while preserving host policy.
    **Where:** [routing requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-visibility-and-host-mediated-plugin-invocation),
-   [current dispatcher](../crates/dokime-runtime-next/src/dispatch.rs),
-   [host-only child dispatch table](../crates/dokime-operations-next/src/lib.rs).
+   [current dispatcher](../crates/dokime-runtime/src/dispatch.rs),
+   [host-only child dispatch table](../crates/dokime-operations/src/lib.rs).
    **Proof:** No proof yet in this repository for Public peer success plus Private
    refusal; A1 is the first task. Harmos's
    `child_calls_reach_host_and_public_peer_without_start_order` in `Harmos:crates/harmos-runtime/tests/plugin_grpc/child_calls.rs`
@@ -99,10 +99,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Product handlers decide its meaning and whether it is required.
    **Why:** Generic routing must not acquire execution semantics or let a child widen authority.
    **Where:** [scope vocabulary](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
-   [product scope validation](../crates/dokime-operations-next/src/resources.rs),
+   [product scope validation](../crates/dokime-operations/src/resources.rs),
    [SDK binding](../sdk/rust/src/context.rs).
    **Proof:** No proof yet for the full cross-provider contract; A4. Product
-   `execution_isolation` in [execution_isolation.rs](../crates/dokime-runtime-next/tests/system/execution_isolation.rs)
+   `execution_isolation` in [execution_isolation.rs](../crates/dokime-runtime/tests/system/execution_isolation.rs)
    proves execution separation, not library opacity or peer inheritance.
    **Status:** locked direction (`operation-grammar`).
 
@@ -116,15 +116,15 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    rendering need no invented manager. Cycles group execution-manager tasks and
    do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
-   [current Host](../crates/dokime-runtime-next/src/host.rs),
-   [composition State](../crates/dokime-runtime-next/src/services/state.rs),
-   [execution manager](../crates/dokime-runtime-next/src/execution_manager.rs),
-   [prompt manager](../crates/dokime-runtime-next/src/prompts.rs) and
-   [report manager](../crates/dokime-runtime-next/src/reports.rs).
+   [current Host](../crates/dokime-runtime/src/host.rs),
+   [composition State](../crates/dokime-runtime/src/services/state.rs),
+   [execution manager](../crates/dokime-runtime/src/execution_manager.rs),
+   [prompt manager](../crates/dokime-runtime/src/prompts.rs) and
+   [report manager](../crates/dokime-runtime/src/reports.rs).
    **Proof:** A5: `execution_shutdown_joins_runs_after_observer_loss`,
    `prompts_settle_answers_and_shutdown_waiters` and
    `reports_publish_atomically_and_close_admission` in
-   [manager_lifecycles.rs](../crates/dokime-runtime-next/tests/system/manager_lifecycles.rs)
+   [manager_lifecycles.rs](../crates/dokime-runtime/tests/system/manager_lifecycles.rs)
    exercise observer loss, joined cleanup, queued Cancel refusal, Stop boundaries,
    answers, shutdown and publication across restart. **Status:** landed for the
    additive host's product managers; generic library service composition remains
@@ -138,8 +138,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Why:** The previous approach duplicated connection, dispatch and process launch;
    product-specific policy must not become generic machinery. HostValues uses a product resolver.
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-   [current composition](../crates/dokime-runtime-next/Cargo.toml),
-   [product settings](../crates/dokime-operations-next/src/settings.rs).
+   [current composition](../crates/dokime-runtime/Cargo.toml),
+   [product settings](../crates/dokime-operations/src/settings.rs).
    Build-time preference export composes declared product settings and the listener
    declaration used by Access configuration, without opening a host, storage or
    credentials. Runtime startup failures retain underlying operation causes;
@@ -245,10 +245,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [Incompatible error](../crates/dokime-storage/src/error.rs),
     [current compatibility requirement](../openspec/specs/data-shape-identity/spec.md).
     **Proof:** `client_collects_backend_diagnostics` in
-    [client_collects_backend_diagnostics.rs](../crates/dokime-runtime-next/tests/system/client_collects_backend_diagnostics.rs)
+    [client_collects_backend_diagnostics.rs](../crates/dokime-runtime/tests/system/client_collects_backend_diagnostics.rs)
     refuses a populated foreign root and preserves its bytes.
     `hosts_refuse_occupied_roots_before_opening_evidence` in
-    [storage_root_admission.rs](../crates/dokime-runtime-next/tests/system/storage_root_admission.rs)
+    [storage_root_admission.rs](../crates/dokime-runtime/tests/system/storage_root_admission.rs)
     proves external-lock refusal before database creation, cloned ownership and reopening. **Status:** landed.
 
 13. **Callee-Owned Policies and Configured Limits.** Deadlines, delays and retries
@@ -259,9 +259,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     Time reads/waits use the authoritative host clock, including SDK child waits.
     **Where:** [policy requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
     [configured reads](../openspec/specs/query-operations/spec.md),
-    [current dispatch policy](../crates/dokime-runtime-next/src/dispatch.rs).
+    [current dispatch policy](../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet for all policy/override paths; A11. `step_failure_and_retries`
-    in [step_failure_and_retries.rs](../crates/dokime-runtime-next/tests/system/step_failure_and_retries.rs)
+    in [step_failure_and_retries.rs](../crates/dokime-runtime/tests/system/step_failure_and_retries.rs)
     proves actual attempt evidence, not complete policy parity. The execution fixture also reads invocation-scoped Environment and Time.Get from its initialize call.
     **Status:** locked direction (`operation-grammar`).
 
@@ -274,7 +274,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     **Why:** Host-free authoring, independent storage and thin shells must remain buildable.
     **Where:** [layer requirement](../openspec/changes/grpc-plugins/specs/crate-structure/spec.md),
     [workspace](../Cargo.toml), [SDK manifest](../sdk/rust/Cargo.toml),
-    [runtime manifest](../crates/dokime-runtime-next/Cargo.toml).
+    [runtime manifest](../crates/dokime-runtime/Cargo.toml).
     **Proof:** No proof yet for the complete migrated tree; A12. New crate manifests
     follow the direction; the native desktop is restored to workspace membership
     and uses the embedded execution host through its native SDK connection owner.
@@ -304,7 +304,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     **Why:** Correctness must not depend on workstation conditions or freeze editorial text.
     **Where:** [agreed test redesign](../openspec/changes/test-stories/design.md),
     [guard requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-deterministic-behavioral-proof),
-    [existing stories](../crates/dokime-runtime-next/tests/system).
+    [existing stories](../crates/dokime-runtime/tests/system).
     **Proof:** No proof yet for the complete test migration; A14. Retained stories
     still need the agreed invariant coverage. Do not add tests that quote this document.
     **Status:** locked direction (`test-stories`, `operation-grammar`).
@@ -315,12 +315,12 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     Import carries its own manifest and never invents a plugin or runnable case.
     **Why:** Durable evidence and recovery must survive the process that produced them.
     **Where:** [execution model](../crates/dokime-storage/src/execution.rs),
-    [host creation](../crates/dokime-runtime-next/src/host.rs),
+    [host creation](../crates/dokime-runtime/src/host.rs),
     [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime-next/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     and `execution_capabilities` in
-    [execution_capabilities.rs](../crates/dokime-runtime-next/tests/system/execution_capabilities.rs).
+    [execution_capabilities.rs](../crates/dokime-runtime/tests/system/execution_capabilities.rs).
     **Status:** landed in the additive host; full import admission remains separate work.
 
 18. **Attributed Outcomes.** Evaluated, declared and not-evaluated outcomes remain
@@ -331,7 +331,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-attributed-outcomes-and-cycle-verdicts).
     **Proof:** `cycle_outcomes_keep_declared_and_unevaluated_separate` in that source
     and `execution_outcomes` in
-    [execution_outcomes.rs](../crates/dokime-runtime-next/tests/system/execution_outcomes.rs).
+    [execution_outcomes.rs](../crates/dokime-runtime/tests/system/execution_outcomes.rs).
     **Status:** landed in the additive host.
 
     Statistics replies include their resolved read position. Compare complete replies
@@ -346,11 +346,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     output without mutating evidence or publishing; explicit publication freezes the
     document/HTML durably and never changes the execution verdict or seal.
     **Why:** Preview, download and render failures must not become lifecycle mutations.
-    **Where:** [document rendering](../crates/dokime-runtime-next/src/documents.rs),
+    **Where:** [document rendering](../crates/dokime-runtime/src/documents.rs),
     [report storage](../crates/dokime-storage/src/report.rs),
     [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-report-rendering-and-publication).
     **Proof:** `documents_and_reports` in
-    [documents_and_reports.rs](../crates/dokime-runtime-next/tests/system/documents_and_reports.rs)
+    [documents_and_reports.rs](../crates/dokime-runtime/tests/system/documents_and_reports.rs)
     checks page-size equivalence, failed-render nonpublication, explicit publish and restart.
     **Status:** landed in the additive host, including report-manager ownership (6), guarded by A5.
 
@@ -382,7 +382,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     never empty success. Transport loss leaves mutation outcome uncertain.
     **Why:** An operator must distinguish no data from data that could not be obtained.
     **Where:** [failure/watch requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-    [current failure translation](../crates/dokime-runtime-next/src/dispatch.rs).
+    [current failure translation](../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet across final interfaces; A16. The current dispatcher
     collapses host child errors to a permanent host_operation_failed failure.
     **Status:** locked direction (`operation-grammar`).
@@ -394,21 +394,21 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
      the installation files and restoring a previous entry. The install operation
      waits for rollback before reporting its deadline failure.
     **Why:** Hosting convenience must not fork plugin semantics.
-    **Where:** [plugin entry](../crates/dokime-runtime-next/src/plugin.rs),
-    [process owner](../crates/dokime-runtime-next/src/process/mod.rs),
+    **Where:** [plugin entry](../crates/dokime-runtime/src/plugin.rs),
+    [process owner](../crates/dokime-runtime/src/process/mod.rs),
     [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-managed-and-remote-plugins).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime-next/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     runs the same suite through both placements. **Status:** landed in the additive host.
 
 24. **Cancellation Preserves Cleanup and Evidence.** Interrupt the active invocation
     while still running required cleanup, closing sample streams and sealing attributed
     evidence; do not confuse cancelling observation with cancelling admitted work.
     **Why:** Operator cancellation must not leave physical resources or evidence unfinished.
-    **Where:** [execution sequencing](../crates/dokime-runtime-next/src/execution.rs),
+    **Where:** [execution sequencing](../crates/dokime-runtime/src/execution.rs),
     [cancellation requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-execution-stop-and-cancel).
     **Proof:** `cancelling_a_thermal_step_runs_cleanup` in
-    [cancelling_a_thermal_step_runs_cleanup.rs](../crates/dokime-runtime-next/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
+    [cancelling_a_thermal_step_runs_cleanup.rs](../crates/dokime-runtime/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
     guards active cancellation/cleanup. Full observer-abandonment semantics have
     **No proof yet**; A17. **Status:** locked direction (`operation-grammar`) for
     the complete invariant; active cleanup is landed in the additive host.

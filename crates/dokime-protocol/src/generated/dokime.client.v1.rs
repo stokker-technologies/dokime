@@ -5060,7 +5060,7 @@ pub struct Diagnostic {
     #[prost(string, tag = "5")]
     pub backtrace: ::prost::alloc::string::String,
 }
-/// Source: crates/dokime-operations-next/src/client/execution_append_executions.rs
+/// Source: crates/dokime-operations/src/client/execution_append_executions.rs
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionBinding {

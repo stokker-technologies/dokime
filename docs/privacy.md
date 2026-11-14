@@ -22,7 +22,7 @@ remove a plugin process's operating-system authority. See [Plugin Security](plug
 ## Diagnostics
 
 The library ServiceManager owns bounded logs, trace events and diagnostics archives.
-Product contributions live in `crates/dokime-runtime-next/src/services/status.rs`.
+Product contributions live in `crates/dokime-runtime/src/services/status.rs`.
 Registered secret values and sensitive field names are redacted. Product preferences
 and credential values are excluded from archive entries. Review diagnostics before
 sharing: arbitrary plugin text may include information meaningful to its author.

@@ -58,7 +58,7 @@ read must return the selected document identity in its header; an empty selector
 is not a valid header identity. The desktop rejects that response before accepting
 source cards or the evidence cut. Frozen record schemas must also retain each
 record alias's protobuf message binding; descriptors alone do not provide it.
-Desktop system startup uses `dokime-next server --endpoint ... --storage ...`
+Desktop system startup uses `dokime server --endpoint ... --storage ...`
   and admits the prepared Rust SDK fixture with `plugin add`. The WebView RPC
 helper uses canonical host schemas and the descriptor fence, including numeric
 enums and fully qualified library service paths. System drivers now use the SDK
@@ -212,7 +212,7 @@ application directories, logs, settings and WebView profile;
 a distribution does not create a second root under the compiled default identifier.
 
 The local host keeps an exclusive `local.lock` lease on its storage folder.
-`dokime_runtime_next::Error::OccupiedRoot` reaches the connection screen as
+`dokime_runtime::Error::OccupiedRoot` reaches the connection screen as
 `DesktopSessionError::BackendRunning { root, message }`. Close the other owner
 before retrying, or attach to its host. An attached connection keeps its client
 preferences when an occupied local root cannot supply them.

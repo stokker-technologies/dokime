@@ -8,7 +8,7 @@ operating-system authority. Never put credentials in a bundle or source archive.
 
 ## Admission
 
-`crates/dokime-runtime-next/src/services/bundles.rs` verifies v1 bundle paths,
+`crates/dokime-runtime/src/services/bundles.rs` verifies v1 bundle paths,
 regular files, inventory sizes/digests, compatibility and native target before
 execution. The described identity/catalog must match the retained description.
 `services/managed_plugins.rs` owns replacement rollback and child cleanup;

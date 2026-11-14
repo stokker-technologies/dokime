@@ -36,7 +36,7 @@ from dokime_tools.build import desktop_fixtures, host_fixtures, paths
 class HostFixtureTests(unittest.TestCase):
     def test_desktop_bundle_failure_keeps_tool_diagnostics(self):
         diagnostic = "fixture stderr\n"
-        refusal = subprocess.CompletedProcess(["dokime-next"], 3, stderr=diagnostic)
+        refusal = subprocess.CompletedProcess(["dokime"], 3, stderr=diagnostic)
         with (
             tempfile.TemporaryDirectory() as temporary,
             patch.object(desktop_fixtures.configuration, "ROOT", Path(temporary)),

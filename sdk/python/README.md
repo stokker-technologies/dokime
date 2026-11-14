@@ -2,7 +2,7 @@
 
 `dokime-sdk` (import `dokime`) is one pure Python package for remote plugin authoring and async gRPC
 clients. It builds on the Harmos Python SDK at revision
-`81d32d3bc9ab3e2121746923712ec9508cee3ec7`, serves `harmos.plugin.v1.Instance`, and exchanges
+`2124adafd52e1c50085521389c82720387edd46d`, serves `harmos.plugin.v1.Instance`, and exchanges
 generated messages: `dokime.v1` for shared values, `dokime.client.v1` for client calls,
 `dokime.plugin.v1` for lifecycle bindings and `dokime.plugin.host.v1` for host calls.
 Python never starts Dokime.

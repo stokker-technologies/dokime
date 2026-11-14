@@ -9,11 +9,11 @@ project tasks; compiler caches belong to the workstation.
 
 ```sh
 mise run prepare
-mise run build -- --package dokime-runtime-next --check
-mise run build -- --cargo check --locked --offline --package dokime-operations-next
-mise run test -- --package dokime-runtime-next --target system --story storage_root_admission
+mise run build -- --package dokime-runtime --check
+mise run build -- --cargo check --locked --offline --package dokime-operations
+mise run test -- --package dokime-runtime --target system --story storage_root_admission
 mise run test -- --package dokime-protocol --target integration
-mise run test -- --changed crates/dokime-runtime-next/tests/system/manager_lifecycles.rs --plan
+mise run test -- --changed crates/dokime-runtime/tests/system/manager_lifecycles.rs --plan
 mise run format
 mise run check -- --language rust
 mise run check -- --language python
@@ -33,8 +33,8 @@ runs the explicit workspace compiler proof through the same task owner.
 ```sh
 mise run build:host-fixtures
 mise run build:cli-fixtures
-mise run test -- --package dokime-runtime-next --target system
-mise run test -- --package dokime-cli-next --target system
+mise run test -- --package dokime-runtime --target system
+mise run test -- --package dokime-cli --target system
 mise -C sdk/rust run sdk:test
 mise -C sdk/python run test
 mise -C sdk/csharp run test
@@ -112,7 +112,7 @@ workspace also contains protocol, storage, operations-next, runtime-next, CLI-ne
 SDK and bundle inspection packages.
 
 Product outputs live under `target/build/<profile>/<target>/`; packages under
-`target/package/<profile>/<target>/`. CLI archives retain the `dokime-next` binary.
+`target/package/<profile>/<target>/`. CLI archives retain the `dokime` binary.
 The distribution ZIP contains that CLI, the desktop, authored organization resources
 and legal notices. Native Tauri packaging consumes those verified Product bytes
 without compiling or patching them and produces Windows NSIS or Linux DEB/RPM
@@ -349,7 +349,7 @@ The three root costs were repeated exact-statistics queries for identical cards,
 full-history moment scans when the saved preview already covered the complete
 window, and per-plot frozen descriptor construction:
 
-- `crates/dokime-operations-next/src/client/plots_snapshots_list.rs::query_batch`
+- `crates/dokime-operations/src/client/plots_snapshots_list.rs::query_batch`
   now shares an identical selection within one bounded batch, with one isolated
   reader and catalog/pool per execution. Before there were 22 statistics calls in
   the refused opening; after there are two. This sharing ends with the batch.
@@ -358,7 +358,7 @@ window, and per-plot frozen descriptor construction:
   These first two causes share the measured statistics span; their individual
   times were not isolated. Statistics fall from 10,100.403 to 267.892 ms in this
   observation.
-- `crates/dokime-operations-next/src/client/plots_snapshots_list.rs::snapshot_at`
+- `crates/dokime-operations/src/client/plots_snapshots_list.rs::snapshot_at`
   previously rebuilt the descriptor pool for each plot. Batch preparation replaces
   those rebuilds. The before non-statistics/non-preview query residual is 500.705 ms,
   including descriptor work; it is an upper bound, not an isolated pool timing.

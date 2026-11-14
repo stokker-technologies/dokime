@@ -1,8 +1,8 @@
 # New Execution Host
 
 The execution host serves the command-line tool and SDK clients.
-`dokime-runtime-next` composes plugin entries, scoped unary lifecycle dispatch,
-controlled orchestration time and cycle execution. `dokime-operations-next` owns
+`dokime-runtime` composes plugin entries, scoped unary lifecycle dispatch,
+controlled orchestration time and cycle execution. `dokime-operations` owns
 one declaration and handler per supported host operation. `dokime-storage` owns
 SQLite execution evidence and Arrow IPC sample batches. The SDK depends only on product protocol and the library SDK.
 
@@ -32,7 +32,7 @@ Guard **A5 — Managers Own Live Orchestration** is exercised by
 `execution_shutdown_joins_runs_after_observer_loss`,
 `prompts_settle_answers_and_shutdown_waiters` and
 `reports_publish_atomically_and_close_admission` in
-`crates/dokime-runtime-next/tests/system/manager_lifecycles.rs`.
+`crates/dokime-runtime/tests/system/manager_lifecycles.rs`.
 Existing restart, retry, report, evidence and client stories retain their contracts.
 
 ## Run the Thermal Stories
@@ -41,8 +41,8 @@ Build the existing shared SDK plugin, then run either story by its full name:
 
 ```powershell
 mise run build:host-fixtures
-mise run test -- --package dokime-runtime-next --target system --exact thermal_suite_survives_host_restart::thermal_suite_survives_host_restart
-mise run test -- --package dokime-runtime-next --target system --exact cancelling_a_thermal_step_runs_cleanup::cancelling_a_thermal_step_runs_cleanup
+mise run test -- --package dokime-runtime --target system --exact thermal_suite_survives_host_restart::thermal_suite_survives_host_restart
+mise run test -- --package dokime-runtime --target system --exact cancelling_a_thermal_step_runs_cleanup::cancelling_a_thermal_step_runs_cleanup
 ```
 
 The fixture is `target/debug/dokime-rust-thermal` with the native executable
@@ -58,7 +58,7 @@ Prompt arrival and cancellation use events, with no wall-clock sleeps.
 ## Serve Client gRPC
 
 `services::serve(endpoint, root, host_settings, client_settings)` in
-`crates/dokime-runtime-next/src/services/` binds a loopback endpoint and returns
+`crates/dokime-runtime/src/services/` binds a loopback endpoint and returns
 `Server`; `endpoint()` exposes the chosen address and `close().await` cancels
 active work, drains cleanup and closes the listener. Client settings supply
 read, mutation and stream deadlines, case/page limits, message bytes and stream
@@ -67,7 +67,7 @@ buffer capacity.
 The public `process::command` constructor starts owned child processes without
 opening Windows console windows.
 
-The `dokime-host-next` binary accepts `--endpoint HOST:PORT --storage PATH`.
+The `dokime-host` binary accepts `--endpoint HOST:PORT --storage PATH`.
 It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
 Ordinary runs use UTC time; `--controlled-clock` is the deterministic story mode.
 The storage root retains a backend identity; each process has a new boot epoch.
@@ -259,8 +259,8 @@ mise run build:host-fixtures
 mise -C sdk/python run prepare
 mise -C sdk/python run build
 mise -C sdk/python run install
-mise run test -- --package dokime-runtime-next --target system --exact client_runs_thermal_suite_over_grpc::client_runs_thermal_suite_over_grpc
-mise run test -- --package dokime-runtime-next --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
+mise run test -- --package dokime-runtime --target system --exact client_runs_thermal_suite_over_grpc::client_runs_thermal_suite_over_grpc
+mise run test -- --package dokime-runtime --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
 ```
 
 The Rust story uses `dokime::client::HostClient` service conveniences over the
@@ -275,11 +275,11 @@ policies retain their own deadlines.
 
 ## Command-Line Candidate
 
-`crates/dokime-cli-next` builds the current `dokime-next` tool.
+`crates/dokime-cli` builds the current `dokime` tool.
 Hosting embeds the new runtime listener; remote commands use `sdk/rust`'s client
-half. Build with `mise run build -- --package dokime-cli-next`.
+half. Build with `mise run build -- --package dokime-cli`.
 
-`dokime-next --endpoint URL operation list --json` returns the complete bounded
+`dokime --endpoint URL operation list --json` returns the complete bounded
 admitted operation catalog, including owner, generation and contract. It has no
 paging flags. `operation show ID --json` inspects the same contract, including
 visibility, policy, protobuf descriptors and readable request/response field shapes.
@@ -289,13 +289,13 @@ then prints the typed JSON response. Use `--input-file request.json` for file in
 refusals name the requested operation. Policies run on the host; the CLI adds no
 mutation retries.
 
-`dokime-next version --json` reports the compiled package version, source revision
+`dokime version --json` reports the compiled package version, source revision
 (with `-dirty` for tracked local edits), publication channel, OS and architecture.
 Local builds have a null channel; release and Nightly publishers identify theirs
 from the build environment. Source archives without Git or CI revision metadata
 report a null revision.
 
-`dokime-next doctor storage --json` probes write, sync, rename, readback and removal
+`dokime doctor storage --json` probes write, sync, rename, readback and removal
 in a disposable scratch directory, then opens and closes a scratch host.
 `--storage PATH` (or configured `storage`) additionally diagnoses an existing root
 from a bounded copy of its SQLite files under the root lease. Stop the host first.
@@ -303,7 +303,7 @@ The original root is never opened for recovery or changed; missing roots are not
 created. `retained_bytes` bounds the database copy. Incompatible roots produce a
 failed report and backup/fresh-root or explicit-reset guidance.
 
-Export access with `dokime-next --endpoint URL access pairing export --label Operator
+Export access with `dokime --endpoint URL access pairing export --label Operator
 --out operator.dokime-remote --json`. It enables the host's saved TLS listener if
 needed, creates an independent Access pairing, and atomically writes a new secret
 file. Existing destinations are refused before creating a pairing. Publication
@@ -323,23 +323,23 @@ host/API requests listed in the parity checklist; embedded product export remain
 `proto export --out proto`.
 
 ```sh
-dokime-next new first-plugin --lang rust
-dokime-next new remote-plugin --lang python
-dokime-next new managed-plugin --lang csharp
-dokime-next new native-plugin --lang cpp
-dokime-next plugin bundle --executable first-plugin/target/debug/dokime-starter --out first.dokime
-dokime-next plugin inspect --bundle first.dokime --json
-dokime-next --endpoint 127.0.0.1:7000 server --storage ./evidence
-dokime-next --endpoint http://127.0.0.1:7000 plugin install first.dokime
-dokime-next --endpoint http://127.0.0.1:7000 plugin add http://127.0.0.1:7001
-dokime-next --endpoint http://127.0.0.1:7000 catalog list --json
-dokime-next --endpoint http://127.0.0.1:7000 plan materialize --suite SUITE --template example.capture --out cases.pb
-dokime-next --endpoint http://127.0.0.1:7000 cycle create --cases cases.pb --json
-dokime-next --endpoint http://127.0.0.1:7000 execution prompt next EXECUTION --json
-dokime-next --endpoint http://127.0.0.1:7000 execution prompt answer EXECUTION --action yes --accepted
-dokime-next --endpoint http://127.0.0.1:7000 execution watch EXECUTION
-dokime-next --endpoint http://127.0.0.1:7000 execution report EXECUTION --out report.html
-dokime-next proto export --out proto
+dokime new first-plugin --lang rust
+dokime new remote-plugin --lang python
+dokime new managed-plugin --lang csharp
+dokime new native-plugin --lang cpp
+dokime plugin bundle --executable first-plugin/target/debug/dokime-starter --out first.dokime
+dokime plugin inspect --bundle first.dokime --json
+dokime --endpoint 127.0.0.1:7000 server --storage ./evidence
+dokime --endpoint http://127.0.0.1:7000 plugin install first.dokime
+dokime --endpoint http://127.0.0.1:7000 plugin add http://127.0.0.1:7001
+dokime --endpoint http://127.0.0.1:7000 catalog list --json
+dokime --endpoint http://127.0.0.1:7000 plan materialize --suite SUITE --template example.capture --out cases.pb
+dokime --endpoint http://127.0.0.1:7000 cycle create --cases cases.pb --json
+dokime --endpoint http://127.0.0.1:7000 execution prompt next EXECUTION --json
+dokime --endpoint http://127.0.0.1:7000 execution prompt answer EXECUTION --action yes --accepted
+dokime --endpoint http://127.0.0.1:7000 execution watch EXECUTION
+dokime --endpoint http://127.0.0.1:7000 execution report EXECUTION --out report.html
+dokime proto export --out proto
 ```
 
 Bundles include `dokime.json` with an exact requirement for the bundling tool's
@@ -353,7 +353,7 @@ paired `--sdk-url` and `--sdk-sha256` overrides. Existing destinations are refus
 `plugin dev --executable PATH` starts a built plugin remotely and prints its bound
 URL; adding `--endpoint` attaches it to that host. Stdin EOF or Ctrl+C stops the
 owned process. `plugin inspect --url URL` describes an independently running
-plugin. Hosting uses the same EOF/interrupt close contract as `dokime-host-next`.
+plugin. Hosting uses the same EOF/interrupt close contract as `dokime-host`.
 
 `--config PATH` reads explicit TOML settings; endpoint and storage may be supplied
 there or on the command line. Unknown keys, zero bounds and zero deadlines fail.
@@ -398,7 +398,7 @@ mise run build:cli-fixtures
 mise run build:cli-fixtures -- --language python
 mise run build:cli-fixtures -- --language csharp
 mise run build:cli-fixtures -- --language cpp
-mise run test -- --package dokime-cli-next --target system
+mise run test -- --package dokime-cli --target system
 ```
 
 Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
@@ -418,10 +418,10 @@ existing-destination preservation and embedded proto export.
 
 ```sh
 mise run build:cli-fixtures
-mise run test -- --package dokime-cli-next --target system
+mise run test -- --package dokime-cli --target system
 ```
 
-The fixture producer uses `dokime-next new` and defaults to Rust for Tests Build.
+The fixture producer uses `dokime new` and defaults to Rust for Tests Build.
 `--language python|csharp|cpp` selects another generated candidate. Build host
 fixtures and each SDK's package first. Python runs the generated project's test
 task against the prepared host; C# runs `test:starter` against the generated
@@ -431,7 +431,7 @@ Installed binary renaming and desktop integration remain on the combined restora
 
 ## Canonical Selection Requests
 
-`dokime-next plan preview --input-file preview.json --json` accepts a
+`dokime plan preview --input-file preview.json --json` accepts a
 PlanningPreviewSelectionRequest in protobuf JSON. `plan register --input-file
 register.json --out cases.pb --json` accepts PlanningRegisterSelectionRequest,
 including the caller-retained idempotency_key. Replaying the same request returns
@@ -472,9 +472,9 @@ story against exported artifacts. Suite failures are reported alongside the
 publication result and do not block publication.
 
 ```sh
-mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence
-mise run test -- --package dokime-runtime-next --target system --exact csharp_plugin_matches_rust_thermal_evidence::csharp_plugin_matches_rust_thermal_evidence
-mise run test -- --package dokime-runtime-next --target system --exact cpp_plugin_matches_rust_thermal_evidence::cpp_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime --target system --exact csharp_plugin_matches_rust_thermal_evidence::csharp_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime --target system --exact cpp_plugin_matches_rust_thermal_evidence::cpp_plugin_matches_rust_thermal_evidence
 ```
 
 Python runs remote; C# and C++ run remote and managed. Set
@@ -565,9 +565,9 @@ local client principal; the separate Access listener authenticates paired caller
 Build the content-story fixture before its client journey:
 
 ```sh
-mise run build -- --cargo build --package dokime-runtime-next --example content_fixture
-mise run test -- --package dokime-runtime-next --target system --exact client_transfers_execution_content::client_transfers_execution_content
-mise run test -- --package dokime-runtime-next --target system --exact client_keeps_execution_notes::client_keeps_execution_notes
+mise run build -- --cargo build --package dokime-runtime --example content_fixture
+mise run test -- --package dokime-runtime --target system --exact client_transfers_execution_content::client_transfers_execution_content
+mise run test -- --package dokime-runtime --target system --exact client_keeps_execution_notes::client_keeps_execution_notes
 ```
 
 Appearance asset downloads and Media capture return named refusals pending their
@@ -875,7 +875,7 @@ changes in this amendment. ReadSettings/SavedSettings and ReadSecret/Secret
 library request/response shapes; their rows deliberately await composition.
 
 Product RecordSchemas and StreamSchemas remain distinct from library registries:
-`crates/dokime-operations-next/src/client/catalog_inventory.rs` projects admitted
+`crates/dokime-operations/src/client/catalog_inventory.rs` projects admitted
 and frozen record contracts/stream rows; `catalog_record_schemas_list.rs` and
 `catalog_stream_schemas_list.rs` select those projections by parent. At the pinned
 library revision, `crates/harmos-operations/src/host/catalog.rs` instead reads

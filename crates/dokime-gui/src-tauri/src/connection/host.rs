@@ -40,7 +40,7 @@ use super::ConnectionTarget;
 use dokime_protocol::client;
 use dokime_protocol::client::InstallPluginFrame;
 use dokime_protocol::client::PluginInstallation;
-use dokime_runtime_next::{HostSettings, services};
+use dokime_runtime::{HostSettings, services};
 use dokime_sdk::client::v1::StatusGetResponse;
 use dokime_sdk::{Client, client::ClientSettings};
 
@@ -100,7 +100,7 @@ pub enum Error {
     Rpc(#[from] Status),
 
     #[error("Start Local Host: {0}")]
-    Host(#[from] dokime_runtime_next::Error),
+    Host(#[from] dokime_runtime::Error),
 
     #[error("Connect to Host: the host identity changed; import its current pairing")]
     IdentityChanged,
@@ -505,13 +505,13 @@ impl Drop for Connection {
 /* === Public Functions === */
 
 pub(crate) fn desktop_settings() -> ConnectionSettings {
-    use dokime_runtime_next::{HostSettings, PlacementSettings};
+    use dokime_runtime::{HostSettings, PlacementSettings};
     use std::num::NonZeroUsize;
     let message_bytes = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).expect("desktop frame bound");
     let stream_buffer = NonZeroUsize::new(8).expect("desktop stream buffer");
     ConnectionSettings {
         host: HostSettings {
-            storage: dokime_runtime_next::storage_defaults(),
+            storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(services::WallClock),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),

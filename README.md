@@ -47,15 +47,15 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 
 ### CLI
 
-`dokime-next` creates SDK projects, packages executable plugins, hosts Dokime and
+`dokime` creates SDK projects, packages executable plugins, hosts Dokime and
 controls a running host. See [Command-Line Usage](docs/execution-host.md#command-line-candidate).
 
 #### Examples
 
 ```sh
-mise run build -- --package dokime-cli-next
-./target/debug/dokime-next new bench --lang python
-./target/debug/dokime-next server --endpoint 127.0.0.1:7000 --storage ./bench-data
+mise run build -- --package dokime-cli
+./target/debug/dokime new bench --lang python
+./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
 ```
 
 ### Python
@@ -115,7 +115,7 @@ mise -C sdk/cpp run test
 
 ## Quick Start
 
-Build `dokime-cli-next`, create a [starter](docs/product-guide.md#examples), and
+Build `dokime-cli`, create a [starter](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
 managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and

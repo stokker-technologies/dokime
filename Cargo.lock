@@ -1417,14 +1417,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "dokime-cli-next"
+name = "dokime-cli"
 version = "0.1.5"
 dependencies = [
  "clap",
  "dokime",
  "dokime-packaging",
  "dokime-protocol",
- "dokime-runtime-next",
+ "dokime-runtime",
  "prost",
  "prost-reflect",
  "reqwest",
@@ -1462,7 +1462,7 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-protocol",
- "dokime-runtime-next",
+ "dokime-runtime",
  "dokime-storage",
  "futures-util",
  "harmos-protocol",
@@ -1504,7 +1504,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dokime-operations-next"
+name = "dokime-operations"
 version = "0.1.5"
 dependencies = [
  "arrow-array",
@@ -1572,13 +1572,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "dokime-runtime-next"
+name = "dokime-runtime"
 version = "0.1.5"
 dependencies = [
  "async-trait",
  "criterion",
  "dokime",
- "dokime-operations-next",
+ "dokime-operations",
  "dokime-protocol",
  "dokime-storage",
  "harmos-protocol",

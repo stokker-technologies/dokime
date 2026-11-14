@@ -68,7 +68,7 @@ runs:
         if ($LASTEXITCODE -ne 0) { throw 'Invalid signing configuration.' }
         "provider=$provider" >> $env:GITHUB_OUTPUT
         $bin = (Resolve-Path "target/build/$env:DOKIME_PROFILE/windows-x86_64/bin").Path
-        if (-not (Test-Path -LiteralPath "$bin/dokime-gui.exe") -or -not (Test-Path -LiteralPath "$bin/dokime-next.exe")) {
+        if (-not (Test-Path -LiteralPath "$bin/dokime-gui.exe") -or -not (Test-Path -LiteralPath "$bin/dokime.exe")) {
           throw 'The matching Desktop and CLI product binaries are required.'
         }
         "bin=$bin" >> $env:GITHUB_OUTPUT

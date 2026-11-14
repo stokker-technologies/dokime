@@ -50,7 +50,7 @@ def export(root: Path, profile: str) -> Path:
         "LICENSE": root / "LICENSE",
         "NOTICE": root / "target/notices/NOTICE",
         "THIRD-PARTY-NOTICES": root / "target/notices/THIRD-PARTY-NOTICES",
-        f"bin/dokime-next{suffix}": build / "bin" / f"dokime-next{suffix}",
+        f"bin/dokime{suffix}": build / "bin" / f"dokime{suffix}",
         f"bin/dokime-gui{suffix}": build / "bin" / f"dokime-gui{suffix}",
     }
     organization = root / "organization"

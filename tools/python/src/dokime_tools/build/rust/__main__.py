@@ -27,7 +27,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 # === Constants === #
 
 ROOT = configuration.ROOT
-EXECUTABLES = ("dokime-next", "dokime-host-next", "dokime-gui")
+EXECUTABLES = ("dokime", "dokime-host", "dokime-gui")
 
 # === Types === #
 

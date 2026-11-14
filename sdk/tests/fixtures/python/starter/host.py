@@ -106,7 +106,7 @@ class Host:
         repository = next((parent for parent in Path(__file__).resolve().parents if (parent / "Cargo.toml").is_file()), None)
         binary = os.environ.get("DOKIME_TEST_HOST")
         if binary is None and repository is not None:
-            name = "dokime-host-next.exe" if os.name == "nt" else "dokime-host-next"
+            name = "dokime-host.exe" if os.name == "nt" else "dokime-host"
             if "TEST_PROFILE" in os.environ:
                 system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
                 machine = platform.machine().lower()
