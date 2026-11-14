@@ -860,7 +860,8 @@ watch reports deletion.
 
 Decision: product plugin methods annotate CLIENTS for their host transport client;
 Protected admission still excludes application clients. Upload replaces native wire FileProducer/FileSession/StagedFile/FileProgress;
-Files owns FileBatch/FileCompletion. Verdict summary/status live with Cycles to
+Files owns FileBatch/FileCompletion. Native storage remains PostcardV1 and must
+receive losslessly encoded native values, never relabeled protobuf bytes. Verdict summary/status live with Cycles to
 avoid a file import cycle. Buf permits package import cycles because nested owner
 packages exchange values, while protoc still rejects all file import cycles.
 
@@ -1190,15 +1191,15 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.plots.SnapshotsListResponse` | `dokime.host.v1.plots.SnapshotsListResponse` |
 | `dokime.client.v1.plots.SnapshotsWatchRequest` | `dokime.host.v1.plots.SnapshotsWatchRequest` |
 | `dokime.client.v1.plots.SnapshotsWatchResponse` | `dokime.host.v1.plots.SnapshotsWatchResponse` |
-| `dokime.client.v1.ListPlugins` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginEntries` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.AddRemotePlugin` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.RemovePlugin` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.RemovePluginResponse` | `deleted; use harmos Plugins or plugins.Settings` |
+| `dokime.client.v1.ListPlugins` | `harmos.host.v1.PluginsListRequest` |
+| `dokime.client.v1.PluginEntries` | `harmos.host.v1.PluginsListResponse` |
+| `dokime.client.v1.AddRemotePlugin` | `harmos.host.v1.PluginsCreateRequest` |
+| `dokime.client.v1.RemovePlugin` | `harmos.host.v1.PluginsDeleteRequest` |
+| `dokime.client.v1.RemovePluginResponse` | `harmos.host.v1.PluginsDeleteResponse` |
 | `dokime.client.v1.Plugin` | `harmos.host.v1.PluginEntry` |
-| `dokime.client.v1.ManagedPlugin` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.RemotePlugin` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginState` | `deleted; use harmos Plugins or plugins.Settings` |
+| `dokime.client.v1.ManagedPlugin` | `harmos.host.v1.PluginManaged` |
+| `dokime.client.v1.RemotePlugin` | `harmos.host.v1.PluginRemote` |
+| `dokime.client.v1.PluginState` | `harmos.host.v1.PluginState` |
 | `dokime.client.v1.AdmittedPlugin` | `deleted; use harmos Plugins or plugins.Settings` |
 | `dokime.client.v1.AdmittedPluginCursor` | `deleted; use harmos Plugins or plugins.Settings` |
 | `dokime.client.v1.AdmittedPluginPage` | `deleted; use harmos Plugins or plugins.Settings` |
@@ -1212,18 +1213,18 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.PluginInstallation` | `deleted; use harmos Plugins or plugins.Settings` |
 | `dokime.client.v1.PluginInstallationState` | `deleted; use harmos Plugins or plugins.Settings` |
 | `dokime.client.v1.PluginMetadata` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginsGetInstallationRequest` | `deleted; use harmos Plugins or plugins.Settings` |
+| `dokime.client.v1.PluginsGetInstallationRequest` | `harmos.host.v1.PluginsGetRequest` |
 | `dokime.client.v1.PluginsInstallRequest` | `deleted; use harmos Plugins or plugins.Settings` |
 | `dokime.client.v1.PluginsInstallInput` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginsListAdmittedPluginsRequest` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginsListInstallationsRequest` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginsReloadRequest` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.PluginsSetEnabledRequest` | `deleted; use harmos Plugins or plugins.Settings` |
+| `dokime.client.v1.PluginsListAdmittedPluginsRequest` | `harmos.host.v1.PluginsListRequest` |
+| `dokime.client.v1.PluginsListInstallationsRequest` | `harmos.host.v1.PluginsListRequest` |
+| `dokime.client.v1.PluginsReloadRequest` | `harmos.host.v1.PluginsRestartRequest` |
+| `dokime.client.v1.PluginsSetEnabledRequest` | `harmos.host.v1.PluginsSetRequest` |
 | `dokime.client.v1.plugins.SecretAvailability` | `dokime.host.v1.plugins.SecretBinding` |
-| `dokime.client.v1.plugins.SettingsGetRequest` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.plugins.SettingsGetResponse` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.plugins.SettingsSetRequest` | `deleted; use harmos Plugins or plugins.Settings` |
-| `dokime.client.v1.plugins.SettingsSetResponse` | `deleted; use harmos Plugins or plugins.Settings` |
+| `dokime.client.v1.plugins.SettingsGetRequest` | `harmos.host.v1.plugins.SettingsListRequest` |
+| `dokime.client.v1.plugins.SettingsGetResponse` | `harmos.host.v1.plugins.SettingsListResponse` |
+| `dokime.client.v1.plugins.SettingsSetRequest` | `harmos.host.v1.plugins.SettingsSetRequest` |
+| `dokime.client.v1.plugins.SettingsSetResponse` | `harmos.host.v1.plugins.SettingsSetResponse` |
 | `dokime.client.v1.PromptDefinitionsGetRequest` | `dokime.host.v1.PromptDefinitionsGetRequest` |
 | `dokime.client.v1.PromptDefinitionsGetResponse` | `dokime.host.v1.PromptDefinitionsGetResponse` |
 | `dokime.client.v1.PromptDefinitionsListRequest` | `dokime.host.v1.PromptDefinitionsListRequest` |
@@ -1564,15 +1565,15 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.v1.TelemetryRole` | `dokime.host.v1.TelemetryRole` |
 | `dokime.v1.TelemetrySchema` | `dokime.host.v1.TelemetrySchema` |
 | `dokime.v1.ValidationMode` | `dokime.host.v1.ValidationMode` |
-| `dokime.v1.SettingsDeclarations` | `deleted; use harmos.model.v1.SettingDeclaration` |
-| `dokime.v1.Setting` | `deleted; use harmos.model.v1.SettingDeclaration` |
+| `dokime.v1.SettingsDeclarations` | `harmos.model.v1.SettingsDeclarations` |
+| `dokime.v1.Setting` | `harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.BooleanSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.TextSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.PathSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.NumberSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.ChoiceSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
 | `dokime.v1.SettingChoice` | `deleted; use harmos.model.v1.SettingDeclaration` |
-| `dokime.v1.SecretSetting` | `deleted; use harmos.model.v1.SettingDeclaration` |
+| `dokime.v1.SecretSetting` | `dokime.model.v1.SecretDeclaration` |
 | `dokime.v1.RunStart` | `deleted` |
 | `dokime.v1.Suites` | `dokime.model.v1.Suites` |
 | `dokime.v1.Suite` | `dokime.model.v1.Suite` |
