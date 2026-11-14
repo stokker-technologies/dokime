@@ -39,5 +39,28 @@ target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-system-suite system/main.cpp)
 target_link_libraries(dokime-system-suite PRIVATE dokime_thermal_protocol)
 target_link_libraries(dokime-system-suite PRIVATE Dokime::Cpp)
-file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/runtime-$<CONFIG>.txt"
-  CONTENT "$<TARGET_FILE_DIR:dokime-system-suite>\n$<JOIN:$<TARGET_RUNTIME_DLLS:dokime-system-suite>,\n>")
+if(WIN32)
+  get_filename_component(compiler_directory "${CMAKE_CXX_COMPILER}" DIRECTORY)
+  get_filename_component(protobuf_prefix "${DOKIME_PROTOBUF_INCLUDE}" DIRECTORY)
+  set(package_bin "${protobuf_prefix}/bin")
+  find_program(DOKIME_DUMPBIN dumpbin HINTS "${compiler_directory}" REQUIRED)
+  string(CONFIGURE [=[
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_COMMAND "@DOKIME_DUMPBIN@")
+if(EXISTS "$<TARGET_FILE:dokime-system-suite>")
+  file(GET_RUNTIME_DEPENDENCIES
+    EXECUTABLES "$<TARGET_FILE:dokime-system-suite>"
+    DIRECTORIES "$<TARGET_FILE_DIR:dokime-system-suite>" "$<TARGET_FILE_DIR:libprotobuf>" "@package_bin@"
+    PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-"
+    POST_EXCLUDE_REGEXES ".*[Ss][Yy][Ss][Tt][Ee][Mm]32/.*"
+    RESOLVED_DEPENDENCIES_VAR libraries
+    UNRESOLVED_DEPENDENCIES_VAR missing)
+  if(missing)
+    message(FATAL_ERROR "Stage Fixture Runtime Libraries: Resolve ${missing}")
+  endif()
+  foreach(library IN LISTS libraries)
+    file(COPY "${library}" DESTINATION "$<TARGET_FILE_DIR:dokime-system-suite>")
+  endforeach()
+endif()
+]=] runtime_script @ONLY)
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/runtime-$<CONFIG>.cmake" CONTENT "${runtime_script}")
+endif()

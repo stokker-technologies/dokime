@@ -16,6 +16,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -248,11 +249,17 @@ def main() -> None:
     result.check_returncode()
     if args.action == "build":
         # Stage Package-Provided Runtime Libraries Beside Their Consumer.
-        manifest = directory / f"runtime-{configuration}.txt"
+        manifest = directory / f"runtime-{configuration}.cmake"
         if manifest.is_file():
-            destination, *libraries = manifest.read_text(encoding="utf-8").splitlines()
-            for library in libraries:
-                shutil.copy2(library, Path(destination) / Path(library).name)
+            subprocess.run(
+                ["cmake", "-P", str(manifest)],
+                env=environment,
+                check=True,
+                creationflags=creationflags,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
 
 
 # === Private Functions === #

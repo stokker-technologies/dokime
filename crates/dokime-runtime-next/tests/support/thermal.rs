@@ -106,6 +106,9 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
                 if entry.kind == "read:records" {
                     let mut value = RecordsListRequest::decode(entry.payload.as_slice()).unwrap();
                     value.execution.clear();
+                    if value.page.as_ref().is_some_and(|page| page == &Default::default()) {
+                        value.page = None;
+                    }
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "log" {
