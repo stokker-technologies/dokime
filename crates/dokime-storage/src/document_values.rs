@@ -16,11 +16,15 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::cmp::Ordering;
 
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, ExecutionCut, Result, Store};
+use crate::{
+    Error, ExecutionCut, Result, Store, expressions,
+    scalar::{self, ScalarValue},
+};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -44,100 +48,117 @@ impl Store {
     pub fn document_value_filtered(
         &self, cut: &ExecutionCut, expression: &v1::DataExpression, filters: &[v1::PlotFilter],
     ) -> Result<v1::Value> {
-        let stream = crate::plot_selection::reference(expression)
-            .filter(|(_, record)| !*record)
-            .map_or("", |(reference, _)| reference.identifier.as_str());
-        let compiler = crate::plot_selection::Compiler::new(
-            cut,
-            stream,
-            filters,
-            crate::plot_selection::reference(expression).filter(|(_, record)| *record).map(|(reference, _)| reference.identifier.as_str()),
-        )?;
-        let sql = compiler.expression(expression, 0)?;
-        let rows = compiler.rows(expression)?;
-        let conditions = filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
-        let condition = if conditions.is_empty() { "1".into() } else { conditions.join(" AND ") };
-        let mut root = expression;
-        while let Some(v1::data_expression::Kind::Transform(transform)) = &root.kind {
-            let Some(input) = transform.input.as_deref() else { break };
-            root = input;
+        if let Some(v1::data_expression::Kind::Aggregate(aggregate)) = &expression.kind {
+            let value = self.reduce_expression(
+                cut,
+                aggregate.input.as_deref().ok_or(Error::Data("supply the aggregate input"))?,
+                filters,
+                v1::Aggregate::try_from(aggregate.kind).map_err(|_| Error::Data("select a reducer"))?,
+                aggregate.percentile,
+            )?;
+            return scalar::wire(&value);
         }
-        let aggregate = matches!(root.kind, Some(v1::data_expression::Kind::Aggregate(_)));
-        let query = if aggregate {
-            format!("SELECT {sql}")
-        } else {
-            format!("SELECT {sql} FROM {rows} a WHERE {condition} ORDER BY source_ns DESC,position DESC LIMIT 1")
-        };
-        let connection = self.lock()?;
-        use rusqlite::OptionalExtension;
-        let value = connection.query_row(&query, [], |row| row.get::<_, rusqlite::types::Value>(0)).optional()?;
-        let value = value
-            .ok_or_else(|| Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()))?;
-        if let Some(v1::data_expression::Kind::Literal(value)) = &expression.kind {
-            return Ok(value.clone());
+        let mut selected = None;
+        self.expression_values(cut, expression, None, filters, |_, _, value, _| {
+            if !matches!(value, ScalarValue::Missing | ScalarValue::Null) {
+                selected = Some(value);
+            }
+            Ok(())
+        })?;
+        scalar::wire(&selected.ok_or(Error::Data("capture matching evidence before evaluating this expression"))?)
+    }
+    pub(crate) fn reduce_expression(
+        &self, cut: &ExecutionCut, expression: &v1::DataExpression, filters: &[v1::PlotFilter], kind: v1::Aggregate, percentile: f64,
+    ) -> Result<ScalarValue> {
+        let mut edge = None;
+        if matches!(kind, v1::Aggregate::First | v1::Aggregate::Last) {
+            self.expression_values(cut, expression, None, filters, |_, _, value, _| {
+                if !matches!(value, ScalarValue::Missing | ScalarValue::Null) && (edge.is_none() || kind == v1::Aggregate::Last) {
+                    edge = Some(value);
+                }
+                Ok(())
+            })?;
+            return Ok(edge.unwrap_or(ScalarValue::Missing));
         }
-        if let Some(v1::data_expression::Kind::Parameter(key) | v1::data_expression::Kind::Dimension(key)) = &expression.kind
-            && let Some(v1::origin::Kind::PluginRun(run)) = cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref())
-            && let Some(value) = run.test_case.as_ref().and_then(|case| case.parameters.get(key))
-        {
-            return Ok(value.clone());
-        }
-        if value == rusqlite::types::Value::Null {
-            return Err(Error::Invalid("Read Document Value: Capture Matching Evidence Before Evaluating This Expression".into()));
-        }
-        wire_value(value)
+        let mut accumulator = expressions::accumulator(kind, percentile)?;
+        self.expression_values(cut, expression, None, filters, |position, _, value, _| {
+            accumulator.push(position, &value)?;
+            Ok(())
+        })?;
+        Ok(accumulator.finish(&mut || Ok(()))?)
     }
     pub fn document_distinct(
         &self, cut: &ExecutionCut, expression: &v1::DataExpression, order: Option<&v1::DataExpression>, filters: &[v1::PlotFilter],
         offset: usize, maximum: usize,
     ) -> Result<(Vec<v1::Value>, u64)> {
-        let stream = crate::plot_selection::reference(expression)
-            .filter(|(_, record)| !*record)
-            .map_or("", |(reference, _)| reference.identifier.as_str());
-        let compiler = crate::plot_selection::Compiler::new(
-            cut,
-            stream,
-            filters,
-            crate::plot_selection::reference(expression).filter(|(_, record)| *record).map(|(reference, _)| reference.identifier.as_str()),
-        )?;
-        let value = compiler.expression(expression, 0)?;
-        let order = order.map(|order| compiler.expression(order, 0)).transpose()?.unwrap_or_else(|| value.clone());
-        let rows = compiler.rows(expression)?;
-        let conditions = filters.iter().map(|filter| compiler.filter(filter)).collect::<Result<Vec<_>>>()?;
-        let condition = if conditions.is_empty() { "1".into() } else { conditions.join(" AND ") };
-        let query = format!(
-            "SELECT value FROM (SELECT ({value}) value,({order}) ordering,source_ns,position FROM {rows} a WHERE {condition}) WHERE value IS NOT NULL GROUP BY value ORDER BY ordering,MIN(position) LIMIT ?1 OFFSET ?2"
-        );
-        let connection = self.lock()?;
-        let total: i64 = connection.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM (SELECT ({value}) value FROM {rows} a WHERE {condition} GROUP BY value) WHERE value IS NOT NULL"
-            ),
-            [],
-            |row| row.get(0),
-        )?;
-        let mut query = connection.prepare(&query)?;
-        let values = query
-            .query_map(rusqlite::params![maximum as i64, offset as i64], |row| row.get::<_, rusqlite::types::Value>(0))?
-            .map(|row| wire_value(row?))
-            .collect::<Result<Vec<_>>>()?;
-        Ok((values, total as u64))
+        let mut values = Vec::<(ScalarValue, ScalarValue)>::new();
+        self.expression_values(cut, expression, order, filters, |_, _, value, ordering| {
+            if matches!(value, ScalarValue::Missing | ScalarValue::Null) {
+                return Ok(());
+            }
+            if !values.iter().any(|(v, _)| v.compare(&value).is_ok_and(|o| o.is_eq())) {
+                if values.len().saturating_mul(256) > self.storage_settings()?.query_bytes.get() {
+                    return Err(Error::Data("narrow distinct values to fit the configured query budget"));
+                }
+                values.push((value.clone(), ordering.unwrap_or(value)));
+            }
+            Ok(())
+        })?;
+        values.sort_by(|a, b| a.1.compare(&b.1).unwrap_or(Ordering::Equal));
+        let total = values.len() as u64;
+        let page = values.into_iter().skip(offset).take(maximum).map(|(v, _)| scalar::wire(&v)).collect::<Result<Vec<_>>>()?;
+        Ok((page, total))
+    }
+    fn expression_values(
+        &self, cut: &ExecutionCut, expression: &v1::DataExpression, order: Option<&v1::DataExpression>, filters: &[v1::PlotFilter],
+        mut read: impl FnMut(u64, i64, ScalarValue, Option<ScalarValue>) -> Result<()>,
+    ) -> Result<()> {
+        use arrow_array::{Int64Array, StructArray, UInt64Array};
+        let source = crate::plot_selection::reference(expression).map(|(r, record)| (record, r.identifier.clone()));
+        let expressions = std::iter::once(expression.clone())
+            .chain(order.cloned())
+            .chain(filters.iter().filter_map(|f| f.expression.clone()))
+            .collect::<Vec<_>>();
+        if source.is_none() {
+            let source = self.stream_names(&cut.execution.identifier)?.first().cloned();
+            if let Some(source) = source {
+                return self.evaluate(cut, (false, source), 0, cut.frontier, i64::MIN, i64::MAX, &expressions, |evaluation, batch| {
+                    if batch.num_rows() > 0 {
+                        read(0, 0, evaluation.value(expression, &batch, 0, 0)?, None)?;
+                    }
+                    Ok(false)
+                });
+            }
+            if let Some(v1::data_expression::Kind::Literal(value)) = &expression.kind {
+                return read(0, 0, scalar::from_wire(value)?, None);
+            }
+            return Err(Error::Data("capture evidence before evaluating this expression"));
+        }
+        self.evaluate(cut, source.unwrap(), 0, cut.frontier, i64::MIN, i64::MAX, &expressions, |evaluation, batch| {
+            let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+            let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+            let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+            for row in 0..batch.num_rows() {
+                let mut keep = true;
+                for filter in filters {
+                    keep &= evaluation.filter(filter, &batch, row)?;
+                }
+                if keep {
+                    read(
+                        positions.value(row),
+                        times.value(row),
+                        evaluation.value(expression, &batch, row, 0)?,
+                        order.map(|order| evaluation.value(order, &batch, row, 0)).transpose()?,
+                    )?;
+                }
+            }
+            Ok(true)
+        })
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn wire_value(value: rusqlite::types::Value) -> Result<v1::Value> {
-    let kind = match value {
-        rusqlite::types::Value::Null => v1::value::Kind::Null(v1::Null {}),
-        rusqlite::types::Value::Integer(value) => v1::value::Kind::Integer(value),
-        rusqlite::types::Value::Real(value) if value.is_finite() => v1::value::Kind::Number(value),
-        rusqlite::types::Value::Text(value) => v1::value::Kind::Text(value),
-        _ => return Err(Error::Invalid("Read Document Value: Select a Finite Scalar Expression".into())),
-    };
-    Ok(v1::Value { kind: Some(kind) })
-}
 
 /* === Tests === */

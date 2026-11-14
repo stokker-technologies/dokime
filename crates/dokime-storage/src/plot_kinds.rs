@@ -20,9 +20,9 @@
 // Third Party Imports
 
 // Local Imports
+use crate::scalar::{self, ScalarValue as Value};
 use crate::{Error, NumericWindow, Result, Store};
 use dokime_protocol::v1;
-use rusqlite::{params, types::Value};
 use std::collections::BTreeMap;
 
 /* === Constants === */
@@ -52,31 +52,30 @@ pub struct KindWindow<'a> {
 impl Store {
     pub fn cartesian_window(&self, request: KindWindow<'_>) -> Result<CartesianRead> {
         let window = &request.window;
-        let connection = self.lock()?;
         let width = ((i128::from(window.end_ns) - i128::from(window.start_ns) + 1 + window.bins.get() as i128 - 1)
             / window.bins.get() as i128)
-            .max(1)
-            .min(i64::MAX as i128) as i64;
-        let input = input();
-        let count: i64 = connection.query_row(
-            &format!("{input} SELECT COUNT(*) FROM input WHERE x IS NOT NULL AND y IS NOT NULL"),
-            bind(&request),
-            |row| row.get(0),
-        )?;
-        let query = format!(
-            "{input}, kept AS (SELECT MAX(position) AS position FROM input WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY (t-?4)/{width},g) SELECT t,x,y,z,g FROM input JOIN kept USING(position) ORDER BY position LIMIT {}",
-            request.limit + 1
-        );
-        let mut statement = connection.prepare(&query)?;
-        let rows = statement.query_map(bind(&request), |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, Value>(1)?,
-                row.get::<_, f64>(2)?,
-                row.get::<_, Option<f64>>(3)?,
-                row.get::<_, Value>(4)?,
-            ))
+            .max(1);
+        let mut kept = BTreeMap::new();
+        let mut raw_counts = BTreeMap::<String, u64>::new();
+        let mut count = 0u64;
+        self.kind_values(&request, |row| {
+            if missing(&row.x) {
+                return Ok(());
+            }
+            count += 1;
+            *raw_counts.entry(text(row.g.clone())).or_default() += 1;
+            let key = ((i128::from(row.time) - i128::from(window.start_ns)) / width, text(row.g.clone()));
+            if !kept.contains_key(&key) && kept.len() >= request.limit {
+                return Err(Error::Data("narrow the cartesian window or reduce groups"));
+            }
+            if kept.get(&key).is_none_or(|old: &Input| old.position < row.position) {
+                kept.insert(key, row);
+            }
+            Ok(())
         })?;
+        let mut rows = kept.into_values().collect::<Vec<_>>();
+        rows.sort_by_key(|row| row.position);
+        let rows = rows.into_iter().map(|r| Ok::<_, Error>((r.time, r.x, r.y, scalar::number(&r.z), r.g)));
         let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
         let mut points = 0;
         for row in rows {
@@ -91,17 +90,6 @@ impl Store {
             column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(y) });
             column.z.push(dokime_protocol::client::plots::NullableNumber { value: z });
         }
-        let mut raw_counts = BTreeMap::new();
-        for row in connection
-            .prepare(&format!(
-                "{input} SELECT g,COUNT(*) FROM input WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY g LIMIT {}",
-                request.limit + 1
-            ))?
-            .query_map(bind(&request), |row| Ok((row.get::<_, Value>(0)?, row.get::<_, i64>(1)?)))?
-        {
-            let (group, count) = row?;
-            raw_counts.insert(text(group), count as u64);
-        }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
             dokime_protocol::client::plots::PlotFrame {
@@ -115,25 +103,36 @@ impl Store {
         ))
     }
     pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<v1::Aggregate>, unique: bool) -> Result<CartesianRead> {
-        let connection = self.lock()?;
-        let input = input();
-        let reducer = match aggregate {
-            Some(v1::Aggregate::Count) => "COUNT(*)",
-            Some(v1::Aggregate::Sum) => "SUM(y)",
-            Some(v1::Aggregate::Mean) => "AVG(y)",
-            Some(v1::Aggregate::Min) => "MIN(y)",
-            Some(v1::Aggregate::Max) => "MAX(y)",
-            _ => "MAX(position)",
-        };
-        let expression = if aggregate.is_some() { "reduced" } else { "input.y" };
-        let query = format!(
-            "{input}, groups AS (SELECT x,g,COUNT(*) AS n,{reducer} AS reduced,MAX(position) AS last FROM input WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY x,g) SELECT groups.x,{expression},groups.g,n FROM groups JOIN input ON input.position=groups.last ORDER BY groups.last LIMIT {}",
-            request.limit + 1
-        );
-        let mut statement = connection.prepare(&query)?;
-        let rows = statement.query_map(bind(&request), |row| {
-            Ok((row.get::<_, Value>(0)?, row.get::<_, f64>(1)?, row.get::<_, Value>(2)?, row.get::<_, i64>(3)?))
+        let mut grouped = BTreeMap::<(String, String), (Input, u64, f64, f64, f64)>::new();
+        self.kind_values(&request, |row| {
+            if missing(&row.x) {
+                return Ok(());
+            }
+            let key = (serde_json::to_string(&row.x)?, serde_json::to_string(&row.g)?);
+            if !grouped.contains_key(&key) && grouped.len() >= request.limit {
+                return Err(Error::Data("narrow categories or select fewer groups"));
+            }
+            let entry = grouped.entry(key).or_insert((row.clone(), 0, 0.0, row.y, row.y));
+            entry.1 += 1;
+            entry.2 += row.y;
+            entry.3 = entry.3.min(row.y);
+            entry.4 = entry.4.max(row.y);
+            if row.position > entry.0.position {
+                entry.0 = row;
+            }
+            Ok(())
         })?;
+        let rows = grouped.into_values().map(|(row, n, sum, min, max)| {
+            let y = match aggregate {
+                Some(v1::Aggregate::Count) => n as f64,
+                Some(v1::Aggregate::Sum) => sum,
+                Some(v1::Aggregate::Mean) => sum / n as f64,
+                Some(v1::Aggregate::Min) => min,
+                Some(v1::Aggregate::Max) => max,
+                _ => row.y,
+            };
+            Ok::<_, Error>((row.x, y, row.g, n as i64))
+        });
         let mut columns: BTreeMap<String, dokime_protocol::client::plots::PlotColumn> = BTreeMap::new();
         let mut points = 0;
         let mut count = 0;
@@ -175,30 +174,33 @@ impl Store {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
             return Err(Error::Invalid("Query XY Sigma: Supply Positive Finite Bin Width and Sigma".into()));
         }
-        let connection = self.lock()?;
-        let input = input();
         let width = options.bin_width;
-        let ratio = format!("x/{width}");
-        let bin = format!("CAST({ratio} AS INTEGER)-CASE WHEN ({ratio})<CAST({ratio} AS INTEGER) THEN 1 ELSE 0 END");
-        let query = format!(
-            "{input}, bucketed AS(SELECT *,{bin} AS b FROM input WHERE typeof(x) IN ('real','integer') AND y IS NOT NULL), means AS(SELECT b,g,AVG(y) AS mean FROM bucketed GROUP BY b,g) SELECT b,g,COUNT(*),mean,AVG((y-mean)*(y-mean)),MIN(y),MAX(y) FROM bucketed JOIN means USING(b,g) GROUP BY b,g ORDER BY g,b LIMIT {}",
-            request.limit + 1
-        );
-        let mut statement = connection.prepare(&query)?;
+        let mut groups = BTreeMap::<(String, i64), (Value, u64, f64, f64, f64, f64)>::new();
+        self.kind_values(&request, |row| {
+            let Some(x) = scalar::number(&row.x) else {
+                return Ok(());
+            };
+            let bin = (x / width).floor() as i64;
+            let key = (text(row.g.clone()), bin);
+            if !groups.contains_key(&key) && groups.len() >= request.limit {
+                return Err(Error::Data("increase sigma bin width or narrow the window"));
+            }
+            let entry = groups.entry(key).or_insert((row.g, 0, 0.0, 0.0, row.y, row.y));
+            entry.1 += 1;
+            let delta = row.y - entry.2;
+            entry.2 += delta / entry.1 as f64;
+            entry.3 += delta * (row.y - entry.2);
+            entry.4 = entry.4.min(row.y);
+            entry.5 = entry.5.max(row.y);
+            Ok(())
+        })?;
+        let reduced = groups
+            .into_iter()
+            .map(|((_, bin), (g, n, mean, m2, min, max))| Ok::<_, Error>((bin, g, n as i64, mean, m2 / n as f64, min, max)));
         let mut series = BTreeMap::<String, dokime_protocol::client::plots::PlotSigmaSeries>::new();
         let mut count = 0;
         let mut points = 0;
-        for row in statement.query_map(bind(&request), |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, Value>(1)?,
-                row.get::<_, i64>(2)?,
-                row.get::<_, f64>(3)?,
-                row.get::<_, f64>(4)?,
-                row.get::<_, f64>(5)?,
-                row.get::<_, f64>(6)?,
-            ))
-        })? {
+        for row in reduced {
             let (bin, group, n, mean, variance, min, max) = row?;
             points += 1;
             if points > request.limit {
@@ -237,25 +239,18 @@ impl Store {
         &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
         x_log: bool, y_log: bool,
     ) -> Result<(dokime_protocol::client::plots::ContourGrid, u64)> {
-        let connection = self.lock()?;
-        let input = input();
-        let valid = format!(
-            "typeof(x) IN ('real','integer') AND y IS NOT NULL AND z IS NOT NULL{}{}",
-            if x_log { " AND x>0" } else { "" },
-            if y_log { " AND y>0" } else { "" }
-        );
-        let bounds = connection.query_row(
-            &format!("{input} SELECT MIN(x),MAX(x),MIN(y),MAX(y) FROM input WHERE {valid}"),
-            bind(&request),
-            |row| {
-                Ok((
-                    row.get::<_, Option<f64>>(0)?,
-                    row.get::<_, Option<f64>>(1)?,
-                    row.get::<_, Option<f64>>(2)?,
-                    row.get::<_, Option<f64>>(3)?,
-                ))
-            },
-        )?;
+        let mut bounds = (None::<f64>, None::<f64>, None::<f64>, None::<f64>);
+        self.kind_values(&request, |row| {
+            if let (Some(x), Some(_)) = (scalar::number(&row.x), scalar::number(&row.z)) {
+                if (!x_log || x > 0.0) && (!y_log || row.y > 0.0) {
+                    bounds.0 = Some(bounds.0.map_or(x, |v| v.min(x)));
+                    bounds.1 = Some(bounds.1.map_or(x, |v| v.max(x)));
+                    bounds.2 = Some(bounds.2.map_or(row.y, |v| v.min(row.y)));
+                    bounds.3 = Some(bounds.3.map_or(row.y, |v| v.max(row.y)));
+                }
+            }
+            Ok(())
+        })?;
         let (Some(x_min), Some(x_max), Some(y_min), Some(y_max)) = bounds else {
             return Ok((dokime_protocol::client::plots::ContourGrid::default(), 0));
         };
@@ -306,13 +301,22 @@ impl Store {
         };
         let mut counts = vec![0_u64; rows * columns];
         let mut count = 0;
-        let mut query = connection.prepare(&format!(
-            "{input} SELECT x,y,z FROM input WHERE {valid} AND x>={x_min} AND x<={x_max} AND y>={y_min} AND y<={y_max}"
-        ))?;
-        for row in query.query_map(bind(&request), |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?)))? {
-            let (x, y, z) = row?;
-            if !x.is_finite() || !y.is_finite() || !z.is_finite() {
-                continue;
+        self.kind_values(&request, |input| {
+            let (Some(x), Some(z)) = (scalar::number(&input.x), scalar::number(&input.z)) else {
+                return Ok(());
+            };
+            let y = input.y;
+            if !x.is_finite()
+                || !y.is_finite()
+                || !z.is_finite()
+                || x < x_min
+                || x > x_max
+                || y < y_min
+                || y > y_max
+                || x_log && x <= 0.0
+                || y_log && y <= 0.0
+            {
+                return Ok(());
             }
             let x = if x_log { x.ln() } else { x };
             let y = if y_log { y.ln() } else { y };
@@ -331,36 +335,34 @@ impl Store {
                 }
             };
             grid.valid[index] = true;
-        }
+            Ok(())
+        })?;
         Ok((grid, count))
     }
 
     pub fn grid_window(
         &self, request: KindWindow<'_>, definition: &v1::GridDefinition, reduction: v1::Reduction,
     ) -> Result<(dokime_protocol::client::plots::GridFrames, u64)> {
-        let connection = self.lock()?;
-        let input = input();
-        let reduce = match reduction {
-            v1::Reduction::Min => "MIN(y)",
-            v1::Reduction::Max => "MAX(y)",
-            _ => "AVG(y)",
-        };
-        let query = format!(
-            "{input} SELECT x,z,CASE WHEN ?10 IS NULL THEN t ELSE g END AS frame,{reduce},COUNT(*) FROM input WHERE x IS NOT NULL AND z IS NOT NULL AND y IS NOT NULL GROUP BY x,z,frame ORDER BY frame,x,z LIMIT {}",
-            request.limit + 1
-        );
-        let mut statement = connection.prepare(&query)?;
-        let records = statement
-            .query_map(bind(&request), |row| {
-                Ok((
-                    row.get::<_, Value>(0)?,
-                    row.get::<_, Value>(1)?,
-                    row.get::<_, Value>(2)?,
-                    row.get::<_, f64>(3)?,
-                    row.get::<_, i64>(4)?,
-                ))
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut grouped = BTreeMap::<(String, String, String), (Value, Value, Value, f64, u64)>::new();
+        self.kind_values(&request, |row| {
+            if missing(&row.x) || missing(&row.z) {
+                return Ok(());
+            }
+            let frame = if request.group.is_none() { Value::Signed(row.time) } else { row.g };
+            let key = (text(row.x.clone()), text(row.z.clone()), text(frame.clone()));
+            if !grouped.contains_key(&key) && grouped.len() >= request.limit {
+                return Err(Error::Data("narrow grid frames and cells"));
+            }
+            let entry = grouped.entry(key).or_insert((row.x, row.z, frame, row.y, 0));
+            entry.4 += 1;
+            entry.3 = match reduction {
+                v1::Reduction::Min => entry.3.min(row.y),
+                v1::Reduction::Max => entry.3.max(row.y),
+                _ => entry.3 + (row.y - entry.3) / entry.4 as f64,
+            };
+            Ok(())
+        })?;
+        let records = grouped.into_values().collect::<Vec<_>>();
         if records.len() > request.limit {
             return Err(Error::Invalid("Read Grid Chart: Narrow the Window or Reduce the Number of Frames and Cells".into()));
         }
@@ -407,7 +409,7 @@ impl Store {
                 .position(|axis| axis.key == column)
                 .ok_or_else(|| Error::Invalid("Read Grid Chart: Declare Every Observed Column".into()))?;
             let frame = match frame {
-                Value::Integer(time) if request.group.is_none() => instant(time),
+                Value::Signed(time) if request.group.is_none() => instant(time),
                 value => text(value),
             };
             let output = frames.entry(frame.clone()).or_insert_with(|| dokime_protocol::client::plots::GridFrame {
@@ -439,18 +441,21 @@ impl Store {
                 group: request.group,
                 limit: request.limit,
             };
-            let query = format!(
-                "{} SELECT x,z,CASE WHEN ?10 IS NULL THEN t ELSE g END AS frame,MAX(position) FROM input WHERE x IS NOT NULL AND z IS NOT NULL GROUP BY frame ORDER BY frame LIMIT {}",
-                input,
-                request.limit + 1
-            );
-            let mut statement = connection.prepare(&query)?;
-            for value in statement
-                .query_map(bind(&binding), |row| Ok((row.get::<_, Value>(0)?, row.get::<_, Value>(1)?, row.get::<_, Value>(2)?)))?
-            {
-                let (row, column, frame) = value?;
+            let mut highlights = BTreeMap::<String, Input>::new();
+            self.kind_values(&binding, |row| {
+                let key = if request.group.is_none() { instant(row.time) } else { text(row.g.clone()) };
+                if !highlights.contains_key(&key) && highlights.len() >= request.limit {
+                    return Err(Error::Data("narrow grid highlights"));
+                }
+                if highlights.get(&key).is_none_or(|old| old.position < row.position) {
+                    highlights.insert(key, row);
+                }
+                Ok(())
+            })?;
+            for (_, input) in highlights {
+                let (row, column, frame) = (input.x, input.z, if request.group.is_none() { Value::Signed(input.time) } else { input.g });
                 let frame = match frame {
-                    Value::Integer(time) if request.group.is_none() => instant(time),
+                    Value::Signed(time) if request.group.is_none() => instant(time),
                     value => text(value),
                 };
                 let row = rows.iter().position(|axis| axis.key == text(row.clone()));
@@ -477,24 +482,16 @@ impl Store {
     pub fn spectrum_window(
         &self, request: KindWindow<'_>, options: &v1::PlotFftOptions,
     ) -> Result<(dokime_protocol::client::plots::PlotColumn, u64)> {
-        let connection = self.lock()?;
         let window = &request.window;
-        let mut statement=connection.prepare("SELECT source_ns,number FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position LIMIT ?8")?;
-        let rows = statement
-            .query_map(
-                params![
-                    window.execution,
-                    window.stream,
-                    window.field,
-                    window.start_ns,
-                    window.end_ns,
-                    window.after as i64,
-                    window.through as i64,
-                    request.limit as i64 + 1
-                ],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?)),
-            )?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut rows = Vec::new();
+        self.numeric_values(*window, |_, time, value| {
+            if rows.len() > request.limit {
+                return Err(Error::Data("narrow the frequency source window to its configured input bound"));
+            }
+            rows.push((time, value));
+            Ok(())
+        })?;
+        rows.sort_by_key(|row| row.0);
         if rows.len() > request.limit {
             return Err(Error::Invalid(
                 "Read Frequency Plot: Narrow the Source-Time Window to the Configured Transform Input Bound".into(),
@@ -552,7 +549,7 @@ impl Store {
                 v1::FrequencyLevelUnit::Dbm => 10.0 * (amplitude * amplitude / 100.0 / 0.001).max(f64::MIN_POSITIVE).log10(),
                 _ => amplitude,
             };
-            column.x.push(value(Value::Real(hz)));
+            column.x.push(value(Value::Float(hz)));
             column.y.push(dokime_protocol::client::plots::NullableNumber { value: Some(level) });
         }
         if column.y.len() > window.bins.get() {
@@ -574,45 +571,61 @@ impl Store {
     }
 }
 
+#[derive(Clone)]
+struct Input {
+    position: u64,
+    time: i64,
+    x: Value,
+    y: f64,
+    z: Value,
+    g: Value,
+}
+impl Store {
+    fn kind_values(&self, request: &KindWindow<'_>, mut read: impl FnMut(Input) -> Result<()>) -> Result<()> {
+        use arrow_array::{Int64Array, StructArray, UInt64Array};
+        let fields = std::iter::once(request.window.field)
+            .chain(request.x)
+            .chain(request.z)
+            .chain(request.group)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        self.evaluated_batches(request.window, &fields, |batch| {
+            let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+            let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+            let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+            for row in 0..batch.num_rows() {
+                let Some(y) = scalar::number(&scalar::field(&batch, request.window.field, row)?).filter(|v| v.is_finite()) else {
+                    continue;
+                };
+                let field = |field: Option<&str>| {
+                    field.map(|field| scalar::field(&batch, field, row)).transpose().map(|v| v.unwrap_or(Value::Null))
+                };
+                read(Input {
+                    position: positions.value(row),
+                    time: times.value(row),
+                    x: field(request.x)?,
+                    y,
+                    z: field(request.z)?,
+                    g: request.group.map(|f| scalar::field(&batch, f, row)).transpose()?.unwrap_or(Value::Text(String::new())),
+                })?;
+            }
+            Ok(true)
+        })
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
-fn input() -> &'static str {
-    "WITH input AS (SELECT y.position,y.source_ns AS t,COALESCE(x.number,x.label) AS x,y.number AS y,COALESCE(z.number,z.label) AS z,COALESCE(g.label,g.number,'') AS g FROM sample_fields AS y LEFT JOIN sample_fields x ON x.execution=y.execution AND x.stream=y.stream AND x.position=y.position AND x.field=?8 LEFT JOIN sample_fields z ON z.execution=y.execution AND z.stream=y.stream AND z.position=y.position AND z.field=?9 LEFT JOIN sample_fields g ON g.execution=y.execution AND g.stream=y.stream AND g.position=y.position AND g.field=?10 WHERE y.execution=?1 AND y.stream=?2 AND y.field=?3 AND y.source_ns>=?4 AND y.source_ns<=?5 AND y.position>?6 AND y.position<=?7)"
-}
-fn bind(request: &KindWindow<'_>) -> rusqlite::ParamsFromIter<Vec<Value>> {
-    let window = &request.window;
-    let optional = |value: Option<&str>| value.map(|value| Value::Text(value.into())).unwrap_or(Value::Null);
-    rusqlite::params_from_iter(vec![
-        Value::Text(window.execution.into()),
-        Value::Text(window.stream.into()),
-        Value::Text(window.field.into()),
-        Value::Integer(window.start_ns),
-        Value::Integer(window.end_ns),
-        Value::Integer(window.after as i64),
-        Value::Integer(window.through as i64),
-        optional(request.x),
-        optional(request.z),
-        optional(request.group),
-    ])
-}
 fn value(value: Value) -> v1::Value {
-    let kind = match value {
-        Value::Real(value) => v1::value::Kind::Number(value),
-        Value::Integer(value) => v1::value::Kind::Integer(value),
-        Value::Text(value) => v1::value::Kind::Text(value),
-        _ => v1::value::Kind::Null(v1::Null {}),
-    };
-    v1::Value { kind: Some(kind) }
+    scalar::wire(&value).expect("finite plot scalar")
 }
 fn text(value: Value) -> String {
-    match value {
-        Value::Text(value) => value,
-        Value::Integer(value) => value.to_string(),
-        Value::Real(value) => value.to_string(),
-        _ => String::new(),
-    }
+    scalar::text(&value)
+}
+fn missing(value: &Value) -> bool {
+    matches!(value, Value::Missing | Value::Null)
 }
 fn instant(at_ns: i64) -> String {
     prost_types::Timestamp {

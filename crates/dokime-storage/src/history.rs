@@ -94,15 +94,22 @@ impl Store {
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
         transaction.execute("DELETE FROM record_fields WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM sample_fields WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM sample_batches WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM reports WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM read_positions WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_requests WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM resource_values WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM attempts WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM evidence WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM samples WHERE execution=?1", [execution])?;
+        transaction.execute("INSERT INTO telemetry_garbage SELECT id FROM telemetry_files WHERE execution=?1", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_previews WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_summaries WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_checkpoints WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction
+            .execute("DELETE FROM telemetry_batches WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
+        transaction.execute("DELETE FROM telemetry_files WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM streams WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM bindings WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM executions WHERE id=?1", [execution])?;
@@ -115,6 +122,7 @@ impl Store {
         };
         transaction.execute("UPDATE administration SET payload=?1 WHERE id='evidence-read-history'", [history.encode_to_vec()])?;
         transaction.commit()?;
+        crate::telemetry::catalog::collect_garbage(self.database.parent().unwrap(), &connection)?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }

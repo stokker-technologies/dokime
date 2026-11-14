@@ -56,7 +56,7 @@ impl Store {
             execution: Execution::decode(payload.as_slice())?,
             state,
             seal,
-            frontier: crate::store::next_position(&connection, execution)?.saturating_sub(1),
+            frontier: crate::store::saved_position(&connection, execution)?,
         })
     }
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {

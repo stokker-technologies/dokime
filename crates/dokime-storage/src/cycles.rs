@@ -80,7 +80,7 @@ impl Store {
         Ok(())
     }
     pub fn sample_count(&self) -> Result<u64> {
-        Ok(self.lock()?.query_row("SELECT COUNT(*) FROM samples", [], |row| row.get::<_, i64>(0))? as u64)
+        Ok(self.lock()?.query_row("SELECT COALESCE(SUM(rows),0) FROM telemetry_batches", [], |row| row.get::<_, i64>(0))? as u64)
     }
     pub fn save_cycle(&self, cycle: &v1::CycleSummary) -> Result<()> {
         let mut connection = self.lock()?;

@@ -44,6 +44,7 @@ pub(crate) type RootLease = Arc<Mutex<Option<std::fs::File>>>;
 #[derive(Clone)]
 pub struct HostSettings {
     pub placement: PlacementSettings,
+    pub storage: dokime_storage::StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
 }
 #[derive(Clone)]
@@ -81,7 +82,7 @@ impl Host {
             Err(std::fs::TryLockError::Error(error)) => return Err(root_error(error)),
         }
         let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
-        let store = Store::open(root)?;
+        let store = Store::open_with(root, settings.storage)?;
         let changed = tokio::sync::watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
         let prompts = Arc::new(crate::prompts::PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
@@ -303,6 +304,9 @@ impl Host {
                 result = Err(error);
             }
             lock(&self.plugins)?.remove(&identifier);
+        }
+        if let Err(error) = self.store.flush_samples() {
+            result = Err(error.into());
         }
         // Release the Root Once Owned Work Has Settled, Whatever Handles Remain
         lock(&self.root_lease)?.take();

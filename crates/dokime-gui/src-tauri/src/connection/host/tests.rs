@@ -56,6 +56,7 @@ use tonic::Code;
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            storage: dokime_runtime_next::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),

@@ -119,35 +119,17 @@ pub struct ExecutionArchive {
     #[prost(message, repeated, tag = "2")]
     pub evidence: Vec<Evidence>,
 
-    #[prost(message, repeated, tag = "3")]
-    pub samples: Vec<Sample>,
-
     #[prost(bytes = "vec", tag = "4")]
     pub seal: Vec<u8>,
 
     #[prost(bytes = "vec", repeated, tag = "5")]
     pub reports: Vec<Vec<u8>>,
 
-    #[prost(message, repeated, tag = "6")]
-    pub sample_batches: Vec<SampleBatch>,
-
     #[prost(message, repeated, tag = "7")]
     pub content: Vec<crate::ArchivedContent>,
 
     #[prost(message, repeated, tag = "8")]
     pub content_chunks: Vec<crate::ArchivedContentChunk>,
-}
-
-#[derive(Clone, PartialEq, Message)]
-pub struct SampleBatch {
-    #[prost(uint64, tag = "1")]
-    pub position: u64,
-
-    #[prost(string, tag = "2")]
-    pub stream: String,
-
-    #[prost(bytes = "vec", tag = "3")]
-    pub payload: Vec<u8>,
 }
 
 /* === Enums === */

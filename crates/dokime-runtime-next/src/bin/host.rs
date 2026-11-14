@@ -69,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
+        storage: dokime_storage::storage_defaults(),
         clock,
         placement: PlacementSettings {
             connect_timeout: Duration::from_secs(30),

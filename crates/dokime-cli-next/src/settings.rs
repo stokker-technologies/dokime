@@ -51,6 +51,10 @@ pub(crate) struct Settings {
     #[serde(skip)]
     pub pairing: Option<crate::commands::pairing::File>,
     pub storage: Option<PathBuf>,
+    pub telemetry_rows: NonZeroUsize,
+    pub telemetry_interval_ms: u64,
+    pub telemetry_pending_bytes: NonZeroUsize,
+    pub telemetry_query_bytes: NonZeroUsize,
     pub connect_timeout_s: u64,
     pub read_timeout_s: u64,
     pub mutation_timeout_s: u64,
@@ -77,6 +81,10 @@ impl Default for Settings {
             remote: None,
             pairing: None,
             storage: None,
+            telemetry_rows: dokime_storage::storage_defaults().flush_rows,
+            telemetry_interval_ms: dokime_storage::storage_defaults().flush_interval.as_millis() as u64,
+            telemetry_pending_bytes: dokime_storage::storage_defaults().pending_bytes,
+            telemetry_query_bytes: dokime_storage::storage_defaults().query_bytes,
             connect_timeout_s: 30,
             read_timeout_s: 30,
             mutation_timeout_s: 30,
@@ -104,6 +112,7 @@ impl Settings {
             settings.mutation_timeout_s,
             settings.watch_timeout_s,
             settings.stop_grace_s,
+            settings.telemetry_interval_ms,
         ]
         .contains(&0)
         {
@@ -122,7 +131,17 @@ impl Settings {
     }
     pub fn host(&self, controlled: bool) -> HostSettings {
         let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
-        HostSettings { clock, placement: self.placement() }
+        HostSettings {
+            clock,
+            placement: self.placement(),
+            storage: dokime_storage::StorageSettings {
+                flush_rows: self.telemetry_rows,
+                flush_interval: Duration::from_millis(self.telemetry_interval_ms),
+                pending_bytes: self.telemetry_pending_bytes,
+                query_bytes: self.telemetry_query_bytes,
+                previews: dokime_storage::storage_defaults().previews,
+            },
+        }
     }
     pub fn services(&self) -> ClientSettings {
         ClientSettings {

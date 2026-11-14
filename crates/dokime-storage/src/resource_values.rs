@@ -186,6 +186,7 @@ impl Store {
             digest.update(&evidence.payload);
         }
         let fingerprint = digest.finalize().to_vec();
+        self.flush_samples()?;
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
@@ -259,7 +260,7 @@ fn resolve_value(
         .query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))
         .optional()?
         .ok_or_else(|| Error::NotFound(format!("Get {resource}: Select an Existing Execution")))?;
-    let frontier = crate::store::next_position(connection, execution)?.saturating_sub(1);
+    let frontier = crate::store::saved_position(connection, execution)?;
     let history = History {
         store: identity.to_owned(),
         epoch: execution.into(),

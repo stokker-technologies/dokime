@@ -23,7 +23,7 @@ use prost::Message;
 use rusqlite::params;
 
 // Local Imports
-use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store, streams};
+use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
 
 /* === Constants === */
 
@@ -61,13 +61,21 @@ pub struct StatisticsRead {
 
 impl Store {
     pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
-        let connection = self.lock()?;
-        let frontier: i64 = connection.query_row(
-            "SELECT COALESCE(MAX(position),0) FROM samples WHERE execution=?1 AND stream=?2 AND position>?3 AND position<=?4",
-            params![execution, stream, position(after)?, position(through)?],
-            |row| row.get(0),
-        )?;
-        Ok(frontier as u64)
+        let rows = self.sample_page(execution, stream, after, through, NonZeroUsize::new(1).unwrap())?;
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let rows = self.sample_window(crate::SampleWindow {
+            execution,
+            streams: &[stream.into()],
+            after: &[(stream.into(), after)],
+            through,
+            start_ns: i64::MIN,
+            end_ns: i64::MAX,
+            latest: true,
+            limit: NonZeroUsize::MIN,
+        })?;
+        Ok(rows.last().map_or(0, |row| row.position))
     }
     pub fn cached_statistics(
         &self, execution: &str, request: &dokime_protocol::context::EvidenceStatisticsRequest, after: u64, through: u64,
@@ -112,7 +120,7 @@ impl Store {
                 verified.insert(execution.into(), seal.clone());
             }
         }
-        let frontier = store::next_position(&connection, execution)?.saturating_sub(1);
+        let frontier = store::saved_position(&connection, execution)?;
         Ok(ExecutionCut {
             execution: Execution::decode(payload.as_slice())?,
             state,
@@ -121,16 +129,16 @@ impl Store {
         })
     }
     pub fn sample_page(&self, execution: &str, stream: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Sample>> {
-        let connection = self.lock()?;
-        let mut statement = connection.prepare(
-            "SELECT payload FROM samples WHERE execution=?1 AND stream=?2 AND position>?3 AND position<=?4 ORDER BY position LIMIT ?5",
-        )?;
-        let bytes = statement
-            .query_map(params![execution, stream, position(after)?, position(through)?, position(limit.get() as u64)?], |row| {
-                row.get::<_, Vec<u8>>(0)
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        bytes.into_iter().map(|bytes| streams::decode(stream.into(), bytes)).collect()
+        self.sample_window(crate::SampleWindow {
+            execution,
+            streams: &[stream.into()],
+            after: &[(stream.into(), after)],
+            through,
+            start_ns: i64::MIN,
+            end_ns: i64::MAX,
+            latest: false,
+            limit,
+        })
     }
     pub fn evidence_page(&self, execution: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Evidence>> {
         let connection = self.lock()?;

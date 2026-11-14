@@ -28,7 +28,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample, streams};
+use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
 use dokime_protocol::context::evidence::RecordsAppendRequest;
 use dokime_protocol::v1;
 use harmos_protocol::v1::Catalog;
@@ -59,7 +59,9 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 #[derive(Clone)]
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
-    database: Arc<PathBuf>,
+    pub(crate) database: Arc<PathBuf>,
+    pub(crate) projection: Arc<Mutex<Option<crate::expressions::Projection>>>,
+    pub(crate) telemetry: Arc<Mutex<crate::telemetry::Telemetry>>,
     pub(crate) identity: Arc<str>,
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
@@ -90,6 +92,10 @@ impl Store {
     }
 
     pub fn open(root: &Path) -> Result<Self> {
+        Self::open_with(root, crate::storage_defaults())
+    }
+    pub fn open_with(root: &Path, settings: crate::StorageSettings) -> Result<Self> {
+        let telemetry = crate::telemetry::Telemetry::new(settings)?;
         std::fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
         let exists = database.exists();
@@ -135,10 +141,13 @@ impl Store {
                     "reports",
                     "resource_requests",
                     "resource_values",
-                    "sample_batches",
-                    "sample_fields",
-                    "samples",
                     "streams",
+                    "telemetry_batches",
+                    "telemetry_checkpoints",
+                    "telemetry_files",
+                    "telemetry_garbage",
+                    "telemetry_previews",
+                    "telemetry_summaries",
                 ]
             {
                 return Err(Error::Incompatible(root.display().to_string()));
@@ -157,13 +166,8 @@ impl Store {
                 CREATE TABLE evidence(sequence INTEGER PRIMARY KEY AUTOINCREMENT, execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, UNIQUE(execution,position));
                 CREATE TABLE evidence_reads(position INTEGER PRIMARY KEY);
                 CREATE TABLE attempts(execution TEXT NOT NULL REFERENCES executions(id), step TEXT NOT NULL, operation TEXT NOT NULL, attempt INTEGER NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,step,operation,attempt,position));
-                CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
+                {telemetry_schema}
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
-                CREATE INDEX samples_stream_position ON samples(execution,stream,position);
-                CREATE INDEX samples_stream_time ON samples(execution,stream,source_ns,position);
-                CREATE TABLE sample_batches(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
-                CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
-                CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position,number);
                 CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL, path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
                 CREATE TABLE file_uploads(id TEXT PRIMARY KEY REFERENCES content_objects(id), metadata BLOB NOT NULL, generation INTEGER NOT NULL);
                 CREATE TABLE file_requests(sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, response BLOB NOT NULL, UNIQUE(operation,request));
@@ -184,9 +188,12 @@ impl Store {
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
                 CREATE INDEX resource_values_position ON resource_values(execution,position);
-                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));"))?;
+                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format!("{}{}{}",crate::telemetry::catalog::SCHEMA,crate::telemetry::aggregates::SCHEMA,crate::telemetry::previews::SCHEMA)))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
+        connection.execute_batch("CREATE TEMP TABLE accepted(execution TEXT PRIMARY KEY, position INTEGER NOT NULL)")?;
+        std::fs::create_dir_all(root.join("telemetry"))?;
+        crate::telemetry::catalog::collect_garbage(root, &connection)?;
         let identity_path = root.join("backend-id");
         let identity = if identity_path.exists() {
             std::fs::read_to_string(&identity_path)?
@@ -219,6 +226,8 @@ impl Store {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
+            projection: Arc::new(Mutex::new(None)),
+            telemetry: Arc::new(Mutex::new(telemetry)),
             identity: identity.into(),
             cancelled: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
@@ -237,22 +246,17 @@ impl Store {
         }
         Ok(connection)
     }
-    pub(crate) fn prepare_projection(&self, sql: &str) -> Result<()> {
-        if self.cancelled.is_none() {
-            return Err(Error::Invalid("Read Plot: Open an Isolated Read Session Before Projecting Expressions".into()));
-        }
-        self.lock()?.execute_batch(sql)?;
-        Ok(())
-    }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
         let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         configure_read_functions(&connection)?;
-        connection.execute_batch("BEGIN")?;
+        connection.execute_batch("CREATE TEMP TABLE accepted(execution TEXT PRIMARY KEY, position INTEGER NOT NULL); BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(AtomicBool::new(false));
         let session = Self {
             connection: Arc::new(Mutex::new(connection)),
             database: self.database.clone(),
+            projection: Arc::new(Mutex::new(None)),
+            telemetry: self.telemetry.clone(),
             identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
             statistics: self.statistics.clone(),
@@ -343,6 +347,7 @@ impl Store {
         Ok(())
     }
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
+        self.flush_samples()?;
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         insert_evidence(&transaction, execution, &mut evidence)?;
@@ -353,6 +358,7 @@ impl Store {
     pub fn append_requested(
         &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
     ) -> Result<(u64, Receipt)> {
+        self.flush_samples()?;
         use harmos_protocol::v1::{History, Position, Receipt};
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
@@ -409,6 +415,7 @@ impl Store {
         Ok(self.sample_batch(execution, &[sample])?[0])
     }
     pub fn close_streams(&self, execution: &str) -> Result<()> {
+        self.finalize_samples(execution)?;
         self.lock()?.execute("UPDATE streams SET closed=1 WHERE execution=?1", [execution])?;
         Ok(())
     }
@@ -478,11 +485,9 @@ impl Store {
         let evidence_bytes =
             evidence_query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
         let evidence = evidence_bytes.iter().map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Error::from)).collect::<Result<_>>()?;
-        let mut samples_query = connection.prepare("SELECT stream,payload FROM samples WHERE execution=?1 ORDER BY position")?;
-        let sample_bytes = samples_query
-            .query_map([execution], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        let samples = sample_bytes.into_iter().map(|(stream, bytes)| streams::decode(stream, bytes)).collect::<Result<_>>()?;
+        drop(evidence_query);
+        drop(connection);
+        let samples = self.all_samples(execution, i64::MAX as u64)?;
         Ok(ExecutionSnapshot {
             execution: Execution::decode(payload.as_slice())?,
             state: match state {
@@ -588,14 +593,20 @@ pub(crate) fn require_open(connection: &Connection, execution: &str) -> Result<(
     Ok(())
 }
 pub(crate) fn next_position(connection: &Connection, execution: &str) -> Result<u64> {
-    Ok(connection.query_row("SELECT MAX(COALESCE((SELECT MAX(position) FROM evidence WHERE execution=?1),0),COALESCE((SELECT MAX(position) FROM samples WHERE execution=?1),0))+1", [execution], |row| row.get::<_,i64>(0))? as u64)
+    let durable = saved_position(connection, execution)?;
+    let accepted: i64 =
+        connection.query_row("SELECT COALESCE(MAX(position),0) FROM temp.accepted WHERE execution=?1", [execution], |row| row.get(0))?;
+    Ok(durable.max(accepted as u64) + 1)
+}
+pub(crate) fn saved_position(connection: &Connection, execution: &str) -> Result<u64> {
+    Ok(connection.query_row("SELECT MAX(COALESCE((SELECT MAX(position) FROM evidence WHERE execution=?1),0),COALESCE((SELECT MAX(b.last_position) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1),0))",[execution],|row|row.get::<_,i64>(0))? as u64)
 }
 pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>> {
     let mut hash = Sha256::new();
     let payload: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
     hash.update((payload.len() as u64).to_le_bytes());
     hash.update(payload);
-    let mut statement = connection.prepare("SELECT position,kind,payload FROM (SELECT position,'evidence' AS kind,payload FROM evidence WHERE execution=?1 UNION ALL SELECT position,'stream:'||stream AS kind,payload FROM samples WHERE execution=?1) ORDER BY position")?;
+    let mut statement = connection.prepare("SELECT position,'evidence',payload FROM evidence WHERE execution=?1 ORDER BY position")?;
     for row in statement.query_map([execution], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?)))? {
         let (position, kind, bytes) = row?;
         hash.update(position.to_le_bytes());
@@ -604,14 +615,23 @@ pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     }
-    let mut batches = connection.prepare("SELECT position,stream,payload FROM sample_batches WHERE execution=?1 ORDER BY position")?;
-    for row in batches.query_map([execution], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?)))? {
-        let (position, stream, payload) = row?;
-        hash.update(position.to_le_bytes());
-        hash.update((stream.len() as u64).to_le_bytes());
-        hash.update(stream.as_bytes());
-        hash.update((payload.len() as u64).to_le_bytes());
-        hash.update(payload);
+    let mut files =
+        connection.prepare("SELECT id,stream,schema_hash,length,sha256,finalized FROM telemetry_files WHERE execution=?1 ORDER BY id")?;
+    for row in files.query_map([execution], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Vec<u8>>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, Vec<u8>>(4)?,
+            row.get::<_, i32>(5)?,
+        ))
+    })? {
+        let (id, stream, schema, length, digest, finalized) = row?;
+        for bytes in [id.as_bytes(), stream.as_bytes(), &schema, &length.to_le_bytes(), &digest, &finalized.to_le_bytes()] {
+            hash.update((bytes.len() as u64).to_le_bytes());
+            hash.update(bytes);
+        }
     }
     Ok(hash.finalize().to_vec())
 }

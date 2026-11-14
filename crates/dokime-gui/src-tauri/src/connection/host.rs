@@ -510,6 +510,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
     let stream_buffer = NonZeroUsize::new(8).expect("desktop stream buffer");
     ConnectionSettings {
         host: HostSettings {
+            storage: dokime_runtime_next::storage_defaults(),
             clock: Arc::new(services::WallClock),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),

@@ -19,12 +19,10 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, ReflectMessage, Value};
-use rusqlite::{params, params_from_iter};
+use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 
 // Local Imports
-use crate::{Error, Execution, Result, Sample, Store, streams};
+use crate::{Error, Result, Store};
 
 /* === Constants === */
 
@@ -81,150 +79,61 @@ pub struct NumericBin {
 /* === Implementations === */
 
 impl Store {
-    pub fn sample_batch(&self, execution: &str, samples: &[Sample]) -> Result<Vec<u64>> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        let (state, payload): (i32, Vec<u8>) =
-            transaction.query_row("SELECT state,payload FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        if state != 0 {
-            return Err(Error::Invalid("Publish Samples: Select an Open Execution".into()));
-        }
-        let definition = Execution::decode(payload.as_slice())?;
-        let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
-        let pool = catalog
-            .types
-            .as_ref()
-            .map(|types| DescriptorPool::from_file_descriptor_set(types.clone()))
-            .transpose()
-            .map_err(|error| Error::Invalid(format!("Publish Samples: Supply Valid Frozen Descriptors: {error}")))?;
-        let mut position = crate::store::next_position(&transaction, execution)?;
-        let mut positions = Vec::with_capacity(samples.len());
-        let mut batches = std::collections::BTreeMap::<String, Vec<Sample>>::new();
-        {
-            let mut insert = transaction.prepare_cached("INSERT INTO samples VALUES (?1,?2,?3,?4,?5,?6)")?;
-            let mut insert_field = transaction.prepare_cached("INSERT INTO sample_fields VALUES (?1,?2,?3,?4,?5,?6,?7)")?;
-            let mut open = transaction.prepare_cached("SELECT closed FROM streams WHERE execution=?1 AND stream=?2")?;
-            for sample in samples {
-                let closed: i32 = open.query_row(params![execution, sample.stream], |row| row.get(0))?;
-                if closed != 0 {
-                    return Err(Error::Invalid("Publish Samples: Open the Execution Stream Before Writing".into()));
-                }
-                let mut sample = sample.clone();
-                sample.position = position;
-                insert.execute(params![
-                    execution,
-                    position as i64,
-                    sample.stream,
-                    sample.encode_to_vec(),
-                    sample.source_ns,
-                    sample.sequence as i64
-                ])?;
-                if let Some(pool) = &pool {
-                    let stream = catalog
-                        .streams
-                        .iter()
-                        .find(|stream| stream.id == sample.stream)
-                        .ok_or_else(|| Error::Invalid("Publish Samples: Declare the Stream in the Frozen Catalog".into()))?;
-                    let descriptor = pool
-                        .get_message_by_name(&stream.row)
-                        .ok_or_else(|| Error::Invalid("Publish Samples: Include the Frozen Row Descriptor".into()))?;
-                    let row = DynamicMessage::decode(descriptor, sample.row.as_slice())?;
-                    for (field, number, label) in indexed_fields(&row, "") {
-                        insert_field.execute(params![execution, sample.stream, field, position as i64, sample.source_ns, number, label])?;
-                    }
-                }
-                batches.entry(sample.stream.clone()).or_default().push(sample);
-                positions.push(position);
-                position += 1;
-            }
-        }
-        for (stream, samples) in batches {
-            if let Some(first) = samples.first() {
-                transaction.execute(
-                    "INSERT INTO sample_batches VALUES (?1,?2,?3,?4)",
-                    params![execution, first.position as i64, stream, streams::encode_batch(&samples)?],
-                )?;
-            }
-        }
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(positions)
-    }
-
     pub fn stream_names(&self, execution: &str) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT stream FROM streams WHERE execution=?1 ORDER BY stream")?;
         Ok(statement.query_map([execution], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
     }
 
-    pub fn sample_window(&self, window: SampleWindow<'_>) -> Result<Vec<Sample>> {
-        let names = if window.streams.is_empty() { self.stream_names(window.execution)? } else { window.streams.to_vec() };
-        if names.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut selections = Vec::new();
-        let mut values: Vec<rusqlite::types::Value> = Vec::new();
-        let order = if window.latest { "DESC" } else { "ASC" };
-        let index =
-            if window.start_ns == i64::MIN && window.end_ns == i64::MAX { "samples_stream_position" } else { "samples_stream_time" };
-        for stream in names {
-            let after = window.after.iter().find(|(selected, _)| selected == &stream).map(|(_, after)| *after).unwrap_or(0);
-            selections.push(format!("SELECT * FROM (SELECT stream,payload,position FROM samples INDEXED BY {index} WHERE execution=? AND stream=? AND position>? AND position<=? AND source_ns>=? AND source_ns<=? ORDER BY position {order} LIMIT ? )"));
-            values.extend([
-                window.execution.to_owned().into(),
-                stream.into(),
-                (after as i64).into(),
-                (window.through as i64).into(),
-                window.start_ns.into(),
-                window.end_ns.into(),
-                (window.limit.get() as i64).into(),
-            ]);
-        }
-        let query = format!("SELECT stream,payload FROM ({}) ORDER BY position {order} LIMIT ?", selections.join(" UNION ALL "));
-        values.push((window.limit.get() as i64).into());
-        let connection = self.lock()?;
-        let mut statement = connection.prepare(&query)?;
-        let rows = statement.query_map(params_from_iter(values), |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?;
-        let mut samples = rows
-            .map(|row| {
-                let (stream, bytes) = row?;
-                streams::decode(stream, bytes)
-            })
-            .collect::<Result<Vec<_>>>()?;
-        if window.latest {
-            samples.reverse();
-        }
-        Ok(samples)
-    }
     pub fn numeric_bounds(&self, execution: &str, stream: &str, field: &str, through: u64) -> Result<Option<(i64, i64)>> {
-        let connection = self.lock()?;
-        let (start, end): (Option<i64>, Option<i64>) = connection.query_row("SELECT (SELECT source_ns FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns LIMIT 1),(SELECT source_ns FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns DESC LIMIT 1)", params![execution,stream,field,through as i64], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        Ok(start.zip(end))
+        let mut bounds = None::<(i64, i64)>;
+        self.numeric_values(
+            NumericWindow {
+                execution,
+                stream,
+                field,
+                through,
+                after: 0,
+                start_ns: i64::MIN,
+                end_ns: i64::MAX,
+                bins: NonZeroUsize::MIN,
+            },
+            |_, time, _| {
+                bounds = Some(bounds.map_or((time, time), |(start, end)| (start.min(time), end.max(time))));
+                Ok(())
+            },
+        )?;
+        Ok(bounds)
+    }
+
+    pub(crate) fn numeric_values(&self, window: NumericWindow<'_>, mut read: impl FnMut(u64, i64, f64) -> Result<()>) -> Result<()> {
+        self.evaluated_batches(window, &[window.field.into()], |batch| {
+            use arrow_array::{Int64Array, StructArray, UInt64Array};
+            let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("sample metadata differs"))?;
+            let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+            let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+            let column = crate::scalar::column(&batch, window.field)?;
+            for row in 0..batch.num_rows() {
+                if let Some(value) = crate::scalar::number(&column.value(row)?).filter(|value| value.is_finite()) {
+                    read(positions.value(row), times.value(row), value)?;
+                }
+            }
+            Ok(true)
+        })
     }
 
     pub fn numeric_bins(&self, window: NumericWindow<'_>) -> Result<Vec<NumericBin>> {
         if window.end_ns < window.start_ns {
             return Err(Error::Invalid("Read Plot Window: Choose Increasing Bounds".into()));
         }
+        if let Some(bins) = self.preview_bins(window)? {
+            return Ok(bins);
+        }
         let span = (i128::from(window.end_ns) - i128::from(window.start_ns) + 1).max(1);
         let width = ((span + window.bins.get() as i128 - 1) / window.bins.get() as i128).max(1);
-        let connection = self.lock()?;
-        let mut query=connection.prepare("SELECT position,source_ns,number FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position")?;
-        let rows = query.query_map(
-            params![
-                window.execution,
-                window.stream,
-                window.field,
-                window.start_ns,
-                window.end_ns,
-                window.after as i64,
-                window.through as i64
-            ],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, f64>(2)?)),
-        )?;
         let mut bins = std::collections::BTreeMap::<usize, (NumericBin, i64, i64)>::new();
-        for row in rows {
-            let (position, source_ns, value) = row?;
+        self.numeric_values(window, |position, source_ns, value| {
+            let position = position as i64;
             let index = ((i128::from(source_ns) - i128::from(window.start_ns)) / width) as usize;
             let (bin, first_position, last_position) = bins.entry(index).or_insert_with(|| {
                 (
@@ -271,7 +180,8 @@ impl Store {
                 bin.last = value;
                 bin.last_ns = source_ns;
             }
-        }
+            Ok(())
+        })?;
         Ok(bins.into_values().map(|(bin, _, _)| bin).collect())
     }
 }

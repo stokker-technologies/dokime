@@ -45,6 +45,7 @@ uuid = { workspace = true }
 zeroize = { workspace = true, features = ["serde"] }
 
 # Serialization
+arrow-array = { workspace = true }
 base64 = { workspace = true }
 prost = { workspace = true }
 prost-reflect = { workspace = true }
