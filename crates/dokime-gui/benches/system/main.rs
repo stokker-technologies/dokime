@@ -132,7 +132,12 @@ fn main() {
                     input.flush().unwrap();
                     line.clear();
                     output.read_line(&mut line).unwrap();
-                    Duration::from_secs_f64(line.trim().parse::<f64>().expect("desktop measurement in seconds"))
+                    let seconds = line
+                        .trim()
+                        .parse::<f64>()
+                        .unwrap_or_else(|error| panic!("Measure desktop_round_trip/{count}/{condition}: raw seconds {line:?}: {error}"));
+                    Duration::try_from_secs_f64(seconds)
+                        .unwrap_or_else(|error| panic!("Measure desktop_round_trip/{count}/{condition}: raw seconds {line:?}: {error}"))
                 });
             });
         }
@@ -155,7 +160,12 @@ fn main() {
                         input.flush().unwrap();
                         line.clear();
                         output.read_line(&mut line).unwrap();
-                        Duration::from_secs_f64(line.trim().parse::<f64>().expect("Desktop History Measurement in Seconds"))
+                        let seconds = line.trim().parse::<f64>().unwrap_or_else(|error| {
+                            panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: raw seconds {line:?}: {error}")
+                        });
+                        Duration::try_from_secs_f64(seconds).unwrap_or_else(|error| {
+                            panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: raw seconds {line:?}: {error}")
+                        })
                     })
                 });
             }
