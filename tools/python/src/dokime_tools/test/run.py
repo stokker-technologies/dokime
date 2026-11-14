@@ -16,6 +16,7 @@ import json
 import math
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -243,9 +244,10 @@ def bench(
         "arguments": list(extra),
         "cargo_arguments": list(archive_arguments),
     }
+    boundaries = {}
     if language == "rust":
         identity["rustc"] = archive._toolchain(directory)
-        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity, binary)
+        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity, binary, boundaries=boundaries)
     elif language == "python":
         identity["python"] = {
             "version": sys.version,
@@ -263,7 +265,7 @@ def bench(
     from ..release import reports
 
     revision = os.environ.get("GITHUB_SHA") or project_policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
-    summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent)
+    summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent, boundaries=boundaries)
     output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
     project_policy.write_json(output, summary)
 
@@ -517,12 +519,22 @@ def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | No
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
 
 
-def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str]) -> tuple[int, int | None]:
+def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str], *, output: Path | None = None) -> tuple[int, int | None]:
     """Exit status and peak resident bytes of one process and the children it waited for."""
     try:
-        process = subprocess.Popen(list(command), cwd=cwd, env=environment, **_console())
+        console = _console()
+        if output is not None:
+            console.update(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+        process = subprocess.Popen(list(command), cwd=cwd, env=environment, **console)
     except OSError as error:
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
+    if output is not None:
+        stream = process.stdout
+        assert stream is not None, "Measure Native Benchmark: Capture Requires An Output Pipe"
+        with output.open("w", encoding="utf-8") as written, stream:
+            for line in stream:
+                print(line, end="", flush=True)
+                written.write(line)
     if not hasattr(os, "wait4"):
         return process.wait(), None
     _, status, usage = os.wait4(process.pid, 0)
@@ -540,6 +552,8 @@ def _bench_rust(
     archive_arguments: Sequence[str],
     identity: dict,
     binary: str | None = None,
+    *,
+    boundaries: dict[str, str] | None = None,
 ) -> tuple[list[tuple[str, float, float | None]], int]:
     messages = paths.output(directory, "build", "bench") / "bench/compiler.json"
     if not messages.is_file():
@@ -584,8 +598,17 @@ def _bench_rust(
                 [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
                 directory / manifest.parent,
                 child_environment,
+                output=home / "run.log",
             )
         status = status or code
+        if boundaries is not None and (home / "run.log").is_file():
+            boundary = None
+            for line in (home / "run.log").read_text(encoding="utf-8").splitlines():
+                if line.startswith("Boundary | "):
+                    boundary = line.split(" | ", 2)[2]
+                matched = re.match(r"Benchmarking ([^:]+)(?::|$)", line)
+                if matched and boundary is not None:
+                    boundaries[f"{owner.as_posix()}/{matched[1]}"] = boundary
         if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
             raise policy.TestError("native benchmark files must not be linked")
         if name == "system-desktop":
@@ -598,7 +621,8 @@ def _bench_rust(
             benchmark = json.loads(path.with_name("benchmark.json").read_text(encoding="utf-8"))
             estimates = json.loads(path.read_text(encoding="utf-8"))
             key = path.parent.parent
-            rows.append((benchmark.get("full_id", key.name), estimates["median"]["point_estimate"], baselines.get(key)))
+            case = f"{owner.as_posix()}/{benchmark.get('full_id', key.name)}"
+            rows.append((case, estimates["median"]["point_estimate"], baselines.get(key)))
             if code == 0 and refresh:
                 shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
         if measure and peak is not None:
@@ -659,7 +683,7 @@ def _bench_python(
     rows = []
     for entry in json.loads(output.read_text(encoding="utf-8"))["benchmarks"]:
         name = entry.get("fullname", entry["name"])
-        rows.append((name, entry["stats"]["median"] * 1e9, baselines.get(name)))
+        rows.append((f"{owner.as_posix()}/{name}", entry["stats"]["median"] * 1e9, baselines.get(name)))
     if status == 0 and refresh:
         shutil.copyfile(output, stored)
     if measure and peak is not None:

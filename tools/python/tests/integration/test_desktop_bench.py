@@ -44,6 +44,7 @@ class DesktopBench(unittest.TestCase):
     def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
         with (
             patch.object(tasks.transport, "receive"),
+            patch.dict(os.environ, {"COMPILER_CACHE_BACKEND": ""}),
             patch.object(tasks.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as execute,
         ):
             for binary, consumer in (("storage", "bench:rust:storage"), ("system-desktop", "bench:rust:system")):
@@ -200,10 +201,14 @@ class DesktopBench(unittest.TestCase):
             (home / "dev.json").write_bytes(previous)
             (home / "new.json").write_bytes(previous)
             (home / "observations.json").write_text(json.dumps({"fixture": None, "results": [], "resources": []}))
+            (home / "completion.json").write_text(json.dumps({"failure": "WebDriver close failed", "measuring": "2073600/30/cold"}))
             with patch.object(desktop_bench.policy, "execute", return_value="candidate"):
                 desktop_bench.collect(root, home, {}, 20, refresh=True, success=False)
-            self.assertEqual(json.loads((home / "new.json").read_text())["benchmarks"], [])
-            self.assertEqual(json.loads((root / "target/benchmarks/benchmarks-rust-desktop.json").read_text())["benchmarks"], [])
+            rows = json.loads((home / "new.json").read_text())["benchmarks"]
+            self.assertTrue(rows)
+            self.assertTrue(all(row["status"] == "not_measured" and row["value"] is None and row["reason"] for row in rows))
+            self.assertEqual({row["reason"] for row in rows}, {"WebDriver close failed"})
+            self.assertEqual(json.loads((root / "target/benchmarks/benchmarks-rust-desktop.json").read_text())["benchmarks"], rows)
             self.assertEqual((home / "dev.json").read_bytes(), previous)
 
     def test_stage_totals_quantiles_and_refusals(self) -> None:

@@ -388,17 +388,46 @@ class NightlyReportTests(unittest.TestCase):
             values = json.loads((shared / "benchmarks.json").read_text())["benchmarks"]
             self.assertEqual(len(values), 12)
             self.assertEqual(
-                {row["suite"] for row in values}, {"rust/" + suite for suite in ("unit", "integration", "integration-plots", "system")}
+                {row["lane"] for row in values}, {"rust/" + suite for suite in ("unit", "integration", "integration-plots", "system")}
             )
             self.assertTrue(all(row["unit"] == "ns" and row["revision"] == "a" * 40 for row in values))
             summary = json.loads((shared / "reports.json").read_text())
             self.assertEqual(summary["coverage"][0]["line_percent"], 75.0)
             notes = reports.table(summary, {"bench": {"result": "failure"}}, "https://example.test/run")
             self.assertIn("100.0%", notes)
-            self.assertNotIn("/fast", notes)
+            self.assertIn("/fast", notes)
             with zipfile.ZipFile(shared / "dokime-reports-0.1.3.zip") as archive:
                 self.assertIn("summary.json", archive.namelist())
                 self.assertIn("coverage/rust/coverage.xml", archive.namelist())
+
+    def test_platform_lane_and_state_keep_every_case_and_refuse_duplicates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shared = root / "shared"
+            shared.mkdir()
+            for platform in ("linux-x86_64", "windows-x86_64"):
+                for lane in ("rust/integration", "rust/system"):
+                    output = root / "target/nightly-reports" / platform / lane
+                    output.mkdir(parents=True)
+                    rows = [(f"crates/example/window_{state}/10", value, None) for state, value in (("warm", 10), ("cold", 20))]
+                    with mock.patch.object(reports.paths, "target", return_value=platform):
+                        summary = reports.measurements(
+                            rows, lane, "a" * 40, 15, boundaries={name: "store read through reduced points" for name, _, _ in rows}
+                        )
+                    policy.write_json(output / "benchmarks-window.json", summary)
+            reports.stage(root, shared, "0.1.3")
+            published = json.loads((shared / "reports.json").read_text())
+            values = published["benchmarks"]
+            self.assertEqual(len(values), 8)
+            self.assertEqual(len({(row["suite"], row["name"]) for row in values}), 8)
+            self.assertEqual({row["state"] for row in values}, {"cold", "warm"})
+            notes = reports.table(published, {}, "https://example.test/run")
+            for row in values:
+                self.assertIn(f"{row['suite']} / {row['case']}", notes)
+                self.assertIn(row["boundary"], notes)
+            policy.write_json(output / "benchmarks-duplicate.json", summary)
+            with self.assertRaisesRegex(policy.ToolError, "duplicate benchmark identity.*window"):
+                reports.collect(root)
 
     def test_failed_jobs_without_reports_still_produce_assets(self):
         with tempfile.TemporaryDirectory() as directory:

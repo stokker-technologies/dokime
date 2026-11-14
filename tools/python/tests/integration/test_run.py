@@ -61,9 +61,22 @@ class RunTests(unittest.TestCase):
                 "executable": "build/system",
             }
             (build / "bench/compiler.json").write_text(json.dumps(artifact), encoding="utf-8")
+            (directory / "crates/example").mkdir(parents=True)
             median = 100.0
+            native_measure = run._measured
 
-            def measure(command, cwd, environment):
+            def measure(command, cwd, environment, *, output):
+                status, _peak = native_measure(
+                    [
+                        sys.executable,
+                        "-c",
+                        "import sys; print('Boundary | Scalar | producer handoff through durable acknowledgement', flush=True); print('Benchmarking sidecar_ingest/scalar/0', file=sys.stderr)",
+                    ],
+                    cwd,
+                    environment,
+                    output=output,
+                )
+                self.assertEqual(status, 0)
                 home = Path(environment["CRITERION_HOME"])
                 output = home / "scalar/new"
                 output.mkdir(parents=True, exist_ok=True)
@@ -104,12 +117,13 @@ class RunTests(unittest.TestCase):
                     with redirect_stdout(output):
                         status = run.bench(directory, "system", "rust", ".", refresh, [])
                     self.assertEqual(status, 0)
-                    self.assertIn("benchmark regression: sidecar_ingest/scalar/0: 900.0%", output.getvalue())
+                    self.assertIn("benchmark regression: crates/example/system/sidecar_ingest/scalar/0: 900.0%", output.getvalue())
                     self.assertNotIn("::notice::", output.getvalue())
                     published = json.loads((directory / "target/benchmarks/benchmarks-rust-system.json").read_text())
                     self.assertEqual(published["benchmarks"][0]["value"], 1000.0)
                     self.assertEqual(published["benchmarks"][0]["baseline_value"], 100.0)
                     self.assertEqual(published["benchmarks"][0]["revision"], "a" * 40)
+                    self.assertEqual(published["benchmarks"][0]["boundary"], "producer handoff through durable acknowledgement")
                     expected = 1000.0 if refresh else 100.0
                     self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], expected)
 

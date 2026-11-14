@@ -745,9 +745,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
         `);
       } catch (error) {
+        // WebKit May Lose The Close Reply; The Window And Owned Shell Must Still Exit Below.
         const closedBeforeReply = windows
           ? /target frame detached|invalid session id|disconnected/i.test(error.message)
-          : ownedShells.length && /Session terminated without a reply/i.test(error.message);
+          : ownedShells.length && /Session terminated without a reply|\/execute\/sync: unknown error:\s*$/i.test(error.message);
         if (!closedBeforeReply) throw error;
         closeReplyLost = true;
       }

@@ -42,6 +42,7 @@ let warmReady;
 let continuousReady;
 let resizeWidth = 1920;
 let historyRows = 2073600;
+let measuring;
 
 async function command(line) {
   if (host.failure) throw host.failure;
@@ -257,6 +258,7 @@ try {
   process.stdout.write("ready\n");
   for await (const line of createInterface({ input: process.stdin })) {
     const [rowsText, countText, condition, repetitions] = line.split(" ");
+    measuring = `${rowsText}/${countText}/${condition}`;
     if (Number(rowsText) !== historyRows) {
       await closeNative();
       nativeRoot = undefined;
@@ -429,6 +431,7 @@ try {
   finished = true;
 } catch (error) {
   failure = error;
+  process.stdout.write(`Measure Desktop ${measuring ?? "Initialization"}: ${error.stack ?? error}\n`);
   await desktop?.screenshot("failure").catch(() => {});
 } finally {
   const errors = [];
@@ -462,6 +465,7 @@ try {
       results: results.length,
       errors,
       failure: failure?.stack ?? null,
+      measuring,
       keptEvidence: keepEvidence ? [work] : [],
     }),
   );
