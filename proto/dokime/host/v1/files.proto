@@ -86,7 +86,11 @@ message FilesReadResponse {
 
 // FilesWatchRequest for Files.Watch.
 message FilesWatchRequest {
-  .harmos.model.v1.FileReference file = 1;
+  // Select either published content or an upload whose durable bytes are still growing.
+  oneof target {
+    .harmos.model.v1.FileReference file = 1;
+    .harmos.model.v1.Upload upload = 3;
+  }
   uint64 offset = 2;
   optional .harmos.model.v1.ReadCut at = 90;
 }

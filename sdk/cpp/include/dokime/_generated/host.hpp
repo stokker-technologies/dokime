@@ -146,6 +146,8 @@ struct HostFilesReadOptions {
   std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesWatchOptions {
+  std::optional<::harmos::FileReference> file;
+  std::optional<::harmos::Upload> upload;
   std::optional<::harmos::ReadCut> at;
 };
 class HostFilesWatch {
@@ -259,8 +261,7 @@ struct HostFilesResource {
   ::dokime::FilesGetResponse get(const ::harmos::FileReference &file, HostFilesGetOptions options = {});
   ::dokime::FilesReadResponse read(const ::harmos::FileReference &file, const std::uint64_t &offset, const std::uint64_t &max_bytes,
                                    HostFilesReadOptions options = {});
-  HostFilesWatch watch(const ::harmos::FileReference &file, const std::uint64_t &offset, std::size_t max_item_bytes,
-                       HostFilesWatchOptions options = {});
+  HostFilesWatch watch(const std::uint64_t &offset, std::size_t max_item_bytes, HostFilesWatchOptions options = {});
   ::harmos::Receipt delete_(const ::harmos::FileReference &file, HostFilesDeleteOptions options = {});
   ::dokime::plugin::FilesCaptureResponse capture(const ::dokime::FileSource &source, const std::string &output,
                                                  HostFilesCaptureOptions options = {});

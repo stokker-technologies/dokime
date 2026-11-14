@@ -2339,13 +2339,20 @@ public sealed class FilesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<FilesWatchResponse> Watch(FileReference file, ulong offset, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<FilesWatchResponse> Watch(ulong offset, FileReference? file = null, Upload? upload = null, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     var request = new FilesWatchRequest
     {
-      File = file,
       Offset = offset,
     };
+    if (file is not null)
+    {
+      request.File = file;
+    }
+    if (upload is not null)
+    {
+      request.Upload = upload;
+    }
     if (at is not null)
     {
       request.At = at;

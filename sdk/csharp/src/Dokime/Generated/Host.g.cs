@@ -486,13 +486,18 @@ public sealed class HostFilesResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesRead, request, policy, cancellationToken);
     return response;
   }
-  public async IAsyncEnumerable<FilesWatchResponse> Watch(global::Harmos.FileReference file, ulong offset, ulong maxItemBytes, global::Harmos.ReadCut? at = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<FilesWatchResponse> Watch(ulong offset, ulong maxItemBytes, global::Harmos.FileReference? file = null, global::Harmos.Upload? upload = null, global::Harmos.ReadCut? at = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
+    if ((file is null ? 0 : 1) + (upload is null ? 0 : 1) != 1)
+    {
+      throw new ArgumentException("Choose Exactly One target Variant");
+    }
     var request = new FilesWatchRequest
     {
-      File = file,
       Offset = offset,
     };
+    if (file is not null) request.File = file;
+    if (upload is not null) request.Upload = upload;
     if (at is not null) request.At = at;
     await foreach (var response in context.WatchAsync(HostContracts.FilesWatch, request, maxItemBytes, cancellationToken))
     {

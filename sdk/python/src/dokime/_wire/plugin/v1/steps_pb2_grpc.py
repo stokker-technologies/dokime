@@ -69,9 +69,9 @@ def add_StepsServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'dokime._wire.plugin.v1.Steps', rpc_method_handlers)
+            'dokime.plugin.v1.Steps', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('dokime._wire.plugin.v1.Steps', rpc_method_handlers)
+    server.add_registered_method_handlers('dokime.plugin.v1.Steps', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.

@@ -650,9 +650,17 @@ class HostFilesResource:
         return response
 
     async def watch(
-        self, file: FileReference, offset: int, *, at: ReadCut | None = None, max_item_bytes: int
+        self,
+        offset: int,
+        *,
+        file: FileReference | None = None,
+        upload: Upload | None = None,
+        at: ReadCut | None = None,
+        max_item_bytes: int,
     ) -> AsyncGenerator[FilesWatchResponse]:
-        request = FilesWatchRequest(file=file, offset=offset, at=at)
+        if sum(value is not None for value in (file, upload)) != 1:
+            raise ValueError("Choose Exactly One target Variant")
+        request = FilesWatchRequest(file=file, upload=upload, offset=offset, at=at)
         call = self._context.watch(_FILES_WATCH, request, max_item_bytes=max_item_bytes)
         try:
             async for response in call:

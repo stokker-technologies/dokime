@@ -8831,12 +8831,23 @@ pub struct FilesReadResponse {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesWatchRequest {
-    #[prost(message, optional, tag = "1")]
-    pub file: ::core::option::Option<::harmos_protocol::model::FileReference>,
     #[prost(uint64, tag = "2")]
     pub offset: u64,
     #[prost(message, optional, tag = "90")]
     pub at: ::core::option::Option<::harmos_protocol::model::ReadCut>,
+    #[prost(oneof = "files_watch_request::Target", tags = "1, 3")]
+    pub target: ::core::option::Option<files_watch_request::Target>,
+}
+/// Nested message and enum types in `FilesWatchRequest`.
+pub mod files_watch_request {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Target {
+        #[prost(message, tag = "1")]
+        File(::harmos_protocol::model::FileReference),
+        #[prost(message, tag = "3")]
+        Upload(::harmos_protocol::model::Upload),
+    }
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

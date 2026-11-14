@@ -59,7 +59,10 @@ def main(*, check: bool = False) -> None:
                 for executor in ("model", "host", "plugin"):
                     text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
                     text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
-                    text = text.replace(f"'{owner}.{executor}.", f"'{owner}._wire.{executor}.")
+                    text = text.replace(
+                        f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
+                        f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}._wire.{executor}.",
+                    )
             if check:
                 if not target.is_file() or target.read_text(encoding="utf-8") != text:
                     drift.append(str(target.relative_to(sdk)))

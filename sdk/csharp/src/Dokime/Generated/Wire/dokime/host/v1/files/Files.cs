@@ -43,36 +43,38 @@ namespace Dokime.Clients;
             "b25zZRISCgRkYXRhGAEgASgMUgRkYXRhEiEKDHRvdGFsX2xlbmd0aBgCIAEo",
             "BFILdG90YWxMZW5ndGgSFgoGc2hhMjU2GAMgASgMUgZzaGEyNTYSOQoLcmVz",
             "b2x2ZWRfYXQYWiABKAsyGC5oYXJtb3MubW9kZWwudjEuUmVhZEN1dFIKcmVz",
-            "b2x2ZWRBdCKVAQoRRmlsZXNXYXRjaFJlcXVlc3QSMgoEZmlsZRgBIAEoCzIe",
-            "Lmhhcm1vcy5tb2RlbC52MS5GaWxlUmVmZXJlbmNlUgRmaWxlEhYKBm9mZnNl",
-            "dBgCIAEoBFIGb2Zmc2V0Ei0KAmF0GFogASgLMhguaGFybW9zLm1vZGVsLnYx",
-            "LlJlYWRDdXRIAFICYXSIAQFCBQoDX2F0Ir4BChJGaWxlc1dhdGNoUmVzcG9u",
-            "c2USLQoEZGF0YRgBIAEoCzIZLmRva2ltZS5ob3N0LnYxLkZpbGVCYXRjaFIE",
-            "ZGF0YRI+Cgpjb21wbGV0aW9uGAIgASgLMh4uZG9raW1lLmhvc3QudjEuRmls",
-            "ZUNvbXBsZXRpb25SCmNvbXBsZXRpb24SOQoLcmVzb2x2ZWRfYXQYWiABKAsy",
-            "GC5oYXJtb3MubW9kZWwudjEuUmVhZEN1dFIKcmVzb2x2ZWRBdCJnChJGaWxl",
-            "c0RlbGV0ZVJlcXVlc3QSMgoEZmlsZRgBIAEoCzIeLmhhcm1vcy5tb2RlbC52",
-            "MS5GaWxlUmVmZXJlbmNlUgRmaWxlEh0KCnJlcXVlc3RfaWQYAiABKAlSCXJl",
-            "cXVlc3RJZCJJChNGaWxlc0RlbGV0ZVJlc3BvbnNlEjIKB3JlY2VpcHQYASAB",
-            "KAsyGC5oYXJtb3MubW9kZWwudjEuUmVjZWlwdFIHcmVjZWlwdCJiChNGaWxl",
-            "c0NhcHR1cmVSZXF1ZXN0EjMKBnNvdXJjZRgBIAEoCzIbLmRva2ltZS5tb2Rl",
-            "bC52MS5GaWxlU291cmNlUgZzb3VyY2USFgoGb3V0cHV0GAIgASgJUgZvdXRw",
-            "dXQiiAEKFEZpbGVzQ2FwdHVyZVJlc3BvbnNlEj8KCWFydGlmYWN0cxgBIAMo",
-            "CzIhLmRva2ltZS5tb2RlbC52MS5DYXB0dXJlZEFydGlmYWN0UglhcnRpZmFj",
-            "dHMSLwoEZ2FwcxgCIAMoCzIbLmRva2ltZS5tb2RlbC52MS5DYXB0dXJlR2Fw",
-            "UgRnYXBzIjkKCUZpbGVCYXRjaBIWCgZvZmZzZXQYASABKARSBm9mZnNldBIU",
-            "CgVieXRlcxgCIAEoDFIFYnl0ZXMiJgoORmlsZUNvbXBsZXRpb24SFAoFYnl0",
-            "ZXMYASABKARSBWJ5dGVzMrcDCgVGaWxlcxJOCgNHZXQSHy5kb2tpbWUuaG9z",
-            "dC52MS5GaWxlc0dldFJlcXVlc3QaIC5kb2tpbWUuaG9zdC52MS5GaWxlc0dl",
-            "dFJlc3BvbnNlIgTI8xgDElEKBFJlYWQSIC5kb2tpbWUuaG9zdC52MS5GaWxl",
-            "c1JlYWRSZXF1ZXN0GiEuZG9raW1lLmhvc3QudjEuRmlsZXNSZWFkUmVzcG9u",
-            "c2UiBMjzGAMSVgoFV2F0Y2gSIS5kb2tpbWUuaG9zdC52MS5GaWxlc1dhdGNo",
-            "UmVxdWVzdBoiLmRva2ltZS5ob3N0LnYxLkZpbGVzV2F0Y2hSZXNwb25zZSIE",
-            "yPMYAzABElcKBkRlbGV0ZRIiLmRva2ltZS5ob3N0LnYxLkZpbGVzRGVsZXRl",
-            "UmVxdWVzdBojLmRva2ltZS5ob3N0LnYxLkZpbGVzRGVsZXRlUmVzcG9uc2Ui",
-            "BMjzGAMSWgoHQ2FwdHVyZRIjLmRva2ltZS5ob3N0LnYxLkZpbGVzQ2FwdHVy",
-            "ZVJlcXVlc3QaJC5kb2tpbWUuaG9zdC52MS5GaWxlc0NhcHR1cmVSZXNwb25z",
-            "ZSIEyPMYAkIRqgIORG9raW1lLkNsaWVudHNiBnByb3RvMw=="));
+            "b2x2ZWRBdCLUAQoRRmlsZXNXYXRjaFJlcXVlc3QSNAoEZmlsZRgBIAEoCzIe",
+            "Lmhhcm1vcy5tb2RlbC52MS5GaWxlUmVmZXJlbmNlSABSBGZpbGUSMQoGdXBs",
+            "b2FkGAMgASgLMhcuaGFybW9zLm1vZGVsLnYxLlVwbG9hZEgAUgZ1cGxvYWQS",
+            "FgoGb2Zmc2V0GAIgASgEUgZvZmZzZXQSLQoCYXQYWiABKAsyGC5oYXJtb3Mu",
+            "bW9kZWwudjEuUmVhZEN1dEgBUgJhdIgBAUIICgZ0YXJnZXRCBQoDX2F0Ir4B",
+            "ChJGaWxlc1dhdGNoUmVzcG9uc2USLQoEZGF0YRgBIAEoCzIZLmRva2ltZS5o",
+            "b3N0LnYxLkZpbGVCYXRjaFIEZGF0YRI+Cgpjb21wbGV0aW9uGAIgASgLMh4u",
+            "ZG9raW1lLmhvc3QudjEuRmlsZUNvbXBsZXRpb25SCmNvbXBsZXRpb24SOQoL",
+            "cmVzb2x2ZWRfYXQYWiABKAsyGC5oYXJtb3MubW9kZWwudjEuUmVhZEN1dFIK",
+            "cmVzb2x2ZWRBdCJnChJGaWxlc0RlbGV0ZVJlcXVlc3QSMgoEZmlsZRgBIAEo",
+            "CzIeLmhhcm1vcy5tb2RlbC52MS5GaWxlUmVmZXJlbmNlUgRmaWxlEh0KCnJl",
+            "cXVlc3RfaWQYAiABKAlSCXJlcXVlc3RJZCJJChNGaWxlc0RlbGV0ZVJlc3Bv",
+            "bnNlEjIKB3JlY2VpcHQYASABKAsyGC5oYXJtb3MubW9kZWwudjEuUmVjZWlw",
+            "dFIHcmVjZWlwdCJiChNGaWxlc0NhcHR1cmVSZXF1ZXN0EjMKBnNvdXJjZRgB",
+            "IAEoCzIbLmRva2ltZS5tb2RlbC52MS5GaWxlU291cmNlUgZzb3VyY2USFgoG",
+            "b3V0cHV0GAIgASgJUgZvdXRwdXQiiAEKFEZpbGVzQ2FwdHVyZVJlc3BvbnNl",
+            "Ej8KCWFydGlmYWN0cxgBIAMoCzIhLmRva2ltZS5tb2RlbC52MS5DYXB0dXJl",
+            "ZEFydGlmYWN0UglhcnRpZmFjdHMSLwoEZ2FwcxgCIAMoCzIbLmRva2ltZS5t",
+            "b2RlbC52MS5DYXB0dXJlR2FwUgRnYXBzIjkKCUZpbGVCYXRjaBIWCgZvZmZz",
+            "ZXQYASABKARSBm9mZnNldBIUCgVieXRlcxgCIAEoDFIFYnl0ZXMiJgoORmls",
+            "ZUNvbXBsZXRpb24SFAoFYnl0ZXMYASABKARSBWJ5dGVzMrcDCgVGaWxlcxJO",
+            "CgNHZXQSHy5kb2tpbWUuaG9zdC52MS5GaWxlc0dldFJlcXVlc3QaIC5kb2tp",
+            "bWUuaG9zdC52MS5GaWxlc0dldFJlc3BvbnNlIgTI8xgDElEKBFJlYWQSIC5k",
+            "b2tpbWUuaG9zdC52MS5GaWxlc1JlYWRSZXF1ZXN0GiEuZG9raW1lLmhvc3Qu",
+            "djEuRmlsZXNSZWFkUmVzcG9uc2UiBMjzGAMSVgoFV2F0Y2gSIS5kb2tpbWUu",
+            "aG9zdC52MS5GaWxlc1dhdGNoUmVxdWVzdBoiLmRva2ltZS5ob3N0LnYxLkZp",
+            "bGVzV2F0Y2hSZXNwb25zZSIEyPMYAzABElcKBkRlbGV0ZRIiLmRva2ltZS5o",
+            "b3N0LnYxLkZpbGVzRGVsZXRlUmVxdWVzdBojLmRva2ltZS5ob3N0LnYxLkZp",
+            "bGVzRGVsZXRlUmVzcG9uc2UiBMjzGAMSWgoHQ2FwdHVyZRIjLmRva2ltZS5o",
+            "b3N0LnYxLkZpbGVzQ2FwdHVyZVJlcXVlc3QaJC5kb2tpbWUuaG9zdC52MS5G",
+            "aWxlc0NhcHR1cmVSZXNwb25zZSIEyPMYAkIRqgIORG9raW1lLkNsaWVudHNi",
+            "BnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.FilesReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -80,7 +82,7 @@ namespace Dokime.Clients;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesGetResponse), global::Dokime.Clients.FilesGetResponse.Parser, new[]{ "File", "ChunkBytes", "MessageBytes", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesReadRequest), global::Dokime.Clients.FilesReadRequest.Parser, new[]{ "File", "Offset", "MaxBytes", "At" }, new[]{ "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesReadResponse), global::Dokime.Clients.FilesReadResponse.Parser, new[]{ "Data", "TotalLength", "Sha256", "ResolvedAt" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesWatchRequest), global::Dokime.Clients.FilesWatchRequest.Parser, new[]{ "File", "Offset", "At" }, new[]{ "At" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesWatchRequest), global::Dokime.Clients.FilesWatchRequest.Parser, new[]{ "File", "Upload", "Offset", "At" }, new[]{ "Target", "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesWatchResponse), global::Dokime.Clients.FilesWatchResponse.Parser, new[]{ "Data", "Completion", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesDeleteRequest), global::Dokime.Clients.FilesDeleteRequest.Parser, new[]{ "File", "RequestId" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.FilesDeleteResponse), global::Dokime.Clients.FilesDeleteResponse.Parser, new[]{ "Receipt" }, null, null, null, null),
@@ -1354,9 +1356,17 @@ namespace Dokime.Clients;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public FilesWatchRequest(FilesWatchRequest other) : this() {
-      file_ = other.file_ != null ? other.file_.Clone() : null;
       offset_ = other.offset_;
       at_ = other.at_ != null ? other.at_.Clone() : null;
+      switch (other.TargetCase) {
+        case TargetOneofCase.File:
+          File = other.File.Clone();
+          break;
+        case TargetOneofCase.Upload:
+          Upload = other.Upload.Clone();
+          break;
+      }
+
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -1368,13 +1378,25 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "file" field.</summary>
     public const int FileFieldNumber = 1;
-    private global::Harmos.FileReference file_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public global::Harmos.FileReference File {
-      get { return file_; }
+      get { return targetCase_ == TargetOneofCase.File ? (global::Harmos.FileReference) target_ : null; }
       set {
-        file_ = value;
+        target_ = value;
+        targetCase_ = value == null ? TargetOneofCase.None : TargetOneofCase.File;
+      }
+    }
+
+    /// <summary>Field number for the "upload" field.</summary>
+    public const int UploadFieldNumber = 3;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Harmos.Upload Upload {
+      get { return targetCase_ == TargetOneofCase.Upload ? (global::Harmos.Upload) target_ : null; }
+      set {
+        target_ = value;
+        targetCase_ = value == null ? TargetOneofCase.None : TargetOneofCase.Upload;
       }
     }
 
@@ -1402,6 +1424,27 @@ namespace Dokime.Clients;
       }
     }
 
+    private object target_;
+    /// <summary>Enum of possible cases for the "target" oneof.</summary>
+    public enum TargetOneofCase {
+      None = 0,
+      File = 1,
+      Upload = 3,
+    }
+    private TargetOneofCase targetCase_ = TargetOneofCase.None;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public TargetOneofCase TargetCase {
+      get { return targetCase_; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void ClearTarget() {
+      targetCase_ = TargetOneofCase.None;
+      target_ = null;
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -1418,8 +1461,10 @@ namespace Dokime.Clients;
         return true;
       }
       if (!object.Equals(File, other.File)) return false;
+      if (!object.Equals(Upload, other.Upload)) return false;
       if (Offset != other.Offset) return false;
       if (!object.Equals(At, other.At)) return false;
+      if (TargetCase != other.TargetCase) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -1427,9 +1472,11 @@ namespace Dokime.Clients;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      if (file_ != null) hash ^= File.GetHashCode();
+      if (targetCase_ == TargetOneofCase.File) hash ^= File.GetHashCode();
+      if (targetCase_ == TargetOneofCase.Upload) hash ^= Upload.GetHashCode();
       if (Offset != 0UL) hash ^= Offset.GetHashCode();
       if (at_ != null) hash ^= At.GetHashCode();
+      hash ^= (int) targetCase_;
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -1448,13 +1495,17 @@ namespace Dokime.Clients;
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (file_ != null) {
+      if (targetCase_ == TargetOneofCase.File) {
         output.WriteRawTag(10);
         output.WriteMessage(File);
       }
       if (Offset != 0UL) {
         output.WriteRawTag(16);
         output.WriteUInt64(Offset);
+      }
+      if (targetCase_ == TargetOneofCase.Upload) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Upload);
       }
       if (at_ != null) {
         output.WriteRawTag(210, 5);
@@ -1470,13 +1521,17 @@ namespace Dokime.Clients;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (file_ != null) {
+      if (targetCase_ == TargetOneofCase.File) {
         output.WriteRawTag(10);
         output.WriteMessage(File);
       }
       if (Offset != 0UL) {
         output.WriteRawTag(16);
         output.WriteUInt64(Offset);
+      }
+      if (targetCase_ == TargetOneofCase.Upload) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Upload);
       }
       if (at_ != null) {
         output.WriteRawTag(210, 5);
@@ -1492,8 +1547,11 @@ namespace Dokime.Clients;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      if (file_ != null) {
+      if (targetCase_ == TargetOneofCase.File) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(File);
+      }
+      if (targetCase_ == TargetOneofCase.Upload) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Upload);
       }
       if (Offset != 0UL) {
         size += 1 + pb::CodedOutputStream.ComputeUInt64Size(Offset);
@@ -1513,12 +1571,6 @@ namespace Dokime.Clients;
       if (other == null) {
         return;
       }
-      if (other.file_ != null) {
-        if (file_ == null) {
-          File = new global::Harmos.FileReference();
-        }
-        File.MergeFrom(other.File);
-      }
       if (other.Offset != 0UL) {
         Offset = other.Offset;
       }
@@ -1528,6 +1580,21 @@ namespace Dokime.Clients;
         }
         At.MergeFrom(other.At);
       }
+      switch (other.TargetCase) {
+        case TargetOneofCase.File:
+          if (File == null) {
+            File = new global::Harmos.FileReference();
+          }
+          File.MergeFrom(other.File);
+          break;
+        case TargetOneofCase.Upload:
+          if (Upload == null) {
+            Upload = new global::Harmos.Upload();
+          }
+          Upload.MergeFrom(other.Upload);
+          break;
+      }
+
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -1548,14 +1615,25 @@ namespace Dokime.Clients;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
           case 10: {
-            if (file_ == null) {
-              File = new global::Harmos.FileReference();
+            global::Harmos.FileReference subBuilder = new global::Harmos.FileReference();
+            if (targetCase_ == TargetOneofCase.File) {
+              subBuilder.MergeFrom(File);
             }
-            input.ReadMessage(File);
+            input.ReadMessage(subBuilder);
+            File = subBuilder;
             break;
           }
           case 16: {
             Offset = input.ReadUInt64();
+            break;
+          }
+          case 26: {
+            global::Harmos.Upload subBuilder = new global::Harmos.Upload();
+            if (targetCase_ == TargetOneofCase.Upload) {
+              subBuilder.MergeFrom(Upload);
+            }
+            input.ReadMessage(subBuilder);
+            Upload = subBuilder;
             break;
           }
           case 722: {
@@ -1585,14 +1663,25 @@ namespace Dokime.Clients;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
           case 10: {
-            if (file_ == null) {
-              File = new global::Harmos.FileReference();
+            global::Harmos.FileReference subBuilder = new global::Harmos.FileReference();
+            if (targetCase_ == TargetOneofCase.File) {
+              subBuilder.MergeFrom(File);
             }
-            input.ReadMessage(File);
+            input.ReadMessage(subBuilder);
+            File = subBuilder;
             break;
           }
           case 16: {
             Offset = input.ReadUInt64();
+            break;
+          }
+          case 26: {
+            global::Harmos.Upload subBuilder = new global::Harmos.Upload();
+            if (targetCase_ == TargetOneofCase.Upload) {
+              subBuilder.MergeFrom(Upload);
+            }
+            input.ReadMessage(subBuilder);
+            Upload = subBuilder;
             break;
           }
           case 722: {

@@ -546,11 +546,21 @@ pub struct PlotsSnapshotsWatchOptions {
 }
 #[derive(Default)]
 pub struct DocumentsGetOptions {
+    pub structure_only: Option<bool>,
+    pub card_ids: Option<Vec<String>>,
+    pub page_token: Option<String>,
+    pub max_bytes: Option<u64>,
+    pub max_frames: Option<u32>,
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
 #[derive(Default)]
 pub struct DocumentsWatchOptions {
+    pub structure_only: Option<bool>,
+    pub card_ids: Option<Vec<String>>,
+    pub page_token: Option<String>,
+    pub max_bytes: Option<u64>,
+    pub max_frames: Option<u32>,
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
@@ -595,24 +605,46 @@ pub struct EvidenceHealthEventsWatchOptions {
 }
 #[derive(Default)]
 pub struct EvidenceRecordsListOptions {
+    pub versions: Option<Vec<u32>>,
+    pub between: Option<Window>,
+    pub step: Option<String>,
+    pub selection: Option<EvidenceCapturedRecordSelection>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
 #[derive(Default)]
 pub struct EvidenceRecordsWatchOptions {
+    pub versions: Option<Vec<u32>>,
+    pub between: Option<Window>,
+    pub step: Option<String>,
+    pub selection: Option<EvidenceCapturedRecordSelection>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
 #[derive(Default)]
 pub struct EvidenceSamplesListOptions {
+    pub versions: Option<Vec<u32>>,
+    pub fields: Option<Vec<String>>,
+    pub sources: Option<Vec<String>>,
+    pub signals: Option<Vec<String>>,
+    pub between: Option<Window>,
+    pub bucket: Option<EvidenceBucketRequest>,
+    pub latest: Option<bool>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
 #[derive(Default)]
 pub struct EvidenceSamplesWatchOptions {
+    pub versions: Option<Vec<u32>>,
+    pub fields: Option<Vec<String>>,
+    pub sources: Option<Vec<String>>,
+    pub signals: Option<Vec<String>>,
+    pub between: Option<Window>,
+    pub bucket: Option<EvidenceBucketRequest>,
+    pub latest: Option<bool>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
@@ -632,6 +664,10 @@ pub struct EvidenceTraceabilityWatchOptions {
 }
 #[derive(Default)]
 pub struct EvidenceStatisticsOptions {
+    pub versions: Option<Vec<u32>>,
+    pub between: Option<Window>,
+    pub outputs: Option<Vec<Output>>,
+    pub step: Option<String>,
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
@@ -709,6 +745,8 @@ pub struct FilesReadOptions {
 }
 #[derive(Default)]
 pub struct FilesWatchOptions {
+    pub file: Option<FileReference>,
+    pub upload: Option<Upload>,
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
@@ -1292,7 +1330,7 @@ impl Aggregates {
         let value = AggregatesGetRequest {
             source: source as i32,
             filters,
-            group_by: group_by.into(),
+            group_by,
             aggregates,
             limit,
             at: options.at,
@@ -1942,24 +1980,20 @@ impl Documents {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(
-        &self, scope: DocumentScope, document_id: impl Into<String>, structure_only: bool, card_ids: Vec<String>,
-        page_token: impl Into<String>, max_bytes: u64, max_frames: u32,
-    ) -> Result<DocumentsGetResponse, RpcStatus> {
-        self.get_with(scope, document_id, structure_only, card_ids, page_token, max_bytes, max_frames, DocumentsGetOptions::default()).await
+    pub async fn get(&self, scope: DocumentScope, document_id: impl Into<String>) -> Result<DocumentsGetResponse, RpcStatus> {
+        self.get_with(scope, document_id, DocumentsGetOptions::default()).await
     }
     pub async fn get_with(
-        &self, scope: DocumentScope, document_id: impl Into<String>, structure_only: bool, card_ids: Vec<String>,
-        page_token: impl Into<String>, max_bytes: u64, max_frames: u32, options: DocumentsGetOptions,
+        &self, scope: DocumentScope, document_id: impl Into<String>, options: DocumentsGetOptions,
     ) -> Result<DocumentsGetResponse, RpcStatus> {
         let value = DocumentsGetRequest {
             scope: Some(scope),
             document_id: document_id.into(),
-            structure_only,
-            card_ids: card_ids.into(),
-            page_token: page_token.into(),
-            max_bytes,
-            max_frames,
+            structure_only: options.structure_only.unwrap_or_default(),
+            card_ids: options.card_ids.unwrap_or_default(),
+            page_token: options.page_token.unwrap_or_default(),
+            max_bytes: options.max_bytes.unwrap_or_default(),
+            max_frames: options.max_frames.unwrap_or_default(),
             at: options.at,
         };
         let request = options.context.request(value);
@@ -1975,25 +2009,20 @@ impl Documents {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(
-        &self, scope: DocumentScope, document_id: impl Into<String>, structure_only: bool, card_ids: Vec<String>,
-        page_token: impl Into<String>, max_bytes: u64, max_frames: u32,
-    ) -> Result<Watching<DocumentsWatchResponse>, RpcStatus> {
-        self.watch_with(scope, document_id, structure_only, card_ids, page_token, max_bytes, max_frames, DocumentsWatchOptions::default())
-            .await
+    pub async fn watch(&self, scope: DocumentScope, document_id: impl Into<String>) -> Result<Watching<DocumentsWatchResponse>, RpcStatus> {
+        self.watch_with(scope, document_id, DocumentsWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, scope: DocumentScope, document_id: impl Into<String>, structure_only: bool, card_ids: Vec<String>,
-        page_token: impl Into<String>, max_bytes: u64, max_frames: u32, options: DocumentsWatchOptions,
+        &self, scope: DocumentScope, document_id: impl Into<String>, options: DocumentsWatchOptions,
     ) -> Result<Watching<DocumentsWatchResponse>, RpcStatus> {
         let value = DocumentsWatchRequest {
             scope: Some(scope),
             document_id: document_id.into(),
-            structure_only,
-            card_ids: card_ids.into(),
-            page_token: page_token.into(),
-            max_bytes,
-            max_frames,
+            structure_only: options.structure_only.unwrap_or_default(),
+            card_ids: options.card_ids.unwrap_or_default(),
+            page_token: options.page_token.unwrap_or_default(),
+            max_bytes: options.max_bytes.unwrap_or_default(),
+            max_frames: options.max_frames.unwrap_or_default(),
             at: options.at,
         };
         let request = options.context.request(value);
@@ -2031,23 +2060,21 @@ impl Evidence {
         }
     }
     pub async fn statistics(
-        &self, scope: EvidenceScope, stream: impl Into<String>, versions: Vec<u32>, between: Window, outputs: Vec<Output>,
-        field: impl Into<String>, step: impl Into<String>,
+        &self, scope: EvidenceScope, stream: impl Into<String>, field: impl Into<String>,
     ) -> Result<EvidenceStatisticsResponse, RpcStatus> {
-        self.statistics_with(scope, stream, versions, between, outputs, field, step, EvidenceStatisticsOptions::default()).await
+        self.statistics_with(scope, stream, field, EvidenceStatisticsOptions::default()).await
     }
     pub async fn statistics_with(
-        &self, scope: EvidenceScope, stream: impl Into<String>, versions: Vec<u32>, between: Window, outputs: Vec<Output>,
-        field: impl Into<String>, step: impl Into<String>, options: EvidenceStatisticsOptions,
+        &self, scope: EvidenceScope, stream: impl Into<String>, field: impl Into<String>, options: EvidenceStatisticsOptions,
     ) -> Result<EvidenceStatisticsResponse, RpcStatus> {
         let value = EvidenceStatisticsRequest {
             scope: Some(scope),
             stream: stream.into(),
-            versions,
-            between: Some(between),
-            outputs,
+            versions: options.versions.unwrap_or_default(),
+            between: options.between,
+            outputs: options.outputs.unwrap_or_default(),
             field: field.into(),
-            step: step.into(),
+            step: options.step.unwrap_or_default(),
             at: options.at,
         };
         let request = options.context.request(value);
@@ -2283,23 +2310,19 @@ impl EvidenceRecords {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, versions: Vec<u32>, between: Window, step: impl Into<String>,
-        selection: EvidenceCapturedRecordSelection,
-    ) -> Result<EvidenceRecordsListResponse, RpcStatus> {
-        self.list_with(scope, record_type, versions, between, step, selection, EvidenceRecordsListOptions::default()).await
+    pub async fn list(&self, scope: EvidenceRecordScope, record_type: impl Into<String>) -> Result<EvidenceRecordsListResponse, RpcStatus> {
+        self.list_with(scope, record_type, EvidenceRecordsListOptions::default()).await
     }
     pub async fn list_with(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, versions: Vec<u32>, between: Window, step: impl Into<String>,
-        selection: EvidenceCapturedRecordSelection, options: EvidenceRecordsListOptions,
+        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, options: EvidenceRecordsListOptions,
     ) -> Result<EvidenceRecordsListResponse, RpcStatus> {
         let value = EvidenceRecordsListRequest {
             scope: Some(scope),
             record_type: record_type.into(),
-            versions,
-            between: Some(between),
-            step: step.into(),
-            selection: Some(selection),
+            versions: options.versions.unwrap_or_default(),
+            between: options.between,
+            step: options.step.unwrap_or_default(),
+            selection: options.selection,
             at: options.at,
             page: options.page,
         };
@@ -2317,22 +2340,20 @@ impl EvidenceRecords {
         Ok(response)
     }
     pub async fn watch(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, versions: Vec<u32>, between: Window, step: impl Into<String>,
-        selection: EvidenceCapturedRecordSelection,
+        &self, scope: EvidenceRecordScope, record_type: impl Into<String>,
     ) -> Result<Watching<EvidenceRecordsWatchResponse>, RpcStatus> {
-        self.watch_with(scope, record_type, versions, between, step, selection, EvidenceRecordsWatchOptions::default()).await
+        self.watch_with(scope, record_type, EvidenceRecordsWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, versions: Vec<u32>, between: Window, step: impl Into<String>,
-        selection: EvidenceCapturedRecordSelection, options: EvidenceRecordsWatchOptions,
+        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, options: EvidenceRecordsWatchOptions,
     ) -> Result<Watching<EvidenceRecordsWatchResponse>, RpcStatus> {
         let value = EvidenceRecordsWatchRequest {
             scope: Some(scope),
             record_type: record_type.into(),
-            versions,
-            between: Some(between),
-            step: step.into(),
-            selection: Some(selection),
+            versions: options.versions.unwrap_or_default(),
+            between: options.between,
+            step: options.step.unwrap_or_default(),
+            selection: options.selection,
             at: options.at,
             page: options.page,
         };
@@ -2358,27 +2379,22 @@ impl EvidenceSamples {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(
-        &self, scope: EvidenceScope, streams: Vec<String>, versions: Vec<u32>, fields: Vec<String>, sources: Vec<String>,
-        signals: Vec<String>, between: Window, bucket: EvidenceBucketRequest, latest: bool,
-    ) -> Result<EvidenceSamplesListResponse, RpcStatus> {
-        self.list_with(scope, streams, versions, fields, sources, signals, between, bucket, latest, EvidenceSamplesListOptions::default())
-            .await
+    pub async fn list(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<EvidenceSamplesListResponse, RpcStatus> {
+        self.list_with(scope, streams, EvidenceSamplesListOptions::default()).await
     }
     pub async fn list_with(
-        &self, scope: EvidenceScope, streams: Vec<String>, versions: Vec<u32>, fields: Vec<String>, sources: Vec<String>,
-        signals: Vec<String>, between: Window, bucket: EvidenceBucketRequest, latest: bool, options: EvidenceSamplesListOptions,
+        &self, scope: EvidenceScope, streams: Vec<String>, options: EvidenceSamplesListOptions,
     ) -> Result<EvidenceSamplesListResponse, RpcStatus> {
         let value = EvidenceSamplesListRequest {
             scope: Some(scope),
-            streams: streams.into(),
-            versions,
-            fields: fields.into(),
-            sources: sources.into(),
-            signals: signals.into(),
-            between: Some(between),
-            bucket: Some(bucket),
-            latest,
+            streams,
+            versions: options.versions.unwrap_or_default(),
+            fields: options.fields.unwrap_or_default(),
+            sources: options.sources.unwrap_or_default(),
+            signals: options.signals.unwrap_or_default(),
+            between: options.between,
+            bucket: options.bucket,
+            latest: options.latest.unwrap_or_default(),
             at: options.at,
             page: options.page,
         };
@@ -2395,27 +2411,22 @@ impl EvidenceSamples {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(
-        &self, scope: EvidenceScope, streams: Vec<String>, versions: Vec<u32>, fields: Vec<String>, sources: Vec<String>,
-        signals: Vec<String>, between: Window, bucket: EvidenceBucketRequest, latest: bool,
-    ) -> Result<Watching<EvidenceSamplesWatchResponse>, RpcStatus> {
-        self.watch_with(scope, streams, versions, fields, sources, signals, between, bucket, latest, EvidenceSamplesWatchOptions::default())
-            .await
+    pub async fn watch(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<Watching<EvidenceSamplesWatchResponse>, RpcStatus> {
+        self.watch_with(scope, streams, EvidenceSamplesWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, scope: EvidenceScope, streams: Vec<String>, versions: Vec<u32>, fields: Vec<String>, sources: Vec<String>,
-        signals: Vec<String>, between: Window, bucket: EvidenceBucketRequest, latest: bool, options: EvidenceSamplesWatchOptions,
+        &self, scope: EvidenceScope, streams: Vec<String>, options: EvidenceSamplesWatchOptions,
     ) -> Result<Watching<EvidenceSamplesWatchResponse>, RpcStatus> {
         let value = EvidenceSamplesWatchRequest {
             scope: Some(scope),
-            streams: streams.into(),
-            versions,
-            fields: fields.into(),
-            sources: sources.into(),
-            signals: signals.into(),
-            between: Some(between),
-            bucket: Some(bucket),
-            latest,
+            streams,
+            versions: options.versions.unwrap_or_default(),
+            fields: options.fields.unwrap_or_default(),
+            sources: options.sources.unwrap_or_default(),
+            signals: options.signals.unwrap_or_default(),
+            between: options.between,
+            bucket: options.bucket,
+            latest: options.latest.unwrap_or_default(),
             at: options.at,
             page: options.page,
         };
@@ -2992,13 +3003,19 @@ impl Files {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, file: FileReference, offset: u64) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
-        self.watch_with(file, offset, FilesWatchOptions::default()).await
+    pub async fn watch(&self, offset: u64) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
+        self.watch_with(offset, FilesWatchOptions::default()).await
     }
-    pub async fn watch_with(
-        &self, file: FileReference, offset: u64, options: FilesWatchOptions,
-    ) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
-        let value = FilesWatchRequest { file: Some(file), offset, at: options.at };
+    pub async fn watch_with(&self, offset: u64, options: FilesWatchOptions) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
+        let value = FilesWatchRequest {
+            target: match (options.file, options.upload) {
+                (Some(value), None) => Some(dokime_protocol::host::files_watch_request::Target::File(value)),
+                (None, Some(value)) => Some(dokime_protocol::host::files_watch_request::Target::Upload(value)),
+                _ => return Err(RpcStatus::invalid_argument("Choose Exactly One target Variant")),
+            },
+            offset,
+            at: options.at,
+        };
         let request = options.context.request(value);
         let response = self
             .client
@@ -3848,7 +3865,7 @@ impl PluginsSecrets {
     ) -> Result<Receipt, RpcStatus> {
         let value = PluginsSecretsDeleteRequest {
             name: name.into(),
-            identifiers: identifiers.into(),
+            identifiers,
             expected_revision,
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4382,7 +4399,7 @@ impl Secrets {
         &self, names: Vec<String>, expected_revision: Vec<u8>, options: SecretsDeleteOptions,
     ) -> Result<SecretsDeleteResponse, RpcStatus> {
         let value = SecretsDeleteRequest {
-            names: names.into(),
+            names,
             expected_revision,
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4408,11 +4425,7 @@ impl Secrets {
     pub async fn export_with(
         &self, names: Vec<String>, generation: u64, options: SecretsExportOptions,
     ) -> Result<SecretsExportResponse, RpcStatus> {
-        let value = SecretsExportRequest {
-            names: names.into(),
-            generation,
-            at: options.at,
-        };
+        let value = SecretsExportRequest { names, generation, at: options.at };
         let request = options.context.request(value);
         let response = self
             .client

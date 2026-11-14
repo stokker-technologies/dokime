@@ -29,7 +29,7 @@ from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_po
 from harmos._wire.model.v1 import receipt_pb2 as harmos_dot_model_dot_v1_dot_receipt__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1a\x64okime/host/v1/files.proto\x12\x0e\x64okime.host.v1\x1a\x1b\x64okime/model/v1/files.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"q\n\x0f\x46ilesGetRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x9b\x01\n\x10\x46ilesGetResponse\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x13\n\x0b\x63hunk_bytes\x18\x02 \x01(\x04\x12\x15\n\rmessage_bytes\x18\x03 \x01(\x04\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"\x95\x01\n\x10\x46ilesReadRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x0e\n\x06offset\x18\x02 \x01(\x04\x12\x11\n\tmax_bytes\x18\x03 \x01(\x04\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"v\n\x11\x46ilesReadResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x14\n\x0ctotal_length\x18\x02 \x01(\x04\x12\x0e\n\x06sha256\x18\x03 \x01(\x0c\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"\x83\x01\n\x11\x46ilesWatchRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x0e\n\x06offset\x18\x02 \x01(\x04\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xa0\x01\n\x12\x46ilesWatchResponse\x12\'\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x19.dokime.host.v1.FileBatch\x12\x32\n\ncompletion\x18\x02 \x01(\x0b\x32\x1e.dokime.host.v1.FileCompletion\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"V\n\x12\x46ilesDeleteRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x12\n\nrequest_id\x18\x02 \x01(\t\"@\n\x13\x46ilesDeleteResponse\x12)\n\x07receipt\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"R\n\x13\x46ilesCaptureRequest\x12+\n\x06source\x18\x01 \x01(\x0b\x32\x1b.dokime.model.v1.FileSource\x12\x0e\n\x06output\x18\x02 \x01(\t\"w\n\x14\x46ilesCaptureResponse\x12\x34\n\tartifacts\x18\x01 \x03(\x0b\x32!.dokime.model.v1.CapturedArtifact\x12)\n\x04gaps\x18\x02 \x03(\x0b\x32\x1b.dokime.model.v1.CaptureGap\"*\n\tFileBatch\x12\x0e\n\x06offset\x18\x01 \x01(\x04\x12\r\n\x05\x62ytes\x18\x02 \x01(\x0c\"\x1f\n\x0e\x46ileCompletion\x12\r\n\x05\x62ytes\x18\x01 \x01(\x04\x32\xb7\x03\n\x05\x46iles\x12N\n\x03Get\x12\x1f.dokime.host.v1.FilesGetRequest\x1a .dokime.host.v1.FilesGetResponse\"\x04\xc8\xf3\x18\x03\x12Q\n\x04Read\x12 .dokime.host.v1.FilesReadRequest\x1a!.dokime.host.v1.FilesReadResponse\"\x04\xc8\xf3\x18\x03\x12V\n\x05Watch\x12!.dokime.host.v1.FilesWatchRequest\x1a\".dokime.host.v1.FilesWatchResponse\"\x04\xc8\xf3\x18\x03\x30\x01\x12W\n\x06\x44\x65lete\x12\".dokime.host.v1.FilesDeleteRequest\x1a#.dokime.host.v1.FilesDeleteResponse\"\x04\xc8\xf3\x18\x03\x12Z\n\x07\x43\x61pture\x12#.dokime.host.v1.FilesCaptureRequest\x1a$.dokime.host.v1.FilesCaptureResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1a\x64okime/host/v1/files.proto\x12\x0e\x64okime.host.v1\x1a\x1b\x64okime/model/v1/files.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"q\n\x0f\x46ilesGetRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x9b\x01\n\x10\x46ilesGetResponse\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x13\n\x0b\x63hunk_bytes\x18\x02 \x01(\x04\x12\x15\n\rmessage_bytes\x18\x03 \x01(\x04\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"\x95\x01\n\x10\x46ilesReadRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x0e\n\x06offset\x18\x02 \x01(\x04\x12\x11\n\tmax_bytes\x18\x03 \x01(\x04\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"v\n\x11\x46ilesReadResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x14\n\x0ctotal_length\x18\x02 \x01(\x04\x12\x0e\n\x06sha256\x18\x03 \x01(\x0c\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"\xba\x01\n\x11\x46ilesWatchRequest\x12.\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReferenceH\x00\x12)\n\x06upload\x18\x03 \x01(\x0b\x32\x17.harmos.model.v1.UploadH\x00\x12\x0e\n\x06offset\x18\x02 \x01(\x04\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x01\x88\x01\x01\x42\x08\n\x06targetB\x05\n\x03_at\"\xa0\x01\n\x12\x46ilesWatchResponse\x12\'\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x19.dokime.host.v1.FileBatch\x12\x32\n\ncompletion\x18\x02 \x01(\x0b\x32\x1e.dokime.host.v1.FileCompletion\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"V\n\x12\x46ilesDeleteRequest\x12,\n\x04\x66ile\x18\x01 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x12\n\nrequest_id\x18\x02 \x01(\t\"@\n\x13\x46ilesDeleteResponse\x12)\n\x07receipt\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"R\n\x13\x46ilesCaptureRequest\x12+\n\x06source\x18\x01 \x01(\x0b\x32\x1b.dokime.model.v1.FileSource\x12\x0e\n\x06output\x18\x02 \x01(\t\"w\n\x14\x46ilesCaptureResponse\x12\x34\n\tartifacts\x18\x01 \x03(\x0b\x32!.dokime.model.v1.CapturedArtifact\x12)\n\x04gaps\x18\x02 \x03(\x0b\x32\x1b.dokime.model.v1.CaptureGap\"*\n\tFileBatch\x12\x0e\n\x06offset\x18\x01 \x01(\x04\x12\r\n\x05\x62ytes\x18\x02 \x01(\x0c\"\x1f\n\x0e\x46ileCompletion\x12\r\n\x05\x62ytes\x18\x01 \x01(\x04\x32\xb7\x03\n\x05\x46iles\x12N\n\x03Get\x12\x1f.dokime.host.v1.FilesGetRequest\x1a .dokime.host.v1.FilesGetResponse\"\x04\xc8\xf3\x18\x03\x12Q\n\x04Read\x12 .dokime.host.v1.FilesReadRequest\x1a!.dokime.host.v1.FilesReadResponse\"\x04\xc8\xf3\x18\x03\x12V\n\x05Watch\x12!.dokime.host.v1.FilesWatchRequest\x1a\".dokime.host.v1.FilesWatchResponse\"\x04\xc8\xf3\x18\x03\x30\x01\x12W\n\x06\x44\x65lete\x12\".dokime.host.v1.FilesDeleteRequest\x1a#.dokime.host.v1.FilesDeleteResponse\"\x04\xc8\xf3\x18\x03\x12Z\n\x07\x43\x61pture\x12#.dokime.host.v1.FilesCaptureRequest\x1a$.dokime.host.v1.FilesCaptureResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -56,21 +56,21 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_FILESREADRESPONSE']._serialized_start=622
   _globals['_FILESREADRESPONSE']._serialized_end=740
   _globals['_FILESWATCHREQUEST']._serialized_start=743
-  _globals['_FILESWATCHREQUEST']._serialized_end=874
-  _globals['_FILESWATCHRESPONSE']._serialized_start=877
-  _globals['_FILESWATCHRESPONSE']._serialized_end=1037
-  _globals['_FILESDELETEREQUEST']._serialized_start=1039
-  _globals['_FILESDELETEREQUEST']._serialized_end=1125
-  _globals['_FILESDELETERESPONSE']._serialized_start=1127
-  _globals['_FILESDELETERESPONSE']._serialized_end=1191
-  _globals['_FILESCAPTUREREQUEST']._serialized_start=1193
-  _globals['_FILESCAPTUREREQUEST']._serialized_end=1275
-  _globals['_FILESCAPTURERESPONSE']._serialized_start=1277
-  _globals['_FILESCAPTURERESPONSE']._serialized_end=1396
-  _globals['_FILEBATCH']._serialized_start=1398
-  _globals['_FILEBATCH']._serialized_end=1440
-  _globals['_FILECOMPLETION']._serialized_start=1442
-  _globals['_FILECOMPLETION']._serialized_end=1473
-  _globals['_FILES']._serialized_start=1476
-  _globals['_FILES']._serialized_end=1915
+  _globals['_FILESWATCHREQUEST']._serialized_end=929
+  _globals['_FILESWATCHRESPONSE']._serialized_start=932
+  _globals['_FILESWATCHRESPONSE']._serialized_end=1092
+  _globals['_FILESDELETEREQUEST']._serialized_start=1094
+  _globals['_FILESDELETEREQUEST']._serialized_end=1180
+  _globals['_FILESDELETERESPONSE']._serialized_start=1182
+  _globals['_FILESDELETERESPONSE']._serialized_end=1246
+  _globals['_FILESCAPTUREREQUEST']._serialized_start=1248
+  _globals['_FILESCAPTUREREQUEST']._serialized_end=1330
+  _globals['_FILESCAPTURERESPONSE']._serialized_start=1332
+  _globals['_FILESCAPTURERESPONSE']._serialized_end=1451
+  _globals['_FILEBATCH']._serialized_start=1453
+  _globals['_FILEBATCH']._serialized_end=1495
+  _globals['_FILECOMPLETION']._serialized_start=1497
+  _globals['_FILECOMPLETION']._serialized_end=1528
+  _globals['_FILES']._serialized_start=1531
+  _globals['_FILES']._serialized_end=1970
 # @@protoc_insertion_point(module_scope)

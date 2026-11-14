@@ -56,14 +56,16 @@ class FilesReadResponse(_message.Message):
     def __init__(self, data: _Optional[bytes] = ..., total_length: _Optional[int] = ..., sha256: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 class FilesWatchRequest(_message.Message):
-    __slots__ = ("file", "offset", "at")
+    __slots__ = ("file", "upload", "offset", "at")
     FILE_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference
+    upload: _file_pb2.Upload
     offset: int
     at: _position_pb2.ReadCut
-    def __init__(self, file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., offset: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
+    def __init__(self, file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., offset: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 class FilesWatchResponse(_message.Message):
     __slots__ = ("data", "completion", "resolved_at")

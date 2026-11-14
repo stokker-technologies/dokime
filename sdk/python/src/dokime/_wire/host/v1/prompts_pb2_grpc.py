@@ -126,9 +126,9 @@ def add_PromptsServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'dokime._wire.host.v1.Prompts', rpc_method_handlers)
+            'dokime.host.v1.Prompts', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('dokime._wire.host.v1.Prompts', rpc_method_handlers)
+    server.add_registered_method_handlers('dokime.host.v1.Prompts', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.

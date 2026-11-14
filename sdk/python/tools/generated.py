@@ -24,6 +24,7 @@ from google.protobuf import descriptor_pb2, descriptor_pool
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
 from google.protobuf.message import Message
 from google.protobuf.message_factory import GetMessageClass
+from grpc import RpcMethodHandler, ServiceRpcHandler
 
 # Type Checking Imports
 
@@ -77,6 +78,18 @@ class RecordingChannel:
         self.methods[path] = ("stream_stream", request_serializer, response_deserializer)
 
 
+class RecordingServer:
+    def __init__(self) -> None:
+        self.generic: set[str] = set()
+        self.registered: set[str] = set()
+
+    def add_generic_rpc_handlers(self, handlers: tuple[ServiceRpcHandler, ...]) -> None:
+        self.generic.update(handler.service_name() for handler in handlers)
+
+    def add_registered_method_handlers(self, service: str, handlers: dict[str, RpcMethodHandler]) -> None:
+        self.registered.add(service)
+
+
 # === Public Functions === #
 
 
@@ -88,6 +101,8 @@ def main() -> None:
     if manifest != expected:
         raise ValueError("Installed generated surface differs from proto/; rebuild and reinstall the SDK wheel")
     channel = RecordingChannel()
+    server = RecordingServer()
+    services: set[str] = set()
     descriptors = FileDescriptorSet.FromString(files("dokime").joinpath("_wire/surface.pb").read_bytes())
     for definition in descriptors.file:
         if not definition.package.startswith("dokime.") or not definition.service:
@@ -96,6 +111,11 @@ def main() -> None:
         stubs = import_module(module + "_pb2_grpc")
         for service in definition.service:
             getattr(stubs, service.name + "Stub")(channel)
+            servicer = getattr(stubs, service.name + "Servicer")()
+            getattr(stubs, "add_" + service.name + "Servicer_to_server")(servicer, server)
+            services.add(f"{definition.package}.{service.name}")
+    if server.generic != services or server.registered != services:
+        raise ValueError("Generated servers do not register the canonical gRPC service names")
     methods = {}
     count = 0
     for definition in descriptors.file:

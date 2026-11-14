@@ -11,7 +11,7 @@
 # === Imports === #
 
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import Any, Generic, TypeVar, cast
 from uuid import uuid4
 
 from google.protobuf.duration_pb2 import Duration
@@ -54,6 +54,9 @@ __all__ = ["Context"]
 # === Constants === #
 
 # === Types === #
+
+_RequestT = TypeVar("_RequestT", bound=Message)
+_ResponseT = TypeVar("_ResponseT", bound=Message)
 
 # === Classes === #
 
@@ -204,12 +207,12 @@ class Context:
         return await self.host.effects.set(ticket, value, current.revision, request_id=request_id)
 
 
-class BoundOperation[RequestT: Message, ResponseT: Message]:
-    def __init__(self, transport: InvocationContext, operation: Operation[RequestT, ResponseT]) -> None:
+class BoundOperation(Generic[_RequestT, _ResponseT]):
+    def __init__(self, transport: InvocationContext, operation: Operation[_RequestT, _ResponseT]) -> None:
         self._transport = transport
         self._operation = operation
 
-    async def __call__(self, request: RequestT, *, policy: OperationPolicy | None = None) -> ResponseT:
+    async def __call__(self, request: _RequestT, *, policy: OperationPolicy | None = None) -> _ResponseT:
         return await self._transport.call(self._operation, request, policy=policy)
 
 

@@ -2953,15 +2953,16 @@ class FilesResource:
 
     async def watch(
         self,
-        file: FileReference,
         offset: int,
         *,
+        file: FileReference | None = None,
+        upload: Upload | None = None,
         at: ReadCut | None = None,
         call_metadata: CallMetadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[FilesWatchResponse]:
-        request = FilesWatchRequest(file=file, offset=offset, at=at)
+        request = FilesWatchRequest(file=file, upload=upload, offset=offset, at=at)
         call = stream(
             self._channel,
             "/dokime.host.v1.Files/Watch",

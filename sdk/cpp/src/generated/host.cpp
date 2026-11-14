@@ -318,10 +318,14 @@ FilesReadResponse HostFilesResource::read(const FileReference &file, const uint6
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-HostFilesWatch HostFilesResource::watch(const FileReference &file, const uint64_t &offset, size_t max_item_bytes,
-                                        HostFilesWatchOptions options) {
+HostFilesWatch HostFilesResource::watch(const uint64_t &offset, size_t max_item_bytes, HostFilesWatchOptions options) {
   FilesWatchRequest request;
-  *request.mutable_file() = file;
+  if (options.file) {
+    *request.mutable_file() = *options.file;
+  }
+  if (options.upload) {
+    *request.mutable_upload() = *options.upload;
+  }
   request.set_offset(offset);
   if (options.at) {
     *request.mutable_at() = *options.at;

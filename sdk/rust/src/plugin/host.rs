@@ -256,6 +256,10 @@ pub struct HostEvidenceLogsAppendOptions {
 #[derive(Default)]
 pub struct HostEvidenceRecordsListOptions {
     pub scope: Option<RecordScope>,
+    pub versions: Option<Vec<u32>>,
+    pub between: Option<Window>,
+    pub step: Option<String>,
+    pub selection: Option<CapturedRecordSelection>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub policy: Option<OperationPolicy>,
@@ -282,6 +286,10 @@ pub struct HostEvidenceTraceabilitySetOptions {
 #[derive(Default)]
 pub struct HostEvidenceStatisticsOptions {
     pub scope: Option<EvidenceScope>,
+    pub versions: Option<Vec<u32>>,
+    pub between: Option<Window>,
+    pub outputs: Option<Vec<Output>>,
+    pub step: Option<String>,
     pub at: Option<ReadCut>,
     pub policy: Option<OperationPolicy>,
 }
@@ -347,6 +355,8 @@ pub struct HostFilesReadOptions {
 }
 #[derive(Default)]
 pub struct HostFilesWatchOptions {
+    pub file: Option<FileReference>,
+    pub upload: Option<Upload>,
     pub at: Option<ReadCut>,
 }
 pub struct HostFilesWatch {
@@ -575,23 +585,20 @@ impl HostEvidenceResource {
             context,
         }
     }
-    pub async fn statistics(
-        &self, stream: String, versions: Vec<u32>, between: Window, outputs: Vec<Output>, field: String, step: String,
-    ) -> Result<EvidenceStatisticsResponse> {
-        self.statistics_with(stream, versions, between, outputs, field, step, HostEvidenceStatisticsOptions::default()).await
+    pub async fn statistics(&self, stream: String, field: String) -> Result<EvidenceStatisticsResponse> {
+        self.statistics_with(stream, field, HostEvidenceStatisticsOptions::default()).await
     }
     pub async fn statistics_with(
-        &self, stream: String, versions: Vec<u32>, between: Window, outputs: Vec<Output>, field: String, step: String,
-        options: HostEvidenceStatisticsOptions,
+        &self, stream: String, field: String, options: HostEvidenceStatisticsOptions,
     ) -> Result<EvidenceStatisticsResponse> {
         let request = EvidenceStatisticsRequest {
             scope: options.scope,
             stream,
-            versions,
-            between: Some(between),
-            outputs,
+            versions: options.versions.unwrap_or_default(),
+            between: options.between,
+            outputs: options.outputs.unwrap_or_default(),
             field,
-            step,
+            step: options.step.unwrap_or_default(),
             at: options.at,
         };
         let response: EvidenceStatisticsResponse = self.context.call_with(request, options.policy).await?;
@@ -634,22 +641,17 @@ impl HostEvidenceRecordsResource {
     fn new(context: Context) -> Self {
         Self { context }
     }
-    pub async fn list(
-        &self, record_type: String, versions: Vec<u32>, between: Window, step: String, selection: CapturedRecordSelection,
-    ) -> Result<RecordsListResponse> {
-        self.list_with(record_type, versions, between, step, selection, HostEvidenceRecordsListOptions::default()).await
+    pub async fn list(&self, record_type: String) -> Result<RecordsListResponse> {
+        self.list_with(record_type, HostEvidenceRecordsListOptions::default()).await
     }
-    pub async fn list_with(
-        &self, record_type: String, versions: Vec<u32>, between: Window, step: String, selection: CapturedRecordSelection,
-        options: HostEvidenceRecordsListOptions,
-    ) -> Result<RecordsListResponse> {
+    pub async fn list_with(&self, record_type: String, options: HostEvidenceRecordsListOptions) -> Result<RecordsListResponse> {
         let request = RecordsListRequest {
             scope: options.scope,
             record_type,
-            versions,
-            between: Some(between),
-            step,
-            selection: Some(selection),
+            versions: options.versions.unwrap_or_default(),
+            between: options.between,
+            step: options.step.unwrap_or_default(),
+            selection: options.selection,
             at: options.at,
             page: options.page,
         };
@@ -800,13 +802,19 @@ impl HostFilesResource {
         let response: FilesReadResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
-    pub async fn watch(&self, file: FileReference, offset: u64, max_item_bytes: NonZeroUsize) -> Result<HostFilesWatch> {
-        self.watch_with(file, offset, max_item_bytes, HostFilesWatchOptions::default()).await
+    pub async fn watch(&self, offset: u64, max_item_bytes: NonZeroUsize) -> Result<HostFilesWatch> {
+        self.watch_with(offset, max_item_bytes, HostFilesWatchOptions::default()).await
     }
-    pub async fn watch_with(
-        &self, file: FileReference, offset: u64, max_item_bytes: NonZeroUsize, options: HostFilesWatchOptions,
-    ) -> Result<HostFilesWatch> {
-        let request = FilesWatchRequest { file: Some(file), offset, at: options.at };
+    pub async fn watch_with(&self, offset: u64, max_item_bytes: NonZeroUsize, options: HostFilesWatchOptions) -> Result<HostFilesWatch> {
+        let request = FilesWatchRequest {
+            target: match (options.file, options.upload) {
+                (Some(value), None) => Some(dokime_protocol::host::files_watch_request::Target::File(value)),
+                (None, Some(value)) => Some(dokime_protocol::host::files_watch_request::Target::Upload(value)),
+                _ => return Err(Error::Invalid("Choose Exactly One target Variant".into())),
+            },
+            offset,
+            at: options.at,
+        };
         Ok(HostFilesWatch {
             incoming: self.context.watch(request, max_item_bytes).await?,
         })

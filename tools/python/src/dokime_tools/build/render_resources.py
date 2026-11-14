@@ -662,7 +662,31 @@ def rust_message(full: str) -> str:
     return snake(parts[0]) + "_protocol::" + "::".join([parts[version - 1], *parts[version + 1 :]])
 
 
+def rust_call_fields(methods: list[Method]) -> list[Method]:
+    """Keep Selectors Positional and Defaultable Read Filters in Call Options."""
+    required = {
+        "dokime.host.v1.DocumentsGetRequest": {"scope", "document_id"},
+        "dokime.host.v1.DocumentsWatchRequest": {"scope", "document_id"},
+        "dokime.host.v1.EvidenceStatisticsRequest": {"scope", "stream", "field"},
+        "dokime.host.v1.evidence.RecordsListRequest": {"scope", "record_type"},
+        "dokime.host.v1.evidence.RecordsWatchRequest": {"scope", "record_type"},
+        "dokime.host.v1.evidence.SamplesListRequest": {"scope", "streams"},
+        "dokime.host.v1.evidence.SamplesWatchRequest": {"scope", "streams"},
+    }
+    selected: list[Method] = []
+    for method in methods:
+        selectors = required.get(method["request"])
+        if selectors is not None:
+            method = method.copy()
+            method["fields"] = [
+                Field(**{**field, "optional": field["optional"] or field["name"] not in selectors}) for field in method["fields"]
+            ]
+        selected.append(method)
+    return selected
+
+
 def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> None:
+    methods = rust_call_fields(methods)
     selected: list[Method] = []
     for method in methods:
         method = method.copy()
@@ -760,7 +784,21 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
                 f"    pub async fn {name}_with(&self, {', '.join([*parameters, 'options: ' + options])}) -> Result<{result} , RpcStatus> {{",
                 f"        let value = {request} {{",
             ]
+            for group in sorted({field["oneof"] for field in method["fields"] if field["oneof"]}):
+                members = [field for field in method["fields"] if field["oneof"] == group]
+                variant = rust_message(method["request"]).rsplit("::", 1)[0] + "::" + snake(request) + "::" + group.title()
+                selected = ", ".join("options." + field["name"] for field in members)
+                lines += [f"            {group}: match ({selected}) {{"]
+                for index, member in enumerate(members):
+                    pattern = ", ".join("Some(value)" if index == other else "None" for other in range(len(members)))
+                    lines += [f"                ({pattern}) => Some({variant}::{member['name'].title()}(value)),"]
+                lines += [
+                    f'                _ => return Err(RpcStatus::invalid_argument("Choose Exactly One {group} Variant")),',
+                    "            },",
+                ]
             for field in method["fields"]:
+                if field["oneof"]:
+                    continue
                 name = field["name"]
                 if name == "request_id":
                     expression = "match options.request_id { Some(value) => value, None => request_id()?, }"
@@ -768,9 +806,11 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
                     expression = "Some(name.into())"
                 elif field["optional"]:
                     expression = f"options.{name}"
+                    if not field["wire_optional"] and (field["kind"] != 11 or field["repeated"] or field["map"]):
+                        expression += ".unwrap_or_default()"
                 elif field["kind"] == 11 and not field["repeated"] and not field["map"]:
                     expression = f"Some({name})"
-                elif field["kind"] == 9:
+                elif field_type(field) == "String":
                     expression = f"{name}.into()"
                 else:
                     expression = name
@@ -832,6 +872,7 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
 
 
 def rust_host(root: Path, methods: list[Method]) -> None:
+    methods = rust_call_fields(methods)
     def title(value: str) -> str:
         return "".join(word.title() for word in value.split("_"))
 
@@ -971,6 +1012,8 @@ def rust_host(root: Path, methods: list[Method]) -> None:
                 )
                 if field["name"] == "request_id":
                     value = "match options.request_id { Some(value) => value, None => harmos::client::request_id()?, }"
+                elif field["optional"] and not field["wire_optional"] and (field["kind"] != 11 or field["repeated"] or field["map"]):
+                    value += ".unwrap_or_default()"
                 if field["kind"] == 14:
                     value = f"{value}.map(|value| value as i32)" if field["optional"] else f"{value} as i32"
                 lines += [f"            {field['name']}," if value == field["name"] else f"            {field['name']}: {value},"]

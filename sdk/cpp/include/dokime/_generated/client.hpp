@@ -307,6 +307,8 @@ struct FilesReadOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct FilesWatchOptions {
+  std::optional<::harmos::FileReference> file;
+  std::optional<::harmos::Upload> upload;
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
@@ -2357,10 +2359,14 @@ struct FilesResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::FilesWatchResponse> watch(const ::harmos::FileReference &file, const std::uint64_t &offset,
-                                                             client::FilesWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::FilesWatchResponse> watch(const std::uint64_t &offset, client::FilesWatchOptions options = {}) {
     detail::FilesWatchRequest request;
-    *request.mutable_file() = file;
+    if (options.file) {
+      *request.mutable_file() = *options.file;
+    }
+    if (options.upload) {
+      *request.mutable_upload() = *options.upload;
+    }
     request.set_offset(offset);
     if (options.at) {
       *request.mutable_at() = *options.at;
