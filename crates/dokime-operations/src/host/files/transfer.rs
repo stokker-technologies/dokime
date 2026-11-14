@@ -21,6 +21,7 @@ use harmos_protocol::model::{FileReference, History, Upload, UploadState};
 use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{Info, InfoRequest};
 use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StagedFile, StoreHistory};
+use sha2::{Digest, Sha256};
 
 /* === Constants === */
 
@@ -63,7 +64,8 @@ pub(crate) async fn mutation(context: &Context, action: &str, request_id: &str) 
     }
     let info = context.storage::<Info>(InfoRequest {}).await?;
     let window = info.mutations.ok_or_else(|| Error::Unavailable(format!("{action}: Open a Storage Mutation Window")))?;
-    let key = Identifier::new(format!("{action}/{request_id}")).map_err(|cause| Error::Invalid(format!("{action}: {cause}")))?;
+    let digest = Sha256::digest(format!("{action}/{request_id}"));
+    let key = Identifier::new(crate::host::views::hex(&digest)).map_err(|cause| Error::Invalid(format!("{action}: {cause}")))?;
     Ok(MutationId { window: window.id, key })
 }
 pub(crate) fn staged(upload: &Upload) -> Result<StagedFile> {

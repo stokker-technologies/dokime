@@ -20,14 +20,14 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::{prelude::*, v1};
-use dokime_protocol::host::content::ArtifactsCreateRequest;
-use dokime_protocol::host::files::UploadsAppendRequest;
-use dokime_protocol::host::files::UploadsCreateRequest;
-use dokime_protocol::host::files::UploadsDeleteRequest;
-use dokime_protocol::host::files::UploadsPublishRequest;
-use dokime_protocol::host::files::UploadsResumeRequest;
-use harmos_protocol::model::FileMetadata;
+use dokime::plugin::{
+    HostContentArtifactsCreateOptions, HostEvidenceTraceabilityGetOptions, HostEvidenceTraceabilitySetOptions,
+    HostExecutionsProgressSetOptions, HostFilesUploadsAppendOptions, HostFilesUploadsCreateOptions, HostFilesUploadsDeleteOptions,
+    HostFilesUploadsPublishOptions, HostFilesUploadsResumeOptions, HostOperation, HostPromptsCreateOptions,
+};
+use dokime::prelude::*;
+use dokime::value::Kind;
+use dokime::{ExecutionProgressValue, FileMetadata, Metadata, TraceabilityEntry, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::net::TcpStream;
@@ -67,318 +67,291 @@ fn main() -> Result<()> {
         Template::new("content.traceability", "Observe Traceability").step(Step::new("Traceability", revisioned_traceability));
     let plugin = Plugin::new("content_fixture", "1.0.0")
         .suite(Suite::new("content", "Content").template(template).template(progress).template(traceability))
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::TraceabilityGetRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::TraceabilitySetRequest>()
-        .requires_host::<UploadsCreateRequest>()
-        .requires_host::<UploadsAppendRequest>()
-        .requires_host::<UploadsResumeRequest>()
-        .requires_host::<UploadsPublishRequest>()
-        .requires_host::<UploadsDeleteRequest>()
-        .requires_host::<ArtifactsCreateRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::executions::ProgressGetRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::executions::ProgressSetRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::PromptsCreateRequest>();
+        .requires_host(HostOperation::EvidenceTraceabilityGet)
+        .requires_host(HostOperation::EvidenceTraceabilitySet)
+        .requires_host(HostOperation::FilesUploadsCreate)
+        .requires_host(HostOperation::FilesUploadsAppend)
+        .requires_host(HostOperation::FilesUploadsResume)
+        .requires_host(HostOperation::FilesUploadsPublish)
+        .requires_host(HostOperation::FilesUploadsDelete)
+        .requires_host(HostOperation::ContentArtifactsCreate)
+        .requires_host(HostOperation::ExecutionsProgressGet)
+        .requires_host(HostOperation::ExecutionsProgressSet)
+        .requires_host(HostOperation::PromptsCreate);
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn revisioned_progress(ctx: &Context) -> Result<()> {
-    use dokime::protocol::plugin::host::v1::executions::{ProgressGetRequest, ProgressSetRequest};
-
-    // Establish a Whole Value and Recover Its Original Receipt
-    let initial = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
-    let first = ProgressSetRequest {
-        name: ctx.execution_id().into(),
-        value: Some(dokime_protocol::model::ExecutionProgressValue {
-            completed: 1,
-            total: 2,
-            label: "First Value".into(),
-        }),
-        expected_revision: initial.revision,
-        request_id: "first".into(),
+    // Establish the Whole Value and Replay Its Original Receipt
+    let progress = ctx.host().executions.progress;
+    let initial = progress.get().await?;
+    let first = ExecutionProgressValue {
+        completed: 1,
+        total: 2,
+        label: "First Value".into(),
     };
-    let saved = ctx.host(first.clone()).await?;
-    if ctx.host(first.clone()).await? != saved {
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    let saved = progress.set_with(first.clone(), initial.revision.clone(), options).await?;
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    if progress.set_with(first.clone(), initial.revision.clone(), options).await? != saved {
         return Err(Error::Invalid("Set Progress: Replay Lost Its Original Receipt".into()));
     }
     let mut changed = first.clone();
-    changed.value.as_mut().unwrap().label = "Changed Value".into();
-    if ctx.host(changed).await.is_ok() {
-        return Err(Error::Invalid("Set Progress: Changed Request ID Payload Was Accepted".into()));
-    }
-    let stale = ProgressSetRequest {
-        request_id: "stale".into(),
-        ..first.clone()
+    changed.label = "Changed Value".into();
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
     };
-    if ctx.host(stale).await.is_ok() {
+    if progress.set_with(changed, initial.revision.clone(), options).await.is_ok() {
+        return Err(Error::Invalid("Set Progress: Changed Request Payload Was Accepted".into()));
+    }
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("stale".into()),
+        ..Default::default()
+    };
+    if progress.set_with(first.clone(), initial.revision.clone(), options).await.is_ok() {
         return Err(Error::Invalid("Set Progress: Stale Revision Was Accepted".into()));
     }
 
-    // Let the Client Retain This Value Before Replacing It
-    ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
-        prompt: "continue".into(),
-        prompt_type: "content.continue".into(),
-        definition: Some(dokime_protocol::model::Prompt {
-            metadata: Some(dokime_protocol::model::Metadata {
-                identifier: "content.continue".into(),
-                label: "Continue".into(),
-                ..Default::default()
-            }),
-            actions: vec![dokime_protocol::model::PromptAction {
-                identifier: "continue".into(),
-                label: "Continue".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        }),
+    // Await the Operator Before Replacing the Value
+    let definition = dokime::plugin::Prompt::new("content.continue", "Continue", "Continue").action("continue", "Continue");
+    let options = HostPromptsCreateOptions {
+        definition: Some(definition.into_message()),
         ..Default::default()
-    })
-    .await?;
-
-    // Replace Every Writable Field, Including Clearing the Earlier Label
-    let current = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
-    ctx.host(ProgressSetRequest {
-        name: ctx.execution_id().into(),
-        value: Some(dokime_protocol::model::ExecutionProgressValue {
-            completed: 2,
-            total: 2,
-            label: String::new(),
-        }),
-        expected_revision: current.revision,
-        request_id: "second".into(),
-    })
-    .await?;
-    if ctx.host(first).await? != saved {
+    };
+    ctx.host().prompts.create_with("continue".into(), "content.continue".into(), HashMap::new(), options).await?;
+    let current = progress.get().await?;
+    let second = ExecutionProgressValue {
+        completed: 2,
+        total: 2,
+        label: String::new(),
+    };
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("second".into()),
+        ..Default::default()
+    };
+    progress.set_with(second, current.revision, options).await?;
+    let options = HostExecutionsProgressSetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    if progress.set_with(first, initial.revision, options).await? != saved {
         return Err(Error::Invalid("Set Progress: Later Writes Changed an Earlier Receipt".into()));
     }
     Ok(())
 }
-async fn revisioned_traceability(ctx: &Context) -> Result<()> {
-    use dokime::protocol::plugin::host::v1::evidence::{TraceabilityGetRequest, TraceabilitySetRequest};
 
-    // Establish Two Independently Revisioned Whole Entries
-    let get = TraceabilityGetRequest {
-        name: ctx.execution_id().into(),
-        entry: "serial".into(),
+async fn revisioned_traceability(ctx: &Context) -> Result<()> {
+    // Establish Two Independently Revisioned Entries
+    let traceability = ctx.host().evidence.traceability;
+    let options = HostEvidenceTraceabilityGetOptions {
+        entry: Some("serial".into()),
+        ..Default::default()
     };
-    let initial = ctx.host(get.clone()).await?;
-    let first = TraceabilitySetRequest {
-        name: ctx.execution_id().into(),
-        entry: "serial".into(),
-        value: Some(dokime_protocol::model::TraceabilityEntry {
-            metadata: Some(dokime_protocol::model::Metadata {
-                identifier: "serial".into(),
-                label: "Serial Number".into(),
-                attributes: HashMap::from([
-                    (
-                        "verified".into(),
-                        dokime_protocol::model::Value {
-                            kind: Some(model::value::Kind::Boolean(true)),
-                        },
-                    ),
-                    (
-                        "channel".into(),
-                        dokime_protocol::model::Value {
-                            kind: Some(model::value::Kind::UnsignedInteger(2)),
-                        },
-                    ),
-                ]),
-                ..Default::default()
-            }),
-            value: Some(dokime_protocol::model::Value {
-                kind: Some(model::value::Kind::Text("first".into())),
-            }),
-            source: "reader".into(),
-            unit: "unit".into(),
+    let initial = traceability.get_with(options).await?;
+    let first = TraceabilityEntry {
+        metadata: Some(Metadata {
+            identifier: "serial".into(),
+            label: "Serial Number".into(),
+            attributes: HashMap::from([
+                ("verified".into(), Value { kind: Some(Kind::Boolean(true)) }),
+                ("channel".into(), Value { kind: Some(Kind::UnsignedInteger(2)) }),
+            ]),
+            ..Default::default()
         }),
-        expected_revision: initial.revision,
-        request_id: "first".into(),
+        value: Some(Value { kind: Some(Kind::Text("first".into())) }),
+        source: "reader".into(),
+        unit: "unit".into(),
     };
-    let saved = ctx.host(first.clone()).await?;
-    if ctx.host(first.clone()).await? != saved {
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    let saved = traceability.set_with(first.clone(), initial.revision.clone(), "serial".into(), options).await?;
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    if traceability.set_with(first.clone(), initial.revision.clone(), "serial".into(), options).await? != saved {
         return Err(Error::Invalid("Set Traceability: Replay Lost Its Original Receipt".into()));
     }
     let mut changed = first.clone();
-    changed.value.as_mut().unwrap().source.clear();
-    if ctx.host(changed).await.is_ok() {
+    changed.source.clear();
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    if traceability.set_with(changed, initial.revision.clone(), "serial".into(), options).await.is_ok() {
         return Err(Error::Invalid("Set Traceability: Changed Request Payload Was Accepted".into()));
     }
-    if ctx
-        .host(TraceabilitySetRequest {
-            request_id: "stale".into(),
-            ..first.clone()
-        })
-        .await
-        .is_ok()
-    {
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("stale".into()),
+        ..Default::default()
+    };
+    if traceability.set_with(first.clone(), initial.revision.clone(), "serial".into(), options).await.is_ok() {
         return Err(Error::Invalid("Set Traceability: Stale Revision Was Accepted".into()));
     }
-    let other = ctx.host(TraceabilityGetRequest { entry: "batch".into(), ..get.clone() }).await?;
-    ctx.host(TraceabilitySetRequest {
-        entry: "batch".into(),
-        value: Some(dokime_protocol::model::TraceabilityEntry {
-            metadata: Some(dokime_protocol::model::Metadata {
-                identifier: "batch".into(),
-                ..Default::default()
-            }),
-            value: Some(dokime_protocol::model::Value {
-                kind: Some(model::value::Kind::Text("batch-one".into())),
-            }),
+    let options = HostEvidenceTraceabilityGetOptions {
+        entry: Some("batch".into()),
+        ..Default::default()
+    };
+    let other = traceability.get_with(options).await?;
+    let batch = TraceabilityEntry {
+        metadata: Some(Metadata {
+            identifier: "batch".into(),
             ..Default::default()
         }),
-        expected_revision: other.revision,
-        request_id: "batch".into(),
-        ..first.clone()
-    })
-    .await?;
-    if ctx.host(get.clone()).await?.revision != saved.revision {
+        value: Some(Value {
+            kind: Some(Kind::Text("batch-one".into())),
+        }),
+        ..Default::default()
+    };
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("batch".into()),
+        ..Default::default()
+    };
+    traceability.set_with(batch, other.revision, "batch".into(), options).await?;
+    let options = HostEvidenceTraceabilityGetOptions {
+        entry: Some("serial".into()),
+        ..Default::default()
+    };
+    if traceability.get_with(options).await?.revision != saved.revision {
         return Err(Error::Invalid("Get Traceability: Another Entry Changed This Revision".into()));
     }
 
-    // Let the Client Retain the First Values
-    ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
-        prompt: "continue".into(),
-        prompt_type: "content.continue".into(),
-        definition: Some(dokime_protocol::model::Prompt {
-            metadata: Some(dokime_protocol::model::Metadata {
-                identifier: "content.continue".into(),
-                label: "Continue".into(),
-                ..Default::default()
-            }),
-            actions: vec![dokime_protocol::model::PromptAction {
-                identifier: "continue".into(),
-                label: "Continue".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        }),
+    // Await the Operator Before Replacing the Whole Entry
+    let definition = dokime::plugin::Prompt::new("content.continue", "Continue", "Continue").action("continue", "Continue");
+    let options = HostPromptsCreateOptions {
+        definition: Some(definition.into_message()),
         ..Default::default()
-    })
-    .await?;
-
-    // Replace the Whole Serial Entry and Preserve Both Earlier Receipts
-    ctx.host(TraceabilitySetRequest {
-        value: Some(dokime_protocol::model::TraceabilityEntry {
-            metadata: Some(dokime_protocol::model::Metadata {
-                identifier: "serial".into(),
-                ..Default::default()
-            }),
-            value: Some(dokime_protocol::model::Value {
-                kind: Some(model::value::Kind::Text("second".into())),
-            }),
+    };
+    ctx.host().prompts.create_with("continue".into(), "content.continue".into(), HashMap::new(), options).await?;
+    let second = TraceabilityEntry {
+        metadata: Some(Metadata {
+            identifier: "serial".into(),
             ..Default::default()
         }),
-        expected_revision: saved.revision.clone(),
-        request_id: "second".into(),
-        ..first.clone()
-    })
-    .await?;
-    if ctx.host(first).await? != saved {
+        value: Some(Value { kind: Some(Kind::Text("second".into())) }),
+        ..Default::default()
+    };
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("second".into()),
+        ..Default::default()
+    };
+    traceability.set_with(second, saved.revision.clone(), "serial".into(), options).await?;
+    let options = HostEvidenceTraceabilitySetOptions {
+        request_id: Some("first".into()),
+        ..Default::default()
+    };
+    if traceability.set_with(first, initial.revision, "serial".into(), options).await? != saved {
         return Err(Error::Invalid("Set Traceability: Later Writes Changed an Earlier Receipt".into()));
     }
     Ok(())
 }
+
 async fn capture(ctx: &Context) -> Result<()> {
-    // Create and Replay an Upload Opening.
-    let opening = UploadsCreateRequest {
-        metadata: Some(FileMetadata {
-            scope: Some(ctx.execution_id().into()),
-            media_type: "text/plain".into(),
-            ..Default::default()
-        }),
-        request_id: "capture/create".into(),
+    // Open an Upload and Replay Its Receipt
+    let uploads = ctx.host().files.uploads;
+    let metadata = FileMetadata {
+        scope: Some(ctx.execution_id().into()),
+        media_type: "text/plain".into(),
+        ..Default::default()
     };
-    let created = ctx.host(opening.clone()).await?;
-    if ctx.host(opening).await? != created {
+    let options = HostFilesUploadsCreateOptions {
+        request_id: Some("capture/create".into()),
+        ..Default::default()
+    };
+    let created = uploads.create_with(metadata.clone(), options).await?;
+    let options = HostFilesUploadsCreateOptions {
+        request_id: Some("capture/create".into()),
+        ..Default::default()
+    };
+    if uploads.create_with(metadata, options).await? != created {
         return Err(Error::Invalid("Create Upload: Replay Changed Its Session".into()));
     }
-    let session = created
-        .production
-        .and_then(|production| production.session)
-        .ok_or_else(|| Error::Invalid("Capture: Missing Upload Session".into()))?;
+    let upload = created.upload.ok_or_else(|| Error::Invalid("Capture: Missing Upload Writer".into()))?;
     let bytes = b"replacement\n";
-    let chunk = UploadsAppendRequest {
-        session: Some(session.clone()),
-        offset: 0,
-        data: bytes[..11].to_vec(),
-        request_id: "capture/prefix".into(),
+    let options = HostFilesUploadsAppendOptions {
+        request_id: Some("capture/prefix".into()),
+        ..Default::default()
     };
-    let saved = ctx.host(chunk.clone()).await?;
-    if ctx.host(chunk).await? != saved {
+    let saved = uploads.append_with(upload.clone(), 0, bytes[..11].to_vec(), options).await?;
+    let options = HostFilesUploadsAppendOptions {
+        request_id: Some("capture/prefix".into()),
+        ..Default::default()
+    };
+    if uploads.append_with(upload.clone(), 0, bytes[..11].to_vec(), options).await? != saved {
         return Err(Error::Invalid("Append Upload: Replay Changed Its Receipt".into()));
     }
-    // Refuse a Gap and a Writer That Lost Ownership.
-    let gap = UploadsAppendRequest {
-        session: Some(session.clone()),
-        offset: 30,
-        data: b"gap".to_vec(),
-        request_id: "capture/gap".into(),
+
+    // Refuse Gaps and Fence the Previous Writer
+    let options = HostFilesUploadsAppendOptions {
+        request_id: Some("capture/gap".into()),
+        ..Default::default()
     };
-    if ctx.host(gap).await.is_ok() {
+    if uploads.append_with(upload.clone(), 30, b"gap".to_vec(), options).await.is_ok() {
         return Err(Error::Invalid("Capture: Offset Gap Was Accepted".into()));
     }
-    let resumed = ctx
-        .host(UploadsResumeRequest {
-            session: Some(session.clone()),
-            request_id: "capture/resume".into(),
-        })
-        .await?;
-    let stale = UploadsAppendRequest {
-        session: Some(session),
-        offset: 11,
-        data: b"\n".to_vec(),
-        request_id: "capture/stale".into(),
+    let options = HostFilesUploadsResumeOptions {
+        request_id: Some("capture/resume".into()),
+        ..Default::default()
     };
-    if ctx.host(stale).await.is_ok() {
+    let resumed = uploads.resume_with(upload.clone(), options).await?;
+    let options = HostFilesUploadsAppendOptions {
+        request_id: Some("capture/stale".into()),
+        ..Default::default()
+    };
+    if uploads.append_with(upload, 11, b"\n".to_vec(), options).await.is_ok() {
         return Err(Error::Invalid("Capture: Stale Writer Was Accepted".into()));
     }
-    let session = resumed
-        .production
-        .and_then(|production| production.session)
-        .ok_or_else(|| Error::Invalid("Capture: Missing Resumed Writer".into()))?;
-    ctx.host(UploadsAppendRequest {
-        session: Some(session.clone()),
-        offset: 11,
-        data: b"\n".to_vec(),
-        request_id: "capture/suffix".into(),
-    })
-    .await?;
-    // Publish Verified Content, Then Attach Its Metadata.
-    let published = ctx
-        .host(UploadsPublishRequest {
-            session: Some(session),
-            length: bytes.len() as u64,
-            sha256: Sha256::digest(bytes).to_vec(),
-            request_id: "capture/publish".into(),
-        })
-        .await?;
-    ctx.host(ArtifactsCreateRequest {
-        execution: ctx.execution_id().into(),
-        file: published.file,
-        metadata: Some(dokime_protocol::model::Metadata {
+    let upload = resumed.upload.ok_or_else(|| Error::Invalid("Capture: Missing Resumed Writer".into()))?;
+    let options = HostFilesUploadsAppendOptions {
+        request_id: Some("capture/suffix".into()),
+        ..Default::default()
+    };
+    uploads.append_with(upload.clone(), 11, b"\n".to_vec(), options).await?;
+
+    // Publish Verified Content and Attach the Artifact
+    let options = HostFilesUploadsPublishOptions {
+        request_id: Some("capture/publish".into()),
+        ..Default::default()
+    };
+    let published = uploads.publish_with(upload, bytes.len() as u64, Sha256::digest(bytes).to_vec(), options).await?;
+    let file = published.upload.ok_or_else(|| Error::Invalid("Capture: Missing Published Content".into()))?;
+    let options = HostContentArtifactsCreateOptions {
+        request_id: Some("capture/attach".into()),
+        metadata: Some(Metadata {
             identifier: "producer.txt".into(),
             label: "producer.txt".into(),
             ..Default::default()
         }),
-        media_type: "text/plain".into(),
-        request_id: "capture/attach".into(),
-    })
-    .await?;
-    // Abandon Another Upload Without Publishing Its Prefix.
-    let abandoned = ctx
-        .host(UploadsCreateRequest {
-            metadata: Some(FileMetadata {
-                scope: Some(ctx.execution_id().into()),
-                ..Default::default()
-            }),
-            request_id: "abandoned/create".into(),
-        })
-        .await?;
-    ctx.host(UploadsDeleteRequest {
-        session: abandoned.production.and_then(|production| production.session),
-        request_id: "abandoned/delete".into(),
-    })
-    .await?;
+        ..Default::default()
+    };
+    ctx.host().content.artifacts.create_with(file, "producer.txt".into(), "text/plain".into(), options).await?;
+
+    // Abandon a Separate Upload Without Publishing It
+    let metadata = FileMetadata {
+        scope: Some(ctx.execution_id().into()),
+        ..Default::default()
+    };
+    let options = HostFilesUploadsCreateOptions {
+        request_id: Some("abandoned/create".into()),
+        ..Default::default()
+    };
+    let abandoned = uploads.create_with(metadata, options).await?;
+    let upload = abandoned.upload.ok_or_else(|| Error::Invalid("Capture: Missing Abandoned Writer".into()))?;
+    let options = HostFilesUploadsDeleteOptions {
+        request_id: Some("abandoned/delete".into()),
+        ..Default::default()
+    };
+    uploads.delete_with(upload, options).await?;
     Ok(())
 }
 

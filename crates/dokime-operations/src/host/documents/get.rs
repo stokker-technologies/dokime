@@ -517,3 +517,5 @@ fn evidence_kind(kind: i32) -> Result<DocumentCardKind> {
 }
 
 /* === Tests === */
+
+crate::native::unary!(DocumentsGetRequest, DocumentsGetResponse, context, "dokime.host.v1", "Documents", "Get");

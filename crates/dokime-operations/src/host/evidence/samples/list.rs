@@ -232,3 +232,5 @@ pub async fn handle(context: &Context, request: SamplesListRequest) -> Result<Sa
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SamplesListRequest, SamplesListResponse, context, "dokime.host.v1.evidence", "Samples", "List");

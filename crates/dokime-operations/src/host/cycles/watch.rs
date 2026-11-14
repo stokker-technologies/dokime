@@ -126,3 +126,5 @@ pub async fn handle(context: &Context, request: CyclesWatchRequest) -> Result<Ou
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(CyclesWatchRequest, CyclesWatchResponse, "dokime.host.v1", "Cycles", "Watch");

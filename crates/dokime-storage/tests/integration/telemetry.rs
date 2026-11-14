@@ -567,7 +567,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     };
     catalog.sections.push(Default::default());
     let section = catalog.sections.last_mut().unwrap();
-    section.r#type = "dokime.v1.RecordContracts".into();
+    section.r#type = "dokime.model.v1.RecordContracts".into();
     section.payload = contracts.encode_to_vec();
     execution.catalog = catalog.encode_to_vec();
     store.create(&execution)?;

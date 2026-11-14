@@ -82,3 +82,5 @@ pub async fn handle(context: &Context, request: SecretsImportRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SecretsImportRequest, SecretsImportResponse, context, "dokime.host.v1", "Secrets", "Import");

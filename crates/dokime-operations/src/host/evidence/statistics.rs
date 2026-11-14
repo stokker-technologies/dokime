@@ -166,7 +166,7 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
     let mut positions = Vec::new();
     store.read_batches(
         BatchSelection {
-            execution: execution,
+            execution,
             stream: &request.stream,
             after,
             through,
@@ -188,7 +188,7 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
         },
     )?;
     let mut statistics = store.numeric_statistics(&NumericWindow {
-        execution: execution,
+        execution,
         stream: &request.stream,
         field: field.name(),
         after,
@@ -223,3 +223,5 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(EvidenceStatisticsRequest, EvidenceStatisticsResponse, context, "dokime.host.v1", "Evidence", "Statistics");

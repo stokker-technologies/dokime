@@ -119,3 +119,5 @@ pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<Sch
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SchemasGetRequest, SchemasGetResponse, context, "dokime.host.v1.executions", "Schemas", "Get");

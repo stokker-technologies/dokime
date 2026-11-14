@@ -62,3 +62,5 @@ pub async fn handle(context: &Context, request: ExecutionsCancelRequest) -> Resu
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ExecutionsCancelRequest, ExecutionsCancelResponse, context, "dokime.host.v1", "Executions", "Cancel");

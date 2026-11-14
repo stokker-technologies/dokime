@@ -60,3 +60,5 @@ pub async fn handle(resources: &Resources, request: PromptsCreateRequest) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(PromptsCreateRequest, PromptsCreateResponse, resources, "dokime.host.v1", "Prompts", "Create");

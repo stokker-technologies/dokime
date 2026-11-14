@@ -179,13 +179,13 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
                 .await?,
             saved
         );
-        let selection = Some(EvidenceAnnotationSelection {
+        let selection = EvidenceAnnotationSelection {
             owner: Some(owner),
             include_context: true,
-        });
+        };
         let page = notes
             .list_with(
-                (selection.clone()).unwrap_or_default(),
+                selection.clone(),
                 EvidenceNotesListOptions {
                     page: Some(PageRequest { page_size: 1, ..Default::default() }),
                     ..Default::default()
@@ -253,7 +253,7 @@ async fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             .evidence
             .notes
             .clone();
-        let page = notes.list((selection).unwrap_or_default()).await?;
+        let page = notes.list(selection).await?;
         assert_eq!(page.notes[0].note_id, name);
         assert_eq!(page.notes[0].message, changed.message);
         assert!(

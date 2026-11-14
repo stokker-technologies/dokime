@@ -62,3 +62,5 @@ pub fn initial_preferences() -> SettingsGetResponse {
 }
 
 /* === Tests === */
+
+crate::native::unary!(SettingsGetRequest, SettingsGetResponse, context, "dokime.host.v1", "Settings", "Get");

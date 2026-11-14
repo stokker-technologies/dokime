@@ -67,7 +67,7 @@ async fn execution_outcomes() -> Result<(), Box<dyn Error>> {
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let settings = super::support::settings();
         let executable = super::support::execution_fixture()?;
-        let host = Host::open(root.path(), settings.clone())?;
+        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
         let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
         let entry = host.add_remote(plugin.endpoint()).await?;
         let stale = host.materialize(&entry, "execution.capture", super::support::parameters(8.0, 0, true)).await?;

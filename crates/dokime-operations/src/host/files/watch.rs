@@ -167,13 +167,15 @@ async fn watch_upload(
         let settled = invocation.await;
         if let Err(cause) = result {
             let _ = sender.send(Err(crate::host::status(cause))).await;
-        } else if let Err(cause) = settled {
-            if !matches!(cause, harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) {
-                let _ = sender.send(Err(Status::internal(format!("{ID}: {cause}")))).await;
-            }
+        } else if let Err(cause) = settled
+            && !matches!(cause, harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. }))
+        {
+            let _ = sender.send(Err(Status::internal(format!("{ID}: {cause}")))).await;
         }
     });
     Ok(ReceiverStream::new(output))
 }
 
 /* === Tests === */
+
+crate::native::download!(FilesWatchRequest, FilesWatchResponse, "dokime.host.v1", "Files", "Watch");

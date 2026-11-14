@@ -62,7 +62,7 @@ async fn main() -> std::process::ExitCode {
         if cli.endpoint.is_none() { std::env::var_os("DOKIME_REMOTE").filter(|value| !value.is_empty()).map(Into::into) } else { None }
     });
     let action = cli.command.action();
-    match commands::run(cli.command, cli.endpoint.or(settings.endpoint.clone()), settings).await {
+    match Box::pin(commands::run(cli.command, cli.endpoint.or(settings.endpoint.clone()), settings)).await {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{action}: {error}");

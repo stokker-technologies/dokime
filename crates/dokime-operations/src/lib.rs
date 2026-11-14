@@ -13,6 +13,7 @@
 
 mod error;
 pub mod host;
+pub mod native;
 pub mod plugin;
 mod resources;
 
@@ -202,9 +203,9 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
         | "dokime.host.v1.Effects/Create"
         | "dokime.host.v1.Effects/Get"
         | "dokime.host.v1.Effects/Set" => {
-            Err(Error::Unavailable(format!("{}: Capture and Effects Engines Are Not Implemented", request.operation)))
+            Err(Error::Unimplemented(format!("{}: Capture and Effects Engines Are Not Implemented", request.operation)))
         }
-        _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
+        _ => Err(Error::Invalid(format!("{}: Connect the Requested Operation Provider", request.operation))),
     }
 }
 

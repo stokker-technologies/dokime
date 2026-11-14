@@ -34,10 +34,9 @@ use dokime_protocol::host::content::ArtifactsGetRequest;
 
 use dokime_sdk::ArtifactMetadata;
 use dokime_sdk::ArtifactState;
+use dokime_sdk::FilesGetResponse;
+use dokime_sdk::FilesReadResponse;
 use dokime_sdk::client::ContentArtifactsGetResponse;
-use dokime_sdk::client::FilesGetResponse;
-use dokime_sdk::client::FilesReadResponse;
-use harmos_protocol::host as library;
 use std::convert::Infallible;
 use std::task::Context;
 use std::task::Poll;

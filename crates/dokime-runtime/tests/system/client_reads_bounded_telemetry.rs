@@ -110,12 +110,12 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
         let telemetry = Client::from_channel(channel, super::support::client_settings())?.evidence.samples.clone();
-        let scope = Some(EvidenceScope {
+        let scope = EvidenceScope {
             execution_id: Some("telemetry".into()),
             ..Default::default()
-        });
+        };
         let mut request = SamplesListRequest {
-            scope: scope.clone(),
+            scope: Some(scope.clone()),
             streams: vec!["sensor".into()],
             page: Some(PageRequest { page_size: 137, ..Default::default() }),
             ..Default::default()
@@ -166,7 +166,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
         );
         let page = telemetry
             .list_with(
-                (scope.clone()).unwrap_or_default(),
+                scope.clone(),
                 Default::default(),
                 EvidenceSamplesListOptions {
                     versions: Some(Default::default()),
@@ -195,7 +195,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
         );
         let tail = telemetry
             .list_with(
-                (scope.clone()).unwrap_or_default(),
+                scope.clone(),
                 Default::default(),
                 EvidenceSamplesListOptions {
                     versions: Some(Default::default()),
@@ -245,7 +245,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
         );
         let mut watch = telemetry
             .watch_with(
-                (scope.clone()).unwrap_or_default(),
+                scope.clone(),
                 Default::default(),
                 EvidenceSamplesWatchOptions {
                     versions: Some(Default::default()),
@@ -278,7 +278,7 @@ async fn client_reads_bounded_telemetry() -> Result<(), Box<dyn Error>> {
         let first = first.unwrap();
         let replay = telemetry
             .list_with(
-                (scope).unwrap_or_default(),
+                scope,
                 vec!["sensor".into()],
                 EvidenceSamplesListOptions {
                     versions: Some(Default::default()),

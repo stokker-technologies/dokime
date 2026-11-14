@@ -62,7 +62,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
         let root = super::support::tempdir()?;
         let mut settings = super::support::settings();
         settings.clock = Arc::new(ControlledClock::new(0));
-        let host = Host::open(root.path(), settings.clone())?;
+        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
             .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
@@ -94,7 +94,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
 
         // Reopen Only Durable Evidence, Without a Live Run or Question
         drop(host);
-        let host = Host::open(root.path(), settings)?;
+        let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
         for (execution, snapshot) in executions.iter().zip(saved) {
             assert_eq!(host.execution(execution)?, snapshot);
         }
@@ -110,7 +110,7 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Err
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Refuse Cancel While the Admitted Execution Is Still Queued
         let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
             .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
@@ -158,7 +158,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         // Run and Seal the Evidence Before Rendering
         let root = super::support::tempdir()?;
         let settings = super::support::settings();
-        let host = Host::open(root.path(), settings.clone())?;
+        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let origin = host
             .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
@@ -204,7 +204,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         assert_eq!(host.reports(&execution)?, vec![report.clone()]);
         drop(snapshot);
         drop(host);
-        let host = Host::open(root.path(), settings)?;
+        let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
         assert_eq!(host.reports(&execution)?, vec![report]);
         assert_eq!(host.execution(&execution)?, before);
         host.shutdown().await?;

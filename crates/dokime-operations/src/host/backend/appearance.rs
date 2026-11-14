@@ -124,3 +124,5 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(BackendAppearanceRequest, BackendAppearanceResponse, context, "dokime.host.v1", "Backend", "Appearance");

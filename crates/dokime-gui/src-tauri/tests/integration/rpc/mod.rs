@@ -321,7 +321,10 @@ fn refuses_foreign_bundle() {
         assert!(install(&fixture, bundle(1024, target)).await.is_err());
         let client = fixture.client().await;
         let page = client
-            .execute(client.client().plugins.list_with(PluginsListOptions { context: client.call_options().unwrap() }))
+            .execute(client.client().plugins.list_with(PluginsListOptions {
+                context: client.call_options().unwrap(),
+                ..Default::default()
+            }))
             .await
             .unwrap();
         assert!(page.entries.is_empty());

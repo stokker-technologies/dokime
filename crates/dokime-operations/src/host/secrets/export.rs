@@ -71,3 +71,5 @@ pub async fn handle(context: &Context, request: SecretsExportRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SecretsExportRequest, SecretsExportResponse, context, "dokime.host.v1", "Secrets", "Export");

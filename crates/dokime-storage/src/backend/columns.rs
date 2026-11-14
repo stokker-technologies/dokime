@@ -159,7 +159,23 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
     cancel.check()?;
     state.snapshot(snapshot)?;
     let after = read.position(snapshot)?;
-    let schema = rows::schema(&state.connection, &read.source.schema, snapshot.at.sequence)?;
+    let schema = match rows::find_schema(&state.connection, &read.source.schema, snapshot.at.sequence)? {
+        Some(schema) => schema,
+        None => {
+            let definition = state
+                .catalog
+                .definitions()
+                .iter()
+                .find(|definition| definition.schema().is_ok_and(|key| key == read.source.schema))
+                .ok_or_else(|| invalid("schema is unavailable at requested cut"))?;
+            let graph = definition.graph(&Default::default())?;
+            let position = StorageCursor {
+                history: state.history.clone(),
+                sequence: 0,
+            };
+            StorageSchema::new(position, read.source.schema.clone(), Arc::new(graph))
+        }
+    };
     let empty = harmos_query::columnar::empty(&schema, read.source.kind)?;
     let required = read.required_columns();
     for name in &required {

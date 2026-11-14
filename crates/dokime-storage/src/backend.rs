@@ -24,6 +24,7 @@ mod rows;
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Mutex as LeaseMutex;
 use std::{cell::Cell, collections::BTreeMap, num::NonZeroUsize, path::Path, sync::Arc};
 
 // Third Party Imports
@@ -81,11 +82,32 @@ pub struct Backend {
     state: Arc<Mutex<State>>,
 }
 
+pub struct BackendLease(Arc<LeaseMutex<Option<std::fs::File>>>);
+
+impl BackendLease {
+    pub fn close(&self) -> Result<()> {
+        self.0
+            .lock()
+            .map_err(|source| Error::backend("Close Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string())))?
+            .take();
+        Ok(())
+    }
+}
+
+impl Drop for BackendLease {
+    fn drop(&mut self) {
+        if let Ok(mut lease) = self.0.lock() {
+            lease.take();
+        }
+    }
+}
+
 struct State {
     connection: Connection,
-    _lease: Option<std::fs::File>,
+    lease: Arc<LeaseMutex<Option<std::fs::File>>>,
     history: StoreHistory,
     settings: BackendSettings,
+    catalog: ObjectCatalog,
     snapshots: BTreeMap<Vec<u8>, StorageCursor>,
     snapshot_generations: BTreeMap<Vec<u8>, u64>,
     closed: bool,
@@ -100,7 +122,7 @@ struct State {
 /* === Implementations === */
 
 impl Backend {
-    pub fn open(store: &crate::Store) -> crate::Result<StorageBackends> {
+    pub fn open(store: &crate::Store, catalog: ObjectCatalog) -> crate::Result<(StorageBackends, BackendLease)> {
         let history = store.evidence_position(None)?.history.ok_or(crate::Error::Data("Open Storage: Restore the Root History"))?;
         let history = StoreHistory {
             store: Identifier::new(history.store).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,
@@ -115,11 +137,24 @@ impl Backend {
                 chunk_bytes: settings.pending_bytes,
             },
         )?;
+        primary.state.try_lock().map_err(|source| Error::backend("Register Object Catalog", BackendFailure::Conflict, source))?.catalog =
+            catalog;
         let state = recovery::RecoveryBackend(primary.clone());
-        Ok(StorageBackends {
-            primary: Arc::new(primary),
-            state: Arc::new(state),
-        })
+        let lease = BackendLease(
+            primary
+                .state
+                .try_lock()
+                .map_err(|source| Error::backend("Open Storage Lease", BackendFailure::Conflict, source))?
+                .lease
+                .clone(),
+        );
+        Ok((
+            StorageBackends {
+                primary: Arc::new(primary),
+                state: Arc::new(state),
+            },
+            lease,
+        ))
     }
 
     fn new(path: impl AsRef<Path>, history: StoreHistory, settings: BackendSettings) -> Result<Self> {
@@ -210,9 +245,10 @@ impl Backend {
             history: history.clone(),
             state: Arc::new(Mutex::new(State {
                 connection,
-                _lease: lease,
+                lease: Arc::new(LeaseMutex::new(lease)),
                 history,
                 settings,
+                catalog: ObjectCatalog::new(),
                 snapshots: BTreeMap::new(),
                 snapshot_generations: BTreeMap::new(),
                 closed: false,
@@ -232,7 +268,20 @@ impl Backend {
 
 impl State {
     fn check(&self) -> Result<()> {
+        self.check_lease()?;
         if self.closed {
+            return Err(Error::Closing { domain: "SQLite storage" });
+        }
+        Ok(())
+    }
+
+    fn check_lease(&self) -> Result<()> {
+        if self
+            .lease
+            .lock()
+            .map_err(|source| Error::backend("Read Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string())))?
+            .is_none()
+        {
             return Err(Error::Closing { domain: "SQLite storage" });
         }
         Ok(())
@@ -278,6 +327,7 @@ impl StorageBackend for Backend {
 
     fn create_session(&self) -> StorageFuture<'_, StorageCursor> {
         Box::pin(self.call(|state| {
+            state.check_lease()?;
             state.closed = false;
             state.cursor()
         }))
@@ -294,6 +344,13 @@ impl StorageBackend for Backend {
             state.snapshot_generations.clear();
             files::reclaim(state)?;
             state.closed = true;
+            state
+                .lease
+                .lock()
+                .map_err(|source| {
+                    Error::backend("Close Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string()))
+                })?
+                .take();
             Ok(())
         }))
     }

@@ -244,7 +244,7 @@ mod tests {
             identifier: "credential".into(),
             secret: "protected-slot".into(),
         };
-        assert!(validate(&names, &[binding.clone()]).is_ok());
+        assert!(validate(&names, std::slice::from_ref(&binding)).is_ok());
         assert!(validate(&names, &[binding.clone(), binding]).is_err());
         assert!(
             validate(

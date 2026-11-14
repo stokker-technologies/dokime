@@ -115,17 +115,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         assert_eq!(backend.status.get().await.unwrap_err().code(), Code::Unauthenticated);
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
-        let identity = backend
-            .status
-            .get_with(StatusGetOptions {
-                context: context_request,
-                ..Default::default()
-            })
-            .await?
-            .status
-            .unwrap()
-            .identity
-            .unwrap();
+        let identity = backend.status.get_with(StatusGetOptions { context: context_request }).await?.status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, std::fs::read_to_string(storage.join("backend-id"))?);
 
         // The Same Authorization Protects Settings and Plugin Pages
@@ -139,7 +129,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 .get_with(SettingsGetOptions {
                     at: (request.clone()).at,
                     context: context_request,
-                    ..Default::default()
                 })
                 .await?
                 .value
@@ -150,17 +139,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let request = PluginsListRequest::default();
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
-        assert!(
-            plugins
-                .list_with(PluginsListOptions {
-                    at: request.at,
-                    context: context_request,
-                    ..Default::default()
-                })
-                .await?
-                .entries
-                .is_empty()
-        );
+        assert!(plugins.list_with(PluginsListOptions { at: request.at, context: context_request }).await?.entries.is_empty());
         drop(settings);
         drop(plugins);
 
@@ -194,7 +173,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                 CyclesCreateOptions {
                     request_id: Some((request.clone()).request_id),
                     context: context_request,
-                    ..Default::default()
                 },
             )
             .await?;
@@ -216,7 +194,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     CasesCreateOptions {
                         request_id: Some((request.clone()).request_id),
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await
@@ -247,7 +224,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             .get_with(BackendOverviewGetOptions {
                 at: (request.clone()).at,
                 context: context_request,
-                ..Default::default()
             })
             .await?;
 
@@ -274,7 +250,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     PromptDefinitionsListOptions {
                         at: (request.clone()).at,
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await?
@@ -299,7 +274,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     at: (request.clone()).at,
                     page: (request.clone()).page,
                     context: context_request,
-                    ..Default::default()
                 },
             )
             .await?;
@@ -346,7 +320,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     at: (request.clone()).at,
                     page: (request.clone()).page,
                     context: context_request,
-                    ..Default::default()
                 },
             )
             .await?;
@@ -399,7 +372,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await
@@ -423,7 +395,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
             .list_with(AnalysesListOptions {
                 at: (request.clone()).at,
                 context: context_request,
-                ..Default::default()
             })
             .await?;
         drop(plots);
@@ -441,7 +412,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     SettingsSetOptions {
                         request_id: Some((request.clone()).request_id),
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await
@@ -465,7 +435,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                         at: (request.clone()).at,
                         request_id: Some((request.clone()).request_id),
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await
@@ -492,7 +461,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     FilesReadOptions {
                         at: (request.clone()).at,
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await
@@ -526,7 +494,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         context: context_request,
-                        ..Default::default()
                     }
                 )
                 .await?
@@ -559,7 +526,6 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
                     at: (request.clone()).at,
                     page: (request.clone()).page,
                     context: context_request,
-                    ..Default::default()
                 },
             )
             .await?;
@@ -571,44 +537,16 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         assert_eq!(listed.pairings.len(), 2);
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
-        backend
-            .status
-            .get_with(StatusGetOptions {
-                context: context_request,
-                ..Default::default()
-            })
-            .await?;
+        backend.status.get_with(StatusGetOptions { context: context_request }).await?;
         remote.access.pairings.delete(first.pairing.as_ref().unwrap().id.clone()).await?;
         assert_ne!(second.credential, first.credential);
         let mut context_old = CallOptions::default();
         context_old.metadata.insert("authorization", format!("Bearer {}", first.credential).parse()?);
-        assert_eq!(
-            backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_old,
-                    ..Default::default()
-                })
-                .await
-                .unwrap_err()
-                .code(),
-            Code::Unauthenticated
-        );
+        assert_eq!(backend.status.get_with(StatusGetOptions { context: context_old }).await.unwrap_err().code(), Code::Unauthenticated);
         let mut context_current = CallOptions::default();
         context_current.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(
-            backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_current,
-                    ..Default::default()
-                })
-                .await?
-                .status
-                .unwrap()
-                .identity
-                .unwrap()
-                .host_id,
+            backend.status.get_with(StatusGetOptions { context: context_current }).await?.status.unwrap().identity.unwrap().host_id,
             identity.host_id
         );
         drop(backend);
@@ -629,18 +567,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
         assert_eq!(
-            backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_request,
-                    ..Default::default()
-                })
-                .await?
-                .status
-                .unwrap()
-                .identity
-                .unwrap()
-                .host_id,
+            backend.status.get_with(StatusGetOptions { context: context_request }).await?.status.unwrap().identity.unwrap().host_id,
             identity.host_id
         );
 
@@ -649,34 +576,12 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         assert_ne!(rotated, second.pinned_certificate_pem);
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", second.credential).parse()?);
-        assert_eq!(
-            backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_request,
-                    ..Default::default()
-                })
-                .await
-                .unwrap_err()
-                .code(),
-            Code::Unauthenticated
-        );
+        assert_eq!(backend.status.get_with(StatusGetOptions { context: context_request }).await.unwrap_err().code(), Code::Unauthenticated);
         let fresh = remote.access.pairings.create("Rotated Desktop").await?;
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
         assert_eq!(
-            backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_request,
-                    ..Default::default()
-                })
-                .await?
-                .status
-                .unwrap()
-                .identity
-                .unwrap()
-                .host_id,
+            backend.status.get_with(StatusGetOptions { context: context_request }).await?.status.unwrap().identity.unwrap().host_id,
             identity.host_id
         );
         let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(fresh.pinned_certificate_pem));
@@ -685,18 +590,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> 
         let mut context_request = CallOptions::default();
         context_request.metadata.insert("authorization", format!("Bearer {}", fresh.credential).parse()?);
         assert_eq!(
-            fresh_backend
-                .status
-                .get_with(StatusGetOptions {
-                    context: context_request,
-                    ..Default::default()
-                })
-                .await?
-                .status
-                .unwrap()
-                .identity
-                .unwrap()
-                .host_id,
+            fresh_backend.status.get_with(StatusGetOptions { context: context_request }).await?.status.unwrap().identity.unwrap().host_id,
             identity.host_id
         );
         drop((backend, fresh_backend, channel));

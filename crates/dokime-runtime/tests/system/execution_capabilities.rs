@@ -64,7 +64,7 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Inspect and Cancel an Active Plugin Run
         let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let origin = host.materialize(&entry, "execution.capture", super::support::parameters(29.0, 0, true)).await?;
         let cycle = host.start_cycle(vec![origin]).await?;
@@ -174,7 +174,7 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         drop(host);
 
         // Restart Recovers Runs Only and Leaves the Import Draft Untouched
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         assert_eq!(host.execution("draft")?, draft);
         assert_eq!(host.execution("closed-import")?, closed);
         assert_eq!(host.export_execution("imported")?, imported_bytes);

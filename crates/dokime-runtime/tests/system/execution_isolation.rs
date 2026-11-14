@@ -511,7 +511,7 @@ async fn execution_isolation() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start Three Executions Before Releasing Any Measurement
         let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
         let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;

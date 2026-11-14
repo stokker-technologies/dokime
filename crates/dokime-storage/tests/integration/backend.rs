@@ -15,6 +15,9 @@
 
 /* === Imports === */
 
+use harmos_domain::Identified;
+use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -73,7 +76,61 @@ enum Choice {
 
 /* === Implementations === */
 
+impl Identified for Reading {
+    const ID: &'static str = "readings";
+}
+impl StoredObject for Reading {
+    type Key = String;
+    const RETENTION: ObjectRetention = ObjectRetention::All;
+    fn key(&self) -> &String {
+        &self.label
+    }
+}
+
 /* === Public Functions === */
+
+#[tokio::test]
+async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reopen() -> StoryResult {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let definition = ObjectDefinition::of::<Reading>();
+    let catalog = ObjectCatalog::new().entry(definition);
+    let (backends, lease) = Backend::open(&store, catalog.clone())?;
+    let backend = backends.primary.clone();
+    backend.create_session().await?;
+    let at = backend.get_saved_position().await?;
+    let snapshot = backend.create_snapshot(&at).await?;
+    let scan = ArrowScan {
+        source: ColumnSource {
+            kind: ColumnKind::Objects,
+            schema: definition.schema()?,
+        },
+        columns: vec!["payload.value".into()],
+        predicate: None,
+        time: None,
+        start: 0,
+        after: None,
+        limits: limits(),
+        work: limits(),
+    };
+    let cancel = Cancellation::default();
+    let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
+    assert_eq!(page.batch.num_rows(), 0);
+    assert!(page.complete);
+    backend.delete_snapshot(&snapshot).await?;
+    drop(lease);
+    assert!(backend.get_saved_position().await.is_err());
+
+    let (reopened, _lease) = Backend::open(&store, catalog)?;
+    reopened.primary.create_session().await?;
+    let snapshot = reopened.primary.create_snapshot(&at).await?;
+    let page = reopened.primary.list_column_rows(&snapshot, &scan, &cancel).await?;
+    assert_eq!(page.batch.num_rows(), 0);
+    assert!(page.complete);
+    reopened.primary.delete_snapshot(&snapshot).await?;
+    reopened.primary.delete_session().await?;
+    Ok(())
+}
 
 /* === Private Functions === */
 fn schema(history: &StoreHistory) -> StoryResult<StorageSchema> {
@@ -148,7 +205,7 @@ fn limits() -> ReadLimits {
 async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     let backend = &backends.primary;
     let history = backend.get_history().clone();
     assert_eq!(&history, backends.state.get_history());
@@ -203,7 +260,7 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
     assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
     backend.delete_session().await?;
     drop(backends);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     assert_eq!(reopened.primary.get_history(), &history);
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&saved).await?;
@@ -217,7 +274,7 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
 async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     backends.primary.create_session().await?;
     let saved = backends.primary.get_saved_position().await?;
     backends.state.create_recovery_session().await?;
@@ -244,7 +301,7 @@ async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResu
     backends.state.delete_recovery_session().await?;
     backends.primary.delete_session().await?;
     drop(backends);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     assert_eq!(reopened.state.create_recovery_session().await?, through);
     let snapshot = reopened.state.get_recovery_snapshot(NonZeroUsize::new(2).unwrap()).await?.unwrap();
     let mut bytes = Vec::new();
@@ -262,7 +319,7 @@ async fn deleting_a_file_keeps_existing_readers_and_refuses_new_readers() -> Sto
     use sha2::{Digest, Sha256};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let metadata = FileMetadata {
@@ -295,7 +352,7 @@ async fn deleting_a_file_keeps_existing_readers_and_refuses_new_readers() -> Sto
 async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     backends.primary.create_session().await?;
     let schema = schema(backends.primary.get_history())?;
     backends.primary.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
@@ -312,7 +369,7 @@ async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResu
     backends.primary.delete_session().await?;
     drop(backends);
     drop(catalog);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&saved).await?;
     let page = ScanPage {
@@ -333,7 +390,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
     use harmos_storage::{CompareExchange, ObjectEntry, ObjectExchange, ObjectKey, ObjectValue, ObjectVersionToken};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -374,7 +431,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
     assert_eq!(backend.set_object(&conflicting).await?, refused);
     backend.delete_session().await?;
     drop(backends);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.primary.set_object(&initial).await?, applied);
     assert_eq!(reopened.primary.set_object(&conflicting).await?, refused);
@@ -391,7 +448,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
     use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -445,7 +502,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
     backend.delete_snapshot(&snapshot).await?;
     backend.delete_session().await?;
     drop(backends);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.primary.get_index_definition(&index.name).await?.0, index);
     assert_eq!(reopened.primary.get_projection_definition(&projection.name, Some(1)).await?.0, projection);
@@ -458,7 +515,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
 async fn recovery_reopens_at_its_saved_frontier_and_replaces_only_the_unflushed_tail() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let backends = Backend::open(&store)?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     backends.primary.create_session().await?;
     backends.state.create_recovery_session().await?;
     let data = backends.primary.get_saved_position().await?;
@@ -479,7 +536,7 @@ async fn recovery_reopens_at_its_saved_frontier_and_replaces_only_the_unflushed_
     backends.state.delete_recovery_session().await?;
     backends.primary.delete_session().await?;
     drop(backends);
-    let reopened = Backend::open(&store)?;
+    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.state.create_recovery_session().await?, saved);
     entry.payload = vec![3];

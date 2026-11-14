@@ -60,7 +60,7 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
         let executable = super::support::thermal_fixture()?;
         let settings = super::support::settings();
         let mut remote = PluginProcess::start(&executable, true, &settings.placement).await?;
-        let host = Host::open(root.path(), settings.clone())?;
+        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
         let mut snapshots = Vec::new();
 
         // Add the Same Suite Through Remote and Managed Entries
@@ -138,7 +138,7 @@ async fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
         // Restart the Host and Read Identical Sealed Evidence
         host.shutdown().await?;
         drop(host);
-        let host = Host::open(root.path(), settings)?;
+        let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
         for snapshot in snapshots {
             assert_eq!(host.execution(&snapshot.execution.identifier)?, snapshot);
         }

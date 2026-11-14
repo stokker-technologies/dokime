@@ -113,7 +113,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings
     }
     match command {
         Command::New(args) => new::run(args, settings).await,
-        Command::Server(args) => server::run(args, endpoint, settings).await,
+        Command::Server(args) => Box::pin(server::run(args, endpoint, settings)).await,
         Command::Plugin(command) => plugin::run(command, endpoint, settings).await,
         Command::Proto(command) => proto::run(command),
         Command::Catalog(command) => catalog::run(command, endpoint, settings).await,
@@ -121,7 +121,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings
         Command::Cycle(command) => cycle::run(command, endpoint, settings).await,
         Command::Execution(command) => execution::run(command, endpoint, settings).await,
         Command::Access(command) => pairing::run(command, endpoint, settings).await,
-        Command::Doctor(command) => doctor::run(command, settings).await,
+        Command::Doctor(command) => Box::pin(doctor::run(command, settings)).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
         Command::Version(args) => version::run(args),
         Command::Operation(command) => operation::run(command, endpoint, settings).await,

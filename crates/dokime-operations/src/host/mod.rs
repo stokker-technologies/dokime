@@ -86,7 +86,7 @@ use std::fs::File;
 use std::result::Result as StandardResult;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::Status;
+use tonic::{Code, Status};
 
 /* === Constants === */
 
@@ -101,7 +101,7 @@ pub type Output<T> = ReceiverStream<StandardResult<T, Status>>;
 
 /* === Structs === */
 
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize)]
 pub struct ClientSettings {
     pub read_timeout: Duration,
     pub mutation_timeout: Duration,
@@ -214,9 +214,9 @@ impl Context {
         if let Some(caller) = &self.caller {
             let operations =
                 self.operations.with_scope(caller.execution.clone()).map_err(|source| Error::Permission(format!("{}: {source}", O::ID)))?;
-            return operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)));
+            return operations.call_native::<O>(request).await.map_err(|source| Error::Native { action: O::ID, source });
         }
-        self.operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
+        self.operations.call_native::<O>(request).await.map_err(|source| Error::Native { action: O::ID, source })
     }
 }
 
@@ -249,22 +249,24 @@ pub(crate) fn page_size(requested: u32, configured: usize) -> Result<usize> {
     Ok(if requested == 0 { DEFAULT_PAGE_ITEMS.min(maximum) } else { requested as usize })
 }
 pub fn status(error: Error) -> Status {
-    match error {
-        Error::Permission(message) => Status::permission_denied(message),
-        Error::Deadline(action) => Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
-        Error::NotFound(message) => Status::not_found(message),
-        Error::Precondition(message) => Status::failed_precondition(message),
-        Error::Bound(message) => Status::resource_exhausted(message),
-        Error::Conflict(message) | Error::Storage(dokime_storage::Error::Conflict(message)) => Status::aborted(message),
-        Error::Unavailable(message) => Status::unavailable(message),
-        Error::Cancelled(message) => Status::cancelled(message),
-        Error::Stale(message) => Status::failed_precondition(message),
-        Error::Storage(dokime_storage::Error::NotFound(message)) => Status::not_found(message),
-        Error::Storage(dokime_storage::Error::AlreadyExists(message)) => Status::already_exists(message),
-        Error::Storage(dokime_storage::Error::Permission(message)) => Status::permission_denied(message),
-        Error::Storage(_) => Status::failed_precondition(error.to_string()),
-        _ => Status::invalid_argument(error.to_string()),
-    }
+    let code = match &error {
+        Error::Unimplemented(_) => Code::Unimplemented,
+        Error::Permission(_) | Error::Storage(dokime_storage::Error::Permission(_)) => Code::PermissionDenied,
+        Error::Deadline(_) => Code::DeadlineExceeded,
+        Error::NotFound(_) | Error::Storage(dokime_storage::Error::NotFound(_)) => Code::NotFound,
+        Error::Precondition(_) | Error::Stale(_) => Code::FailedPrecondition,
+        Error::Bound(_) => Code::ResourceExhausted,
+        Error::Conflict(_) | Error::Storage(dokime_storage::Error::Conflict(_)) => Code::Aborted,
+        Error::Unavailable(_) => Code::Unavailable,
+        Error::Native { .. } => Code::Internal,
+        Error::Cancelled(_) => Code::Cancelled,
+        Error::Storage(dokime_storage::Error::AlreadyExists(_)) => Code::AlreadyExists,
+        Error::Storage(_) => Code::FailedPrecondition,
+        _ => Code::InvalidArgument,
+    };
+    let mut status = Status::new(code, error.to_string());
+    status.set_source(Arc::new(error));
+    status
 }
 pub fn bounded_reply<T: prost::Message>(context: &Context, reply: T) -> Result<T> {
     if reply.encoded_len() > context.settings.message_bytes {

@@ -36,7 +36,7 @@ use dokime_protocol::model::Termination;
 
 /* === Structs === */
 
-// Internal Durable Shape. Public Operation Shapes Remain dokime.v1 Messages.
+// Internal Durable Shape. Public Operation Shapes Use the Host and Model Packages.
 #[derive(Clone, PartialEq, Message)]
 pub struct Execution {
     #[prost(string, tag = "1")]

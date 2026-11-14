@@ -75,3 +75,5 @@ pub async fn handle(context: &Context, request: SecretsSetRequest) -> Result<Sec
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SecretsSetRequest, SecretsSetResponse, context, "dokime.host.v1", "Secrets", "Set");

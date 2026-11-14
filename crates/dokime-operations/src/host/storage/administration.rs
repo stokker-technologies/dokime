@@ -20,7 +20,7 @@ use std::fmt::Display;
 use crate::host::Context;
 use crate::host::files::transfer;
 use crate::{Error, Result};
-use arrow_array::{Array, BinaryArray, StringArray, StructArray};
+use arrow_array::{Array, BinaryArray, StringArray};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
 use harmos_query::columnar::ColumnKind;
@@ -29,7 +29,7 @@ use harmos_runtime::builtins::storage::{ColumnSelection, ColumnSource, ListColum
 use harmos_runtime::builtins::storage::{
     GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome,
 };
-use harmos_runtime::storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
+use harmos_runtime::storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, ReadLimits, StoredObject};
 use prost::Message;
 use std::num::NonZeroUsize;
 
@@ -149,7 +149,10 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                     predicate: None,
                     time: None,
                     start: 0,
-                    work: None,
+                    work: Some(ReadLimits {
+                        rows: NonZeroUsize::new(context.settings.page_items).unwrap(),
+                        bytes: bound(context)?,
+                    }),
                 }),
                 at: at.clone(),
                 page: Some(PageRequest {
@@ -161,17 +164,14 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
             .await?;
         at = response.resolved_at;
         if let Some(page) = response.page {
-            let payload = page
+            let keys = page
                 .batch
-                .column_by_name("payload")
-                .and_then(|column| column.as_any().downcast_ref::<StructArray>())
-                .ok_or_else(|| Error::Precondition("List Administration: Restore Its Payload Columns".into()))?;
-            let keys = payload
-                .column_by_name("key")
+                .column_by_name("payload.key")
                 .and_then(|column| column.as_any().downcast_ref::<StringArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Key Column".into()))?;
-            let values = payload
-                .column_by_name("payload")
+            let values = page
+                .batch
+                .column_by_name("payload.payload")
                 .and_then(|column| column.as_any().downcast_ref::<BinaryArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Value Column".into()))?;
             for index in 0..keys.len() {

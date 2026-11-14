@@ -54,7 +54,7 @@ async fn documents_and_reports() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Seal Evidence and Take a Fixed Snapshot
         let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::execution_fixture()?).await?;
         let document = host.catalog(&entry)?.suites[0].templates[0].documents[0].clone();
         let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
@@ -106,7 +106,7 @@ async fn documents_and_reports() -> Result<(), Box<dyn Error>> {
         assert!(!temporary.exists());
         host.shutdown().await?;
         drop(host);
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         assert_eq!(host.reports(&execution)?, vec![published]);
         assert_eq!(host.execution(&execution)?, before);
         host.shutdown().await?;

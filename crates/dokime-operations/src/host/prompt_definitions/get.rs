@@ -69,3 +69,5 @@ pub async fn handle(context: &Context, request: PromptDefinitionsGetRequest) -> 
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(PromptDefinitionsGetRequest, PromptDefinitionsGetResponse, context, "dokime.host.v1", "PromptDefinitions", "Get");

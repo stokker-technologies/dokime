@@ -60,7 +60,7 @@ async fn process_interruption() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run the Production Host in a Separately Killable Process
         if let Some(root) = std::env::var_os("DOKIME_INTERRUPTION_CHILD") {
-            let host = Host::open(Path::new(&root), super::support::settings())?;
+            let host = Host::open(Path::new(&root), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_remote(&std::env::var("DOKIME_INTERRUPTION_ENDPOINT")?).await?;
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(19.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
@@ -103,7 +103,7 @@ async fn process_interruption() -> Result<(), Box<dyn Error>> {
         // Kill the Real Host Process and Recover on the Same Root
         child.kill().await?;
         assert!(!child.wait().await?.success());
-        let host = Host::open(root.path(), settings.clone())?;
+        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
         let recovered = host.execution(&execution)?;
         assert_eq!(recovered.state, ExecutionState::Sealed);
         assert_eq!(recovered.execution.termination, Termination::Interrupted as i32);
@@ -120,7 +120,7 @@ async fn process_interruption() -> Result<(), Box<dyn Error>> {
         assert_eq!(host.execution(&execution)?, recovered);
         host.shutdown().await?;
         drop(host);
-        let host = Host::open(root.path(), settings)?;
+        let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
         assert_eq!(host.execution(&execution)?, recovered);
         host.shutdown().await?;
         plugin.close().await?;

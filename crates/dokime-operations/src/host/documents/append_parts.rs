@@ -215,3 +215,5 @@ mod tests {
         }
     }
 }
+
+crate::native::unary!(DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, resources, "dokime.host.v1", "Documents", "AppendParts");

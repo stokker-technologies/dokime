@@ -73,3 +73,5 @@ pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(BackendEnvironmentRequest, BackendEnvironmentResponse, resources, "dokime.host.v1", "Backend", "Environment");

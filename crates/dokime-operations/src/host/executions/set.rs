@@ -84,3 +84,5 @@ pub async fn handle(context: &Context, request: ExecutionsSetRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ExecutionsSetRequest, ExecutionsSetResponse, context, "dokime.host.v1", "Executions", "Set");

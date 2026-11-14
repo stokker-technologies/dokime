@@ -74,3 +74,5 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Cyc
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(CyclesSealRequest, CyclesSealResponse, context, "dokime.host.v1", "Cycles", "Seal");

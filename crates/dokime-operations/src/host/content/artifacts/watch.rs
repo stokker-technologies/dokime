@@ -127,3 +127,5 @@ pub async fn handle(context: &Context, request: ArtifactsWatchRequest) -> Result
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(ArtifactsWatchRequest, ArtifactsWatchResponse, "dokime.host.v1.content", "Artifacts", "Watch");

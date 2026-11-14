@@ -66,3 +66,5 @@ pub async fn handle(context: &Context, request: PromptDefinitionsListRequest) ->
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(PromptDefinitionsListRequest, PromptDefinitionsListResponse, context, "dokime.host.v1", "PromptDefinitions", "List");

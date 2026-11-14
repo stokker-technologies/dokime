@@ -73,6 +73,7 @@ pub struct Host {
     pub(crate) reports: crate::reports::ReportManager,
     changed: tokio::sync::watch::Sender<u64>,
     root_lease: RootLease,
+    pub(crate) assembly: Option<Arc<crate::services::Assembly>>,
 }
 
 /* === Enums === */
@@ -82,7 +83,12 @@ pub struct Host {
 /* === Implementations === */
 
 impl Host {
-    pub fn open(root: &Path, settings: HostSettings) -> Result<Self> {
+    pub async fn open(root: &Path, settings: HostSettings, operations: crate::services::ClientSettings) -> Result<Self> {
+        let mut host = Self::open_store(root, settings)?;
+        host.assembly = Some(Arc::new(Box::pin(crate::services::assemble(&host, root, &operations)).await?));
+        Ok(host)
+    }
+    fn open_store(root: &Path, settings: HostSettings) -> Result<Self> {
         let root_error = |source| Error::RootIo { path: root.to_path_buf(), source };
         std::fs::create_dir_all(root).map_err(root_error)?;
         let lease = std::fs::OpenOptions::new()
@@ -120,6 +126,7 @@ impl Host {
             reports,
             changed,
             root_lease,
+            assembly: None,
         })
     }
     pub async fn add_remote(&self, endpoint: &str) -> Result<String> {
@@ -303,6 +310,14 @@ impl Host {
         }
         if let Err(error) = self.store.shutdown_samples().await {
             result = Err(error.into());
+        }
+        if let Some(assembly) = &self.assembly {
+            if let Err(source) = assembly.runtime.shutdown_with_timeout(assembly.close_timeout).await {
+                result = Err(source.into());
+            }
+            if let Err(source) = assembly.backend_lease.close() {
+                result = Err(dokime_storage::Error::from(source).into());
+            }
         }
         // Release the Root Once Owned Work Has Settled, Whatever Handles Remain
         lock(&self.root_lease)?.take();

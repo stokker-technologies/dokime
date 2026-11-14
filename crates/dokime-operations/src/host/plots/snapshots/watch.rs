@@ -175,3 +175,5 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(SnapshotsWatchRequest, SnapshotsWatchResponse, "dokime.host.v1.plots", "Snapshots", "Watch");

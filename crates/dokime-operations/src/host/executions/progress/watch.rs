@@ -111,3 +111,5 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(ProgressWatchRequest, ProgressWatchResponse, "dokime.host.v1.executions", "Progress", "Watch");

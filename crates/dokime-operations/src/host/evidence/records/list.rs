@@ -397,3 +397,5 @@ mod tests {
         assert!(!record_matches(&request, &record));
     }
 }
+
+crate::native::unary!(RecordsListRequest, RecordsListResponse, context, "dokime.host.v1.evidence", "Records", "List");

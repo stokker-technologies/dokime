@@ -65,3 +65,5 @@ Ok(ReportsPublishResponse {report:Some(ReportMetadata {test_cycle_id:cut.executi
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ReportsPublishRequest, ReportsPublishResponse, context, "dokime.host.v1", "Reports", "Publish");

@@ -106,6 +106,10 @@ pub(super) fn insert(connection: &Connection, history: &StoreHistory, value: Wri
 }
 
 pub(super) fn schema(connection: &Connection, key: &SchemaKey, at: u64) -> Result<StorageSchema> {
+    find_schema(connection, key, at)?.ok_or_else(|| invalid("schema is unavailable at requested cut"))
+}
+
+pub(super) fn find_schema(connection: &Connection, key: &SchemaKey, at: u64) -> Result<Option<StorageSchema>> {
     let data: Option<Vec<u8>> = connection
         .query_row(
             "SELECT data FROM storage_rows WHERE kind=0 AND schema_key=?1 AND position<=?2 ORDER BY position DESC LIMIT 1",
@@ -114,7 +118,7 @@ pub(super) fn schema(connection: &Connection, key: &SchemaKey, at: u64) -> Resul
         )
         .optional()
         .map_err(db)?;
-    decode(&data.ok_or_else(|| invalid("schema is unavailable at requested cut"))?)
+    data.as_deref().map(decode).transpose()
 }
 
 pub(super) fn save(connection: &Connection, through: u64) -> Result<()> {

@@ -102,7 +102,17 @@ struct Fixture {
 impl Fixture {
     async fn new(endpoint: &str, template: &str, rows: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let host = Host::open(root.path(), settings()).unwrap();
+        let settings = settings();
+        let operations = dokime_runtime::services::ClientSettings {
+            read_timeout: settings.placement.connect_timeout,
+            mutation_timeout: settings.placement.stop_grace,
+            watch_timeout: settings.placement.connect_timeout,
+            max_cases: settings.placement.stream_window.get(),
+            page_items: settings.placement.stream_window.get(),
+            message_bytes: settings.placement.message_bytes.get(),
+            stream_buffer: settings.placement.stream_window.get(),
+        };
+        let host = Host::open(root.path(), settings, operations).await.unwrap();
         let plugin = host.add_remote(endpoint).await.unwrap();
         let parameters = HashMap::from([(
             "rows".into(),

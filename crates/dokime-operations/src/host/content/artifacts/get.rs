@@ -109,3 +109,5 @@ pub(crate) fn reference(context: &Context, entry: &ContentEntry) -> Result<FileR
 }
 
 /* === Tests === */
+
+crate::native::unary!(ArtifactsGetRequest, ArtifactsGetResponse, context, "dokime.host.v1.content", "Artifacts", "Get");

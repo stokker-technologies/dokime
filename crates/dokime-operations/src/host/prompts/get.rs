@@ -64,3 +64,5 @@ pub async fn handle(context: &Context, request: PromptsGetRequest) -> Result<Pro
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(PromptsGetRequest, PromptsGetResponse, context, "dokime.host.v1", "Prompts", "Get");

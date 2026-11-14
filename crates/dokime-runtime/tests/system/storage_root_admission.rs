@@ -51,19 +51,21 @@ async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box
     let root = super::support::tempdir()?;
     let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.path().join("local.lock"))?;
     lease.try_lock()?;
-    let refused = Host::open(root.path(), super::support::settings());
+    let refused = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await;
     assert!(matches!(refused, Err(Error::OccupiedRoot(path)) if path == root.path()));
     assert!(!root.path().join("execution.sqlite3").exists());
     drop(lease);
 
     // Keep The Lease While A Running Host Owns The Root
-    let host = Host::open(root.path(), super::support::settings())?;
+    let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
     let retained = host.clone();
-    assert!(matches!(Host::open(root.path(), super::support::settings()), Err(Error::OccupiedRoot(path)) if path == root.path()));
+    assert!(
+        matches!(Host::open(root.path(), super::support::settings(), super::support::service_settings()).await, Err(Error::OccupiedRoot(path)) if path == root.path())
+    );
 
     // Release The Root At Shutdown Although A Handle Remains, And Refuse New Work Through It
     host.shutdown().await?;
-    let reopened = Host::open(root.path(), super::support::settings())?;
+    let reopened = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
     assert!(reopened.executions()?.is_empty());
     assert!(retained.add_remote("http://127.0.0.1:1").await.is_err());
     assert!(retained.start_cycle(Vec::new()).await.is_err());
@@ -71,12 +73,15 @@ async fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box
 
     // Release The Root With Its Last Owner When A Host Is Dropped Without Shutdown
     drop((host, retained, reopened));
-    let abandoned = Host::open(root.path(), super::support::settings())?;
+    let abandoned = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
     let second = abandoned.clone();
     drop(abandoned);
-    assert!(matches!(Host::open(root.path(), super::support::settings()), Err(Error::OccupiedRoot(_))));
+    assert!(matches!(
+        Host::open(root.path(), super::support::settings(), super::support::service_settings()).await,
+        Err(Error::OccupiedRoot(_))
+    ));
     drop(second);
-    let host = Host::open(root.path(), super::support::settings())?;
+    let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
     host.shutdown().await?;
     Ok(())
 }

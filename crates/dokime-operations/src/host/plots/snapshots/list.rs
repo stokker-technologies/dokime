@@ -960,3 +960,5 @@ mod tests {
         assert_eq!(column.y, before.y);
     }
 }
+
+crate::native::unary!(SnapshotsListRequest, SnapshotsListResponse, context, "dokime.host.v1.plots", "Snapshots", "List");

@@ -77,3 +77,5 @@ pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<Se
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SettingsSetRequest, SettingsSetResponse, context, "dokime.host.v1", "Settings", "Set");

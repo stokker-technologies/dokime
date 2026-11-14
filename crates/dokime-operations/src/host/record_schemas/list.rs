@@ -72,3 +72,5 @@ pub async fn handle(context: &Context, request: RecordSchemasListRequest) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(RecordSchemasListRequest, RecordSchemasListResponse, context, "dokime.host.v1", "RecordSchemas", "List");

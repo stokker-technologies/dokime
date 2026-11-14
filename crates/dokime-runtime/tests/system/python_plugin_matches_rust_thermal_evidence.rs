@@ -56,7 +56,7 @@ async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Err
         let mut reference = None;
         for placement in [None].into_iter().chain([false].into_iter().map(Some)) {
             let root = super::support::tempdir()?;
-            let host = Host::open(root.path(), super::support::settings())?;
+            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let mut python = None;
             let entry = match placement {
                 None => host.add_managed(&super::support::thermal_fixture()?).await?,
@@ -114,7 +114,7 @@ async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Err
                 child.close().await?;
             }
             drop(host);
-            let reopened = Host::open(root.path(), super::support::settings())?;
+            let reopened = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             assert_eq!(reopened.execution(&execution)?, snapshot);
             reopened.shutdown().await?;
         }

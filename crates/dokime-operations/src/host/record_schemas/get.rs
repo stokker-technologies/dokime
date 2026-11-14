@@ -220,3 +220,5 @@ fn fields(descriptor: MessageDescriptor) -> Vec<RecordField> {
 }
 
 /* === Tests === */
+
+crate::native::unary!(RecordSchemasGetRequest, RecordSchemasGetResponse, context, "dokime.host.v1", "RecordSchemas", "Get");

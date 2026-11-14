@@ -26,6 +26,7 @@ use rusqlite::{OptionalExtension, params};
 use crate::{Error, Execution, Result, Store};
 use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::host::{CyclesSetRequest, CyclesSetResponse};
 
 use dokime_protocol::host::PlannedCase;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
@@ -38,6 +39,14 @@ use dokime_protocol::host::executions::ExecutionCommandPhase;
 
 /* === Structs === */
 
+#[derive(Message)]
+struct CycleRequest {
+    #[prost(bytes, tag = "1")]
+    fingerprint: Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    response: Option<CyclesSetResponse>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -45,6 +54,48 @@ use dokime_protocol::host::executions::ExecutionCommandPhase;
 /* === Implementations === */
 
 impl Store {
+    pub fn cycle_request(&self, request: &CyclesSetRequest) -> Result<Option<CyclesSetResponse>> {
+        if request.request_id.is_empty() {
+            return Err(Error::Invalid("Set Cycle: Supply a Request ID".into()));
+        }
+        let key = format!("cycle/set/{}/{}", request.name, request.request_id);
+        let saved = self.administration::<CycleRequest>(&key)?;
+        saved
+            .map(|saved| {
+                if saved.fingerprint != request.encode_to_vec() {
+                    return Err(Error::Conflict("Set Cycle: Use a New Request ID for Changed Content".into()));
+                }
+                saved.response.ok_or(Error::Data("Set Cycle: Read Its Saved Mutation Response"))
+            })
+            .transpose()
+    }
+    pub fn save_cycle_request(
+        &self, request: &CyclesSetRequest, expected: Option<&CycleSummary>, cycle: &CycleSummary, response: &CyclesSetResponse,
+    ) -> Result<()> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let current: Option<Vec<u8>> =
+            transaction.query_row("SELECT payload FROM cycles WHERE id=?1", [&request.name], |row| row.get(0)).optional()?;
+        if current != expected.map(Message::encode_to_vec) {
+            return Err(Error::Conflict("Set Cycle: Read the Changed Cycle Before Replacing It".into()));
+        }
+        transaction.execute(
+            "INSERT INTO cycles VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+            params![cycle.cycle_id, cycle.encode_to_vec()],
+        )?;
+        crate::history::capture_cycle(&transaction, &cycle.cycle_id, "")?;
+        let saved = CycleRequest {
+            fingerprint: request.encode_to_vec(),
+            response: Some(response.clone()),
+        };
+        transaction.execute(
+            "INSERT INTO administration VALUES (?1,?2)",
+            params![format!("cycle/set/{}/{}", request.name, request.request_id), saved.encode_to_vec()],
+        )?;
+        transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
+        Ok(())
+    }
     pub fn execution_times(&self, execution: &str) -> Result<(Option<i64>, Option<i64>)> {
         let connection = self.lock()?;
         let first: Option<Vec<u8>> = connection

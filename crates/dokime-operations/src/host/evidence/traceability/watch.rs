@@ -136,3 +136,5 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(TraceabilityWatchRequest, TraceabilityWatchResponse, "dokime.host.v1.evidence", "Traceability", "Watch");

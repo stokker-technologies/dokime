@@ -62,3 +62,5 @@ pub async fn handle(context: &Context, request: ExecutionsStopRequest) -> Result
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ExecutionsStopRequest, ExecutionsStopResponse, context, "dokime.host.v1", "Executions", "Stop");

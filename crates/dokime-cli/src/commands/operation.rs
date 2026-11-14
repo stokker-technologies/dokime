@@ -16,7 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Read, path::PathBuf};
+use std::{io::Read, path::PathBuf, sync::Arc};
+use tonic::Status;
 
 // Third Party Imports
 use prost::Message;
@@ -220,7 +221,12 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
 /* === Private Functions === */
 
 async fn find(client: &dokime::Client, operation: &str, settings: &crate::settings::Settings) -> crate::Result<DiscoveredOperation> {
-    Ok(client.operations.get_with(operation, OperationsGetOptions { context: settings.context()? }).await?)
+    let result = client.operations.get_with(operation, OperationsGetOptions { context: settings.context()? }).await;
+    result.map_err(|source| {
+        let mut status = Status::new(source.code(), format!("Discover {operation}: {source}"));
+        status.set_source(Arc::new(source));
+        status.into()
+    })
 }
 
 fn shape(message: prost_reflect::MessageDescriptor) -> serde_json::Value {

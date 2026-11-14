@@ -87,3 +87,5 @@ pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(RecordsAppendRequest, RecordsAppendResponse, resources, "dokime.host.v1.evidence", "Records", "Append");

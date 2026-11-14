@@ -91,3 +91,5 @@ pub async fn handle(context: &Context, request: ArtifactsListRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ArtifactsListRequest, ArtifactsListResponse, context, "dokime.host.v1.content", "Artifacts", "List");

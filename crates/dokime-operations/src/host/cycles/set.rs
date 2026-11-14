@@ -53,6 +53,11 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: CyclesSetRequest) -> Result<CyclesSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
+        let store = context.host.store();
+        if let Some(response) = store.cycle_request(&request)? {
+            return Ok(response);
+        }
+        let stored = store.client_cycle(&request.name)?;
         let previous = crate::host::cycles::get::handle(
             context,
             CyclesGetRequest {
@@ -64,7 +69,7 @@ pub async fn handle(context: &Context, request: CyclesSetRequest) -> Result<Cycl
         if previous.revision != request.expected_revision {
             return Err(Error::Conflict("Set Cycle: Get Its Current Revision".into()));
         }
-        let value = request.value.ok_or_else(|| Error::Invalid("Set Cycle: Supply the Whole Writable Value".into()))?;
+        let value = request.value.clone().ok_or_else(|| Error::Invalid("Set Cycle: Supply the Whole Writable Value".into()))?;
         let mut cycle = previous.cycle.unwrap();
         if cycle.sealed {
             return Err(Error::Precondition("Set Cycle: Select an Unsealed Cycle".into()));
@@ -84,13 +89,14 @@ pub async fn handle(context: &Context, request: CyclesSetRequest) -> Result<Cycl
             }
         }
         cycle.status = if value.paused { CycleStatus::Paused } else { CycleStatus::Ready } as i32;
-        context.host.store().save_cycle(&cycle)?;
-        context.host.signal_change();
-        Ok(CyclesSetResponse {
+        let response = CyclesSetResponse {
             revision: crate::host::paging::bytes(&value),
             value: Some(value),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
-        })
+        };
+        store.save_cycle_request(&request, stored.as_ref(), &cycle, &response)?;
+        context.host.signal_change();
+        Ok(response)
     })
     .await
 }
@@ -98,3 +104,5 @@ pub async fn handle(context: &Context, request: CyclesSetRequest) -> Result<Cycl
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(CyclesSetRequest, CyclesSetResponse, context, "dokime.host.v1", "Cycles", "Set");

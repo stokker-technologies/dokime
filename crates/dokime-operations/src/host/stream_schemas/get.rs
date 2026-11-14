@@ -74,3 +74,5 @@ pub async fn handle(context: &Context, request: StreamSchemasGetRequest) -> Resu
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(StreamSchemasGetRequest, StreamSchemasGetResponse, context, "dokime.host.v1", "StreamSchemas", "Get");

@@ -70,3 +70,5 @@ pub async fn handle(context: &Context, request: SuitesGetRequest) -> Result<Suit
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SuitesGetRequest, SuitesGetResponse, context, "dokime.host.v1", "Suites", "Get");

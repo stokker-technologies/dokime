@@ -102,3 +102,5 @@ fn valid_value(value: &Value) -> bool {
 }
 
 /* === Tests === */
+
+crate::native::unary!(TraceabilitySetRequest, TraceabilitySetResponse, resources, "dokime.host.v1.evidence", "Traceability", "Set");

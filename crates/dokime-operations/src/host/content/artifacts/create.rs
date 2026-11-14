@@ -125,6 +125,8 @@ pub async fn handle(context: &Context, mut request: ArtifactsCreateRequest) -> R
 
 /* === Private Functions === */
 
+crate::native::unary!(ArtifactsCreateRequest, ArtifactsCreateResponse, context, "dokime.host.v1.content", "Artifacts", "Create");
+
 fn scoped(trusted: Option<&str>, scope: Option<ArtifactScope>) -> Result<ArtifactScope> {
     let selected = scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
     let execution = crate::resources::resolve_execution(trusted, selected, ID)?.to_owned();

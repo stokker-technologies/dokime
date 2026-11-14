@@ -521,7 +521,7 @@ fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &mu
         let definition = Execution::decode(payload.as_slice())?;
         let catalog = Declarations::decode(definition.catalog.as_slice())?;
         for section in &catalog.sections {
-            if section.r#type != "dokime.v1.RecordContracts" {
+            if section.r#type != "dokime.model.v1.RecordContracts" {
                 continue;
             }
             let contracts = RecordContracts::decode(section.payload.as_slice())?;

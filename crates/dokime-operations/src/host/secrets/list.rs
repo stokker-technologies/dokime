@@ -88,3 +88,5 @@ pub(crate) fn cut(context: &Context, name: &str, generation: u64, at: Option<&Re
 }
 
 /* === Tests === */
+
+crate::native::unary!(SecretsListRequest, SecretsListResponse, context, "dokime.host.v1", "Secrets", "List");

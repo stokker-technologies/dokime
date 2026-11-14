@@ -71,6 +71,48 @@ impl SchedulerClock for ObservedClock {
 /* === Tests === */
 
 #[tokio::test]
+async fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<(), Box<dyn Error>> {
+    use dokime_protocol::host::{CyclesCreateRequest, CyclesCreateResponse};
+    use prost::Message;
+    use tonic::Code;
+    let root = super::support::tempdir()?;
+    let server = dokime_runtime::services::serve(
+        "127.0.0.1:0".parse()?,
+        root.path(),
+        super::support::settings(),
+        super::support::service_settings(),
+    )
+    .await?;
+    let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
+    let client = Client::from_channel(channel, super::support::client_settings())?;
+    let id = "dokime.host.v1.Cycles/Create";
+    let contract = client.operations.get(id).await?.contract.ok_or("Discover Cycle Creation: Missing Contract")?;
+    let payload = client
+        .invocations
+        .create(
+            id,
+            contract.fingerprint,
+            CyclesCreateRequest {
+                request_id: "encoded-cycle".into(),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        )
+        .await?;
+    let created = CyclesCreateResponse::decode(payload.as_slice())?;
+    let cycle = created.cycle.ok_or("Create Encoded Cycle: Missing Cycle")?;
+    let direct = client.cycles.get(cycle.cycle_id.clone()).await?;
+    assert_eq!(direct.cycle.as_ref().map(|cycle| &cycle.cycle_id), Some(&cycle.cycle_id));
+
+    let id = "dokime.host.v1.evidence.Records/Append";
+    let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == id).ok_or("Find Record Append Contract")?;
+    let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
+    assert_eq!(refused.code(), Code::PermissionDenied);
+    server.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
     use dokime_runtime::{ControlledClock, SchedulerClock, services};
     use prost_types::Duration;
@@ -82,9 +124,12 @@ async fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
         let (waits, mut waiting) = tokio::sync::mpsc::unbounded_channel();
         let mut settings = super::support::settings();
         settings.clock = Arc::new(ObservedClock { clock: clock.clone(), waits });
+
         let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings, super::support::service_settings()).await?;
+
         let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
         let client = Client::from_channel(channel, super::support::client_settings())?;
+
         let before = client.time.get().await?;
         assert_eq!((before.seconds, before.nanos), (0, 0));
 
@@ -92,10 +137,13 @@ async fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
         let sleeping = client.clone();
         let sleep = tokio::spawn(async move { sleeping.time.sleep(Duration { seconds: 7, nanos: 0 }).await });
         while waiting.recv().await.ok_or("Sleep Through Library Time: Missing Scheduler Wait")? != 7_000_000_000 {}
+
         clock.wait_until(7_000_000_000).await?;
+
         sleep.await??;
         let after = client.time.get().await?;
         assert_eq!((after.seconds, after.nanos), (7, 0));
+
         server.close().await?;
         Ok::<(), Box<dyn Error>>(())
     })

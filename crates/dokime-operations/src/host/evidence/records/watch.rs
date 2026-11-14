@@ -153,3 +153,5 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::download!(RecordsWatchRequest, RecordsWatchResponse, "dokime.host.v1.evidence", "Records", "Watch");

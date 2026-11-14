@@ -96,3 +96,5 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(EvidenceArchiveRequest, EvidenceArchiveResponse, context, "dokime.host.v1", "Evidence", "Archive");

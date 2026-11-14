@@ -122,3 +122,5 @@ pub async fn handle(context: &Context, request: OverviewGetRequest) -> Result<Ov
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(OverviewGetRequest, OverviewGetResponse, context, "dokime.host.v1.backend", "Overview", "Get");

@@ -93,3 +93,5 @@ pub async fn handle(context: &Context, request: NotesSetRequest) -> Result<Notes
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(NotesSetRequest, NotesSetResponse, context, "dokime.host.v1.evidence", "Notes", "Set");

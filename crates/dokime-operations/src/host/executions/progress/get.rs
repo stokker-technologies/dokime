@@ -66,3 +66,5 @@ pub async fn handle(context: &Context, request: ProgressGetRequest) -> Result<Pr
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ProgressGetRequest, ProgressGetResponse, context, "dokime.host.v1.executions", "Progress", "Get");

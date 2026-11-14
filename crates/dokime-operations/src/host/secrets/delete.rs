@@ -70,3 +70,5 @@ pub async fn handle(context: &Context, request: SecretsDeleteRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(SecretsDeleteRequest, SecretsDeleteResponse, context, "dokime.host.v1", "Secrets", "Delete");

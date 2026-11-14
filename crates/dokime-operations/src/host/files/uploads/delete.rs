@@ -67,3 +67,5 @@ pub async fn handle(context: &Context, request: UploadsDeleteRequest) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(UploadsDeleteRequest, UploadsDeleteResponse, context, "dokime.host.v1.files", "Uploads", "Delete");

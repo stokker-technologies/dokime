@@ -43,8 +43,7 @@ use crate::{Result, SchedulerClock};
 use dokime_storage::{Backend, Store};
 use harmos_protocol::model::StorageTransferSettings;
 use harmos_runtime::storage::{
-    StorageBackends, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
-    StorageSettings,
+    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
 };
 
 /* === Constants === */
@@ -57,7 +56,7 @@ const PAIRING_LABEL_BYTES: NonZeroUsize = NonZeroUsize::new(256).unwrap();
 
 /* === Structs === */
 
-pub(super) struct Application;
+pub(crate) struct Application;
 struct Clock {
     source: Arc<dyn SchedulerClock>,
     origin: Instant,
@@ -71,10 +70,16 @@ struct Clock {
 /* === Implementations === */
 
 impl harmos_runtime::Lifecycle for Application {
-    type Config = ();
+    type Config = Option<ClientSettings>;
     type Error = harmos_runtime::AssemblyError;
     type Context = Startup<Self>;
-    async fn prepare(_: (), setup: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
+    async fn prepare(settings: Option<ClientSettings>, setup: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
+        let settings = settings.ok_or_else(|| harmos_runtime::AssemblyError("Compose Host: Supply Operation Settings".into()))?;
+        let registration =
+            dokime_operations::native::registration(&settings).map_err(|source| harmos_runtime::AssemblyError(source.to_string()))?;
+        setup.settings().with_registration(registration);
+        let callers = dokime_operations::native::callers().map_err(|source| harmos_runtime::AssemblyError(source.to_string()))?;
+        setup.composition(&callers)?;
         setup.composition(include_str!("../../../../protocol/composition.toml"))?;
         Ok(Self)
     }
@@ -108,7 +113,8 @@ impl harmos_runtime::clock::Source for Clock {
 
 pub(super) async fn launch(
     source: Arc<dyn SchedulerClock>, store: &Store, root: &Path, placement: &crate::PlacementSettings, settings: &ClientSettings,
-) -> Result<Arc<Runtime<Application>>> {
+    binding: Arc<dokime_operations::native::Binding>,
+) -> Result<(Arc<Runtime<Application>>, dokime_storage::BackendLease)> {
     let backend_settings = store.storage_settings()?;
     let capacity = NonZeroUsize::new(settings.max_cases)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Admission Capacity".into()))?;
@@ -116,12 +122,18 @@ pub(super) async fn launch(
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Page Capacity".into()))?;
     let bytes = NonZeroUsize::new(settings.message_bytes)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Message Capacity".into()))?;
-    let StorageBackends { primary, state } = Backend::open(store)?;
+    let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_operations::host::storage::administration::catalog());
+    let (backends, lease) = Backend::open(store, catalog.clone())?;
     let storage = StorageManager::with_catalog(
-        harmos_runtime::plugin::manager::catalog().extend(dokime_operations::host::storage::administration::catalog()),
-        StorageBackends { primary, state },
+        catalog,
+        backends,
         StorageSettings {
-            transfer: StorageTransferSettings::default(),
+            transfer: StorageTransferSettings {
+                chunk_bytes: Some(
+                    u64::try_from(settings.message_bytes.saturating_sub(1024))
+                        .map_err(|source| crate::Error::Invalid(format!("Start Storage Transfers: {source}")))?,
+                ),
+            },
             policy: StoragePolicy::default(),
             request: StorageRequestSettings {
                 max_file_productions: capacity,
@@ -169,16 +181,22 @@ pub(super) async fn launch(
         source,
         origin: Instant::now(),
     });
-    let runtime = Runtime::<Application>::launch_with((), (), |setup| {
+    let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
+        setup.resource::<dokime_operations::native::Binding>(binding);
         setup.settings().clock(clock).storage(&storage).plugins(plugins.clone());
+        setup.settings().operation_settings(harmos_runtime::operations::Settings {
+            preparation_bytes: Some(bytes),
+            ..Default::default()
+        });
         setup.catalog(harmos_runtime::builtins::host_catalog(), Lane::default());
         setup.catalog(harmos_runtime::builtins::storage_catalog(), Lane::default());
-    })
+        setup.catalog(harmos_runtime::builtins::lifecycle_catalog(), Lane::default());
+    }))
     .await
     .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))?;
     let runtime = Arc::new(runtime);
     plugins.start(&runtime).await.map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
-    Ok(runtime)
+    Ok((runtime, lease))
 }
 
 pub(super) fn transport(settings: &ClientSettings) -> TransportSettings {

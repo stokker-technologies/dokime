@@ -52,7 +52,7 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> 
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Add the Shared Suite as a Managed Plugin
         let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
         let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
@@ -84,7 +84,7 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> 
         // Reopen the Cancelled Execution with Cleanup Evidence Intact
         host.shutdown().await?;
         drop(host);
-        let host = Host::open(root.path(), super::support::settings())?;
+        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         assert_eq!(host.execution(&execution)?, *snapshot);
         host.shutdown().await?;
         Ok::<(), Box<dyn Error>>(())

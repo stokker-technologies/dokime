@@ -16,8 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 
 // Third Party Imports
+use harmos_runtime::Error as NativeError;
 
 // Local Imports
 
@@ -33,6 +35,8 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("{0}")]
+    Unimplemented(String),
     #[error("{0}")]
     Unavailable(String),
 
@@ -68,6 +72,14 @@ pub enum Error {
 
     #[error("{0}")]
     Bound(String),
+
+    #[error("{action}: {}", native_failure(.source))]
+    Native {
+        action: &'static str,
+
+        #[source]
+        source: NativeError,
+    },
 }
 
 /* === Traits === */
@@ -77,5 +89,16 @@ pub enum Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn native_failure(error: &NativeError) -> String {
+    let mut message = error.to_string();
+    let mut cause = error.source();
+    while let Some(source) = cause {
+        message.push_str(": ");
+        message.push_str(&source.to_string());
+        cause = source.source();
+    }
+    message
+}
 
 /* === Tests === */

@@ -62,6 +62,7 @@ impl StateBackend for RecoveryBackend {
 
     fn create_recovery_session(&self) -> StorageFuture<'_, RecoveryPosition> {
         Box::pin(self.0.call(|state| {
+            state.check_lease()?;
             state.recovery_closed = false;
             let tx = state.connection.transaction().map_err(db)?;
             let saved = meta(&tx, "recovery_saved")?;
@@ -265,6 +266,7 @@ impl StateBackend for RecoveryBackend {
 
 /* === Private Functions === */
 fn check(state: &State) -> Result<()> {
+    state.check_lease()?;
     if state.recovery_closed {
         return Err(Error::Closing { domain: "Recovery Storage" });
     }

@@ -74,3 +74,5 @@ pub async fn handle(context: &Context, request: CasesCreateRequest) -> Result<Ca
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(CasesCreateRequest, CasesCreateResponse, context, "dokime.host.v1", "Cases", "Create");

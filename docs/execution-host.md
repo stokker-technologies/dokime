@@ -1712,10 +1712,21 @@ dispatch clones it with the trusted caller attached.
 `Context.operations` is the composed library `OperationManager`.
 `Context.storage::<O>(request)` invokes its native operation, retaining the library
 callee policy and action/cause on failure. Import native declarations and requests
-from `harmos_runtime::builtins::storage`; use the native object, record, sample,
-query and file operations instead of `context.host.store()` or `resources.store`.
-The remaining direct Store callers are migration obligations, not an alternate
-interface. The operations manifest must declare the workspace `harmos-runtime`
+from `harmos_runtime::builtins::storage`. Files and uploads use native operations.
+Compound execution metadata keeps the product Store transactions described in
+Storage Paths After This Wave.
+
+Each supported handler declares its native adapter in its operation source file.
+Assembly derives caller restrictions from the frozen service descriptors before
+applying the composition restrictions. The library serves direct gRPC and encoded
+Invocations calls from those registrations; implemented product resources have no
+second handwritten transport service. Native failures retain their action, status
+and source chain. Direct hosts use
+`Host::open(root, host_settings, operation_settings).await`; served hosts share that
+assembly. Assembly owns the backend lease, and closure refuses further backend
+calls before releasing it.
+For this wave, compound product objects retain their transactional Store paths.
+The operations manifest must declare the workspace `harmos-runtime`
 dependency; only the manifest owner may edit it. Runtime storage registration
 combines the library plugin catalog with `host::storage::administration::catalog()`.
 The library Plugins watch refreshes the suite projection and reconciles secret
@@ -1736,7 +1747,31 @@ settings methods; the library owns them. Declarations come from the frozen
 service descriptors, including plugin-only methods, rather than a second manual
 method list. Wrong audiences use `harmos_runtime::Failure::wrong_caller`;
 `caller_status` retains that structured failure in direct gRPC status details.
-The source handoff does not assert that the remaining handlers or runtime compile.
+Handler compilation and real-host story results are separate proof obligations.
+
+### Storage Paths After This Wave
+
+Product object migration is deferred for this wave. Existing roots are never reset;
+an incompatible root is refused with the action to select a fresh storage root.
+Native primary and state backends share the product root and history identity.
+
+| Resource | Storage Path | Library Capability Needed for a Later Object Migration |
+| --- | --- | --- |
+| Executions and seals | Product Store transactions | Atomic compound mutation of execution state, evidence frontier and seal, with a replayable receipt. |
+| Cycles and case bindings | Product Store transactions | Atomic admission of the cycle and its complete execution/binding set. |
+| Plans and registered cases | Product Store transactions | Atomic plan/case registration and durable request-key replay. |
+| Commands and progress | Product Store transactions | Atomic state transition, command receipt and evidence metadata publication. |
+| Notes and traceability | Product Store transactions | Conditional whole-value replacement with the original request receipt and execution frontier. |
+| Reports and document parts | Product Store transactions | Atomic frozen-document, execution-seal and content-reference publication. |
+| Prompts and answers | Product Store transactions | Atomic answer acceptance, evidence publication and durable waiter recovery. |
+| Evidence records and metadata | Product Store transactions | Shared compound mutation with execution lifecycle and retained read cuts. |
+| Execution deletion | Product Store transactions | Atomic scope deletion with a durable receipt and retained-reader guarantees. |
+| Samples | Product Arrow ingestion and registered native backend | Scoped capture must preserve source times, ordered ticks and the execution evidence frontier. |
+| Files and uploads | Library native file operations through the registered backend | No product file-transfer store or wire twin. |
+| Artifact metadata | Library native administration objects | Execution-open admission is checked before creating metadata. |
+| Plugin entries and settings | Library Plugins and plugins.Settings | Library-owned objects and lifecycle; no product installation record. |
+| Plugin secret bindings and plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
+| Protected secrets and access credentials | Product credential store and transactional catalog | Credential values remain in the operating system store. |
 
 ### State After Definition Repair
 

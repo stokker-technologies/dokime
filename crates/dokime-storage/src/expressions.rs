@@ -309,7 +309,7 @@ impl Store {
             let contracts = catalog
                 .sections
                 .iter()
-                .filter(|s| s.r#type == "dokime.v1.RecordContracts")
+                .filter(|s| s.r#type == "dokime.model.v1.RecordContracts")
                 .map(|s| RecordContracts::decode(s.payload.as_slice()))
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             contracts

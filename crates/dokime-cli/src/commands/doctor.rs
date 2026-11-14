@@ -126,7 +126,7 @@ pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
                 }
             }
         }
-        let host = dokime_runtime::Host::open(&copy, settings.host(true))?;
+        let host = dokime_runtime::Host::open(&copy, settings.host(true), settings.services()).await?;
         host.shutdown().await?;
         drop(host);
         drop(lease);

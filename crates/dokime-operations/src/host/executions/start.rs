@@ -74,3 +74,5 @@ pub async fn handle(context: &Context, request: ExecutionsStartRequest) -> Resul
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ExecutionsStartRequest, ExecutionsStartResponse, context, "dokime.host.v1", "Executions", "Start");

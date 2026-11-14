@@ -306,3 +306,5 @@ fn matches_scope(wanted: &EvidenceScope, actual: &EvidenceScope) -> bool {
 }
 
 /* === Tests === */
+
+crate::native::unary!(TraceabilityGetRequest, TraceabilityGetResponse, context, "dokime.host.v1.evidence", "Traceability", "Get");

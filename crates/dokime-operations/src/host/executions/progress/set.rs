@@ -85,3 +85,5 @@ pub async fn handle(resources: &Resources, request: ProgressSetRequest) -> Resul
 /* === Private Functions === */
 
 /* === Tests === */
+
+crate::native::unary!(ProgressSetRequest, ProgressSetResponse, resources, "dokime.host.v1.executions", "Progress", "Set");

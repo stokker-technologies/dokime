@@ -40,7 +40,7 @@ mod telemetry;
 
 /* === Re-Exports === */
 
-pub use backend::Backend;
+pub use backend::{Backend, BackendLease};
 pub use content::{ArchivedContent, ArchivedContentChunk, CONTENT_CHUNK_BYTES, ContentEntry};
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
