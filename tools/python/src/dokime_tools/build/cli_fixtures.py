@@ -60,6 +60,8 @@ def build(profile: str, language: str = "rust") -> None:
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
     environment = {**os.environ, "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
+    environment.pop("VIRTUAL_ENV", None)
+    environment.pop("PYTHONPATH", None)
     if language == "rust":
         with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
             project = Path(scratch) / "rust"
