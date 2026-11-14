@@ -20,6 +20,7 @@ mod document_values;
 mod error;
 mod evidence_positions;
 mod execution;
+mod file_uploads;
 mod history;
 mod notes;
 mod outcome;

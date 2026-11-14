@@ -222,12 +222,14 @@ pub struct FilesReadResponse {
 }
 /// Follow a Stored File as It Grows.
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesWatchRequest {
     #[prost(message, optional, tag = "1")]
     pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
     #[prost(uint64, tag = "2")]
     pub offset: u64,
+    #[prost(message, optional, tag = "90")]
+    pub at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
 }
 /// One Chunk or the Terminal Length, with Its Read Cut.
 #[allow(clippy::all)]

@@ -24,7 +24,13 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, Store, store::next_position};
+use dokime_protocol::client::content::ArtifactsCreateRequest;
+use dokime_protocol::client::content::ArtifactsCreateResponse;
+use dokime_protocol::client::content::ExecutionFileMetadata;
+use dokime_protocol::client::content::ExecutionFileState;
 use dokime_protocol::v1;
+use prost_types::Timestamp;
+use std::io::Write;
 
 /* === Constants === */
 
@@ -43,7 +49,7 @@ pub struct ContentEntry {
     pub metadata: Vec<u8>,
     pub length: u64,
     pub sha256: String,
-    pub phase: dokime_protocol::client::content::ExecutionFileState,
+    pub phase: ExecutionFileState,
     pub artifact: bool,
 }
 
@@ -96,9 +102,7 @@ pub struct CycleArchive {
 /* === Implementations === */
 
 impl Store {
-    pub fn attach_artifact(
-        &self, operation: &str, request: dokime_protocol::client::content::ArtifactsCreateRequest, now_ns: i64,
-    ) -> Result<dokime_protocol::client::content::ArtifactsCreateResponse> {
+    pub fn attach_artifact(&self, operation: &str, request: ArtifactsCreateRequest, now_ns: i64) -> Result<ArtifactsCreateResponse> {
         use harmos_protocol::v1::{History, Position, Receipt};
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Create Artifact: Supply a Request ID".into()));
@@ -166,7 +170,7 @@ impl Store {
                 size_bytes: length as u64,
                 sha256: sha256.clone(),
                 state: v1::ArtifactState::Complete as i32,
-                created_at: Some(prost_types::Timestamp {
+                created_at: Some(Timestamp {
                     seconds: now_ns.div_euclid(1_000_000_000),
                     nanos: now_ns.rem_euclid(1_000_000_000) as i32,
                 }),
@@ -197,7 +201,7 @@ impl Store {
             }),
             sequence,
         };
-        Ok(dokime_protocol::client::content::ArtifactsCreateResponse {
+        Ok(ArtifactsCreateResponse {
             artifact: Some(artifact),
             receipt: Some(Receipt {
                 request_id: request.request_id,
@@ -206,131 +210,6 @@ impl Store {
                 completed: true,
             }),
         })
-    }
-    pub fn publish_artifact_chunk(
-        &self, execution: &str, request: dokime_protocol::context::content::PublishArtifact, identifier: &str, now_ns: i64,
-    ) -> Result<dokime_protocol::context::content::ArtifactReceipt> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        let fingerprint = Sha256::digest(request.encode_to_vec()).to_vec();
-        let replay: Option<(Vec<u8>, Vec<u8>)> = transaction
-            .query_row(
-                "SELECT fingerprint,receipt FROM artifact_calls WHERE execution=?1 AND transfer=?2 AND sequence=?3",
-                params![execution, request.transfer_id, request.sequence as i64],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-        if let Some((expected, receipt)) = replay {
-            if expected != fingerprint {
-                return Err(Error::Invalid("Publish Artifact: Retry the Same Chunk or Use a New Transfer Identity".into()));
-            }
-            return Ok(dokime_protocol::context::content::ArtifactReceipt::decode(receipt.as_slice())?);
-        }
-        let transfer: Option<(String, i64, bool)> = transaction
-            .query_row(
-                "SELECT object,sequence,terminal FROM artifact_transfers WHERE execution=?1 AND transfer=?2",
-                params![execution, request.transfer_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()?;
-        let object = if let Some((object, sequence, terminal)) = transfer {
-            if terminal || request.sequence != sequence as u64 {
-                return Err(Error::Invalid("Publish Artifact: Send the Next Sequence Before Its Terminal Chunk".into()));
-            }
-            object
-        } else {
-            if request.sequence != 0 {
-                return Err(Error::Invalid("Publish Artifact: Start Its Sequence at Zero".into()));
-            }
-            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
-            let owner = crate::Execution::decode(payload.as_slice())?;
-            let metadata = v1::ArtifactMetadata {
-                artifact_id: identifier.into(),
-                upload_id: request.transfer_id.clone(),
-                filename: request.name.clone(),
-                content_type: Some(request.mime.clone()),
-                scope: Some(v1::ArtifactScope {
-                    cycle_id: Some(owner.cycle),
-                    execution_id: Some(execution.into()),
-                    ..Default::default()
-                }),
-                created_at: Some(prost_types::Timestamp {
-                    seconds: now_ns.div_euclid(1_000_000_000),
-                    nanos: now_ns.rem_euclid(1_000_000_000) as i32,
-                }),
-                ..Default::default()
-            };
-            transaction.execute(
-                "INSERT INTO content_objects VALUES(?1,?2,?3,1,?4,0,'',0)",
-                params![identifier, execution, request.name, metadata.encode_to_vec()],
-            )?;
-            transaction
-                .execute("INSERT INTO artifact_transfers VALUES(?1,?2,?3,0,0)", params![execution, request.transfer_id, identifier])?;
-            identifier.into()
-        };
-        let (payload, length): (Vec<u8>, i64) =
-            transaction
-                .query_row("SELECT metadata,length FROM content_objects WHERE id=?1", [&object], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        let mut metadata = v1::ArtifactMetadata::decode(payload.as_slice())?;
-        if metadata.filename != request.name || metadata.content_type.as_deref() != Some(&request.mime) {
-            return Err(Error::Invalid("Publish Artifact: Keep Its Name and Media Type Unchanged".into()));
-        }
-        let length = if request.replace || request.aborted {
-            transaction.execute("DELETE FROM content_chunks WHERE object=?1", [&object])?;
-            0
-        } else {
-            length
-        };
-        let length = length
-            .checked_add(request.data.len() as i64)
-            .ok_or_else(|| Error::Invalid("Publish Artifact: Start a New Bounded Transfer".into()))?;
-        if !request.data.is_empty() {
-            transaction.execute(
-                "INSERT INTO content_chunks VALUES(?1,?2,?3)",
-                params![object, length - request.data.len() as i64, request.data],
-            )?;
-        }
-        metadata.size_bytes = length as u64;
-        let phase = if request.aborted {
-            3
-        } else if request.last {
-            2
-        } else {
-            0
-        };
-        metadata.state = if request.aborted {
-            v1::ArtifactState::Cancelled as i32
-        } else if request.last {
-            v1::ArtifactState::Complete as i32
-        } else {
-            v1::ArtifactState::Unspecified as i32
-        };
-        let digest = if request.last && !request.aborted { content_digest(&transaction, &object)? } else { String::new() };
-        metadata.sha256 = digest.clone();
-        transaction.execute(
-            "UPDATE content_objects SET metadata=?2,length=?3,sha256=?4,phase=?5 WHERE id=?1",
-            params![object, metadata.encode_to_vec(), length, digest, phase],
-        )?;
-        if request.last {
-            append_reference(&transaction, execution, "artifact", metadata.encode_to_vec())?;
-        }
-        transaction.execute(
-            "UPDATE artifact_transfers SET sequence=sequence+1,terminal=?3 WHERE execution=?1 AND transfer=?2",
-            params![execution, request.transfer_id, request.last],
-        )?;
-        let receipt = dokime_protocol::context::content::ArtifactReceipt {
-            artifact: object,
-            size_bytes: length as u64,
-            sealed: request.last && !request.aborted,
-        };
-        transaction.execute(
-            "INSERT INTO artifact_calls VALUES(?1,?2,?3,?4,?5)",
-            params![execution, request.transfer_id, request.sequence as i64, fingerprint, receipt.encode_to_vec()],
-        )?;
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(receipt)
     }
     pub fn begin_artifact(&self, metadata: v1::ArtifactMetadata) -> Result<()> {
         let execution = metadata
@@ -410,11 +289,9 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(metadata)
     }
-    pub fn register_execution_file(
-        &self, identifier: &str, execution: &str, metadata: dokime_protocol::client::content::ExecutionFileMetadata,
-    ) -> Result<()> {
+    pub fn register_execution_file(&self, identifier: &str, execution: &str, metadata: ExecutionFileMetadata) -> Result<()> {
         crate::validate_execution_path(&metadata.relative_path)?;
-        if metadata.size_bytes != 0 || metadata.state != dokime_protocol::client::content::ExecutionFileState::Streaming as i32 {
+        if metadata.size_bytes != 0 || metadata.state != ExecutionFileState::Streaming as i32 {
             return Err(Error::Invalid("Register Execution File: Start an Empty Streaming Production".into()));
         }
         let mut connection = self.lock()?;
@@ -465,7 +342,7 @@ impl Store {
     pub fn execution_file(&self, execution: &str, path: &str) -> Result<ContentEntry> {
         crate::validate_execution_path(path)?;
         let connection = self.lock()?;
-        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
+        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
     }
     pub fn content_window(&self, identifier: &str, offset: u64, maximum: usize) -> Result<Vec<u8>> {
         if maximum == 0 || maximum > CONTENT_CHUNK_BYTES || offset > i64::MAX as u64 - maximum as u64 {
@@ -504,10 +381,10 @@ impl Store {
     pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<ContentEntry>> {
         self.metadata(execution)?;
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 GROUP BY path) ORDER BY path LIMIT ?3")?;
+        let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) GROUP BY path) ORDER BY path LIMIT ?3")?;
         Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
     }
-    pub fn write_execution_archive(&self, execution: &str, output: &mut impl std::io::Write) -> Result<()> {
+    pub fn write_execution_archive(&self, execution: &str, output: &mut impl Write) -> Result<()> {
         let connection = self.lock()?;
         let (state, payload, seal): (i32, Vec<u8>, Vec<u8>) =
             connection.query_row("SELECT state,payload,seal FROM executions WHERE id=?1", [execution], |row| {
@@ -528,7 +405,7 @@ impl Store {
             write_field(output, 3, &sample.encode_to_vec())?;
         }
         let mut query = connection.prepare(
-            "SELECT id,path,artifact,metadata,length,sha256,phase FROM content_objects WHERE execution=?1 AND phase>=2 ORDER BY id",
+            "SELECT id,path,artifact,metadata,length,sha256,phase FROM content_objects WHERE execution=?1 AND phase>=2 AND id NOT IN (SELECT id FROM file_uploads) ORDER BY id",
         )?;
         for row in query.query_map([execution], |row| {
             Ok(ArchivedContent {
@@ -576,7 +453,7 @@ impl Store {
     }
     pub fn content_fingerprint(&self, execution: Option<&str>) -> Result<Vec<u8>> {
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,metadata,length,phase FROM content_objects WHERE (?1 IS NULL AND artifact=1 AND phase=2) OR (execution=?1 AND artifact=0) ORDER BY id")?;
+        let mut statement = connection.prepare("SELECT id,metadata,length,phase FROM content_objects WHERE (?1 IS NULL AND artifact=1 AND phase=2) OR (execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads)) ORDER BY id")?;
         let mut hash = Sha256::new();
         for row in statement.query_map([execution], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, i64>(2)?, row.get::<_, i32>(3)?))
@@ -594,20 +471,16 @@ impl Store {
 }
 
 impl ContentEntry {
-    pub fn file_metadata(&self) -> Result<dokime_protocol::client::content::ExecutionFileMetadata> {
+    pub fn file_metadata(&self) -> Result<ExecutionFileMetadata> {
         if self.artifact {
             return Err(Error::Invalid("Read Execution File: Select a Registered File Production".into()));
         }
-        let mut metadata = dokime_protocol::client::content::ExecutionFileMetadata::decode(self.metadata.as_slice())?;
+        let mut metadata = ExecutionFileMetadata::decode(self.metadata.as_slice())?;
         metadata.size_bytes = self.length;
         metadata.state = match self.phase {
-            dokime_protocol::client::content::ExecutionFileState::Streaming => {
-                dokime_protocol::client::content::ExecutionFileState::Streaming
-            }
-            dokime_protocol::client::content::ExecutionFileState::Finalized => {
-                dokime_protocol::client::content::ExecutionFileState::Finalized
-            }
-            _ => dokime_protocol::client::content::ExecutionFileState::Interrupted,
+            ExecutionFileState::Streaming => ExecutionFileState::Streaming,
+            ExecutionFileState::Finalized => ExecutionFileState::Finalized,
+            _ => ExecutionFileState::Interrupted,
         } as i32;
         Ok(metadata)
     }
@@ -617,7 +490,7 @@ impl ContentEntry {
 
 /* === Private Functions === */
 
-fn write_field(output: &mut impl std::io::Write, tag: u32, bytes: &[u8]) -> Result<()> {
+fn write_field(output: &mut impl Write, tag: u32, bytes: &[u8]) -> Result<()> {
     let mut prefix = Vec::new();
     prost::encoding::encode_key(tag, prost::encoding::WireType::LengthDelimited, &mut prefix);
     prost::encoding::encode_varint(bytes.len() as u64, &mut prefix);
@@ -659,9 +532,9 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
 
 fn entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContentEntry> {
     let phase = match row.get::<_, i32>(6)? {
-        1 => dokime_protocol::client::content::ExecutionFileState::Streaming,
-        2 => dokime_protocol::client::content::ExecutionFileState::Finalized,
-        _ => dokime_protocol::client::content::ExecutionFileState::Interrupted,
+        1 => ExecutionFileState::Streaming,
+        2 => ExecutionFileState::Finalized,
+        _ => ExecutionFileState::Interrupted,
     };
     Ok(ContentEntry {
         identifier: row.get(0)?,

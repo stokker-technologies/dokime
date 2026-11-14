@@ -675,7 +675,7 @@ is still named `context`. Product plugin and plugin-host files declare no servic
 they use the pinned library Instance.Invoke carrier. Private bindings stay local.
 
 The retained Plugins and Content services live in `client/v1/plugins.proto` and
-`client/v1/content.proto`. They keep their existing methods and streaming shapes
+the product Files resources. They keep their existing methods and streaming shapes
 until direct library composition and are excluded from generated client roots.
 Pending settings, secret and artifact-transfer messages live with their plugin-host
 resources. The library vendoring, packages and generated references remain pinned.
@@ -701,7 +701,6 @@ resources. The library vendoring, packages and generated references remain pinne
 | `dokime.v1.catalog.StreamSchemas/List` | `dokime.client.v1.StreamSchemas/List` | `dokime.client.v1.StreamSchemasListRequest` | `dokime.client.v1.StreamSchemasListResponse` | Client | moved |
 | `dokime.v1.catalog.Suites/Get` | `dokime.client.v1.Suites/Get` | `dokime.client.v1.SuitesGetRequest` | `dokime.client.v1.SuitesGetResponse` | Client | moved |
 | `dokime.v1.catalog.Suites/List` | `dokime.client.v1.Suites/List` | `dokime.client.v1.SuitesListRequest` | `dokime.client.v1.SuitesListResponse` | Client | moved |
-| `dokime.v1.Content/DownloadAppearanceAsset` | `dokime.client.v1.Content/DownloadAppearanceAsset` | `dokime.client.v1.ContentDownloadAppearanceAssetRequest` | `dokime.client.v1.ContentDownloadAppearanceAssetOutput` | Client | awaits composition |
 | `dokime.v1.Plugins/GetInstallation` | `dokime.client.v1.Plugins/GetInstallation` | `dokime.client.v1.PluginsGetInstallationRequest` | `dokime.client.v1.PluginInstallation` | Client | awaits composition |
 | `dokime.v1.Plugins/Install` | `dokime.client.v1.Plugins/Install` | `dokime.client.v1.PluginsInstallInput` | `dokime.client.v1.PluginInstallation` | Client | awaits composition |
 | `dokime.v1.Plugins/ListAdmittedPlugins` | `dokime.client.v1.Plugins/ListAdmittedPlugins` | `dokime.client.v1.PluginsListAdmittedPluginsRequest` | `dokime.client.v1.AdmittedPluginPage` | Client | awaits composition |
@@ -858,8 +857,7 @@ Each lifecycle binding keeps its own Protected visibility, policy and handler;
 only its shared request/response pair is reused. There is no lifecycle dispatch
 service. Documents.Get retains its ordered bounded frames, counters and fixed cut.
 No field number, scalar type, cardinality, oneof, reserved tag or streaming shape
-changes in this amendment. ReadSettings/SavedSettings, ReadSecret/Secret and
-PublishArtifact/ArtifactReceipt above are the retained payloads, not the future
+changes in this amendment. ReadSettings/SavedSettings and ReadSecret/Secret
 library request/response shapes; their rows deliberately await composition.
 
 Product RecordSchemas and StreamSchemas remain distinct from library registries:
@@ -874,7 +872,7 @@ The former Catalog.Analyses becomes Analyses.List, preserving its single method
 and payload fields; Suites, RecordSchemas, StreamSchemas and PromptDefinitions
 lose their catalog parent. SettingsCatalog and PromptCatalog become the shared
 SettingsDeclarations and PromptDefinitions message names. `FrozenSchemas` carries
-only a SHA-256 descriptor digest plus record/stream identities. Its former embedded
+a SHA-256 descriptor digest plus bound record/stream identities. Its former embedded
 `harmos.v1.Catalog` is removed. `Executions.Schemas.Get` returns the complete frozen
 `FileDescriptorSet` in file order through bounded pages, independently of plugin
 availability. SDK caches retain complete sets by digest, including across executions.
@@ -962,7 +960,7 @@ already appear in the wire table; all other moved messages/enums are listed here
 | Previous Qualified Package | Final Qualified Package | Messages and Enums |
 | --- | --- | --- |
 | `dokime.context.v1` | `dokime.plugin.host.v1` | `EffectWritable` |
-| `dokime.v1` | `dokime.client.v1` | `AddRemotePlugin`, `AdmittedPlugin`, `AdmittedPluginCursor`, `AdmittedPluginPage`, `AggregateReply`, `AppearanceAssetFrame`, `AppearanceAssetFramePayload`, `AppearanceFailure`, `AppearanceFailureKind`, `AppearanceLogo`, `AppearanceSnapshot`, `ApplicationAppearance`, `ApplicationSettings`, `ArtifactChunk`, `ArtifactCompletion`, `BootstrapPaths`, `CachedRefresh`, `CaseActions`, `CaseDetail`, `CaseParameter`, `CaseStatus`, `CaseSummary`, `ClientPreferences`, `ContentDownloadAppearanceAssetOutput`, `CriterionStatus`, `CycleFilter`, `CycleOrder`, `CycleOrderKey`, `CycleSelection`, `CycleWritable`, `Density`, `Diagnostic`, `DocumentBinding`, `DocumentBindingResult`, `DocumentCard`, `DocumentCardBody`, `DocumentCardBudget`, `DocumentCardFailure`, `DocumentCardKind`, `DocumentCompletion`, `DocumentDensity`, `DocumentEvidenceCut`, `DocumentFrame`, `DocumentFrameFrame`, `DocumentFrontiers`, `DocumentHeader`, `DocumentLayoutNode`, `DocumentLayoutNodeNode`, `DocumentOwnerReference`, `DocumentPage`, `DocumentPlacement`, `DocumentPlotDefinition`, `DocumentRail`, `DocumentRepeat`, `DocumentRepeatInstance`, `DocumentRepeatSelection`, `DocumentSection`, `DocumentSectionIdentity`, `DocumentSpan`, `DocumentSummary`, `DocumentSummaryCondition`, `DocumentSummaryFormat`, `DocumentSummaryGroup`, `DocumentSummaryGroupDefinition`, `DocumentSummaryPresentation`, `DocumentSummaryStat`, `DocumentSummaryState`, `DocumentSummaryTile`, `DocumentSummaryTileDefinition`, `DocumentTable`, `DocumentTableRow`, `DocumentTelemetryCut`, `DocumentWarning`, `EvidenceSubject`, `ExecutionBinding`, `ExecutionControls`, `ExecutionDetail`, `ExecutionFilter`, `ExecutionMode`, `ExecutionOrder`, `ExecutionOrderKey`, `ExecutionOutcomeCounts`, `ExecutionParameterSet`, `ExecutionSelection`, `ExecutionStep`, `ExecutionSummary`, `ExecutionWritable`, `FrozenSchemas`, `HostCardBlock`, `HostCardBlockKind`, `HostCardBody`, `HostCardKeyValue`, `HostCardKeyValueList`, `HostCardMetric`, `HostCardMetrics`, `HostCardStatus`, `HostCardTone`, `InstallPluginChunk`, `InstallPluginFrame`, `InstallPluginFrameFrame`, `InstallPluginHeader`, `InstallationCursor`, `InstallationPage`, `ListPlugins`, `LiveExecutionState`, `LogoVariant`, `ManagedPlugin`, `ManualRefresh`, `MaterializedParameter`, `OnDemandRefresh`, `OrganizationIdentity`, `Output`, `ParameterSource`, `PlannedCase`, `PlotAxisKind`, `PlotPresentation`, `PlotReferenceBand`, `PlotReferenceLine`, `PlotReferenceValue`, `Plugin`, `PluginEntries`, `PluginIdentity`, `PluginInstallation`, `PluginInstallationState`, `PluginMetadata`, `PluginPreferences`, `PluginState`, `PluginsInstallInput`, `PromptInstance`, `PromptKind`, `PromptView`, `QueryAggregate`, `QueryFilter`, `QueryFilterOperator`, `QueryRow`, `QuerySource`, `RegisteredSelection`, `RegisteredSelectionFilesEntry`, `RegisteredSelectionParametersEntry`, `RemoteListenerSettings`, `RemotePlugin`, `RemovePlugin`, `ReportDefaults`, `ReportMetadata`, `ReportOrigin`, `ReportState`, `ReportStatus`, `ReportSubject`, `RerunCaseNotice`, `SecretArchive`, `SecretImportAction`, `SecretImportChoice`, `SecretImportEntry`, `SecretImportPreview`, `SecretSnapshot`, `SecretSummary`, `SecretWritable`, `SelectedFile`, `SelectedFileKind`, `SelectionPlan`, `SelectionValues`, `SettingsCard`, `SettingsCardRefreshPolicy`, `SettingsCardRefreshPolicyPolicy`, `SettingsCardState`, `SettingsFrame`, `SettingsSection`, `SettingsSectionOwner`, `Statistics`, `StepCriterion`, `StepStatus`, `TelemetryPreferences`, `ThemeCornerRadii`, `ThemeFamily`, `ThemeMode`, `ThemeModePolicy`, `ThemeVariant` |
+| `dokime.v1` | `dokime.client.v1` | `AddRemotePlugin`, `AdmittedPlugin`, `AdmittedPluginCursor`, `AdmittedPluginPage`, `AggregateReply`, `AppearanceFailure`, `AppearanceFailureKind`, `AppearanceLogo`, `AppearanceSnapshot`, `ApplicationAppearance`, `ApplicationSettings`, `BootstrapPaths`, `CachedRefresh`, `CaseActions`, `CaseDetail`, `CaseParameter`, `CaseStatus`, `CaseSummary`, `ClientPreferences`, `CriterionStatus`, `CycleFilter`, `CycleOrder`, `CycleOrderKey`, `CycleSelection`, `CycleWritable`, `Density`, `Diagnostic`, `DocumentBinding`, `DocumentBindingResult`, `DocumentCard`, `DocumentCardBody`, `DocumentCardBudget`, `DocumentCardFailure`, `DocumentCardKind`, `DocumentCompletion`, `DocumentDensity`, `DocumentEvidenceCut`, `DocumentFrame`, `DocumentFrameFrame`, `DocumentFrontiers`, `DocumentHeader`, `DocumentLayoutNode`, `DocumentLayoutNodeNode`, `DocumentOwnerReference`, `DocumentPage`, `DocumentPlacement`, `DocumentPlotDefinition`, `DocumentRail`, `DocumentRepeat`, `DocumentRepeatInstance`, `DocumentRepeatSelection`, `DocumentSection`, `DocumentSectionIdentity`, `DocumentSpan`, `DocumentSummary`, `DocumentSummaryCondition`, `DocumentSummaryFormat`, `DocumentSummaryGroup`, `DocumentSummaryGroupDefinition`, `DocumentSummaryPresentation`, `DocumentSummaryStat`, `DocumentSummaryState`, `DocumentSummaryTile`, `DocumentSummaryTileDefinition`, `DocumentTable`, `DocumentTableRow`, `DocumentTelemetryCut`, `DocumentWarning`, `EvidenceSubject`, `ExecutionBinding`, `ExecutionControls`, `ExecutionDetail`, `ExecutionFilter`, `ExecutionMode`, `ExecutionOrder`, `ExecutionOrderKey`, `ExecutionOutcomeCounts`, `ExecutionParameterSet`, `ExecutionSelection`, `ExecutionStep`, `ExecutionSummary`, `ExecutionWritable`, `FrozenSchemas`, `HostCardBlock`, `HostCardBlockKind`, `HostCardBody`, `HostCardKeyValue`, `HostCardKeyValueList`, `HostCardMetric`, `HostCardMetrics`, `HostCardStatus`, `HostCardTone`, `InstallPluginChunk`, `InstallPluginFrame`, `InstallPluginFrameFrame`, `InstallPluginHeader`, `InstallationCursor`, `InstallationPage`, `ListPlugins`, `LiveExecutionState`, `LogoVariant`, `ManagedPlugin`, `ManualRefresh`, `MaterializedParameter`, `OnDemandRefresh`, `OrganizationIdentity`, `Output`, `ParameterSource`, `PlannedCase`, `PlotAxisKind`, `PlotPresentation`, `PlotReferenceBand`, `PlotReferenceLine`, `PlotReferenceValue`, `Plugin`, `PluginEntries`, `PluginIdentity`, `PluginInstallation`, `PluginInstallationState`, `PluginMetadata`, `PluginPreferences`, `PluginState`, `PluginsInstallInput`, `PromptInstance`, `PromptKind`, `PromptView`, `QueryAggregate`, `QueryFilter`, `QueryFilterOperator`, `QueryRow`, `QuerySource`, `RegisteredSelection`, `RegisteredSelectionFilesEntry`, `RegisteredSelectionParametersEntry`, `RemoteListenerSettings`, `RemotePlugin`, `RemovePlugin`, `ReportDefaults`, `ReportMetadata`, `ReportOrigin`, `ReportState`, `ReportStatus`, `ReportSubject`, `RerunCaseNotice`, `SecretArchive`, `SecretImportAction`, `SecretImportChoice`, `SecretImportEntry`, `SecretImportPreview`, `SecretSnapshot`, `SecretSummary`, `SecretWritable`, `SelectedFile`, `SelectedFileKind`, `SelectionPlan`, `SelectionValues`, `SettingsCard`, `SettingsCardRefreshPolicy`, `SettingsCardRefreshPolicyPolicy`, `SettingsCardState`, `SettingsFrame`, `SettingsSection`, `SettingsSectionOwner`, `Statistics`, `StepCriterion`, `StepStatus`, `TelemetryPreferences`, `ThemeCornerRadii`, `ThemeFamily`, `ThemeMode`, `ThemeModePolicy`, `ThemeVariant` |
 | `dokime.v1` | `dokime.client.v1.backend` | `EvidenceCounts`, `RuntimeShellSnapshot` |
 | `dokime.v1` | `dokime.client.v1.content` | `ExecutionFileKind`, `ExecutionFileMetadata`, `ExecutionFileState` |
 | `dokime.v1` | `dokime.client.v1.evidence` | `Bucket`, `BucketValue`, `CapturedErrorCause`, `CapturedRecord`, `CapturedRecordError`, `CapturedRecordSelection`, `CycleScope`, `HealthItem`, `OperatorNote`, `RecordScope`, `SampleRow`, `StatisticValue`, `TelemetrySample`, `TraceabilitySnapshot` |
@@ -972,7 +970,7 @@ already appear in the wire table; all other moved messages/enums are listed here
 | `dokime.v1` | `dokime.client.v1.plugins` | `SecretAvailability` |
 | `dokime.v1` | `dokime.client.v1.storage` | `StorageSource`, `StorageSources` |
 | `dokime.v1` | `dokime.plugin.host.v1` | `ReadSecret`, `ReadSettings`, `SavedSettings`, `Secret` |
-| `dokime.v1` | `dokime.plugin.host.v1.content` | `ArtifactReceipt`, `PublishArtifact` |
+| `dokime.v1` | `dokime.plugin.host.v1.content` | Artifacts.Create request/response |
 | `dokime.v1` | `dokime.plugin.host.v1.evidence` | `Record` |
 | `dokime.v1` | `dokime.plugin.host.v1.files` | `CaptureMode`, `LineField`, `LineMarker`, `LineMatcher`, `MirrorCapture`, `StreamCapture` |
 | `dokime.v1` | `dokime.v1` | `PromptCatalog → PromptDefinitions`, `SettingsCatalog → SettingsDeclarations` |
@@ -1021,3 +1019,32 @@ Document is in documents, Plot is in plots and DataExpression is in expressions.
 
 - Generated frontend/native message paths become `dokime/client/v1/{backend,content,evidence,executions,media,plots,plugins,prompts,storage}` plus root client resource files, `dokime/plugin/host/v1` child-call messages, shared named `dokime/v1` files and unchanged plugin files.
 - Regenerate the desktop adapter from final descriptors after host migration; migrate request/response decoding and typed/raw call paths. Preserve document frame ordering/cuts/counters, settings revisions and direct library workflows. Native and both WebView journeys remain consumer-owned proof.
+
+## Product File Resources
+
+`dokime.client.v1.Files` serves Get, Read, Watch and Delete; its `files.Uploads`
+resource serves Create, Get, Resume, Append, Publish and Delete. Plugin-host
+unary transfers use the corresponding `dokime.plugin.host.v1` identities through
+invocation-scoped child calls. File references, writer sessions, receipts and cuts
+reuse the vendored shared vocabulary. Uploads.Create/Get/Resume and Files.Get
+return chunk and message limits; there is no separate capability negotiation.
+Create/Append/Resume/Publish/Delete retain request IDs and original receipts.
+Accepted and durable upload lengths are reported separately; this store commits
+both in the same SQLite transaction. A resumed writer invalidates the older
+writer. Publication verifies length and SHA-256 before returning its reference.
+The file tables extend the development v1 layout; incompatible existing roots
+are refused with backup/fresh-root guidance and remain untouched.
+Appearance metadata carries the published asset's file reference; the desktop
+reads verified bytes through Files, and reports missing provider content explicitly.
+
+At pinned library revision `81d32d3`, externally served gRPC services cannot
+contribute authoritative operation discovery. `GrpcManager::register_service`
+reserves the service but accepts no contracts or descriptor/policy registrations;
+operation admission rejects a native gRPC binding for an already reserved service.
+`CatalogEntries.List` reports only operation-registry bindings. The missing library
+capability is registration of externally served methods with their contracts,
+request/response descriptors, policies and actual gRPC availability. Product
+operation discovery remains unavailable; it is not synthesized in the product.
+The invocation child carrier also has one reply per child and cannot carry a
+Files.Watch stream; plugin-host Watch requires library child-stream support.
+Client Files.Watch is served and follows store change notifications.

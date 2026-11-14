@@ -1,6 +1,7 @@
 syntax = "proto3";
 package dokime.v1;
 option csharp_namespace = "Dokime.Protocol.V1";
+import "harmos/v1/storage_types.proto";
 
 // Public asset identity, never a filesystem path or URL. A changed digest
 // requires a new appearance read; a download must not substitute new bytes.
@@ -14,4 +15,6 @@ message AppearanceAssetMetadata {
   .dokime.v1.AppearanceAssetReference reference = 1;
   string content_type = 2;
   uint64 size_bytes = 3;
+  // Published Product File for Bounded Asset Reads.
+  .harmos.storage.v1.FileReference file = 4;
 }

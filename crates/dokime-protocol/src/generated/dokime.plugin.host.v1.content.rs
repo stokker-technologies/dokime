@@ -22,35 +22,3 @@ pub struct ArtifactsCreateResponse {
     #[prost(message, optional, tag = "2")]
     pub receipt: ::core::option::Option<::harmos_protocol::v1::Receipt>,
 }
-/// One acknowledged chunk per call. Sequence starts at zero; last commits the
-/// artifact. This is not a stream. The host checks repeated name and media type.
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct PublishArtifact {
-    #[prost(string, tag = "1")]
-    pub transfer_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub mime: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "4")]
-    pub sequence: u64,
-    #[prost(bytes = "vec", tag = "5")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bool, tag = "6")]
-    pub last: bool,
-    #[prost(bool, tag = "7")]
-    pub aborted: bool,
-    #[prost(bool, tag = "8")]
-    pub replace: bool,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ArtifactReceipt {
-    #[prost(string, tag = "1")]
-    pub artifact: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "2")]
-    pub size_bytes: u64,
-    #[prost(bool, tag = "3")]
-    pub sealed: bool,
-}

@@ -33,7 +33,7 @@ pub(super) fn temporary(file: std::fs::File) -> Result<(std::fs::File, u64, Stri
 
 /* === Private Functions === */
 
-fn read_temporary(file: &std::fs::File, offset: u64, bytes: &mut [u8]) -> Result<()> {
+pub(super) fn read_temporary(file: &std::fs::File, offset: u64, bytes: &mut [u8]) -> Result<()> {
     let mut read = 0;
     while read < bytes.len() {
         #[cfg(windows)]

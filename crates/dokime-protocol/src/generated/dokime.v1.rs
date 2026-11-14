@@ -1117,6 +1117,9 @@ pub struct AppearanceAssetMetadata {
     pub content_type: ::prost::alloc::string::String,
     #[prost(uint64, tag = "3")]
     pub size_bytes: u64,
+    /// Published Product File for Bounded Asset Reads.
+    #[prost(message, optional, tag = "4")]
+    pub file: ::core::option::Option<::harmos_protocol::storage::FileReference>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1375,12 +1378,6 @@ impl ArtifactState {
         }
     }
 }
-/// Shared Resource Message Contracts
-/// Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
-/// New message field numbers are protocol-owned; native row-derived schemas are retired.
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ClientEmpty {}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Plot {
@@ -2947,6 +2944,12 @@ pub struct RunStart {
     #[prost(bytes = "vec", tag = "2")]
     pub request: ::prost::alloc::vec::Vec<u8>,
 }
+/// Shared Resource Message Contracts
+/// Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
+/// New message field numbers are protocol-owned; native row-derived schemas are retired.
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ClientEmpty {}
 /// Shared prompt, traceability, file-capture and effect payloads.
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -15,18 +15,3 @@ message ArtifactsCreateRequest {
 }
 
 message ArtifactsCreateResponse { string name = 1; .harmos.v1.Receipt receipt = 2; }
-
-// One acknowledged chunk per call. Sequence starts at zero; last commits the
-// artifact. This is not a stream. The host checks repeated name and media type.
-message PublishArtifact {
-  string transfer_id = 1;
-  string name = 2;
-  string mime = 3;
-  uint64 sequence = 4;
-  bytes data = 5;
-  bool last = 6;
-  bool aborted = 7;
-  bool replace = 8;
-}
-
-message ArtifactReceipt { string artifact = 1; uint64 size_bytes = 2; bool sealed = 3; }

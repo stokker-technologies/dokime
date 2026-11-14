@@ -57,6 +57,8 @@ pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<Sch
         }
         let saved = context.host.store().execution_schemas(&request.name, request.at.as_ref())?;
         let types = FileDescriptorSet::decode(saved.payload.as_slice())?;
+        let snapshot = super::execution_state::read(context, &request.name)?;
+        let schemas = super::projection::schemas(&snapshot)?;
         let mut binding = Sha256::new();
         binding.update(request.name.as_bytes());
         binding.update(saved.resolved_at.encode_to_vec());
@@ -83,6 +85,8 @@ pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<Sch
         };
         let total = types.file.len();
         let mut reply = SchemasGetResponse {
+            records: schemas.records,
+            streams: schemas.streams,
             digest: saved.revision,
             types: Some(FileDescriptorSet::default()),
             resolved_at: Some(saved.resolved_at),

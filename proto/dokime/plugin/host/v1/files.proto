@@ -60,6 +60,7 @@ message FilesReadResponse {
 message FilesWatchRequest {
   .harmos.storage.v1.FileReference file = 1;
   uint64 offset = 2;
+  .harmos.v1.ReadCut at = 90;
 }
 // One Chunk or the Terminal Length, with Its Read Cut.
 message FilesWatchResponse {

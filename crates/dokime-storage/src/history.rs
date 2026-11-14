@@ -23,7 +23,9 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
+use dokime_protocol::client::ExecutionsDeleteResponse;
 use dokime_protocol::v1;
+use harmos_protocol::v1::History;
 
 /* === Constants === */
 
@@ -62,7 +64,7 @@ impl Store {
         )?;
         Ok((sequence as u64, v1::CycleSummary::decode(payload.as_slice())?))
     }
-    pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<dokime_protocol::client::ExecutionsDeleteResponse>> {
+    pub fn deleted_execution(&self, request: &str, execution: &str) -> Result<Option<ExecutionsDeleteResponse>> {
         let saved: Option<(String, Vec<u8>)> = self
             .lock()?
             .query_row("SELECT execution,response FROM deletions WHERE request=?1", [request], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -73,10 +75,10 @@ impl Store {
         if previous != execution {
             return Err(Error::Conflict("Delete Execution: Use a New Request ID for a Different Execution".into()));
         }
-        Ok(Some(dokime_protocol::client::ExecutionsDeleteResponse::decode(payload.as_slice())?))
+        Ok(Some(ExecutionsDeleteResponse::decode(payload.as_slice())?))
     }
     pub fn delete_sealed_execution(
-        &self, request: &str, execution: &str, expected: &[u8], response: &dokime_protocol::client::ExecutionsDeleteResponse,
+        &self, request: &str, execution: &str, expected: &[u8], response: &ExecutionsDeleteResponse,
     ) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
@@ -85,10 +87,9 @@ impl Store {
         if state != 2 || seal != expected || crate::store::digest(&transaction, execution)? != seal {
             return Err(Error::Invalid("Delete Execution: Inspect Its Current Seal Before Deleting".into()));
         }
-        transaction.execute("DELETE FROM artifact_calls WHERE execution=?1", [execution])?;
-        transaction.execute("DELETE FROM artifact_transfers WHERE execution=?1", [execution])?;
         transaction
             .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
+        transaction.execute("DELETE FROM file_uploads WHERE id IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
         transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
@@ -108,7 +109,7 @@ impl Store {
         transaction.execute("INSERT INTO deletions VALUES (?1,?2,?3,?4)", params![request, execution, seal, response.encode_to_vec()])?;
         // A Global Evidence Cut Cannot Silently Lose a Deleted History.
         transaction.execute("DELETE FROM evidence_reads", [])?;
-        let history = harmos_protocol::v1::History {
+        let history = History {
             store: self.identity.to_string(),
             epoch: uuid::Uuid::now_v7().to_string(),
         };

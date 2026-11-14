@@ -424,3 +424,22 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 | Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |
 | Retain the earliest durable inverse (recorded 2026-11-12) | Restore original state after cancellation, repetition or crash. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration) |
 | Deterministic story redesign (2026-11-10) | Correctness must be independent of workstation timing and load. | [test-stories](../openspec/changes/test-stories/design.md) |
+
+## Product File Ownership
+
+Product Files and Files.Uploads own client transfers and scoped plugin-host unary
+transfers over the existing content store. They reuse library file/session/receipt
+vocabulary and return per-call transfer limits. Published artifact, execution-file,
+report, evidence-archive and appearance references use Files.Read. Replay receipts
+and writer generations survive restart. The development storage baseline remains
+v1; the added upload/request tables make older layouts explicitly incompatible,
+without migration or automatic reset. Library in-process storage composition is
+still task 0.H. Frozen record and stream schemas retain fully qualified protobuf
+message bindings alongside descriptor pages. Document headers name the selected
+document even when the caller uses the default selector.
+
+Product discovery remains blocked by the pinned library's lack of an external
+service method-registration API; see the exact boundary in
+[Execution Host](execution-host.md#product-file-resources). Native library operations
+continue to advertise their actual bindings. Plugin-host Watch also needs a child
+stream carrier; ordinary invocation children have one response.

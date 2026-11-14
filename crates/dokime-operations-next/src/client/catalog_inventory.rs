@@ -21,9 +21,12 @@
 
 // Local Imports
 use crate::{Error, Result, client::Context};
+use dokime_protocol::client::PluginState;
 use dokime_protocol::v1;
+use harmos_protocol::v1::Catalog;
 use prost::Message;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind};
+use std::collections::BTreeMap;
 
 /* === Constants === */
 
@@ -50,7 +53,7 @@ impl Inventory {
         context.host.refresh_plugin_states().await?;
         let plugins = context.host.plugins()?;
         let mut catalogs = Vec::new();
-        for plugin in plugins.iter().filter(|plugin| plugin.state == dokime_protocol::client::PluginState::Ready as i32) {
+        for plugin in plugins.iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
             catalogs.push(
                 plugin
                     .description
@@ -64,13 +67,13 @@ impl Inventory {
 
     pub fn captured(context: &Context, parent: &str) -> Result<Self> {
         let snapshot = context.host.store().metadata(parent)?;
-        let catalog = harmos_protocol::v1::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+        let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
         Self::from_catalogs(vec![catalog], Vec::new())
     }
 
-    fn from_catalogs(catalogs: Vec<harmos_protocol::v1::Catalog>, suites: Vec<(String, v1::Suite)>) -> Result<Self> {
-        let mut records = std::collections::BTreeMap::new();
-        let mut streams = std::collections::BTreeMap::new();
+    fn from_catalogs(catalogs: Vec<Catalog>, suites: Vec<(String, v1::Suite)>) -> Result<Self> {
+        let mut records = BTreeMap::new();
+        let mut streams = BTreeMap::new();
         for catalog in catalogs {
             let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect with Message Descriptors".into()))?;
             let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| Error::Invalid(error.to_string()))?;
@@ -95,6 +98,7 @@ impl Inventory {
                         .collect();
                     let schema = v1::RecordSchema {
                         record_type: id.clone(),
+                        message_name: record.message,
                         schema_version: 1,
                         metadata: record.metadata,
                         fields,
@@ -121,6 +125,7 @@ impl Inventory {
                     .collect();
                 let schema = v1::TelemetrySchema {
                     stream: stream.id.clone(),
+                    message_name: stream.row.clone(),
                     schema_version: 1,
                     columns,
                     metadata: Some(v1::Metadata {
