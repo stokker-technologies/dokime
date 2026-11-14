@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/suites.proto";
+import "dokime/model/v1/suites.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 
@@ -36,7 +36,7 @@ service Suites {
 message SuitesGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.model.v1.ReadCut at = 90; }
 
 // SuitesGetResponse for Suites.Get.
-message SuitesGetResponse { .dokime.v1.Suite value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+message SuitesGetResponse { .dokime.model.v1.Suite value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
 
 // === List === //
 
@@ -44,7 +44,7 @@ message SuitesGetResponse { .dokime.v1.Suite value = 1; .harmos.model.v1.ReadCut
 message SuitesListRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
 
 // SuitesListResponse for Suites.List.
-message SuitesListResponse { repeated .dokime.v1.Suite values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+message SuitesListResponse { repeated .dokime.model.v1.Suite values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
 
 // === Resources === //
 

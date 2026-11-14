@@ -8,11 +8,12 @@ package dokime.host.v1.plots;
 
 // === Imports === //
 
-import "dokime/v1/analyses.proto";
-import "dokime/v1/evidence.proto";
-import "dokime/v1/formatting.proto";
-import "dokime/v1/plots.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/host/v1/record_schemas.proto";
+import "dokime/model/v1/analyses.proto";
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/expressions.proto";
+import "dokime/model/v1/plots.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/page.proto";
@@ -40,7 +41,7 @@ service Snapshots {
 
 // SnapshotsListRequest for Snapshots.List.
 message SnapshotsListRequest {
-  repeated .dokime.v1.PlotRequest requests = 1;
+  repeated .dokime.host.v1.plots.PlotRequest requests = 1;
   .harmos.model.v1.ReadCut at = 90;
   .harmos.model.v1.PageRequest page = 91;
 }
@@ -56,7 +57,7 @@ message SnapshotsListResponse {
 
 // SnapshotsWatchRequest for Snapshots.Watch.
 message SnapshotsWatchRequest {
-  repeated .dokime.v1.PlotRequest requests = 1;
+  repeated .dokime.host.v1.plots.PlotRequest requests = 1;
   .harmos.model.v1.ReadCut at = 90;
   .harmos.model.v1.PageRequest page = 91;
 }
@@ -73,8 +74,8 @@ message SnapshotsWatchResponse {
 
 // AnalysisComputation value owned by this resource.
 message AnalysisComputation {
-  .dokime.v1.Analysis definition = 1;
-  .dokime.v1.AnalysisSelection selection = 2;
+  .dokime.model.v1.Analysis definition = 1;
+  .dokime.model.v1.AnalysisSelection selection = 2;
   .dokime.host.v1.plots.AnalysisEvidence source = 3;
   repeated .dokime.host.v1.plots.AnalysisSeries series = 4;
 }
@@ -85,7 +86,7 @@ message AnalysisEvidence {
   string epoch = 2;
   uint64 position = 3;
   string stream = 4;
-  .dokime.v1.EvidenceScope scope = 5;
+  .dokime.model.v1.EvidenceScope scope = 5;
   optional double window_s = 6;
   repeated string fields = 7;
   string x_key = 8;
@@ -99,7 +100,7 @@ message AnalysisSeries {
   uint64 input_samples = 4;
   double first_axis = 5;
   double last_axis = 6;
-  repeated .dokime.v1.AnalysisValues outputs = 7;
+  repeated .dokime.model.v1.AnalysisValues outputs = 7;
 }
 
 // ContourGrid value owned by this resource.
@@ -129,8 +130,8 @@ message GridFrame {
 
 // GridFrames value owned by this resource.
 message GridFrames {
-  repeated .dokime.v1.GridAxisEntry rows = 1;
-  repeated .dokime.v1.GridAxisEntry columns = 2;
+  repeated .dokime.model.v1.GridAxisEntry rows = 1;
+  repeated .dokime.model.v1.GridAxisEntry columns = 2;
   repeated .dokime.host.v1.plots.GridFrame frames = 3;
   string summary_label = 4;
 }
@@ -186,7 +187,7 @@ message PlotBoxSummaryAnalysis {
 // PlotColumn value owned by this resource.
 message PlotColumn {
   repeated string instants = 1;
-  repeated .dokime.v1.Value x = 2;
+  repeated .dokime.model.v1.Value x = 2;
   repeated .dokime.host.v1.plots.NullableNumber y = 3;
   repeated .dokime.host.v1.plots.NullableNumber z = 4;
 }
@@ -251,7 +252,7 @@ message PlotHistogramStatistics {
 
 // PlotMarker value owned by this resource.
 message PlotMarker {
-  .dokime.v1.Value x = 1;
+  .dokime.model.v1.Value x = 1;
   string label = 2;
   string record_type = 3;
   string color = 4;
@@ -262,21 +263,21 @@ message PlotPayload {
   string stream = 1;
   string x_key = 2;
   optional string series_by = 3;
-  .dokime.v1.Value context = 4;
+  .dokime.model.v1.Value context = 4;
   repeated .dokime.host.v1.plots.PlotSeries series = 5;
   .dokime.host.v1.plots.PlotFrame frame = 6;
   repeated .dokime.host.v1.plots.PlotMarker markers = 7;
   uint64 max_points = 8;
   optional double window_s = 9;
   string generated_at = 10;
-  .dokime.v1.ValueFormat x_format = 11;
+  .dokime.host.v1.ValueFormat x_format = 11;
   optional string run_started_at = 12;
   optional string cycle_started_at = 13;
   .dokime.host.v1.plots.PlotAnalysis analysis = 14;
   .dokime.host.v1.plots.AnalysisComputation computed = 15;
   repeated .dokime.host.v1.plots.PlotSeriesSummary summaries = 16;
   optional double bucket_width_s = 17;
-  .dokime.v1.PlotWindow bucket_window = 18;
+  .dokime.host.v1.plots.PlotWindow bucket_window = 18;
   repeated double replaced_buckets = 19;
 }
 
@@ -301,7 +302,7 @@ message PlotSeries {
   optional string unit = 3;
   uint64 raw_points = 4;
   bool downsampled = 5;
-  .dokime.v1.ValueFormat format = 6;
+  .dokime.host.v1.ValueFormat format = 6;
 }
 
 // PlotSeriesSummary value owned by this resource.
@@ -314,7 +315,7 @@ message PlotSeriesSummary {
   optional double median = 6;
   optional double std = 7;
   optional double rms = 8;
-  .dokime.v1.PlotWindow window = 9;
+  .dokime.host.v1.plots.PlotWindow window = 9;
 }
 
 // PlotSigmaBin value owned by this resource.
@@ -342,6 +343,56 @@ message PlotSigmaSeries {
 message PlotStreamUpdate {
   .dokime.host.v1.plots.PlotStreamKind kind = 1;
   .dokime.host.v1.plots.PlotEnvelope envelope = 2;
+}
+
+// PlotRequest value owned by this resource.
+message PlotRequest {
+  optional .dokime.model.v1.BarArrangement arrangement = 1;
+  bool pareto = 2;
+  optional double hole = 3;
+  optional .dokime.model.v1.XyInterval xy_interval = 4;
+  .dokime.model.v1.GridDefinition grid = 5;
+  optional .dokime.model.v1.Reduction reduction = 6;
+  .dokime.model.v1.ContourRender render = 7;
+  .dokime.host.v1.plots.PlotWindow y_viewport = 8;
+  optional uint32 panel_height = 9;
+  optional string plot_id = 10;
+  .dokime.model.v1.PlotKind plot_type = 11;
+  .dokime.model.v1.LineStyle style = 12;
+  .dokime.model.v1.AxisScale x_scale = 13;
+  .dokime.model.v1.AxisScale y_scale = 14;
+  string stream = 15;
+  repeated string y_keys = 16;
+  repeated string marker_record_types = 17;
+  repeated .dokime.model.v1.PlotFilter filters = 18;
+  optional string x_key = 19;
+  optional string series_by = 20;
+  .dokime.model.v1.DataExpression x_expression = 21;
+  repeated .dokime.model.v1.DataExpression y_expressions = 22;
+  .dokime.model.v1.DataExpression series_by_expression = 23;
+  optional string z_stream = 24;
+  optional string z_field = 25;
+  optional string unit = 26;
+  optional uint64 max_points = 27;
+  optional double window_s = 28;
+  .dokime.model.v1.EvidenceScope scope = 29;
+  .dokime.model.v1.Downsample technique = 30;
+  .dokime.model.v1.DataExpression z_expression = 31;
+  .dokime.model.v1.PlotFftOptions fft = 32;
+  .dokime.model.v1.PlotIntervalOptions interval = 33;
+  .dokime.model.v1.PlotHistogramOptions histogram = 34;
+  .dokime.model.v1.AnalysisSelection analysis = 35;
+  .dokime.host.v1.plots.PlotWindow summary_window = 36;
+  .dokime.host.v1.plots.PlotWindow viewport = 37;
+  optional uint32 panel_width = 38;
+  
+  .harmos.model.v1.ReadCut at = 39;
+}
+
+// PlotWindow value owned by this resource.
+message PlotWindow {
+  double from = 1;
+  double to = 2;
 }
 
 // === Enums === //

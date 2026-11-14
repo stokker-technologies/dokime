@@ -4,15 +4,15 @@
 
 syntax = "proto3";
 
-package dokime.v1;
+package dokime.model.v1;
 
 // === Imports === //
 
-import "dokime/v1/metadata.proto";
+import "dokime/model/v1/metadata.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.V1";
+option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // === Services === //
 
@@ -21,18 +21,18 @@ option csharp_namespace = "Dokime.Protocol.V1";
 // === Resources === //
 
 // SettingsDeclarations value owned by this resource.
-message SettingsDeclarations { repeated .dokime.v1.Setting settings = 1; }
+message SettingsDeclarations { repeated .dokime.model.v1.Setting settings = 1; }
 
 // Setting value owned by this resource.
 message Setting {
-  .dokime.v1.Metadata metadata = 1;
+  .dokime.model.v1.Metadata metadata = 1;
   oneof kind {
-    .dokime.v1.BooleanSetting boolean = 2;
-    .dokime.v1.TextSetting text = 3;
-    .dokime.v1.PathSetting path = 4;
-    .dokime.v1.NumberSetting number = 5;
-    .dokime.v1.ChoiceSetting choice = 6;
-    .dokime.v1.SecretSetting secret = 7;
+    .dokime.model.v1.BooleanSetting boolean = 2;
+    .dokime.model.v1.TextSetting text = 3;
+    .dokime.model.v1.PathSetting path = 4;
+    .dokime.model.v1.NumberSetting number = 5;
+    .dokime.model.v1.ChoiceSetting choice = 6;
+    .dokime.model.v1.SecretSetting secret = 7;
   }
 }
 
@@ -51,7 +51,7 @@ message NumberSetting { double default_value = 1; optional double min = 2; optio
 // ChoiceSetting value owned by this resource.
 message ChoiceSetting {
   string default_value = 1;
-  repeated .dokime.v1.SettingChoice choices = 2;
+  repeated .dokime.model.v1.SettingChoice choices = 2;
   optional string provider = 3;
 }
 
@@ -60,12 +60,5 @@ message SettingChoice { string value = 1; string label = 2; }
 
 // SecretSetting value owned by this resource.
 message SecretSetting { bool required = 1; }
-
-// RunStart value owned by this resource.
-message RunStart {
-  
-  string operation = 1;
-  bytes request = 2;
-}
 
 // === Enums === //

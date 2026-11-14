@@ -8,8 +8,8 @@ package dokime.host.v1.backend;
 
 // === Imports === //
 
-import "dokime/v1/cycles.proto";
-import "dokime/v1/metadata.proto";
+import "dokime/host/v1/cycles.proto";
+import "dokime/model/v1/metadata.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/position.proto";
@@ -71,9 +71,9 @@ message RuntimeShellSnapshot {
   string session_id = 1;
   uint64 revision = 2;
   bool shutting_down = 3;
-  .dokime.v1.Metadata hub_metadata = 4;
+  .dokime.model.v1.Metadata hub_metadata = 4;
   uint64 test_suite_count = 5;
-  repeated .dokime.v1.CycleSummary cycle_summaries = 6;
+  repeated .dokime.host.v1.CycleSummary cycle_summaries = 6;
   .dokime.host.v1.backend.EvidenceCounts evidence_counts = 7;
   .harmos.model.v1.ReadCut observed_cursor = 8;
   optional string next_after_cycle_id = 9;

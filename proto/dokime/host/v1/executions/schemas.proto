@@ -8,7 +8,7 @@ package dokime.host.v1.executions;
 
 // === Imports === //
 
-import "dokime/v1/schemas.proto";
+import "dokime/host/v1/record_schemas.proto";
 import "google/protobuf/descriptor.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/page.proto";
@@ -43,8 +43,8 @@ message SchemasGetResponse {
   bytes digest = 1;
   .google.protobuf.FileDescriptorSet types = 2;
   
-  repeated .dokime.v1.RecordSchema records = 3;
-  repeated .dokime.v1.TelemetrySchema streams = 4;
+  repeated .dokime.host.v1.RecordSchema records = 3;
+  repeated .dokime.host.v1.TelemetrySchema streams = 4;
   .harmos.model.v1.Position resolved_at = 90;
   string next_page_token = 91;
 }

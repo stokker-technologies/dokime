@@ -8,7 +8,7 @@ package dokime.plugin.v1;
 
 // === Imports === //
 
-import "dokime/v1/execution.proto";
+import "dokime/model/v1/execution.proto";
 
 // === Options === //
 
@@ -31,8 +31,8 @@ message StepsExecuteRequest {
   string step = 2;
   
   
-  .dokime.v1.TestCase test_case = 3;
-  .dokime.v1.Origin origin = 4;
+  .dokime.model.v1.TestCase test_case = 3;
+  .dokime.model.v1.Origin origin = 4;
 }
 
 // StepsExecuteResponse for Steps.Execute.

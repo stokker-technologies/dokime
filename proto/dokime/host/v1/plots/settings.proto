@@ -8,8 +8,8 @@ package dokime.host.v1.plots;
 
 // === Imports === //
 
-import "dokime/v1/documents.proto";
-import "dokime/v1/plots.proto";
+import "dokime/host/v1/documents.proto";
+import "dokime/model/v1/plots.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -35,7 +35,7 @@ service Settings {
 // === Get === //
 
 // SettingsGetRequest for Settings.Get.
-message SettingsGetRequest { .dokime.v1.DocumentScope scope = 1; string document_id = 2; string plot_id = 3; .harmos.model.v1.ReadCut at = 90; }
+message SettingsGetRequest { .dokime.host.v1.DocumentScope scope = 1; string document_id = 2; string plot_id = 3; .harmos.model.v1.ReadCut at = 90; }
 
 // SettingsGetResponse for Settings.Get.
 message SettingsGetResponse { .dokime.host.v1.plots.PlotSettingsValue value = 1; bytes revision = 2;  .harmos.model.v1.ReadCut resolved_at = 90; }
@@ -44,7 +44,7 @@ message SettingsGetResponse { .dokime.host.v1.plots.PlotSettingsValue value = 1;
 
 // SettingsSetRequest for Settings.Set.
 message SettingsSetRequest {
-  .dokime.v1.DocumentScope scope = 1;
+  .dokime.host.v1.DocumentScope scope = 1;
   string document_id = 2;
   string plot_id = 3;
   .dokime.host.v1.plots.PlotSettingsValue value = 20;
@@ -58,6 +58,6 @@ message SettingsSetResponse { .dokime.host.v1.plots.PlotSettingsValue value = 1;
 // === Resources === //
 
 // PlotSettingsValue value owned by this resource.
-message PlotSettingsValue { optional uint32 display_points = 1; .dokime.v1.Downsample downsample = 2; }
+message PlotSettingsValue { optional uint32 display_points = 1; .dokime.model.v1.Downsample downsample = 2; }
 
 // === Enums === //

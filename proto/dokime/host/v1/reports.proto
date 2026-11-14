@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/metadata.proto";
+import "dokime/model/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/file.proto";
@@ -87,7 +87,7 @@ message ReportMetadata {
   string test_cycle_id = 1;
   optional string test_execution_id = 2;
   string identifier = 3;
-  .dokime.v1.Metadata metadata = 4;
+  .dokime.model.v1.Metadata metadata = 4;
   .google.protobuf.Timestamp generated_at = 5;
   .dokime.host.v1.ReportOrigin origin = 6;
   repeated string warnings = 7;

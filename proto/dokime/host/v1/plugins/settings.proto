@@ -8,8 +8,8 @@ package dokime.host.v1.plugins;
 
 // === Imports === //
 
-import "dokime/v1/scalar.proto";
-import "dokime/v1/settings.proto";
+import "dokime/model/v1/scalar.proto";
+import "dokime/model/v1/settings.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -39,21 +39,21 @@ message SettingsGetRequest { string name = 1; .harmos.model.v1.ReadCut at = 90; 
 
 // SettingsGetResponse for Settings.Get.
 message SettingsGetResponse {
-  .dokime.v1.MapValue value = 1;
+  .dokime.model.v1.MapValue value = 1;
   bytes revision = 2;
-  .dokime.v1.SettingsDeclarations schema = 3;
+  .dokime.model.v1.SettingsDeclarations schema = 3;
   repeated .dokime.host.v1.plugins.SecretAvailability secrets = 4;
-  .dokime.v1.MapValue discovered = 5;
+  .dokime.model.v1.MapValue discovered = 5;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
 // === Set === //
 
 // SettingsSetRequest for Settings.Set.
-message SettingsSetRequest { string name = 1; .dokime.v1.MapValue value = 20; bytes expected_revision = 21; string request_id = 22; }
+message SettingsSetRequest { string name = 1; .dokime.model.v1.MapValue value = 20; bytes expected_revision = 21; string request_id = 22; }
 
 // SettingsSetResponse for Settings.Set.
-message SettingsSetResponse { .dokime.v1.MapValue value = 1; bytes revision = 2; .harmos.model.v1.Receipt receipt = 3; }
+message SettingsSetResponse { .dokime.model.v1.MapValue value = 1; bytes revision = 2; .harmos.model.v1.Receipt receipt = 3; }
 
 // === Resources === //
 

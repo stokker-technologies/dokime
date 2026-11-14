@@ -8,10 +8,10 @@ package dokime.host.v1.evidence;
 
 // === Imports === //
 
-import "dokime/v1/evidence.proto";
-import "dokime/v1/expressions.proto";
-import "dokime/v1/scalar.proto";
-import "dokime/v1/schemas.proto";
+import "dokime/host/v1/record_schemas.proto";
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/expressions.proto";
+import "dokime/model/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
@@ -40,13 +40,13 @@ service Samples {
 
 // SamplesListRequest for Samples.List.
 message SamplesListRequest {
-  .dokime.v1.EvidenceScope scope = 1;
+  .dokime.model.v1.EvidenceScope scope = 1;
   repeated string streams = 2;
   repeated uint32 versions = 3;
   repeated string fields = 4;
   repeated string sources = 5;
   repeated string signals = 6;
-  .dokime.v1.Window between = 7;
+  .dokime.model.v1.Window between = 7;
   .dokime.host.v1.evidence.BucketRequest bucket = 8;
   bool latest = 9;
   .harmos.model.v1.ReadCut at = 90;
@@ -56,7 +56,7 @@ message SamplesListRequest {
 // SamplesListResponse for Samples.List.
 message SamplesListResponse {
   repeated .dokime.host.v1.evidence.SampleRow samples = 1;
-  .dokime.v1.Schema schema = 2;
+  .dokime.host.v1.Schema schema = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
@@ -65,13 +65,13 @@ message SamplesListResponse {
 
 // SamplesWatchRequest for Samples.Watch.
 message SamplesWatchRequest {
-  .dokime.v1.EvidenceScope scope = 1;
+  .dokime.model.v1.EvidenceScope scope = 1;
   repeated string streams = 2;
   repeated uint32 versions = 3;
   repeated string fields = 4;
   repeated string sources = 5;
   repeated string signals = 6;
-  .dokime.v1.Window between = 7;
+  .dokime.model.v1.Window between = 7;
   .dokime.host.v1.evidence.BucketRequest bucket = 8;
   bool latest = 9;
   .harmos.model.v1.ReadCut at = 90;
@@ -81,7 +81,7 @@ message SamplesWatchRequest {
 // SamplesWatchResponse for Samples.Watch.
 message SamplesWatchResponse {
   repeated .dokime.host.v1.evidence.SampleRow samples = 1;
-  .dokime.v1.Schema schema = 2;
+  .dokime.host.v1.Schema schema = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
@@ -104,7 +104,7 @@ message Bucket {
 // BucketRequest value owned by this resource.
 message BucketRequest {
   uint64 every_nanos = 1;
-  .dokime.v1.Aggregate aggregate = 2;
+  .dokime.model.v1.Aggregate aggregate = 2;
 }
 
 // BucketValue value owned by this resource.
@@ -113,7 +113,7 @@ message BucketValue {
   uint64 count = 2;
   .dokime.host.v1.evidence.StatisticValue value = 3;
   optional string unit = 4;
-  .dokime.v1.Aggregate reducer = 5;
+  .dokime.model.v1.Aggregate reducer = 5;
 }
 
 // SampleRow value owned by this resource.
@@ -143,10 +143,10 @@ message TelemetrySample {
   .google.protobuf.Timestamp timestamp = 5;
   .google.protobuf.Timestamp received_at = 6;
   string source = 7;
-  .dokime.v1.EvidenceScope scope = 8;
-  .dokime.v1.MapValue values = 9;
-  .dokime.v1.MapValue summary = 10;
-  .dokime.v1.MapValue metadata = 11;
+  .dokime.model.v1.EvidenceScope scope = 8;
+  .dokime.model.v1.MapValue values = 9;
+  .dokime.model.v1.MapValue summary = 10;
+  .dokime.model.v1.MapValue metadata = 11;
 }
 
 // === Enums === //

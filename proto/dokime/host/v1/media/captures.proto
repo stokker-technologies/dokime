@@ -8,7 +8,7 @@ package dokime.host.v1.media;
 
 // === Imports === //
 
-import "dokime/v1/evidence.proto";
+import "dokime/model/v1/evidence.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/position.proto";
@@ -44,7 +44,7 @@ service Captures {
 
 // CapturesCreateRequest for Captures.Create.
 message CapturesCreateRequest {
-  .dokime.v1.ArtifactScope scope = 1;
+  .dokime.model.v1.ArtifactScope scope = 1;
   .dokime.host.v1.media.CaptureKind kind = 2;
   optional uint32 input = 3;
   optional uint32 camera = 4;
@@ -105,7 +105,7 @@ message Capture {
   string name = 1;
   .dokime.host.v1.media.CaptureKind kind = 2;
   .dokime.host.v1.media.RecordingProgress progress = 3;
-  .dokime.v1.ArtifactMetadata artifact = 4;
+  .dokime.model.v1.ArtifactMetadata artifact = 4;
   bool finished = 5;
   .harmos.model.v1.Failure failure = 6;
 }

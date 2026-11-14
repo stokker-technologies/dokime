@@ -4,14 +4,14 @@
 
 syntax = "proto3";
 
-package dokime.v1;
+package dokime.model.v1;
 
 // === Imports === //
 
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.V1";
+option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // === Services === //
 
@@ -21,26 +21,26 @@ option csharp_namespace = "Dokime.Protocol.V1";
 
 // FileSource value owned by this resource.
 message FileSource {
-  oneof kind { .dokime.v1.FileLocation file = 1; .dokime.v1.FileSelection tree = 2; .dokime.v1.FileSelection newest = 3; }
+  oneof kind { .dokime.model.v1.FileLocation file = 1; .dokime.model.v1.FileSelection tree = 2; .dokime.model.v1.FileSelection newest = 3; }
 }
 
 // FileLocation value owned by this resource.
-message FileLocation { oneof kind { string local = 1; .dokime.v1.FtpLocation ftp = 2; } }
+message FileLocation { oneof kind { string local = 1; .dokime.model.v1.FtpLocation ftp = 2; } }
 
 // FtpLocation value owned by this resource.
 message FtpLocation { string url = 1; optional string secret_id = 2; }
 
 // FileSelection value owned by this resource.
-message FileSelection { .dokime.v1.FileLocation root = 1; repeated .dokime.v1.FileRule rules = 2; }
+message FileSelection { .dokime.model.v1.FileLocation root = 1; repeated .dokime.model.v1.FileRule rules = 2; }
 
 // FileRule value owned by this resource.
-message FileRule { string glob = 1; .dokime.v1.FileRuleAction action = 2; }
+message FileRule { string glob = 1; .dokime.model.v1.FileRuleAction action = 2; }
 
 // CapturedArtifact value owned by this resource.
 message CapturedArtifact { string artifact = 1; uint64 size_bytes = 2; }
 
 // CaptureGap value owned by this resource.
-message CaptureGap { string path = 1; uint64 offset = 2; .dokime.v1.CaptureGapReason reason = 3; }
+message CaptureGap { string path = 1; uint64 offset = 2; .dokime.model.v1.CaptureGapReason reason = 3; }
 
 // === Enums === //
 

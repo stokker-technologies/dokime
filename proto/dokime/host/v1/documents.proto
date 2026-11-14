@@ -8,13 +8,14 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/documents.proto";
-import "dokime/v1/evidence.proto";
-import "dokime/v1/expressions.proto";
-import "dokime/v1/formatting.proto";
-import "dokime/v1/metadata.proto";
-import "dokime/v1/plots.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/host/v1/plots/snapshots.proto";
+import "dokime/host/v1/record_schemas.proto";
+import "dokime/model/v1/documents.proto";
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/expressions.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/plots.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
 import "harmos/model/v1/position.proto";
@@ -50,7 +51,7 @@ message DocumentsAppendPartsRequest {
   string document = 2;
   
   string section = 3;
-  oneof part { .dokime.v1.Section subsection = 4; .dokime.v1.Card card = 5; }
+  oneof part { .dokime.model.v1.Section subsection = 4; .dokime.model.v1.Card card = 5; }
   string request_id = 20;
 }
 
@@ -61,7 +62,7 @@ message DocumentsAppendPartsResponse { .harmos.model.v1.Receipt receipt = 1; }
 
 // DocumentsGetRequest for Documents.Get.
 message DocumentsGetRequest {
-  .dokime.v1.DocumentScope scope = 1;
+  .dokime.host.v1.DocumentScope scope = 1;
   string document_id = 2;
   bool structure_only = 3;
   repeated string card_ids = 4;
@@ -84,7 +85,7 @@ message DocumentsGetResponse {
 
 // DocumentsWatchRequest for Documents.Watch.
 message DocumentsWatchRequest {
-  .dokime.v1.DocumentScope scope = 1;
+  .dokime.host.v1.DocumentScope scope = 1;
   string document_id = 2;
   bool structure_only = 3;
   repeated string card_ids = 4;
@@ -108,7 +109,7 @@ message DocumentsWatchResponse {
 // DocumentBinding value owned by this resource.
 message DocumentBinding {
   string source_id = 1;
-  .dokime.v1.Metadata metadata = 2;
+  .dokime.model.v1.Metadata metadata = 2;
   .dokime.host.v1.DocumentBindingResult result = 3;
 }
 
@@ -125,8 +126,8 @@ message DocumentBindingResult {
 
 // DocumentCard value owned by this resource.
 message DocumentCard {
-  .dokime.v1.Metadata metadata = 1;
-  repeated .dokime.v1.PlotFilter filters = 2;
+  .dokime.model.v1.Metadata metadata = 1;
+  repeated .dokime.model.v1.PlotFilter filters = 2;
   .dokime.host.v1.DocumentCardBody body = 3;
 }
 
@@ -220,8 +221,8 @@ message DocumentFrontiers {
 // DocumentHeader value owned by this resource.
 message DocumentHeader {
   string document_id = 1;
-  .dokime.v1.Metadata metadata = 2;
-  .dokime.v1.EvidenceScope scope = 3;
+  .dokime.model.v1.Metadata metadata = 2;
+  .dokime.model.v1.EvidenceScope scope = 3;
   .dokime.host.v1.DocumentFrontiers frontiers = 4;
 }
 
@@ -265,19 +266,19 @@ message DocumentPlacement {
 
 // DocumentPlotDefinition value owned by this resource.
 message DocumentPlotDefinition {
-  .dokime.v1.Metadata metadata = 1;
-  .dokime.v1.PlotRequest request = 2;
+  .dokime.model.v1.Metadata metadata = 1;
+  .dokime.host.v1.plots.PlotRequest request = 2;
   .dokime.host.v1.PlotPresentation presentation = 3;
-  .dokime.v1.DataExpression z_expression = 4;
+  .dokime.model.v1.DataExpression z_expression = 4;
 }
 
 // DocumentRepeat value owned by this resource.
 message DocumentRepeat {
-  .dokime.v1.DataExpression value = 1;
+  .dokime.model.v1.DataExpression value = 1;
   string label_template = 2;
   optional string id_template = 3;
-  .dokime.v1.DataExpression order_by = 4;
-  repeated .dokime.v1.PlotFilter filters = 5;
+  .dokime.model.v1.DataExpression order_by = 4;
+  repeated .dokime.model.v1.PlotFilter filters = 5;
 }
 
 // DocumentRepeatInstance value owned by this resource.
@@ -286,7 +287,7 @@ message DocumentRepeatInstance {
   uint64 ordinal = 2;
   string suffix = 3;
   string node_id = 4;
-  .dokime.v1.PlotFilter filter = 5;
+  .dokime.model.v1.PlotFilter filter = 5;
 }
 
 // DocumentRepeatSelection value owned by this resource.
@@ -299,14 +300,14 @@ message DocumentRepeatSelection {
 // DocumentSection value owned by this resource.
 message DocumentSection {
   string node_id = 1;
-  .dokime.v1.Metadata metadata = 2;
+  .dokime.model.v1.Metadata metadata = 2;
   .dokime.host.v1.DocumentRepeat repeat = 3;
 }
 
 // DocumentSectionIdentity value owned by this resource.
 message DocumentSectionIdentity {
   string node_id = 1;
-  .dokime.v1.Metadata metadata = 2;
+  .dokime.model.v1.Metadata metadata = 2;
   optional string unavailable = 3;
 }
 
@@ -326,8 +327,8 @@ message DocumentSummary {
 
 // DocumentSummaryCondition value owned by this resource.
 message DocumentSummaryCondition {
-  .dokime.v1.FilterOperator operator = 1;
-  .dokime.v1.Value value = 2;
+  .dokime.model.v1.FilterOperator operator = 1;
+  .dokime.model.v1.Value value = 2;
   .dokime.host.v1.DocumentSummaryState state = 3;
 }
 
@@ -335,7 +336,7 @@ message DocumentSummaryCondition {
 message DocumentSummaryGroup {
   string card_id = 1;
   uint64 ordinal = 2;
-  .dokime.v1.Metadata metadata = 3;
+  .dokime.model.v1.Metadata metadata = 3;
   uint64 tile_count = 4;
 }
 
@@ -343,7 +344,7 @@ message DocumentSummaryGroup {
 message DocumentSummaryGroupDefinition {
   string card_id = 1;
   uint64 ordinal = 2;
-  .dokime.v1.Metadata metadata = 3;
+  .dokime.model.v1.Metadata metadata = 3;
   uint64 tile_count = 4;
 }
 
@@ -352,8 +353,8 @@ message DocumentSummaryTile {
   string card_id = 1;
   uint64 group_ordinal = 2;
   uint64 ordinal = 3;
-  .dokime.v1.Metadata metadata = 4;
-  .dokime.v1.Value value = 5;
+  .dokime.model.v1.Metadata metadata = 4;
+  .dokime.model.v1.Value value = 5;
   .dokime.host.v1.DocumentSummaryStat stat = 6;
   .dokime.host.v1.DocumentSummaryFormat format = 7;
   .dokime.host.v1.DocumentSummaryPresentation presentation = 8;
@@ -367,9 +368,9 @@ message DocumentSummaryTileDefinition {
   string card_id = 1;
   uint64 group_ordinal = 2;
   uint64 ordinal = 3;
-  .dokime.v1.Metadata metadata = 4;
-  .dokime.v1.DataExpression value = 5;
-  repeated .dokime.v1.PlotFilter filters = 6;
+  .dokime.model.v1.Metadata metadata = 4;
+  .dokime.model.v1.DataExpression value = 5;
+  repeated .dokime.model.v1.PlotFilter filters = 6;
   .dokime.host.v1.DocumentSummaryStat stat = 7;
   .dokime.host.v1.DocumentSummaryFormat format = 8;
   .dokime.host.v1.DocumentSummaryPresentation presentation = 9;
@@ -386,7 +387,7 @@ message DocumentTable {
 message DocumentTableRow {
   string card_id = 1;
   uint64 ordinal = 2;
-  .dokime.v1.TableRow values = 3;
+  .dokime.model.v1.TableRow values = 3;
 }
 
 // DocumentTelemetryCut value owned by this resource.
@@ -404,14 +405,14 @@ message DocumentWarning {
 
 // PlotPresentation value owned by this resource.
 message PlotPresentation {
-  .dokime.v1.LineStyle style = 1;
-  .dokime.v1.PlotFftOptions fft = 2;
-  .dokime.v1.PlotIntervalOptions interval = 3;
-  .dokime.v1.PlotHistogramOptions histogram = 4;
+  .dokime.model.v1.LineStyle style = 1;
+  .dokime.model.v1.PlotFftOptions fft = 2;
+  .dokime.model.v1.PlotIntervalOptions interval = 3;
+  .dokime.model.v1.PlotHistogramOptions histogram = 4;
   repeated .dokime.host.v1.PlotReferenceLine reference_lines = 5;
   repeated .dokime.host.v1.PlotReferenceBand reference_bands = 6;
-  .dokime.v1.ValueFormat x_format = 7;
-  .dokime.v1.ValueFormat y_format = 8;
+  .dokime.host.v1.ValueFormat x_format = 7;
+  .dokime.host.v1.ValueFormat y_format = 8;
   .dokime.host.v1.PlotAxisKind x_axis = 9;
   optional string x_axis_unit = 10;
   optional double scale = 11;
@@ -437,7 +438,13 @@ message PlotReferenceLine {
 // PlotReferenceValue value owned by this resource.
 message PlotReferenceValue {
   optional double constant = 1;
-  .dokime.v1.DataExpression expression = 2;
+  .dokime.model.v1.DataExpression expression = 2;
+}
+
+// DocumentScope value owned by this resource.
+message DocumentScope {
+  string cycle_id = 1;
+  string execution_id = 2;
 }
 
 // === Enums === //

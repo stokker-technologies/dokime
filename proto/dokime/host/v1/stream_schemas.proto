@@ -8,7 +8,7 @@ package dokime.host.v1;
 
 // === Imports === //
 
-import "dokime/v1/schemas.proto";
+import "dokime/host/v1/record_schemas.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
 
@@ -36,7 +36,7 @@ service StreamSchemas {
 message StreamSchemasGetRequest { string name = 1; string parent = 2; uint32 schema_version = 3; .harmos.model.v1.ReadCut at = 90; }
 
 // StreamSchemasGetResponse for StreamSchemas.Get.
-message StreamSchemasGetResponse { .dokime.v1.TelemetrySchema value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+message StreamSchemasGetResponse { .dokime.host.v1.TelemetrySchema value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
 
 // === List === //
 
@@ -44,7 +44,7 @@ message StreamSchemasGetResponse { .dokime.v1.TelemetrySchema value = 1; .harmos
 message StreamSchemasListRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
 
 // StreamSchemasListResponse for StreamSchemas.List.
-message StreamSchemasListResponse { repeated .dokime.v1.TelemetrySchema values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+message StreamSchemasListResponse { repeated .dokime.host.v1.TelemetrySchema values = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
 
 // === Resources === //
 

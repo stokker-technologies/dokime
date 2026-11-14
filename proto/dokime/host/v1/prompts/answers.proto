@@ -8,8 +8,8 @@ package dokime.host.v1.prompts;
 
 // === Imports === //
 
-import "dokime/v1/prompts.proto";
-import "dokime/v1/scalar.proto";
+import "dokime/host/v1/prompts.proto";
+import "dokime/model/v1/scalar.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/receipt.proto";
 
@@ -33,13 +33,13 @@ service Answers {
 message AnswersCreateRequest {
   string parent = 1;
   string action = 2;
-  .dokime.v1.MapValue values = 3;
+  .dokime.model.v1.MapValue values = 3;
   bool accepted = 4;
   string request_id = 5;
 }
 
 // AnswersCreateResponse for Answers.Create.
-message AnswersCreateResponse { .dokime.v1.PromptResponse answer = 1; .harmos.model.v1.Receipt receipt = 2; }
+message AnswersCreateResponse { .dokime.host.v1.PromptResponse answer = 1; .harmos.model.v1.Receipt receipt = 2; }
 
 // === Resources === //
 

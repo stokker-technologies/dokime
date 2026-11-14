@@ -4,16 +4,16 @@
 
 syntax = "proto3";
 
-package dokime.v1;
+package dokime.model.v1;
 
 // === Imports === //
 
-import "dokime/v1/scalar.proto";
+import "dokime/model/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
 // === Options === //
 
-option csharp_namespace = "Dokime.Protocol.V1";
+option csharp_namespace = "Dokime.Protocol.Model.V1";
 
 // === Services === //
 
@@ -27,7 +27,7 @@ message Metadata {
   string label = 2;
   string description = 3;
   repeated string tags = 4;
-  map<string, .dokime.v1.Value> attributes = 5;
+  map<string, .dokime.model.v1.Value> attributes = 5;
   .google.protobuf.Timestamp created_at = 6;
   .google.protobuf.Timestamp updated_at = 7;
 }
