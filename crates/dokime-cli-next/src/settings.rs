@@ -32,7 +32,7 @@ use dokime_runtime_next::{
     services::{ClientSettings, WallClock},
 };
 
-use dokime_storage::StorageSettings;
+use dokime_runtime_next::{StorageSettings, storage_defaults};
 
 /* === Constants === */
 
@@ -83,10 +83,10 @@ impl Default for Settings {
             remote: None,
             pairing: None,
             storage: None,
-            telemetry_rows: dokime_storage::storage_defaults().flush_rows,
-            telemetry_interval_ms: dokime_storage::storage_defaults().flush_interval.as_millis() as u64,
-            telemetry_pending_bytes: dokime_storage::storage_defaults().pending_bytes,
-            telemetry_query_bytes: dokime_storage::storage_defaults().query_bytes,
+            telemetry_rows: storage_defaults().flush_rows,
+            telemetry_interval_ms: storage_defaults().flush_interval.as_millis() as u64,
+            telemetry_pending_bytes: storage_defaults().pending_bytes,
+            telemetry_query_bytes: storage_defaults().query_bytes,
             connect_timeout_s: 30,
             read_timeout_s: 30,
             mutation_timeout_s: 30,
@@ -141,7 +141,7 @@ impl Settings {
                 flush_interval: Duration::from_millis(self.telemetry_interval_ms),
                 pending_bytes: self.telemetry_pending_bytes,
                 query_bytes: self.telemetry_query_bytes,
-                previews: dokime_storage::storage_defaults().previews,
+                previews: storage_defaults().previews,
             },
         }
     }
