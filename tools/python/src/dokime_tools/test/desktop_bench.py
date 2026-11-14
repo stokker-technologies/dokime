@@ -158,11 +158,12 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
     baselines = {(row["name"], row["unit"]): row["value"] for row in previous.get("benchmarks", [])}
     groups = {}
     for result in current["results"]:
-        groups.setdefault((result["count"], result["condition"]), []).append(result)
+        history_rows = result.get("rows", current["fixture"]["rows"])
+        groups.setdefault((history_rows, result["count"], result["condition"]), []).append(result)
     revision = policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
     rows = []
-    for (count, condition), samples in groups.items():
-        prefix = f"desktop/{count}/{condition}"
+    for (history_rows, count, condition), samples in groups.items():
+        prefix = f"desktop/{history_rows}/{count}/{condition}"
         metrics = {}
         for sample in samples:
             for stage, values in sample["backendStages"].items():

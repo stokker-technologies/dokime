@@ -398,6 +398,9 @@ message DocumentsGetRequest {
   repeated string card_ids = 4;
   string page_token = 5;
   uint64 max_bytes = 6;
+  // Upper bound on complete frames per page, in addition to max_bytes.
+  // Zero uses the host's page item bound; continuations retain the same cut.
+  uint32 max_frames = 7;
   .harmos.v1.ReadCut at = 90;
 }
 
@@ -414,6 +417,8 @@ message DocumentsWatchRequest {
   repeated string card_ids = 4;
   string page_token = 5;
   uint64 max_bytes = 6;
+  // Upper bound on complete frames per delivery, in addition to max_bytes.
+  uint32 max_frames = 7;
   .harmos.v1.ReadCut at = 90;
 }
 

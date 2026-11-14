@@ -294,6 +294,10 @@ impl Plot {
         self.sample_rate_hz = Some(rate);
         self
     }
+    pub fn input_samples(mut self, count: u32) -> Self {
+        self.input_samples = Some(count);
+        self
+    }
     pub fn bins(mut self, count: u32) -> Self {
         self.histogram_bins = Some(count);
         self

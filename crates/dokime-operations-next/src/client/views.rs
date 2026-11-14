@@ -18,12 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::v1::{PageRequest, ReadCut, Receipt, ResourceRevision, Section};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, client::Context};
+
+use std::future::Future;
 
 /* === Constants === */
 
@@ -42,15 +44,15 @@ use crate::{Error, Result, client::Context};
 /* === Public Functions === */
 
 pub(super) async fn read<T: Message + Default>(
-    context: &Context, resource: &str, at: Option<&h::ReadCut>, current: impl std::future::Future<Output = Result<T>>,
-) -> Result<(T, h::ReadCut)> {
+    context: &Context, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
+) -> Result<(T, ReadCut)> {
     let store = context.host.store();
     let name = format!("{}/{resource}", store.identity());
     if let Some(at) = at {
         if at.revisions.is_empty() && at.positions.len() == 1 {
             let position = store.evidence_position(at.positions.first())?;
             let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-            let saved: h::Section = store
+            let saved: Section = store
                 .administration(&key)?
                 .ok_or_else(|| Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")))?;
             return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
@@ -60,25 +62,29 @@ pub(super) async fn read<T: Message + Default>(
         }
         store.evidence_position(at.positions.first())?;
         let revision = hex(&at.revisions[0].revision);
-        let saved: h::Section = store
+        let saved: Section = store
             .administration(&format!("view:{name}:{revision}"))?
             .ok_or_else(|| Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")))?;
         return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
     }
     let position = store.evidence_position(None)?;
     let value = current.await?;
-    let payload = value.encode_to_vec();
+    let payload = {
+        let span = if resource.starts_with("plots/") { tracing::info_span!("plot.encode") } else { tracing::Span::none() };
+        let _entered = span.enter();
+        value.encode_to_vec()
+    };
     let revision = Sha256::digest(&payload).to_vec();
-    let saved = h::Section { r#type: name.clone(), payload };
+    let saved = Section { r#type: name.clone(), payload };
     store.save_administration(&format!("view:{name}:{}", hex(&revision)), &saved)?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
     let _ = store.compare_administration(&key, None, &saved)?;
 
     Ok((
         value,
-        h::ReadCut {
+        ReadCut {
             positions: vec![position],
-            revisions: vec![h::ResourceRevision { name, revision }],
+            revisions: vec![ResourceRevision { name, revision }],
         },
     ))
 }
@@ -87,12 +93,12 @@ pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-pub(super) fn receipt(context: &Context, request_id: &str) -> Result<h::Receipt> {
+pub(super) fn receipt(context: &Context, request_id: &str) -> Result<Receipt> {
     if request_id.is_empty() {
         return Err(Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
     }
     let position = context.host.store().evidence_position(None)?;
-    Ok(h::Receipt {
+    Ok(Receipt {
         request_id: request_id.into(),
         accepted_at: Some(position.clone()),
         durable_at: Some(position),
@@ -100,14 +106,14 @@ pub(super) fn receipt(context: &Context, request_id: &str) -> Result<h::Receipt>
     })
 }
 
-pub(super) fn continuation(page: Option<&h::PageRequest>, at: Option<&h::ReadCut>) -> Result<()> {
+pub(super) fn continuation(page: Option<&PageRequest>, at: Option<&ReadCut>) -> Result<()> {
     if page.is_some_and(|page| !page.page_token.is_empty()) && at.is_none() {
         return Err(Error::Invalid("List Resource: Continue with the Returned Cut".into()));
     }
     Ok(())
 }
 
-pub(super) fn offset(token: &str, cut: &h::ReadCut) -> Result<usize> {
+pub(super) fn offset(token: &str, cut: &ReadCut) -> Result<usize> {
     if token.is_empty() {
         return Ok(0);
     }
@@ -118,12 +124,12 @@ pub(super) fn offset(token: &str, cut: &h::ReadCut) -> Result<usize> {
     offset.parse().map_err(|_| Error::Invalid("Read Resource: Use the Returned Page Token".into()))
 }
 
-pub(super) fn token(offset: usize, cut: &h::ReadCut) -> String {
+pub(super) fn token(offset: usize, cut: &ReadCut) -> String {
     format!("{}:{offset}", hex(&Sha256::digest(cut.encode_to_vec())))
 }
 
 pub(super) fn page<T: Message>(
-    rows: Vec<T>, cut: &h::ReadCut, page: Option<&h::PageRequest>, maximum: usize, maximum_bytes: usize,
+    rows: Vec<T>, cut: &ReadCut, page: Option<&PageRequest>, maximum: usize, maximum_bytes: usize,
 ) -> Result<(Vec<T>, String)> {
     let start = offset(page.map_or("", |page| page.page_token.as_str()), cut)?;
     if start > rows.len() {

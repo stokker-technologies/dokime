@@ -53,7 +53,7 @@ import {
   nativeValueToJson,
   recordScopeFromNative,
 } from "@/lib/host/values";
-import { NativeApiLimitError, NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber } from "./native-values";
+import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
 /* === Canonical Types === */
 
@@ -224,6 +224,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
       ? {}
       : {
           fft: {
+            inputSamples: input.fft.input_samples ?? undefined,
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
             window: input.fft.window === "rectangular" ? protocolV1Plots.FftWindow.RECTANGULAR : protocolV1Plots.FftWindow.HANN,
             detrend: input.fft.detrend === "none" ? protocolV1Plots.FftDetrend.NONE : protocolV1Plots.FftDetrend.MEAN,
@@ -295,7 +296,7 @@ export async function fetchNativePlotPayloads(
       const response = await rpc.plotsSnapshotsList(session, {
         requests: nativeRequests,
         at,
-        page: { pageSize: NATIVE_PAGE_SIZE, pageToken: token },
+        page: { pageSize: NATIVE_PLOT_MAX_REQUESTS, pageToken: token },
       });
       ensureActive(session, options.signal);
       const resolved = required(response.resolvedAt, "Read Plot Snapshots: Missing Read Cut");

@@ -86,6 +86,7 @@ pub const ID: &str = "dokime.client.v1.Documents/Get";
 pub fn declaration(settings: &ClientSettings) -> Result<h::OperationContract> {
     super::declaration::<DocumentsGetRequest, DocumentsGetResponse>(ID, settings.read_timeout)
 }
+#[tracing::instrument(name = "document.operation", skip_all)]
 pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<DocumentsGetResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         if !request.page_token.is_empty() && request.at.is_none() {
@@ -96,6 +97,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
         selection.at = None;
         selection.page_token.clear();
         selection.max_bytes = 0;
+        selection.max_frames = 0;
         let key = format!("document/{}", super::views::hex(&super::paging::bytes(&selection)));
         let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
             let (document, fixed) = context.host.current_document(scope, &request.document_id)?;
@@ -366,14 +368,6 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                     positions: vec![position],
                                     revisions: Vec::new(),
                                 });
-                                let _envelope = super::plots_snapshots_list::snapshot_at(
-                                    &reader,
-                                    &fixed,
-                                    &selected,
-                                    context.settings.page_items,
-                                    context.host.now_ns(),
-                                    &context.host.identity().epoch,
-                                )?;
                                 Ok(DocumentPlotDefinition {
                                     request: Some(selected),
                                     presentation: Some(super::document_plot::presentation(&reader, &fixed, &plot)?),
@@ -437,7 +431,12 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                 reply.next_page_token = super::views::token(offset, &cut);
                 break;
             }
-            if reply.frames.len() == context.settings.page_items {
+            let frames = if request.max_frames == 0 {
+                context.settings.page_items
+            } else {
+                (request.max_frames as usize).min(context.settings.page_items)
+            };
+            if reply.frames.len() == frames {
                 break;
             }
         }

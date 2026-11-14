@@ -255,6 +255,10 @@ class Plot:
         self.message.sample_rate_hz = rate
         return self
 
+    def input_samples(self, count: int) -> Self:
+        self.message.input_samples = count
+        return self
+
     def bins(self, count: int) -> Self:
         self.message.histogram_bins = count
         return self

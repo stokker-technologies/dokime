@@ -45,6 +45,10 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 
+use criterion::SamplingMode;
+use std::path::{Path, PathBuf};
+use tokio::runtime::Runtime;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -64,7 +68,7 @@ struct QueryTimes(Arc<Mutex<BTreeMap<&'static str, Vec<f64>>>>);
 
 impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for QueryTimes {
     fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: LayerContext<'_, S>) {
-        if matches!(attributes.metadata().name(), "plot.query" | "plot.watch.frames" | "plot.watch.send") {
+        if attributes.metadata().name().starts_with("plot.") || attributes.metadata().name().starts_with("document.") {
             context.span(id).unwrap().extensions_mut().insert(Instant::now());
         }
     }
@@ -85,7 +89,7 @@ fn main() {
         if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
             fixture::serve().unwrap();
         } else {
-            tokio::runtime::Runtime::new().unwrap().block_on(sample_carrier::serve(fixture::samples)).unwrap();
+            Runtime::new().unwrap().block_on(sample_carrier::serve(fixture::samples)).unwrap();
         }
         return;
     }
@@ -95,7 +99,7 @@ fn main() {
     }
 
     // Start The Real Native Desktop Driver Once Outside Criterion's Timers.
-    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut child = dokime_runtime_next::process::command("node")
         .arg(directory.join("benches/system/driver.mjs"))
         .env("DOKIME_DESKTOP_BENCH_HOST", std::env::current_exe().unwrap())
@@ -114,7 +118,7 @@ fn main() {
     let mut criterion = Criterion::default().configure_from_args();
     let mut group = criterion.benchmark_group("desktop_round_trip");
     group.sample_size(10);
-    group.sampling_mode(criterion::SamplingMode::Flat);
+    group.sampling_mode(SamplingMode::Flat);
     group.warm_up_time(Duration::from_secs(1));
     group.measurement_time(Duration::from_secs(1));
     for count in [30, 100] {
@@ -124,7 +128,7 @@ fn main() {
             );
             group.bench_function(format!("{count}/{condition}"), |bencher| {
                 bencher.iter_custom(|iterations| {
-                    writeln!(input, "{count} {condition} {iterations}").unwrap();
+                    writeln!(input, "{} {count} {condition} {iterations}", fixture::ROWS).unwrap();
                     input.flush().unwrap();
                     line.clear();
                     output.read_line(&mut line).unwrap();
@@ -134,31 +138,54 @@ fn main() {
         }
     }
     group.finish();
+    let mut history = criterion.benchmark_group("desktop_history_round_trip");
+    history.sample_size(10);
+    history.sampling_mode(SamplingMode::Flat);
+    history.warm_up_time(Duration::from_secs(1));
+    history.measurement_time(Duration::from_secs(1));
+    for rows in [307_200, 1_536_000, 3_072_000] {
+        for count in [30, 100] {
+            for condition in ["cold", "warm", "live"] {
+                println!(
+                    "Boundary | Desktop {rows}/{count}/{condition} | document request, bounded document pages, visible plot queries, native delivery and visible draw; three-day history; host reopen excluded; live includes producer prompt handoff and saved visibility"
+                );
+                history.bench_function(format!("{rows}/{count}/{condition}"), |bencher| {
+                    bencher.iter_custom(|iterations| {
+                        writeln!(input, "{rows} {count} {condition} {iterations}").unwrap();
+                        input.flush().unwrap();
+                        line.clear();
+                        output.read_line(&mut line).unwrap();
+                        Duration::from_secs_f64(line.trim().parse::<f64>().expect("Desktop History Measurement in Seconds"))
+                    })
+                });
+            }
+        }
+    }
+    history.finish();
     criterion.final_summary();
     drop(child.stdin.take());
     assert!(child.wait().unwrap().success(), "desktop driver completed and retained measurements");
 }
 
 fn host() {
-    let executor = tokio::runtime::Runtime::new().unwrap();
+    let executor = Runtime::new().unwrap();
     let directory = std::env::var_os("DOKIME_DESKTOP_BENCH_FIXTURES").expect("fixture directory under target");
     std::fs::create_dir_all(&directory).unwrap();
     let restored = std::env::var_os("DOKIME_DESKTOP_BENCH_RESTORE").filter(|path| !path.is_empty());
     let restoring = restored.is_some();
-    let root = restored.map_or_else(|| tempfile::tempdir_in(&directory).unwrap().keep(), std::path::PathBuf::from);
+    let root = restored.map_or_else(|| tempfile::tempdir_in(&directory).unwrap().keep(), PathBuf::from);
     assert!(root.canonicalize().unwrap().starts_with(std::fs::canonicalize(&directory).unwrap()), "owned fixture root");
     let queries = QueryTimes::default();
-    let probe = queries
-        .clone()
-        .with_filter(filter_fn(|metadata| matches!(metadata.name(), "plot.query" | "plot.watch.frames" | "plot.watch.send")));
+    let probe =
+        queries.clone().with_filter(filter_fn(|metadata| metadata.name().starts_with("plot.") || metadata.name().starts_with("document.")));
     tracing_subscriber::registry().with(probe).init();
     let fixture = executor.block_on(fixture::Fixture::start(&root, restoring));
     println!(
         "{}",
         serde_json::json!({"endpoint":fixture.session.endpoint(), "execution":fixture.execution,
-        "cycle": fixture.cycle, "root": root, "rows":fixture::ROWS, "origin_s":fixture::ORIGIN_S,
+        "cycle": fixture.cycle, "root": root, "rows":fixture::rows(), "sample_rate_hz": 1e9 / fixture::sample_ns() as f64, "origin_s":fixture::ORIGIN_S,
         "shutdown_ms": Duration::from_secs(30).as_millis(),
-        "end_s":fixture::ORIGIN_S + (fixture::ROWS - 1) as f64 / 8.0})
+        "end_s":fixture::ORIGIN_S + (fixture::rows() - 1) as f64 * fixture::sample_ns() as f64 / 1e9})
     );
     std::io::stdout().flush().unwrap();
     let result = catch_unwind(AssertUnwindSafe(|| {

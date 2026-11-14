@@ -158,6 +158,7 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
   const [mounted, setMounted] = useState(eager);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const plotId = props.descriptor.plot_id;
     if (eager || !root.current) return;
     const element = root.current;
     visibilityObserver ??= new IntersectionObserver(
@@ -167,6 +168,7 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
       { rootMargin: "200px" },
     );
     visibilityListeners.set(element, (shown) => {
+      useSummaryWindowStore.getState().setVisible(plotId, shown);
       setVisible(shown);
       if (shown) setMounted(true);
     });
@@ -174,8 +176,9 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
     return () => {
       visibilityObserver?.unobserve(element);
       visibilityListeners.delete(element);
+      useSummaryWindowStore.getState().setVisible(plotId, null);
     };
-  }, [eager]);
+  }, [eager, props.descriptor.plot_id]);
   return (
     <div ref={root} className="min-w-0" data-plot-viewport={props.descriptor.plot_id}>
       {mounted || eager ? <VisiblePlotContent {...props} visible={visible || eager} /> : <div className="min-h-72" aria-hidden />}

@@ -3811,6 +3811,10 @@ pub struct DocumentsGetRequest {
     pub page_token: ::prost::alloc::string::String,
     #[prost(uint64, tag = "6")]
     pub max_bytes: u64,
+    /// Upper bound on complete frames per page, in addition to max_bytes.
+    /// Zero uses the host's page item bound; continuations retain the same cut.
+    #[prost(uint32, tag = "7")]
+    pub max_frames: u32,
     #[prost(message, optional, tag = "90")]
     pub at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
 }
@@ -3839,6 +3843,9 @@ pub struct DocumentsWatchRequest {
     pub page_token: ::prost::alloc::string::String,
     #[prost(uint64, tag = "6")]
     pub max_bytes: u64,
+    /// Upper bound on complete frames per delivery, in addition to max_bytes.
+    #[prost(uint32, tag = "7")]
+    pub max_frames: u32,
     #[prost(message, optional, tag = "90")]
     pub at: ::core::option::Option<::harmos_protocol::v1::ReadCut>,
 }

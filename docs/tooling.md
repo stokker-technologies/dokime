@@ -215,7 +215,8 @@ warm three-day documents remain in tens of milliseconds, and full-row decode is
 below one second per million samples. The host's per-response batch admission
 avoids revalidating the entire pending population once per individual sample.
 
-The desktop workload still contains its original mixed plot kinds. These are
+The following desktop observations precede the desktop plot-document repair.
+The workload contains its original mixed plot kinds. These are
 elapsed observations **to refusal**, not successful drawing latencies. Cold opens
 a fresh host and desktop before the timer; warm first exercises the same view;
 the other cases use the active host. There is no comparable old figure for these
@@ -244,6 +245,43 @@ the frontend marks it reconnecting, so refusal does not wait for a drawing hang
 guard. Prompt answers use a fresh request identity per question. Cleanup preserves
 copied history credential references until final disposal while always removing
 each disposable shell's independent credentials.
+
+The repair retains the original 2,073,600-row, three-day, 8 Hz workload and its
+16 cases. Additional desktop history cases use 307,200, 1,536,000 and 3,072,000
+rows across the same three-day span, for both 30 and 100 plots, cold, warm and
+active. Their sampling intervals are stated by the fixture; they are additional
+case identities, not replacements for the original density. Every desktop open
+now reads an authored document through `Documents.Get`, joins bounded frame pages,
+requests visible plot groups through the native SDK, decodes their previews and
+observes actual chart drawing plus two presentation opportunities. The original
+refused surface constructed its declarations locally, so the new boundary also
+includes document reading. Neither figure is a claim about physical display
+presentation. Cold host/desktop startup and fixture population stay outside the
+timer; saved-state queries use a fresh process without evicting the OS cache.
+
+Live, late and stalled cases first draw the initial view outside the timer, then
+time the producer prompt handoff through visibility of a changed saved selection.
+Unrelated runtime notifications cannot complete that measurement. The existing
+flush policy is unchanged; time awaiting saved visibility is distinct from query
+work. Zoom, resize and navigation time their named action through visible drawing.
+After navigation, and the additional history cases' cold opens, the driver visits
+every plot outside the timer and verifies actual drawing, including all mixed
+kinds. This traversal cannot silently omit an off-screen refusal. Frequency input
+declares 512 samples. Pie authors select an explicit mean over duplicate categories;
+all source rows and plot kinds remain present. Grid previews select bounded recent
+complete frames instead of attempting to allocate a frame per history timestamp.
+
+The instrumented original 30-plot cold observation on this machine was
+10,740.274 ms to refusal. Inclusive host spans total 10,679.317 ms; their nested
+plot queries total 10,615.268 ms, exact-statistics work 10,100.403 ms and saved
+preview reads 14.160 ms. Other host work is 564.754 ms by subtraction, including
+repeated frozen descriptor construction; the outer residual is 60.957 ms.
+Encoding, decoding, retained data updates and drawing have no completed data
+sample in that refused observation. Span totals may overlap cancelled/reopened
+queries and are not an additive CPU profile. The benchmark-only Vite transform
+records client-open/bridge waits, protobuf decode, native adaptation, retained
+updates, React rendering and canvas calls. Its profiling React build is confined
+to the benchmark bundle; shipping components and transport policy are unchanged.
 
 ## Hosted Validation
 

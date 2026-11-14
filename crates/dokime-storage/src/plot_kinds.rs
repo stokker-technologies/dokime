@@ -20,13 +20,16 @@
 // Third Party Imports
 
 // Local Imports
+use crate::BatchSelection;
 use crate::scalar::{self, ScalarValue};
 use crate::{Error, NumericWindow, Result, Store};
+use arrow_array::{Int64Array, StructArray, UInt64Array};
 use dokime_protocol::v1::{
     self, Aggregate, DataExpression, FftDetrend, FftWindow, FrequencyLevelUnit, GridAxisEntry, GridDefinition, PlotFftOptions,
     PlotIntervalOptions, PlotWindow, Reduction, Value,
 };
-use std::collections::BTreeMap;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
 use dokime_protocol::client::plots::ContourGrid;
 use dokime_protocol::client::plots::GridCell;
@@ -40,6 +43,8 @@ use dokime_protocol::client::plots::PlotSigmaBin;
 use dokime_protocol::client::plots::PlotSigmaIntervalAnalysis;
 use dokime_protocol::client::plots::PlotSigmaSeries;
 
+use prost_types::Timestamp;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -47,6 +52,7 @@ use dokime_protocol::client::plots::PlotSigmaSeries;
 /* === Type Aliases === */
 
 pub type CartesianRead = (PlotFrame, u64, Vec<(String, u64)>);
+type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, ScalarValue, f64, u64)>;
 
 /* === Structs === */
 
@@ -355,39 +361,70 @@ impl Store {
     }
 
     pub fn grid_window(&self, request: KindWindow<'_>, definition: &GridDefinition, reduction: Reduction) -> Result<(GridFrames, u64)> {
-        let mut grouped = BTreeMap::<(String, String, String), (ScalarValue, ScalarValue, ScalarValue, f64, u64)>::new();
+        let frame_key = |input: &Input| -> Result<String> {
+            if request.group.is_none() {
+                return Ok(instant(input.time));
+            }
+            match &input.g {
+                ScalarValue::Float(seconds) if seconds.is_finite() && seconds.abs() < i64::MAX as f64 / 1e9 => {
+                    Ok(instant((seconds * 1e9).round() as i64))
+                }
+                value => Ok(text(value.clone())),
+            }
+        };
+        let mut row_keys = definition.rows.iter().map(|axis| axis.key.clone()).collect::<BTreeSet<_>>();
+        let mut column_keys = definition.columns.iter().map(|axis| axis.key.clone()).collect::<BTreeSet<_>>();
+        let mut grouped = BTreeMap::<String, GridReduction>::new();
+        let mut examined = 0;
         self.kind_values(&request, |row| {
             if missing(&row.x) || missing(&row.z) {
                 return Ok(());
             }
-            let frame = if request.group.is_none() { ScalarValue::Signed(row.time) } else { row.g };
-            let key = (text(row.x.clone()), text(row.z.clone()), text(frame.clone()));
-            if !grouped.contains_key(&key) && grouped.len() >= request.limit {
-                return Err(Error::Data("narrow grid frames and cells"));
+            examined += 1;
+            let row_key = text(row.x.clone());
+            let column_key = text(row.z.clone());
+            if definition.rows.is_empty() {
+                row_keys.insert(row_key.clone());
             }
-            let entry = grouped.entry(key).or_insert((row.x, row.z, frame, row.y, 0));
+            if definition.columns.is_empty() {
+                column_keys.insert(column_key.clone());
+            }
+            let cells = row_keys.len().saturating_mul(column_keys.len());
+            if cells == 0 || cells > request.limit {
+                return Err(Error::Invalid("Read Grid Chart: Select Fewer Rows or Columns to Fit One Complete Frame".into()));
+            }
+            let maximum_frames = request.limit / cells;
+            let frame = frame_key(&row)?;
+            if grouped.len() >= maximum_frames && grouped.first_key_value().is_some_and(|(first, _)| frame < *first) {
+                return Ok(());
+            }
+            let entry = grouped.entry(frame.clone()).or_default().entry((row_key, column_key)).or_insert((
+                row.x,
+                row.z,
+                ScalarValue::Text(frame),
+                row.y,
+                0,
+            ));
             entry.4 += 1;
             entry.3 = match reduction {
                 Reduction::Min => entry.3.min(row.y),
                 Reduction::Max => entry.3.max(row.y),
                 _ => entry.3 + (row.y - entry.3) / entry.4 as f64,
             };
+            while grouped.len() > maximum_frames {
+                grouped.pop_first();
+            }
             Ok(())
         })?;
-        let records = grouped.into_values().collect::<Vec<_>>();
-        if records.len() > request.limit {
-            return Err(Error::Invalid("Read Grid Chart: Narrow the Window or Reduce the Number of Frames and Cells".into()));
-        }
+        let records = grouped.into_values().flat_map(BTreeMap::into_values).collect::<Vec<_>>();
         let axes = |declared: &[GridAxisEntry], index: usize| -> Vec<GridAxisEntry> {
             if !declared.is_empty() {
                 let mut values = declared.to_vec();
                 values.sort_by_key(|entry| entry.order);
                 return values;
             }
-            let values = records
-                .iter()
-                .map(|record| text(if index == 0 { record.0.clone() } else { record.1.clone() }))
-                .collect::<std::collections::BTreeSet<_>>();
+            let values =
+                records.iter().map(|record| text(if index == 0 { record.0.clone() } else { record.1.clone() })).collect::<BTreeSet<_>>();
             values
                 .into_iter()
                 .enumerate()
@@ -401,15 +438,14 @@ impl Store {
         };
         let rows = axes(&definition.rows, 0);
         let columns = axes(&definition.columns, 1);
-        let frame_count = records.iter().map(|record| text(record.2.clone())).collect::<std::collections::BTreeSet<_>>().len();
+        let frame_count = records.iter().map(|record| text(record.2.clone())).collect::<BTreeSet<_>>().len();
         if rows.len().saturating_mul(columns.len()).saturating_mul(frame_count) > request.limit {
             return Err(Error::Invalid(
                 "Read Grid Chart: Narrow the Window or Reduce Declared Cells and Frames to Fit the Resolution".into(),
             ));
         }
         let mut frames: BTreeMap<String, GridFrame> = BTreeMap::new();
-        let mut count = 0;
-        for (row, column, frame, value, n) in records {
+        for (row, column, frame, value, _) in records {
             let row = text(row);
             let column = text(column);
             let row = rows
@@ -433,7 +469,6 @@ impl Store {
             let index = row * columns.len() + column;
             output.values[index] = value;
             output.valid[index] = true;
-            count += n;
         }
         for highlight in &definition.highlights {
             let field = |expression: Option<&DataExpression>| -> Result<String> {
@@ -455,22 +490,17 @@ impl Store {
             };
             let mut highlights = BTreeMap::<String, Input>::new();
             self.kind_values(&binding, |row| {
-                let key = if request.group.is_none() { instant(row.time) } else { text(row.g.clone()) };
-                if !highlights.contains_key(&key) && highlights.len() >= request.limit {
-                    return Err(Error::Data("narrow grid highlights"));
+                let key = frame_key(&row)?;
+                if !frames.contains_key(&key) {
+                    return Ok(());
                 }
                 if highlights.get(&key).is_none_or(|old| old.position < row.position) {
                     highlights.insert(key, row);
                 }
                 Ok(())
             })?;
-            for (_, input) in highlights {
-                let (row, column, frame) =
-                    (input.x, input.z, if request.group.is_none() { ScalarValue::Signed(input.time) } else { input.g });
-                let frame = match frame {
-                    ScalarValue::Signed(time) if request.group.is_none() => instant(time),
-                    value => text(value),
-                };
+            for (frame, input) in highlights {
+                let (row, column) = (input.x, input.z);
                 let row = rows.iter().position(|axis| axis.key == text(row.clone()));
                 let column = columns.iter().position(|axis| axis.key == text(column.clone()));
                 if let (Some(row), Some(column), Some(frame)) = (row, column, frames.get_mut(&frame)) {
@@ -489,25 +519,76 @@ impl Store {
                 frames: frames.into_values().collect(),
                 summary_label: definition.summary_label.clone(),
             },
-            count,
+            examined,
         ))
     }
     pub fn spectrum_window(&self, request: KindWindow<'_>, options: &PlotFftOptions) -> Result<(PlotColumn, u64)> {
         let window = &request.window;
-        let mut rows = Vec::new();
-        self.numeric_values(*window, |_, time, value| {
-            if rows.len() > request.limit {
-                return Err(Error::Data("narrow the frequency source window to its configured input bound"));
-            }
-            rows.push((time, value));
-            Ok(())
-        })?;
-        rows.sort_by_key(|row| row.0);
-        if rows.len() > request.limit {
+        let maximum = options.input_samples.map_or(request.limit, |count| count as usize);
+        if maximum < 2 || maximum > request.limit {
             return Err(Error::Invalid(
-                "Read Frequency Plot: Narrow the Source-Time Window to the Configured Transform Input Bound".into(),
+                "Read Frequency Plot: Select at Least Two Input Samples Within the Configured Transform Input Bound".into(),
             ));
         }
+        // Retain the Latest Source-Time Samples, Including Late Arrivals at a Fixed Cut.
+        let mut latest = BinaryHeap::new();
+        let mut keep = |position, time, value: f64| {
+            latest.push(Reverse((time, position, value.to_bits())));
+            if latest.len() > maximum {
+                latest.pop();
+            }
+        };
+        if self.has_projection(*window)? {
+            self.numeric_values(*window, |position, time, value| {
+                keep(position, time, value);
+                Ok(())
+            })?;
+        } else {
+            // Batch Ranges Permit an Early Stop Without Decoding the Old History.
+            let mut latest = BinaryHeap::new();
+            self.ordered_batches(
+                BatchSelection {
+                    execution: window.execution,
+                    stream: window.stream,
+                    after: window.after,
+                    through: window.through,
+                    start_ns: window.start_ns,
+                    end_ns: window.end_ns,
+                },
+                &[window.field.into()],
+                true,
+                |batch, end_ns| {
+                    if latest.len() == maximum && latest.peek().is_some_and(|Reverse((time, _, _))| *time > end_ns) {
+                        return Ok(false);
+                    }
+                    let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+                    let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+                    let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+                    let values = scalar::column(&batch, window.field)?;
+                    for row in 0..batch.num_rows() {
+                        if let Some(value) = scalar::number(&values.value(row)?).filter(|value| value.is_finite()) {
+                            latest.push(Reverse((times.value(row), positions.value(row), value.to_bits())));
+                            if latest.len() > maximum {
+                                latest.pop();
+                            }
+                        }
+                    }
+                    Ok(true)
+                },
+            )?;
+            return self.spectrum_rows(
+                window,
+                options,
+                latest.into_sorted_vec().into_iter().rev().map(|Reverse((time, _, value))| (time, f64::from_bits(value))).collect(),
+            );
+        }
+        self.spectrum_rows(
+            window,
+            options,
+            latest.into_sorted_vec().into_iter().rev().map(|Reverse((time, _, value))| (time, f64::from_bits(value))).collect(),
+        )
+    }
+    fn spectrum_rows(&self, window: &NumericWindow<'_>, options: &PlotFftOptions, rows: Vec<(i64, f64)>) -> Result<(PlotColumn, u64)> {
         if rows.len() < 2 {
             return Ok((PlotColumn::default(), rows.len() as u64));
         }
@@ -601,20 +682,21 @@ impl Store {
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+            let ys = scalar::column(&batch, request.window.field)?;
+            let xs = request.x.map(|field| scalar::column(&batch, field)).transpose()?;
+            let zs = request.z.map(|field| scalar::column(&batch, field)).transpose()?;
+            let groups = request.group.map(|field| scalar::column(&batch, field)).transpose()?;
             for row in 0..batch.num_rows() {
-                let Some(y) = scalar::number(&scalar::field(&batch, request.window.field, row)?).filter(|v| v.is_finite()) else {
+                let Some(y) = scalar::number(&ys.value(row)?).filter(|v| v.is_finite()) else {
                     continue;
-                };
-                let field = |field: Option<&str>| {
-                    field.map(|field| scalar::field(&batch, field, row)).transpose().map(|v| v.unwrap_or(ScalarValue::Null))
                 };
                 read(Input {
                     position: positions.value(row),
                     time: times.value(row),
-                    x: field(request.x)?,
+                    x: xs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
                     y,
-                    z: field(request.z)?,
-                    g: request.group.map(|f| scalar::field(&batch, f, row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
+                    z: zs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
+                    g: groups.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
                 })?;
             }
             Ok(true)
@@ -636,7 +718,7 @@ fn missing(value: &ScalarValue) -> bool {
     matches!(value, ScalarValue::Missing | ScalarValue::Null)
 }
 fn instant(at_ns: i64) -> String {
-    prost_types::Timestamp {
+    Timestamp {
         seconds: at_ns.div_euclid(1_000_000_000),
         nanos: at_ns.rem_euclid(1_000_000_000) as i32,
     }

@@ -23,6 +23,12 @@
 use crate::{Error, Result};
 use dokime_protocol::v1;
 
+use dokime_protocol::client::{PlotPresentation, PlotReferenceBand, PlotReferenceLine, PlotReferenceValue};
+use dokime_protocol::v1::{
+    DataExpression, EvidenceScope, GridDefinition, Plot, PlotFftOptions, PlotFilter, PlotHistogramOptions, PlotKind, PlotRequest,
+};
+use dokime_storage::{ExecutionCut, Store};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -39,7 +45,7 @@ use dokime_protocol::v1;
 
 /* === Public Functions === */
 
-pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequest> {
+pub fn request(plot: &Plot, scope: EvidenceScope) -> Result<PlotRequest> {
     let stream = plot
         .y
         .iter()
@@ -47,7 +53,7 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
         .or_else(|| plot.z.as_ref().and_then(stream))
         .or_else(|| plot.x.as_ref().and_then(stream))
         .ok_or_else(|| Error::Invalid("Render Plot: Bind at Least One Stored Stream Expression".into()))?;
-    Ok(v1::PlotRequest {
+    Ok(PlotRequest {
         plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
         plot_type: plot.kind,
         style: plot.style,
@@ -62,7 +68,7 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
         filters: plot
             .filters
             .iter()
-            .map(|filter| v1::PlotFilter {
+            .map(|filter| PlotFilter {
                 expression: filter.expression.clone(),
                 operator: filter.operator,
                 value: filter.value.clone(),
@@ -71,9 +77,10 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
         marker_record_types: plot.marker_records.clone(),
         unit: Some(plot.unit.clone()),
         max_points: plot.display_points.map(u64::from),
-        histogram: plot.histogram_bins.map(|bins| v1::PlotHistogramOptions { bins: bins as u64, ..Default::default() }),
-        fft: plot.sample_rate_hz.map(|rate| v1::PlotFftOptions {
-            sample_rate_hz: Some(rate),
+        histogram: plot.histogram_bins.map(|bins| PlotHistogramOptions { bins: bins as u64, ..Default::default() }),
+        fft: (plot.kind == PlotKind::FrequencySeries as i32).then_some(PlotFftOptions {
+            sample_rate_hz: plot.sample_rate_hz,
+            input_samples: plot.input_samples,
             ..Default::default()
         }),
         arrangement: plot.arrangement,
@@ -82,7 +89,7 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
         xy_interval: plot.interval,
         reduction: plot.reduction,
         render: plot.render,
-        grid: plot.grid.as_ref().map(|grid| v1::GridDefinition {
+        grid: plot.grid.as_ref().map(|grid| GridDefinition {
             row: grid.row.clone(),
             column: grid.column.clone(),
             frame: grid.frame.clone(),
@@ -95,10 +102,8 @@ pub fn request(plot: &v1::Plot, scope: v1::EvidenceScope) -> Result<v1::PlotRequ
     })
 }
 
-pub fn presentation(
-    store: &dokime_storage::Store, cut: &dokime_storage::ExecutionCut, plot: &v1::Plot,
-) -> Result<dokime_protocol::client::PlotPresentation> {
-    let value = |expression: Option<&v1::DataExpression>| -> Result<Option<dokime_protocol::client::PlotReferenceValue>> {
+pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<PlotPresentation> {
+    let value = |expression: Option<&DataExpression>| -> Result<Option<PlotReferenceValue>> {
         let Some(expression) = expression else {
             return Ok(None);
         };
@@ -109,11 +114,11 @@ pub fn presentation(
             Some(v1::value::Kind::UnsignedInteger(value)) => value as f64,
             _ => return Err(Error::Invalid("Render Plot Reference: Select a Numeric Scalar".into())),
         };
-        Ok(Some(dokime_protocol::client::PlotReferenceValue { constant: Some(value), expression: None }))
+        Ok(Some(PlotReferenceValue { constant: Some(value), expression: None }))
     };
     let mut reference_lines = Vec::new();
     for line in &plot.reference_lines {
-        reference_lines.push(dokime_protocol::client::PlotReferenceLine {
+        reference_lines.push(PlotReferenceLine {
             value: value(line.value.as_ref())?,
             label: Some(line.label.clone()),
             color: line.color.clone(),
@@ -121,7 +126,7 @@ pub fn presentation(
     }
     let mut reference_bands = Vec::new();
     for band in &plot.reference_bands {
-        reference_bands.push(dokime_protocol::client::PlotReferenceBand {
+        reference_bands.push(PlotReferenceBand {
             min: value(band.min.as_ref())?,
             max: value(band.max.as_ref())?,
             center: value(band.center.as_ref())?,
@@ -130,22 +135,23 @@ pub fn presentation(
             color: band.color.clone(),
         });
     }
-    Ok(dokime_protocol::client::PlotPresentation {
+    Ok(PlotPresentation {
         style: plot.style,
         reference_lines,
         reference_bands,
-        fft: plot.sample_rate_hz.map(|rate| v1::PlotFftOptions {
-            sample_rate_hz: Some(rate),
+        fft: (plot.kind == PlotKind::FrequencySeries as i32).then_some(PlotFftOptions {
+            sample_rate_hz: plot.sample_rate_hz,
+            input_samples: plot.input_samples,
             ..Default::default()
         }),
-        histogram: plot.histogram_bins.map(|bins| v1::PlotHistogramOptions { bins: bins as u64, ..Default::default() }),
+        histogram: plot.histogram_bins.map(|bins| PlotHistogramOptions { bins: bins as u64, ..Default::default() }),
         ..Default::default()
     })
 }
 
 /* === Private Functions === */
 
-fn stream(expression: &v1::DataExpression) -> Option<String> {
+fn stream(expression: &DataExpression) -> Option<String> {
     match expression.kind.as_ref()? {
         v1::data_expression::Kind::Stream(reference) => Some(reference.identifier.clone()),
         v1::data_expression::Kind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),

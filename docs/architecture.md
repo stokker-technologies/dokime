@@ -506,6 +506,34 @@ Plot/document readers consume projected batches. The pinned library supplies
 scalar evaluation, bounded accumulators, sorting and downsampling where its current
 query vocabulary fits. Each document render owns one isolated reader for all its
 cards and buffers its HTML output.
+Desktop documents return definitions, presentation and a fixed evidence selection;
+`Documents.Get` does not render and discard invisible plot payloads. Its optional
+`max_frames` bounds complete frames per page alongside `max_bytes`, preserving the
+same retained cut, continuation and frame-order validation. The desktop requests
+32-frame pages to respect decoded-memory admission as well as wire size.
+Visible plot selections belong to the desktop. It partitions them into groups of
+at most 32 requests, with independent generation-owned cancellation and reconnect.
+One host batch owns one reader and one frozen descriptor pool per execution;
+identical selections share their computation within that batch, with distinct plot
+identities and selection fingerprints. Nothing survives the batch as a query cache.
+Aligned time-series columns use the existing packed `PlotFrame.time` axis instead
+of repeating recursive protobuf `Value` messages for every time coordinate.
+Watch recomputes when its selected saved evidence advances, rather than on every
+unrelated runtime notification. This preserves invariant 11, **Distinct Storage
+Guarantees**: opening or watching a plot never flushes accepted rows to manufacture
+a saved cut. Memoized chart leaves retain unchanged frames across group updates.
+
+Frequency declarations select the latest `input_samples` finite samples in source
+time and durable-position order, within the requested source window and filters.
+The absent declaration uses the host's transform input bound; an explicit count
+outside that bound is refused. This selects transform input independently of its
+taper and output resolution. Unprojected reads visit newest Arrow batch ranges
+first and stop once older ranges cannot change the selection. Projected/filter
+reads retain the same bounded selection while evaluating their source rows.
+Grid previews retain the latest complete frames that fit their declared axes and
+output resolution. A single grid whose rows and columns exceed that resolution
+still refuses. Numeric frame expressions denote source-time seconds; returned
+frame instants are canonical timestamps, including for playback.
 `ordered_merge.rs` contains one as-of merge over two ordered
 Arrow batch iterators, with no product/storage types in its signature. Expression
 binding uses it for stream-to-stream and record-to-stream alignment, record-based

@@ -30,7 +30,8 @@ use sha2::{Digest, Sha256};
 use super::fixture::{self, Row};
 use dokime_protocol::client::content::{ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::v1;
-use dokime_storage::{BatchSelection, ExecutionState, NumericWindow, Result, SampleWindow, Store, storage_defaults};
+use dokime_protocol::v1::{FftDetrend, FftWindow, GridAxisEntry, GridDefinition, PlotFftOptions, Reduction};
+use dokime_storage::{BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store, storage_defaults};
 
 /* === Constants === */
 
@@ -89,6 +90,102 @@ fn numeric(through: u64) -> NumericWindow<'static> {
 }
 
 /* === Tests === */
+
+#[test]
+fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let mut settings = storage_defaults();
+    settings.flush_rows = NonZeroUsize::new(32).unwrap();
+    let store = Store::open_with(root.path(), settings)?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    let mut samples = fixture::samples(2048);
+    for (index, sample) in samples.iter_mut().enumerate() {
+        sample.source_ns = if index < 2032 { index as i64 * 120_000_000_000 } else { (259_200 + index as i64 - 2032) * 1_000_000_000 };
+        sample.row = Row {
+            value: [10, 11, 10, 9][index % 4],
+            label: String::new(),
+        }
+        .encode_to_vec();
+    }
+    for batch in samples.chunks(32) {
+        store.sample_batch("execution", batch)?;
+    }
+    store.flush_samples()?;
+    let fixed = store.cut("execution")?.frontier;
+    let mut late = samples[0].clone();
+    late.sequence = 2049;
+    late.row = Row { value: 999, label: String::new() }.encode_to_vec();
+    store.sample_batch("execution", &[late])?;
+    store.flush_samples()?;
+    let options = PlotFftOptions {
+        input_samples: Some(16),
+        sample_rate_hz: Some(1.0),
+        window: FftWindow::Rectangular as i32,
+        detrend: FftDetrend::Mean as i32,
+        ..Default::default()
+    };
+    let read = |store: &Store, through| {
+        store.spectrum_window(
+            KindWindow {
+                window: numeric(through),
+                x: None,
+                z: None,
+                group: None,
+                limit: 32,
+            },
+            &options,
+        )
+    };
+    let (column, count) = read(&store, fixed)?;
+    assert_eq!(count, 16);
+    let peak = column.y.iter().enumerate().max_by(|(_, a), (_, b)| a.value.unwrap().total_cmp(&b.value.unwrap())).unwrap().0;
+    assert_eq!(column.x[peak].kind, Some(v1::value::Kind::Number(0.25)));
+    assert!((column.y[peak].value.unwrap() - 1.0).abs() < 1e-10);
+    assert_eq!(read(&store, store.cut("execution")?.frontier)?.0, column);
+    let axes = [9, 10, 11].map(|value| GridAxisEntry {
+        key: value.to_string(),
+        label: value.to_string(),
+        ..Default::default()
+    });
+    let (grid, count) = store.grid_window(
+        KindWindow {
+            window: numeric(fixed),
+            x: Some("value"),
+            z: Some("value"),
+            group: None,
+            limit: 18,
+        },
+        &GridDefinition {
+            rows: axes.to_vec(),
+            columns: axes.to_vec(),
+            ..Default::default()
+        },
+        Reduction::Mean,
+    )?;
+    assert_eq!(count, 2048);
+    assert_eq!(
+        grid.frames.iter().map(|frame| frame.instant.as_str()).collect::<Vec<_>>(),
+        ["1970-01-04T00:00:14Z", "1970-01-04T00:00:15Z"]
+    );
+    assert_eq!(grid.frames[1].values.iter().copied().filter(|value| *value != 0.0).collect::<Vec<_>>(), [9.0]);
+    let refused = store.spectrum_window(
+        KindWindow {
+            window: numeric(fixed),
+            x: None,
+            z: None,
+            group: None,
+            limit: 8,
+        },
+        &options,
+    );
+    assert!(refused.is_err());
+    store.close_streams("execution")?;
+    drop(store);
+    let store = Store::open(root.path())?;
+    assert_eq!(read(&store, fixed)?.0, column);
+    Ok(())
+}
 
 #[test]
 fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {

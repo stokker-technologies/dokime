@@ -75,6 +75,18 @@ structure with source cards, summary definitions, bindings and layout; the fixed
 evidence cut; card results; and completion counters. It rejects misplaced cuts,
 changed identities, incomplete cards and trailing frames. A page boundary never
 relaxes those checks.
+The desktop asks for at most 32 complete frames per document page, in addition to
+the host's unchanged byte bound. Plot definitions do not trigger hidden plot reads
+while the document is assembled.
+
+Plot cards publish visibility through their existing intersection observer.
+`src/plots/live-data.ts` requests visible cards in groups of at most 32; this is a
+per-request memory/admission bound, never a document-size limit. Each group owns
+its watch, retries and cancellation. Changing one group's viewport or dimensions
+retains other subscriptions and rendered frames. Manual All uses the same bounded
+batch selection through paged snapshots. Off-screen cards resume when visible,
+and a replaced connection generation cancels every owned group. Failed groups
+retain their actionable failure without discarding other groups' data.
 
 `Executions.Get` carries frozen record/stream declarations and a schema digest.
 `src/lib/host/schemas.ts` fetches complete descriptor-file pages through
