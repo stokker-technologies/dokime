@@ -14,6 +14,7 @@
 #[cfg(feature = "testing")]
 mod app;
 mod connection;
+mod host;
 mod http;
 mod native_session;
 mod parameters;

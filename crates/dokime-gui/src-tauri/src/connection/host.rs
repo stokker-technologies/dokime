@@ -15,8 +15,6 @@ mod pairing;
 #[rustfmt::skip]
 mod operations;
 
-#[cfg(test)]
-mod tests;
 
 /* === Re-Exports === */
 

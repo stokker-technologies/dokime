@@ -60,6 +60,7 @@ class Plugin:
         records: Sequence[Record] = (),
         requires: Sequence[harmos.Operation] | None = None,
         sections: Sequence[Message] = (),
+        messages: Sequence[type[Message]] = (),
         operations: object | None = None,
     ) -> None:
         self.identifier = identifier
@@ -117,32 +118,17 @@ class Plugin:
                     ],
                 )
             )
-        self._plugin = harmos.Plugin(adapter, id=identifier, version=version, requires=self.requires, sections=[*sections, *contributions])
+        self._plugin = harmos.Plugin(
+            adapter,
+            id=identifier,
+            version=version,
+            requires=self.requires,
+            sections=[*sections, *contributions],
+            messages=[*messages, *(record.row for record in self.records)],
+        )
 
     def catalog(self) -> wire.Catalog:
-        catalog = self._plugin.catalog()
-        # Record Payload Types Are Referenced By Name In The Product Section.
-        from harmos.contracts import message_types
-
-        existing = {item.name: item for item in catalog.types.file}
-        for record in self.records:
-            for definition in message_types(record.row).file:
-                if definition.name in existing:
-                    target = existing[definition.name]
-                    known = {item.name for item in target.message_type}
-                    target.message_type.extend(item for item in definition.message_type if item.name not in known)
-                    known_enums = {item.name for item in target.enum_type}
-                    target.enum_type.extend(item for item in definition.enum_type if item.name not in known_enums)
-                    target.dependency.extend(name for name in definition.dependency if name not in target.dependency)
-                else:
-                    target = catalog.types.file.add()
-                    target.CopyFrom(definition)
-                    existing[target.name] = target
-        from hashlib import sha256
-
-        catalog.ClearField("digest")
-        catalog.digest = sha256(catalog.SerializeToString(deterministic=True)).digest()
-        return catalog
+        return self._plugin.catalog()
 
     async def start(self, address: str = "127.0.0.1:7001") -> "Endpoint":
         # Harmos Owns Transport, Fingerprints, Cancellation And Stream Backpressure.

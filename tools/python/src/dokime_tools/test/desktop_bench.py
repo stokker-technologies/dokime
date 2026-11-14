@@ -21,12 +21,14 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from selectors import DefaultSelector, EVENT_READ
 from statistics import median
 
 # Third Party Imports
 # Local Imports
 from .. import policy, temporary
 from ..ci import bootstrap
+from . import policy as test_policy
 
 # Type Checking Imports
 
@@ -39,6 +41,61 @@ from ..ci import bootstrap
 # === Classes === #
 
 # === Public Functions === #
+
+
+@contextmanager
+def credentials(environment: dict[str, str] | None) -> Generator[dict[str, str]]:
+    """Own An Unlocked Secret Service For In-Process Linux Host Stories."""
+    selected = dict(os.environ if environment is None else environment)
+    if sys.platform != "linux":
+        yield selected
+        return
+    timeout = test_policy.load(test_policy.root()).deadline("integration")
+    with temporary.directory() as scratch:
+        home = scratch / "credentials"
+        home.mkdir(mode=0o700)
+        selected.update({name: str(home) for name in ("XDG_DATA_HOME", "XDG_RUNTIME_DIR")})
+        with subprocess.Popen(
+            ["dbus-daemon", "--session", "--nofork", "--print-address=1"],
+            env=selected,
+            stdout=subprocess.PIPE,
+            text=True,
+        ) as bus:
+            try:
+                with DefaultSelector() as ready:
+                    ready.register(bus.stdout, EVENT_READ)
+                    if not ready.select(timeout):
+                        raise RuntimeError("Start Story Credential Store: Private D-Bus Did Not Publish Its Address")
+                address = bus.stdout.readline().strip()
+                if not address:
+                    raise RuntimeError(f"Start Story Credential Store: Private D-Bus Exited ({bus.wait()})")
+                selected["DBUS_SESSION_BUS_ADDRESS"] = address
+                with subprocess.Popen(
+                    ["gnome-keyring-daemon", "--foreground", "--components=secrets", "--unlock", "--control-directory", str(home)],
+                    env=selected,
+                    stdin=subprocess.PIPE,
+                ) as keyring:
+                    try:
+                        keyring.stdin.write(b"dokime-story-keyring-password")
+                        keyring.stdin.close()
+                        subprocess.run(["gdbus", "wait", "--session", "org.freedesktop.secrets"], env=selected, check=True, timeout=timeout)
+                        yield selected
+                    finally:
+                        if keyring.poll() is None:
+                            keyring.terminate()
+                        try:
+                            keyring.wait(timeout=timeout)
+                        except subprocess.TimeoutExpired:
+                            keyring.kill()
+                            keyring.wait()
+            finally:
+                if bus.poll() is None:
+                    bus.terminate()
+                try:
+                    bus.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    bus.kill()
+                    bus.wait()
 
 
 @contextmanager

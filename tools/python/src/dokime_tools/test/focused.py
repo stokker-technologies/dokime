@@ -17,6 +17,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
+from contextlib import nullcontext
 from pathlib import Path
 
 # Third Party Imports
@@ -24,7 +25,7 @@ from pathlib import Path
 from .. import temporary
 from ..build import cargo
 from ..process import spawn_flags
-from . import nextest, policy, report
+from . import desktop_bench, nextest, policy, report
 
 # Type Checking Imports
 
@@ -102,16 +103,18 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
             *values,
         ]
         print(f"Run Rust Stories: {shlex.join(command)}", flush=True)
-        result = subprocess.run(
-            command,
-            cwd=directory,
-            env=dict(cargo.compiler_environment("test"), CARGO_BUILD_WARNINGS="deny", TEST_PROFILE="dev"),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            check=False,
-            creationflags=spawn_flags(),
-        )
+        environment = dict(cargo.compiler_environment("test"), CARGO_BUILD_WARNINGS="deny", TEST_PROFILE="dev")
+        with desktop_bench.credentials(environment) if names else nullcontext(environment) as selected:
+            result = subprocess.run(
+                command,
+                cwd=directory,
+                env=selected,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                check=False,
+                creationflags=spawn_flags(),
+            )
         junit = scratch / "store" / nextest.PROFILE / "junit.xml"
         if junit.is_file():
             report.write(destination, junit.read_text(encoding="utf-8"))

@@ -39,6 +39,7 @@ from pathlib import Path
 
 revision = "81d32d3bc9ab3e2121746923712ec9508cee3ec7"
 root = Path(__file__).resolve().parents[1]
+(root / "obj/packages").mkdir(parents=True, exist_ok=True)
 output = root / "obj" / "harmos"
 output.mkdir(parents=True, exist_ok=True)
 source = os.environ.get("HARMOS_SOURCE")

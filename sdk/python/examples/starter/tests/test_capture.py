@@ -66,7 +66,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(records.records), 1)
         self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))
         cache = dokime.FrozenSchemaCache()
-        value = await cache.decode(host.client, execution, "google.protobuf.BoolValue", records.records[0].payload)
+        value = await cache.decode(host.client, execution, records.records[0].record_type, records.records[0].payload)
         self.assertTrue(BoolValue.FromString(value.SerializeToString()).value)
         self.assertFalse(endpoint.plugin._sessions)
         await host.client.plugins.remove((await host.client.plugins.list()).plugins[0].entry)
