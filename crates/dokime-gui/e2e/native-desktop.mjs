@@ -281,7 +281,10 @@ async function settings() {
   }
   assert.ok(rowIds.length > 0);
   await until("Admitted and Installed Plugin Rows", () =>
-    desktop.execute('return arguments[0].every(id => document.querySelector(`[data-row-id="${CSS.escape(id)}"]`));', [rowIds]),
+    desktop.execute(
+      'return arguments[0].every(id => [...document.querySelectorAll("[data-row-id]")].some(row => row.dataset.rowId === id));',
+      [rowIds],
+    ),
   );
   await desktop.goto("/settings/diagnostics");
   assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));
