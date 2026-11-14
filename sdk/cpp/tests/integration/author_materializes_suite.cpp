@@ -11,8 +11,36 @@
 
 #include "../support/check.hpp"
 #include "dokime/plugin.hpp"
+#include "dokime/plugin/v1/criteria.pb.h"
+#include "dokime/plugin/v1/executions.pb.h"
+#include "dokime/plugin/v1/steps.pb.h"
+#include "dokime/plugin/v1/test_cases.pb.h"
 #include <catch2/catch_test_macros.hpp>
 #include <map>
+
+using dokime::Prompt;
+using dokime::PromptDefinitions;
+using dokime::Suites;
+using dokime::plugin::Context;
+using dokime::plugin::Plugin;
+using dokime::plugin::Template;
+using dokime::plugin::v1::CriteriaEvaluateRequest;
+using dokime::plugin::v1::CriteriaEvaluateResponse;
+using dokime::plugin::v1::ExecutionsCleanupRequest;
+using dokime::plugin::v1::ExecutionsCleanupResponse;
+using dokime::plugin::v1::ExecutionsInitializeRequest;
+using dokime::plugin::v1::ExecutionsInitializeResponse;
+using dokime::plugin::v1::StepsExecuteRequest;
+using dokime::plugin::v1::StepsExecuteResponse;
+using dokime::plugin::v1::TestCasesMaterializeRequest;
+using dokime::plugin::v1::TestCasesMaterializeResponse;
+using google::protobuf::Descriptor;
+using harmos::VISIBILITY_PROTECTED;
+
+using dokime::plugin::metadata;
+using std::invalid_argument;
+using std::map;
+using std::string;
 
 /* === Macros === */
 
@@ -32,48 +60,46 @@
 
 TEST_CASE("Author Materializes a Suite") {
   // Compose a Suite and Hand Its Values to the Plugin.
-  dokime::Template value;
-  *value.definition.mutable_metadata() = dokime::metadata("sample.measure", "Measure");
-  value.initialize = [](dokime::Context &) {};
-  value.steps.push_back({dokime::metadata("capture", "Capture"), [](dokime::Context &) {}, 2});
-  value.criteria.push_back({dokime::metadata("valid", "Valid"), [](dokime::Context &) { return true; }});
-  dokime::Plugin plugin("sample", "1.0.0");
-  plugin.suite({dokime::metadata("sample", "Sample"), {value}});
-  dokime::Prompt prompt;
-  *prompt.mutable_metadata() = dokime::metadata("sample.confirm", "Confirm");
+  Template value;
+  *value.definition.mutable_metadata() = metadata("sample.measure", "Measure");
+  value.initialize = [](Context &) {};
+  value.steps.push_back({metadata("capture", "Capture"), [](Context &) {}, 2});
+  value.criteria.push_back({metadata("valid", "Valid"), [](Context &) { return true; }});
+  Plugin plugin("sample", "1.0.0");
+  plugin.suite({metadata("sample", "Sample"), {value}});
+  Prompt prompt;
+  *prompt.mutable_metadata() = metadata("sample.confirm", "Confirm");
   plugin.prompt(prompt);
 
-  // Inspect the Frozen Catalog and Its Protected Lifecycle Contracts.
-  auto catalog = plugin.catalog();
-  dokime::v1::Suites suites;
-  for (const auto &section : catalog.sections())
-    if (section.type() == "dokime.v1.Suites")
+  // Inspect the Frozen Declarations and Its Protected Lifecycle Contracts.
+  auto declarations = plugin.declarations();
+  Suites suites;
+  for (const auto &section : declarations.sections())
+    if (section.type() == Suites::descriptor()->full_name())
       check(suites.ParseFromString(section.payload()), "Suite Did Not Decode");
   check(suites.suites_size() == 1 && suites.suites(0).templates(0).materialize() == "sample.measure.materialize",
         "Suite Was Not Registered");
   // Decode Published Prompt Definitions with Their Shared Declaration Type.
-  dokime::v1::PromptDefinitions prompts;
-  for (const auto &section : catalog.sections())
-    if (section.type() == dokime::v1::PromptDefinitions::descriptor()->full_name())
+  PromptDefinitions prompts;
+  for (const auto &section : declarations.sections())
+    if (section.type() == PromptDefinitions::descriptor()->full_name())
       check(prompts.ParseFromString(section.payload()), "Prompt Definitions Did Not Decode");
   check(prompts.prompts_size() == 1 && prompts.prompts(0).metadata().identifier() == prompt.metadata().identifier(),
         "Prompt Definition Was Not Published");
 
   bool retry = false;
-  std::map<std::string, std::pair<const google::protobuf::Descriptor *, const google::protobuf::Descriptor *>> expected{
+  map<string, std::pair<const Descriptor *, const Descriptor *>> expected{
       {value.definition.metadata().identifier() + ".materialize",
-       {dokime::plugin::v1::TestCasesMaterializeRequest::descriptor(), dokime::plugin::v1::TestCasesMaterializeResponse::descriptor()}},
+       {TestCasesMaterializeRequest::descriptor(), TestCasesMaterializeResponse::descriptor()}},
       {value.definition.metadata().identifier() + ".initialize",
-       {dokime::plugin::v1::ExecutionsInitializeRequest::descriptor(), dokime::plugin::v1::ExecutionsInitializeResponse::descriptor()}},
+       {ExecutionsInitializeRequest::descriptor(), ExecutionsInitializeResponse::descriptor()}},
       {value.definition.metadata().identifier() + ".cleanup",
-       {dokime::plugin::v1::ExecutionsCleanupRequest::descriptor(), dokime::plugin::v1::ExecutionsCleanupResponse::descriptor()}},
-      {"sample.measure.step.0",
-       {dokime::plugin::v1::StepsExecuteRequest::descriptor(), dokime::plugin::v1::StepsExecuteResponse::descriptor()}},
-      {"sample.measure.criterion.0",
-       {dokime::plugin::v1::CriteriaEvaluateRequest::descriptor(), dokime::plugin::v1::CriteriaEvaluateResponse::descriptor()}},
+       {ExecutionsCleanupRequest::descriptor(), ExecutionsCleanupResponse::descriptor()}},
+      {"sample.measure.step.0", {StepsExecuteRequest::descriptor(), StepsExecuteResponse::descriptor()}},
+      {"sample.measure.criterion.0", {CriteriaEvaluateRequest::descriptor(), CriteriaEvaluateResponse::descriptor()}},
   };
-  for (const auto &operation : catalog.operations()) {
-    check(operation.visibility() == harmos::wire::VISIBILITY_PROTECTED, "An Authoring Operation Became Public");
+  for (const auto &operation : declarations.operations()) {
+    check(operation.visibility() == VISIBILITY_PROTECTED, "An Authoring Operation Became Public");
     auto binding = expected.find(operation.id());
     check(binding != expected.end(), "Unexpected Lifecycle Binding");
     check(operation.request() == binding->second.first->full_name() && operation.response() == binding->second.second->full_name(),
@@ -88,8 +114,8 @@ TEST_CASE("Author Materializes a Suite") {
   // Correct a Duplicate Identifier Before Serving.
   bool duplicate = false;
   try {
-    plugin.suite({dokime::metadata("sample", "Sample"), {value}});
-  } catch (const std::invalid_argument &) {
+    plugin.suite({metadata("sample", "Sample"), {value}});
+  } catch (const invalid_argument &) {
     duplicate = true;
   }
   check(duplicate, "Duplicate Suite Was Accepted");

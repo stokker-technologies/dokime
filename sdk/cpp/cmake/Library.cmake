@@ -11,7 +11,7 @@ target_compile_features(dokime_cpp PUBLIC cxx_std_20)
 target_include_directories(dokime_cpp PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(dokime_cpp PUBLIC dokime_protocol)
+target_link_libraries(dokime_cpp PUBLIC dokime_protocol PRIVATE OpenSSL::Crypto)
 if(MSVC)
   target_compile_options(dokime_cpp PRIVATE /W4 /WX /EHsc /Zc:preprocessor)
 else()

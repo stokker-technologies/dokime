@@ -73,3 +73,7 @@ run = 'python tools/sdk.py conformance {% for arg in usage.args %}"{{arg}}" {% e
 [tasks.clean]
 description = "Clean C++ Compiler Outputs"
 run = 'python tools/sdk.py clean'
+
+[tasks.generate]
+description = "Check Frozen C++ Generation"
+run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'

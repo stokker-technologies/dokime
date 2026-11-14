@@ -12,7 +12,28 @@
 #include "../support/check.hpp"
 #include "../support/plugin_host.hpp"
 #include "dokime/dokime.hpp"
+#include "dokime/plugin/v1/criteria.pb.h"
+#include "dokime/plugin/v1/executions.pb.h"
+#include "dokime/plugin/v1/steps.pb.h"
+#include "dokime/plugin/v1/test_cases.pb.h"
 #include <catch2/catch_session.hpp>
+
+using dokime::Origin;
+using dokime::Suites;
+using dokime::TERMINATION_COMPLETED;
+using dokime::plugin::v1::CriteriaEvaluateRequest;
+using dokime::plugin::v1::CriteriaEvaluateResponse;
+using dokime::plugin::v1::ExecutionsCleanupRequest;
+using dokime::plugin::v1::ExecutionsCleanupResponse;
+using dokime::plugin::v1::ExecutionsInitializeRequest;
+using dokime::plugin::v1::ExecutionsInitializeResponse;
+using dokime::plugin::v1::StepsExecuteRequest;
+using dokime::plugin::v1::StepsExecuteResponse;
+using dokime::plugin::v1::TestCasesMaterializeRequest;
+using dokime::plugin::v1::TestCasesMaterializeResponse;
+using harmos::TransportError;
+
+using std::string;
 
 /* === Macros === */
 
@@ -31,80 +52,89 @@
 /* === Entry Point === */
 
 namespace {
-std::string address;
-std::string placement;
+string address;
+string placement;
 } // namespace
 
 TEST_CASE("Plugin Executes a Case") {
-  // Connect to the Managed or Remote Starter.
+  // Connect to the Managed or Remote Test Example.
   PluginHost host(address);
   auto description = host.describe();
   check(description.id() == "sample", "Wrong Plugin Connected");
 
   // Preview a Materialized Case Without Creating Execution State.
-  dokime::plugin::v1::TestCasesMaterializeRequest materialize;
+  TestCasesMaterializeRequest materialize;
   materialize.set_template_("sample.check");
   (*materialize.mutable_parameters())["limit"].set_unsigned_integer(18446744073709551615ULL);
-  auto materialized = host.invoke<dokime::plugin::v1::TestCasesMaterializeResponse>("sample.check.materialize", materialize);
+  auto *fraction = (*materialize.mutable_parameters())["ratio"].mutable_exact();
+  fraction->set_negative(true);
+  fraction->set_numerator("36893488147419103229");
+  fraction->set_denominator("2");
+  auto materialized = host.invoke<TestCasesMaterializeResponse>("sample.check.materialize", materialize);
   auto test_case = materialized.test_case();
   check(test_case.steps_size() == 1 && test_case.criteria_size() == 1, "Case Lost Its Operations");
   check(test_case.parameters().at("limit").unsigned_integer() == 18446744073709551615ULL, "Parameter Precision Was Lost");
 
+  const auto &ratio = test_case.parameters().at("ratio");
+  check(ratio.has_exact() && ratio.exact().negative() && ratio.exact().numerator() == fraction->numerator() &&
+            ratio.exact().denominator() == "2",
+        "Exact Parameter Was Coerced");
+
   // Freeze Its Origin and Execute the Step.
-  dokime::v1::Origin origin;
+  Origin origin;
   *origin.mutable_plugin_run()->mutable_test_case() = test_case;
   origin.mutable_plugin_run()->set_plugin("sample");
   origin.mutable_plugin_run()->set_template_("sample.check");
-  origin.mutable_plugin_run()->set_digest(description.catalog().digest());
+  origin.mutable_plugin_run()->set_digest(description.declarations().digest());
   *origin.mutable_plugin_run()->mutable_started_at() = description.started_at();
-  dokime::plugin::v1::ExecutionsInitializeRequest initialize;
+  ExecutionsInitializeRequest initialize;
   initialize.set_execution("execution");
   *initialize.mutable_test_case() = test_case;
   *initialize.mutable_origin() = origin;
-  const auto &definition = description.catalog();
-  dokime::v1::Suites suites;
+  const auto &definition = description.declarations();
+  Suites suites;
   for (const auto &section : definition.sections())
-    if (section.type() == dokime::v1::Suites::descriptor()->full_name())
+    if (section.type() == Suites::descriptor()->full_name())
       check(suites.ParseFromString(section.payload()), "Suite Did Not Decode");
   const auto &binding = suites.suites(0).templates(0);
-  host.invoke<dokime::plugin::v1::ExecutionsInitializeResponse>(binding.initialize(), initialize, "execution");
+  host.invoke<ExecutionsInitializeResponse>(binding.initialize(), initialize, "execution");
 
-  dokime::plugin::v1::StepsExecuteRequest step;
+  StepsExecuteRequest step;
   step.set_execution("execution");
   step.set_step("measure");
   *step.mutable_test_case() = test_case;
   *step.mutable_origin() = origin;
-  host.invoke<dokime::plugin::v1::StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution");
+  host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution");
 
   // Evaluate Using the Resource Created by the Step.
-  dokime::plugin::v1::CriteriaEvaluateRequest criterion;
+  CriteriaEvaluateRequest criterion;
   criterion.set_execution("execution");
   criterion.set_criterion("valid");
   *criterion.mutable_test_case() = test_case;
   *criterion.mutable_origin() = origin;
-  auto verdict = host.invoke<dokime::plugin::v1::CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution");
+  auto verdict = host.invoke<CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution");
   check(verdict.passed(), "Criterion Lost the Execution Resource");
 
   // Refuse an Attempt to Select Another Execution Scope.
   bool refused = false;
   try {
-    host.invoke<dokime::plugin::v1::StepsExecuteResponse>(test_case.steps(0).operation(), step, "other");
-  } catch (const harmos::TransportError &) {
+    host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "other");
+  } catch (const TransportError &) {
     refused = true;
   }
   check(refused, "Mismatched Scope Was Accepted");
 
   // Clean Up and Observe That the Resource Was Released.
-  dokime::plugin::v1::ExecutionsCleanupRequest cleanup;
+  ExecutionsCleanupRequest cleanup;
   cleanup.set_execution("execution");
-  cleanup.set_termination(dokime::v1::TERMINATION_COMPLETED);
+  cleanup.set_termination(TERMINATION_COMPLETED);
   *cleanup.mutable_test_case() = test_case;
   *cleanup.mutable_origin() = origin;
-  host.invoke<dokime::plugin::v1::ExecutionsCleanupResponse>(binding.cleanup(), cleanup, "execution");
+  host.invoke<ExecutionsCleanupResponse>(binding.cleanup(), cleanup, "execution");
   bool released = false;
   try {
-    host.invoke<dokime::plugin::v1::CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution");
-  } catch (const harmos::TransportError &) {
+    host.invoke<CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution");
+  } catch (const TransportError &) {
     released = true;
   }
   check(released, "Cleanup Retained the Execution Resource");
