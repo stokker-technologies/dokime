@@ -23,10 +23,9 @@ _sym_db = _symbol_database.Default()
 
 
 from dokime._wire.model.v1 import execution_pb2 as dokime_dot_model_dot_v1_dot_execution__pb2
-from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/plugin/v1/criteria.proto\x12\x10\x64okime.plugin.v1\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1dharmos/model/v1/callers.proto\"\x96\x01\n\x17\x43riteriaEvaluateRequest\x12\x11\n\texecution\x18\x01 \x01(\t\x12\x11\n\tcriterion\x18\x02 \x01(\t\x12,\n\ttest_case\x18\x03 \x01(\x0b\x32\x19.dokime.model.v1.TestCase\x12\'\n\x06origin\x18\x04 \x01(\x0b\x32\x17.dokime.model.v1.Origin\"*\n\x18\x43riteriaEvaluateResponse\x12\x0e\n\x06passed\x18\x01 \x01(\x08\x32s\n\x08\x43riteria\x12g\n\x08\x45valuate\x12).dokime.plugin.v1.CriteriaEvaluateRequest\x1a*.dokime.plugin.v1.CriteriaEvaluateResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/plugin/v1/criteria.proto\x12\x10\x64okime.plugin.v1\x1a\x1f\x64okime/model/v1/execution.proto\"\x96\x01\n\x17\x43riteriaEvaluateRequest\x12\x11\n\texecution\x18\x01 \x01(\t\x12\x11\n\tcriterion\x18\x02 \x01(\t\x12,\n\ttest_case\x18\x03 \x01(\x0b\x32\x19.dokime.model.v1.TestCase\x12\'\n\x06origin\x18\x04 \x01(\x0b\x32\x17.dokime.model.v1.Origin\"*\n\x18\x43riteriaEvaluateResponse\x12\x0e\n\x06passed\x18\x01 \x01(\x08\x32o\n\x08\x43riteria\x12\x63\n\x08\x45valuate\x12).dokime.plugin.v1.CriteriaEvaluateRequest\x1a*.dokime.plugin.v1.CriteriaEvaluateResponse\"\x00\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,12 +33,10 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dokime._wire.plugin.v1.crit
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\016Dokime.Plugins'
-  _globals['_CRITERIA'].methods_by_name['Evaluate']._loaded_options = None
-  _globals['_CRITERIA'].methods_by_name['Evaluate']._serialized_options = b'\310\363\030\001'
-  _globals['_CRITERIAEVALUATEREQUEST']._serialized_start=118
-  _globals['_CRITERIAEVALUATEREQUEST']._serialized_end=268
-  _globals['_CRITERIAEVALUATERESPONSE']._serialized_start=270
-  _globals['_CRITERIAEVALUATERESPONSE']._serialized_end=312
-  _globals['_CRITERIA']._serialized_start=314
-  _globals['_CRITERIA']._serialized_end=429
+  _globals['_CRITERIAEVALUATEREQUEST']._serialized_start=87
+  _globals['_CRITERIAEVALUATEREQUEST']._serialized_end=237
+  _globals['_CRITERIAEVALUATERESPONSE']._serialized_start=239
+  _globals['_CRITERIAEVALUATERESPONSE']._serialized_end=281
+  _globals['_CRITERIA']._serialized_start=283
+  _globals['_CRITERIA']._serialized_end=394
 # @@protoc_insertion_point(module_scope)

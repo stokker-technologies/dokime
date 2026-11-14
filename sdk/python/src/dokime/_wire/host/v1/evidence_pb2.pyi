@@ -56,7 +56,7 @@ class EvidenceArchiveResponse(_message.Message):
     def __init__(self, file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 class Statistics(_message.Message):
-    __slots__ = ("count", "min", "max", "mean", "stddev", "median", "p05", "p95", "p99", "first", "last")
+    __slots__ = ("count", "min", "max", "mean", "stddev", "median", "p05", "p95", "p99", "first", "last", "sum")
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
@@ -68,18 +68,20 @@ class Statistics(_message.Message):
     P99_FIELD_NUMBER: _ClassVar[int]
     FIRST_FIELD_NUMBER: _ClassVar[int]
     LAST_FIELD_NUMBER: _ClassVar[int]
+    SUM_FIELD_NUMBER: _ClassVar[int]
     count: int
-    min: float
-    max: float
-    mean: float
+    min: _scalar_pb2.Value
+    max: _scalar_pb2.Value
+    mean: _scalar_pb2.Value
     stddev: float
-    median: float
-    p05: float
-    p95: float
-    p99: float
-    first: float
-    last: float
-    def __init__(self, count: _Optional[int] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., mean: _Optional[float] = ..., stddev: _Optional[float] = ..., median: _Optional[float] = ..., p05: _Optional[float] = ..., p95: _Optional[float] = ..., p99: _Optional[float] = ..., first: _Optional[float] = ..., last: _Optional[float] = ...) -> None: ...
+    median: _scalar_pb2.Value
+    p05: _scalar_pb2.Value
+    p95: _scalar_pb2.Value
+    p99: _scalar_pb2.Value
+    first: _scalar_pb2.Value
+    last: _scalar_pb2.Value
+    sum: _scalar_pb2.Value
+    def __init__(self, count: _Optional[int] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., mean: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., stddev: _Optional[float] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., p05: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., p95: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., p99: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., first: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., last: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., sum: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ...) -> None: ...
 
 class EvidenceSubject(_message.Message):
     __slots__ = ("execution", "cycle")

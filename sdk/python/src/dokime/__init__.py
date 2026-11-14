@@ -222,6 +222,7 @@ from ._generated.shared import EvidenceConditions as EvidenceConditions
 from ._generated.shared import EvidenceOrigin as EvidenceOrigin
 from ._generated.shared import EvidenceOriginKind as EvidenceOriginKind
 from ._generated.shared import EvidenceScope as EvidenceScope
+from ._generated.shared import ExactNumber as ExactNumber
 from ._generated.shared import ExecutionProgressValue as ExecutionProgressValue
 from ._generated.shared import FailureValue as FailureValue
 from ._generated.shared import FftDetrend as FftDetrend

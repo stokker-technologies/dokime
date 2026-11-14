@@ -22,7 +22,12 @@ use std::io::Write;
 
 // Local Imports
 use crate::{Error, Result};
+use dokime_protocol::client::{
+    PlotPresentation,
+    plots::{ContourGrid, GridFrame, GridFrames, PlotEnvelope, PlotFrame, PlotPayload},
+};
 use dokime_protocol::v1;
+use dokime_protocol::v1::{Plot, Value};
 
 /* === Constants === */
 
@@ -42,10 +47,7 @@ const COLORS: [&str; 6] = ["#4477aa", "#ee6677", "#228833", "#ccbb44", "#66ccee"
 
 /* === Public Functions === */
 
-pub(crate) fn render(
-    output: &mut impl Write, plot: &v1::Plot, envelope: &dokime_protocol::client::plots::PlotEnvelope,
-    presentation: &dokime_protocol::client::PlotPresentation,
-) -> Result<()> {
+pub(crate) fn render(output: &mut impl Write, plot: &Plot, envelope: &PlotEnvelope, presentation: &PlotPresentation) -> Result<()> {
     let payload = envelope.payload.as_ref().ok_or_else(|| Error::Invalid("Render Plot: Query Its Fixed Snapshot First".into()))?;
     let count = envelope.diagnostics.as_ref().map_or(0, |diagnostics| diagnostics.raw_point_count);
     write!(
@@ -84,8 +86,8 @@ pub(crate) fn render(
                 }
             }
             dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
-                let min = boxes.series.iter().map(|series| series.min).reduce(f64::min).unwrap_or(0.0);
-                let max = boxes.series.iter().map(|series| series.max).reduce(f64::max).unwrap_or(1.0);
+                let min = boxes.series.iter().filter_map(|series| series.min.as_ref().and_then(number)).reduce(f64::min).unwrap_or(0.0);
+                let max = boxes.series.iter().filter_map(|series| series.max.as_ref().and_then(number)).reduce(f64::max).unwrap_or(1.0);
                 let y = |value| 220.0 - 200.0 * (value - min) / (max - min).max(f64::EPSILON);
                 for (index, series) in boxes.series.iter().enumerate() {
                     let x = 40.0 + 560.0 * (index as f64 + 0.5) / boxes.series.len().max(1) as f64;
@@ -96,10 +98,10 @@ pub(crate) fn render(
                         y(series.lower_whisker),
                         y(series.upper_whisker),
                         x - 12.0,
-                        y(series.q3),
-                        y(series.q1) - y(series.q3),
+                        y(series.q3.as_ref().and_then(number).unwrap_or(min)),
+                        y(series.q1.as_ref().and_then(number).unwrap_or(min)) - y(series.q3.as_ref().and_then(number).unwrap_or(min)),
                         x - 12.0,
-                        y(series.median)
+                        y(series.median.as_ref().and_then(number).unwrap_or(min))
                     )?;
                     for value in &series.outliers {
                         write!(output, "<circle cx=\"{x}\" cy=\"{}\" r=\"2\" fill=\"{color}\"/>", y(*value))?;
@@ -161,10 +163,7 @@ pub(crate) fn render(
 
 /* === Private Functions === */
 
-fn render_references(
-    output: &mut impl Write, payload: &dokime_protocol::client::plots::PlotPayload,
-    presentation: &dokime_protocol::client::PlotPresentation,
-) -> Result<()> {
+fn render_references(output: &mut impl Write, payload: &PlotPayload, presentation: &PlotPresentation) -> Result<()> {
     if presentation.reference_lines.is_empty() && presentation.reference_bands.is_empty() {
         return Ok(());
     }
@@ -181,7 +180,9 @@ fn render_references(
                 values.extend(histogram.series.iter().flat_map(|series| series.bins.iter().map(|bin| bin.count as f64)))
             }
             dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
-                values.extend(boxes.series.iter().flat_map(|series| [series.min, series.max]))
+                values.extend(boxes.series.iter().flat_map(|series| {
+                    [series.min.as_ref().and_then(number).unwrap_or(0.0), series.max.as_ref().and_then(number).unwrap_or(0.0)]
+                }))
             }
             dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 values.extend(interval.series.iter().flat_map(|series| series.bins.iter().flat_map(|bin| [bin.lower, bin.upper])))
@@ -232,7 +233,7 @@ fn render_references(
     }
     Ok(())
 }
-fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &dokime_protocol::client::plots::PlotFrame) -> Result<()> {
+fn render_frame(output: &mut impl Write, plot: &Plot, frame: &PlotFrame) -> Result<()> {
     let kind = v1::PlotKind::try_from(plot.kind).unwrap_or(v1::PlotKind::TimeSeries);
     if kind == v1::PlotKind::Pie {
         let values = frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).collect::<Vec<_>>();
@@ -360,9 +361,7 @@ fn render_frame(output: &mut impl Write, plot: &v1::Plot, frame: &dokime_protoco
     }
     Ok(())
 }
-fn render_contour(
-    output: &mut impl Write, plot: &v1::Plot, grid: &dokime_protocol::client::plots::ContourGrid, identity: &str,
-) -> Result<()> {
+fn render_contour(output: &mut impl Write, plot: &Plot, grid: &ContourGrid, identity: &str) -> Result<()> {
     let rows = grid.rows as usize;
     let columns = grid.columns as usize;
     if rows == 0 || columns == 0 {
@@ -489,9 +488,7 @@ fn contour_coordinate(position: f64, edges: &[f64], logarithmic: bool, origin: f
     let to = transform(edges[cell + 1]);
     origin + span * ((from + (to - from) * (position - cell as f64) - first) / (last - first).max(f64::EPSILON))
 }
-fn grid_frame(
-    output: &mut impl Write, grid: &dokime_protocol::client::plots::GridFrames, frame: &dokime_protocol::client::plots::GridFrame,
-) -> Result<()> {
+fn grid_frame(output: &mut impl Write, grid: &GridFrames, frame: &GridFrame) -> Result<()> {
     let width = 600.0 / grid.columns.len().max(1) as f64;
     let height = 200.0 / grid.rows.len().max(1) as f64;
     for row in 0..grid.rows.len() {
@@ -537,21 +534,27 @@ fn color(value: f64, values: &[f64]) -> String {
     let level = ((value - min) / (max - min).max(f64::EPSILON)).clamp(0.0, 1.0);
     format!("hsl({},60%,50%)", 240.0 * (1.0 - level))
 }
-fn number(value: &v1::Value) -> Option<f64> {
+fn number(value: &Value) -> Option<f64> {
     match value.kind.as_ref()? {
         v1::value::Kind::Number(value) => Some(*value),
         v1::value::Kind::Integer(value) => Some(*value as f64),
         v1::value::Kind::UnsignedInteger(value) => Some(*value as f64),
+        v1::value::Kind::Exact(value) => {
+            Some((if value.negative { -1.0 } else { 1.0 }) * value.numerator.parse::<f64>().ok()? / value.denominator.parse::<f64>().ok()?)
+        }
         _ => None,
     }
 }
-pub(crate) fn display(value: &v1::Value) -> String {
+pub(crate) fn display(value: &Value) -> String {
     match value.kind.as_ref() {
         Some(v1::value::Kind::Text(value)) => value.clone(),
         Some(v1::value::Kind::Boolean(value)) => value.to_string(),
         Some(v1::value::Kind::Number(value)) => value.to_string(),
         Some(v1::value::Kind::Integer(value)) => value.to_string(),
         Some(v1::value::Kind::UnsignedInteger(value)) => value.to_string(),
+        Some(v1::value::Kind::Exact(value)) => {
+            format!("{}{}/{}", if value.negative { "-" } else { "" }, value.numerator, value.denominator)
+        }
         _ => String::new(),
     }
 }

@@ -25,7 +25,7 @@ namespace Dokime;
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "Chxkb2tpbWUvbW9kZWwvdjEvc2NhbGFyLnByb3RvEg9kb2tpbWUubW9kZWwu",
-            "djEaH2dvb2dsZS9wcm90b2J1Zi90aW1lc3RhbXAucHJvdG8i0wIKBVZhbHVl",
+            "djEaH2dvb2dsZS9wcm90b2J1Zi90aW1lc3RhbXAucHJvdG8iiQMKBVZhbHVl",
             "EisKBG51bGwYASABKAsyFS5kb2tpbWUubW9kZWwudjEuTnVsbEgAUgRudWxs",
             "EhoKB2Jvb2xlYW4YAiABKAhIAFIHYm9vbGVhbhIaCgdpbnRlZ2VyGAMgASgS",
             "SABSB2ludGVnZXISKwoQdW5zaWduZWRfaW50ZWdlchgEIAEoBEgAUg91bnNp",
@@ -33,22 +33,26 @@ namespace Dokime;
             "GAYgASgJSABSBHRleHQSFAoEZGF0YRgHIAEoDEgAUgRkYXRhEjAKBGxpc3QY",
             "CCABKAsyGi5kb2tpbWUubW9kZWwudjEuVmFsdWVMaXN0SABSBGxpc3QSOAoI",
             "ZGF0ZXRpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSABS",
-            "CGRhdGV0aW1lQgYKBGtpbmQiBgoETnVsbCI7CglWYWx1ZUxpc3QSLgoGdmFs",
-            "dWVzGAEgAygLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgZ2YWx1ZXMinAEK",
-            "CE1hcFZhbHVlEj0KBnZhbHVlcxgBIAMoCzIlLmRva2ltZS5tb2RlbC52MS5N",
-            "YXBWYWx1ZS5WYWx1ZXNFbnRyeVIGdmFsdWVzGlEKC1ZhbHVlc0VudHJ5EhAK",
-            "A2tleRgBIAEoCVIDa2V5EiwKBXZhbHVlGAIgASgLMhYuZG9raW1lLm1vZGVs",
-            "LnYxLlZhbHVlUgV2YWx1ZToCOAEq6AEKCVZhbHVlVHlwZRIaChZWQUxVRV9U",
-            "WVBFX1VOU1BFQ0lGSUVEEAASFgoSVkFMVUVfVFlQRV9CT09MRUFOEAESFgoS",
-            "VkFMVUVfVFlQRV9JTlRFR0VSEAISHwobVkFMVUVfVFlQRV9VTlNJR05FRF9J",
-            "TlRFR0VSEAMSFQoRVkFMVUVfVFlQRV9OVU1CRVIQBBITCg9WQUxVRV9UWVBF",
-            "X1RFWFQQBRIUChBWQUxVRV9UWVBFX0JZVEVTEAYSEwoPVkFMVUVfVFlQRV9M",
-            "SVNUEAcSFwoTVkFMVUVfVFlQRV9EQVRFVElNRRAIQgmqAgZEb2tpbWViBnBy",
-            "b3RvMw=="));
+            "CGRhdGV0aW1lEjQKBWV4YWN0GAogASgLMhwuZG9raW1lLm1vZGVsLnYxLkV4",
+            "YWN0TnVtYmVySABSBWV4YWN0QgYKBGtpbmQiaQoLRXhhY3ROdW1iZXISGgoI",
+            "bmVnYXRpdmUYASABKAhSCG5lZ2F0aXZlEhwKCW51bWVyYXRvchgCIAEoCVIJ",
+            "bnVtZXJhdG9yEiAKC2Rlbm9taW5hdG9yGAMgASgJUgtkZW5vbWluYXRvciIG",
+            "CgROdWxsIjsKCVZhbHVlTGlzdBIuCgZ2YWx1ZXMYASADKAsyFi5kb2tpbWUu",
+            "bW9kZWwudjEuVmFsdWVSBnZhbHVlcyKcAQoITWFwVmFsdWUSPQoGdmFsdWVz",
+            "GAEgAygLMiUuZG9raW1lLm1vZGVsLnYxLk1hcFZhbHVlLlZhbHVlc0VudHJ5",
+            "UgZ2YWx1ZXMaUQoLVmFsdWVzRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSLAoF",
+            "dmFsdWUYAiABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSBXZhbHVlOgI4",
+            "ASroAQoJVmFsdWVUeXBlEhoKFlZBTFVFX1RZUEVfVU5TUEVDSUZJRUQQABIW",
+            "ChJWQUxVRV9UWVBFX0JPT0xFQU4QARIWChJWQUxVRV9UWVBFX0lOVEVHRVIQ",
+            "AhIfChtWQUxVRV9UWVBFX1VOU0lHTkVEX0lOVEVHRVIQAxIVChFWQUxVRV9U",
+            "WVBFX05VTUJFUhAEEhMKD1ZBTFVFX1RZUEVfVEVYVBAFEhQKEFZBTFVFX1RZ",
+            "UEVfQllURVMQBhITCg9WQUxVRV9UWVBFX0xJU1QQBxIXChNWQUxVRV9UWVBF",
+            "X0RBVEVUSU1FEAhCCaoCBkRva2ltZWIGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Google.Protobuf.WellKnownTypes.TimestampReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.ValueType), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Value), global::Dokime.Value.Parser, new[]{ "Null", "Boolean", "Integer", "UnsignedInteger", "Number", "Text", "Data", "List", "Datetime" }, new[]{ "Kind" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Value), global::Dokime.Value.Parser, new[]{ "Null", "Boolean", "Integer", "UnsignedInteger", "Number", "Text", "Data", "List", "Datetime", "Exact" }, new[]{ "Kind" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.ExactNumber), global::Dokime.ExactNumber.Parser, new[]{ "Negative", "Numerator", "Denominator" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Null), global::Dokime.Null.Parser, null, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.ValueList), global::Dokime.ValueList.Parser, new[]{ "Values" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.MapValue), global::Dokime.MapValue.Parser, new[]{ "Values" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { null, })
@@ -135,6 +139,9 @@ namespace Dokime;
           break;
         case KindOneofCase.Datetime:
           Datetime = other.Datetime.Clone();
+          break;
+        case KindOneofCase.Exact:
+          Exact = other.Exact.Clone();
           break;
       }
 
@@ -339,6 +346,18 @@ namespace Dokime;
       }
     }
 
+    /// <summary>Field number for the "exact" field.</summary>
+    public const int ExactFieldNumber = 10;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.ExactNumber Exact {
+      get { return kindCase_ == KindOneofCase.Exact ? (global::Dokime.ExactNumber) kind_ : null; }
+      set {
+        kind_ = value;
+        kindCase_ = value == null ? KindOneofCase.None : KindOneofCase.Exact;
+      }
+    }
+
     private object kind_;
     /// <summary>Enum of possible cases for the "kind" oneof.</summary>
     public enum KindOneofCase {
@@ -352,6 +371,7 @@ namespace Dokime;
       Data = 7,
       List = 8,
       Datetime = 9,
+      Exact = 10,
     }
     private KindOneofCase kindCase_ = KindOneofCase.None;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -391,6 +411,7 @@ namespace Dokime;
       if (Data != other.Data) return false;
       if (!object.Equals(List, other.List)) return false;
       if (!object.Equals(Datetime, other.Datetime)) return false;
+      if (!object.Equals(Exact, other.Exact)) return false;
       if (KindCase != other.KindCase) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
@@ -408,6 +429,7 @@ namespace Dokime;
       if (HasData) hash ^= Data.GetHashCode();
       if (kindCase_ == KindOneofCase.List) hash ^= List.GetHashCode();
       if (kindCase_ == KindOneofCase.Datetime) hash ^= Datetime.GetHashCode();
+      if (kindCase_ == KindOneofCase.Exact) hash ^= Exact.GetHashCode();
       hash ^= (int) kindCase_;
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
@@ -463,6 +485,10 @@ namespace Dokime;
         output.WriteRawTag(74);
         output.WriteMessage(Datetime);
       }
+      if (kindCase_ == KindOneofCase.Exact) {
+        output.WriteRawTag(82);
+        output.WriteMessage(Exact);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -509,6 +535,10 @@ namespace Dokime;
         output.WriteRawTag(74);
         output.WriteMessage(Datetime);
       }
+      if (kindCase_ == KindOneofCase.Exact) {
+        output.WriteRawTag(82);
+        output.WriteMessage(Exact);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -545,6 +575,9 @@ namespace Dokime;
       }
       if (kindCase_ == KindOneofCase.Datetime) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Datetime);
+      }
+      if (kindCase_ == KindOneofCase.Exact) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Exact);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -594,6 +627,12 @@ namespace Dokime;
             Datetime = new global::Google.Protobuf.WellKnownTypes.Timestamp();
           }
           Datetime.MergeFrom(other.Datetime);
+          break;
+        case KindOneofCase.Exact:
+          if (Exact == null) {
+            Exact = new global::Dokime.ExactNumber();
+          }
+          Exact.MergeFrom(other.Exact);
           break;
       }
 
@@ -667,6 +706,15 @@ namespace Dokime;
             Datetime = subBuilder;
             break;
           }
+          case 82: {
+            global::Dokime.ExactNumber subBuilder = new global::Dokime.ExactNumber();
+            if (kindCase_ == KindOneofCase.Exact) {
+              subBuilder.MergeFrom(Exact);
+            }
+            input.ReadMessage(subBuilder);
+            Exact = subBuilder;
+            break;
+          }
         }
       }
     #endif
@@ -737,6 +785,287 @@ namespace Dokime;
             Datetime = subBuilder;
             break;
           }
+          case 82: {
+            global::Dokime.ExactNumber subBuilder = new global::Dokime.ExactNumber();
+            if (kindCase_ == KindOneofCase.Exact) {
+              subBuilder.MergeFrom(Exact);
+            }
+            input.ReadMessage(subBuilder);
+            Exact = subBuilder;
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ExactNumber : pb::IMessage<ExactNumber>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ExactNumber> _parser = new pb::MessageParser<ExactNumber>(() => new ExactNumber());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ExactNumber> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[1]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ExactNumber() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ExactNumber(ExactNumber other) : this() {
+      negative_ = other.negative_;
+      numerator_ = other.numerator_;
+      denominator_ = other.denominator_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ExactNumber Clone() {
+      return new ExactNumber(this);
+    }
+
+    /// <summary>Field number for the "negative" field.</summary>
+    public const int NegativeFieldNumber = 1;
+    private bool negative_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Negative {
+      get { return negative_; }
+      set {
+        negative_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "numerator" field.</summary>
+    public const int NumeratorFieldNumber = 2;
+    private string numerator_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Numerator {
+      get { return numerator_; }
+      set {
+        numerator_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "denominator" field.</summary>
+    public const int DenominatorFieldNumber = 3;
+    private string denominator_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Denominator {
+      get { return denominator_; }
+      set {
+        denominator_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ExactNumber);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ExactNumber other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (Negative != other.Negative) return false;
+      if (Numerator != other.Numerator) return false;
+      if (Denominator != other.Denominator) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (Negative != false) hash ^= Negative.GetHashCode();
+      if (Numerator.Length != 0) hash ^= Numerator.GetHashCode();
+      if (Denominator.Length != 0) hash ^= Denominator.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (Negative != false) {
+        output.WriteRawTag(8);
+        output.WriteBool(Negative);
+      }
+      if (Numerator.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Numerator);
+      }
+      if (Denominator.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(Denominator);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (Negative != false) {
+        output.WriteRawTag(8);
+        output.WriteBool(Negative);
+      }
+      if (Numerator.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Numerator);
+      }
+      if (Denominator.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(Denominator);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (Negative != false) {
+        size += 1 + 1;
+      }
+      if (Numerator.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Numerator);
+      }
+      if (Denominator.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Denominator);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ExactNumber other) {
+      if (other == null) {
+        return;
+      }
+      if (other.Negative != false) {
+        Negative = other.Negative;
+      }
+      if (other.Numerator.Length != 0) {
+        Numerator = other.Numerator;
+      }
+      if (other.Denominator.Length != 0) {
+        Denominator = other.Denominator;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 8: {
+            Negative = input.ReadBool();
+            break;
+          }
+          case 18: {
+            Numerator = input.ReadString();
+            break;
+          }
+          case 26: {
+            Denominator = input.ReadString();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 8: {
+            Negative = input.ReadBool();
+            break;
+          }
+          case 18: {
+            Numerator = input.ReadString();
+            break;
+          }
+          case 26: {
+            Denominator = input.ReadString();
+            break;
+          }
         }
       }
     }
@@ -759,7 +1088,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[1]; }
+      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[2]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -920,7 +1249,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[2]; }
+      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[3]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1107,7 +1436,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[3]; }
+      get { return global::Dokime.ScalarReflection.Descriptor.MessageTypes[4]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]

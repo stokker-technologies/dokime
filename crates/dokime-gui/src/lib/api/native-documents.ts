@@ -869,8 +869,6 @@ export async function assembleDocument(
   };
   const validateStructure = () => {
     for (const [id, card] of cards) {
-      if (card.body?.kind.case === "table" && card.body.kind.value?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
-        invalid("table row count is incomplete");
       if (card.body?.kind.case === "summary") {
         const entries = definitions.get(id) ?? [];
         if (card.body.kind.value?.groupCount !== BigInt(entries.length)) invalid("summary definition group count is incomplete");
@@ -886,6 +884,9 @@ export async function assembleDocument(
   const validateBinding = (id: string) => {
     const binding = bindings.get(id);
     if (!binding || binding.result?.kind.case === "pending") invalid("card is incomplete");
+    const card = cards.get(binding.sourceId);
+    if (card?.body?.kind.case === "table" && card.body.kind.value?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
+      invalid("table row count is incomplete");
     if (binding.result?.kind.case !== "summary") return;
     const entries = groups.get(id) ?? [];
     if (binding.result.kind.value?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");

@@ -29,8 +29,7 @@ class AnalysesStub:
     """=== Services === //
 
     Host-only plugin operations with independent Protected lifecycle bindings.
-    CLIENTS identifies the host as this executor's transport client; application
-    clients never connect to or receive these methods in their resource tree.
+    Application clients never receive these methods in their resource tree.
     """
 
     def __init__(self, channel):
@@ -50,8 +49,7 @@ class AnalysesServicer:
     """=== Services === //
 
     Host-only plugin operations with independent Protected lifecycle bindings.
-    CLIENTS identifies the host as this executor's transport client; application
-    clients never connect to or receive these methods in their resource tree.
+    Application clients never receive these methods in their resource tree.
     """
 
     def Compute(self, request, context):
@@ -81,8 +79,7 @@ class Analyses:
     """=== Services === //
 
     Host-only plugin operations with independent Protected lifecycle bindings.
-    CLIENTS identifies the host as this executor's transport client; application
-    clients never connect to or receive these methods in their resource tree.
+    Application clients never receive these methods in their resource tree.
     """
 
     @staticmethod

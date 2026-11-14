@@ -223,7 +223,7 @@ function plotStream() {
   };
 }
 
-async function mountPlotView(ids = ["pulse", "current"]) {
+async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   const animationFrame = vi
     .spyOn(globalThis.window, "requestAnimationFrame")
@@ -257,7 +257,7 @@ async function mountPlotView(ids = ["pulse", "current"]) {
     }),
   );
   const scope = { test_cycle_id: "cycle" };
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, true])) });
+  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
   const host = document.createElement("div");
   document.body.append(host);
@@ -539,6 +539,31 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
   await act(async () => view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }));
   await view.advance();
   assert.equal(view.states()["plot-64"].revision, 2);
+});
+
+test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", async () => {
+  vi.stubGlobal("IntersectionObserver", class {});
+  const ids = Array.from({ length: 65 }, (_, index) => `plot-${index}`);
+  const view = await mountPlotView(ids, [ids[0]]);
+  assert.equal(view.streams.length, 1);
+  const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
+  await act(async () => view.streams[0].push(...initial.slice(0, 32)));
+  await view.advance();
+  assert.deepEqual(
+    refreshFixture.watch.mock.calls.map((call) => call[1].length),
+    [32, 32],
+  );
+  const retained = view.states()[ids[0]];
+  await act(async () => useSummaryWindowStore.getState().setVisible(ids[32], true));
+  assert.equal(view.streams.length, 2);
+  await act(async () => view.streams[1].push(...initial.slice(32, 64)));
+  await view.advance();
+  assert.deepEqual(
+    refreshFixture.watch.mock.calls.map((call) => call[1].length),
+    [32, 32, 1],
+  );
+  assert.equal(view.states()[ids[0]], retained);
+  assert.equal(view.streams[0].cancel.mock.calls.length, 0);
 });
 
 test("Refresh Failure", async () => {
@@ -2288,78 +2313,87 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
 test("Native Columns Reach Trajectory and Categorical Renderers", () => {
   const instants = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:04Z"];
   for (const kind of ["trajectory", "bar", "pie"] as const) {
-    const wire = create(SnapshotsWatchResponseSchema, {
-      updates: [
-        {
-          kind: PlotStreamKind.SNAPSHOT,
-          envelope: {
-            plotId: kind,
-            epoch: "epoch",
-            selection: kind,
-            diagnostics: {},
-            payload: {
-              stream: "values",
-              xKey: "coordinate",
-              maxPoints: 2n,
-              series: [{ key: "value", label: "Value", rawPoints: 2n }],
-              frame: {
-                mode: PlotCartesianMode.FACETED,
-                pointCount: 2n,
-                series: [
-                  {
-                    x: (kind === "trajectory" ? [1, 4] : ["First", "Second"]).map(jsonToNativeValue),
-                    y: [{ value: 2 }, { value: 3 }],
-                    instants: kind === "trajectory" ? instants : [],
-                  },
-                ],
+    for (const categories of [
+      ["First", "Second"],
+      [0.25, 0.75],
+      [1152921504606847975n, 1152921504606847976n],
+    ]) {
+      const wire = create(SnapshotsWatchResponseSchema, {
+        updates: [
+          {
+            kind: PlotStreamKind.SNAPSHOT,
+            envelope: {
+              plotId: kind,
+              epoch: "epoch",
+              selection: kind,
+              diagnostics: {},
+              payload: {
+                stream: "values",
+                xKey: "coordinate",
+                maxPoints: 2n,
+                series: [{ key: "value", label: "Value", rawPoints: 2n }],
+                frame: {
+                  mode: PlotCartesianMode.FACETED,
+                  pointCount: 2n,
+                  series: [
+                    {
+                      x: (kind === "trajectory" ? [1, 4] : categories).map(jsonToNativeValue),
+                      y: [{ value: 2 }, { value: 3 }],
+                      totals: kind === "trajectory" ? [] : [1152921504606847975n, 1152921504606847976n].map(jsonToNativeValue),
+                      instants: kind === "trajectory" ? instants : [],
+                    },
+                  ],
+                },
               },
             },
           },
+        ],
+      });
+      const update = mapNativePlotWatchPage(wire, new Map([[kind, kind]])).updates[0];
+      assert.ok(update.kind !== "pending");
+      assert.equal(update.payload.cartesian, null);
+      const plot = documentPlotSpec({
+        plot: {
+          plot_id: kind,
+          title: "Values",
+          stream: "values",
+          plot_type: kind,
+          y: ["value"],
+          arrangement: "grouped",
+          style: "line",
+          x_scale: "linear",
+          y_scale: "linear",
+          fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
         },
-      ],
-    });
-    const update = mapNativePlotWatchPage(wire, new Map([[kind, kind]])).updates[0];
-    assert.ok(update.kind !== "pending");
-    assert.equal(update.payload.cartesian, null);
-    const plot = documentPlotSpec({
-      plot: {
-        plot_id: kind,
-        title: "Values",
-        stream: "values",
-        plot_type: kind,
-        y: ["value"],
-        arrangement: "grouped",
-        style: "line",
-        x_scale: "linear",
-        y_scale: "linear",
-        fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
-      },
-      payload: update.payload,
-    });
-    const host = document.createElement("div");
-    host.innerHTML = renderToStaticMarkup(
-      createElement(
-        PlotInteractionProvider,
-        { zoom: false },
-        kind === "trajectory"
-          ? createElement(TrajectoryPlot, { plot })
-          : kind === "bar"
-            ? createElement(BarPlot, { plot })
-            : createElement(PiePlot, { plot }),
-      ),
-    );
-    assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
-    if (kind === "trajectory") {
-      assert.equal(host.querySelector("[data-trajectory-instant]")?.getAttribute("data-trajectory-instant"), instants[1]);
-      assert.deepEqual(
-        plot.series[0].points.map((point) => point.instant),
-        instants,
+        payload: update.payload,
+      });
+      const host = document.createElement("div");
+      host.innerHTML = renderToStaticMarkup(
+        createElement(
+          PlotInteractionProvider,
+          { zoom: false },
+          kind === "trajectory"
+            ? createElement(TrajectoryPlot, { plot })
+            : kind === "bar"
+              ? createElement(BarPlot, { plot })
+              : createElement(PiePlot, { plot }),
+        ),
       );
-    } else {
-      assert.deepEqual(
-        [...host.querySelectorAll("[data-category]")].map((element) => element.getAttribute("data-category")),
-        ["First", "Second"],
-      );
+      assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
+      if (kind === "trajectory") {
+        assert.equal(host.querySelector("[data-trajectory-instant]")?.getAttribute("data-trajectory-instant"), instants[1]);
+        assert.deepEqual(
+          plot.series[0].points.map((point) => point.instant),
+          instants,
+        );
+      } else {
+        assert.deepEqual(
+          [...host.querySelectorAll("[data-category]")].map((element) => element.getAttribute("data-category")),
+          categories.map(String),
+        );
+        assert.ok(host.textContent?.includes("1152921504606847975"));
+        assert.ok(host.textContent?.includes("1152921504606847976"));
+      }
     }
   }
 });
@@ -2464,6 +2498,105 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
       root.unmount();
     });
     host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const raf = vi
+    .spyOn(window, "requestAnimationFrame")
+    .mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  const cancel = vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  const plots = Array.from(
+    { length: 100 },
+    (_, index) =>
+      ({ plot_id: `live-${index}`, title: `Plot ${index}`, stream: "signal", plot_type: "time_series", y: ["value"] }) as DocumentViewPlot,
+  );
+  useSummaryWindowStore.setState({ visible: Object.fromEntries(plots.map((plot) => [plot.plot_id, true])) });
+  refreshFixture.watch.mockReset();
+  const streams: { generation: string; ids: string[]; stream: ReturnType<typeof plotStream> }[] = [];
+  let release!: () => void;
+  const loading = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  refreshFixture.watch.mockImplementation(async (identity, requests) => {
+    const stream = plotStream();
+    streams.push({ generation: identity.generation, ids: requests.map((request: { plotId: string }) => request.plotId), stream });
+    if (identity.generation === "1") await loading;
+    return stream;
+  });
+  let current = true;
+  const session = (generation: string, isCurrent = () => true) =>
+    ({ identity: { generation, isCurrent }, own: () => () => {} }) as unknown as ConnectedSession;
+  const first = session("1", () => current);
+  const second = session("2");
+  const replacement = session("3");
+  const states = new Map<string, ReturnType<typeof useLivePlotPayloads>>();
+  function Probe({ name }: { name: string }) {
+    states.set(
+      name,
+      useLivePlotPayloads({ enabled: true, plots, scope: { test_cycle_id: "cycle", test_execution_id: "execution" }, windowS: 300 }),
+    );
+    return null;
+  }
+  const roots = [createRoot(document.createElement("div")), createRoot(document.createElement("div"))];
+  const render = async (index: number, owner: ConnectedSession) =>
+    act(async () => {
+      roots[index].render(createElement(Connection.Provider, { value: owner }, createElement(Probe, { name: String(index) })));
+    });
+  try {
+    await render(0, first);
+    await render(1, second);
+    assert.equal(streams.filter((group) => group.generation === "1").length, 4);
+    assert.equal(streams.filter((group) => group.generation === "2").length, 4);
+    assert.ok(streams.every((group) => group.ids.length <= 32));
+    current = false;
+    await render(0, replacement);
+    await act(async () => {
+      release();
+    });
+    await act(async () => {
+      for (const group of streams) {
+        // A Producer Can Deliver Many Revisions Before Either Client Paints.
+        for (let revision = 1; revision <= 128; revision++) {
+          group.stream.push(
+            ...group.ids.map((plot_id) => ({
+              ...streamMessage("snapshot", revision, hostFrame([revision], [[group.generation === "1" ? -1 : revision]])),
+              plot_id,
+            })),
+          );
+        }
+      }
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    for (const name of ["0", "1"]) {
+      const values = Object.values(states.get(name) ?? {});
+      assert.equal(values.length, 100);
+      assert.ok(values.every((state) => state.revision === 128));
+      assert.ok(values.every((state) => state.payload?.cartesian?.series[0].y[0] === 128));
+      assert.ok(values.every((state) => state.droppedBatches === 0));
+    }
+    assert.ok(streams.filter((group) => group.generation === "1").every((group) => group.stream.cancel.mock.calls.length === 1));
+    const retained = states.get("0")?.["live-0"];
+    await act(async () => {
+      const group = streams.find((group) => group.generation === "3" && group.ids.includes("live-96"));
+      assert.ok(group);
+      group.stream.push(...group.ids.map((plot_id) => ({ ...streamMessage("replace", 129, hostFrame([129], [[129]])), plot_id })));
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    assert.equal(states.get("0")?.["live-0"], retained);
+    assert.equal(states.get("1")?.["live-96"].revision, 128);
+    assert.equal(states.get("0")?.["live-96"].revision, 129);
+  } finally {
+    await act(async () => {
+      for (const root of roots) root.unmount();
+    });
+    useSummaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
+    raf.mockRestore();
+    cancel.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   }

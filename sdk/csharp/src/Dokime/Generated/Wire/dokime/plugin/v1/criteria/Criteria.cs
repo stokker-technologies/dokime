@@ -25,19 +25,18 @@ namespace Dokime.Plugins;
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "Ch9kb2tpbWUvcGx1Z2luL3YxL2NyaXRlcmlhLnByb3RvEhBkb2tpbWUucGx1",
-            "Z2luLnYxGh9kb2tpbWUvbW9kZWwvdjEvZXhlY3V0aW9uLnByb3RvGh1oYXJt",
-            "b3MvbW9kZWwvdjEvY2FsbGVycy5wcm90byK+AQoXQ3JpdGVyaWFFdmFsdWF0",
-            "ZVJlcXVlc3QSHAoJZXhlY3V0aW9uGAEgASgJUglleGVjdXRpb24SHAoJY3Jp",
-            "dGVyaW9uGAIgASgJUgljcml0ZXJpb24SNgoJdGVzdF9jYXNlGAMgASgLMhku",
-            "ZG9raW1lLm1vZGVsLnYxLlRlc3RDYXNlUgh0ZXN0Q2FzZRIvCgZvcmlnaW4Y",
-            "BCABKAsyFy5kb2tpbWUubW9kZWwudjEuT3JpZ2luUgZvcmlnaW4iMgoYQ3Jp",
-            "dGVyaWFFdmFsdWF0ZVJlc3BvbnNlEhYKBnBhc3NlZBgBIAEoCFIGcGFzc2Vk",
-            "MnMKCENyaXRlcmlhEmcKCEV2YWx1YXRlEikuZG9raW1lLnBsdWdpbi52MS5D",
-            "cml0ZXJpYUV2YWx1YXRlUmVxdWVzdBoqLmRva2ltZS5wbHVnaW4udjEuQ3Jp",
-            "dGVyaWFFdmFsdWF0ZVJlc3BvbnNlIgTI8xgBQhGqAg5Eb2tpbWUuUGx1Z2lu",
-            "c2IGcHJvdG8z"));
+            "Z2luLnYxGh9kb2tpbWUvbW9kZWwvdjEvZXhlY3V0aW9uLnByb3RvIr4BChdD",
+            "cml0ZXJpYUV2YWx1YXRlUmVxdWVzdBIcCglleGVjdXRpb24YASABKAlSCWV4",
+            "ZWN1dGlvbhIcCgljcml0ZXJpb24YAiABKAlSCWNyaXRlcmlvbhI2Cgl0ZXN0",
+            "X2Nhc2UYAyABKAsyGS5kb2tpbWUubW9kZWwudjEuVGVzdENhc2VSCHRlc3RD",
+            "YXNlEi8KBm9yaWdpbhgEIAEoCzIXLmRva2ltZS5tb2RlbC52MS5PcmlnaW5S",
+            "Bm9yaWdpbiIyChhDcml0ZXJpYUV2YWx1YXRlUmVzcG9uc2USFgoGcGFzc2Vk",
+            "GAEgASgIUgZwYXNzZWQybwoIQ3JpdGVyaWESYwoIRXZhbHVhdGUSKS5kb2tp",
+            "bWUucGx1Z2luLnYxLkNyaXRlcmlhRXZhbHVhdGVSZXF1ZXN0GiouZG9raW1l",
+            "LnBsdWdpbi52MS5Dcml0ZXJpYUV2YWx1YXRlUmVzcG9uc2UiAEIRqgIORG9r",
+            "aW1lLlBsdWdpbnNiBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
-          new pbr::FileDescriptor[] { global::Dokime.ExecutionReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, },
+          new pbr::FileDescriptor[] { global::Dokime.ExecutionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plugins.CriteriaEvaluateRequest), global::Dokime.Plugins.CriteriaEvaluateRequest.Parser, new[]{ "Execution", "Criterion", "TestCase", "Origin" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plugins.CriteriaEvaluateResponse), global::Dokime.Plugins.CriteriaEvaluateResponse.Parser, new[]{ "Passed" }, null, null, null, null)

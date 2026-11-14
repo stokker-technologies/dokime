@@ -190,9 +190,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                         Some(v1::card::Body::Table(table)) => {
                             DocumentCardBodyKind::Table(DocumentTable { row_count: table.rows.len() as u64 })
                         }
-                        Some(v1::card::Body::Summary(summary)) => DocumentCardBodyKind::Summary(DocumentSummary {
-                            group_count: u64::from(!summary.tiles.is_empty()),
-                        }),
+                        Some(v1::card::Body::Summary(_)) => DocumentCardBodyKind::Summary(DocumentSummary { group_count: 1 }),
                         Some(v1::card::Body::Plot(plot)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
                             kind: DocumentCardKind::Plot as i32,
                             plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
@@ -257,14 +255,8 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     }
                 }
             }
-            for (id, metadata, card) in &cards {
-                let result = match &card.body {
-                    Some(v1::card::Body::Summary(summary)) => DocumentBindingResultKind::Summary(DocumentSummary {
-                        group_count: u64::from(!summary.tiles.is_empty()),
-                    }),
-                    Some(v1::card::Body::Markdown(_) | v1::card::Body::Table(_)) => DocumentBindingResultKind::Literal(true),
-                    _ => DocumentBindingResultKind::Pending(true),
-                };
+            for (id, metadata, _) in &cards {
+                let result = DocumentBindingResultKind::Pending(true);
                 frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
                     source_id: id.clone(),
                     metadata: Some(metadata.clone()),
@@ -312,6 +304,13 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                             }
                         }
                         Some(v1::card::Body::Summary(summary)) => {
+                            frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
+                                source_id: id.clone(),
+                                metadata: Some(metadata.clone()),
+                                result: Some(DocumentBindingResult {
+                                    kind: Some(DocumentBindingResultKind::Summary(DocumentSummary { group_count: 1 })),
+                                }),
+                            })));
                             frames.push(frame(DocumentFrameFrameKind::SummaryGroup(DocumentSummaryGroup {
                                 card_id: id.clone(),
                                 ordinal: 0,
@@ -339,9 +338,6 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                     ..Default::default()
                                 })));
                             }
-                            binding = DocumentBindingResultKind::Summary(DocumentSummary {
-                                group_count: u64::from(!summary.tiles.is_empty()),
-                            });
                         }
                         Some(v1::card::Body::Plot(plot)) => {
                             let prepared = (|| -> Result<DocumentPlotDefinition> {
@@ -393,11 +389,13 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                         }
                         _ => (),
                     }
-                    frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
-                        source_id: id.clone(),
-                        metadata: Some(metadata),
-                        result: Some(DocumentBindingResult { kind: Some(binding) }),
-                    })));
+                    if !matches!(card.body, Some(v1::card::Body::Summary(_))) {
+                        frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
+                            source_id: id.clone(),
+                            metadata: Some(metadata),
+                            result: Some(DocumentBindingResult { kind: Some(binding) }),
+                        })));
+                    }
                     frames.push(frame(DocumentFrameFrameKind::CardComplete(id)));
                 }
             }

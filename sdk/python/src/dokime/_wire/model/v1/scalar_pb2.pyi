@@ -32,7 +32,7 @@ VALUE_TYPE_LIST: ValueType
 VALUE_TYPE_DATETIME: ValueType
 
 class Value(_message.Message):
-    __slots__ = ("null", "boolean", "integer", "unsigned_integer", "number", "text", "data", "list", "datetime")
+    __slots__ = ("null", "boolean", "integer", "unsigned_integer", "number", "text", "data", "list", "datetime", "exact")
     NULL_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
@@ -42,6 +42,7 @@ class Value(_message.Message):
     DATA_FIELD_NUMBER: _ClassVar[int]
     LIST_FIELD_NUMBER: _ClassVar[int]
     DATETIME_FIELD_NUMBER: _ClassVar[int]
+    EXACT_FIELD_NUMBER: _ClassVar[int]
     null: Null
     boolean: bool
     integer: int
@@ -51,7 +52,18 @@ class Value(_message.Message):
     data: bytes
     list: ValueList
     datetime: _timestamp_pb2.Timestamp
-    def __init__(self, null: _Optional[_Union[Null, _Mapping]] = ..., boolean: _Optional[bool] = ..., integer: _Optional[int] = ..., unsigned_integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., data: _Optional[bytes] = ..., list: _Optional[_Union[ValueList, _Mapping]] = ..., datetime: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    exact: ExactNumber
+    def __init__(self, null: _Optional[_Union[Null, _Mapping]] = ..., boolean: _Optional[bool] = ..., integer: _Optional[int] = ..., unsigned_integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., data: _Optional[bytes] = ..., list: _Optional[_Union[ValueList, _Mapping]] = ..., datetime: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exact: _Optional[_Union[ExactNumber, _Mapping]] = ...) -> None: ...
+
+class ExactNumber(_message.Message):
+    __slots__ = ("negative", "numerator", "denominator")
+    NEGATIVE_FIELD_NUMBER: _ClassVar[int]
+    NUMERATOR_FIELD_NUMBER: _ClassVar[int]
+    DENOMINATOR_FIELD_NUMBER: _ClassVar[int]
+    negative: bool
+    numerator: str
+    denominator: str
+    def __init__(self, negative: _Optional[bool] = ..., numerator: _Optional[str] = ..., denominator: _Optional[str] = ...) -> None: ...
 
 class Null(_message.Message):
     __slots__ = ()

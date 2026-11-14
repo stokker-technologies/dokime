@@ -44,6 +44,7 @@ export type DocumentPlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; un
 export type PlotPoint = Omit<NativePlotPoint, "x"> & {
   x: unknown;
   instant?: string | null;
+  exact_y?: import("@/lib/statistics").StatisticValue;
   low?: number | null;
   high?: number | null;
   mean?: number | null;
@@ -142,11 +143,11 @@ export type PlotAnalysis =
         key: string;
         label: string;
         count: number;
-        min: number;
-        q1: number;
-        median: number;
-        q3: number;
-        max: number;
+        min: import("@/lib/statistics").StatisticValue;
+        q1: import("@/lib/statistics").StatisticValue;
+        median: import("@/lib/statistics").StatisticValue;
+        q3: import("@/lib/statistics").StatisticValue;
+        max: import("@/lib/statistics").StatisticValue;
         lower_whisker: number;
         upper_whisker: number;
         outliers: number[];

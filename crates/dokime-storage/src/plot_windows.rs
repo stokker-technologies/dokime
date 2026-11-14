@@ -21,7 +21,10 @@
 use arrow_array::RecordBatch;
 
 // Local Imports
-use crate::{NumericWindow, Result, Store};
+use crate::{
+    Error, NumericWindow, Result, Store,
+    scalar::{self, ScalarValue},
+};
 use dokime_protocol::v1::{self, Downsample, Value};
 
 use dokime_protocol::client::plots::NullableNumber;
@@ -65,14 +68,14 @@ impl Store {
         };
         use std::sync::Arc;
         if limit == 0 || technique == Downsample::Lttb && limit < 3 {
-            return Err(crate::Error::Data("supply a positive raw limit or at least three LTTB vertices"));
+            return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
         if !matches!(technique, Downsample::Raw | Downsample::Lttb) {
             return self.time_series_window(window);
         }
         let (_, summary, count) = self.time_series_window(window)?;
         if technique == Downsample::Raw && count > limit as u64 {
-            return Err(crate::Error::Data("narrow the raw plot window or select downsampling"));
+            return Err(Error::Data("narrow the raw plot window or select downsampling"));
         }
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),
@@ -141,33 +144,37 @@ impl Store {
         }
         Ok(())
     }
+    pub fn numeric_rms(&self, window: &NumericWindow<'_>) -> Result<f64> {
+        self.moments(*window)?.rms()
+    }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
-        let moments = self.moments(if self.preview_bounds(*window)?.is_some() {
-            NumericWindow {
-                start_ns: i64::MIN,
-                end_ns: i64::MAX,
-                ..*window
-            }
-        } else {
-            *window
-        })?;
+        let moments = self.moments(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
         }
-        let ranks = self.ranks(*window, moments.count, &[5, 50, 95, 99])?;
+        let ranks = self.ranks(*window, &[5, 50, 95, 99])?;
+        let mean = match moments.total {
+            Some(total) => ScalarValue::Exact(total.divide(moments.count as u128).map_err(|error| Error::Invalid(error.to_string()))?),
+            None => ScalarValue::Float(moments.mean()?),
+        };
+        let sum = match moments.total {
+            Some(total) => ScalarValue::Exact(total),
+            None => ScalarValue::Float(moments.mean()? * moments.count as f64),
+        };
         Ok(EvidenceStatisticsResponse {
             count: moments.count,
-            min: crate::scalar::number(&moments.min).unwrap(),
-            max: crate::scalar::number(&moments.max).unwrap(),
-            mean: moments.mean()?,
+            min: Some(scalar::wire(&moments.min)?),
+            max: Some(scalar::wire(&moments.max)?),
+            mean: Some(scalar::wire(&mean)?),
+            sum: Some(scalar::wire(&sum)?),
             stddev: moments.stddev()?,
-            median: crate::scalar::number(&ranks[&50]).unwrap(),
-            p05: crate::scalar::number(&ranks[&5]).unwrap(),
-            p95: crate::scalar::number(&ranks[&95]).unwrap(),
-            p99: crate::scalar::number(&ranks[&99]).unwrap(),
-            first: crate::scalar::number(&moments.first).unwrap(),
-            last: crate::scalar::number(&moments.last).unwrap(),
+            median: Some(scalar::wire(&ranks[&50])?),
+            p05: Some(scalar::wire(&ranks[&5])?),
+            p95: Some(scalar::wire(&ranks[&95])?),
+            p99: Some(scalar::wire(&ranks[&99])?),
+            first: Some(scalar::wire(&moments.first)?),
+            last: Some(scalar::wire(&moments.last)?),
             resolved_at: None,
         })
     }
@@ -191,13 +198,22 @@ impl Store {
             y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
-        let mean = (count > 0).then(|| bins.iter().map(|bin| bin.mean * bin.count as f64 / count as f64).sum::<f64>());
+        let moments = self.moments(window)?;
+        let mean = if count == 0 {
+            None
+        } else {
+            let mean = match moments.total {
+                Some(total) => ScalarValue::Exact(total.divide(count as u128).map_err(|error| Error::Invalid(error.to_string()))?),
+                None => ScalarValue::Float(moments.mean()?),
+            };
+            Some(scalar::wire(&mean)?)
+        };
         let scale = bins.iter().map(|bin| bin.scale).fold(0.0, f64::max);
         let squares = bins.iter().map(|bin| if scale == 0.0 { 0.0 } else { bin.scaled_squares * (bin.scale / scale).powi(2) }).sum::<f64>();
         let summary = PlotSeriesSummary {
             count,
-            min: bins.iter().map(|bin| bin.min).reduce(f64::min),
-            max: bins.iter().map(|bin| bin.max).reduce(f64::max),
+            min: (count > 0).then(|| scalar::wire(&moments.min)).transpose()?,
+            max: (count > 0).then(|| scalar::wire(&moments.max)).transpose()?,
             mean,
             rms: (count > 0).then(|| (squares / count as f64).clamp(0.0, 1.0).sqrt() * scale),
             ..Default::default()
@@ -210,28 +226,30 @@ impl Store {
             return Ok(Default::default());
         }
         if bins == 0 {
-            return Err(crate::Error::Data("supply at least one histogram bin"));
+            return Err(Error::Data("supply at least one histogram bin"));
         }
-        let width = if statistics.max == statistics.min { 1.0 } else { (statistics.max - statistics.min) / bins as f64 };
+        let min = scalar::number(&scalar::from_wire(statistics.min.as_ref().unwrap())?).unwrap();
+        let max = scalar::number(&scalar::from_wire(statistics.max.as_ref().unwrap())?).unwrap();
+        let width = if max == min { 1.0 } else { (max - min) / bins as f64 };
         let mut histogram = (0..bins)
             .map(|index| PlotHistogramBin {
-                lower: statistics.min + index as f64 * width,
-                upper: statistics.min + (index + 1) as f64 * width,
+                lower: min + index as f64 * width,
+                upper: min + (index + 1) as f64 * width,
                 count: 0,
             })
             .collect::<Vec<_>>();
         self.numeric_values(window, |_, _, value| {
-            histogram[(((value - statistics.min) / width) as usize).min(bins - 1)].count += 1;
+            histogram[(((value - min) / width) as usize).min(bins - 1)].count += 1;
             Ok(())
         })?;
         Ok(PlotHistogramSeries {
             bins: histogram,
             count: statistics.count,
             statistics: Some(PlotHistogramStatistics {
-                mean: statistics.mean,
+                mean: statistics.mean.clone(),
                 median: statistics.median,
                 std: statistics.stddev,
-                rms: statistics.mean.hypot(statistics.stddev),
+                rms: scalar::number(&scalar::from_wire(statistics.mean.as_ref().unwrap())?).unwrap().hypot(statistics.stddev),
                 min: statistics.min,
                 max: statistics.max,
             }),
@@ -243,7 +261,7 @@ impl Store {
         if statistics.count == 0 {
             return Ok(Default::default());
         }
-        let ranks = self.ranks(window, statistics.count, &[25, 75])?;
+        let ranks = self.ranks(window, &[25, 75])?;
         let (q1, q3) = (crate::scalar::number(&ranks[&25]).unwrap(), crate::scalar::number(&ranks[&75]).unwrap());
         let lower = q1 - 1.5 * (q3 - q1);
         let upper = q3 + 1.5 * (q3 - q1);
@@ -267,9 +285,9 @@ impl Store {
             count: statistics.count,
             min: statistics.min,
             max: statistics.max,
-            q1,
+            q1: Some(scalar::wire(&ranks[&25])?),
             median: statistics.median,
-            q3,
+            q3: Some(scalar::wire(&ranks[&75])?),
             lower_whisker,
             upper_whisker,
             outliers,

@@ -24,10 +24,9 @@ _sym_db = _symbol_database.Default()
 
 from dokime._wire.model.v1 import execution_pb2 as dokime_dot_model_dot_v1_dot_execution__pb2
 from dokime._wire.model.v1 import scalar_pb2 as dokime_dot_model_dot_v1_dot_scalar__pb2
-from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!dokime/plugin/v1/test_cases.proto\x12\x10\x64okime.plugin.v1\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1c\x64okime/model/v1/scalar.proto\x1a\x1dharmos/model/v1/callers.proto\"\xcd\x01\n\x1bTestCasesMaterializeRequest\x12\x10\n\x08template\x18\x01 \x01(\t\x12Q\n\nparameters\x18\x02 \x03(\x0b\x32=.dokime.plugin.v1.TestCasesMaterializeRequest.ParametersEntry\x1aI\n\x0fParametersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12%\n\x05value\x18\x02 \x01(\x0b\x32\x16.dokime.model.v1.Value:\x02\x38\x01\"L\n\x1cTestCasesMaterializeResponse\x12,\n\ttest_case\x18\x01 \x01(\x0b\x32\x19.dokime.model.v1.TestCase2\x7f\n\tTestCases\x12r\n\x0bMaterialize\x12-.dokime.plugin.v1.TestCasesMaterializeRequest\x1a..dokime.plugin.v1.TestCasesMaterializeResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!dokime/plugin/v1/test_cases.proto\x12\x10\x64okime.plugin.v1\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1c\x64okime/model/v1/scalar.proto\"\xcd\x01\n\x1bTestCasesMaterializeRequest\x12\x10\n\x08template\x18\x01 \x01(\t\x12Q\n\nparameters\x18\x02 \x03(\x0b\x32=.dokime.plugin.v1.TestCasesMaterializeRequest.ParametersEntry\x1aI\n\x0fParametersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12%\n\x05value\x18\x02 \x01(\x0b\x32\x16.dokime.model.v1.Value:\x02\x38\x01\"L\n\x1cTestCasesMaterializeResponse\x12,\n\ttest_case\x18\x01 \x01(\x0b\x32\x19.dokime.model.v1.TestCase2{\n\tTestCases\x12n\n\x0bMaterialize\x12-.dokime.plugin.v1.TestCasesMaterializeRequest\x1a..dokime.plugin.v1.TestCasesMaterializeResponse\"\x00\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -37,14 +36,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\016Dokime.Plugins'
   _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._loaded_options = None
   _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._serialized_options = b'8\001'
-  _globals['_TESTCASES'].methods_by_name['Materialize']._loaded_options = None
-  _globals['_TESTCASES'].methods_by_name['Materialize']._serialized_options = b'\310\363\030\001'
-  _globals['_TESTCASESMATERIALIZEREQUEST']._serialized_start=150
-  _globals['_TESTCASESMATERIALIZEREQUEST']._serialized_end=355
-  _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._serialized_start=282
-  _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._serialized_end=355
-  _globals['_TESTCASESMATERIALIZERESPONSE']._serialized_start=357
-  _globals['_TESTCASESMATERIALIZERESPONSE']._serialized_end=433
-  _globals['_TESTCASES']._serialized_start=435
-  _globals['_TESTCASES']._serialized_end=562
+  _globals['_TESTCASESMATERIALIZEREQUEST']._serialized_start=119
+  _globals['_TESTCASESMATERIALIZEREQUEST']._serialized_end=324
+  _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._serialized_start=251
+  _globals['_TESTCASESMATERIALIZEREQUEST_PARAMETERSENTRY']._serialized_end=324
+  _globals['_TESTCASESMATERIALIZERESPONSE']._serialized_start=326
+  _globals['_TESTCASESMATERIALIZERESPONSE']._serialized_end=402
+  _globals['_TESTCASES']._serialized_start=404
+  _globals['_TESTCASES']._serialized_end=527
 # @@protoc_insertion_point(module_scope)

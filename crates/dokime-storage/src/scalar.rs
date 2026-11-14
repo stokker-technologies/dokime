@@ -26,6 +26,9 @@ use arrow_schema::DataType;
 // Local Imports
 use crate::{Error, Result};
 use dokime_protocol::v1::{self, Null, Value};
+use harmos_protocol::storage::ExactNumber as WireExactNumber;
+use harmos_storage::query::scalar::ExactNumber;
+use std::num::NonZeroU128;
 
 /* === Constants === */
 
@@ -104,6 +107,15 @@ pub(crate) fn from_wire(value: &Value) -> Result<ScalarValue> {
         Some(v1::value::Kind::Number(v)) if v.is_finite() => ScalarValue::Float(*v),
         Some(v1::value::Kind::Integer(v)) => ScalarValue::Signed(*v),
         Some(v1::value::Kind::UnsignedInteger(v)) => ScalarValue::Unsigned(*v),
+        Some(v1::value::Kind::Exact(v)) => ScalarValue::Exact(ExactNumber::new(
+            v.negative,
+            v.numerator.parse().map_err(|_| Error::Data("Read Exact Value: Supply an Unsigned Numerator"))?,
+            v.denominator
+                .parse::<u128>()
+                .ok()
+                .and_then(NonZeroU128::new)
+                .ok_or(Error::Data("Read Exact Value: Supply a Positive Denominator"))?,
+        )),
         Some(v1::value::Kind::Boolean(v)) => ScalarValue::Bool(*v),
         Some(v1::value::Kind::Text(v)) => ScalarValue::Text(v.clone()),
         _ => return Err(Error::Data("select a finite scalar value")),
@@ -126,11 +138,11 @@ pub(crate) fn wire(value: &ScalarValue) -> Result<Value> {
         ScalarValue::Exact(v) if v.denominator.get() > 1 && v.denominator.get().is_power_of_two() && v.numerator <= (1u128 << 53) => {
             v1::value::Kind::Number(number(value).unwrap())
         }
-        ScalarValue::Exact(_) => {
-            return Err(Error::Invalid(
-                "Read Document Value: This Exact Result Does Not Fit the Frozen Value Format; Select a Representable Statistic".into(),
-            ));
-        }
+        ScalarValue::Exact(v) => v1::value::Kind::Exact(WireExactNumber {
+            negative: v.negative,
+            numerator: v.numerator.to_string(),
+            denominator: v.denominator.to_string(),
+        }),
         _ => return Err(Error::Data("select a scalar value expressible by the product protocol")),
     };
     Ok(Value { kind: Some(kind) })

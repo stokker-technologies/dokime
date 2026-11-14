@@ -11,6 +11,7 @@
 
 import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
+import { scaleStatisticValue, type StatisticValue } from "@/lib/statistics";
 import { numericValue } from "@/lib/utils";
 import type {
   DocumentReferenceBand,
@@ -163,7 +164,11 @@ function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
     booleanAxis: false,
     series: plot.series.map((series) => ({
       ...series,
-      points: series.points.map((point) => ({ ...point, y: point.y === null ? null : point.y * scale })),
+      points: series.points.map((point) => ({
+        ...point,
+        y: point.y === null ? null : point.y * scale,
+        ...(point.exact_y === undefined ? {} : { exact_y: scaleStatisticValue(point.exact_y, scale) }),
+      })),
     })),
     cartesian: cartesian
       ? {
@@ -175,7 +180,12 @@ function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
       : cartesian,
     summaries: plot.summaries?.map((summary) =>
       Object.fromEntries(
-        Object.entries(summary).map(([key, value]) => [key, key !== "count" && typeof value === "number" ? value * scale : value]),
+        Object.entries(summary).map(([key, value]) => [
+          key,
+          ["min", "max", "mean", "median", "std", "rms"].includes(key) && value != null
+            ? scaleStatisticValue(value as StatisticValue, scale)
+            : value,
+        ]),
       ),
     ) as PlotCardSpec["summaries"],
     referenceLines: plot.referenceLines.map((line) => ({ ...line, value: scaled(line.value) })),

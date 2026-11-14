@@ -47,10 +47,11 @@ let measuring;
 async function command(line) {
   if (host.failure) throw host.failure;
   const pending = hostLines.next();
+  const handoffWallMs = performance.timeOrigin + performance.now();
   const written = new Promise((resolve, reject) => host.stdin.write(`${line}\n`, (error) => (error ? reject(error) : resolve())));
   const [response] = await Promise.all([pending, written]);
   if (response.done) throw new Error("Fixture host closed before command completion");
-  return JSON.parse(response.value);
+  return { ...JSON.parse(response.value), handoffWallMs };
 }
 
 // Resource Samples Include The Owned Fixture Host, Shell And Descendants, Including WebView Workers.
@@ -141,6 +142,8 @@ async function waitDrawing(count, condition, deadline = performance.now() + DRAW
   while (true) {
     const observation = await desktop.execute("return desktopResult(true)");
     if (!observation) throw new Error(`${count}/${condition}: native benchmark window closed before drawing completed`);
+    if (observation.errors.length || observation.visibleFailures)
+      throw new Error(`Draw Document ${count}/${condition}: ${observation.errors.join("; ")}`);
     const refused = observation.failedPlots === count && observation.loadedPlots === 0;
     const partial =
       observation.visibleFailures > 0 &&
@@ -286,6 +289,7 @@ try {
       let resourceStart = Date.now();
       let started = performance.now();
       let drawingDeadline;
+      let producerHandoffLeadMs;
       const operations = [];
       const to = fixture.end_s + 600;
       const from = fixture.origin_s;
@@ -322,8 +326,15 @@ try {
           }
           resourceStart = Date.now();
           started = performance.now();
-          await desktop.execute("desktopAction(...arguments)", [condition, fixture.end_s - 150, fixture.end_s - 120]);
-          if (["live", "late", "stalled"].includes(condition)) operations.push(await command(condition === "late" ? "late" : "live"));
+          const actionStartedWallMs = await desktop.execute(
+            "desktopAction(...arguments); return performance.timeOrigin + __desktopBench.started;",
+            [condition, fixture.end_s - 150, fixture.end_s - 120],
+          );
+          if (["live", "late", "stalled"].includes(condition)) {
+            const publication = await command(condition === "late" ? "late" : "live");
+            producerHandoffLeadMs = publication.handoffWallMs - actionStartedWallMs;
+            operations.push(publication);
+          }
           if (condition === "stalled") {
             drawingDeadline = started + DRAW_WAIT_MS;
             let status;
@@ -359,7 +370,12 @@ try {
         }
       }
       const durationMs = performance.now() - started;
-      elapsed += durationMs / 1000;
+      // Align The WebView's Monotonic Origin With The Producer's Handoff Marker.
+      const producerHandoffToChangedDrawingMs =
+        producerHandoffLeadMs === undefined ? null : observation.allVisibleMs - producerHandoffLeadMs;
+      const timedBoundaryMs = producerHandoffToChangedDrawingMs ?? observation.allVisibleMs;
+      if (timedBoundaryMs === null) throw new Error(`Draw Document ${count}/${condition}: No Completed Visible Drawing`);
+      elapsed += timedBoundaryMs / 1000;
       await resourceBoundary(Date.now());
       const samples = resources.filter((sample) => sample.epoch === epoch && sample.time_ms >= resourceStart);
       const boundary = resources.findLast((sample) => sample.epoch === epoch && sample.time_ms <= resourceStart);
@@ -373,12 +389,14 @@ try {
         backendMode,
         fixture: { ...fixture },
         ...observation,
+        timedBoundaryMs,
+        producerHandoffToChangedDrawingMs,
         durationMs,
         queryMs: stages["plot.query"] ?? [],
         backendStages: stages,
         peakMemoryBytes: samples.length ? Math.max(...samples.map((sample) => sample.memory_bytes)) : null,
         cpuSeconds: samples.length > 1 ? Math.max(0, samples.at(-1).cpu_s - samples[0].cpu_s) : null,
-        outcome: observation.errors.length ? (observation.loadedPlots > 0 ? "partial" : "refused") : "drawn",
+        outcome: "visible",
         resourceSamples: samples.length,
         resourceWindowMs: samples.length > 1 ? samples.at(-1).time_ms - samples[0].time_ms : null,
       });
@@ -389,26 +407,22 @@ try {
         captured.add(capture);
       }
       // Traverse Every Plot Outside the Timing Boundary, Including All Mixed Kinds.
-      if (condition === "navigation" || (historyRows !== 2073600 && condition === "cold")) {
+      {
         await command("drain");
         const traversalStarted = performance.now();
-        for (let index = 0; index < count; index++) {
-          const deadline = performance.now() + DRAW_WAIT_MS;
-          while (true) {
-            const plot = await desktop.execute("return desktopInspect(arguments[0])", [`desktop.plot.${index}`]);
-            if (!plot) throw new Error(`Draw Document ${historyRows}/${count}/Plot ${index}: Native Window Closed Before Drawing`);
-            if (plot.error)
-              throw new Error(
-                `Draw Document ${historyRows}/${count}/Plot ${index}: ${JSON.stringify(await desktop.execute("return desktopResult()"))}`,
-              );
-            if (plot.ready && plot.drawn) break;
-            if (performance.now() > deadline) throw new Error(`Draw Document ${historyRows}/${count}/Plot ${index}: No Completed Drawing`);
-            await delay(25);
-          }
-        }
-        results.at(-1).verifiedPlots = count;
-        results.at(-1).traversalMs = performance.now() - traversalStarted;
+        const traversal = await desktop.executeAsync(
+          `const done = arguments[arguments.length - 1];
+          desktopTraverse(arguments[0], arguments[1]).then(done).catch(error => done({error: String(error)}));`,
+          [count, DRAW_WAIT_MS],
+        );
+        if (traversal.error) throw new Error(traversal.error);
+        assert.equal(traversal.verifiedPlots, count);
+        Object.assign(results.at(-1), traversal);
+        results.at(-1).traversalDriverMs = performance.now() - traversalStarted;
         results.at(-1).traversalBackendStages = (await command("drain")).stages;
+        results.at(-1).outcome = "drawn";
+        await desktop.executeAsync(`const done = arguments[arguments.length - 1];
+          window.scrollTo(0, 0); requestAnimationFrame(() => requestAnimationFrame(() => done(true)));`);
       }
     }
     await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));

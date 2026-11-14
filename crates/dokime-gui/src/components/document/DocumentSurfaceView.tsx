@@ -119,6 +119,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
           groupId: group.group_id,
           title: group.title,
           metrics: group.metrics.map((metric) => ({
+            metricId: metric.metric_id,
             detail: metric.detail ?? undefined,
             label: metric.label,
             rawValue: metric.value,

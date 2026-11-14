@@ -43,8 +43,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    [protocol](../proto/dokime), [composition](../protocol/composition.toml) and the
    complete [identity/caller map](execution-host.md#operation-identity-and-caller-mapping).
    **Status:** definitions and generator projections are landed in this candidate;
-   runtime admission, consumer adoption and wrong-caller proof remain open. Product plugin executor methods also carry CLIENTS for the host transport client;
-   their Protected bindings are host-only and generate no application client/context resource.
+   runtime admission, consumer adoption and wrong-caller proof remain open. Plugin
+   executor methods have no callers option; their Protected bindings are host-only and generate no application client/context resource.
 
 2. **Three-Level Visibility.** Private is plugin-internal, never catalogued or on
    any wire (including host-to-plugin), has no gRPC endpoint association, and runs
@@ -543,11 +543,23 @@ the previous record at the current record's time before alignment to later sampl
 Exact integer rank selection spills projected order keys to an ephemeral query
 file once and replays those keys in bounded radix passes, avoiding repeated batch
 decompression and whole-population sorting in memory. Integer ordering and
-interpolation precede conversion at numeric-only protocol boundaries. Integer
+interpolation retain their integer or rational type through evidence statistics,
+plot summaries and document values. Record/expression percentiles use the same
+spill-backed rank selector as stream percentiles, rather than the library's
+floating percentile accumulator. Category reducers likewise accumulate typed
+values; plot columns retain exact totals separately from drawing coordinates.
+`dokime.model.v1.Value.exact` uses the product model's
+`dokime.model.v1.ExactNumber` for fractions and totals outside the 64-bit range;
+ordinary integral results retain signed or unsigned integer values. The final
+library has no storage wire model; the product preserves the former ExactNumber
+fields (negative = 1, numerator = 2, denominator = 3) at its model boundary.
+The desktop formats these values without converting them to JavaScript numbers. Document
+structure carries pending bindings; result bindings, summary groups, tiles and
+card completion follow the evidence cut. Literal table rows also settle at card
+completion, with their declared counts still enforced. Integer
 variance uses bounded exact sums of squares, so small spreads above f64 integer
-precision survive. A rational or integer outside the frozen `Value` format is
-refused instead of rounded; numeric-only statistics replies retain their existing
-f64 presentation boundary.
+precision survive. Standard deviation, RMS and chart coordinates remain floating
+point; these drawing coordinates never replace the exact statistic or its label.
 
 The previous `Backend::for_execution` adapter awaits migration to the final native
 ports. Its unsupported defaults and per-execution history do not establish complete

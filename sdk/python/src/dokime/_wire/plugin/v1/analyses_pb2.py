@@ -24,10 +24,9 @@ _sym_db = _symbol_database.Default()
 
 from dokime._wire.model.v1 import analyses_pb2 as dokime_dot_model_dot_v1_dot_analyses__pb2
 from dokime._wire.model.v1 import scalar_pb2 as dokime_dot_model_dot_v1_dot_scalar__pb2
-from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/plugin/v1/analyses.proto\x12\x10\x64okime.plugin.v1\x1a\x1e\x64okime/model/v1/analyses.proto\x1a\x1c\x64okime/model/v1/scalar.proto\x1a\x1dharmos/model/v1/callers.proto\"{\n\x16\x41nalysesComputeRequest\x12\x32\n\x07samples\x18\x01 \x01(\x0b\x32!.dokime.plugin.v1.AnalysisSamples\x12-\n\nparameters\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.MapValue\"K\n\x17\x41nalysesComputeResponse\x12\x30\n\x07outputs\x18\x01 \x03(\x0b\x32\x1f.dokime.model.v1.AnalysisValues\"P\n\x0f\x41nalysisSamples\x12\x0c\n\x04\x61xis\x18\x01 \x03(\x01\x12\x0e\n\x06values\x18\x02 \x03(\x01\x12\x11\n\taxis_unit\x18\x03 \x01(\t\x12\x0c\n\x04unit\x18\x04 \x01(\t2p\n\x08\x41nalyses\x12\x64\n\x07\x43ompute\x12(.dokime.plugin.v1.AnalysesComputeRequest\x1a).dokime.plugin.v1.AnalysesComputeResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/plugin/v1/analyses.proto\x12\x10\x64okime.plugin.v1\x1a\x1e\x64okime/model/v1/analyses.proto\x1a\x1c\x64okime/model/v1/scalar.proto\"{\n\x16\x41nalysesComputeRequest\x12\x32\n\x07samples\x18\x01 \x01(\x0b\x32!.dokime.plugin.v1.AnalysisSamples\x12-\n\nparameters\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.MapValue\"K\n\x17\x41nalysesComputeResponse\x12\x30\n\x07outputs\x18\x01 \x03(\x0b\x32\x1f.dokime.model.v1.AnalysisValues\"P\n\x0f\x41nalysisSamples\x12\x0c\n\x04\x61xis\x18\x01 \x03(\x01\x12\x0e\n\x06values\x18\x02 \x03(\x01\x12\x11\n\taxis_unit\x18\x03 \x01(\t\x12\x0c\n\x04unit\x18\x04 \x01(\t2l\n\x08\x41nalyses\x12`\n\x07\x43ompute\x12(.dokime.plugin.v1.AnalysesComputeRequest\x1a).dokime.plugin.v1.AnalysesComputeResponse\"\x00\x42\x11\xaa\x02\x0e\x44okime.Pluginsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,14 +34,12 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dokime._wire.plugin.v1.anal
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\016Dokime.Plugins'
-  _globals['_ANALYSES'].methods_by_name['Compute']._loaded_options = None
-  _globals['_ANALYSES'].methods_by_name['Compute']._serialized_options = b'\310\363\030\001'
-  _globals['_ANALYSESCOMPUTEREQUEST']._serialized_start=146
-  _globals['_ANALYSESCOMPUTEREQUEST']._serialized_end=269
-  _globals['_ANALYSESCOMPUTERESPONSE']._serialized_start=271
-  _globals['_ANALYSESCOMPUTERESPONSE']._serialized_end=346
-  _globals['_ANALYSISSAMPLES']._serialized_start=348
-  _globals['_ANALYSISSAMPLES']._serialized_end=428
-  _globals['_ANALYSES']._serialized_start=430
-  _globals['_ANALYSES']._serialized_end=542
+  _globals['_ANALYSESCOMPUTEREQUEST']._serialized_start=115
+  _globals['_ANALYSESCOMPUTEREQUEST']._serialized_end=238
+  _globals['_ANALYSESCOMPUTERESPONSE']._serialized_start=240
+  _globals['_ANALYSESCOMPUTERESPONSE']._serialized_end=315
+  _globals['_ANALYSISSAMPLES']._serialized_start=317
+  _globals['_ANALYSISSAMPLES']._serialized_end=397
+  _globals['_ANALYSES']._serialized_start=399
+  _globals['_ANALYSES']._serialized_end=507
 # @@protoc_insertion_point(module_scope)

@@ -240,6 +240,15 @@ impl Moments {
 }
 impl Store {
     pub(crate) fn moments(&self, window: NumericWindow<'_>) -> Result<Moments> {
+        let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
+            NumericWindow {
+                start_ns: i64::MIN,
+                end_ns: i64::MAX,
+                ..window
+            }
+        } else {
+            window
+        };
         let mut moments = Moments::empty();
         if !self.has_projection(window)? && window.after == 0 && window.start_ns == i64::MIN && window.end_ns == i64::MAX {
             let connection = self.lock()?;
@@ -280,112 +289,131 @@ impl Store {
     }
     // Spill Projected Order Keys Once; Radix Passes Never Replay Stream Decoding.
     // Each Pass Retains Only Requested Ranks And 256 Counters Per Prefix.
-    // Integer Order And Interpolation Stay Exact Until The Protocol's f64 Boundary.
-    pub(crate) fn ranks(&self, window: NumericWindow<'_>, count: u64, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
-        let ranks = percentiles
-            .iter()
-            .flat_map(|p| {
-                let n = (count.saturating_sub(1) as u128) * u128::from(*p);
-                [(n / 100) as u64, n.div_ceil(100) as u64]
-            })
-            .collect::<std::collections::BTreeSet<_>>();
-        let mut selected = ranks.into_iter().map(|rank| (rank, (0u64, rank))).collect::<BTreeMap<_, _>>();
-        let mut kind = None;
-        let mut keys = tempfile::tempfile()?;
-        {
-            let mut output = BufWriter::new(&mut keys);
-            self.evaluated_batches(window, &[window.field.into()], |batch| {
-                let column = scalar::column(&batch, window.field)?;
-                for row in 0..batch.num_rows() {
-                    let value = column.value(row)?;
-                    let key = match value {
-                        ScalarValue::Signed(v) => {
-                            kind = Some(0);
-                            (v as u64) ^ (1 << 63)
-                        }
-                        ScalarValue::Bool(v) => {
-                            kind = Some(1);
-                            u64::from(v)
-                        }
-                        ScalarValue::Unsigned(v) => {
-                            kind = Some(1);
-                            v
-                        }
-                        ScalarValue::Float(v) if v.is_finite() => {
-                            kind = Some(2);
-                            let bits = v.to_bits();
-                            if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
-                        }
-                        _ => continue,
-                    };
-                    output.write_all(&key.to_le_bytes())?;
-                }
-                Ok(true)
-            })?;
-            output.flush()?;
-        }
-        for shift in (0..8).rev().map(|n| n * 8) {
-            let mut groups = selected.values().map(|(prefix, _)| (*prefix, [0u64; 256])).collect::<BTreeMap<_, _>>();
-            keys.rewind()?;
-            let mut input = BufReader::new(&mut keys);
-            for _ in 0..count {
-                let mut bytes = [0; 8];
-                input.read_exact(&mut bytes)?;
-                let key = u64::from_le_bytes(bytes);
-                let prefix = if shift == 56 { 0 } else { key & (!0u64 << (shift + 8)) };
-                if let Some(histogram) = groups.get_mut(&prefix) {
-                    histogram[((key >> shift) & 255) as usize] += 1;
-                }
-            }
-            for (prefix, rank) in selected.values_mut() {
-                let histogram = &groups[prefix];
-                let mut bin = 0;
-                while bin < 255 && *rank >= histogram[bin] {
-                    *rank -= histogram[bin];
-                    bin += 1;
-                }
-                *prefix |= (bin as u64) << shift;
-            }
-        }
-        let decode = |key: u64| match kind {
-            Some(0) => ScalarValue::Signed((key ^ (1 << 63)) as i64),
-            Some(1) => ScalarValue::Unsigned(key),
-            _ => ScalarValue::Float(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key })),
-        };
-        percentiles
-            .iter()
-            .map(|p| {
-                let n = (count.saturating_sub(1) as u128) * u128::from(*p);
-                let lo = decode(selected[&((n / 100) as u64)].0);
-                let hi = decode(selected[&(n.div_ceil(100) as u64)].0);
-                let fraction = n % 100;
-                let value = if fraction == 0 {
-                    lo
-                } else if kind == Some(2) {
-                    let a = scalar::number(&lo).unwrap();
-                    let b = scalar::number(&hi).unwrap();
-                    ScalarValue::Float(a * (1.0 - fraction as f64 / 100.0) + b * (fraction as f64 / 100.0))
-                } else {
-                    let exact = |v: ScalarValue| match v {
-                        ScalarValue::Signed(v) => ExactNumber::new(v < 0, v.unsigned_abs() as u128, NonZeroU128::MIN),
-                        ScalarValue::Unsigned(v) => ExactNumber::new(false, v as u128, NonZeroU128::MIN),
-                        _ => unreachable!(),
-                    };
-                    let a = exact(lo);
-                    let b = exact(hi);
-                    let a = ExactNumber::new(a.negative, a.numerator * (100 - fraction), NonZeroU128::MIN);
-                    let b = ExactNumber::new(b.negative, b.numerator * fraction, NonZeroU128::MIN);
-                    ScalarValue::Exact(a.checked_add(b).and_then(|n| n.divide(100)).map_err(|e| Error::Invalid(e.to_string()))?)
-                };
-                Ok((*p, value))
-            })
-            .collect()
+    // Integer Order And Interpolation Stay Exact Through The Typed Protocol Value.
+    pub(crate) fn ranks(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
+        rank_values(
+            |push| {
+                self.evaluated_batches(window, &[window.field.into()], |batch| {
+                    let column = scalar::column(&batch, window.field)?;
+                    for row in 0..batch.num_rows() {
+                        push(column.value(row)?)?;
+                    }
+                    Ok(true)
+                })
+            },
+            percentiles,
+        )
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+pub(crate) fn rank_values(
+    read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, percentiles: &[u8],
+) -> Result<BTreeMap<u8, ScalarValue>> {
+    let mut count = 0u64;
+    let mut kind = None;
+    let mut keys = tempfile::tempfile()?;
+    {
+        let mut output = BufWriter::new(&mut keys);
+        read(&mut |value| {
+            let key = match value {
+                ScalarValue::Signed(v) => {
+                    kind = Some(0);
+                    (v as u64) ^ (1 << 63)
+                }
+                ScalarValue::Bool(v) => {
+                    kind = Some(1);
+                    u64::from(v)
+                }
+                ScalarValue::Unsigned(v) => {
+                    kind = Some(1);
+                    v
+                }
+                ScalarValue::Float(v) if v.is_finite() => {
+                    kind = Some(2);
+                    let bits = v.to_bits();
+                    if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
+                }
+                ScalarValue::Missing | ScalarValue::Null => return Ok(()),
+                _ => return Err(Error::Data("Compute Exact Percentile: Select Scalar Integers or Finite Numbers")),
+            };
+            output.write_all(&key.to_le_bytes())?;
+            count += 1;
+            Ok(())
+        })?;
+        output.flush()?;
+    }
+    if count == 0 {
+        return Ok(BTreeMap::new());
+    }
+    let ranks = percentiles
+        .iter()
+        .flat_map(|p| {
+            let n = (count.saturating_sub(1) as u128) * u128::from(*p);
+            [(n / 100) as u64, n.div_ceil(100) as u64]
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut selected = ranks.into_iter().map(|rank| (rank, (0u64, rank))).collect::<BTreeMap<_, _>>();
+    for shift in (0..8).rev().map(|n| n * 8) {
+        let mut groups = selected.values().map(|(prefix, _)| (*prefix, [0u64; 256])).collect::<BTreeMap<_, _>>();
+        keys.rewind()?;
+        let mut input = BufReader::new(&mut keys);
+        for _ in 0..count {
+            let mut bytes = [0; 8];
+            input.read_exact(&mut bytes)?;
+            let key = u64::from_le_bytes(bytes);
+            let prefix = if shift == 56 { 0 } else { key & (!0u64 << (shift + 8)) };
+            if let Some(histogram) = groups.get_mut(&prefix) {
+                histogram[((key >> shift) & 255) as usize] += 1;
+            }
+        }
+        for (prefix, rank) in selected.values_mut() {
+            let histogram = &groups[prefix];
+            let mut bin = 0;
+            while bin < 255 && *rank >= histogram[bin] {
+                *rank -= histogram[bin];
+                bin += 1;
+            }
+            *prefix |= (bin as u64) << shift;
+        }
+    }
+    let decode = |key: u64| match kind {
+        Some(0) => ScalarValue::Signed((key ^ (1 << 63)) as i64),
+        Some(1) => ScalarValue::Unsigned(key),
+        _ => ScalarValue::Float(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key })),
+    };
+    percentiles
+        .iter()
+        .map(|p| {
+            let n = (count.saturating_sub(1) as u128) * u128::from(*p);
+            let lo = decode(selected[&((n / 100) as u64)].0);
+            let hi = decode(selected[&(n.div_ceil(100) as u64)].0);
+            let fraction = n % 100;
+            let value = if fraction == 0 {
+                lo
+            } else if kind == Some(2) {
+                let a = scalar::number(&lo).unwrap();
+                let b = scalar::number(&hi).unwrap();
+                ScalarValue::Float(a * (1.0 - fraction as f64 / 100.0) + b * (fraction as f64 / 100.0))
+            } else {
+                let exact = |v: ScalarValue| match v {
+                    ScalarValue::Signed(v) => ExactNumber::new(v < 0, v.unsigned_abs() as u128, NonZeroU128::MIN),
+                    ScalarValue::Unsigned(v) => ExactNumber::new(false, v as u128, NonZeroU128::MIN),
+                    _ => unreachable!(),
+                };
+                let a = exact(lo);
+                let b = exact(hi);
+                let a = ExactNumber::new(a.negative, a.numerator * (100 - fraction), NonZeroU128::MIN);
+                let b = ExactNumber::new(b.negative, b.numerator * fraction, NonZeroU128::MIN);
+                ScalarValue::Exact(a.checked_add(b).and_then(|n| n.divide(100)).map_err(|e| Error::Invalid(e.to_string()))?)
+            };
+            Ok((*p, value))
+        })
+        .collect()
+}
 
 pub(super) fn append(
     connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, samples: &[Sample], settings: PreviewSettings,

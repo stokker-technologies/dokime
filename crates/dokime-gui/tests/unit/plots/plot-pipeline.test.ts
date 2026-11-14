@@ -131,6 +131,15 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
           bucketWidthS: 10,
           bucketWindow: { from: 10, to: 20 },
           replacedBuckets: [1],
+          summaries: [
+            {
+              seriesId: "value",
+              count: 2n,
+              min: { kind: { case: "number" as const, value: 1.25 } },
+              max: { kind: { case: "number" as const, value: 4.5 } },
+              mean: { kind: { case: "number" as const, value: 2.875 } },
+            },
+          ],
         },
       },
     })),
@@ -142,5 +151,8 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
   );
   assert.ok(decoded[0].kind !== "pending");
   assert.equal(decoded[0].payload.bucket_width_s, 10);
+  assert.equal(decoded[0].payload.summaries?.[0].min, 1.25);
+  assert.equal(decoded[0].payload.summaries?.[0].max, 4.5);
+  assert.equal(decoded[0].payload.summaries?.[0].mean, 2.875);
   assert.deepEqual(decoded[0].payload.replaced_buckets, [1]);
 });

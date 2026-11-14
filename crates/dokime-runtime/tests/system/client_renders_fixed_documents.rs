@@ -355,6 +355,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
         let mut table_rows = 0;
         let mut summaries = std::collections::BTreeMap::new();
         let mut grouped_counts = Vec::new();
+        let mut ready = std::collections::BTreeSet::new();
         for (index, frame) in frames.iter().enumerate() {
             match frame.frame.as_ref().unwrap().kind.as_ref().unwrap() {
                 dokime_protocol::client::document_frame_frame::Kind::Card(card) => {
@@ -368,10 +369,15 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 dokime_protocol::client::document_frame_frame::Kind::Binding(value) => {
                     assert_eq!(value.metadata.as_ref().unwrap().identifier, value.source_id);
                     if !structures {
+                        assert!(matches!(
+                            value.result.as_ref().and_then(|result| result.kind.as_ref()),
+                            Some(dokime_protocol::client::document_binding_result::Kind::Pending(true))
+                        ));
                         bindings.insert(value.source_id.clone());
                     } else {
                         assert!(evidence_cut);
                         assert!(bindings.contains(&value.source_id));
+                        assert!(ready.insert(value.source_id.clone()));
                     }
                     if let Some(dokime_protocol::client::document_binding_result::Kind::Plot(plot)) =
                         value.result.as_ref().and_then(|result| result.kind.as_ref())
@@ -415,6 +421,10 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                     assert!(!evidence_cut);
                     evidence_cut = true;
                 }
+                dokime_protocol::client::document_frame_frame::Kind::SummaryGroup(group) => {
+                    assert!(evidence_cut);
+                    assert!(ready.contains(&group.card_id));
+                }
                 dokime_protocol::client::document_frame_frame::Kind::SummaryTile(tile) => {
                     assert!(evidence_cut);
                     assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
@@ -431,6 +441,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 dokime_protocol::client::document_frame_frame::Kind::CardComplete(id) => {
                     assert!(evidence_cut);
                     assert!(bindings.contains(id));
+                    assert!(ready.contains(id));
                     assert!(finished.insert(id.clone()));
                 }
                 dokime_protocol::client::document_frame_frame::Kind::Completion(counts) => {

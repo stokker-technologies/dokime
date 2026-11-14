@@ -96,164 +96,171 @@ namespace Dokime.Clients.PlotsResources;
             "UGxvdBJYCg5zaWdtYV9pbnRlcnZhbBgFIAEoCzIvLmRva2ltZS5ob3N0LnYx",
             "LnBsb3RzLlBsb3RTaWdtYUludGVydmFsQW5hbHlzaXNIAFINc2lnbWFJbnRl",
             "cnZhbBI/CgVlcnJvchgGIAEoCzInLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
-            "b3RBbmFseXNpc0Vycm9ySABSBWVycm9yQgYKBGtpbmQikAIKDlBsb3RCb3hT",
+            "b3RBbmFseXNpc0Vycm9ySABSBWVycm9yQgYKBGtpbmQiiAMKDlBsb3RCb3hT",
             "dW1tYXJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBWNvdW50GAIgASgEUgVjb3Vu",
-            "dBIQCgNtaW4YAyABKAFSA21pbhIOCgJxMRgEIAEoAVICcTESFgoGbWVkaWFu",
-            "GAUgASgBUgZtZWRpYW4SDgoCcTMYBiABKAFSAnEzEhAKA21heBgHIAEoAVID",
-            "bWF4EiMKDWxvd2VyX3doaXNrZXIYCCABKAFSDGxvd2VyV2hpc2tlchIjCg11",
-            "cHBlcl93aGlza2VyGAkgASgBUgx1cHBlcldoaXNrZXISGgoIb3V0bGllcnMY",
-            "CiADKAFSCG91dGxpZXJzEhQKBWxhYmVsGAsgASgJUgVsYWJlbCJsChZQbG90",
-            "Qm94U3VtbWFyeUFuYWx5c2lzEjwKBnNlcmllcxgBIAMoCzIkLmRva2ltZS5o",
-            "b3N0LnYxLnBsb3RzLlBsb3RCb3hTdW1tYXJ5UgZzZXJpZXMSFAoFdG90YWwY",
-            "AiABKARSBXRvdGFsIrYBCgpQbG90Q29sdW1uEhoKCGluc3RhbnRzGAEgAygJ",
-            "UghpbnN0YW50cxIkCgF4GAIgAygLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVl",
-            "UgF4EjIKAXkYAyADKAsyJC5kb2tpbWUuaG9zdC52MS5wbG90cy5OdWxsYWJs",
-            "ZU51bWJlclIBeRIyCgF6GAQgAygLMiQuZG9raW1lLmhvc3QudjEucGxvdHMu",
-            "TnVsbGFibGVOdW1iZXJSAXoiMAoKUGxvdERvbWFpbhIQCgNtaW4YASABKAFS",
-            "A21pbhIQCgNtYXgYAiABKAFSA21heCKgAgoMUGxvdEVudmVsb3BlEhcKB3Bs",
-            "b3RfaWQYASABKAlSBnBsb3RJZBIaCghyZXZpc2lvbhgCIAEoBFIIcmV2aXNp",
-            "b24SFAoFZXBvY2gYAyABKAlSBWVwb2NoEhwKCXNlbGVjdGlvbhgEIAEoCVIJ",
-            "c2VsZWN0aW9uEjsKB3BheWxvYWQYBSABKAsyIS5kb2tpbWUuaG9zdC52MS5w",
-            "bG90cy5QbG90UGF5bG9hZFIHcGF5bG9hZBJOCgtkaWFnbm9zdGljcxgGIAEo",
-            "CzIsLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RQYXlsb2FkRGlhZ25vc3Rp",
-            "Y3NSC2RpYWdub3N0aWNzEhoKCHdhcm5pbmdzGAcgAygJUgh3YXJuaW5ncyLd",
-            "AgoJUGxvdEZyYW1lEkAKBG1vZGUYASABKA4yJy5kb2tpbWUuaG9zdC52MS5w",
-            "bG90cy5QbG90Q2FydGVzaWFuTW9kZUgAUgRtb2RliAEBEhIKBHRpbWUYAiAD",
-            "KAFSBHRpbWUSOAoGc2VyaWVzGAMgAygLMiAuZG9raW1lLmhvc3QudjEucGxv",
-            "dHMuUGxvdENvbHVtblIGc2VyaWVzEjsKCHhfZG9tYWluGAQgASgLMiAuZG9r",
-            "aW1lLmhvc3QudjEucGxvdHMuUGxvdERvbWFpblIHeERvbWFpbhI7Cgh5X2Rv",
-            "bWFpbhgFIAEoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3REb21haW5S",
-            "B3lEb21haW4SHwoLcG9pbnRfY291bnQYBiABKARSCnBvaW50Q291bnQSHAoJ",
-            "c2lnbmF0dXJlGAcgASgJUglzaWduYXR1cmVCBwoFX21vZGUiWgoVUGxvdEhp",
-            "c3RvZ3JhbUFuYWx5c2lzEkEKBnNlcmllcxgBIAMoCzIpLmRva2ltZS5ob3N0",
-            "LnYxLnBsb3RzLlBsb3RIaXN0b2dyYW1TZXJpZXNSBnNlcmllcyJUChBQbG90",
-            "SGlzdG9ncmFtQmluEhQKBWxvd2VyGAEgASgBUgVsb3dlchIUCgV1cHBlchgC",
-            "IAEoAVIFdXBwZXISFAoFY291bnQYAyABKARSBWNvdW50IsgBChNQbG90SGlz",
-            "dG9ncmFtU2VyaWVzEhAKA2tleRgBIAEoCVIDa2V5EjoKBGJpbnMYAiADKAsy",
-            "Ji5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90SGlzdG9ncmFtQmluUgRiaW5z",
-            "EhQKBWNvdW50GAMgASgEUgVjb3VudBJNCgpzdGF0aXN0aWNzGAQgASgLMi0u",
-            "ZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdEhpc3RvZ3JhbVN0YXRpc3RpY3NS",
-            "CnN0YXRpc3RpY3MijQEKF1Bsb3RIaXN0b2dyYW1TdGF0aXN0aWNzEhIKBG1l",
-            "YW4YASABKAFSBG1lYW4SFgoGbWVkaWFuGAIgASgBUgZtZWRpYW4SEAoDc3Rk",
-            "GAMgASgBUgNzdGQSEAoDcm1zGAQgASgBUgNybXMSEAoDbWluGAUgASgBUgNt",
-            "aW4SEAoDbWF4GAYgASgBUgNtYXgifwoKUGxvdE1hcmtlchIkCgF4GAEgASgL",
-            "MhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgF4EhQKBWxhYmVsGAIgASgJUgVs",
-            "YWJlbBIfCgtyZWNvcmRfdHlwZRgDIAEoCVIKcmVjb3JkVHlwZRIUCgVjb2xv",
-            "chgEIAEoCVIFY29sb3Ii8AcKC1Bsb3RQYXlsb2FkEhYKBnN0cmVhbRgBIAEo",
-            "CVIGc3RyZWFtEhMKBXhfa2V5GAIgASgJUgR4S2V5EiAKCXNlcmllc19ieRgD",
-            "IAEoCUgAUghzZXJpZXNCeYgBARIwCgdjb250ZXh0GAQgASgLMhYuZG9raW1l",
-            "Lm1vZGVsLnYxLlZhbHVlUgdjb250ZXh0EjgKBnNlcmllcxgFIAMoCzIgLmRv",
-            "a2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RTZXJpZXNSBnNlcmllcxI1CgVmcmFt",
-            "ZRgGIAEoCzIfLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RGcmFtZVIFZnJh",
-            "bWUSOgoHbWFya2VycxgHIAMoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
-            "b3RNYXJrZXJSB21hcmtlcnMSHQoKbWF4X3BvaW50cxgIIAEoBFIJbWF4UG9p",
-            "bnRzEh4KCHdpbmRvd19zGAkgASgBSAFSB3dpbmRvd1OIAQESIQoMZ2VuZXJh",
-            "dGVkX2F0GAogASgJUgtnZW5lcmF0ZWRBdBI2Cgh4X2Zvcm1hdBgLIAEoCzIb",
-            "LmRva2ltZS5ob3N0LnYxLlZhbHVlRm9ybWF0Ugd4Rm9ybWF0EikKDnJ1bl9z",
-            "dGFydGVkX2F0GAwgASgJSAJSDHJ1blN0YXJ0ZWRBdIgBARItChBjeWNsZV9z",
-            "dGFydGVkX2F0GA0gASgJSANSDmN5Y2xlU3RhcnRlZEF0iAEBEj4KCGFuYWx5",
-            "c2lzGA4gASgLMiIuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdEFuYWx5c2lz",
-            "UghhbmFseXNpcxJFCghjb21wdXRlZBgPIAEoCzIpLmRva2ltZS5ob3N0LnYx",
-            "LnBsb3RzLkFuYWx5c2lzQ29tcHV0YXRpb25SCGNvbXB1dGVkEkUKCXN1bW1h",
-            "cmllcxgQIAMoCzInLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RTZXJpZXNT",
-            "dW1tYXJ5UglzdW1tYXJpZXMSKQoOYnVja2V0X3dpZHRoX3MYESABKAFIBFIM",
-            "YnVja2V0V2lkdGhTiAEBEkUKDWJ1Y2tldF93aW5kb3cYEiABKAsyIC5kb2tp",
-            "bWUuaG9zdC52MS5wbG90cy5QbG90V2luZG93UgxidWNrZXRXaW5kb3cSKQoQ",
-            "cmVwbGFjZWRfYnVja2V0cxgTIAMoAVIPcmVwbGFjZWRCdWNrZXRzQgwKCl9z",
-            "ZXJpZXNfYnlCCwoJX3dpbmRvd19zQhEKD19ydW5fc3RhcnRlZF9hdEITChFf",
-            "Y3ljbGVfc3RhcnRlZF9hdEIRCg9fYnVja2V0X3dpZHRoX3MiwgIKFlBsb3RQ",
-            "YXlsb2FkRGlhZ25vc3RpY3MSIwoNZXhhbWluZWRfcm93cxgHIAEoBFIMZXhh",
-            "bWluZWRSb3dzEikKEHJlc29sdXRpb25fbmFub3MYCCABKARSD3Jlc29sdXRp",
-            "b25OYW5vcxIhCgxzZXJpZXNfY291bnQYASABKARSC3Nlcmllc0NvdW50Eh8K",
-            "C3BvaW50X2NvdW50GAIgASgEUgpwb2ludENvdW50EiYKD3Jhd19wb2ludF9j",
-            "b3VudBgDIAEoBFINcmF3UG9pbnRDb3VudBIgCgtkb3duc2FtcGxlZBgEIAEo",
-            "CFILZG93bnNhbXBsZWQSHQoKbWF4X3BvaW50cxgFIAEoBFIJbWF4UG9pbnRz",
-            "Eh4KCHdpbmRvd19zGAYgASgBSABSB3dpbmRvd1OIAQFCCwoJX3dpbmRvd19z",
-            "IswBCgpQbG90U2VyaWVzEhAKA2tleRgBIAEoCVIDa2V5EhQKBWxhYmVsGAIg",
-            "ASgJUgVsYWJlbBIXCgR1bml0GAMgASgJSABSBHVuaXSIAQESHQoKcmF3X3Bv",
-            "aW50cxgEIAEoBFIJcmF3UG9pbnRzEiAKC2Rvd25zYW1wbGVkGAUgASgIUgtk",
-            "b3duc2FtcGxlZBIzCgZmb3JtYXQYBiABKAsyGy5kb2tpbWUuaG9zdC52MS5W",
-            "YWx1ZUZvcm1hdFIGZm9ybWF0QgcKBV91bml0IsYCChFQbG90U2VyaWVzU3Vt",
-            "bWFyeRIbCglzZXJpZXNfaWQYASABKAlSCHNlcmllc0lkEhQKBWNvdW50GAIg",
-            "ASgEUgVjb3VudBIVCgNtaW4YAyABKAFIAFIDbWluiAEBEhUKA21heBgEIAEo",
-            "AUgBUgNtYXiIAQESFwoEbWVhbhgFIAEoAUgCUgRtZWFuiAEBEhsKBm1lZGlh",
-            "bhgGIAEoAUgDUgZtZWRpYW6IAQESFQoDc3RkGAcgASgBSARSA3N0ZIgBARIV",
-            "CgNybXMYCCABKAFIBVIDcm1ziAEBEjgKBndpbmRvdxgJIAEoCzIgLmRva2lt",
-            "ZS5ob3N0LnYxLnBsb3RzLlBsb3RXaW5kb3dSBndpbmRvd0IGCgRfbWluQgYK",
-            "BF9tYXhCBwoFX21lYW5CCQoHX21lZGlhbkIGCgRfc3RkQgYKBF9ybXMicgoM",
-            "UGxvdFNpZ21hQmluEgwKAXgYASABKAFSAXgSFAoFY291bnQYAiABKARSBWNv",
-            "dW50EhIKBG1lYW4YAyABKAFSBG1lYW4SFAoFbG93ZXIYBCABKAFSBWxvd2Vy",
-            "EhQKBXVwcGVyGAUgASgBUgV1cHBlciJaChlQbG90U2lnbWFJbnRlcnZhbEFu",
-            "YWx5c2lzEj0KBnNlcmllcxgBIAMoCzIlLmRva2ltZS5ob3N0LnYxLnBsb3Rz",
-            "LlBsb3RTaWdtYVNlcmllc1IGc2VyaWVzInoKD1Bsb3RTaWdtYVNlcmllcxIQ",
-            "CgNrZXkYASABKAlSA2tleRI2CgRiaW5zGAIgAygLMiIuZG9raW1lLmhvc3Qu",
-            "djEucGxvdHMuUGxvdFNpZ21hQmluUgRiaW5zEh0KCnJhd19wb2ludHMYAyAB",
-            "KARSCXJhd1BvaW50cyKMAQoQUGxvdFN0cmVhbVVwZGF0ZRI4CgRraW5kGAEg",
-            "ASgOMiQuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdFN0cmVhbUtpbmRSBGtp",
-            "bmQSPgoIZW52ZWxvcGUYAiABKAsyIi5kb2tpbWUuaG9zdC52MS5wbG90cy5Q",
-            "bG90RW52ZWxvcGVSCGVudmVsb3BlIuYQCgtQbG90UmVxdWVzdBJGCgthcnJh",
-            "bmdlbWVudBgBIAEoDjIfLmRva2ltZS5tb2RlbC52MS5CYXJBcnJhbmdlbWVu",
-            "dEgAUgthcnJhbmdlbWVudIgBARIWCgZwYXJldG8YAiABKAhSBnBhcmV0bxIX",
-            "CgRob2xlGAMgASgBSAFSBGhvbGWIAQESQQoLeHlfaW50ZXJ2YWwYBCABKA4y",
-            "Gy5kb2tpbWUubW9kZWwudjEuWHlJbnRlcnZhbEgCUgp4eUludGVydmFsiAEB",
-            "EjMKBGdyaWQYBSABKAsyHy5kb2tpbWUubW9kZWwudjEuR3JpZERlZmluaXRp",
-            "b25SBGdyaWQSPQoJcmVkdWN0aW9uGAYgASgOMhouZG9raW1lLm1vZGVsLnYx",
-            "LlJlZHVjdGlvbkgDUglyZWR1Y3Rpb26IAQESNgoGcmVuZGVyGAcgASgOMh4u",
-            "ZG9raW1lLm1vZGVsLnYxLkNvbnRvdXJSZW5kZXJSBnJlbmRlchI/Cgp5X3Zp",
-            "ZXdwb3J0GAggASgLMiAuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdFdpbmRv",
-            "d1IJeVZpZXdwb3J0EiYKDHBhbmVsX2hlaWdodBgJIAEoDUgEUgtwYW5lbEhl",
-            "aWdodIgBARIcCgdwbG90X2lkGAogASgJSAVSBnBsb3RJZIgBARI2CglwbG90",
-            "X3R5cGUYCyABKA4yGS5kb2tpbWUubW9kZWwudjEuUGxvdEtpbmRSCHBsb3RU",
-            "eXBlEjAKBXN0eWxlGAwgASgOMhouZG9raW1lLm1vZGVsLnYxLkxpbmVTdHls",
-            "ZVIFc3R5bGUSMwoHeF9zY2FsZRgNIAEoDjIaLmRva2ltZS5tb2RlbC52MS5B",
-            "eGlzU2NhbGVSBnhTY2FsZRIzCgd5X3NjYWxlGA4gASgOMhouZG9raW1lLm1v",
-            "ZGVsLnYxLkF4aXNTY2FsZVIGeVNjYWxlEhYKBnN0cmVhbRgPIAEoCVIGc3Ry",
-            "ZWFtEhUKBnlfa2V5cxgQIAMoCVIFeUtleXMSLgoTbWFya2VyX3JlY29yZF90",
-            "eXBlcxgRIAMoCVIRbWFya2VyUmVjb3JkVHlwZXMSNQoHZmlsdGVycxgSIAMo",
-            "CzIbLmRva2ltZS5tb2RlbC52MS5QbG90RmlsdGVyUgdmaWx0ZXJzEhgKBXhf",
-            "a2V5GBMgASgJSAZSBHhLZXmIAQESIAoJc2VyaWVzX2J5GBQgASgJSAdSCHNl",
-            "cmllc0J5iAEBEkIKDHhfZXhwcmVzc2lvbhgVIAEoCzIfLmRva2ltZS5tb2Rl",
-            "bC52MS5EYXRhRXhwcmVzc2lvblILeEV4cHJlc3Npb24SRAoNeV9leHByZXNz",
-            "aW9ucxgWIAMoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIM",
-            "eUV4cHJlc3Npb25zElEKFHNlcmllc19ieV9leHByZXNzaW9uGBcgASgLMh8u",
-            "ZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUhJzZXJpZXNCeUV4cHJl",
-            "c3Npb24SHgoIel9zdHJlYW0YGCABKAlICFIHelN0cmVhbYgBARIcCgd6X2Zp",
-            "ZWxkGBkgASgJSAlSBnpGaWVsZIgBARIXCgR1bml0GBogASgJSApSBHVuaXSI",
-            "AQESIgoKbWF4X3BvaW50cxgbIAEoBEgLUgltYXhQb2ludHOIAQESHgoId2lu",
-            "ZG93X3MYHCABKAFIDFIHd2luZG93U4gBARI0CgVzY29wZRgdIAEoCzIeLmRv",
-            "a2ltZS5tb2RlbC52MS5FdmlkZW5jZVNjb3BlUgVzY29wZRI5Cgl0ZWNobmlx",
-            "dWUYHiABKA4yGy5kb2tpbWUubW9kZWwudjEuRG93bnNhbXBsZVIJdGVjaG5p",
-            "cXVlEkIKDHpfZXhwcmVzc2lvbhgfIAEoCzIfLmRva2ltZS5tb2RlbC52MS5E",
-            "YXRhRXhwcmVzc2lvblILekV4cHJlc3Npb24SMQoDZmZ0GCAgASgLMh8uZG9r",
-            "aW1lLm1vZGVsLnYxLlBsb3RGZnRPcHRpb25zUgNmZnQSQAoIaW50ZXJ2YWwY",
-            "ISABKAsyJC5kb2tpbWUubW9kZWwudjEuUGxvdEludGVydmFsT3B0aW9uc1II",
-            "aW50ZXJ2YWwSQwoJaGlzdG9ncmFtGCIgASgLMiUuZG9raW1lLm1vZGVsLnYx",
-            "LlBsb3RIaXN0b2dyYW1PcHRpb25zUgloaXN0b2dyYW0SPgoIYW5hbHlzaXMY",
-            "IyABKAsyIi5kb2tpbWUubW9kZWwudjEuQW5hbHlzaXNTZWxlY3Rpb25SCGFu",
-            "YWx5c2lzEkcKDnN1bW1hcnlfd2luZG93GCQgASgLMiAuZG9raW1lLmhvc3Qu",
-            "djEucGxvdHMuUGxvdFdpbmRvd1INc3VtbWFyeVdpbmRvdxI8Cgh2aWV3cG9y",
-            "dBglIAEoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RXaW5kb3dSCHZp",
-            "ZXdwb3J0EiQKC3BhbmVsX3dpZHRoGCYgASgNSA1SCnBhbmVsV2lkdGiIAQES",
-            "LQoCYXQYJyABKAsyGC5oYXJtb3MubW9kZWwudjEuUmVhZEN1dEgOUgJhdIgB",
-            "AUIOCgxfYXJyYW5nZW1lbnRCBwoFX2hvbGVCDgoMX3h5X2ludGVydmFsQgwK",
-            "Cl9yZWR1Y3Rpb25CDwoNX3BhbmVsX2hlaWdodEIKCghfcGxvdF9pZEIICgZf",
-            "eF9rZXlCDAoKX3Nlcmllc19ieUILCglfel9zdHJlYW1CCgoIX3pfZmllbGRC",
-            "BwoFX3VuaXRCDQoLX21heF9wb2ludHNCCwoJX3dpbmRvd19zQg4KDF9wYW5l",
-            "bF93aWR0aEIFCgNfYXQiMAoKUGxvdFdpbmRvdxISCgRmcm9tGAEgASgBUgRm",
-            "cm9tEg4KAnRvGAIgASgBUgJ0byp6ChFQbG90Q2FydGVzaWFuTW9kZRIjCh9Q",
-            "TE9UX0NBUlRFU0lBTl9NT0RFX1VOU1BFQ0lGSUVEEAASHwobUExPVF9DQVJU",
-            "RVNJQU5fTU9ERV9BTElHTkVEEAESHwobUExPVF9DQVJURVNJQU5fTU9ERV9G",
-            "QUNFVEVEEAIqyAEKDlBsb3RTdHJlYW1LaW5kEiAKHFBMT1RfU1RSRUFNX0tJ",
-            "TkRfVU5TUEVDSUZJRUQQABIdChlQTE9UX1NUUkVBTV9LSU5EX1NOQVBTSE9U",
-            "EAESHAoYUExPVF9TVFJFQU1fS0lORF9SRVBMQUNFEAISGgoWUExPVF9TVFJF",
-            "QU1fS0lORF9ERUxUQRADEh8KG1BMT1RfU1RSRUFNX0tJTkRfU1RBVElTVElD",
-            "UxAEEhoKFlBMT1RfU1RSRUFNX0tJTkRfRVJST1IQBTLeAQoJU25hcHNob3Rz",
-            "EmUKBExpc3QSKi5kb2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNMaXN0",
-            "UmVxdWVzdBorLmRva2ltZS5ob3N0LnYxLnBsb3RzLlNuYXBzaG90c0xpc3RS",
-            "ZXNwb25zZSIEyPMYARJqCgVXYXRjaBIrLmRva2ltZS5ob3N0LnYxLnBsb3Rz",
-            "LlNuYXBzaG90c1dhdGNoUmVxdWVzdBosLmRva2ltZS5ob3N0LnYxLnBsb3Rz",
-            "LlNuYXBzaG90c1dhdGNoUmVzcG9uc2UiBMjzGAEwAUIgqgIdRG9raW1lLkNs",
-            "aWVudHMuUGxvdHNSZXNvdXJjZXNiBnByb3RvMw=="));
+            "dBIoCgNtaW4YAyABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSA21pbhIm",
+            "CgJxMRgEIAEoCzIWLmRva2ltZS5tb2RlbC52MS5WYWx1ZVICcTESLgoGbWVk",
+            "aWFuGAUgASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgZtZWRpYW4SJgoC",
+            "cTMYBiABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSAnEzEigKA21heBgH",
+            "IAEoCzIWLmRva2ltZS5tb2RlbC52MS5WYWx1ZVIDbWF4EiMKDWxvd2VyX3do",
+            "aXNrZXIYCCABKAFSDGxvd2VyV2hpc2tlchIjCg11cHBlcl93aGlza2VyGAkg",
+            "ASgBUgx1cHBlcldoaXNrZXISGgoIb3V0bGllcnMYCiADKAFSCG91dGxpZXJz",
+            "EhQKBWxhYmVsGAsgASgJUgVsYWJlbCJsChZQbG90Qm94U3VtbWFyeUFuYWx5",
+            "c2lzEjwKBnNlcmllcxgBIAMoCzIkLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
+            "b3RCb3hTdW1tYXJ5UgZzZXJpZXMSFAoFdG90YWwYAiABKARSBXRvdGFsIuYB",
+            "CgpQbG90Q29sdW1uEhoKCGluc3RhbnRzGAEgAygJUghpbnN0YW50cxIkCgF4",
+            "GAIgAygLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgF4EjIKAXkYAyADKAsy",
+            "JC5kb2tpbWUuaG9zdC52MS5wbG90cy5OdWxsYWJsZU51bWJlclIBeRIyCgF6",
+            "GAQgAygLMiQuZG9raW1lLmhvc3QudjEucGxvdHMuTnVsbGFibGVOdW1iZXJS",
+            "AXoSLgoGdG90YWxzGAYgAygLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgZ0",
+            "b3RhbHMiMAoKUGxvdERvbWFpbhIQCgNtaW4YASABKAFSA21pbhIQCgNtYXgY",
+            "AiABKAFSA21heCKgAgoMUGxvdEVudmVsb3BlEhcKB3Bsb3RfaWQYASABKAlS",
+            "BnBsb3RJZBIaCghyZXZpc2lvbhgCIAEoBFIIcmV2aXNpb24SFAoFZXBvY2gY",
+            "AyABKAlSBWVwb2NoEhwKCXNlbGVjdGlvbhgEIAEoCVIJc2VsZWN0aW9uEjsK",
+            "B3BheWxvYWQYBSABKAsyIS5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90UGF5",
+            "bG9hZFIHcGF5bG9hZBJOCgtkaWFnbm9zdGljcxgGIAEoCzIsLmRva2ltZS5o",
+            "b3N0LnYxLnBsb3RzLlBsb3RQYXlsb2FkRGlhZ25vc3RpY3NSC2RpYWdub3N0",
+            "aWNzEhoKCHdhcm5pbmdzGAcgAygJUgh3YXJuaW5ncyLdAgoJUGxvdEZyYW1l",
+            "EkAKBG1vZGUYASABKA4yJy5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90Q2Fy",
+            "dGVzaWFuTW9kZUgAUgRtb2RliAEBEhIKBHRpbWUYAiADKAFSBHRpbWUSOAoG",
+            "c2VyaWVzGAMgAygLMiAuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdENvbHVt",
+            "blIGc2VyaWVzEjsKCHhfZG9tYWluGAQgASgLMiAuZG9raW1lLmhvc3QudjEu",
+            "cGxvdHMuUGxvdERvbWFpblIHeERvbWFpbhI7Cgh5X2RvbWFpbhgFIAEoCzIg",
+            "LmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3REb21haW5SB3lEb21haW4SHwoL",
+            "cG9pbnRfY291bnQYBiABKARSCnBvaW50Q291bnQSHAoJc2lnbmF0dXJlGAcg",
+            "ASgJUglzaWduYXR1cmVCBwoFX21vZGUiWgoVUGxvdEhpc3RvZ3JhbUFuYWx5",
+            "c2lzEkEKBnNlcmllcxgBIAMoCzIpLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
+            "b3RIaXN0b2dyYW1TZXJpZXNSBnNlcmllcyJUChBQbG90SGlzdG9ncmFtQmlu",
+            "EhQKBWxvd2VyGAEgASgBUgVsb3dlchIUCgV1cHBlchgCIAEoAVIFdXBwZXIS",
+            "FAoFY291bnQYAyABKARSBWNvdW50IsgBChNQbG90SGlzdG9ncmFtU2VyaWVz",
+            "EhAKA2tleRgBIAEoCVIDa2V5EjoKBGJpbnMYAiADKAsyJi5kb2tpbWUuaG9z",
+            "dC52MS5wbG90cy5QbG90SGlzdG9ncmFtQmluUgRiaW5zEhQKBWNvdW50GAMg",
+            "ASgEUgVjb3VudBJNCgpzdGF0aXN0aWNzGAQgASgLMi0uZG9raW1lLmhvc3Qu",
+            "djEucGxvdHMuUGxvdEhpc3RvZ3JhbVN0YXRpc3RpY3NSCnN0YXRpc3RpY3Mi",
+            "7QEKF1Bsb3RIaXN0b2dyYW1TdGF0aXN0aWNzEioKBG1lYW4YASABKAsyFi5k",
+            "b2tpbWUubW9kZWwudjEuVmFsdWVSBG1lYW4SLgoGbWVkaWFuGAIgASgLMhYu",
+            "ZG9raW1lLm1vZGVsLnYxLlZhbHVlUgZtZWRpYW4SEAoDc3RkGAMgASgBUgNz",
+            "dGQSEAoDcm1zGAQgASgBUgNybXMSKAoDbWluGAUgASgLMhYuZG9raW1lLm1v",
+            "ZGVsLnYxLlZhbHVlUgNtaW4SKAoDbWF4GAYgASgLMhYuZG9raW1lLm1vZGVs",
+            "LnYxLlZhbHVlUgNtYXgifwoKUGxvdE1hcmtlchIkCgF4GAEgASgLMhYuZG9r",
+            "aW1lLm1vZGVsLnYxLlZhbHVlUgF4EhQKBWxhYmVsGAIgASgJUgVsYWJlbBIf",
+            "CgtyZWNvcmRfdHlwZRgDIAEoCVIKcmVjb3JkVHlwZRIUCgVjb2xvchgEIAEo",
+            "CVIFY29sb3Ii8AcKC1Bsb3RQYXlsb2FkEhYKBnN0cmVhbRgBIAEoCVIGc3Ry",
+            "ZWFtEhMKBXhfa2V5GAIgASgJUgR4S2V5EiAKCXNlcmllc19ieRgDIAEoCUgA",
+            "UghzZXJpZXNCeYgBARIwCgdjb250ZXh0GAQgASgLMhYuZG9raW1lLm1vZGVs",
+            "LnYxLlZhbHVlUgdjb250ZXh0EjgKBnNlcmllcxgFIAMoCzIgLmRva2ltZS5o",
+            "b3N0LnYxLnBsb3RzLlBsb3RTZXJpZXNSBnNlcmllcxI1CgVmcmFtZRgGIAEo",
+            "CzIfLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RGcmFtZVIFZnJhbWUSOgoH",
+            "bWFya2VycxgHIAMoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RNYXJr",
+            "ZXJSB21hcmtlcnMSHQoKbWF4X3BvaW50cxgIIAEoBFIJbWF4UG9pbnRzEh4K",
+            "CHdpbmRvd19zGAkgASgBSAFSB3dpbmRvd1OIAQESIQoMZ2VuZXJhdGVkX2F0",
+            "GAogASgJUgtnZW5lcmF0ZWRBdBI2Cgh4X2Zvcm1hdBgLIAEoCzIbLmRva2lt",
+            "ZS5ob3N0LnYxLlZhbHVlRm9ybWF0Ugd4Rm9ybWF0EikKDnJ1bl9zdGFydGVk",
+            "X2F0GAwgASgJSAJSDHJ1blN0YXJ0ZWRBdIgBARItChBjeWNsZV9zdGFydGVk",
+            "X2F0GA0gASgJSANSDmN5Y2xlU3RhcnRlZEF0iAEBEj4KCGFuYWx5c2lzGA4g",
+            "ASgLMiIuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdEFuYWx5c2lzUghhbmFs",
+            "eXNpcxJFCghjb21wdXRlZBgPIAEoCzIpLmRva2ltZS5ob3N0LnYxLnBsb3Rz",
+            "LkFuYWx5c2lzQ29tcHV0YXRpb25SCGNvbXB1dGVkEkUKCXN1bW1hcmllcxgQ",
+            "IAMoCzInLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RTZXJpZXNTdW1tYXJ5",
+            "UglzdW1tYXJpZXMSKQoOYnVja2V0X3dpZHRoX3MYESABKAFIBFIMYnVja2V0",
+            "V2lkdGhTiAEBEkUKDWJ1Y2tldF93aW5kb3cYEiABKAsyIC5kb2tpbWUuaG9z",
+            "dC52MS5wbG90cy5QbG90V2luZG93UgxidWNrZXRXaW5kb3cSKQoQcmVwbGFj",
+            "ZWRfYnVja2V0cxgTIAMoAVIPcmVwbGFjZWRCdWNrZXRzQgwKCl9zZXJpZXNf",
+            "YnlCCwoJX3dpbmRvd19zQhEKD19ydW5fc3RhcnRlZF9hdEITChFfY3ljbGVf",
+            "c3RhcnRlZF9hdEIRCg9fYnVja2V0X3dpZHRoX3MiwgIKFlBsb3RQYXlsb2Fk",
+            "RGlhZ25vc3RpY3MSIwoNZXhhbWluZWRfcm93cxgHIAEoBFIMZXhhbWluZWRS",
+            "b3dzEikKEHJlc29sdXRpb25fbmFub3MYCCABKARSD3Jlc29sdXRpb25OYW5v",
+            "cxIhCgxzZXJpZXNfY291bnQYASABKARSC3Nlcmllc0NvdW50Eh8KC3BvaW50",
+            "X2NvdW50GAIgASgEUgpwb2ludENvdW50EiYKD3Jhd19wb2ludF9jb3VudBgD",
+            "IAEoBFINcmF3UG9pbnRDb3VudBIgCgtkb3duc2FtcGxlZBgEIAEoCFILZG93",
+            "bnNhbXBsZWQSHQoKbWF4X3BvaW50cxgFIAEoBFIJbWF4UG9pbnRzEh4KCHdp",
+            "bmRvd19zGAYgASgBSABSB3dpbmRvd1OIAQFCCwoJX3dpbmRvd19zIswBCgpQ",
+            "bG90U2VyaWVzEhAKA2tleRgBIAEoCVIDa2V5EhQKBWxhYmVsGAIgASgJUgVs",
+            "YWJlbBIXCgR1bml0GAMgASgJSABSBHVuaXSIAQESHQoKcmF3X3BvaW50cxgE",
+            "IAEoBFIJcmF3UG9pbnRzEiAKC2Rvd25zYW1wbGVkGAUgASgIUgtkb3duc2Ft",
+            "cGxlZBIzCgZmb3JtYXQYBiABKAsyGy5kb2tpbWUuaG9zdC52MS5WYWx1ZUZv",
+            "cm1hdFIGZm9ybWF0QgcKBV91bml0Iu4CChFQbG90U2VyaWVzU3VtbWFyeRIb",
+            "CglzZXJpZXNfaWQYASABKAlSCHNlcmllc0lkEhQKBWNvdW50GAIgASgEUgVj",
+            "b3VudBIoCgNtaW4YAyABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSA21p",
+            "bhIoCgNtYXgYBCABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSA21heBIq",
+            "CgRtZWFuGAUgASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgRtZWFuEi4K",
+            "Bm1lZGlhbhgGIAEoCzIWLmRva2ltZS5tb2RlbC52MS5WYWx1ZVIGbWVkaWFu",
+            "EhUKA3N0ZBgHIAEoAUgAUgNzdGSIAQESFQoDcm1zGAggASgBSAFSA3Jtc4gB",
+            "ARI4CgZ3aW5kb3cYCSABKAsyIC5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90",
+            "V2luZG93UgZ3aW5kb3dCBgoEX3N0ZEIGCgRfcm1zInIKDFBsb3RTaWdtYUJp",
+            "bhIMCgF4GAEgASgBUgF4EhQKBWNvdW50GAIgASgEUgVjb3VudBISCgRtZWFu",
+            "GAMgASgBUgRtZWFuEhQKBWxvd2VyGAQgASgBUgVsb3dlchIUCgV1cHBlchgF",
+            "IAEoAVIFdXBwZXIiWgoZUGxvdFNpZ21hSW50ZXJ2YWxBbmFseXNpcxI9CgZz",
+            "ZXJpZXMYASADKAsyJS5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90U2lnbWFT",
+            "ZXJpZXNSBnNlcmllcyJ6Cg9QbG90U2lnbWFTZXJpZXMSEAoDa2V5GAEgASgJ",
+            "UgNrZXkSNgoEYmlucxgCIAMoCzIiLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
+            "b3RTaWdtYUJpblIEYmlucxIdCgpyYXdfcG9pbnRzGAMgASgEUglyYXdQb2lu",
+            "dHMijAEKEFBsb3RTdHJlYW1VcGRhdGUSOAoEa2luZBgBIAEoDjIkLmRva2lt",
+            "ZS5ob3N0LnYxLnBsb3RzLlBsb3RTdHJlYW1LaW5kUgRraW5kEj4KCGVudmVs",
+            "b3BlGAIgASgLMiIuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdEVudmVsb3Bl",
+            "UghlbnZlbG9wZSLmEAoLUGxvdFJlcXVlc3QSRgoLYXJyYW5nZW1lbnQYASAB",
+            "KA4yHy5kb2tpbWUubW9kZWwudjEuQmFyQXJyYW5nZW1lbnRIAFILYXJyYW5n",
+            "ZW1lbnSIAQESFgoGcGFyZXRvGAIgASgIUgZwYXJldG8SFwoEaG9sZRgDIAEo",
+            "AUgBUgRob2xliAEBEkEKC3h5X2ludGVydmFsGAQgASgOMhsuZG9raW1lLm1v",
+            "ZGVsLnYxLlh5SW50ZXJ2YWxIAlIKeHlJbnRlcnZhbIgBARIzCgRncmlkGAUg",
+            "ASgLMh8uZG9raW1lLm1vZGVsLnYxLkdyaWREZWZpbml0aW9uUgRncmlkEj0K",
+            "CXJlZHVjdGlvbhgGIAEoDjIaLmRva2ltZS5tb2RlbC52MS5SZWR1Y3Rpb25I",
+            "A1IJcmVkdWN0aW9uiAEBEjYKBnJlbmRlchgHIAEoDjIeLmRva2ltZS5tb2Rl",
+            "bC52MS5Db250b3VyUmVuZGVyUgZyZW5kZXISPwoKeV92aWV3cG9ydBgIIAEo",
+            "CzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RXaW5kb3dSCXlWaWV3cG9y",
+            "dBImCgxwYW5lbF9oZWlnaHQYCSABKA1IBFILcGFuZWxIZWlnaHSIAQESHAoH",
+            "cGxvdF9pZBgKIAEoCUgFUgZwbG90SWSIAQESNgoJcGxvdF90eXBlGAsgASgO",
+            "MhkuZG9raW1lLm1vZGVsLnYxLlBsb3RLaW5kUghwbG90VHlwZRIwCgVzdHls",
+            "ZRgMIAEoDjIaLmRva2ltZS5tb2RlbC52MS5MaW5lU3R5bGVSBXN0eWxlEjMK",
+            "B3hfc2NhbGUYDSABKA4yGi5kb2tpbWUubW9kZWwudjEuQXhpc1NjYWxlUgZ4",
+            "U2NhbGUSMwoHeV9zY2FsZRgOIAEoDjIaLmRva2ltZS5tb2RlbC52MS5BeGlz",
+            "U2NhbGVSBnlTY2FsZRIWCgZzdHJlYW0YDyABKAlSBnN0cmVhbRIVCgZ5X2tl",
+            "eXMYECADKAlSBXlLZXlzEi4KE21hcmtlcl9yZWNvcmRfdHlwZXMYESADKAlS",
+            "EW1hcmtlclJlY29yZFR5cGVzEjUKB2ZpbHRlcnMYEiADKAsyGy5kb2tpbWUu",
+            "bW9kZWwudjEuUGxvdEZpbHRlclIHZmlsdGVycxIYCgV4X2tleRgTIAEoCUgG",
+            "UgR4S2V5iAEBEiAKCXNlcmllc19ieRgUIAEoCUgHUghzZXJpZXNCeYgBARJC",
+            "Cgx4X2V4cHJlc3Npb24YFSABKAsyHy5kb2tpbWUubW9kZWwudjEuRGF0YUV4",
+            "cHJlc3Npb25SC3hFeHByZXNzaW9uEkQKDXlfZXhwcmVzc2lvbnMYFiADKAsy",
+            "Hy5kb2tpbWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25SDHlFeHByZXNzaW9u",
+            "cxJRChRzZXJpZXNfYnlfZXhwcmVzc2lvbhgXIAEoCzIfLmRva2ltZS5tb2Rl",
+            "bC52MS5EYXRhRXhwcmVzc2lvblISc2VyaWVzQnlFeHByZXNzaW9uEh4KCHpf",
+            "c3RyZWFtGBggASgJSAhSB3pTdHJlYW2IAQESHAoHel9maWVsZBgZIAEoCUgJ",
+            "UgZ6RmllbGSIAQESFwoEdW5pdBgaIAEoCUgKUgR1bml0iAEBEiIKCm1heF9w",
+            "b2ludHMYGyABKARIC1IJbWF4UG9pbnRziAEBEh4KCHdpbmRvd19zGBwgASgB",
+            "SAxSB3dpbmRvd1OIAQESNAoFc2NvcGUYHSABKAsyHi5kb2tpbWUubW9kZWwu",
+            "djEuRXZpZGVuY2VTY29wZVIFc2NvcGUSOQoJdGVjaG5pcXVlGB4gASgOMhsu",
+            "ZG9raW1lLm1vZGVsLnYxLkRvd25zYW1wbGVSCXRlY2huaXF1ZRJCCgx6X2V4",
+            "cHJlc3Npb24YHyABKAsyHy5kb2tpbWUubW9kZWwudjEuRGF0YUV4cHJlc3Np",
+            "b25SC3pFeHByZXNzaW9uEjEKA2ZmdBggIAEoCzIfLmRva2ltZS5tb2RlbC52",
+            "MS5QbG90RmZ0T3B0aW9uc1IDZmZ0EkAKCGludGVydmFsGCEgASgLMiQuZG9r",
+            "aW1lLm1vZGVsLnYxLlBsb3RJbnRlcnZhbE9wdGlvbnNSCGludGVydmFsEkMK",
+            "CWhpc3RvZ3JhbRgiIAEoCzIlLmRva2ltZS5tb2RlbC52MS5QbG90SGlzdG9n",
+            "cmFtT3B0aW9uc1IJaGlzdG9ncmFtEj4KCGFuYWx5c2lzGCMgASgLMiIuZG9r",
+            "aW1lLm1vZGVsLnYxLkFuYWx5c2lzU2VsZWN0aW9uUghhbmFseXNpcxJHCg5z",
+            "dW1tYXJ5X3dpbmRvdxgkIAEoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBs",
+            "b3RXaW5kb3dSDXN1bW1hcnlXaW5kb3cSPAoIdmlld3BvcnQYJSABKAsyIC5k",
+            "b2tpbWUuaG9zdC52MS5wbG90cy5QbG90V2luZG93Ugh2aWV3cG9ydBIkCgtw",
+            "YW5lbF93aWR0aBgmIAEoDUgNUgpwYW5lbFdpZHRoiAEBEi0KAmF0GCcgASgL",
+            "MhguaGFybW9zLm1vZGVsLnYxLlJlYWRDdXRIDlICYXSIAQFCDgoMX2FycmFu",
+            "Z2VtZW50QgcKBV9ob2xlQg4KDF94eV9pbnRlcnZhbEIMCgpfcmVkdWN0aW9u",
+            "Qg8KDV9wYW5lbF9oZWlnaHRCCgoIX3Bsb3RfaWRCCAoGX3hfa2V5QgwKCl9z",
+            "ZXJpZXNfYnlCCwoJX3pfc3RyZWFtQgoKCF96X2ZpZWxkQgcKBV91bml0Qg0K",
+            "C19tYXhfcG9pbnRzQgsKCV93aW5kb3dfc0IOCgxfcGFuZWxfd2lkdGhCBQoD",
+            "X2F0IjAKClBsb3RXaW5kb3cSEgoEZnJvbRgBIAEoAVIEZnJvbRIOCgJ0bxgC",
+            "IAEoAVICdG8qegoRUGxvdENhcnRlc2lhbk1vZGUSIwofUExPVF9DQVJURVNJ",
+            "QU5fTU9ERV9VTlNQRUNJRklFRBAAEh8KG1BMT1RfQ0FSVEVTSUFOX01PREVf",
+            "QUxJR05FRBABEh8KG1BMT1RfQ0FSVEVTSUFOX01PREVfRkFDRVRFRBACKsgB",
+            "Cg5QbG90U3RyZWFtS2luZBIgChxQTE9UX1NUUkVBTV9LSU5EX1VOU1BFQ0lG",
+            "SUVEEAASHQoZUExPVF9TVFJFQU1fS0lORF9TTkFQU0hPVBABEhwKGFBMT1Rf",
+            "U1RSRUFNX0tJTkRfUkVQTEFDRRACEhoKFlBMT1RfU1RSRUFNX0tJTkRfREVM",
+            "VEEQAxIfChtQTE9UX1NUUkVBTV9LSU5EX1NUQVRJU1RJQ1MQBBIaChZQTE9U",
+            "X1NUUkVBTV9LSU5EX0VSUk9SEAUy3gEKCVNuYXBzaG90cxJlCgRMaXN0Eiou",
+            "ZG9raW1lLmhvc3QudjEucGxvdHMuU25hcHNob3RzTGlzdFJlcXVlc3QaKy5k",
+            "b2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNMaXN0UmVzcG9uc2UiBMjz",
+            "GAESagoFV2F0Y2gSKy5kb2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNX",
+            "YXRjaFJlcXVlc3QaLC5kb2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNX",
+            "YXRjaFJlc3BvbnNlIgTI8xgBMAFCIKoCHURva2ltZS5DbGllbnRzLlBsb3Rz",
+            "UmVzb3VyY2VzYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.Clients.RecordSchemasReflection.Descriptor, global::Dokime.AnalysesReflection.Descriptor, global::Dokime.EvidenceReflection.Descriptor, global::Dokime.ExpressionsReflection.Descriptor, global::Dokime.PlotsReflection.Descriptor, global::Dokime.ScalarReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FailureReflection.Descriptor, global::Harmos.PageReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Clients.PlotsResources.PlotCartesianMode), typeof(global::Dokime.Clients.PlotsResources.PlotStreamKind), }, null, new pbr::GeneratedClrTypeInfo[] {
@@ -274,7 +281,7 @@ namespace Dokime.Clients.PlotsResources;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotAnalysisResult), global::Dokime.Clients.PlotsResources.PlotAnalysisResult.Parser, new[]{ "Contour", "GridChart", "Histogram", "BoxPlot", "SigmaInterval", "Error" }, new[]{ "Kind" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotBoxSummary), global::Dokime.Clients.PlotsResources.PlotBoxSummary.Parser, new[]{ "Key", "Count", "Min", "Q1", "Median", "Q3", "Max", "LowerWhisker", "UpperWhisker", "Outliers", "Label" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotBoxSummaryAnalysis), global::Dokime.Clients.PlotsResources.PlotBoxSummaryAnalysis.Parser, new[]{ "Series", "Total" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotColumn), global::Dokime.Clients.PlotsResources.PlotColumn.Parser, new[]{ "Instants", "X", "Y", "Z" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotColumn), global::Dokime.Clients.PlotsResources.PlotColumn.Parser, new[]{ "Instants", "X", "Y", "Z", "Totals" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotDomain), global::Dokime.Clients.PlotsResources.PlotDomain.Parser, new[]{ "Min", "Max" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotEnvelope), global::Dokime.Clients.PlotsResources.PlotEnvelope.Parser, new[]{ "PlotId", "Revision", "Epoch", "Selection", "Payload", "Diagnostics", "Warnings" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotFrame), global::Dokime.Clients.PlotsResources.PlotFrame.Parser, new[]{ "Mode", "Time", "Series", "XDomain", "YDomain", "PointCount", "Signature" }, new[]{ "Mode" }, null, null, null),
@@ -286,7 +293,7 @@ namespace Dokime.Clients.PlotsResources;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotPayload), global::Dokime.Clients.PlotsResources.PlotPayload.Parser, new[]{ "Stream", "XKey", "SeriesBy", "Context", "Series", "Frame", "Markers", "MaxPoints", "WindowS", "GeneratedAt", "XFormat", "RunStartedAt", "CycleStartedAt", "Analysis", "Computed", "Summaries", "BucketWidthS", "BucketWindow", "ReplacedBuckets" }, new[]{ "SeriesBy", "WindowS", "RunStartedAt", "CycleStartedAt", "BucketWidthS" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotPayloadDiagnostics), global::Dokime.Clients.PlotsResources.PlotPayloadDiagnostics.Parser, new[]{ "ExaminedRows", "ResolutionNanos", "SeriesCount", "PointCount", "RawPointCount", "Downsampled", "MaxPoints", "WindowS" }, new[]{ "WindowS" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSeries), global::Dokime.Clients.PlotsResources.PlotSeries.Parser, new[]{ "Key", "Label", "Unit", "RawPoints", "Downsampled", "Format" }, new[]{ "Unit" }, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSeriesSummary), global::Dokime.Clients.PlotsResources.PlotSeriesSummary.Parser, new[]{ "SeriesId", "Count", "Min", "Max", "Mean", "Median", "Std", "Rms", "Window" }, new[]{ "Min", "Max", "Mean", "Median", "Std", "Rms" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSeriesSummary), global::Dokime.Clients.PlotsResources.PlotSeriesSummary.Parser, new[]{ "SeriesId", "Count", "Min", "Max", "Mean", "Median", "Std", "Rms", "Window" }, new[]{ "Std", "Rms" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSigmaBin), global::Dokime.Clients.PlotsResources.PlotSigmaBin.Parser, new[]{ "X", "Count", "Mean", "Lower", "Upper" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSigmaIntervalAnalysis), global::Dokime.Clients.PlotsResources.PlotSigmaIntervalAnalysis.Parser, new[]{ "Series" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSigmaSeries), global::Dokime.Clients.PlotsResources.PlotSigmaSeries.Parser, new[]{ "Key", "Bins", "RawPoints" }, null, null, null, null),
@@ -5019,11 +5026,11 @@ namespace Dokime.Clients.PlotsResources;
     public PlotBoxSummary(PlotBoxSummary other) : this() {
       key_ = other.key_;
       count_ = other.count_;
-      min_ = other.min_;
-      q1_ = other.q1_;
-      median_ = other.median_;
-      q3_ = other.q3_;
-      max_ = other.max_;
+      min_ = other.min_ != null ? other.min_.Clone() : null;
+      q1_ = other.q1_ != null ? other.q1_.Clone() : null;
+      median_ = other.median_ != null ? other.median_.Clone() : null;
+      q3_ = other.q3_ != null ? other.q3_.Clone() : null;
+      max_ = other.max_ != null ? other.max_.Clone() : null;
       lowerWhisker_ = other.lowerWhisker_;
       upperWhisker_ = other.upperWhisker_;
       outliers_ = other.outliers_.Clone();
@@ -5063,10 +5070,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "min" field.</summary>
     public const int MinFieldNumber = 3;
-    private double min_;
+    private global::Dokime.Value min_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Min {
+    public global::Dokime.Value Min {
       get { return min_; }
       set {
         min_ = value;
@@ -5075,10 +5082,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "q1" field.</summary>
     public const int Q1FieldNumber = 4;
-    private double q1_;
+    private global::Dokime.Value q1_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Q1 {
+    public global::Dokime.Value Q1 {
       get { return q1_; }
       set {
         q1_ = value;
@@ -5087,10 +5094,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "median" field.</summary>
     public const int MedianFieldNumber = 5;
-    private double median_;
+    private global::Dokime.Value median_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Median {
+    public global::Dokime.Value Median {
       get { return median_; }
       set {
         median_ = value;
@@ -5099,10 +5106,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "q3" field.</summary>
     public const int Q3FieldNumber = 6;
-    private double q3_;
+    private global::Dokime.Value q3_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Q3 {
+    public global::Dokime.Value Q3 {
       get { return q3_; }
       set {
         q3_ = value;
@@ -5111,10 +5118,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "max" field.</summary>
     public const int MaxFieldNumber = 7;
-    private double max_;
+    private global::Dokime.Value max_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Max {
+    public global::Dokime.Value Max {
       get { return max_; }
       set {
         max_ = value;
@@ -5185,11 +5192,11 @@ namespace Dokime.Clients.PlotsResources;
       }
       if (Key != other.Key) return false;
       if (Count != other.Count) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Min, other.Min)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Q1, other.Q1)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Median, other.Median)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Q3, other.Q3)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Max, other.Max)) return false;
+      if (!object.Equals(Min, other.Min)) return false;
+      if (!object.Equals(Q1, other.Q1)) return false;
+      if (!object.Equals(Median, other.Median)) return false;
+      if (!object.Equals(Q3, other.Q3)) return false;
+      if (!object.Equals(Max, other.Max)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(LowerWhisker, other.LowerWhisker)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(UpperWhisker, other.UpperWhisker)) return false;
       if(!outliers_.Equals(other.outliers_)) return false;
@@ -5203,11 +5210,11 @@ namespace Dokime.Clients.PlotsResources;
       int hash = 1;
       if (Key.Length != 0) hash ^= Key.GetHashCode();
       if (Count != 0UL) hash ^= Count.GetHashCode();
-      if (Min != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Min);
-      if (Q1 != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Q1);
-      if (Median != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Median);
-      if (Q3 != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Q3);
-      if (Max != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Max);
+      if (min_ != null) hash ^= Min.GetHashCode();
+      if (q1_ != null) hash ^= Q1.GetHashCode();
+      if (median_ != null) hash ^= Median.GetHashCode();
+      if (q3_ != null) hash ^= Q3.GetHashCode();
+      if (max_ != null) hash ^= Max.GetHashCode();
       if (LowerWhisker != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(LowerWhisker);
       if (UpperWhisker != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(UpperWhisker);
       hash ^= outliers_.GetHashCode();
@@ -5238,25 +5245,25 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(16);
         output.WriteUInt64(Count);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Min);
       }
-      if (Q1 != 0D) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Q1);
+      if (q1_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Q1);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Median);
       }
-      if (Q3 != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Q3);
+      if (q3_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Q3);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(57);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(58);
+        output.WriteMessage(Max);
       }
       if (LowerWhisker != 0D) {
         output.WriteRawTag(65);
@@ -5289,25 +5296,25 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(16);
         output.WriteUInt64(Count);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Min);
       }
-      if (Q1 != 0D) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Q1);
+      if (q1_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Q1);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Median);
       }
-      if (Q3 != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Q3);
+      if (q3_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Q3);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(57);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(58);
+        output.WriteMessage(Max);
       }
       if (LowerWhisker != 0D) {
         output.WriteRawTag(65);
@@ -5338,20 +5345,20 @@ namespace Dokime.Clients.PlotsResources;
       if (Count != 0UL) {
         size += 1 + pb::CodedOutputStream.ComputeUInt64Size(Count);
       }
-      if (Min != 0D) {
-        size += 1 + 8;
+      if (min_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Min);
       }
-      if (Q1 != 0D) {
-        size += 1 + 8;
+      if (q1_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Q1);
       }
-      if (Median != 0D) {
-        size += 1 + 8;
+      if (median_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Median);
       }
-      if (Q3 != 0D) {
-        size += 1 + 8;
+      if (q3_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Q3);
       }
-      if (Max != 0D) {
-        size += 1 + 8;
+      if (max_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Max);
       }
       if (LowerWhisker != 0D) {
         size += 1 + 8;
@@ -5381,20 +5388,35 @@ namespace Dokime.Clients.PlotsResources;
       if (other.Count != 0UL) {
         Count = other.Count;
       }
-      if (other.Min != 0D) {
-        Min = other.Min;
+      if (other.min_ != null) {
+        if (min_ == null) {
+          Min = new global::Dokime.Value();
+        }
+        Min.MergeFrom(other.Min);
       }
-      if (other.Q1 != 0D) {
-        Q1 = other.Q1;
+      if (other.q1_ != null) {
+        if (q1_ == null) {
+          Q1 = new global::Dokime.Value();
+        }
+        Q1.MergeFrom(other.Q1);
       }
-      if (other.Median != 0D) {
-        Median = other.Median;
+      if (other.median_ != null) {
+        if (median_ == null) {
+          Median = new global::Dokime.Value();
+        }
+        Median.MergeFrom(other.Median);
       }
-      if (other.Q3 != 0D) {
-        Q3 = other.Q3;
+      if (other.q3_ != null) {
+        if (q3_ == null) {
+          Q3 = new global::Dokime.Value();
+        }
+        Q3.MergeFrom(other.Q3);
       }
-      if (other.Max != 0D) {
-        Max = other.Max;
+      if (other.max_ != null) {
+        if (max_ == null) {
+          Max = new global::Dokime.Value();
+        }
+        Max.MergeFrom(other.Max);
       }
       if (other.LowerWhisker != 0D) {
         LowerWhisker = other.LowerWhisker;
@@ -5433,24 +5455,39 @@ namespace Dokime.Clients.PlotsResources;
             Count = input.ReadUInt64();
             break;
           }
-          case 25: {
-            Min = input.ReadDouble();
+          case 26: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 33: {
-            Q1 = input.ReadDouble();
+          case 34: {
+            if (q1_ == null) {
+              Q1 = new global::Dokime.Value();
+            }
+            input.ReadMessage(Q1);
             break;
           }
-          case 41: {
-            Median = input.ReadDouble();
+          case 42: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
-          case 49: {
-            Q3 = input.ReadDouble();
+          case 50: {
+            if (q3_ == null) {
+              Q3 = new global::Dokime.Value();
+            }
+            input.ReadMessage(Q3);
             break;
           }
-          case 57: {
-            Max = input.ReadDouble();
+          case 58: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
           case 65: {
@@ -5497,24 +5534,39 @@ namespace Dokime.Clients.PlotsResources;
             Count = input.ReadUInt64();
             break;
           }
-          case 25: {
-            Min = input.ReadDouble();
+          case 26: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 33: {
-            Q1 = input.ReadDouble();
+          case 34: {
+            if (q1_ == null) {
+              Q1 = new global::Dokime.Value();
+            }
+            input.ReadMessage(Q1);
             break;
           }
-          case 41: {
-            Median = input.ReadDouble();
+          case 42: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
-          case 49: {
-            Q3 = input.ReadDouble();
+          case 50: {
+            if (q3_ == null) {
+              Q3 = new global::Dokime.Value();
+            }
+            input.ReadMessage(Q3);
             break;
           }
-          case 57: {
-            Max = input.ReadDouble();
+          case 58: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
           case 65: {
@@ -5804,6 +5856,7 @@ namespace Dokime.Clients.PlotsResources;
       x_ = other.x_.Clone();
       y_ = other.y_.Clone();
       z_ = other.z_.Clone();
+      totals_ = other.totals_.Clone();
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -5857,6 +5910,17 @@ namespace Dokime.Clients.PlotsResources;
       get { return z_; }
     }
 
+    /// <summary>Field number for the "totals" field.</summary>
+    public const int TotalsFieldNumber = 6;
+    private static readonly pb::FieldCodec<global::Dokime.Value> _repeated_totals_codec
+        = pb::FieldCodec.ForMessage(50, global::Dokime.Value.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Value> totals_ = new pbc::RepeatedField<global::Dokime.Value>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Value> Totals {
+      get { return totals_; }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -5876,6 +5940,7 @@ namespace Dokime.Clients.PlotsResources;
       if(!x_.Equals(other.x_)) return false;
       if(!y_.Equals(other.y_)) return false;
       if(!z_.Equals(other.z_)) return false;
+      if(!totals_.Equals(other.totals_)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -5887,6 +5952,7 @@ namespace Dokime.Clients.PlotsResources;
       hash ^= x_.GetHashCode();
       hash ^= y_.GetHashCode();
       hash ^= z_.GetHashCode();
+      hash ^= totals_.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -5909,6 +5975,7 @@ namespace Dokime.Clients.PlotsResources;
       x_.WriteTo(output, _repeated_x_codec);
       y_.WriteTo(output, _repeated_y_codec);
       z_.WriteTo(output, _repeated_z_codec);
+      totals_.WriteTo(output, _repeated_totals_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -5923,6 +5990,7 @@ namespace Dokime.Clients.PlotsResources;
       x_.WriteTo(ref output, _repeated_x_codec);
       y_.WriteTo(ref output, _repeated_y_codec);
       z_.WriteTo(ref output, _repeated_z_codec);
+      totals_.WriteTo(ref output, _repeated_totals_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -5937,6 +6005,7 @@ namespace Dokime.Clients.PlotsResources;
       size += x_.CalculateSize(_repeated_x_codec);
       size += y_.CalculateSize(_repeated_y_codec);
       size += z_.CalculateSize(_repeated_z_codec);
+      size += totals_.CalculateSize(_repeated_totals_codec);
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -5953,6 +6022,7 @@ namespace Dokime.Clients.PlotsResources;
       x_.Add(other.x_);
       y_.Add(other.y_);
       z_.Add(other.z_);
+      totals_.Add(other.totals_);
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -5988,6 +6058,10 @@ namespace Dokime.Clients.PlotsResources;
             z_.AddEntriesFrom(input, _repeated_z_codec);
             break;
           }
+          case 50: {
+            totals_.AddEntriesFrom(input, _repeated_totals_codec);
+            break;
+          }
         }
       }
     #endif
@@ -6021,6 +6095,10 @@ namespace Dokime.Clients.PlotsResources;
           }
           case 34: {
             z_.AddEntriesFrom(ref input, _repeated_z_codec);
+            break;
+          }
+          case 50: {
+            totals_.AddEntriesFrom(ref input, _repeated_totals_codec);
             break;
           }
         }
@@ -7928,12 +8006,12 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public PlotHistogramStatistics(PlotHistogramStatistics other) : this() {
-      mean_ = other.mean_;
-      median_ = other.median_;
+      mean_ = other.mean_ != null ? other.mean_.Clone() : null;
+      median_ = other.median_ != null ? other.median_.Clone() : null;
       std_ = other.std_;
       rms_ = other.rms_;
-      min_ = other.min_;
-      max_ = other.max_;
+      min_ = other.min_ != null ? other.min_.Clone() : null;
+      max_ = other.max_ != null ? other.max_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -7945,10 +8023,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "mean" field.</summary>
     public const int MeanFieldNumber = 1;
-    private double mean_;
+    private global::Dokime.Value mean_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Mean {
+    public global::Dokime.Value Mean {
       get { return mean_; }
       set {
         mean_ = value;
@@ -7957,10 +8035,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "median" field.</summary>
     public const int MedianFieldNumber = 2;
-    private double median_;
+    private global::Dokime.Value median_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Median {
+    public global::Dokime.Value Median {
       get { return median_; }
       set {
         median_ = value;
@@ -7993,10 +8071,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "min" field.</summary>
     public const int MinFieldNumber = 5;
-    private double min_;
+    private global::Dokime.Value min_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Min {
+    public global::Dokime.Value Min {
       get { return min_; }
       set {
         min_ = value;
@@ -8005,10 +8083,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "max" field.</summary>
     public const int MaxFieldNumber = 6;
-    private double max_;
+    private global::Dokime.Value max_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Max {
+    public global::Dokime.Value Max {
       get { return max_; }
       set {
         max_ = value;
@@ -8030,12 +8108,12 @@ namespace Dokime.Clients.PlotsResources;
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Mean, other.Mean)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Median, other.Median)) return false;
+      if (!object.Equals(Mean, other.Mean)) return false;
+      if (!object.Equals(Median, other.Median)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Std, other.Std)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Rms, other.Rms)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Min, other.Min)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Max, other.Max)) return false;
+      if (!object.Equals(Min, other.Min)) return false;
+      if (!object.Equals(Max, other.Max)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -8043,12 +8121,12 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      if (Mean != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Mean);
-      if (Median != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Median);
+      if (mean_ != null) hash ^= Mean.GetHashCode();
+      if (median_ != null) hash ^= Median.GetHashCode();
       if (Std != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Std);
       if (Rms != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Rms);
-      if (Min != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Min);
-      if (Max != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Max);
+      if (min_ != null) hash ^= Min.GetHashCode();
+      if (max_ != null) hash ^= Max.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -8067,13 +8145,13 @@ namespace Dokime.Clients.PlotsResources;
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (Mean != 0D) {
-        output.WriteRawTag(9);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Mean);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(17);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Median);
       }
       if (Std != 0D) {
         output.WriteRawTag(25);
@@ -8083,13 +8161,13 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(33);
         output.WriteDouble(Rms);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Min);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Max);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -8101,13 +8179,13 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Mean != 0D) {
-        output.WriteRawTag(9);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Mean);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(17);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Median);
       }
       if (Std != 0D) {
         output.WriteRawTag(25);
@@ -8117,13 +8195,13 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(33);
         output.WriteDouble(Rms);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Min);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Max);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -8135,11 +8213,11 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      if (Mean != 0D) {
-        size += 1 + 8;
+      if (mean_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Mean);
       }
-      if (Median != 0D) {
-        size += 1 + 8;
+      if (median_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Median);
       }
       if (Std != 0D) {
         size += 1 + 8;
@@ -8147,11 +8225,11 @@ namespace Dokime.Clients.PlotsResources;
       if (Rms != 0D) {
         size += 1 + 8;
       }
-      if (Min != 0D) {
-        size += 1 + 8;
+      if (min_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Min);
       }
-      if (Max != 0D) {
-        size += 1 + 8;
+      if (max_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Max);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -8165,11 +8243,17 @@ namespace Dokime.Clients.PlotsResources;
       if (other == null) {
         return;
       }
-      if (other.Mean != 0D) {
-        Mean = other.Mean;
+      if (other.mean_ != null) {
+        if (mean_ == null) {
+          Mean = new global::Dokime.Value();
+        }
+        Mean.MergeFrom(other.Mean);
       }
-      if (other.Median != 0D) {
-        Median = other.Median;
+      if (other.median_ != null) {
+        if (median_ == null) {
+          Median = new global::Dokime.Value();
+        }
+        Median.MergeFrom(other.Median);
       }
       if (other.Std != 0D) {
         Std = other.Std;
@@ -8177,11 +8261,17 @@ namespace Dokime.Clients.PlotsResources;
       if (other.Rms != 0D) {
         Rms = other.Rms;
       }
-      if (other.Min != 0D) {
-        Min = other.Min;
+      if (other.min_ != null) {
+        if (min_ == null) {
+          Min = new global::Dokime.Value();
+        }
+        Min.MergeFrom(other.Min);
       }
-      if (other.Max != 0D) {
-        Max = other.Max;
+      if (other.max_ != null) {
+        if (max_ == null) {
+          Max = new global::Dokime.Value();
+        }
+        Max.MergeFrom(other.Max);
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -8202,12 +8292,18 @@ namespace Dokime.Clients.PlotsResources;
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
-          case 9: {
-            Mean = input.ReadDouble();
+          case 10: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
-          case 17: {
-            Median = input.ReadDouble();
+          case 18: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
           case 25: {
@@ -8218,12 +8314,18 @@ namespace Dokime.Clients.PlotsResources;
             Rms = input.ReadDouble();
             break;
           }
-          case 41: {
-            Min = input.ReadDouble();
+          case 42: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 49: {
-            Max = input.ReadDouble();
+          case 50: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
         }
@@ -8245,12 +8347,18 @@ namespace Dokime.Clients.PlotsResources;
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
-          case 9: {
-            Mean = input.ReadDouble();
+          case 10: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
-          case 17: {
-            Median = input.ReadDouble();
+          case 18: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
           case 25: {
@@ -8261,12 +8369,18 @@ namespace Dokime.Clients.PlotsResources;
             Rms = input.ReadDouble();
             break;
           }
-          case 41: {
-            Min = input.ReadDouble();
+          case 42: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 49: {
-            Max = input.ReadDouble();
+          case 50: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
         }
@@ -10463,10 +10577,10 @@ namespace Dokime.Clients.PlotsResources;
       _hasBits0 = other._hasBits0;
       seriesId_ = other.seriesId_;
       count_ = other.count_;
-      min_ = other.min_;
-      max_ = other.max_;
-      mean_ = other.mean_;
-      median_ = other.median_;
+      min_ = other.min_ != null ? other.min_.Clone() : null;
+      max_ = other.max_ != null ? other.max_.Clone() : null;
+      mean_ = other.mean_ != null ? other.mean_.Clone() : null;
+      median_ = other.median_ != null ? other.median_.Clone() : null;
       std_ = other.std_;
       rms_ = other.rms_;
       window_ = other.window_ != null ? other.window_.Clone() : null;
@@ -10505,110 +10619,50 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "min" field.</summary>
     public const int MinFieldNumber = 3;
-    private readonly static double MinDefaultValue = 0D;
-
-    private double min_;
+    private global::Dokime.Value min_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Min {
-      get { if ((_hasBits0 & 1) != 0) { return min_; } else { return MinDefaultValue; } }
+    public global::Dokime.Value Min {
+      get { return min_; }
       set {
-        _hasBits0 |= 1;
         min_ = value;
       }
-    }
-    /// <summary>Gets whether the "min" field is set</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool HasMin {
-      get { return (_hasBits0 & 1) != 0; }
-    }
-    /// <summary>Clears the value of the "min" field</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void ClearMin() {
-      _hasBits0 &= ~1;
     }
 
     /// <summary>Field number for the "max" field.</summary>
     public const int MaxFieldNumber = 4;
-    private readonly static double MaxDefaultValue = 0D;
-
-    private double max_;
+    private global::Dokime.Value max_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Max {
-      get { if ((_hasBits0 & 2) != 0) { return max_; } else { return MaxDefaultValue; } }
+    public global::Dokime.Value Max {
+      get { return max_; }
       set {
-        _hasBits0 |= 2;
         max_ = value;
       }
-    }
-    /// <summary>Gets whether the "max" field is set</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool HasMax {
-      get { return (_hasBits0 & 2) != 0; }
-    }
-    /// <summary>Clears the value of the "max" field</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void ClearMax() {
-      _hasBits0 &= ~2;
     }
 
     /// <summary>Field number for the "mean" field.</summary>
     public const int MeanFieldNumber = 5;
-    private readonly static double MeanDefaultValue = 0D;
-
-    private double mean_;
+    private global::Dokime.Value mean_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Mean {
-      get { if ((_hasBits0 & 4) != 0) { return mean_; } else { return MeanDefaultValue; } }
+    public global::Dokime.Value Mean {
+      get { return mean_; }
       set {
-        _hasBits0 |= 4;
         mean_ = value;
       }
-    }
-    /// <summary>Gets whether the "mean" field is set</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool HasMean {
-      get { return (_hasBits0 & 4) != 0; }
-    }
-    /// <summary>Clears the value of the "mean" field</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void ClearMean() {
-      _hasBits0 &= ~4;
     }
 
     /// <summary>Field number for the "median" field.</summary>
     public const int MedianFieldNumber = 6;
-    private readonly static double MedianDefaultValue = 0D;
-
-    private double median_;
+    private global::Dokime.Value median_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Median {
-      get { if ((_hasBits0 & 8) != 0) { return median_; } else { return MedianDefaultValue; } }
+    public global::Dokime.Value Median {
+      get { return median_; }
       set {
-        _hasBits0 |= 8;
         median_ = value;
       }
-    }
-    /// <summary>Gets whether the "median" field is set</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool HasMedian {
-      get { return (_hasBits0 & 8) != 0; }
-    }
-    /// <summary>Clears the value of the "median" field</summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void ClearMedian() {
-      _hasBits0 &= ~8;
     }
 
     /// <summary>Field number for the "std" field.</summary>
@@ -10619,9 +10673,9 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public double Std {
-      get { if ((_hasBits0 & 16) != 0) { return std_; } else { return StdDefaultValue; } }
+      get { if ((_hasBits0 & 1) != 0) { return std_; } else { return StdDefaultValue; } }
       set {
-        _hasBits0 |= 16;
+        _hasBits0 |= 1;
         std_ = value;
       }
     }
@@ -10629,13 +10683,13 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public bool HasStd {
-      get { return (_hasBits0 & 16) != 0; }
+      get { return (_hasBits0 & 1) != 0; }
     }
     /// <summary>Clears the value of the "std" field</summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public void ClearStd() {
-      _hasBits0 &= ~16;
+      _hasBits0 &= ~1;
     }
 
     /// <summary>Field number for the "rms" field.</summary>
@@ -10646,9 +10700,9 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public double Rms {
-      get { if ((_hasBits0 & 32) != 0) { return rms_; } else { return RmsDefaultValue; } }
+      get { if ((_hasBits0 & 2) != 0) { return rms_; } else { return RmsDefaultValue; } }
       set {
-        _hasBits0 |= 32;
+        _hasBits0 |= 2;
         rms_ = value;
       }
     }
@@ -10656,13 +10710,13 @@ namespace Dokime.Clients.PlotsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public bool HasRms {
-      get { return (_hasBits0 & 32) != 0; }
+      get { return (_hasBits0 & 2) != 0; }
     }
     /// <summary>Clears the value of the "rms" field</summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public void ClearRms() {
-      _hasBits0 &= ~32;
+      _hasBits0 &= ~2;
     }
 
     /// <summary>Field number for the "window" field.</summary>
@@ -10694,10 +10748,10 @@ namespace Dokime.Clients.PlotsResources;
       }
       if (SeriesId != other.SeriesId) return false;
       if (Count != other.Count) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Min, other.Min)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Max, other.Max)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Mean, other.Mean)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Median, other.Median)) return false;
+      if (!object.Equals(Min, other.Min)) return false;
+      if (!object.Equals(Max, other.Max)) return false;
+      if (!object.Equals(Mean, other.Mean)) return false;
+      if (!object.Equals(Median, other.Median)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Std, other.Std)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Rms, other.Rms)) return false;
       if (!object.Equals(Window, other.Window)) return false;
@@ -10710,10 +10764,10 @@ namespace Dokime.Clients.PlotsResources;
       int hash = 1;
       if (SeriesId.Length != 0) hash ^= SeriesId.GetHashCode();
       if (Count != 0UL) hash ^= Count.GetHashCode();
-      if (HasMin) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Min);
-      if (HasMax) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Max);
-      if (HasMean) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Mean);
-      if (HasMedian) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Median);
+      if (min_ != null) hash ^= Min.GetHashCode();
+      if (max_ != null) hash ^= Max.GetHashCode();
+      if (mean_ != null) hash ^= Mean.GetHashCode();
+      if (median_ != null) hash ^= Median.GetHashCode();
       if (HasStd) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Std);
       if (HasRms) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Rms);
       if (window_ != null) hash ^= Window.GetHashCode();
@@ -10743,21 +10797,21 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(16);
         output.WriteUInt64(Count);
       }
-      if (HasMin) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Min);
       }
-      if (HasMax) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Max);
       }
-      if (HasMean) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Mean);
       }
-      if (HasMedian) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Median);
       }
       if (HasStd) {
         output.WriteRawTag(57);
@@ -10789,21 +10843,21 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(16);
         output.WriteUInt64(Count);
       }
-      if (HasMin) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Min);
       }
-      if (HasMax) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Max);
       }
-      if (HasMean) {
-        output.WriteRawTag(41);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Mean);
       }
-      if (HasMedian) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Median);
       }
       if (HasStd) {
         output.WriteRawTag(57);
@@ -10833,17 +10887,17 @@ namespace Dokime.Clients.PlotsResources;
       if (Count != 0UL) {
         size += 1 + pb::CodedOutputStream.ComputeUInt64Size(Count);
       }
-      if (HasMin) {
-        size += 1 + 8;
+      if (min_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Min);
       }
-      if (HasMax) {
-        size += 1 + 8;
+      if (max_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Max);
       }
-      if (HasMean) {
-        size += 1 + 8;
+      if (mean_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Mean);
       }
-      if (HasMedian) {
-        size += 1 + 8;
+      if (median_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Median);
       }
       if (HasStd) {
         size += 1 + 8;
@@ -10872,17 +10926,29 @@ namespace Dokime.Clients.PlotsResources;
       if (other.Count != 0UL) {
         Count = other.Count;
       }
-      if (other.HasMin) {
-        Min = other.Min;
+      if (other.min_ != null) {
+        if (min_ == null) {
+          Min = new global::Dokime.Value();
+        }
+        Min.MergeFrom(other.Min);
       }
-      if (other.HasMax) {
-        Max = other.Max;
+      if (other.max_ != null) {
+        if (max_ == null) {
+          Max = new global::Dokime.Value();
+        }
+        Max.MergeFrom(other.Max);
       }
-      if (other.HasMean) {
-        Mean = other.Mean;
+      if (other.mean_ != null) {
+        if (mean_ == null) {
+          Mean = new global::Dokime.Value();
+        }
+        Mean.MergeFrom(other.Mean);
       }
-      if (other.HasMedian) {
-        Median = other.Median;
+      if (other.median_ != null) {
+        if (median_ == null) {
+          Median = new global::Dokime.Value();
+        }
+        Median.MergeFrom(other.Median);
       }
       if (other.HasStd) {
         Std = other.Std;
@@ -10923,20 +10989,32 @@ namespace Dokime.Clients.PlotsResources;
             Count = input.ReadUInt64();
             break;
           }
-          case 25: {
-            Min = input.ReadDouble();
+          case 26: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 33: {
-            Max = input.ReadDouble();
+          case 34: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
-          case 41: {
-            Mean = input.ReadDouble();
+          case 42: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
-          case 49: {
-            Median = input.ReadDouble();
+          case 50: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
           case 57: {
@@ -10981,20 +11059,32 @@ namespace Dokime.Clients.PlotsResources;
             Count = input.ReadUInt64();
             break;
           }
-          case 25: {
-            Min = input.ReadDouble();
+          case 26: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 33: {
-            Max = input.ReadDouble();
+          case 34: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
-          case 41: {
-            Mean = input.ReadDouble();
+          case 42: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
-          case 49: {
-            Median = input.ReadDouble();
+          case 50: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
           case 57: {

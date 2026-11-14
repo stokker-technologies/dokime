@@ -10,7 +10,7 @@
 /* === Local Imports === */
 
 import { formatNumber, formatUnitLabel } from "@/lib/format";
-import { categoryFractions, categoryTotals } from "@/plots/categories";
+import { categoryFractions, categoryTotals, formatCategoryTotal } from "@/plots/categories";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
@@ -48,7 +48,7 @@ export function PiePlot({ plot }: { plot: PlotCardSpec }) {
           .filter((sector) => sector.fraction > 0)
           .map((sector) => (
             <path key={sector.key} data-category={sector.key} d={sector.path} fill={sector.color} stroke="var(--background)">
-              <title>{`${sector.key}: ${formatUnitLabel(formatNumber(sector.value, plot.yFormat ?? null), plot.unit)} · ${formatNumber(sector.fraction * 100, null)}%`}</title>
+              <title>{`${sector.key}: ${formatUnitLabel(formatCategoryTotal(sector, plot.yFormat ?? null), plot.unit)} · ${formatNumber(sector.fraction * 100, null)}%`}</title>
             </path>
           ))}
       </svg>
@@ -56,7 +56,7 @@ export function PiePlot({ plot }: { plot: PlotCardSpec }) {
         {sectors.map((sector) => (
           <li key={sector.key} className="flex items-center gap-2">
             <span className="size-2 shrink-0" style={{ backgroundColor: sector.color }} />
-            {sector.key}: {formatUnitLabel(formatNumber(sector.value, plot.yFormat ?? null), plot.unit)}
+            {sector.key}: {formatUnitLabel(formatCategoryTotal(sector, plot.yFormat ?? null), plot.unit)}
           </li>
         ))}
       </ul>

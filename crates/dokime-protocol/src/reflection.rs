@@ -4,6 +4,11 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.Value").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ExactNumber {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ExactNumber").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Null {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.Null").expect("generated protocol descriptor")

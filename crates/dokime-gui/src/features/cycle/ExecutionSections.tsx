@@ -94,7 +94,6 @@ export function ExecutionSections({
         ? {
             test_cycle_id: cycleId,
             test_execution_id: started.test_execution_id,
-            test_case_id: started.case_id,
           }
         : { test_cycle_id: cycleId, test_case_id: row.case.caseId },
     [started, cycleId, row.case.caseId],

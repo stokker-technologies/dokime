@@ -214,3 +214,39 @@ test("A Budget Failure Keeps the Completed Sibling", async () => {
 });
 
 /* === Entry Point === */
+
+test("Table Rows Settle After the Evidence Cut and Remain Mandatory", async () => {
+  const frames = [
+    initial()[0],
+    frame("card", { metadata: { identifier: "table", label: "Fixture" }, body: { kind: { case: "table", value: { rowCount: 1n } } } }),
+    binding("table"),
+    frame("layoutNode", { ordinal: 0n, node: { kind: { case: "placement", value: { cardId: "table" } } } }),
+  ];
+  const completion = (count: number) => ({
+    frameCount: BigInt(count),
+    cardCount: 1n,
+    bindingCount: 1n,
+    layoutNodeCount: 1n,
+    sectionCount: 0n,
+    repeatCount: 0n,
+  });
+  frames.push(frame("structureComplete", completion(frames.length + 1)), frame("evidenceCut", { cut, telemetry: true }));
+  const row = frame("tableRow", {
+    cardId: "table",
+    ordinal: 0n,
+    values: { values: { value: { kind: { case: "integer", value: 1152921504606847975n } } } },
+  });
+  const settled = frame("binding", {
+    sourceId: "table",
+    metadata: { identifier: "table", label: "Fixture" },
+    result: { kind: { case: "literal", value: true } },
+  });
+  const complete = frame("cardComplete", "table");
+  const valid = [...frames, row, settled, complete];
+  valid.push(frame("completion", completion(valid.length + 1)));
+  const captured = await assembleDocument(iterable(valid), expected, () => true);
+  assert.equal(captured.rows.get("table")?.length, 1);
+  const missing = [...frames, settled, complete];
+  missing.push(frame("completion", completion(missing.length + 1)));
+  await assert.rejects(assembleDocument(iterable(missing), expected, () => true));
+});

@@ -42,7 +42,8 @@ declare global {
   var desktopBegin: (condition: string) => void;
   var desktopAction: (condition: string, from: number, to: number) => void;
   var desktopResult: (statusOnly?: boolean) => object;
-  var desktopInspect: (plotId: string) => { ready: boolean; error: boolean; drawn: boolean };
+  var desktopInspect: (plotId: string) => { ready: boolean; error: boolean; drawn: boolean; message?: string };
+  var desktopTraverse: (count: number, deadlineMs: number) => Promise<object>;
 }
 
 const observation: Observation = {
@@ -128,10 +129,26 @@ function presented(now: number) {
     const bounds = card.getBoundingClientRect();
     return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
   });
-  observation.visibleFailures = cards.filter((card) => card.dataset.benchError === "true").length;
-  observation.visibleReady = cards.filter((card) => card.dataset.benchReady === "true" && card.dataset.benchError !== "true").length;
+  const failures = cards.filter(
+    (card) =>
+      card.dataset.benchError === "true" ||
+      (card.querySelector('[data-bench-has-payload="true"]') && card.querySelector('[role="alert"], .plot-empty')),
+  );
+  observation.visibleFailures = failures.length;
+  for (const card of failures) {
+    const message = `${card.dataset.benchPlot}: ${card.querySelector('[role="alert"], .plot-empty')?.textContent ?? "Plot Data Failed"}`;
+    if (!observation.errors.includes(message)) observation.errors.push(message);
+  }
+  observation.visibleReady = cards.filter(
+    (card) => card.querySelector('[data-bench-has-payload="true"] .plot-card') && card.dataset.benchError !== "true",
+  ).length;
   for (const card of cards) {
-    if (card.dataset.benchReady !== "true" || card.querySelector('[data-testid="plot-placeholder"]')) continue;
+    if (
+      !card.querySelector('[data-bench-has-payload="true"] .plot-card') ||
+      card.dataset.benchError === "true" ||
+      card.querySelector('[role="alert"], .plot-empty')
+    )
+      continue;
     const canvases = [...card.querySelectorAll("canvas")];
     if (canvases.length > 0 && !canvases.some((canvas) => (canvasDraws.get(canvas) ?? 0) >= observation.started)) continue;
     const key = card.dataset.benchPlot ?? "";
@@ -155,9 +172,9 @@ function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordS
   const states = useLivePlotPayloads({ enabled: true, plots, scope, windowS: 259200 });
   useLayoutEffect(() => {
     const refused = (state: (typeof states)[string]) => state.status === "error" || Boolean(state.failure && !state.payload);
-    observation.errors = Object.values(states)
-      .filter(refused)
-      .map((state) => state.error ?? state.failure?.message ?? "Unknown plot failure");
+    observation.errors = Object.entries(states)
+      .filter(([, state]) => refused(state))
+      .map(([plotId, state]) => `${plotId}: ${state.error ?? state.failure?.message ?? "Plot Data Failed"}`);
     observation.loadedPlots = Object.values(states).filter((state) => state.payload && !refused(state)).length;
     observation.failedPlots = Object.values(states).filter(refused).length;
     const started = performance.now();
@@ -265,10 +282,42 @@ function Surface({ session }: { session: ConnectedSession }) {
     if (!card) return { ready: false, error: false, drawn: false };
     card.scrollIntoView({ block: "center" });
     const canvases = [...card.querySelectorAll("canvas")];
+    const placeholder = card.querySelector('[role="alert"], .plot-empty');
+    const rendered = card.querySelector('[data-bench-has-payload="true"]');
+    const error = card.dataset.benchError === "true" || (Boolean(rendered) && Boolean(placeholder));
     return {
-      ready: card.dataset.benchReady === "true" && !card.querySelector('[data-testid="plot-placeholder"]'),
-      error: card.dataset.benchError === "true",
+      ready: Boolean(rendered?.querySelector(".plot-card")) && !placeholder,
+      error,
+      message: error ? `${plotId}: ${placeholder?.textContent ?? "Plot Data Failed"}` : undefined,
       drawn: canvases.length === 0 || canvases.some((canvas) => canvasDraws.has(canvas)),
+    };
+  };
+  globalThis.desktopTraverse = async (count, deadlineMs) => {
+    const started = performance.now();
+    const stageOffsets = Object.fromEntries(Object.entries(observation.stages).map(([stage, values]) => [stage, values.length]));
+    const cards = [];
+    for (let index = 0; index < count; index++) {
+      const plotId = `desktop.plot.${index}`;
+      const cardStarted = performance.now();
+      let opportunities = 0;
+      while (true) {
+        if (performance.now() - cardStarted > deadlineMs) throw new Error(`Draw Document ${plotId}: No Completed Drawing`);
+        const state = globalThis.desktopInspect(plotId);
+        if (state.error) throw new Error(`Draw Document: ${state.message}`);
+        if (state.ready && state.drawn) opportunities++;
+        else opportunities = 0;
+        if (opportunities >= 2) break;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      cards.push({ plotId, waitMs: performance.now() - cardStarted });
+    }
+    return {
+      verifiedPlots: count,
+      traversalMs: performance.now() - started,
+      traversalCards: cards,
+      traversalStages: Object.fromEntries(
+        Object.entries(observation.stages).map(([stage, values]) => [stage, values.slice(stageOffsets[stage] ?? 0)]),
+      ),
     };
   };
   return (

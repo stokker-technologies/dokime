@@ -232,16 +232,16 @@ class PlotBoxSummary(_message.Message):
     LABEL_FIELD_NUMBER: _ClassVar[int]
     key: str
     count: int
-    min: float
-    q1: float
-    median: float
-    q3: float
-    max: float
+    min: _scalar_pb2.Value
+    q1: _scalar_pb2.Value
+    median: _scalar_pb2.Value
+    q3: _scalar_pb2.Value
+    max: _scalar_pb2.Value
     lower_whisker: float
     upper_whisker: float
     outliers: _containers.RepeatedScalarFieldContainer[float]
     label: str
-    def __init__(self, key: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[float] = ..., q1: _Optional[float] = ..., median: _Optional[float] = ..., q3: _Optional[float] = ..., max: _Optional[float] = ..., lower_whisker: _Optional[float] = ..., upper_whisker: _Optional[float] = ..., outliers: _Optional[_Iterable[float]] = ..., label: _Optional[str] = ...) -> None: ...
+    def __init__(self, key: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., q1: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., q3: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., lower_whisker: _Optional[float] = ..., upper_whisker: _Optional[float] = ..., outliers: _Optional[_Iterable[float]] = ..., label: _Optional[str] = ...) -> None: ...
 
 class PlotBoxSummaryAnalysis(_message.Message):
     __slots__ = ("series", "total")
@@ -252,16 +252,18 @@ class PlotBoxSummaryAnalysis(_message.Message):
     def __init__(self, series: _Optional[_Iterable[_Union[PlotBoxSummary, _Mapping]]] = ..., total: _Optional[int] = ...) -> None: ...
 
 class PlotColumn(_message.Message):
-    __slots__ = ("instants", "x", "y", "z")
+    __slots__ = ("instants", "x", "y", "z", "totals")
     INSTANTS_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
     Z_FIELD_NUMBER: _ClassVar[int]
+    TOTALS_FIELD_NUMBER: _ClassVar[int]
     instants: _containers.RepeatedScalarFieldContainer[str]
     x: _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]
     y: _containers.RepeatedCompositeFieldContainer[NullableNumber]
     z: _containers.RepeatedCompositeFieldContainer[NullableNumber]
-    def __init__(self, instants: _Optional[_Iterable[str]] = ..., x: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., y: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ..., z: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ...) -> None: ...
+    totals: _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]
+    def __init__(self, instants: _Optional[_Iterable[str]] = ..., x: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., y: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ..., z: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ..., totals: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ...) -> None: ...
 
 class PlotDomain(_message.Message):
     __slots__ = ("min", "max")
@@ -343,13 +345,13 @@ class PlotHistogramStatistics(_message.Message):
     RMS_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
-    mean: float
-    median: float
+    mean: _scalar_pb2.Value
+    median: _scalar_pb2.Value
     std: float
     rms: float
-    min: float
-    max: float
-    def __init__(self, mean: _Optional[float] = ..., median: _Optional[float] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., min: _Optional[float] = ..., max: _Optional[float] = ...) -> None: ...
+    min: _scalar_pb2.Value
+    max: _scalar_pb2.Value
+    def __init__(self, mean: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ...) -> None: ...
 
 class PlotMarker(_message.Message):
     __slots__ = ("x", "label", "record_type", "color")
@@ -454,14 +456,14 @@ class PlotSeriesSummary(_message.Message):
     WINDOW_FIELD_NUMBER: _ClassVar[int]
     series_id: str
     count: int
-    min: float
-    max: float
-    mean: float
-    median: float
+    min: _scalar_pb2.Value
+    max: _scalar_pb2.Value
+    mean: _scalar_pb2.Value
+    median: _scalar_pb2.Value
     std: float
     rms: float
     window: PlotWindow
-    def __init__(self, series_id: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., mean: _Optional[float] = ..., median: _Optional[float] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., window: _Optional[_Union[PlotWindow, _Mapping]] = ...) -> None: ...
+    def __init__(self, series_id: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., mean: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., window: _Optional[_Union[PlotWindow, _Mapping]] = ...) -> None: ...
 
 class PlotSigmaBin(_message.Message):
     __slots__ = ("x", "count", "mean", "lower", "upper")

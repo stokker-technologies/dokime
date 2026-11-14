@@ -2,7 +2,7 @@
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Value {
-    #[prost(oneof = "value::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof = "value::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10")]
     pub kind: ::core::option::Option<value::Kind>,
 }
 /// Nested message and enum types in `Value`.
@@ -28,7 +28,19 @@ pub mod value {
         List(super::ValueList),
         #[prost(message, tag = "9")]
         Datetime(::prost_types::Timestamp),
+        #[prost(message, tag = "10")]
+        Exact(super::ExactNumber),
     }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExactNumber {
+    #[prost(bool, tag = "1")]
+    pub negative: bool,
+    #[prost(string, tag = "2")]
+    pub numerator: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub denominator: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]

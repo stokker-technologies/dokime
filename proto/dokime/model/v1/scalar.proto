@@ -32,7 +32,17 @@ message Value {
     bytes data = 7;
     .dokime.model.v1.ValueList list = 8;
     .google.protobuf.Timestamp datetime = 9;
+    .dokime.model.v1.ExactNumber exact = 10;
   }
+}
+
+// Exact fractions and wide totals retain their sign and reduced rational value.
+// Numerator and denominator use minimal base-10 notation without a leading plus.
+// The denominator is positive and nonzero; zero has no negative sign.
+message ExactNumber {
+  bool negative = 1;
+  string numerator = 2;
+  string denominator = 3;
 }
 
 // Null value owned by this resource.

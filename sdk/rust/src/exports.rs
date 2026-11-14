@@ -34,6 +34,7 @@ pub use crate::wire::model::EvidenceConditions;
 pub use crate::wire::model::EvidenceOrigin;
 pub use crate::wire::model::EvidenceOriginKind;
 pub use crate::wire::model::EvidenceScope;
+pub use crate::wire::model::ExactNumber;
 pub use crate::wire::model::ExecutionProgressValue;
 pub use crate::wire::model::FftDetrend;
 pub use crate::wire::model::FftWindow;

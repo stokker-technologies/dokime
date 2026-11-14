@@ -358,6 +358,127 @@ fn large_integer_document_median_is_exact() -> Result<()> {
     assert!((statistics.stddev - (2.0f64 / 3.0).sqrt()).abs() < 1e-12);
     Ok(())
 }
+#[test]
+fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let base = 1_152_921_504_606_847_975u64;
+    let input = v1::FieldReference::new("readings").field("value");
+    {
+        let store = Store::open(root.path())?;
+        store.create(&fixture::execution())?;
+        store.open_stream("execution", "readings")?;
+        let mut samples = fixture::samples(101);
+        for (index, sample) in samples.iter_mut().enumerate() {
+            sample.row = Row {
+                value: base + index as u64 * 100,
+                label: "large".into(),
+            }
+            .encode_to_vec();
+        }
+        store.sample_batch("execution", &samples)?;
+        store.flush_samples()?;
+    }
+    let store = Store::open(root.path())?;
+    for kind in [v1::value::Kind::Integer(-(base as i64)), v1::value::Kind::UnsignedInteger(base)] {
+        let input = v1::DataExpression {
+            kind: Some(v1::data_expression::Kind::Literal(v1::Value { kind: Some(kind.clone()) })),
+            ..Default::default()
+        };
+        for aggregate in [v1::Aggregate::Median, v1::Aggregate::Percentile] {
+            let expression = v1::DataExpression {
+                kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+                    input: Some(Box::new(input.clone())),
+                    kind: aggregate as i32,
+                    percentile: 95.0,
+                }))),
+                ..Default::default()
+            };
+            assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(kind.clone()));
+        }
+    }
+    for (start_ns, end_ns, count, minimum, mean, maximum) in
+        [(0, 100, 101, base, base + 5_000, base + 10_000), (20, 60, 41, base + 2_000, base + 4_000, base + 6_000)]
+    {
+        let (_, summary, selected) = store.time_series_window(NumericWindow { start_ns, end_ns, ..numeric(101) })?;
+        assert_eq!(selected, count);
+        for (value, expected) in [(&summary.min, minimum), (&summary.mean, mean), (&summary.max, maximum)] {
+            assert_eq!(value.as_ref().unwrap().kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+        }
+    }
+    let statistics = store.numeric_statistics(&numeric(101))?;
+    for (value, expected) in [
+        (&statistics.min, base),
+        (&statistics.max, base + 10_000),
+        (&statistics.first, base),
+        (&statistics.last, base + 10_000),
+        (&statistics.median, base + 5_000),
+        (&statistics.p05, base + 500),
+        (&statistics.p95, base + 9_500),
+        (&statistics.p99, base + 9_900),
+        (&statistics.mean, base + 5_000),
+    ] {
+        assert_eq!(value.as_ref().unwrap().kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+    }
+    for (kind, expected) in [
+        (v1::Aggregate::Min, statistics.min.as_ref().unwrap()),
+        (v1::Aggregate::Max, statistics.max.as_ref().unwrap()),
+        (v1::Aggregate::Mean, statistics.mean.as_ref().unwrap()),
+        (v1::Aggregate::Sum, statistics.sum.as_ref().unwrap()),
+    ] {
+        let (frame, count, _) = store.category_window(
+            KindWindow {
+                window: numeric(101),
+                x: Some("label"),
+                z: None,
+                group: None,
+                limit: 8,
+            },
+            Some(kind),
+            true,
+        )?;
+        assert_eq!(count, 101);
+        assert_eq!(&frame.series[0].totals[0], expected);
+    }
+    let sum = statistics.sum.as_ref().unwrap();
+    assert_eq!(
+        sum.kind,
+        Some(v1::value::Kind::Exact(harmos_protocol::storage::ExactNumber {
+            negative: false,
+            numerator: ((base as u128 + 5_000) * 101).to_string(),
+            denominator: "1".into(),
+        }))
+    );
+    for (kind, percentile, expected) in [
+        (v1::Aggregate::Median, 0.0, base + 5_000),
+        (v1::Aggregate::Percentile, 5.0, base + 500),
+        (v1::Aggregate::Percentile, 95.0, base + 9_500),
+        (v1::Aggregate::Min, 0.0, base),
+        (v1::Aggregate::Max, 0.0, base + 10_000),
+        (v1::Aggregate::First, 0.0, base),
+        (v1::Aggregate::Last, 0.0, base + 10_000),
+        (v1::Aggregate::Mean, 0.0, base + 5_000),
+    ] {
+        let expression = v1::DataExpression {
+            kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+                input: Some(Box::new(input.clone())),
+                kind: kind as i32,
+                percentile,
+            }))),
+            ..Default::default()
+        };
+        assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+    }
+    let expression = v1::DataExpression {
+        kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+            input: Some(Box::new(input)),
+            kind: v1::Aggregate::Sum as i32,
+            percentile: 0.0,
+        }))),
+        ..Default::default()
+    };
+    assert_eq!(&store.document_value(&store.cut("execution")?, &expression)?, sum);
+    Ok(())
+}
 #[tokio::test(start_paused = true)]
 async fn configured_clock_flushes_without_waiting_for_wall_time() -> Result<()> {
     let root = tempfile::tempdir()?;
@@ -546,7 +667,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
         ..numeric(cut.frontier)
     })?;
     assert_eq!(statistics.count, 2);
-    assert_eq!(statistics.mean, 2.0);
+    assert_eq!(statistics.mean.unwrap().kind, Some(v1::value::Kind::Number(2.0)));
     Ok(())
 }
 

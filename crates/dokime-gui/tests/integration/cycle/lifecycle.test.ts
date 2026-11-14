@@ -481,10 +481,12 @@ test("Frozen Descriptor Pages Are Verified and Reused Across Executions", async 
     file: [
       {
         name: "reading.proto",
+        dependency: ["base.proto"],
         package: "fixture",
         syntax: "proto3",
         messageType: [{ name: "Reading", field: [{ name: "count", number: 1, type: FieldDescriptorProto_Type.UINT64 }] }],
       },
+      { name: "base.proto", package: "fixture", syntax: "proto3", messageType: [{ name: "Other" }] },
     ],
   });
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", toBinary(FileDescriptorSetSchema, types)));
@@ -501,6 +503,7 @@ test("Frozen Descriptor Pages Are Verified and Reused Across Executions", async 
   const second = await cache.get(session, detail("two"));
   assert.equal(first, second);
   assert.ok(first.getMessage("fixture.Reading"));
+  assert.ok(first.getMessage("fixture.Other"));
   assert.equal(fixture.extra.mock.calls.length, 1);
   const corrupt = new FrozenSchemaCache();
   fixture.extra.mockResolvedValue({ digest, types: { file: [] }, resolvedAt: at });

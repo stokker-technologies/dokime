@@ -25,17 +25,17 @@ namespace Dokime.Plugins;
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "Chxkb2tpbWUvcGx1Z2luL3YxL3N0ZXBzLnByb3RvEhBkb2tpbWUucGx1Z2lu",
-            "LnYxGh9kb2tpbWUvbW9kZWwvdjEvZXhlY3V0aW9uLnByb3RvGh1oYXJtb3Mv",
-            "bW9kZWwvdjEvY2FsbGVycy5wcm90byKwAQoTU3RlcHNFeGVjdXRlUmVxdWVz",
-            "dBIcCglleGVjdXRpb24YASABKAlSCWV4ZWN1dGlvbhISCgRzdGVwGAIgASgJ",
-            "UgRzdGVwEjYKCXRlc3RfY2FzZRgDIAEoCzIZLmRva2ltZS5tb2RlbC52MS5U",
-            "ZXN0Q2FzZVIIdGVzdENhc2USLwoGb3JpZ2luGAQgASgLMhcuZG9raW1lLm1v",
-            "ZGVsLnYxLk9yaWdpblIGb3JpZ2luIhYKFFN0ZXBzRXhlY3V0ZVJlc3BvbnNl",
-            "MmcKBVN0ZXBzEl4KB0V4ZWN1dGUSJS5kb2tpbWUucGx1Z2luLnYxLlN0ZXBz",
-            "RXhlY3V0ZVJlcXVlc3QaJi5kb2tpbWUucGx1Z2luLnYxLlN0ZXBzRXhlY3V0",
-            "ZVJlc3BvbnNlIgTI8xgBQhGqAg5Eb2tpbWUuUGx1Z2luc2IGcHJvdG8z"));
+            "LnYxGh9kb2tpbWUvbW9kZWwvdjEvZXhlY3V0aW9uLnByb3RvIrABChNTdGVw",
+            "c0V4ZWN1dGVSZXF1ZXN0EhwKCWV4ZWN1dGlvbhgBIAEoCVIJZXhlY3V0aW9u",
+            "EhIKBHN0ZXAYAiABKAlSBHN0ZXASNgoJdGVzdF9jYXNlGAMgASgLMhkuZG9r",
+            "aW1lLm1vZGVsLnYxLlRlc3RDYXNlUgh0ZXN0Q2FzZRIvCgZvcmlnaW4YBCAB",
+            "KAsyFy5kb2tpbWUubW9kZWwudjEuT3JpZ2luUgZvcmlnaW4iFgoUU3RlcHNF",
+            "eGVjdXRlUmVzcG9uc2UyYwoFU3RlcHMSWgoHRXhlY3V0ZRIlLmRva2ltZS5w",
+            "bHVnaW4udjEuU3RlcHNFeGVjdXRlUmVxdWVzdBomLmRva2ltZS5wbHVnaW4u",
+            "djEuU3RlcHNFeGVjdXRlUmVzcG9uc2UiAEIRqgIORG9raW1lLlBsdWdpbnNi",
+            "BnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
-          new pbr::FileDescriptor[] { global::Dokime.ExecutionReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, },
+          new pbr::FileDescriptor[] { global::Dokime.ExecutionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plugins.StepsExecuteRequest), global::Dokime.Plugins.StepsExecuteRequest.Parser, new[]{ "Execution", "Step", "TestCase", "Origin" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plugins.StepsExecuteResponse), global::Dokime.Plugins.StepsExecuteResponse.Parser, null, null, null, null, null)

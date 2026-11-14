@@ -173,6 +173,7 @@ using ClientStreamSchemasListRequest = ::dokime::host::v1::StreamSchemasListRequ
 using ClientSuitesGetRequest = ::dokime::host::v1::SuitesGetRequest;
 using ClientSuitesListRequest = ::dokime::host::v1::SuitesListRequest;
 using SharedValue = ::dokime::model::v1::Value;
+using SharedExactNumber = ::dokime::model::v1::ExactNumber;
 using SharedNull = ::dokime::model::v1::Null;
 using SharedValueList = ::dokime::model::v1::ValueList;
 using SharedMapValue = ::dokime::model::v1::MapValue;

@@ -4,7 +4,7 @@
 /* === External Imports === */
 
 import { create, createFileRegistry, toBinary } from "@bufbuild/protobuf";
-import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
+import { FileDescriptorSetSchema, type FileDescriptorSet } from "@bufbuild/protobuf/wkt";
 import type { ExecutionDetail } from "@host/dokime/client/v1/executions_pb.js";
 
 /* === Local Imports === */
@@ -62,7 +62,7 @@ export class FrozenSchemaCache {
         const actual = new Uint8Array(await crypto.subtle.digest("SHA-256", toBinary(FileDescriptorSetSchema, types)));
         if (cutKey(actual) !== cutKey(digest)) throw new Error("Read Schemas: Frozen Descriptor Digest Does Not Match");
         if (!session.isCurrent()) throw new Error("Read Schemas: Owning Connection Changed");
-        const registry = createFileRegistry(types);
+        const registry = frozenRegistry(types);
         for (const name of [...records.values(), ...streams.values()])
           if (!registry.getMessage(name)) throw new Error("Read Schemas: Bound Message Is Missing");
         return registry;
@@ -99,4 +99,23 @@ export function executionSchemas(session: SessionIdentity): FrozenSchemaCache {
     caches.set(session.generation, cache);
   }
   return cache;
+}
+
+/** Descriptor Inventories Are Unordered; Resolve Imports After Verifying Their Original Bytes. */
+function frozenRegistry(types: FileDescriptorSet): ReturnType<typeof createFileRegistry> {
+  const pending = new Map(types.file.map((file) => [file.name, file]));
+  if (pending.size !== types.file.length) throw new Error("Read Schemas: Duplicate Descriptor File");
+  const ordered: FileDescriptorSet["file"] = [];
+  const ready = new Set<string>();
+  while (pending.size) {
+    const before = pending.size;
+    for (const [name, file] of pending) {
+      if (!file.dependency.every((dependency) => ready.has(dependency))) continue;
+      ordered.push(file);
+      ready.add(name);
+      pending.delete(name);
+    }
+    if (pending.size === before) throw new Error(`Read Schemas: Missing or Cyclic Descriptor Imports in ${[...pending.keys()].join(", ")}`);
+  }
+  return createFileRegistry(create(FileDescriptorSetSchema, { file: ordered }));
 }

@@ -323,6 +323,7 @@ from dokime._wire.model.v1.scalar_pb2 import VALUE_TYPE_NUMBER as VALUE_TYPE_NUM
 from dokime._wire.model.v1.scalar_pb2 import VALUE_TYPE_TEXT as VALUE_TYPE_TEXT
 from dokime._wire.model.v1.scalar_pb2 import VALUE_TYPE_UNSIGNED_INTEGER as VALUE_TYPE_UNSIGNED_INTEGER
 from dokime._wire.model.v1.scalar_pb2 import VALUE_TYPE_UNSPECIFIED as VALUE_TYPE_UNSPECIFIED
+from dokime._wire.model.v1.scalar_pb2 import ExactNumber as ExactNumber
 from dokime._wire.model.v1.scalar_pb2 import MapValue as MapValue
 from dokime._wire.model.v1.scalar_pb2 import Null as Null
 from dokime._wire.model.v1.scalar_pb2 import Value as Value
@@ -446,6 +447,7 @@ __all__ = [
     "EvidenceOrigin",
     "EvidenceOriginKind",
     "EvidenceScope",
+    "ExactNumber",
     "ExecutionProgressValue",
     "FFT_DETREND_MEAN",
     "FFT_DETREND_NONE",

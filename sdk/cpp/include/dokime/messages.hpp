@@ -3,6 +3,7 @@
 #include "detail/messages_wire.hpp"
 namespace dokime {
 using Value = ::dokime::detail::SharedValue;
+using ExactNumber = ::dokime::detail::SharedExactNumber;
 using Null = ::dokime::detail::SharedNull;
 using ValueList = ::dokime::detail::SharedValueList;
 using MapValue = ::dokime::detail::SharedMapValue;

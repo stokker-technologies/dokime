@@ -45,22 +45,28 @@ namespace Dokime.Clients;
             "bC52MS5SZWFkQ3V0SABSAmF0iAEBQgUKA19hdCKIAQoXRXZpZGVuY2VBcmNo",
             "aXZlUmVzcG9uc2USMgoEZmlsZRgBIAEoCzIeLmhhcm1vcy5tb2RlbC52MS5G",
             "aWxlUmVmZXJlbmNlUgRmaWxlEjkKC3Jlc29sdmVkX2F0GFogASgLMhguaGFy",
-            "bW9zLm1vZGVsLnYxLlJlYWRDdXRSCnJlc29sdmVkQXQi6gEKClN0YXRpc3Rp",
-            "Y3MSFAoFY291bnQYASABKARSBWNvdW50EhAKA21pbhgCIAEoAVIDbWluEhAK",
-            "A21heBgDIAEoAVIDbWF4EhIKBG1lYW4YBCABKAFSBG1lYW4SFgoGc3RkZGV2",
-            "GAUgASgBUgZzdGRkZXYSFgoGbWVkaWFuGAYgASgBUgZtZWRpYW4SEAoDcDA1",
-            "GAcgASgBUgNwMDUSEAoDcDk1GAggASgBUgNwOTUSEAoDcDk5GAkgASgBUgNw",
-            "OTkSFAoFZmlyc3QYCiABKAFSBWZpcnN0EhIKBGxhc3QYCyABKAFSBGxhc3Qi",
-            "UQoPRXZpZGVuY2VTdWJqZWN0Eh4KCWV4ZWN1dGlvbhgBIAEoCUgAUglleGVj",
-            "dXRpb24SFgoFY3ljbGUYAiABKAlIAFIFY3ljbGVCBgoEa2luZCJZCgZPdXRw",
-            "dXQSKQoDbG9nGAEgASgLMhUuZG9raW1lLm1vZGVsLnYxLk51bGxIAFIDbG9n",
-            "EhwKCGFydGlmYWN0GAIgASgJSABSCGFydGlmYWN0QgYKBGtpbmQy1wEKCEV2",
-            "aWRlbmNlEmkKClN0YXRpc3RpY3MSKS5kb2tpbWUuaG9zdC52MS5FdmlkZW5j",
-            "ZVN0YXRpc3RpY3NSZXF1ZXN0GiouZG9raW1lLmhvc3QudjEuRXZpZGVuY2VT",
-            "dGF0aXN0aWNzUmVzcG9uc2UiBMjzGAMSYAoHQXJjaGl2ZRImLmRva2ltZS5o",
-            "b3N0LnYxLkV2aWRlbmNlQXJjaGl2ZVJlcXVlc3QaJy5kb2tpbWUuaG9zdC52",
-            "MS5FdmlkZW5jZUFyY2hpdmVSZXNwb25zZSIEyPMYAUIRqgIORG9raW1lLkNs",
-            "aWVudHNiBnByb3RvMw=="));
+            "bW9zLm1vZGVsLnYxLlJlYWRDdXRSCnJlc29sdmVkQXQi7AMKClN0YXRpc3Rp",
+            "Y3MSFAoFY291bnQYASABKARSBWNvdW50EigKA21pbhgCIAEoCzIWLmRva2lt",
+            "ZS5tb2RlbC52MS5WYWx1ZVIDbWluEigKA21heBgDIAEoCzIWLmRva2ltZS5t",
+            "b2RlbC52MS5WYWx1ZVIDbWF4EioKBG1lYW4YBCABKAsyFi5kb2tpbWUubW9k",
+            "ZWwudjEuVmFsdWVSBG1lYW4SFgoGc3RkZGV2GAUgASgBUgZzdGRkZXYSLgoG",
+            "bWVkaWFuGAYgASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgZtZWRpYW4S",
+            "KAoDcDA1GAcgASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgNwMDUSKAoD",
+            "cDk1GAggASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgNwOTUSKAoDcDk5",
+            "GAkgASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgNwOTkSLAoFZmlyc3QY",
+            "CiABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSBWZpcnN0EioKBGxhc3QY",
+            "CyABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSBGxhc3QSKAoDc3VtGA0g",
+            "ASgLMhYuZG9raW1lLm1vZGVsLnYxLlZhbHVlUgNzdW0iUQoPRXZpZGVuY2VT",
+            "dWJqZWN0Eh4KCWV4ZWN1dGlvbhgBIAEoCUgAUglleGVjdXRpb24SFgoFY3lj",
+            "bGUYAiABKAlIAFIFY3ljbGVCBgoEa2luZCJZCgZPdXRwdXQSKQoDbG9nGAEg",
+            "ASgLMhUuZG9raW1lLm1vZGVsLnYxLk51bGxIAFIDbG9nEhwKCGFydGlmYWN0",
+            "GAIgASgJSABSCGFydGlmYWN0QgYKBGtpbmQy1wEKCEV2aWRlbmNlEmkKClN0",
+            "YXRpc3RpY3MSKS5kb2tpbWUuaG9zdC52MS5FdmlkZW5jZVN0YXRpc3RpY3NS",
+            "ZXF1ZXN0GiouZG9raW1lLmhvc3QudjEuRXZpZGVuY2VTdGF0aXN0aWNzUmVz",
+            "cG9uc2UiBMjzGAMSYAoHQXJjaGl2ZRImLmRva2ltZS5ob3N0LnYxLkV2aWRl",
+            "bmNlQXJjaGl2ZVJlcXVlc3QaJy5kb2tpbWUuaG9zdC52MS5FdmlkZW5jZUFy",
+            "Y2hpdmVSZXNwb25zZSIEyPMYAUIRqgIORG9raW1lLkNsaWVudHNiBnByb3Rv",
+            "Mw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.EvidenceReflection.Descriptor, global::Dokime.ScalarReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -68,7 +74,7 @@ namespace Dokime.Clients;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.EvidenceStatisticsResponse), global::Dokime.Clients.EvidenceStatisticsResponse.Parser, new[]{ "Statistics", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.EvidenceArchiveRequest), global::Dokime.Clients.EvidenceArchiveRequest.Parser, new[]{ "Subject", "At" }, new[]{ "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.EvidenceArchiveResponse), global::Dokime.Clients.EvidenceArchiveResponse.Parser, new[]{ "File", "ResolvedAt" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.Statistics), global::Dokime.Clients.Statistics.Parser, new[]{ "Count", "Min", "Max", "Mean", "Stddev", "Median", "P05", "P95", "P99", "First", "Last" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.Statistics), global::Dokime.Clients.Statistics.Parser, new[]{ "Count", "Min", "Max", "Mean", "Stddev", "Median", "P05", "P95", "P99", "First", "Last", "Sum" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.EvidenceSubject), global::Dokime.Clients.EvidenceSubject.Parser, new[]{ "Execution", "Cycle" }, new[]{ "Kind" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.Output), global::Dokime.Clients.Output.Parser, new[]{ "Log", "Artifact" }, new[]{ "Kind" }, null, null, null)
           }));
@@ -1336,16 +1342,17 @@ namespace Dokime.Clients;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public Statistics(Statistics other) : this() {
       count_ = other.count_;
-      min_ = other.min_;
-      max_ = other.max_;
-      mean_ = other.mean_;
+      min_ = other.min_ != null ? other.min_.Clone() : null;
+      max_ = other.max_ != null ? other.max_.Clone() : null;
+      mean_ = other.mean_ != null ? other.mean_.Clone() : null;
       stddev_ = other.stddev_;
-      median_ = other.median_;
-      p05_ = other.p05_;
-      p95_ = other.p95_;
-      p99_ = other.p99_;
-      first_ = other.first_;
-      last_ = other.last_;
+      median_ = other.median_ != null ? other.median_.Clone() : null;
+      p05_ = other.p05_ != null ? other.p05_.Clone() : null;
+      p95_ = other.p95_ != null ? other.p95_.Clone() : null;
+      p99_ = other.p99_ != null ? other.p99_.Clone() : null;
+      first_ = other.first_ != null ? other.first_.Clone() : null;
+      last_ = other.last_ != null ? other.last_.Clone() : null;
+      sum_ = other.sum_ != null ? other.sum_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -1369,10 +1376,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "min" field.</summary>
     public const int MinFieldNumber = 2;
-    private double min_;
+    private global::Dokime.Value min_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Min {
+    public global::Dokime.Value Min {
       get { return min_; }
       set {
         min_ = value;
@@ -1381,10 +1388,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "max" field.</summary>
     public const int MaxFieldNumber = 3;
-    private double max_;
+    private global::Dokime.Value max_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Max {
+    public global::Dokime.Value Max {
       get { return max_; }
       set {
         max_ = value;
@@ -1393,10 +1400,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "mean" field.</summary>
     public const int MeanFieldNumber = 4;
-    private double mean_;
+    private global::Dokime.Value mean_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Mean {
+    public global::Dokime.Value Mean {
       get { return mean_; }
       set {
         mean_ = value;
@@ -1417,10 +1424,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "median" field.</summary>
     public const int MedianFieldNumber = 6;
-    private double median_;
+    private global::Dokime.Value median_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Median {
+    public global::Dokime.Value Median {
       get { return median_; }
       set {
         median_ = value;
@@ -1429,10 +1436,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "p05" field.</summary>
     public const int P05FieldNumber = 7;
-    private double p05_;
+    private global::Dokime.Value p05_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double P05 {
+    public global::Dokime.Value P05 {
       get { return p05_; }
       set {
         p05_ = value;
@@ -1441,10 +1448,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "p95" field.</summary>
     public const int P95FieldNumber = 8;
-    private double p95_;
+    private global::Dokime.Value p95_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double P95 {
+    public global::Dokime.Value P95 {
       get { return p95_; }
       set {
         p95_ = value;
@@ -1453,10 +1460,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "p99" field.</summary>
     public const int P99FieldNumber = 9;
-    private double p99_;
+    private global::Dokime.Value p99_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double P99 {
+    public global::Dokime.Value P99 {
       get { return p99_; }
       set {
         p99_ = value;
@@ -1465,10 +1472,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "first" field.</summary>
     public const int FirstFieldNumber = 10;
-    private double first_;
+    private global::Dokime.Value first_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double First {
+    public global::Dokime.Value First {
       get { return first_; }
       set {
         first_ = value;
@@ -1477,13 +1484,25 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "last" field.</summary>
     public const int LastFieldNumber = 11;
-    private double last_;
+    private global::Dokime.Value last_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public double Last {
+    public global::Dokime.Value Last {
       get { return last_; }
       set {
         last_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "sum" field.</summary>
+    public const int SumFieldNumber = 13;
+    private global::Dokime.Value sum_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Value Sum {
+      get { return sum_; }
+      set {
+        sum_ = value;
       }
     }
 
@@ -1503,16 +1522,17 @@ namespace Dokime.Clients;
         return true;
       }
       if (Count != other.Count) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Min, other.Min)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Max, other.Max)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Mean, other.Mean)) return false;
+      if (!object.Equals(Min, other.Min)) return false;
+      if (!object.Equals(Max, other.Max)) return false;
+      if (!object.Equals(Mean, other.Mean)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Stddev, other.Stddev)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Median, other.Median)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(P05, other.P05)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(P95, other.P95)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(P99, other.P99)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(First, other.First)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Last, other.Last)) return false;
+      if (!object.Equals(Median, other.Median)) return false;
+      if (!object.Equals(P05, other.P05)) return false;
+      if (!object.Equals(P95, other.P95)) return false;
+      if (!object.Equals(P99, other.P99)) return false;
+      if (!object.Equals(First, other.First)) return false;
+      if (!object.Equals(Last, other.Last)) return false;
+      if (!object.Equals(Sum, other.Sum)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -1521,16 +1541,17 @@ namespace Dokime.Clients;
     public override int GetHashCode() {
       int hash = 1;
       if (Count != 0UL) hash ^= Count.GetHashCode();
-      if (Min != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Min);
-      if (Max != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Max);
-      if (Mean != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Mean);
+      if (min_ != null) hash ^= Min.GetHashCode();
+      if (max_ != null) hash ^= Max.GetHashCode();
+      if (mean_ != null) hash ^= Mean.GetHashCode();
       if (Stddev != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Stddev);
-      if (Median != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Median);
-      if (P05 != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(P05);
-      if (P95 != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(P95);
-      if (P99 != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(P99);
-      if (First != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(First);
-      if (Last != 0D) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Last);
+      if (median_ != null) hash ^= Median.GetHashCode();
+      if (p05_ != null) hash ^= P05.GetHashCode();
+      if (p95_ != null) hash ^= P95.GetHashCode();
+      if (p99_ != null) hash ^= P99.GetHashCode();
+      if (first_ != null) hash ^= First.GetHashCode();
+      if (last_ != null) hash ^= Last.GetHashCode();
+      if (sum_ != null) hash ^= Sum.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -1553,45 +1574,49 @@ namespace Dokime.Clients;
         output.WriteRawTag(8);
         output.WriteUInt64(Count);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(17);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Min);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Max);
       }
-      if (Mean != 0D) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Mean);
       }
       if (Stddev != 0D) {
         output.WriteRawTag(41);
         output.WriteDouble(Stddev);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Median);
       }
-      if (P05 != 0D) {
-        output.WriteRawTag(57);
-        output.WriteDouble(P05);
+      if (p05_ != null) {
+        output.WriteRawTag(58);
+        output.WriteMessage(P05);
       }
-      if (P95 != 0D) {
-        output.WriteRawTag(65);
-        output.WriteDouble(P95);
+      if (p95_ != null) {
+        output.WriteRawTag(66);
+        output.WriteMessage(P95);
       }
-      if (P99 != 0D) {
-        output.WriteRawTag(73);
-        output.WriteDouble(P99);
+      if (p99_ != null) {
+        output.WriteRawTag(74);
+        output.WriteMessage(P99);
       }
-      if (First != 0D) {
-        output.WriteRawTag(81);
-        output.WriteDouble(First);
+      if (first_ != null) {
+        output.WriteRawTag(82);
+        output.WriteMessage(First);
       }
-      if (Last != 0D) {
-        output.WriteRawTag(89);
-        output.WriteDouble(Last);
+      if (last_ != null) {
+        output.WriteRawTag(90);
+        output.WriteMessage(Last);
+      }
+      if (sum_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(Sum);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -1607,45 +1632,49 @@ namespace Dokime.Clients;
         output.WriteRawTag(8);
         output.WriteUInt64(Count);
       }
-      if (Min != 0D) {
-        output.WriteRawTag(17);
-        output.WriteDouble(Min);
+      if (min_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Min);
       }
-      if (Max != 0D) {
-        output.WriteRawTag(25);
-        output.WriteDouble(Max);
+      if (max_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Max);
       }
-      if (Mean != 0D) {
-        output.WriteRawTag(33);
-        output.WriteDouble(Mean);
+      if (mean_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Mean);
       }
       if (Stddev != 0D) {
         output.WriteRawTag(41);
         output.WriteDouble(Stddev);
       }
-      if (Median != 0D) {
-        output.WriteRawTag(49);
-        output.WriteDouble(Median);
+      if (median_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Median);
       }
-      if (P05 != 0D) {
-        output.WriteRawTag(57);
-        output.WriteDouble(P05);
+      if (p05_ != null) {
+        output.WriteRawTag(58);
+        output.WriteMessage(P05);
       }
-      if (P95 != 0D) {
-        output.WriteRawTag(65);
-        output.WriteDouble(P95);
+      if (p95_ != null) {
+        output.WriteRawTag(66);
+        output.WriteMessage(P95);
       }
-      if (P99 != 0D) {
-        output.WriteRawTag(73);
-        output.WriteDouble(P99);
+      if (p99_ != null) {
+        output.WriteRawTag(74);
+        output.WriteMessage(P99);
       }
-      if (First != 0D) {
-        output.WriteRawTag(81);
-        output.WriteDouble(First);
+      if (first_ != null) {
+        output.WriteRawTag(82);
+        output.WriteMessage(First);
       }
-      if (Last != 0D) {
-        output.WriteRawTag(89);
-        output.WriteDouble(Last);
+      if (last_ != null) {
+        output.WriteRawTag(90);
+        output.WriteMessage(Last);
+      }
+      if (sum_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(Sum);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -1660,35 +1689,38 @@ namespace Dokime.Clients;
       if (Count != 0UL) {
         size += 1 + pb::CodedOutputStream.ComputeUInt64Size(Count);
       }
-      if (Min != 0D) {
-        size += 1 + 8;
+      if (min_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Min);
       }
-      if (Max != 0D) {
-        size += 1 + 8;
+      if (max_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Max);
       }
-      if (Mean != 0D) {
-        size += 1 + 8;
+      if (mean_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Mean);
       }
       if (Stddev != 0D) {
         size += 1 + 8;
       }
-      if (Median != 0D) {
-        size += 1 + 8;
+      if (median_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Median);
       }
-      if (P05 != 0D) {
-        size += 1 + 8;
+      if (p05_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(P05);
       }
-      if (P95 != 0D) {
-        size += 1 + 8;
+      if (p95_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(P95);
       }
-      if (P99 != 0D) {
-        size += 1 + 8;
+      if (p99_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(P99);
       }
-      if (First != 0D) {
-        size += 1 + 8;
+      if (first_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(First);
       }
-      if (Last != 0D) {
-        size += 1 + 8;
+      if (last_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Last);
+      }
+      if (sum_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Sum);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -1705,35 +1737,68 @@ namespace Dokime.Clients;
       if (other.Count != 0UL) {
         Count = other.Count;
       }
-      if (other.Min != 0D) {
-        Min = other.Min;
+      if (other.min_ != null) {
+        if (min_ == null) {
+          Min = new global::Dokime.Value();
+        }
+        Min.MergeFrom(other.Min);
       }
-      if (other.Max != 0D) {
-        Max = other.Max;
+      if (other.max_ != null) {
+        if (max_ == null) {
+          Max = new global::Dokime.Value();
+        }
+        Max.MergeFrom(other.Max);
       }
-      if (other.Mean != 0D) {
-        Mean = other.Mean;
+      if (other.mean_ != null) {
+        if (mean_ == null) {
+          Mean = new global::Dokime.Value();
+        }
+        Mean.MergeFrom(other.Mean);
       }
       if (other.Stddev != 0D) {
         Stddev = other.Stddev;
       }
-      if (other.Median != 0D) {
-        Median = other.Median;
+      if (other.median_ != null) {
+        if (median_ == null) {
+          Median = new global::Dokime.Value();
+        }
+        Median.MergeFrom(other.Median);
       }
-      if (other.P05 != 0D) {
-        P05 = other.P05;
+      if (other.p05_ != null) {
+        if (p05_ == null) {
+          P05 = new global::Dokime.Value();
+        }
+        P05.MergeFrom(other.P05);
       }
-      if (other.P95 != 0D) {
-        P95 = other.P95;
+      if (other.p95_ != null) {
+        if (p95_ == null) {
+          P95 = new global::Dokime.Value();
+        }
+        P95.MergeFrom(other.P95);
       }
-      if (other.P99 != 0D) {
-        P99 = other.P99;
+      if (other.p99_ != null) {
+        if (p99_ == null) {
+          P99 = new global::Dokime.Value();
+        }
+        P99.MergeFrom(other.P99);
       }
-      if (other.First != 0D) {
-        First = other.First;
+      if (other.first_ != null) {
+        if (first_ == null) {
+          First = new global::Dokime.Value();
+        }
+        First.MergeFrom(other.First);
       }
-      if (other.Last != 0D) {
-        Last = other.Last;
+      if (other.last_ != null) {
+        if (last_ == null) {
+          Last = new global::Dokime.Value();
+        }
+        Last.MergeFrom(other.Last);
+      }
+      if (other.sum_ != null) {
+        if (sum_ == null) {
+          Sum = new global::Dokime.Value();
+        }
+        Sum.MergeFrom(other.Sum);
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -1758,44 +1823,78 @@ namespace Dokime.Clients;
             Count = input.ReadUInt64();
             break;
           }
-          case 17: {
-            Min = input.ReadDouble();
+          case 18: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 25: {
-            Max = input.ReadDouble();
+          case 26: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
-          case 33: {
-            Mean = input.ReadDouble();
+          case 34: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
           case 41: {
             Stddev = input.ReadDouble();
             break;
           }
-          case 49: {
-            Median = input.ReadDouble();
+          case 50: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
-          case 57: {
-            P05 = input.ReadDouble();
+          case 58: {
+            if (p05_ == null) {
+              P05 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P05);
             break;
           }
-          case 65: {
-            P95 = input.ReadDouble();
+          case 66: {
+            if (p95_ == null) {
+              P95 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P95);
             break;
           }
-          case 73: {
-            P99 = input.ReadDouble();
+          case 74: {
+            if (p99_ == null) {
+              P99 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P99);
             break;
           }
-          case 81: {
-            First = input.ReadDouble();
+          case 82: {
+            if (first_ == null) {
+              First = new global::Dokime.Value();
+            }
+            input.ReadMessage(First);
             break;
           }
-          case 89: {
-            Last = input.ReadDouble();
+          case 90: {
+            if (last_ == null) {
+              Last = new global::Dokime.Value();
+            }
+            input.ReadMessage(Last);
+            break;
+          }
+          case 106: {
+            if (sum_ == null) {
+              Sum = new global::Dokime.Value();
+            }
+            input.ReadMessage(Sum);
             break;
           }
         }
@@ -1821,44 +1920,78 @@ namespace Dokime.Clients;
             Count = input.ReadUInt64();
             break;
           }
-          case 17: {
-            Min = input.ReadDouble();
+          case 18: {
+            if (min_ == null) {
+              Min = new global::Dokime.Value();
+            }
+            input.ReadMessage(Min);
             break;
           }
-          case 25: {
-            Max = input.ReadDouble();
+          case 26: {
+            if (max_ == null) {
+              Max = new global::Dokime.Value();
+            }
+            input.ReadMessage(Max);
             break;
           }
-          case 33: {
-            Mean = input.ReadDouble();
+          case 34: {
+            if (mean_ == null) {
+              Mean = new global::Dokime.Value();
+            }
+            input.ReadMessage(Mean);
             break;
           }
           case 41: {
             Stddev = input.ReadDouble();
             break;
           }
-          case 49: {
-            Median = input.ReadDouble();
+          case 50: {
+            if (median_ == null) {
+              Median = new global::Dokime.Value();
+            }
+            input.ReadMessage(Median);
             break;
           }
-          case 57: {
-            P05 = input.ReadDouble();
+          case 58: {
+            if (p05_ == null) {
+              P05 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P05);
             break;
           }
-          case 65: {
-            P95 = input.ReadDouble();
+          case 66: {
+            if (p95_ == null) {
+              P95 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P95);
             break;
           }
-          case 73: {
-            P99 = input.ReadDouble();
+          case 74: {
+            if (p99_ == null) {
+              P99 = new global::Dokime.Value();
+            }
+            input.ReadMessage(P99);
             break;
           }
-          case 81: {
-            First = input.ReadDouble();
+          case 82: {
+            if (first_ == null) {
+              First = new global::Dokime.Value();
+            }
+            input.ReadMessage(First);
             break;
           }
-          case 89: {
-            Last = input.ReadDouble();
+          case 90: {
+            if (last_ == null) {
+              Last = new global::Dokime.Value();
+            }
+            input.ReadMessage(Last);
+            break;
+          }
+          case 106: {
+            if (sum_ == null) {
+              Sum = new global::Dokime.Value();
+            }
+            input.ReadMessage(Sum);
             break;
           }
         }

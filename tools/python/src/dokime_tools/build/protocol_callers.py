@@ -51,7 +51,7 @@ def caller_options(descriptors: FileDescriptorSet) -> dict[str, str]:
             del pending[file.name]
     result = {}
     for file in descriptors.file:
-        if "host" not in Path(file.name).parts[:-1] and not file.package.startswith("dokime.plugin.v1"):
+        if "host" not in Path(file.name).parts[:-1]:
             continue
         for service in file.service:
             for method in service.method:

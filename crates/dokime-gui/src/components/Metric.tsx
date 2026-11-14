@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 /* === Types === */
 
 type MetricProps = {
+  metricId?: string;
   label: string;
   value: string;
   rawValue?: unknown;
@@ -30,11 +31,11 @@ type MetricProps = {
 
 /* === Components === */
 
-export function Metric({ label, value, rawValue, detail, presentation = "value", state = null }: MetricProps) {
+export function Metric({ metricId, label, value, rawValue, detail, presentation = "value", state = null }: MetricProps) {
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;
 
   return (
-    <Card className={cn("min-h-18 min-w-0 py-2", stateClass(state))} size="sm">
+    <Card data-document-metric={metricId} className={cn("min-h-18 min-w-0 py-2", stateClass(state))} size="sm">
       <CardContent className="grid min-w-0 grid-rows-[--spacing(5)_minmax(--spacing(6),auto)_--spacing(3)] gap-1 px-3">
         <span className="min-w-0 self-end truncate text-xs font-bold leading-tight text-muted-foreground" title={label}>
           {label}

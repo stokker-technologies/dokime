@@ -9,6 +9,8 @@
 
 /* === Local Imports === */
 
+import { formatSummaryValue } from "@/lib/statistics";
+import type { StatisticValue } from "@/lib/statistics";
 import { formatUnitLabel } from "@/lib/format";
 
 import { isNumber } from "@/lib/utils";
@@ -25,6 +27,7 @@ type BoxSummaryBucket = {
   minimum: number;
   q1: number;
   median: number;
+  exactMedian: StatisticValue;
   q3: number;
   maximum: number;
   outliers: number[];
@@ -76,7 +79,7 @@ export function BoxPlot({ plot }: { plot: PlotCardSpec }) {
                   key={value}
                   className="absolute top-1/2 h-1 w-1 rounded-full bg-foreground"
                   style={{ left: `${position(value, min, range)}%` }}
-                  title={`Outlier: ${formatValue(value, plot.unit ?? "")}`}
+                  title={`Outlier: ${`${formatSummaryValue(value)} ${plot.unit ?? ""}`}`}
                 />
               ))}
               <span className="absolute left-2 right-2 top-1/2 h-px -translate-y-1/2 bg-border" />
@@ -100,7 +103,7 @@ export function BoxPlot({ plot }: { plot: PlotCardSpec }) {
               />
             </div>
             <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">
-              {formatValue(bucket.median, plot.unit ?? "value")}
+              {`${formatSummaryValue(bucket.exactMedian)} ${plot.unit ?? "value"}`}
             </span>
           </div>
         ))}
@@ -115,14 +118,6 @@ function position(value: number | null | undefined, min: number, range: number):
   return value === null || value === undefined ? 0 : ((value - min) / range) * 100;
 }
 
-function formatValue(value: number | null | undefined, unit: string): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-  const precision = Math.abs(value) >= 100 ? 0 : 2;
-  return `${value.toFixed(precision)} ${unit}`;
-}
-
 function plotBoxSummaryBuckets(plot: PlotCardSpec): BoxSummaryBucket[] {
   if (plot.analysis?.kind !== "box_plot") return [];
 
@@ -132,9 +127,10 @@ function plotBoxSummaryBuckets(plot: PlotCardSpec): BoxSummaryBucket[] {
       label: summary.label,
       minimum: summary.lower_whisker,
       maximum: summary.upper_whisker,
-      q1: summary.q1,
-      median: summary.median,
-      q3: summary.q3,
+      q1: Number(summary.q1),
+      median: Number(summary.median),
+      exactMedian: summary.median,
+      q3: Number(summary.q3),
       outliers: summary.outliers,
     }))
     .sort(compareBuckets);

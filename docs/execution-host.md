@@ -634,8 +634,8 @@ It replaces definitions and generators; operations/runtime, storage and SDK cons
 are intentionally awaiting the work lists below. These declarations do not prove
 runtime admission, end-to-end behavior or consumer compilation. The existing
 `grpc-plugins` delivery remains active; no specification lifecycle command is part
-of this pass. The plot/document correctness work on dev must be merged with Git's
-rename detection before consumer repairs are finalized.
+of this pass. The plot/document correctness work from dev is merged through the recorded
+Git renames; consumer repairs must preserve it while adopting the final types.
 
 ```text
 proto/dokime/
@@ -645,10 +645,10 @@ proto/dokime/
 ```
 
 Every resource owns one file, service and its operation messages in service order.
-Nested resources use subfolders. Caller options are mandatory and independent of visibility, grants and inherited
-scope. Product plugin executor methods carry CLIENTS for their host transport
-client. Only the host invokes their Protected bindings through Instance; they never
-become application client/context resources.
+Nested resources use subfolders. Caller options are mandatory only on host
+operations and independent of visibility, grants and inherited scope. Plugin
+executor methods have no callers option. Only the host invokes their Protected
+bindings through Instance; they never become application client/context resources.
 
 ### Before and After Inventory
 
@@ -688,6 +688,33 @@ A provided selector is checked against trusted caller identity before any read o
 write, never accepted as proof of that identity. Secret bytes are authoritative;
 the existing text writable value is administrative input/output only.
 
+### Exact Values and Document States
+
+The merged dev contract retains field names and numbers in the new homes:
+`dokime.model.v1.Value.exact = 10`; `dokime.host.v1.Statistics` uses Value for
+min/max/mean/median/p05/p95/p99/first/last and adds `sum = 13`.
+The former plugin EvidenceStatisticsResponse now uses that same Statistics payload
+inside the harmonized host response, with its read cut owned by the response.
+PlotBoxSummary min/q1/median/q3/max, PlotHistogramStatistics mean/median/min/max
+and PlotSeriesSummary min/max/mean/median are Value messages with presence.
+PlotColumn adds exact `totals = 6` separately from floating drawing coordinates.
+Standard deviation, RMS, whiskers, outliers and drawing axes remain floating point.
+
+The final library has no storage wire model. The product model therefore owns
+ExactNumber in `model/v1/scalar.proto`, preserving the former library payload's
+`negative = 1`, `numerator = 2`, `denominator = 3`, minimal base-10 strings,
+reduced fractions, positive nonzero denominators and unsigned zero.
+Consumers map it losslessly to native query values; no storage wire API returns.
+
+Analyses.Compute consumes bounded raw samples with one source-time coordinate per
+value, using aligned frame time when present and normalizing the captured origin.
+The shape remains `dokime.plugin.v1.AnalysisSamples`; the correction is in the
+moved analysis handler. Documents retains pending/result bindings, summary states
+and CardComplete under `dokime.host.v1`; literal table rows settle at completion.
+Desktop group loading retains bounded consecutive kind groups, independent visible
+requests, deferred lookahead and generation fencing. These behavioral fixes were
+carried by the merge and are not consumer work to reimplement.
+
 ### Operation Identity and Caller Mapping
 
 The first column is the pre-pin wire identity or hand-bound context identity.
@@ -697,7 +724,7 @@ The complete library identity/type mapping is in the pinned
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
-| `AnalysisRequest/AnalysisResponse` | `dokime.plugin.v1.Analyses/Compute` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.AnalysesComputeRequest` | `dokime.plugin.v1.AnalysesComputeResponse` |
+| `AnalysisRequest/AnalysisResponse` | `dokime.plugin.v1.Analyses/Compute` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.AnalysesComputeRequest` | `dokime.plugin.v1.AnalysesComputeResponse` |
 | `dokime.client.v1.Aggregates/Get` | `dokime.host.v1.Aggregates/Get` | CLIENTS | `dokime.host.v1.AggregatesGetRequest` | `dokime.host.v1.AggregatesGetResponse` |
 | `dokime.client.v1.Analyses/List` | `dokime.host.v1.Analyses/List` | CLIENTS | `dokime.host.v1.AnalysesListRequest` | `dokime.host.v1.AnalysesListResponse` |
 | `dokime.client.v1.Backend/Appearance` | `dokime.host.v1.Backend/Appearance` | CLIENTS | `dokime.host.v1.BackendAppearanceRequest` | `dokime.host.v1.BackendAppearanceResponse` |
@@ -840,11 +867,11 @@ The complete library identity/type mapping is in the pinned
 | `dokime.plugin.host.v1.files.Uploads/Resume` | `dokime.host.v1.files.Uploads/Resume` | ALL | `dokime.host.v1.files.UploadsResumeRequest` | `dokime.host.v1.files.UploadsResumeResponse` |
 | `dokime.secrets.read` | `dokime.host.v1.Secrets/Get` | ALL | `dokime.host.v1.SecretsGetRequest` | `dokime.host.v1.SecretsGetResponse` |
 | `dokime.settings.read` | `harmos.host.v1.plugins.Settings/List` | ALL | `harmos.host.v1.plugins.SettingsListRequest` | `harmos.host.v1.plugins.SettingsListResponse` |
-| `plugin-authored Protected binding (Criteria/Evaluate)` | `dokime.plugin.v1.Criteria/Evaluate` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.CriteriaEvaluateRequest` | `dokime.plugin.v1.CriteriaEvaluateResponse` |
-| `plugin-authored Protected binding (Executions/Cleanup)` | `dokime.plugin.v1.Executions/Cleanup` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.ExecutionsCleanupRequest` | `dokime.plugin.v1.ExecutionsCleanupResponse` |
-| `plugin-authored Protected binding (Executions/Initialize)` | `dokime.plugin.v1.Executions/Initialize` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.ExecutionsInitializeRequest` | `dokime.plugin.v1.ExecutionsInitializeResponse` |
-| `plugin-authored Protected binding (Steps/Execute)` | `dokime.plugin.v1.Steps/Execute` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.StepsExecuteRequest` | `dokime.plugin.v1.StepsExecuteResponse` |
-| `plugin-authored Protected binding (TestCases/Materialize)` | `dokime.plugin.v1.TestCases/Materialize` | CLIENTS (Host Transport; Protected) | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeResponse` |
+| `plugin-authored Protected binding (Criteria/Evaluate)` | `dokime.plugin.v1.Criteria/Evaluate` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.CriteriaEvaluateRequest` | `dokime.plugin.v1.CriteriaEvaluateResponse` |
+| `plugin-authored Protected binding (Executions/Cleanup)` | `dokime.plugin.v1.Executions/Cleanup` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.ExecutionsCleanupRequest` | `dokime.plugin.v1.ExecutionsCleanupResponse` |
+| `plugin-authored Protected binding (Executions/Initialize)` | `dokime.plugin.v1.Executions/Initialize` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.ExecutionsInitializeRequest` | `dokime.plugin.v1.ExecutionsInitializeResponse` |
+| `plugin-authored Protected binding (Steps/Execute)` | `dokime.plugin.v1.Steps/Execute` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.StepsExecuteRequest` | `dokime.plugin.v1.StepsExecuteResponse` |
+| `plugin-authored Protected binding (TestCases/Materialize)` | `dokime.plugin.v1.TestCases/Materialize` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeResponse` |
 | new | `dokime.host.v1.plugins.Secrets/List` | CLIENTS | `dokime.host.v1.plugins.SecretsListRequest` | `dokime.host.v1.plugins.SecretsListResponse` |
 | new | `dokime.host.v1.plugins.Secrets/Set` | CLIENTS | `dokime.host.v1.plugins.SecretsSetRequest` | `dokime.host.v1.plugins.SecretsSetResponse` |
 | new | `dokime.host.v1.plugins.Secrets/Delete` | CLIENTS | `dokime.host.v1.plugins.SecretsDeleteRequest` | `dokime.host.v1.plugins.SecretsDeleteResponse` |
@@ -858,8 +885,8 @@ the complete map; Delete removes selected bindings. Both carry revision and retr
 identity. Reconcile bindings at startup and remove them when the library Plugins
 watch reports deletion.
 
-Decision: product plugin methods annotate CLIENTS for their host transport client;
-Protected admission still excludes application clients. Upload replaces native wire FileProducer/FileSession/StagedFile/FileProgress;
+Decision: product plugin methods have no callers option; Protected admission
+restricts their bindings to the host. Upload replaces native wire FileProducer/FileSession/StagedFile/FileProgress;
 Files owns FileBatch/FileCompletion. Native storage remains PostcardV1 and must
 receive losslessly encoded native values, never relabeled protobuf bytes. Verdict summary/status live with Cycles to
 avoid a file import cycle. Buf permits package import cycles because nested owner
@@ -1549,6 +1576,7 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.v1.Listeners` | `dokime.model.v1.Listeners` |
 | `dokime.v1.RecordListener` | `dokime.model.v1.RecordListener` |
 | `dokime.v1.Value` | `dokime.model.v1.Value` |
+| `harmos.storage.v1.ExactNumber` (former Value.exact payload) | `dokime.model.v1.ExactNumber` |
 | `dokime.v1.Null` | `dokime.model.v1.Null` |
 | `dokime.v1.ValueList` | `dokime.model.v1.ValueList` |
 | `dokime.v1.ValueType` | `dokime.model.v1.ValueType` |
@@ -1634,10 +1662,10 @@ Generated output has no independent writer: change its generator and regenerate.
 The definition pass removes superseded declarations and wrappers; these consumers
 must now adopt them together, preserving all existing behavior and fresh-root refusal.
 
-### Operations and Runtime Crates (10 Items)
+### Operations and Runtime Crates (11 Items)
 
 1. In `crates/dokime-operations/src/{lib.rs,host/mod.rs,resources.rs}` and `crates/dokime-runtime/src/{lib.rs,host.rs,dispatch.rs,plugin.rs,execution.rs,execution_manager.rs}`, replace old client/context/v1 module imports and registration identities using the complete map; repair references left by the file moves below.
-2. In `host/content/artifacts/create.rs`, `host/evidence/{statistics.rs,records/list.rs,traceability/get.rs}` and `host/executions/progress/get.rs`, implement the richer request/reply and trusted plugin selectors. The narrower duplicate handlers are deleted. Preserve statistics logic; apply only admission/shape changes around it after the correctness worker merges.
+2. In `host/content/artifacts/create.rs`, `host/evidence/{statistics.rs,records/list.rs,traceability/get.rs}` and `host/executions/progress/get.rs`, implement the richer request/reply and trusted plugin selectors. The narrower duplicate handlers are deleted. Preserve statistics logic; apply only admission/shape changes around it while adapting the merged correctness changes.
 3. In `host/secrets/{get.rs,store.rs}` and runtime secret-declaration admission, authorize declared secret bindings before reads, return bytes to both audiences and administrative metadata only to clients. Do not infer identity from payload or expose secret administration to plugins.
 4. Add the handlers for `plugins.Secrets.{List,Set,Delete}` in `host/plugins/secrets/{list,set,delete}.rs`; catalog SecretsDeclarations, revision complete maps, reconcile at startup and remove bindings from the library Plugins watch.
 5. In runtime `services/{mod.rs,state.rs}` and host assembly, register the library Plugins and plugins.Settings directly and use its PluginEntry name as the only identity. Product operations under `host/plugins` and runtime `services/{plugins,plugins_settings,plugin_entries,managed_plugins}.rs` are deleted. Retain `.dokime` validation via `dokime-packaging` and supply the library's content/launch integration instead of restoring product installation records.
@@ -1646,8 +1674,9 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 8. Compose library Time.Get/Sleep; product operation files `time.rs` and `sleep.rs` and the settings-read operation are deleted. Adapt `clock.rs`, `services/clock.rs` and scheduler integration to the library execution clock while preserving controlled ticks, cancellation and observer/sample order.
 9. Preserve unimplemented media capture, FTP and Effects behavior. Add declarations/admission without restoring their engines or reporting empty success. Replace SDK manual context bindings with descriptor-generated service bindings.
 10. Migrate `crates/dokime-protocol/tests` and runtime/operations stories, fixtures and build selectors; repair module registration after rename, prove lifecycle bindings and wrong-caller cases, and leave full hosted validation open until every consumer has handed off.
+11. Adapt typed Statistics (including sum), plot summaries and exact category totals to the new host/model packages; retain the merged raw analysis time-axis fix, per-batch shared readers/catalogs, pending document bindings and card completion. Plugin Evidence.Statistics uses the harmonized Statistics payload/read cut rather than the retired flat response.
 
-### Storage Backend (9 Items)
+### Storage Backend (10 Items)
 
 1. In `crates/dokime-storage/src/{backend.rs,store.rs,lib.rs,history.rs}`, implement one root-scoped StorageBackend with stable history, selecting executions through product scope. Retire the per-execution Backend facade as consumers move. Add the StateBackend owner with the same history and durable recovery state.
 2. Implement every mandatory trait method in the tables below, including resumable-file fencing/checkpoints, original mutation receipts, conditional objects, schema identities and native projected Arrow reads; unsupported default methods do not establish product capability. The pin still supports only native PostcardV1: map product values/schema losslessly at the ports and retain frozen protobuf definitions, never relabel protobuf bytes as Postcard or add a duplicate durable sample representation.
@@ -1657,9 +1686,10 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 6. After those callers move, delete `src/ordered_merge.rs`, `mod ordered_merge` in `lib.rs` and its now-redundant merge tests/imports. Sorting, scalar/aggregate execution, merge and downsampling belong to harmos-query, never a second product query engine.
 7. At runtime assembly, create StorageBackends { primary, state }, StorageManager::with_catalog and setup.settings().storage(&storage), then register native storage declarations. Both backend handles share the same root identity; storage is in-process only.
 8. Preserve archive member paths and unchanged Arrow bytes, retained cuts, content digests, crash-safe deletion, diagnostics and baseline v1. Refuse incompatible existing roots with backup/fresh-root guidance; never migrate, delete or reset them implicitly.
-9. Adapt `crates/dokime-storage/tests`, storage/telemetry benches and runtime archive/restart/fault stories. Preserve deterministic durability and exact integer-statistics proof; counts/work evidence remain measurements with no time/load thresholds. Integrate the other worker's plot/document/statistics correction before final proof.
+9. Adapt `crates/dokime-storage/tests`, storage/telemetry benches and runtime archive/restart/fault stories. Preserve deterministic durability and exact integer-statistics proof; counts/work evidence remain measurements with no time/load thresholds. Retain the merged plot/document/statistics corrections through final proof.
+10. Map product model ExactNumber to native query exact values after the old harmos_protocol::storage wire import disappears. Preserve merged integer-exact reducers, rational ranks/means/sums, full-coverage durable moments and clipped-window behavior; project typed Statistics and category totals without rounding through f64.
 
-### Rust SDK (7 Items)
+### Rust SDK (8 Items)
 
 1. In `sdk/rust/src/{lib.rs,client.rs,context.rs,message.rs,prelude.rs}` and the moved `plugin/mod.rs`, adopt private wire and generated root/client/plugin barrels; root values and plugin authoring helpers have distinct owners. Remove public protocol/v1 imports, not aliases for them.
 2. Use generated `client/resources.rs` and `plugin/host.rs`; `host.rs` now derives every Request/Response/ID binding from service descriptors. Remove handwritten resource grafts and caller-specific method twins from `client/host.rs`.
@@ -1668,8 +1698,9 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 5. Keep the generated root composed: library Plugins/Settings/Time and product executions/files/plugins.Secrets share one tree; do not restore plugin wrappers or storage wire calls.
 6. Migrate `examples`, `starter`, `tests/consumer`, fixtures and README/SDK guide imports to content arguments, call options and unwrapped payloads. The rename map below supplies moved operation paths for real-host fixtures.
 7. Build/test this SDK and its product/installed consumer with mise, regenerate after any renderer change, and verify deterministic output and caller admission. Definition-only proof does not replace this repair.
+8. Regenerate and adopt model Value.exact/ExactNumber, typed host Statistics/plot summaries and PlotColumn.totals; update exhaustive scalar matches and formatting without rounding. Preserve raw AnalysisSamples axes and host Documents binding/summary/card-completion states in client and plugin helpers.
 
-### Python SDK (7 Items)
+### Python SDK (8 Items)
 
 1. In `sdk/python/src/dokime/{_client.py,_context.py,_plugin.py,authoring.py}`, replace old v1/client/plugin.host imports with the generated public barrels and internal `_wire` packages; no old package alias remains.
 2. Adopt generated `client.Client` and context HostRoot directly, preserve async close/cancellation/deadline/metadata behavior, and delete the old `_client.py` generic service-map/dynamic graft once its useful conveniences have moved.
@@ -1678,8 +1709,9 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 5. Migrate plugin lifecycle/analysis bindings, examples, starter and fixture imports; preserve the host-driven examples and original mutation identity on retries.
 6. Update `tools/{generated.py,stubs.py}`, wheel/installed stories and README to the private `_wire/surface.pb` and sources manifest, generated argument signatures and payload returns. Retired versioned wire packages are deleted.
 7. Run SDK generation/build/installed-wheel and host-driven proof through mise after repair; keep the pure wheel and root `.venv` ownership and the immutable git dependency pin.
+8. Regenerate scalar/statistics/plot wire outputs; preserve Fraction conversion in values.py using model ExactNumber, typed statistic presence and exact totals. Adapt analysis and document helpers to the new plugin/host packages while retaining raw aligned axes and pending/result/card-completion handling.
 
-### C# SDK (6 Items)
+### C# SDK (7 Items)
 
 1. In `sdk/csharp/src/Dokime/{Context.cs,Plugin.cs,Authoring.cs,Authoring/**}`, adopt Dokime, Dokime.Clients and Dokime.Plugins payloads and generated Client/HostRoot. The manual Client.cs and old Resources/ClientResources outputs are deleted.
 2. Migrate FileTransfers.cs and resource conveniences to Upload, rich replies, optional call context and generated argument methods; preserve explicit channel/disposal ownership and cancellation.
@@ -1687,8 +1719,9 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 4. Migrate lifecycle/analysis bindings, examples, starter, tests and shared fixtures to canonical messages, host-only Protected identities and final public namespaces.
 5. Run `mise -C sdk/csharp run restore` to rebuild the immutable source feed and recreate local-feed lockfiles; the old revision's lockfiles were retired, not hand-edited. The feed now stages sdk/csharp/src/Harmos including its generated wire output.
 6. Regenerate before build, run the installed NuGet consumer and host-driven stories via mise, and update `tools/check_clients.py` and SDK docs. Do not restore Grpc.Tools compilation over the same checked-in Generated/Wire inventory.
+7. Regenerate Value.exact/ExactNumber and typed Statistics/plot fields; adapt scalar conversion and displayed statistics without double coercion. Consume exact category totals, raw analysis axes and host document binding/summary/card-completion states from the final namespaces.
 
-### C++ SDK (7 Items)
+### C++ SDK (8 Items)
 
 1. In `sdk/cpp/include/dokime/{plugin.hpp,context.hpp,plots.hpp,documents.hpp}` and `src/{plugin,context,client}.cpp`, adopt public root/client/plugin types and private wire includes; move authoring helpers whose names collide with root model values into the plugin barrel and remove old generated package names without changing plot/document logic.
 2. Use the generated Client tree directly from client.hpp and messages.hpp; the former resources.hpp forwarding tree is deleted. Migrate file conveniences to Upload and unified replies.
@@ -1697,23 +1730,26 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 5. Keep generated protobuf headers out of public signatures, import named types in source only, and use generated call options with owned ClientContext and payload projection.
 6. Migrate examples, starter, installed consumer, conformance fixture, CMake tests and docs; resolve native dependencies from one vcpkg graph and preserve package export/install behavior.
 7. Build/package/install and run real-host proof through SDK mise tasks after repair. CMake produces the wire message/stub outputs; committed resource and payload barrels come from the product generator.
+8. Regenerate scalar/statistics/plot messages through CMake and update scalar variants/conversion for model ExactNumber, typed field presence and category totals without double coercion. Preserve raw AnalysisSamples axes and host document states in the public projections.
 
-### Command-Line Tool (5 Items)
+### Command-Line Tool (6 Items)
 
 1. In `crates/dokime-cli/src/commands/{plugin,catalog,execution,cycle,plan,proto}` and operation.rs, replace raw messages/old forwarding clients with generated content arguments, call options and projected replies.
 2. Use the library PluginEntry identity, upload managed bundles through product Files then Plugins.Create, and add declared plugin-secret binding commands without a second installation record.
 3. Migrate config.rs, commands/server.rs and client/connect paths to assembled native storage, Time and composition policy; keep explicit fresh-root refusal and controlled-clock behavior.
 4. Migrate proto export, `dokime new` and generated starter bindings to final imports and public barrels. Example consolidation under 0.J remains open; do not silently substitute incomplete starters.
 5. Update CLI system stories, packaging/installer launch paths, generated completions/help and command docs; verify the renamed dokime executable with focused mise proof.
+6. Export the regenerated model/host/plugin scalar and statistics contracts and preserve exact integer/rational JSON and display output; adapt analysis/document reads to raw sample axes and host-owned card states without converting exact values to drawing coordinates.
 
-### Desktop (6 Items)
+### Desktop (7 Items)
 
 1. In `crates/dokime-gui/src-tauri/src/{host,rpc/**}` and `tools/typescript/generate.mjs`, regenerate/model final host descriptors and replace old client/context imports and service registration.
 2. Adapt plugin administration/settings views to library PluginEntry/plugins.Settings and product plugins.Secrets; remove product plugin/installation projection adapters and caller-specific operation variants.
 3. Adopt the harmonized request/reply shapes, public Upload, explicit read cuts and typed argument calls; keep execution/cycle/case/report commands client-only and preserve authenticated listener ownership.
-4. Merge the parallel frontend and storage plot/document/statistics correctness changes using the recorded git moves. Adapt only schema/import paths around their behavior; preserve packed time axes, bounded plot groups and fixed document cuts.
+4. Preserve the merged frontend and storage plot/document/statistics correctness changes through the recorded git moves. Adapt only schema/import paths around their behavior; preserve packed time axes, bounded plot groups and fixed document cuts.
 5. Migrate frontend generated transports, UI types, desktop fixtures and stories, updating docs/gui.md when behavior changes; retain unavailable media/effects behavior and meaningful refusal errors.
 6. Prove both native WebView lanes and touched deterministic stories via mise after every consumer has handed off; no platform substitutes for the other.
+7. Regenerate final descriptors and project model Value.exact/ExactNumber, typed Statistics/plot summaries and PlotColumn.totals without JavaScript Number coercion. Read pending/result bindings, DocumentSummaryState and CardComplete from dokime.host.v1; preserve merged literal-table settlement, parallel bounded group loading, stable card identities and generation fences.
 
 ### Operation Source Rename Inventory
 

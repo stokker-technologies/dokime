@@ -355,7 +355,14 @@ async fn sealed_plot_watch_returns_its_query_and_completes() -> Result<(), Box<d
         assert_eq!(envelope.plot_id, "sensor-plot");
         assert_eq!(envelope.diagnostics.as_ref().unwrap().examined_rows, 1);
         let summary = &envelope.payload.as_ref().unwrap().summaries[0];
-        assert_eq!((summary.count, summary.min, summary.max), (1, Some(12.0), Some(12.0)));
+        assert_eq!(
+            (
+                summary.count,
+                summary.min.as_ref().and_then(|value| value.kind.as_ref()),
+                summary.max.as_ref().and_then(|value| value.kind.as_ref())
+            ),
+            (1, Some(&v1::value::Kind::Number(12.0)), Some(&v1::value::Kind::Number(12.0)))
+        );
         assert!(watch.message().await?.is_none());
 
         // Close the Host Before Its Disposable Root Removes Credentials.
