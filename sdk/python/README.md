@@ -208,9 +208,9 @@ Run these tasks from the repository root:
 ```sh
 mise -C sdk/python run prepare
 mise -C sdk/python run format
-mise -C sdk/python run check
 mise -C sdk/python run build
 mise -C sdk/python run install
+mise -C sdk/python run check
 mise -C sdk/python run package
 mise -C sdk/python run generated
 mise run check:python:bindings

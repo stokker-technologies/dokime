@@ -186,6 +186,7 @@ def main() -> None:
         subprocess.run(
             [
                 "cmake",
+                "--fresh",
                 "-S",
                 str(options.source or sdk / "starter"),
                 "-B",

@@ -6,9 +6,9 @@ Install mise, Python 3.13 or newer, Git and uv, then run from the repository roo
 ```sh
 mise -C sdk/python run prepare
 mise -C sdk/python run format
-mise -C sdk/python run check
 mise -C sdk/python run build
 mise -C sdk/python run install
+mise -C sdk/python run check
 mise -C sdk/python run test
 mise -C sdk/python run package
 mise -C sdk/python run wheel
