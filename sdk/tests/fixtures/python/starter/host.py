@@ -14,12 +14,14 @@ import asyncio
 import os
 import platform
 import sys
+from asyncio.subprocess import Process
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from unittest import IsolatedAsyncioTestCase
 
 # Third Party Imports
-import dokime
+from dokime.client import Client
+from dokime.connection import connect
 
 # Local Imports
 
@@ -37,15 +39,15 @@ import dokime
 class Host:
     def __init__(self) -> None:
         self.root = TemporaryDirectory(prefix="dokime-sdk-host-", delete=False)
-        self.children = []
-        self.client = None
-        self.process = None
-        self.binary = None
+        self.children: list[Process] = []
+        self._client: Client | None = None
+        self.process: Process | None = None
+        self.binary: str | None = None
         self.environment = dict(os.environ)
         self.flags = 0x08000000 if os.name == "nt" else 0
 
     @classmethod
-    async def start(cls, story: Any) -> Any:
+    async def start(cls, story: IsolatedAsyncioTestCase) -> "Host":
         host = cls()
         story.addAsyncCleanup(host.close)
         if sys.platform == "linux":
@@ -134,14 +136,20 @@ class Host:
         url = (await host.process.stdout.readline()).decode().strip()
         if not url.startswith("http://127.0.0.1:"):
             raise RuntimeError("Start SDK Host: The Host Exited Before Announcing Its Listener")
-        host.client = await dokime.connect(url)
+        host._client = await connect(url)
         return host
 
-    async def close(self) -> Any:
+    @property
+    def client(self) -> Client:
+        if self._client is None:
+            raise RuntimeError("Use SDK Host: Start the Host Before Calling Its Client")
+        return self._client
+
+    async def close(self) -> None:
         try:
-            if self.client is not None:
-                await self.client.close()
-                self.client = None
+            if self._client is not None:
+                await self._client.close()
+                self._client = None
         finally:
             try:
                 if self.process is not None:

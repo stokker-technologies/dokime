@@ -14,7 +14,7 @@ import unittest
 from collections.abc import AsyncIterator
 
 from grpc import StatusCode
-from grpc.aio import AioRpcError, ServicerContext, server
+from grpc.aio import AioRpcError, ServicerContext, UsageError, server
 from harmos._wire.host.v1.plugins_pb2 import (
     PluginsCreateRequest,
     PluginsCreateResponse,
@@ -119,7 +119,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list((await client.plugins.list()).entries), [])
         await client.close()
         await client.close()
-        with self.assertRaises((ValueError, AioRpcError)):
+        with self.assertRaises(UsageError):
             await client.plugins.list()
 
 

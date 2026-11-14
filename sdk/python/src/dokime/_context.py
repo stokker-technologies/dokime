@@ -175,9 +175,9 @@ class Context:
         )
         return await self.host.content.artifacts.create(
             file,
-            ArtifactScope(execution_id=self.execution),
             name,
             mime,
+            scope=ArtifactScope(execution_id=self.execution),
             metadata=Metadata(identifier=name, label=name),
             request_id=f"{identity}/attach",
         )

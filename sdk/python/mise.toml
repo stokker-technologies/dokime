@@ -17,6 +17,8 @@ description = "Format the Python SDK"
 run = [
   'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix .',
   'uv run --no-sync --project ../../tools/python ruff format .',
+  'uv run --no-sync --project ../../tools/python ruff check --config ruff.toml --select I,F401 --fix ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff format --config ruff.toml ../tests/fixtures/python',
 ]
 
 [tasks.check]
@@ -24,7 +26,10 @@ description = "Check the Python SDK"
 run = [
   'uv run --no-sync --project ../../tools/python ruff format --check .',
   'uv run --no-sync --project ../../tools/python ruff check .',
+  'uv run --no-sync --project ../../tools/python ruff format --check --config ruff.toml ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff check --config ruff.toml ../tests/fixtures/python',
   'uv run --no-sync --project ../../tools/python ty check --project .',
+  'uv run --no-sync --project ../../tools/python ty check --project . --no-force-exclude --extra-search-path ../tests/fixtures/python/starter --extra-search-path examples/test ../tests/fixtures/python/starter/host.py ../tests/fixtures/python/starter/test_capture.py',
 ]
 
 [tasks.build]

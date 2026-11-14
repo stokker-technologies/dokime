@@ -109,7 +109,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(endpoint.close)
         self.addAsyncCleanup(host.close)
         await host.client.plugins.create("channels", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue())
-        suites = (await host.client.suites.list()).suites
+        suites = (await host.client.suites.list("channels")).values
         plan = SelectionPlan(
             selections=[
                 RegisteredSelection(

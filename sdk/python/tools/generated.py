@@ -108,6 +108,7 @@ def main() -> None:
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()
         runtime.CopyToProto(actual_definition)
+        extensions = [(field, actual_definition.package) for field in actual_definition.extension]
         pending = [(node, actual_definition.package) for node in actual_definition.message_type]
         while pending:
             node, parent = pending.pop()
@@ -115,7 +116,11 @@ def main() -> None:
             runtime_message = descriptor_pool.Default().FindMessageTypeByName(name)
             for field in node.field:
                 field.json_name = runtime_message.fields_by_name[field.name].json_name
+            extensions.extend((field, name) for field in node.extension)
             pending.extend((child, name) for child in node.nested_type)
+        for field, parent in extensions:
+            extension = descriptor_pool.Default().FindExtensionByName(f"{parent}.{field.name}")
+            field.json_name = extension.json_name
         if actual_definition != definition:
             difference = "\n".join(
                 unified_diff(

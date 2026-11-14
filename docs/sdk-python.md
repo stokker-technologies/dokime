@@ -15,12 +15,17 @@ mise -C sdk/python run unit
 mise -C sdk/python run test
 mise -C sdk/python run generated
 mise -C sdk/python run package
+mise -C sdk/python run wheel
+mise -C sdk/python run example-test
 ```
 
 Build exports a pure wheel and source distribution under
 `target/build/dev/any/python`. Package verifies those existing bytes and copies
 them to `target/package/dev/any/python`. SDK tooling uses the repository root
 `.venv`. Generation checking uses temporary output and leaves committed files untouched.
+Check includes typing and formatting for the shared Python host fixture and example
+story as well as the SDK, examples, tests and tooling. Wheel installs the built
+distribution into a fresh environment before running the example's host journey.
 
 The [client](../sdk/python/examples/client/main.py),
 [plugin](../sdk/python/examples/plugin/main.py) and

@@ -29,9 +29,9 @@ async def inspect(endpoint: str) -> None:
         entries = await client.plugins.list()
         for entry in entries.entries:
             print(entry.name)
-        suites = await client.suites.list()
-        for suite in suites.suites:
-            print(suite.metadata.label)
+            suites = await client.suites.list(entry.name)
+            for suite in suites.values:
+                print(suite.metadata.label)
     finally:
         await client.close()
 ```
@@ -174,7 +174,8 @@ mise -C sdk/python run wheel
 ```
 
 `check` covers SDK sources, examples, tests and tooling with Ruff and the type
-checker, without type ignores. `generate --check` regenerates wire bindings in
+checker, including the shared Python host and example story under `sdk/tests/fixtures/python`,
+without type ignores. `generate --check` regenerates wire bindings in
 temporary storage and reports drift without writing committed output. `generated`
 checks the installed wheel's source manifest, private descriptor set, message
 shapes, RPC cardinalities and serializers. `tools/stubs.py` checks authored public
@@ -189,6 +190,7 @@ Build exports a pure wheel and source distribution under
 The SDK's immutable git dependency remains in its package metadata and lockfile.
 
 Host-backed stories require prepared host fixtures and a controlled clock.
+`mise -C sdk/python run example-test` runs the test example against those fixtures.
 They await readiness and progress conditions. Each owned host removes its
 credentials before disposing of its temporary storage, including on Windows.
 Existing roots are never reset; incompatible roots require selecting a fresh root.

@@ -44,9 +44,9 @@ async def main() -> None:
         entries = await client.plugins.list()
         for entry in entries.entries:
             print(entry.name)
-        suites = await client.suites.list()
-        for suite in suites.suites:
-            print(suite.metadata.label)
+            suites = await client.suites.list(entry.name)
+            for suite in suites.values:
+                print(suite.metadata.label)
     finally:
         await client.close()
 
