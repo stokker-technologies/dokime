@@ -121,7 +121,8 @@ mod tests {
 
         assert!(error.to_string().contains(&diagnostic));
         let runtime = error.source().unwrap().downcast_ref::<RuntimeError>().unwrap();
-        let native = runtime.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        let RuntimeError::OperationFailed { source, .. } = runtime else { panic!("expected an operation failure") };
+        let native = source.downcast_ref::<io::Error>().unwrap();
         assert_eq!(native.raw_os_error(), Some(5));
     }
 }
