@@ -23,7 +23,7 @@ import { Metric } from "@/components/Metric";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { nativeValueToJson } from "@/lib/host/values";
 import { create } from "@bufbuild/protobuf";
-import { ValueSchema } from "@host/dokime/v1/scalar_pb.js";
+import { ValueSchema } from "@host/model";
 import { documentSummaryTile } from "@/lib/document-presentation";
 import { seriesLegendColumns } from "@/lib/statistics";
 

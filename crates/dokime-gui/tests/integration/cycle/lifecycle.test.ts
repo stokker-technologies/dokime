@@ -17,16 +17,16 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
-import { ExecutionMode, LiveExecutionState } from "@host/dokime/client/v1/executions_pb.js";
-import { PromptKind } from "@host/dokime/client/v1/prompts_pb.js";
-import { ExecutionState, ResultStatus } from "@host/dokime/v1/execution_pb.js";
+import { ExecutionMode, LiveExecutionState } from "@host/model";
+import { PromptKind } from "@host/model";
+import { ExecutionState, ResultStatus } from "@host/model";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { PromptFieldKind } from "@host/dokime/v1/prompts_pb.js";
-import { StreamMatchOperator } from "@host/dokime/v1/evidence_pb.js";
+import { PromptFieldKind } from "@host/model";
+import { StreamMatchOperator } from "@host/model";
 import { FileDescriptorSetSchema, FieldDescriptorProto_Type } from "@bufbuild/protobuf/wkt";
 import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
 import { fetchNativeDocument } from "@/lib/api/native-documents";
-import { Severity } from "@host/dokime/v1/evidence_pb.js";
+import { Severity } from "@host/model";
 import { previewNativeTestCycle, projectExecutionStatus } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
 import { openNativeRuntimeStream, openNativeExecutionProgressStream } from "@/lib/api/native-observation";
@@ -90,13 +90,13 @@ beforeEach(() => {
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const operations: Record<string, typeof fixture.append> = {
-      "/dokime.client.v1.Executions/Create": fixture.append,
-      "/dokime.client.v1.Executions/Start": fixture.start,
-      "/dokime.client.v1.Executions/Stop": fixture.stop,
-      "/dokime.client.v1.Cycles/Seal": fixture.seal,
-      "/dokime.client.v1.Executions/Get": fixture.detail,
-      "/dokime.client.v1.Executions/Parameters": fixture.parameters,
-      "/dokime.client.v1.Executions/Steps": fixture.steps,
+      "/dokime.host.v1.Executions/Create": fixture.append,
+      "/dokime.host.v1.Executions/Start": fixture.start,
+      "/dokime.host.v1.Executions/Stop": fixture.stop,
+      "/dokime.host.v1.Cycles/Seal": fixture.seal,
+      "/dokime.host.v1.Executions/Get": fixture.detail,
+      "/dokime.host.v1.Executions/Parameters": fixture.parameters,
+      "/dokime.host.v1.Executions/Steps": fixture.steps,
     };
     const operation = operations[path];
     const reply = operation ? await operation(identity, request) : await fixture.extra(path, decoded);
@@ -283,18 +283,18 @@ test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
 test("Planning Preserves Selection Order and Exact Recursive Parameters", async () => {
   const requests: Record<string, unknown>[] = [];
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.client.v1.Suites/List")
+    if (path === "/dokime.host.v1.Suites/List")
       return {
         values: [
           { metadata: { identifier: "fixture", label: "Fixture" }, templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }] },
         ],
       };
-    if (path === "/dokime.client.v1.Suites/Get")
+    if (path === "/dokime.host.v1.Suites/Get")
       return {
         metadata: { identifier: "fixture", label: "Fixture" },
         templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }],
       };
-    assert.equal(path, "/dokime.client.v1.Cases/Create");
+    assert.equal(path, "/dokime.host.v1.Cases/Create");
     requests.push(request);
     return {
       cases: [
@@ -344,7 +344,7 @@ test("Planning Preserves Selection Order and Exact Recursive Parameters", async 
 test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async () => {
   const replies: unknown[] = [];
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.client.v1.Prompts/List") {
+    if (path === "/dokime.host.v1.Prompts/List") {
       assert.equal(request.cycleId, "cycle");
       return {
         prompts: [
@@ -384,7 +384,7 @@ test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async (
         ],
       };
     }
-    assert.equal(path, "/dokime.client.v1.prompts.Answers/Create");
+    assert.equal(path, "/dokime.host.v1.prompts.Answers/Create");
     replies.push(request);
     assert.equal(request.values.values.count.kind.case, "unsignedInteger");
     assert.equal(request.values.values.count.kind.value, 18446744073709551615n);
@@ -423,7 +423,7 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
     const frame = path.endsWith("Overview/Watch")
       ? { opening: true, resolvedAt: { positions: [{ history: { store: "host", epoch: "runtime" }, sequence: 9n }] } }
       : { finished: true };
-    if (path === "/dokime.client.v1.executions.Progress/Watch") {
+    if (path === "/dokime.host.v1.executions.Progress/Watch") {
       assert.ok("name" in decoded);
       assert.equal(decoded.name, "execution");
     }
@@ -492,13 +492,13 @@ test("Frozen Descriptor Pages Are Verified and Reused Across Executions", async 
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", toBinary(FileDescriptorSetSchema, types)));
   const at = { history: { store: "host", epoch: "execution" }, sequence: 7n };
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.client.v1.executions.Schemas/Get");
+    assert.equal(path, "/dokime.host.v1.executions.Schemas/Get");
     assert.equal(request.name, "one");
     return { digest, types, resolvedAt: at };
   });
   const cache = new FrozenSchemaCache();
   const detail = (executionId: string) => create(awaitedExecutionSchema, { summary: { executionId }, schemas: { digest } });
-  const awaitedExecutionSchema = (await import("@host/dokime/client/v1/executions_pb.js")).ExecutionDetailSchema;
+  const awaitedExecutionSchema = (await import("@host/model")).ExecutionDetailSchema;
   const first = await cache.get(session, detail("one"));
   const second = await cache.get(session, detail("two"));
   assert.equal(first, second);
@@ -516,10 +516,10 @@ test("Artifact Ranges Require a Stable Cut and Verified Digest", async () => {
   const at = { positions: [{ history: { store: "files", epoch: "one" }, sequence: 1n }] };
   let corrupt = false;
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.client.v1.content.Artifacts/Get") return { file: { length: 4n, sha256: digest }, resolvedAt: at };
-    if (path === "/dokime.client.v1.Files/Get")
+    if (path === "/dokime.host.v1.content.Artifacts/Get") return { file: { length: 4n, sha256: digest }, resolvedAt: at };
+    if (path === "/dokime.host.v1.Files/Get")
       return { file: { length: 4n, sha256: digest }, chunkBytes: 2n, messageBytes: 1024n, resolvedAt: at };
-    assert.equal(path, "/dokime.client.v1.Files/Read");
+    assert.equal(path, "/dokime.host.v1.Files/Read");
     assert.ok(request.offset === 0n || request.offset === 2n);
     assert.equal(request.maxBytes, 2n);
     const selected = corrupt ? new Uint8Array([4, 3, 2, 1]) : data;
@@ -534,7 +534,7 @@ test("Artifact Ranges Require a Stable Cut and Verified Digest", async () => {
 test("Default Execution Documents Preserve Ordered Frames Across Unary Pages", async () => {
   const at = { positions: [{ history: { store: "host", epoch: "execution" }, sequence: 0n }] };
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.client.v1.Documents/Get");
+    assert.equal(path, "/dokime.host.v1.Documents/Get");
     assert.equal(request.documentId, "");
     if (!request.pageToken)
       return {
@@ -589,8 +589,8 @@ test("History Projects Declared Outcomes Without Inventing Criterion Counts", as
   const { fetchNativeExecutionPage } = await import("@/lib/api/native-checkpoints");
   const at = { positions: [{ history: { store: "host", epoch: "inventory" }, sequence: 1n }] };
   fixture.extra.mockImplementation(async (path) => {
-    if (path === "/dokime.client.v1.Cycles/List") return { cycles: [], resolvedAt: at };
-    assert.equal(path, "/dokime.client.v1.Executions/List");
+    if (path === "/dokime.host.v1.Cycles/List") return { cycles: [], resolvedAt: at };
+    assert.equal(path, "/dokime.host.v1.Executions/List");
     return {
       executions: [
         {
@@ -609,10 +609,10 @@ test("History Projects Declared Outcomes Without Inventing Criterion Counts", as
 test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", async () => {
   const { createNativeNote } = await import("@/lib/api/native-annotations");
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.client.v1.evidence.Notes/Create");
+    assert.equal(path, "/dokime.host.v1.evidence.Notes/Create");
     assert.deepEqual(request.owner.owner.kind, {
       case: "execution",
-      value: create((await import("@host/dokime/v1/notes_pb.js")).ExecutionNoteOwnerSchema, {
+      value: create((await import("@host/model")).ExecutionNoteOwnerSchema, {
         cycleId: "cycle",
         executionId: "run",
       }),
@@ -626,12 +626,10 @@ test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", a
 
 test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   const { fetchNativeSettingsFrame, getNativePluginSettings, updateNativePluginSettings } = await import("@/lib/api/native-settings");
-  const { SettingsCardState } = await import("@host/dokime/client/v1/settings_pb.js");
+  const { SettingsCardState } = await import("@host/model");
   const settings = {
-    schema: {
-      settings: [{ metadata: { identifier: "power", label: "Power" }, kind: { case: "boolean", value: { defaultValue: false } } }],
-    },
-    value: { values: { power: jsonToNativeValue(true) } },
+    declarations: [{ name: "power", title: "Power", default: { value: { case: "flag", value: false } } }],
+    value: { values: { power: { value: { case: "flag", value: true } } } },
     revision: new Uint8Array([4]),
   };
   fixture.extra.mockImplementation(async (path, request) => {
@@ -644,8 +642,9 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
           ],
         },
       };
+    if (path.endsWith("plugins.Secrets/List")) return { bindings: [], revision: new Uint8Array([9]) };
     if (path.endsWith("plugins.Settings/Set")) {
-      assert.equal(nativeValueToJson(request.value.values.power), false);
+      assert.deepEqual(request.value.values.power.value, { case: "flag", value: false });
       assert.deepEqual(request.expectedRevision, new Uint8Array([4]));
     } else assert.ok(path.endsWith("plugins.Settings/Get"));
     return settings;
@@ -657,7 +656,6 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   const projected = await getNativePluginSettings(session, "entry");
   assert.equal(projected.values.power, true);
   assert.equal(projected.settings.contributions?.[0].kind, "boolean");
-  assert.equal(projected.restart, undefined);
   await updateNativePluginSettings(session, "entry", { power: false });
 });
 
@@ -668,7 +666,7 @@ test("Diagnostics Read Stable Ranges and Verify the Whole Archive", async () => 
   const name = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
   let corrupt = false;
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/harmos.v1.status.Diagnostics/Get");
+    assert.equal(path, "/harmos.host.v1.status.Diagnostics/Get");
     assert.equal(request.name, request.offset === 0n ? "" : name);
     const data = bytes.slice(Number(request.offset), Number(request.offset + request.maxBytes));
     if (corrupt) data[0] ^= 1;
@@ -685,7 +683,7 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
   const { openTraceStream, NativeTraceHistoryExpired } = await import("@/lib/api/native-logs");
   const at = { history: { store: "trace", epoch: "retained" }, sequence: 2n };
   fixture.extra.mockImplementation(async (path) => {
-    assert.equal(path, "/harmos.v1.status.TraceEvents/List");
+    assert.equal(path, "/harmos.host.v1.status.TraceEvents/List");
     return {
       resolvedAt: at,
       events: [
@@ -696,8 +694,8 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
   });
   const cancelled = vi.fn(async () => {});
   fixture.stream.mockImplementation(async (path, _input, output, _identity, request) => {
-    assert.equal(path, "/harmos.v1.status.TraceEvents/Watch");
-    assert.deepEqual(request.at, create((await import("@host/harmos/v1/types_pb.js")).PositionSchema, at));
+    assert.equal(path, "/harmos.host.v1.status.TraceEvents/Watch");
+    assert.deepEqual(request.at, create((await import("@host/model")).PositionSchema, at));
     return {
       cancel: cancelled,
       async *[Symbol.asyncIterator]() {
@@ -744,7 +742,7 @@ test("Plot Snapshot Continuations Keep Their Read Cut", async () => {
   const { fetchNativePlotPayloads } = await import("@/lib/api/native-plots");
   const at = { positions: [{ history: { store: "host", epoch: "evidence" }, sequence: 7n }] };
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/dokime.client.v1.plots.Snapshots/List");
+    assert.equal(path, "/dokime.host.v1.plots.Snapshots/List");
     if (!request.page.pageToken) {
       assert.equal(request.at, undefined);
       return { resolvedAt: at, nextPageToken: "next" };

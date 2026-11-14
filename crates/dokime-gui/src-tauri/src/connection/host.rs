@@ -30,18 +30,21 @@ use std::{future::Future, path::Path, sync::Arc, time::Duration};
 use prost::Message;
 use prost_reflect::ReflectMessage;
 use tokio::sync::mpsc::Receiver;
-use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
+
 use super::ConnectionTarget;
-use dokime_protocol::client;
-use dokime_protocol::client::InstallPluginFrame;
-use dokime_protocol::client::PluginInstallation;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_sdk::FileReference;
+use dokime_sdk::client::BackendOverviewGetResponse;
+use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
+use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginValue};
+
 use dokime_runtime::{HostSettings, services};
-use dokime_sdk::client::v1::StatusGetResponse;
+use dokime_sdk::client::StatusGetResponse;
 use dokime_sdk::{Client, client::ClientSettings};
 
 /* === Constants === */
@@ -68,7 +71,7 @@ pub struct Session {
     channel: tonic::transport::Channel,
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
-    identity: dokime_sdk::client::v1::StatusGetResponse,
+    identity: StatusGetResponse,
     product_epoch: String,
     methods: Vec<String>,
     cancellation: CancellationToken,
@@ -165,20 +168,25 @@ impl Session {
         R::decode(bytes.as_slice()).map_err(|error| Status::data_loss(error.to_string()).into())
     }
 
-    pub async fn install_plugin(
-        &self, items: impl Stream<Item = InstallPluginFrame> + Send + 'static,
-    ) -> Result<PluginInstallation, Error> {
-        use tokio_stream::StreamExt;
-        let opening = client::PluginsInstallInput {
-            value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
+    pub async fn install_plugin(&self, name: &str, file: FileReference) -> Result<PluginEntry, Error> {
+        let sha256 = file.sha256.clone();
+        let placement = PluginPlacement {
+            kind: Some(dokime_sdk::client::plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
-        let items = tokio_stream::once(opening).chain(items.map(|item| client::PluginsInstallInput {
-            value: Some(client::plugins_install_input::Value::Item(item)),
-        }));
-        let mut request = self.request(items)?;
-        request.set_timeout(self.mutation_timeout);
-        let mut client = client::plugins_client::PluginsClient::new(self.channel.clone());
-        Ok(self.execute(client.install(request)).await?.into_inner())
+        let options = PluginsCreateOptions {
+            request_id: Some(format!("desktop-install-{name}")),
+            context: self.call_options()?,
+        };
+        let reply = self.execute(self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options)).await?;
+        reply.entry.ok_or_else(|| Status::data_loss("Install Plugin: Host Omitted Its Entry").into())
+    }
+
+    pub fn call_options(&self) -> Result<CallOptions, Error> {
+        let mut options = CallOptions::default();
+        if let Some(pairing) = &self.pairing {
+            options.metadata.insert("authorization", pairing.authorization()?);
+        }
+        Ok(options)
     }
 
     pub(crate) async fn input_raw(&self, path: &str, receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
@@ -380,8 +388,8 @@ impl Session {
             watch_timeout: settings.services.watch_timeout,
             mutation_timeout: settings.services.mutation_timeout,
         };
-        let request = session.request(dokime_sdk::client::v1::StatusGetRequest {})?;
-        let reply = session.client.status.get(request).await?.into_inner();
+        let options = dokime_sdk::client::StatusGetOptions { context: session.call_options()? };
+        let reply = session.client.status.get_with(options).await?;
         let identity = reply.status.as_ref().and_then(|status| status.identity.as_ref()).ok_or(Error::IncompleteIdentity)?;
         let history = reply.resolved_at.as_ref().and_then(|position| position.history.as_ref()).ok_or(Error::IncompleteIdentity)?;
         if identity.host_id.is_empty() || history.store.is_empty() || history.epoch.is_empty() {
@@ -393,21 +401,14 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
-        let overview: client::backend::OverviewGetResponse =
-            session.unary("/dokime.client.v1.backend.Overview/Get", client::backend::OverviewGetRequest::default()).await?;
+        let overview: BackendOverviewGetResponse =
+            session.unary("/dokime.host.v1.backend.Overview/Get", OverviewGetRequest::default()).await?;
         session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
         let mut methods = std::collections::BTreeSet::new();
-        let catalog: dokime_sdk::client::v1::CatalogEntriesListResponse = session
-            .unary(
-                "/harmos.v1.CatalogEntries/List",
-                dokime_sdk::client::v1::CatalogEntriesListRequest {
-                    kind: dokime_sdk::client::v1::CatalogKind::Operations as i32,
-                    ..Default::default()
-                },
-            )
-            .await?;
+        let options = dokime_sdk::client::OperationsListOptions { context: session.call_options()? };
+        let catalog = session.client.operations.list_with(options).await?;
         let mut retained_bytes = 0usize;
-        for operation in catalog.operations.into_iter().filter(|operation| operation.grpc_available) {
+        for operation in catalog.into_iter().filter(|operation| operation.grpc_available) {
             if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
                 let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method);
                 retained_bytes = retained_bytes.saturating_add(path.len());

@@ -15,8 +15,8 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { ExecutionMode, ExecutionParameterSet, ReportState } from "@host/dokime/client/v1/executions_pb.js";
-import { ExecutionState } from "@host/dokime/v1/execution_pb.js";
+import { ExecutionMode, ExecutionParameterSet, ReportState } from "@host/model";
+import { ExecutionState } from "@host/model";
 import { metadataJson, nativeValueToJson } from "@/lib/host/values";
 
 type CycleSummary = Wire<NonNullable<Awaited<ReturnType<typeof rpc.cyclesGet>>["cycle"]>>;

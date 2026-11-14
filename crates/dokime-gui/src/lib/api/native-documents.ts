@@ -15,10 +15,32 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as protocolV1Plots from "@host/dokime/v1/plots_pb.js";
-import * as protocolClientV1Documents from "@host/dokime/client/v1/documents_pb.js";
-import type * as protocolV1Documents from "@host/dokime/v1/documents_pb.js";
-import * as protocolV1Expressions from "@host/dokime/v1/expressions_pb.js";
+import {
+  AxisScale as HostAxisScale,
+  BarArrangement,
+  ContourRender,
+  Downsample,
+  FftDetrend as HostFftDetrend,
+  FftWindow as HostFftWindow,
+  FrequencyLevelUnit as HostFrequencyLevelUnit,
+  LineStyle,
+  PlotKind,
+  Reduction,
+} from "@host/model";
+import {
+  DocumentCardKind as HostDocumentCardKind,
+  DocumentDensity as HostDocumentDensity,
+  type DocumentFrame,
+  DocumentFrameSchema,
+  DocumentRail as HostDocumentRail,
+  DocumentSummaryFormat,
+  DocumentSummaryPresentation as HostDocumentSummaryPresentation,
+  DocumentSummaryStat,
+  DocumentSummaryState as HostDocumentSummaryState,
+  PlotAxisKind,
+} from "@host/model";
+import type { DocumentScope as HostDocumentScope } from "@host/model";
+import { Aggregate, FilterOperator as HostFilterOperator } from "@host/model";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -47,8 +69,6 @@ const DOCUMENT_FRAME_PAGE_SIZE = 32;
 
 /* === Canonical Types === */
 
-type DocumentFrame = protocolClientV1Documents.DocumentFrame;
-const DocumentFrameSchema = protocolClientV1Documents.DocumentFrameSchema;
 type VariantValue<T, K extends string> =
   Extract<NonNullable<T> extends { kind: infer V } ? V : never, { case: K }> extends { value: infer F } ? NonNullable<F> : never;
 type FrameValue<K extends string> = VariantValue<Wire<DocumentFrame>["frame"], K>;
@@ -64,7 +84,7 @@ type DocumentSummaryTileDefinition = FrameValue<"tileDefinition">;
 type DocumentRepeatSelection = FrameValue<"repeatSelection">;
 type DocumentRepeatInstance = FrameValue<"repeatInstance">;
 type DocumentSectionIdentity = FrameValue<"sectionIdentity">;
-type DocumentScope = Wire<protocolV1Documents.DocumentScope>;
+type DocumentScope = Wire<HostDocumentScope>;
 type DocumentSummaryGroup = FrameValue<"summaryGroup">;
 type DocumentSummaryTile = FrameValue<"summaryTile">;
 type DocumentSummaryPresentation = NonNullable<DocumentSummaryTile["presentation"]>;
@@ -150,10 +170,10 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
     throw new Error("An execution document and a plot are required.");
   }
   const variants = {
-    auto: protocolV1Plots.Downsample.AUTO,
-    raw: protocolV1Plots.Downsample.RAW,
-    min_max: protocolV1Plots.Downsample.MIN_MAX,
-    lttb: protocolV1Plots.Downsample.LTTB,
+    auto: Downsample.AUTO,
+    raw: Downsample.RAW,
+    min_max: Downsample.MIN_MAX,
+    lttb: Downsample.LTTB,
   } as const;
   const identity = {
     scope: { cycleId: update.cycleId, executionId: update.executionId },
@@ -316,13 +336,13 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
             format: summaryFormat(tile.format),
             presentation: mapSummaryPresentation(tile.presentation),
             state: tile.state === undefined ? null : mapSummaryState(tile.state),
-            stat: tile.stat === protocolClientV1Documents.DocumentSummaryStat.LATEST ? "latest" : undefined,
+            stat: tile.stat === DocumentSummaryStat.LATEST ? "latest" : undefined,
           }),
         ),
       })),
     });
   }
-  if (result.case === "plot" && body.case === "owner" && body.value?.kind === protocolClientV1Documents.DocumentCardKind.PLOT) {
+  if (result.case === "plot" && body.case === "owner" && body.value?.kind === HostDocumentCardKind.PLOT) {
     if (!result.value) invalid("plot binding is missing");
     const plot = mapNativePlot(result.value, id);
     return documentCard(metadata, "plots", { plots: [plot] });
@@ -422,80 +442,70 @@ function mapNativePlacementLayout(placement?: {
 }
 
 function mapDensity(value?: DocumentDensity): "compact" | "normal" | "spacious" {
-  return value === protocolClientV1Documents.DocumentDensity.COMPACT
-    ? "compact"
-    : value === protocolClientV1Documents.DocumentDensity.SPACIOUS
-      ? "spacious"
-      : "normal";
+  return value === HostDocumentDensity.COMPACT ? "compact" : value === HostDocumentDensity.SPACIOUS ? "spacious" : "normal";
 }
 function mapRail(value?: DocumentRail): "main" | "right" | "left" {
-  return value === protocolClientV1Documents.DocumentRail.LEFT
-    ? "left"
-    : value === protocolClientV1Documents.DocumentRail.RIGHT
-      ? "right"
-      : "main";
+  return value === HostDocumentRail.LEFT ? "left" : value === HostDocumentRail.RIGHT ? "right" : "main";
 }
 function mapCardKind(value: DocumentCardKind | undefined): DocumentViewCard["kind"] | null {
   switch (value) {
-    case protocolClientV1Documents.DocumentCardKind.PLOT:
+    case HostDocumentCardKind.PLOT:
       return "plots";
-    case protocolClientV1Documents.DocumentCardKind.STEPS:
+    case HostDocumentCardKind.STEPS:
       return "steps";
-    case protocolClientV1Documents.DocumentCardKind.CRITERIA:
+    case HostDocumentCardKind.CRITERIA:
       return "criteria";
-    case protocolClientV1Documents.DocumentCardKind.TRACEABILITY:
+    case HostDocumentCardKind.TRACEABILITY:
       return "traceability";
-    case protocolClientV1Documents.DocumentCardKind.NOTES:
+    case HostDocumentCardKind.NOTES:
       return "notes";
-    case protocolClientV1Documents.DocumentCardKind.RECORDS:
+    case HostDocumentCardKind.RECORDS:
       return "records";
-    case protocolClientV1Documents.DocumentCardKind.ARTIFACTS:
+    case HostDocumentCardKind.ARTIFACTS:
       return "artifacts";
-    case protocolClientV1Documents.DocumentCardKind.MEDIA:
+    case HostDocumentCardKind.MEDIA:
       return "media";
-    case protocolClientV1Documents.DocumentCardKind.HEALTH:
+    case HostDocumentCardKind.HEALTH:
       return "health";
-    case protocolClientV1Documents.DocumentCardKind.TELEMETRY_CONTEXT:
+    case HostDocumentCardKind.TELEMETRY_CONTEXT:
       return "telemetry_context";
     default:
       return null;
   }
 }
-function summaryFormat(
-  value: protocolClientV1Documents.DocumentSummaryFormat,
-): "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text" {
+function summaryFormat(value: DocumentSummaryFormat): "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text" {
   switch (value) {
-    case protocolClientV1Documents.DocumentSummaryFormat.NUMBER:
+    case DocumentSummaryFormat.NUMBER:
       return "number";
-    case protocolClientV1Documents.DocumentSummaryFormat.PERCENT:
+    case DocumentSummaryFormat.PERCENT:
       return "percent";
-    case protocolClientV1Documents.DocumentSummaryFormat.DURATION:
+    case DocumentSummaryFormat.DURATION:
       return "duration";
-    case protocolClientV1Documents.DocumentSummaryFormat.DISTANCE:
+    case DocumentSummaryFormat.DISTANCE:
       return "distance";
-    case protocolClientV1Documents.DocumentSummaryFormat.STATUS:
+    case DocumentSummaryFormat.STATUS:
       return "status";
-    case protocolClientV1Documents.DocumentSummaryFormat.TEXT:
+    case DocumentSummaryFormat.TEXT:
       return "text";
     default:
       return "auto";
   }
 }
 function mapSummaryPresentation(value: DocumentSummaryPresentation | undefined): "value" | "progress" | "badge" {
-  return value === protocolClientV1Documents.DocumentSummaryPresentation.PROGRESS
+  return value === HostDocumentSummaryPresentation.PROGRESS
     ? "progress"
-    : value === protocolClientV1Documents.DocumentSummaryPresentation.BADGE
+    : value === HostDocumentSummaryPresentation.BADGE
       ? "badge"
       : "value";
 }
 function mapSummaryState(value: DocumentSummaryState | undefined): "ok" | "warning" | "critical" | "muted" | null {
-  return value === protocolClientV1Documents.DocumentSummaryState.OK
+  return value === HostDocumentSummaryState.OK
     ? "ok"
-    : value === protocolClientV1Documents.DocumentSummaryState.WARNING
+    : value === HostDocumentSummaryState.WARNING
       ? "warning"
-      : value === protocolClientV1Documents.DocumentSummaryState.CRITICAL
+      : value === HostDocumentSummaryState.CRITICAL
         ? "critical"
-        : value === protocolClientV1Documents.DocumentSummaryState.MUTED
+        : value === HostDocumentSummaryState.MUTED
           ? "muted"
           : null;
 }
@@ -546,18 +556,18 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       sigma: interval?.sigma,
       clip_to_observed: interval?.clipToObserved,
     },
-    arrangement: request.arrangement ? (request.arrangement === protocolV1Plots.BarArrangement.GROUPED ? "grouped" : "stacked") : null,
+    arrangement: request.arrangement ? (request.arrangement === BarArrangement.GROUPED ? "grouped" : "stacked") : null,
     pareto: request.pareto,
     hole: request.hole ?? null,
     xy_interval: request.xyInterval ? "sigma" : null,
     reduction: request.reduction
       ? ({
-          [protocolV1Plots.Reduction.MEAN]: "mean" as const,
-          [protocolV1Plots.Reduction.MIN]: "min" as const,
-          [protocolV1Plots.Reduction.MAX]: "max" as const,
+          [Reduction.MEAN]: "mean" as const,
+          [Reduction.MIN]: "min" as const,
+          [Reduction.MAX]: "max" as const,
         }[request.reduction] ?? null)
       : null,
-    render: request.render === protocolV1Plots.ContourRender.BANDS ? "bands" : "cells",
+    render: request.render === ContourRender.BANDS ? "bands" : "cells",
     grid: request.grid
       ? {
           row: mapNativeExpression(request.grid.row),
@@ -619,73 +629,73 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
  * (`Lttb`) maps without an edit here; `Unspecified` stays the default.
  */
 function mapDownsampleTechnique(value: NativeDownsampleTechnique | undefined): DocumentDownsampleTechnique | null {
-  return value === protocolV1Plots.Downsample.AUTO
+  return value === Downsample.AUTO
     ? "auto"
-    : value === protocolV1Plots.Downsample.RAW
+    : value === Downsample.RAW
       ? "raw"
-      : value === protocolV1Plots.Downsample.MIN_MAX
+      : value === Downsample.MIN_MAX
         ? "min_max"
-        : value === protocolV1Plots.Downsample.LTTB
+        : value === Downsample.LTTB
           ? "lttb"
           : null;
 }
 function mapNativePlotAxis(kind: NativePlotAxisKind | undefined, unit: string | undefined): DocumentViewCard["plots"][number]["x_axis"] {
-  return kind === protocolClientV1Documents.PlotAxisKind.WALL_TIME
+  return kind === PlotAxisKind.WALL_TIME
     ? { kind: "wall_time" }
-    : kind === protocolClientV1Documents.PlotAxisKind.ELAPSED
+    : kind === PlotAxisKind.ELAPSED
       ? { kind: "elapsed", unit: unit?.trim() || "s" }
       : null;
 }
 function mapNativePlotType(value?: PlotType): DocumentViewCard["plots"][number]["plot_type"] {
   switch (value) {
-    case protocolV1Plots.PlotKind.TIME_SERIES:
+    case PlotKind.TIME_SERIES:
       return "time_series";
-    case protocolV1Plots.PlotKind.FREQUENCY_SERIES:
+    case PlotKind.FREQUENCY_SERIES:
       return "frequency_series";
-    case protocolV1Plots.PlotKind.XY:
+    case PlotKind.XY:
       return "xy";
-    case protocolV1Plots.PlotKind.TRAJECTORY:
+    case PlotKind.TRAJECTORY:
       return "trajectory";
-    case protocolV1Plots.PlotKind.CONTOUR:
+    case PlotKind.CONTOUR:
       return "contour";
-    case protocolV1Plots.PlotKind.GRID_CHART:
+    case PlotKind.GRID_CHART:
       return "grid_chart";
-    case protocolV1Plots.PlotKind.BAR:
+    case PlotKind.BAR:
       return "bar";
-    case protocolV1Plots.PlotKind.PIE:
+    case PlotKind.PIE:
       return "pie";
-    case protocolV1Plots.PlotKind.HISTOGRAM:
+    case PlotKind.HISTOGRAM:
       return "histogram";
-    case protocolV1Plots.PlotKind.BOX_PLOT:
+    case PlotKind.BOX_PLOT:
       return "box_plot";
     default:
       throw new Error(`Unsupported document plot type: ${value}`);
   }
 }
 function mapPlotStyle(value?: PlotStyle): "line" | "points" | "line_points" | "step" {
-  return value === protocolV1Plots.LineStyle.POINTS
+  return value === LineStyle.POINTS
     ? "points"
-    : value === protocolV1Plots.LineStyle.LINE_POINTS
+    : value === LineStyle.LINE_POINTS
       ? "line_points"
-      : value === protocolV1Plots.LineStyle.STEP
+      : value === LineStyle.STEP
         ? "step"
         : "line";
 }
 function mapAxisScale(value?: AxisScale): "linear" | "log" {
-  return value === protocolV1Plots.AxisScale.LOG ? "log" : "linear";
+  return value === HostAxisScale.LOG ? "log" : "linear";
 }
 function mapFftWindow(value?: FftWindow): "hann" | "rectangular" {
-  return value === protocolV1Plots.FftWindow.RECTANGULAR ? "rectangular" : "hann";
+  return value === HostFftWindow.RECTANGULAR ? "rectangular" : "hann";
 }
 function mapFftDetrend(value?: FftDetrend): "none" | "mean" {
-  return value === protocolV1Plots.FftDetrend.NONE ? "none" : "mean";
+  return value === HostFftDetrend.NONE ? "none" : "mean";
 }
 function mapFrequencyLevelUnit(value?: FrequencyLevelUnit): "linear" | "dB" | "dBu" | "dBm" {
-  return value === protocolV1Plots.FrequencyLevelUnit.DB
+  return value === HostFrequencyLevelUnit.DB
     ? "dB"
-    : value === protocolV1Plots.FrequencyLevelUnit.DBU
+    : value === HostFrequencyLevelUnit.DBU
       ? "dBu"
-      : value === protocolV1Plots.FrequencyLevelUnit.DBM
+      : value === HostFrequencyLevelUnit.DBM
         ? "dBm"
         : "linear";
 }
@@ -704,19 +714,19 @@ function mapNativeFilter(filter: PlotRequest["filters"][number]): {
 }
 function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists" {
   switch (value) {
-    case protocolV1Expressions.FilterOperator.NE:
+    case HostFilterOperator.NE:
       return "ne";
-    case protocolV1Expressions.FilterOperator.GT:
+    case HostFilterOperator.GT:
       return "gt";
-    case protocolV1Expressions.FilterOperator.GE:
+    case HostFilterOperator.GE:
       return "gte";
-    case protocolV1Expressions.FilterOperator.LT:
+    case HostFilterOperator.LT:
       return "lt";
-    case protocolV1Expressions.FilterOperator.LE:
+    case HostFilterOperator.LE:
       return "lte";
-    case protocolV1Expressions.FilterOperator.CONTAINS:
+    case HostFilterOperator.CONTAINS:
       return "contains";
-    case protocolV1Expressions.FilterOperator.EXISTS:
+    case HostFilterOperator.EXISTS:
       return "exists";
     default:
       return "eq";
@@ -754,20 +764,19 @@ function mapNativeExpression(value?: DataExpression, depth = 0): import("../docu
     case "aggregate": {
       const input = mapNativeExpression(kind.value.input, depth + 1);
       if (!input) invalid("aggregate input is missing");
-      const names: Partial<Record<protocolV1Expressions.Aggregate, import("../document-contracts").Aggregate>> = {
-        [protocolV1Expressions.Aggregate.FIRST]: "first",
-        [protocolV1Expressions.Aggregate.LAST]: "last",
-        [protocolV1Expressions.Aggregate.COUNT]: "count",
-        [protocolV1Expressions.Aggregate.SUM]: "sum",
-        [protocolV1Expressions.Aggregate.MIN]: "min",
-        [protocolV1Expressions.Aggregate.MAX]: "max",
-        [protocolV1Expressions.Aggregate.MEAN]: "mean",
-        [protocolV1Expressions.Aggregate.STDDEV]: "std",
-        [protocolV1Expressions.Aggregate.MEDIAN]: "median",
-        [protocolV1Expressions.Aggregate.RMS]: "rms",
+      const names: Partial<Record<Aggregate, import("../document-contracts").Aggregate>> = {
+        [Aggregate.FIRST]: "first",
+        [Aggregate.LAST]: "last",
+        [Aggregate.COUNT]: "count",
+        [Aggregate.SUM]: "sum",
+        [Aggregate.MIN]: "min",
+        [Aggregate.MAX]: "max",
+        [Aggregate.MEAN]: "mean",
+        [Aggregate.STDDEV]: "std",
+        [Aggregate.MEDIAN]: "median",
+        [Aggregate.RMS]: "rms",
       };
-      const aggregate =
-        kind.value.kind === protocolV1Expressions.Aggregate.PERCENTILE ? (`p${kind.value.percentile}` as const) : names[kind.value.kind];
+      const aggregate = kind.value.kind === Aggregate.PERCENTILE ? (`p${kind.value.percentile}` as const) : names[kind.value.kind];
       if (!aggregate) invalid("aggregate kind is missing");
       return { ...input, label: value.label || input.label, transforms: [...(input.transforms ?? []), { type: "aggregate", aggregate }] };
     }
@@ -986,7 +995,7 @@ export async function assembleDocument(
         const expectedResult =
           source.body?.kind.case === "summary"
             ? "summary"
-            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === protocolClientV1Documents.DocumentCardKind.PLOT
+            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === HostDocumentCardKind.PLOT
               ? "plot"
               : "literal";
         if (

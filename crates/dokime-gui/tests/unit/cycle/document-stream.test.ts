@@ -21,7 +21,7 @@ import { create } from "@bufbuild/protobuf";
 import { test } from "vitest";
 
 // Local Imports
-import { DocumentFrameSchema } from "@host/dokime/client/v1/documents_pb.js";
+import { DocumentFrameSchema } from "@host/model";
 import { assembleDocument, type CompletedDocument, mapNativeDocument, nativeDocumentCardKey } from "@/lib/api/native-documents";
 
 /* === Re-Exports === */

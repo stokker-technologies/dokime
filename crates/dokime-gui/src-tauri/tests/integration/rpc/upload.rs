@@ -19,14 +19,17 @@ use sha2::{Digest, Sha256};
 use tauri::Manager;
 
 // Local Imports
+
 use super::invoke;
 use crate::support::{
     bridge::{Harness, fenced},
     server::Fixture,
 };
 use dokime_gui::rpc::Bridge;
-use dokime_protocol::client;
-use dokime_sdk::v1;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_sdk::ArtifactMetadata;
+use dokime_sdk::ArtifactScope;
+use dokime_sdk::ArtifactState;
 
 /* === Constants === */
 
@@ -46,9 +49,9 @@ use dokime_sdk::v1;
 
 /* === Private Functions === */
 
-fn header() -> client::content::ArtifactsCreateRequest {
-    client::content::ArtifactsCreateRequest {
-        scope: Some(v1::ArtifactScope {
+fn header() -> ArtifactsCreateRequest {
+    ArtifactsCreateRequest {
+        scope: Some(ArtifactScope {
             cycle_id: Some("desktop-cycle".into()),
             execution_id: Some("desktop-content".into()),
             ..Default::default()
@@ -95,10 +98,10 @@ fn upload_sink_completes() {
         let tauri::ipc::InvokeResponseBody::Raw(metadata) = finished else {
             panic!("Upload Finishes with Canonical Metadata");
         };
-        let metadata = v1::ArtifactMetadata::decode(&metadata[8..]).unwrap();
+        let metadata = ArtifactMetadata::decode(&metadata[8..]).unwrap();
         assert_eq!(metadata.size_bytes, 6);
         assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
-        assert_eq!(metadata.state, v1::ArtifactState::Complete as i32);
+        assert_eq!(metadata.state, ArtifactState::Complete as i32);
         harness.app.state::<Bridge>().cancel_owner("main");
         fixture.close().await;
     })

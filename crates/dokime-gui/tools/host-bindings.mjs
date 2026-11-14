@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { create, fromBinary, toBinary, toJsonString } from "@bufbuild/protobuf";
+import { create, createFileRegistry, fromBinary, getExtension, toBinary, toJsonString } from "@bufbuild/protobuf";
 import {
   CodeGeneratorRequestSchema,
   CodeGeneratorResponseSchema,
@@ -22,6 +22,42 @@ const gui = new URL("../", import.meta.url);
 const descriptor = new URL("../../crates/dokime-protocol/src/descriptors.bin", gui);
 const output = new URL("src-tauri/src/connection/host/operations.rs", gui);
 const root = fileURLToPath(new URL("../../", gui));
+const checking = process.argv.includes("--check");
+const differences = [];
+
+/* === Private Functions === */
+
+function writeGenerated(path, content) {
+  if (checking) {
+    if (!existsSync(path) || readFileSync(path, "utf8") !== content) differences.push(String(path));
+    return;
+  }
+  writeFileSync(path, content);
+}
+
+function clientMethods(descriptors) {
+  const registry = createFileRegistry(descriptors);
+  const callers = registry.getExtension("harmos.model.v1.callers");
+  if (!callers) throw new Error("Read Desktop Callers: Missing Required Caller Declaration");
+  const composition = readFileSync(join(root, "protocol/composition.toml"), "utf8");
+  const narrowed = new Map([...composition.matchAll(/^"([^"\n]+)"\s*=\s*"(CLIENTS|PLUGINS|ALL)"/gm)].map((match) => [match[1], match[2]]));
+  const methods = [];
+  for (const file of descriptors.file) {
+    if (!/^(dokime|harmos)\.host\.v1(?:\.|$)/.test(file.package)) continue;
+    for (const service of file.service) {
+      for (const method of service.method) {
+        const identity = `${file.package}.${service.name}/${method.name}`;
+        const declared = method.options ? getExtension(method.options, callers) : 0;
+        if (![1, 2, 3].includes(declared)) throw new Error(`Read Desktop Callers: ${identity} Has No Caller Audience`);
+        const audience = narrowed.get(identity);
+        const effective = audience === "CLIENTS" ? 1 : audience === "PLUGINS" ? 2 : audience === "ALL" ? 3 : declared;
+        if ((effective & declared) !== effective) throw new Error(`Compose Desktop Callers: ${identity} Widens Its Audience`);
+        if (effective & 1) methods.push({ file, service, method });
+      }
+    }
+  }
+  return methods;
+}
 
 /* === Public Functions === */
 
@@ -39,46 +75,35 @@ function generate() {
   const libraryBytes = readFileSync(join(dirname(library.manifest_path), "src/descriptors.bin"));
   const librarySet = fromBinary(FileDescriptorSetSchema, libraryBytes);
   const digest = [...createHash("sha256").update(readFileSync(descriptor)).update(libraryBytes).digest()];
-  descriptors.file.push(...librarySet.file.filter((file) => ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)));
+  const names = new Set(descriptors.file.map((file) => file.name));
+  descriptors.file.push(...librarySet.file.filter((file) => !names.has(file.name)));
   const type = (name) =>
-    name.startsWith(".dokime.client.v1.")
-      ? name.replace(/^\.dokime\.client\.v1\./, "client::").replaceAll(".", "::")
-      : name.startsWith(".dokime.v1.")
-        ? name.replace(/^\.dokime\.v1\./, "v1::").replaceAll(".", "::")
-        : name.replace(/^\.harmos\.v1\./, "library::").replaceAll(".", "::");
+    name
+      .replace(
+        /^\.(dokime|harmos)\.(model|host|plugin)\.v1\./,
+        (_, product, boundary) => `${product === "harmos" ? "library::" : ""}${boundary}::`,
+      )
+      .replaceAll(".", "::");
   const unary = [];
   const watches = [];
   const inputs = [];
-  for (const file of descriptors.file) {
-    if (
-      !(
-        file.package === "dokime.client.v1" ||
-        file.package.startsWith("dokime.client.v1.") ||
-        ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package)
-      )
-    )
+  for (const { file, service, method } of clientMethods(descriptors)) {
+    const path = `/${file.package}.${service.name}/${method.name}`;
+    const request = type(method.inputType);
+    const response = type(method.outputType);
+    if (method.clientStreaming) {
+      if (!method.serverStreaming)
+        inputs.push(`        "${path}" => Box::pin(session.input::<${request}, ${response}>("${path}", receiver)).await,`);
       continue;
-    if (file.name === "harmos/v1/storage.proto") continue;
-    for (const service of file.service) {
-      for (const method of service.method) {
-        const path = `/${file.package}.${service.name}/${method.name}`;
-        const request = type(method.inputType);
-        const response = type(method.outputType);
-        if (method.clientStreaming) {
-          if (!method.serverStreaming)
-            inputs.push(`        "${path}" => Box::pin(session.input::<${request}, ${response}>("${path}", receiver)).await,`);
-          continue;
-        }
-        const operation = method.serverStreaming ? "watch" : "call";
-        const row = `        "${path}" => Box::pin(session.${operation}::<${request}, ${response}>("${path}", payload)).await,`;
-        (method.serverStreaming ? watches : unary).push(row);
-      }
     }
+    const operation = method.serverStreaming ? "watch" : "call";
+    const row = `        "${path}" => Box::pin(session.${operation}::<${request}, ${response}>("${path}", payload)).await,`;
+    (method.serverStreaming ? watches : unary).push(row);
   }
   const content = `// @generated by crates/dokime-gui/tools/host-bindings.mjs; do not edit.
 use super::{Error, Session};
-use dokime_protocol::{client, v1};
-use dokime_sdk::client::v1 as library;
+use dokime_protocol::{host, model};
+use harmos_protocol as library;
 
 pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [${digest.join(", ")}];
 
@@ -103,8 +128,10 @@ ${inputs.sort().join("\n")}
     }
 }
 `;
-  if (!existsSync(output) || readFileSync(output, "utf8") !== content) writeFileSync(output, content);
-  process.stdout.write(`Generated ${unary.length} Unary Operations and ${watches.length} Watches in ${fileURLToPath(output)}\n`);
+  if (!existsSync(output) || readFileSync(output, "utf8") !== content) writeGenerated(output, content);
+  process.stdout.write(
+    `${checking ? "Checked" : "Generated"} ${unary.length} Unary Operations and ${watches.length} Watches in ${fileURLToPath(output)}\n`,
+  );
 }
 
 function generateFrontend() {
@@ -166,15 +193,17 @@ function generateFrontend() {
   const destination = resolve(root, "target/generated/host");
   const withinRoot = relative(root, destination);
   if (withinRoot.startsWith("..") || isAbsolute(withinRoot)) throw new Error("Generated Host Destination Escapes the Repository");
-  rmSync(destination, { recursive: true, force: true });
-  mkdirSync(destination, { recursive: true });
+  if (!checking) {
+    rmSync(destination, { recursive: true, force: true });
+    mkdirSync(destination, { recursive: true });
+  }
   for (const file of response.file) {
     const path = resolve(destination, file.name);
     if (!path.startsWith(`${destination}\\`) && !path.startsWith(`${destination}/`)) throw new Error("Invalid Generated Host File Path");
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, file.content.replace(/\r\n/g, "\n"));
+    if (!checking) mkdirSync(dirname(path), { recursive: true });
+    writeGenerated(path, file.content.replace(/\r\n/g, "\n"));
   }
-  writeFileSync(
+  writeGenerated(
     join(destination, "identity.ts"),
     `// Generated from the Host Protocol. Do Not Edit.\nexport const descriptorSha256 = "${createHash("sha256").update(productBytes).update(libraryBytes).digest("hex")}";\n`,
   );
@@ -185,6 +214,8 @@ function generateFrontend() {
     for (const message of file.messageType) messages.set(`.${file.package}.${message.name}`, { file, message });
   }
   const lines = [
+    'import { required } from "@/lib/rpc/canonical";',
+    'import { projectStream } from "@/lib/rpc/transport";',
     "// Generated from the Host Protocol. Do Not Edit.",
     'import { unary, openStream, openClientStream, type SessionIdentity } from "@/lib/rpc/transport";',
   ];
@@ -194,75 +225,103 @@ function generateFrontend() {
     lines.push(`import { ${entry.message.name}Schema as ${alias} } from "./${entry.file.name.replace(/\.proto$/, "_pb.js")}";`);
     return entry.message;
   }
-  for (const file of files.values()) {
-    const productFile = file.package === "dokime.client.v1" || file.package.startsWith("dokime.client.v1.");
-    const libraryFile = ["harmos.v1", "harmos.v1.access", "harmos.v1.status"].includes(file.package);
-    if (!productFile && !libraryFile) continue;
-    for (const service of file.service) {
-      if (
-        libraryFile &&
-        !["Status", "Listener", "Pairings", "Certificates", "Logs", "TraceEvents", "Diagnostics", "CatalogEntries", "Invocations"].includes(
-          service.name,
-        )
-      )
-        continue;
-      for (const method of service.method) {
-        if (method.name.startsWith("Run")) continue;
-        const prefix = file.package
-          .split(".")
-          .slice(productFile ? 3 : 2)
-          .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
-          .join("");
-        const fullName = `${prefix}${service.name}${method.name}`;
-        const name = `${fullName[0].toLowerCase()}${fullName.slice(1)}`;
-        const path = `/${file.package}.${service.name}/${method.name}`;
-        const input = `${name}Input`;
-        const output = `${name}Output`;
-        const envelope = `${name}Envelope`;
-        if (method.clientStreaming) {
-          if (method.serverStreaming) continue;
-          const wrapper = schema(method.inputType, envelope);
-          const item = wrapper.field.find((field) => field.name === "item");
-          if (!item?.typeName) throw new Error(`Upload ${path}: Missing Item Contract`);
-          schema(item.typeName, input);
-          schema(method.outputType, output);
-          lines.push(
-            `export const ${name} = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof ${input}, typeof ${output}>>[4]) => openClientStream("${path}", ${input}, ${output}, session, request, ${envelope});`,
-          );
-          continue;
-        }
-        schema(method.inputType, input);
-        const wrapper = messages.get(method.outputType)?.message;
-        const item = method.serverStreaming ? wrapper?.field.find((field) => field.name === "item") : undefined;
-        if (item?.typeName) {
-          schema(item.typeName, output);
-          schema(method.outputType, envelope);
-          lines.push(
-            `export const ${name} = (session: SessionIdentity, request: Parameters<typeof openStream<typeof ${input}, typeof ${output}>>[4]) => openStream("${path}", ${input}, ${output}, session, request, ${envelope});`,
-          );
-        } else {
-          schema(method.outputType, output);
-          const operation = method.serverStreaming ? "openStream" : "unary";
-          lines.push(
-            `export const ${name} = (session: SessionIdentity, request: Parameters<typeof ${operation}<typeof ${input}, typeof ${output}>>[4]) => ${operation}("${path}", ${input}, ${output}, session, request);`,
-          );
-        }
+  const combined = create(FileDescriptorSetSchema, { file: [...files.values()] });
+  for (const { file, service, method } of clientMethods(combined)) {
+    const prefix = file.package
+      .split(".")
+      .slice(3)
+      .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
+      .join("");
+    const fullName = `${prefix}${service.name}${method.name}`;
+    const name = `${fullName[0].toLowerCase()}${fullName.slice(1)}`;
+    const path = `/${file.package}.${service.name}/${method.name}`;
+    const input = `${name}Input`;
+    const output = `${name}Output`;
+    const envelope = `${name}Envelope`;
+    if (method.clientStreaming) {
+      if (method.serverStreaming) continue;
+      const wrapper = schema(method.inputType, envelope);
+      const item = wrapper.field.find((field) => field.name === "item");
+      if (!item?.typeName) throw new Error(`Upload ${path}: Missing Item Contract`);
+      schema(item.typeName, input);
+      schema(method.outputType, output);
+      lines.push(
+        `export const ${name} = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof ${input}, typeof ${output}>>[4]) => openClientStream("${path}", ${input}, ${output}, session, request, ${envelope});`,
+      );
+      continue;
+    }
+    schema(method.inputType, input);
+    const wrapper = messages.get(method.outputType)?.message;
+    const item = method.serverStreaming ? wrapper?.field.find((field) => field.name === "item") : undefined;
+    if (item?.typeName) {
+      schema(item.typeName, output);
+      schema(method.outputType, envelope);
+      lines.push(
+        `export const ${name} = (session: SessionIdentity, request: Parameters<typeof openStream<typeof ${input}, typeof ${output}>>[4]) => openStream("${path}", ${input}, ${output}, session, request, ${envelope});`,
+      );
+    } else {
+      schema(method.outputType, output);
+      const operation = method.serverStreaming ? "openStream" : "unary";
+      const field = wrapper?.field.length === 1 ? wrapper.field[0] : undefined;
+      const localName = field?.jsonName || field?.name.replace(/_([a-z])/g, (_, character) => character.toUpperCase());
+      const projection = field
+        ? `.then(${method.serverStreaming ? `stream => projectStream(stream, ` : ""}response => required(response.${localName}, "Read ${path} Payload")${method.serverStreaming ? ")" : ""})`
+        : "";
+      lines.push(
+        `export const ${name} = (session: SessionIdentity, request: Parameters<typeof ${operation}<typeof ${input}, typeof ${output}>>[4], timeoutMs?: number) => ${operation}("${path}", ${input}, ${output}, session, request${method.serverStreaming ? ", undefined" : ""}, timeoutMs)${projection};`,
+      );
+    }
+  }
+  const names = new Set();
+  const exports = [];
+  const orderedFiles = [...files.values()]
+    .filter((file) => /^(dokime|harmos)\.(model|host)\.v1(?:\.|$)/.test(file.package))
+    .sort((left, right) => {
+      const rank = (file) => (file.package.startsWith("harmos.") ? 2 : 0) + (file.package.includes(".host.") ? 1 : 0);
+      return (
+        rank(left) - rank(right) || left.package.split(".").length - right.package.split(".").length || left.name.localeCompare(right.name)
+      );
+    });
+  for (const file of orderedFiles) {
+    for (const [kind, entries] of [
+      ["message", file.messageType],
+      ["enum", file.enumType],
+    ]) {
+      for (const entry of entries) {
+        let name = entry.name;
+        if (names.has(name))
+          name = `${file.package.startsWith("harmos.") ? "Harmos" : ""}${file.package
+            .split(".")
+            .slice(3)
+            .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
+            .join("")}${name}`;
+        if (names.has(name)) throw new Error(`Export Desktop Model: Duplicate ${name}`);
+        names.add(name);
+        const source = `./${file.name.replace(/\.proto$/, "_pb.js")}`;
+        exports.push(`export ${kind === "message" ? "type " : ""}{ ${entry.name} as ${name} } from "${source}";`);
+        if (kind === "message") exports.push(`export { ${entry.name}Schema as ${name}Schema } from "${source}";`);
       }
     }
   }
-  writeFileSync(join(destination, "client.ts"), `${lines.join("\n")}\n`);
-  writeFileSync(
+  writeGenerated(join(destination, "model.ts"), `// Generated from the Host Protocol. Do Not Edit.\n${exports.join("\n")}\n`);
+  writeGenerated(join(destination, "client.ts"), `${lines.join("\n")}\n`);
+  writeGenerated(
     new URL("src/lib/rpc/generated/errors.ts", gui),
     `// Generated by crates/dokime-gui/tools/host-bindings.mjs. Do Not Edit.
 export { StatusSchema } from "@generated/google/rpc/status_pb.js";
-export { FailureSchema } from "@host/harmos/v1/types_pb.js";
-export { CapturedRecordErrorSchema } from "@host/dokime/client/v1/evidence/records_pb.js";
+export { FailureSchema } from "@host/model";
+export { CapturedRecordErrorSchema } from "@host/model";
 `,
   );
-  process.stdout.write(`Generated Canonical Host Messages and Client in ${destination}\n`);
+  process.stdout.write(`${checking ? "Checked" : "Generated"} Canonical Host Messages and Client in ${destination}\n`);
 }
 
 /* === Entry Point === */
 
 generate();
 if (process.argv.includes("--frontend")) generateFrontend();
+
+if (checking && differences.length) {
+  process.stderr.write(`Desktop Generated Outputs Need Refresh: ${differences.length} Files\n`);
+  process.exitCode = 1;
+}

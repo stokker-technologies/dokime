@@ -60,8 +60,8 @@ fn switching_cancels_work() {
 
         // An Attached Session Does Not Own Host Shutdown
         let client = fixture.client().await;
-        let _: dokime_sdk::client::v1::StatusGetResponse =
-            client.unary("/harmos.v1.Status/Get", dokime_sdk::client::v1::StatusGetRequest {}).await.unwrap();
+        let _: dokime_sdk::client::StatusGetResponse =
+            client.unary("/harmos.host.v1.Status/Get", dokime_sdk::client::StatusGetRequest {}).await.unwrap();
         fixture.close().await;
     })
 }

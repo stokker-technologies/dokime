@@ -14,7 +14,7 @@
 /* === Local Imports === */
 
 import { required, cutKey } from "@/lib/rpc/canonical";
-import { Severity } from "@host/dokime/v1/evidence_pb.js";
+import { Severity } from "@host/model";
 import { recordScopeFromNative } from "@/lib/host/values";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";

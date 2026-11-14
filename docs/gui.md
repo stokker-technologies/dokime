@@ -34,24 +34,31 @@ also consume canonical messages. The connection reads the product process epoch
 from its client and validates readiness against that execution epoch; library status history is a separate resource identity. Listener values in the
 preferences view come from Access; application preference saves never write that
 separately revisioned resource. Missing host logo content is reported independently
-of native installer appearance. Native plugin installation, pairing export, firewall
+of native installer appearance. Native plugin upload and library entry creation, pairing export, firewall
 registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 Reloading the WebView adopts and verifies the native owner's current connection,
 including an imported remote profile, before considering launch arguments.
-Execution progress uses `dokime.client.v1.executions.Progress/Watch` with its named
+Execution progress uses `executions.Progress.Watch` with its named
 resource, opaque revision, pinned position and terminal flag. Its adapter projects
 the served label and counts; elapsed time, ETA and a step identifier stay absent
 because this contract does not supply them. The operation grammar table in
 `docs/execution-host.md` records the package and resource boundaries.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
-use canonical host messages. SDK and binary adapter stories prove their boundaries;
-the WebView drives the same adapters. Native method availability comes from the
-SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
-catalog currently omits those bindings, so storage source changes remain disabled
-with a visible reason and a Host Request.
+use the composed client surface. A plugin entry's library name is the only identity
+used by inventory, settings navigation and revision-checked Set/Delete/Restart.
+The views display current activation state and failure; installation timestamps,
+last-boot outcomes, discovered settings and pending/applied-field facts are absent
+because the library entry and settings contracts do not supply them. Settings retain
+their declared flag, integer, number, text or duration type. Integer fields use decimal
+text rather than a floating-point input. Secret declarations and bindings come from
+product `plugins.Secrets`; secret bytes remain in Secret Storage.
+Native method availability comes from the SDK operation catalog. Access/Status
+advertise their RPC bindings; the host's product catalog currently omits those
+bindings, so storage source changes remain disabled with a visible reason and a
+Host Request.
 Product Files and Files.Uploads serve uploads and verified artifact/report delivery.
 Uploads.Create/Get/Resume and Files.Get return the chunk and message limits. A default execution document
 read must return the selected document identity in its header; an empty selector
@@ -142,7 +149,7 @@ removal operation, preserving any earlier generator or user storage roots.
 | Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's digest-verified frozen descriptors, preserves exact scalar values and evidence origins, and follows returned read cuts and page tokens. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the execution's digest-cached descriptor registry. |
 | Documents and Reports | `native-documents.ts` preserves frame order, identity, completion and card commits. The host supplies structure before the evidence cut; unary page assembly retains strict validation. Verified published report export remains available: both native owners save the same sealed HTML and reopen its frozen evidence in the owned browser. |
 | History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and retained read cuts. The Execution WebView visits History and reopens the saved execution after a full page reload; retained reads refuse unavailable cuts explicitly. |
-| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. The WebView displays the admitted thermal plugin; native stories verify file installation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
+| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use composed catalogs, card oneofs, numeric states, typed setting values and library placement. The library returns one retained plugin inventory; the product does not reconstruct installation pages. The WebView displays library plugin entries; native stories cover bundle upload, entry creation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
 | Remote Access | The Connections WebView proves native pairing export/import, independent profiles, shared execution and evidence, revocation, identity refusal, occupied storage and certificate rotation/recovery. `native-remote.ts` owns the listener's opaque revision. Application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
 | Dependency Removal | Native paths/distribution identity, local build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native stories, WebView drivers and the SDK stream benchmark use only the current host. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. |
@@ -169,7 +176,7 @@ dependencies to precede their consumers. Missing and cyclic imports refuse decod
 | `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | Files.Uploads, then `content.Artifacts.Create` |
 | `desktop_artifact_deliver` | Product metadata/reference reads, then product `Files.Read` |
 | `desktop_media_prepare`, `desktop_media_release` | `content.Artifacts.Get` / `content.ExecutionFiles.Get` followed by `Files.Read` plus native preview cache |
-| `desktop_plugin_install_file` | `Plugins.Install` |
+| `desktop_plugin_install_file` | `Files.Uploads.Create/Append/Publish`, then library `Plugins.Create` |
 | `desktop_plugin_release_check`, `desktop_plugin_release_install` | Missing typed host build target; both commands refuse before fetching or installing release candidates. Verified bundle file installation remains available. |
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
 | `desktop_parameters_read`, `desktop_parameters_write` | Native remembered parameter selections |
@@ -181,14 +188,19 @@ dependencies to precede their consumers. Missing and cyclic imports refuse decod
 | `desktop://remote-imported`, `desktop://remote-import-failed` | Native pairing import outcome |
 | `desktop://stopping` | Native orderly shutdown |
 | Tauri RPC stream channel | `executions.Progress.Watch`, `Backend.Overview.Watch`, `evidence.Records.Watch`, `evidence.Samples.Watch`, `plots.Snapshots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
-| Tauri install-progress channel | `Plugins.Install` transfer progress |
+| Tauri install-progress channel | Native file upload and library `Plugins.Create` progress |
 
 ### Data Operations
 
-Product calls use `dokime.client.v1`; shared vocabulary remains in `dokime.v1`.
-The native dispatch and frontend protobuf modules come from the checked-in product
-and pinned library descriptors through `tools/host-bindings.mjs`. Generated modules
-are rebuilt by their generators, never edited by hand.
+The desktop consumes one client surface composed from the product and pinned
+library descriptors through `tools/host-bindings.mjs`. The generator selects host
+operations with the CLIENTS or ALL audience after applying the composition's
+narrowing. Plugin executor services and PLUGINS-only methods are absent from native
+dispatch and frontend client generation. The frontend imports values, schemas and
+enums through `@host/model`, and calls through `@/lib/host/client`; wire package
+paths stay inside generated implementation. Single-field response wrappers project
+their payload, including watches, while multi-field responses retain their read cuts.
+Generated modules are rebuilt by their generators, never edited by hand.
 
 | Resource | Desktop Contract |
 | --- | --- |
@@ -203,7 +215,7 @@ are rebuilt by their generators, never edited by hand.
 | `Evidence.Notes` | Create owns its identity; edits use the matching Get revision and replace the whole writable value. |
 | `Documents` | Get assembles ordered frame pages at one fixed cut without weakening structure, evidence or completion validation. |
 | `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
-| `Plugins` | Retained managed/remote installation calls remain until library composition; settings use `Plugins.Settings.Get/Set`. |
+| `Plugins`, `plugins.Settings`, `plugins.Secrets` | Library entries own managed/remote/guest placement, enablement, revision, activation and current failure. Library settings use List/Set; the product separately owns declared secret bindings with List/Set/Delete. |
 | `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
 | `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use library file production before artifact attachment. |
 | Library `Status`, `Access`, `Storage`, `Invocations` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |

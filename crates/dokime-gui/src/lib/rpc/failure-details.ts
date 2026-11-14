@@ -53,13 +53,13 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
   try {
     const status = fromBinary(StatusSchema, Uint8Array.from(error.detail.details));
     for (const detail of status.details) {
-      if (detail.typeUrl === "type.googleapis.com/harmos.v1.Failure") {
+      if (detail.typeUrl === "type.googleapis.com/harmos.model.v1.Failure") {
         const rejection = fromBinary(FailureSchema, detail.value);
         failure.message = rejection.message;
         failure.reason = rejection.code || reason;
         failure.operationId = rejection.operation || undefined;
         failure.diagnostics = rejection.diagnostics || undefined;
-      } else if (detail.typeUrl === "type.googleapis.com/dokime.client.v1.evidence.CapturedRecordError") {
+      } else if (detail.typeUrl === "type.googleapis.com/dokime.host.v1.evidence.CapturedRecordError") {
         const captured = fromBinary(CapturedRecordErrorSchema, detail.value);
         failure.message = captured.message;
         failure.reason = captured.code || failure.reason;

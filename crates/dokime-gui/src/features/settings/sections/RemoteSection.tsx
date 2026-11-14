@@ -45,7 +45,7 @@ import { readNativeListener, updateNativeListener, regenerateNativeCertificate }
 export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
   const session = useNativeSessionOptional();
   const [preferencesPending, setPreferencesPending] = useState(false);
-  const canManage = session?.snapshot.connection.backend?.methods.includes("/harmos.v1.access.Listener/Get") ?? false;
+  const canManage = session?.snapshot.connection.backend?.methods.includes("/harmos.host.v1.access.Listener/Get") ?? false;
   if (!isTauriDesktop() || !session || !canManage) {
     return (
       <SettingsCard title="Remote Access">

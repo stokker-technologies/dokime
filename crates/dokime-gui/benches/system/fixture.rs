@@ -15,8 +15,6 @@
 
 /* === Imports === */
 
-use dokime_protocol::client;
-
 // Standard Library Imports
 use std::{
     num::NonZeroUsize,
@@ -26,20 +24,38 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::v1::Sample;
+use harmos_protocol::model::Sample;
 use prost::Message;
 use prost_types::Timestamp;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
 // Local Imports
+use dokime_sdk::PlotRequest;
+
 use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
+use dokime_protocol::host::CasesCreateRequest;
+use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::ExecutionsListRequest;
+use dokime_protocol::host::PromptsListRequest;
+use dokime_protocol::host::plots::SnapshotsWatchRequest;
+use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
+use dokime_sdk as model;
+use dokime_sdk::client::CasesCreateResponse;
+use dokime_sdk::client::CyclesCreateResponse;
+use dokime_sdk::client::ExecutionsListResponse;
+use dokime_sdk::client::PlotsSnapshotsWatchResponse;
+use dokime_sdk::client::PromptsAnswersCreateResponse;
+use dokime_sdk::client::PromptsListResponse;
+use dokime_sdk::client::RegisteredSelection;
+use dokime_sdk::client::SelectionPlan;
 use dokime_sdk::client::{ClientSettings, StorageTransferSettings};
-use dokime_sdk::{Result, clock::TimeSleepRequest, prelude::*, protocol::plugin::host::v1::PromptsCreateRequest, v1};
+use dokime_sdk::plugin::HostOperation;
+use dokime_sdk::{Result, prelude::*};
 
-use dokime_protocol::v1::{
+use dokime_sdk::{
     AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind,
     PlotRequest, PlotStyle, Reduction, Section,
 };
@@ -141,14 +157,31 @@ impl Fixture {
         };
         let mode = root.join("bench-mode");
         let plugin = Producer::start(&placement, &[("DOKIME_BENCH_MODE".into(), mode.to_str().unwrap().into())]).await.unwrap();
-        let _: client::Plugin =
-            session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await.unwrap();
-        let plan: client::CasesCreateResponse = session
+        let options = dokime_sdk::client::PluginsCreateOptions {
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let placement = dokime_sdk::client::PluginPlacement {
+            kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
+                url: plugin.endpoint().into(),
+            })),
+        };
+        let admitted = session
+            .execute(session.client().plugins.create_with(
+                "bench.pipeline",
+                placement,
+                dokime_sdk::client::PluginValue { enabled: true },
+                options,
+            ))
+            .await
+            .unwrap();
+        assert!(!admitted.entry.unwrap().name.is_empty());
+        let plan: CasesCreateResponse = session
             .unary(
-                "/dokime.client.v1.Cases/Create",
-                client::CasesCreateRequest {
-                    plan: Some(client::SelectionPlan {
-                        selections: vec![client::RegisteredSelection {
+                "/dokime.host.v1.Cases/Create",
+                CasesCreateRequest {
+                    plan: Some(SelectionPlan {
+                        selections: vec![RegisteredSelection {
                             suite_id: "bench.pipeline".into(),
                             template_id: "bench.pipeline.capture".into(),
                             ..Default::default()
@@ -161,10 +194,10 @@ impl Fixture {
             )
             .await
             .unwrap();
-        let created: client::CyclesCreateResponse = session
+        let created: CyclesCreateResponse = session
             .unary(
-                "/dokime.client.v1.Cycles/Create",
-                client::CyclesCreateRequest {
+                "/dokime.host.v1.Cycles/Create",
+                CyclesCreateRequest {
                     origins: plan.cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                     continue_automatically: true,
                     request_id: "bench-cycle".into(),
@@ -178,10 +211,10 @@ impl Fixture {
             .await
             .unwrap();
         let cycle = created.cycle.unwrap().cycle_id;
-        let executions: client::ExecutionsListResponse = session
+        let executions: ExecutionsListResponse = session
             .unary(
-                "/dokime.client.v1.Executions/List",
-                client::ExecutionsListRequest {
+                "/dokime.host.v1.Executions/List",
+                ExecutionsListRequest {
                     parent: cycle.clone(),
                     ..Default::default()
                 },
@@ -203,13 +236,13 @@ impl Fixture {
     pub async fn publish(&self, action: &str) {
         std::fs::write(&self.mode, action).unwrap();
         // Await the Producer's Question Before Releasing Its Next Publication
-        let mut changes = self.session.watch_raw("/dokime.client.v1.backend.Overview/Watch", &[]).await.unwrap();
+        let mut changes = self.session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &[]).await.unwrap();
         loop {
-            let pending: client::PromptsListResponse = self
+            let pending: PromptsListResponse = self
                 .session
                 .unary(
-                    "/dokime.client.v1.Prompts/List",
-                    client::PromptsListRequest {
+                    "/dokime.host.v1.Prompts/List",
+                    PromptsListRequest {
                         execution_id: Some(self.execution.clone()),
                         pending_only: true,
                         ..Default::default()
@@ -218,11 +251,11 @@ impl Fixture {
                 .await
                 .unwrap();
             if let Some(prompt) = pending.prompts.first() {
-                let _: client::prompts::AnswersCreateResponse = self
+                let _: PromptsAnswersCreateResponse = self
                     .session
                     .unary(
-                        "/dokime.client.v1.prompts.Answers/Create",
-                        client::prompts::AnswersCreateRequest {
+                        "/dokime.host.v1.prompts.Answers/Create",
+                        AnswersCreateRequest {
                             parent: prompt.prompt.as_ref().unwrap().prompt_id.clone(),
                             request_id: format!("bench-answer-{}", prompt.prompt.as_ref().unwrap().prompt_id),
                             action: action.into(),
@@ -240,7 +273,7 @@ impl Fixture {
 
     pub async fn prepared(&self) {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
-        let request = client::plots::SnapshotsWatchRequest {
+        let request = SnapshotsWatchRequest {
             requests: vec![PlotRequest {
                 stream: "bench.pipeline".into(),
                 y_keys: vec!["y1".into()],
@@ -254,9 +287,9 @@ impl Fixture {
             ..Default::default()
         };
         let bytes = prost::Message::encode_to_vec(&request);
-        let mut watch = self.session.watch_raw("/dokime.client.v1.plots.Snapshots/Watch", &bytes).await.unwrap();
+        let mut watch = self.session.watch_raw("/dokime.host.v1.plots.Snapshots/Watch", &bytes).await.unwrap();
         while let Some(frame) = watch.next().await {
-            let frame = <client::plots::SnapshotsWatchResponse as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
+            let frame = <PlotsSnapshotsWatchResponse as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
             if frame
                 .updates
                 .iter()
@@ -297,8 +330,8 @@ pub fn serve() -> Result<()> {
     Plugin::new("desktop.benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
-        .requires_host::<PromptsCreateRequest>()
-        .requires::<TimeSleepRequest>()
+        .requires_host(HostOperation::PromptsCreate)
+        .requires_host(HostOperation::TimeSleep)
         .remote()
         .serve()
 }
@@ -377,7 +410,7 @@ fn document(count: usize) -> Document {
                     label: format!("Plot {}", index + 1),
                     ..Default::default()
                 }),
-                body: Some(v1::card::Body::Plot(plot)),
+                body: Some(model::card::Body::Plot(plot)),
                 ..Default::default()
             }
         })
@@ -413,13 +446,7 @@ async fn publish(context: &Context) -> Result<()> {
         let ticks = if sequence == 0 { chunks - 1 } else { chunks };
         context.sleep(Duration::from_millis(ticks as u64 * 125)).await?;
         sequence += count;
-        let answer = context
-            .prompt(PromptsCreateRequest {
-                prompt: format!("next-{sequence}"),
-                prompt_type: "bench.next".into(),
-                ..Default::default()
-            })
-            .await?;
+        let answer = context.host().prompts.create(format!("next-{sequence}"), "bench.next".into(), Default::default()).await?;
         late = answer.action == "late";
         first = if late { rows() - 480 + (sequence - rows()) % 400 } else { sequence };
         count = 8;

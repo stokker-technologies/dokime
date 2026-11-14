@@ -96,7 +96,7 @@ beforeEach(() => {
 test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
   fixture.session = {
     identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/harmos.v1.access.Listener/Get"] } } },
+    snapshot: { connection: { backend: { methods: ["/harmos.host.v1.access.Listener/Get"] } } },
   };
   for (let page = 0; page < 3; page++) {
     const html = renderToStaticMarkup(createElement(RemoteSection, {}));
@@ -117,7 +117,7 @@ test("Unavailable Remote Settings Stay Inline Without Notifications", () => {
 test("Export Endpoint Preview", () => {
   fixture.session = {
     identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/harmos.v1.access.Listener/Get"] } } },
+    snapshot: { connection: { backend: { methods: ["/harmos.host.v1.access.Listener/Get"] } } },
   };
   const endpoints = [
     { address: "bench-host" },

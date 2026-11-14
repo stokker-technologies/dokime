@@ -6,8 +6,8 @@ const harness = await openHarness();
 let progress;
 try {
   const api = await harness.loadHost("client.js");
-  const types = await harness.loadHost("dokime/v1/execution_pb.js");
-  const execution = await harness.loadHost("dokime/v1/execution_pb.js");
+  const types = await harness.loadHost("model.js");
+  const execution = await harness.loadHost("model.js");
   const scenario = process.argv[2];
   const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
   // Materialize the SDK Fixture's Frozen Origin

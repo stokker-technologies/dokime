@@ -132,18 +132,14 @@ test("Brand Label", () => {
     owner: { kind: "host" },
     version: "1.2.0",
   } as unknown as RuntimeInstalledPluginRecord;
-  assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Built-in · v1.2.0");
+  assert.equal(programSource(program, "Fixture"), "Fixture Built-in · v1.2.0");
 
-  // A Removal Waits for the Running Execution, Then Stops the Plugin Without a Restart
-  const entry = {
-    active: true,
-    installed_at: "2026-10-25T00:00:00Z",
-    error: null,
-    state: "removal_pending",
-    restart: "pending",
-  } as unknown as Parameters<typeof statusPresentation>[0];
-  assert.ok(statusPresentation(entry).reason);
-  assert.equal(statusPresentation({ ...entry, active: false, restart: "idle" }).reason, null);
+  // The Library Reports Current Activation and Enablement Without Pending Installation States.
+  const entry = { value: { enabled: true }, failure: { message: "activation-refused" } } as unknown as Parameters<
+    typeof statusPresentation
+  >[0];
+  assert.equal(statusPresentation(entry).reason, entry.failure?.message);
+  assert.equal(statusPresentation({ ...entry, failure: undefined, value: { enabled: false } }).reason, null);
 });
 
 test("Plugin Rows Open Their Own Settings Page", () => {

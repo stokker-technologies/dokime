@@ -31,6 +31,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
+use dokime_sdk::client::ClientPreferences;
 
 /* === Constants === */
 
@@ -42,7 +43,7 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct ConnectionSession {
-    preferences: Arc<Mutex<dokime_protocol::client::ClientPreferences>>,
+    preferences: Arc<Mutex<ClientPreferences>>,
     inner: Arc<Mutex<SessionState>>,
 }
 
@@ -57,7 +58,7 @@ struct SessionState {
 
 #[derive(Clone)]
 pub struct SessionLease {
-    preferences: Arc<Mutex<dokime_protocol::client::ClientPreferences>>,
+    preferences: Arc<Mutex<ClientPreferences>>,
     client: host::Session,
     cancellation: CancellationToken,
 }
@@ -75,7 +76,7 @@ impl Default for ConnectionSession {
 }
 
 impl ConnectionSession {
-    pub(crate) fn set_preferences(&self, preferences: dokime_protocol::client::ClientPreferences) {
+    pub(crate) fn set_preferences(&self, preferences: ClientPreferences) {
         *self.preferences.lock().expect("client preferences poisoned") = preferences;
     }
 
@@ -103,7 +104,7 @@ impl ConnectionSession {
     fn new() -> Self {
         let settings = host::desktop_settings();
         Self {
-            preferences: Arc::new(Mutex::new(dokime_protocol::client::ClientPreferences {
+            preferences: Arc::new(Mutex::new(ClientPreferences {
                 connect_timeout_ms: settings.connect_timeout.as_millis() as u64,
                 request_timeout_ms: settings.services.read_timeout.as_millis() as u64,
             })),

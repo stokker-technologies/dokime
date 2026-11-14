@@ -15,8 +15,8 @@
 
 import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
 
-import * as protocolV1Evidence from "@host/dokime/v1/evidence_pb.js";
-import * as protocolClientV1ContentExecutionFiles from "@host/dokime/client/v1/content/execution_files_pb.js";
+import { ArtifactState as HostArtifactState } from "@host/model";
+import { ExecutionFileKind as HostExecutionFileKind, ExecutionFileState as HostExecutionFileState } from "@host/model";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
@@ -147,9 +147,9 @@ export async function followNativeExecutionFile(
         kind: "metadata",
         identity: { store: history.store, epoch: history.epoch, fileId: id, executionId, relativePath: path },
         phase:
-          state === protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING
+          state === HostExecutionFileState.STREAMING
             ? "producing"
-            : state === protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED
+            : state === HostExecutionFileState.INTERRUPTED
               ? "abandoned"
               : "finished",
         availableLength: safeNumber(file.length, "Follow File Length"),
@@ -171,7 +171,7 @@ export async function followNativeExecutionFile(
       const finalFile = required((await rpc.filesGet(session, { file })).file, "Follow Finalized File");
       yield {
         kind: "terminal",
-        phase: state === protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
+        phase: state === HostExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
         length,
         sha256: [...finalFile.sha256].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
       } as ExecutionFileFollowEvent;
@@ -382,11 +382,11 @@ function mapArtifactScope(scope?: ArtifactScope): ArtifactRecord["scope"] {
 
 function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
   switch (state) {
-    case protocolV1Evidence.ArtifactState.COMPLETE:
+    case HostArtifactState.COMPLETE:
       return "finalized";
-    case protocolV1Evidence.ArtifactState.CANCELLED:
-    case protocolV1Evidence.ArtifactState.REJECTED:
-    case protocolV1Evidence.ArtifactState.FAILED:
+    case HostArtifactState.CANCELLED:
+    case HostArtifactState.REJECTED:
+    case HostArtifactState.FAILED:
       return "interrupted";
     default:
       return "static";
@@ -430,11 +430,11 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
 
 function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
   switch (kind) {
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.TEXT:
+    case HostExecutionFileKind.TEXT:
       return "text";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.BINARY:
+    case HostExecutionFileKind.BINARY:
       return "binary";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.MEDIA:
+    case HostExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -443,11 +443,11 @@ function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "un
 
 function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
   switch (state) {
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING:
+    case HostExecutionFileState.STREAMING:
       return "streaming";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.FINALIZED:
+    case HostExecutionFileState.FINALIZED:
       return "finalized";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED:
+    case HostExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "static";

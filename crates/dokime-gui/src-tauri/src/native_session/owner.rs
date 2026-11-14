@@ -13,8 +13,6 @@
 
 /* === Imports === */
 
-use dokime_protocol::client;
-
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
@@ -24,10 +22,13 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+
 use super::backend::Backend;
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
 use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+use dokime_protocol::host::SettingsGetRequest;
+use dokime_sdk::client::SettingsGetResponse;
 
 /* === Constants === */
 
@@ -365,8 +366,8 @@ impl DesktopSession {
                     message: error.to_string(),
                     diagnostics: None,
                 })?;
-                let snapshot: client::SettingsGetResponse = session
-                    .unary("/dokime.client.v1.Settings/Get", dokime_protocol::client::SettingsGetRequest::default())
+                let snapshot: SettingsGetResponse = session
+                    .unary("/dokime.host.v1.Settings/Get", dokime_protocol::host::SettingsGetRequest::default())
                     .await
                     .map_err(|error| Error::Startup {
                         message: error.to_string(),

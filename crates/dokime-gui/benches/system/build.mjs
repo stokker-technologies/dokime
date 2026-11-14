@@ -54,23 +54,23 @@ await build({
           );
           source = source.replace(
             "const opened = responseBytes(session, reply, 16);",
-            `if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('client_open', performance.now() - __opening);
+            `if (path === '/dokime.host.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('client_open', performance.now() - __opening);
             const opened = responseBytes(session, reply, 16);`,
           );
           source = source.replace(
             "frames.push(new Uint8Array(message));",
             `frames.push(new Uint8Array(message));
-          if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.arrival(message.byteLength, frames.length);`,
+          if (path === '/dokime.host.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.arrival(message.byteLength, frames.length);`,
           );
           source = source.replace(
             "const payload = await call.next();",
             `const __received = performance.now();
           const payload = await call.next();
-          if (path === '/dokime.client.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('transport_bridge_wait', performance.now() - __received);`,
+          if (path === '/dokime.host.v1.plots.Snapshots/Watch') globalThis.__desktopBench?.sample('transport_bridge_wait', performance.now() - __received);`,
           );
           source = source.replace(
             "const frame = frames.shift();",
-            `if (path === '/dokime.client.v1.plots.Snapshots/Watch' && globalThis.__desktopBench?.stallUntil > performance.now())
+            `if (path === '/dokime.host.v1.plots.Snapshots/Watch' && globalThis.__desktopBench?.stallUntil > performance.now())
           await new Promise(resolve => setTimeout(resolve, globalThis.__desktopBench.stallUntil - performance.now()));
         const frame = frames.shift();`,
           );

@@ -24,9 +24,9 @@ import {
   PluginPreferencesSchema,
   ReportDefaultsSchema,
   TelemetryPreferencesSchema,
-} from "@host/dokime/client/v1/settings_pb.js";
-import { Downsample } from "@host/dokime/v1/plots_pb.js";
-import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@host/dokime/client/v1/settings_pb.js";
+} from "@host/model";
+import { Downsample } from "@host/model";
+import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@host/model";
 import { invoke } from "../desktop/commands";
 import { safeNumber } from "../api/native-values";
 

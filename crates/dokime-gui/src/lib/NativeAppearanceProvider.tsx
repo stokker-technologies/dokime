@@ -2,7 +2,7 @@
 
 /* === Imports === */
 
-import { ThemeModePolicy } from "@host/dokime/client/v1/backend_pb.js";
+import { ThemeModePolicy } from "@host/model";
 
 import { failureOf } from "@/lib/notification-details";
 import { type ReactNode, useEffect, useMemo } from "react";

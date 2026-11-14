@@ -24,18 +24,17 @@ import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { FailureConsequences } from "@/components/FailureConsequences";
+
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
-  usePluginRestartRefresh,
+  useInstalledPluginSecretMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { usePluginsQuery, useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
@@ -61,22 +60,16 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const pluginsQuery = usePluginsQuery();
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
   const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
-  const installation = !section
-    ? pluginsQuery.data?.find((entry) => entry.install_id === sectionId && entry.state !== "removal_pending")
-    : null;
+  const installation = !section ? pluginsQuery.data?.find((entry) => entry.name === sectionId) : null;
   /* The installation whose startup or restart this page reports: the bundle's own
      page, or the installation that runs the contributed section's program. */
-  const owning =
-    installation ??
-    (pluginId
-      ? (pluginsQuery.data?.find((entry) => entry.state !== "removal_pending" && entry.metadata?.owners.includes(pluginId)) ?? null)
-      : null);
+  const owning = installation ?? (pluginId ? (pluginsQuery.data?.find((entry) => entry.name === pluginId) ?? null) : null);
 
   const reload = useReloadPluginMutation();
-  const reloadable = owning ? owning.state === "installed" && (!owning.restart || owning.restart === "idle") : Boolean(pluginId);
+  const reloadable = owning ? owning.value?.enabled === true : Boolean(pluginId);
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
-    title: `Settings › Plugins › ${section?.label ?? installation?.metadata?.identity.name ?? sectionId}`,
+    title: `Settings › Plugins › ${section?.label ?? installation?.description?.id ?? sectionId}`,
     overflow: actions,
   });
 
@@ -109,8 +102,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 <Button
                   disabled={reload.isPending || !reloadable}
                   onClick={() => {
-                    if (owning) reload.mutate({ installId: owning.install_id });
-                    else if (pluginId) reload.mutate({ pluginId });
+                    if (owning) reload.mutate(owning.name);
+                    else if (pluginId) reload.mutate(pluginId);
                   }}
                   variant="outline"
                 >
@@ -120,27 +113,14 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
               </SettingsRow>
             </SettingsCard>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-            {owning?.last_boot?.state === "failed" && (owning.boot_failed || owning.active) ? (
-              <SettingsCard title={owning.boot_failed ? "Startup Failed" : "Restart Refused"}>
-                <SettingsRow label={owning.last_boot.failure.plugin_name}>
+            {owning?.failure ? (
+              <SettingsCard title="Plugin Unavailable">
+                <SettingsRow label={owning.description?.id || owning.name}>
                   <ErrorCard failure={pluginStartFailure(owning, generation)} />
-                  <FailureConsequences items={owning.last_boot.failure.consequences} />
-                  {owning.last_boot.failure.missing_secret ? (
-                    <Link
-                      className="text-sm underline"
-                      to="/settings/$section"
-                      params={{ section: "secrets" }}
-                      hash={`add-secret=${owning.last_boot.failure.missing_secret}`}
-                    >
-                      Set Secret
-                    </Link>
-                  ) : null}
                 </SettingsRow>
               </SettingsCard>
             ) : null}
-            {installation?.metadata?.owners.map((owner) => (
-              <PluginDetailCard key={owner} pluginId={owner} />
-            ))}
+            {installation ? <PluginDetailCard pluginId={installation.name} /> : null}
             {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
@@ -164,7 +144,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
-  usePluginRestartRefresh(detailQuery.data?.restart);
+  const secretMutation = useInstalledPluginSecretMutation();
   if (detailQuery.isPending) {
     return (
       <SettingsCard title="Settings">
@@ -201,6 +181,9 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   return (
     <InstalledPluginDetail
       detail={detailQuery.data}
+      onSaveBinding={async (name, identifier, secret) => {
+        await secretMutation.mutateAsync({ name, identifier, secret });
+      }}
       onSaveSettings={async (id, values) => {
         await settingsMutation.mutateAsync({ pluginId: id, values });
       }}

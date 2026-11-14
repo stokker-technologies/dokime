@@ -5,8 +5,8 @@
 
 use super::*;
 use crate::rpc::protocol::{FRAME_BYTES as DESKTOP_FRAME_BYTES, UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES};
-use dokime_protocol::client::content;
-use dokime_protocol::client::files;
+use dokime_protocol::host::content;
+use dokime_protocol::host::files;
 use sha2::{Digest, Sha256};
 
 /* === Structs === */
@@ -73,7 +73,7 @@ impl ArtifactUploads {
             metadata.media_type = writer.artifact.content_type.clone();
             request.request_id = format!("desktop-{}-{id}-open", context.generation);
             let production: files::UploadsCreateResponse =
-                context.execute(client.unary("/dokime.client.v1.files.Uploads/Create", request)).await?;
+                context.execute(client.unary("/dokime.host.v1.files.Uploads/Create", request)).await?;
             writer.chunk_bytes = usize::try_from(production.chunk_bytes).map_err(|_| RpcError::LimitExceeded)?;
             writer.chunk_bytes = writer
                 .chunk_bytes
@@ -81,8 +81,8 @@ impl ArtifactUploads {
             if writer.chunk_bytes == 0 {
                 return Err(RpcError::LimitExceeded);
             }
-            writer.request.session = production.production.and_then(|value| value.session);
-            if writer.request.session.is_none() {
+            writer.request.upload = production.upload;
+            if writer.request.upload.is_none() {
                 return Err(RpcError::InvalidRequest);
             }
             Ok::<_, RpcError>(())
@@ -126,15 +126,15 @@ impl ArtifactUploads {
             let reply: files::UploadsAppendResponse = tokio::select! {
                 biased;
                 _ = upload.cancel.cancelled() => return Err(RpcError::Cancelled),
-                reply = upload.context.execute(client.unary("/dokime.client.v1.files.Uploads/Append", request)) => reply?,
+                reply = upload.context.execute(client.unary("/dokime.host.v1.files.Uploads/Append", request)) => reply?,
             };
-            let production = reply.production.ok_or(RpcError::InvalidRequest)?;
+            let production = reply.upload.ok_or(RpcError::InvalidRequest)?;
             let next = writer.request.offset.checked_add(chunk.len() as u64).ok_or(RpcError::LimitExceeded)?;
-            if production.length != next {
+            if production.accepted_length != next {
                 return Err(RpcError::InvalidAck);
             }
             writer.request.offset = next;
-            writer.request.session = production.session;
+            writer.request.upload = Some(production);
         }
         writer.digest.update(&bytes);
         writer.next_sequence += 1;
@@ -150,18 +150,18 @@ impl ArtifactUploads {
         writer.closed = true;
         let client = upload.context.client();
         let mut request = files::UploadsPublishRequest {
-            session: writer.request.session.clone(),
+            upload: writer.request.upload.clone(),
             length: writer.request.offset,
             sha256: writer.digest.clone().finalize().to_vec(),
             request_id: String::new(),
         };
         request.request_id = format!("desktop-{generation}-{id}-publish");
         let published: files::UploadsPublishResponse =
-            upload.context.execute(client.unary("/dokime.client.v1.files.Uploads/Publish", request)).await?;
+            upload.context.execute(client.unary("/dokime.host.v1.files.Uploads/Publish", request)).await?;
         let mut request = writer.artifact.clone();
-        request.file = published.file;
+        request.file = published.upload;
         let artifact: content::ArtifactsCreateResponse =
-            upload.context.execute(client.unary("/dokime.client.v1.content.Artifacts/Create", request)).await?;
+            upload.context.execute(client.unary("/dokime.host.v1.content.Artifacts/Create", request)).await?;
         self.remove(owner, generation, id);
         upload.context.reply(artifact.artifact.ok_or(RpcError::InvalidRequest)?)
     }
@@ -172,13 +172,13 @@ impl ArtifactUploads {
         let mut writer = upload.writer.lock().await;
         writer.closed = true;
         let mut request = files::UploadsDeleteRequest {
-            session: writer.request.session.clone(),
+            upload: writer.request.upload.clone(),
             request_id: String::new(),
         };
         request.request_id = format!("desktop-{generation}-{id}-cancel");
         let client = upload.context.client();
         let result: Result<files::UploadsDeleteResponse, RpcError> =
-            upload.context.execute(client.unary("/dokime.client.v1.files.Uploads/Delete", request)).await;
+            upload.context.execute(client.unary("/dokime.host.v1.files.Uploads/Delete", request)).await;
         self.remove(owner, generation, id);
         result.map(|_| ())
     }
@@ -201,15 +201,15 @@ impl ArtifactUploads {
             tauri::async_runtime::spawn(async move {
                 let mut writer = upload.writer.lock().await;
                 writer.closed = true;
-                if writer.request.session.is_none() {
+                if writer.request.upload.is_none() {
                     return;
                 }
                 let request = files::UploadsDeleteRequest {
-                    session: writer.request.session.clone(),
+                    upload: writer.request.upload.clone(),
                     request_id: format!("desktop-{}-{id}-abandon", upload.context.generation),
                 };
                 let client = upload.context.client();
-                let result: Result<files::UploadsDeleteResponse, _> = client.unary("/dokime.client.v1.files.Uploads/Delete", request).await;
+                let result: Result<files::UploadsDeleteResponse, _> = client.unary("/dokime.host.v1.files.Uploads/Delete", request).await;
                 if let Err(error) = result {
                     tracing::debug!(?error, "Abandon Artifact Upload: Delete File Production Failed");
                 }
@@ -227,7 +227,7 @@ pub async fn artifact_upload_open<R: tauri::Runtime>(
 ) -> Result<tauri::ipc::Response, RpcError> {
     Box::pin(async move {
         let (context, header) =
-            bridge.prepare::<dokime_protocol::client::content::ArtifactsCreateRequest>(&session, webview.label(), request.body())?;
+            bridge.prepare::<dokime_protocol::host::content::ArtifactsCreateRequest>(&session, webview.label(), request.body())?;
         bridge.uploads.open(context, header).await
     })
     .await

@@ -65,16 +65,10 @@ pub async fn desktop_firewall(
     }
     let session = lease.client();
     let client = session.client();
-    let listener = session
-        .execute(
-            client
-                .access
-                .listener
-                .get(session.request(dokime_sdk::client::v1::access::ListenerGetRequest {}).map_err(|error| error.to_string())?),
-        )
-        .await
-        .map_err(|error| error.to_string())?
-        .into_inner();
+    let options = dokime_sdk::client::AccessListenerGetOptions {
+        context: session.call_options().map_err(|error| error.to_string())?,
+    };
+    let listener = session.execute(client.access.listener.get_with(options)).await.map_err(|error| error.to_string())?;
     let address = listener.bound_endpoint.parse::<std::net::SocketAddr>().ok();
     let exposed = address.is_some_and(|address| !address.ip().to_canonical().is_loopback());
     let enabled = listener.value.as_ref().is_some_and(|value| value.enabled);

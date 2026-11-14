@@ -15,10 +15,10 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { PromptKind } from "@host/dokime/client/v1/prompts_pb.js";
-import { PromptFieldKind, PromptActionEmphasis } from "@host/dokime/v1/prompts_pb.js";
-import { StreamMatchOperator, type EvidenceCondition } from "@host/dokime/v1/evidence_pb.js";
-import { Severity } from "@host/dokime/v1/evidence_pb.js";
+import { PromptKind } from "@host/model";
+import { PromptFieldKind, PromptActionEmphasis } from "@host/model";
+import { StreamMatchOperator, type EvidenceCondition } from "@host/model";
+import { Severity } from "@host/model";
 import { recordScopeFromNative, jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@/lib/types";

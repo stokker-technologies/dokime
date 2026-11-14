@@ -17,9 +17,12 @@
 use std::path::Path;
 
 // Local Imports
+
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
-use dokime_protocol::{client, v1};
+use dokime_sdk::Import;
+use dokime_sdk::Origin;
+use dokime_sdk::origin::Kind as OriginKind;
 
 /* === Constants === */
 
@@ -55,8 +58,8 @@ impl Fixture {
             .create(&dokime_storage::Execution {
                 identifier: "desktop-content".into(),
                 cycle: "desktop-cycle".into(),
-                origin: Some(v1::Origin {
-                    kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+                origin: Some(Origin {
+                    kind: Some(OriginKind::Import(Import::default())),
                 }),
                 ..Default::default()
             })
@@ -91,12 +94,26 @@ impl Fixture {
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
-        let _: client::Plugin = self
-            .client()
-            .await
-            .unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() })
+        let session = self.client().await;
+        let options = dokime_sdk::client::PluginsCreateOptions {
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let placement = dokime_sdk::client::PluginPlacement {
+            kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
+                url: plugin.endpoint().into(),
+            })),
+        };
+        let admitted = session
+            .execute(session.client().plugins.create_with(
+                "desktop.thermal",
+                placement,
+                dokime_sdk::client::PluginValue { enabled: true },
+                options,
+            ))
             .await
             .unwrap();
+        assert!(!admitted.entry.unwrap().name.is_empty());
         plugin
     }
 

@@ -13,6 +13,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useHubStore } from "@/stores/hub-store";
 
 /* === Local Imports === */
 
@@ -21,11 +22,8 @@ import type { SettingValues } from "@/features/settings/installed-plugins/instal
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
-import { updateNativePluginSettings } from "@/lib/api/native-settings";
+import { updateNativePluginSettings, setNativePluginSecret } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/lib/appearance";
-import type { PluginRestart } from "@/lib/types/view-contracts";
-import { pluginQueryKeys as installationQueryKeys } from "@/features/settings/plugins/plugin-queries";
-import { useHubStore } from "@/stores/hub-store";
 
 /* === Query Keys === */
 
@@ -87,20 +85,14 @@ export function useInstalledPluginSettingsMutation() {
   });
 }
 
-/**
- * While an explicit reload waits to restart its program, re-read the plugin
- * views whenever the backend's operations change: the restart runs as one,
- * and a failed restart is recorded like a failed startup.
- */
-export function usePluginRestartRefresh(restart: PluginRestart | undefined) {
+export function useInstalledPluginSecretMutation() {
+  const session = useNativeSession();
   const queryClient = useQueryClient();
-  const operations = useHubStore((state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a changed operation set is what re-reads the views
-  useEffect(() => {
-    if (!restart || restart === "idle") return;
-    void Promise.all([
-      queryClient.invalidateQueries({ queryKey: pluginQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: installationQueryKeys.all }),
-    ]);
-  }, [operations, queryClient, restart]);
+  return useMutation({
+    mutationFn: ({ name, identifier, secret }: { name: string; identifier: string; secret: string }) =>
+      setNativePluginSecret(session.identity, name, identifier, secret),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.name, session.identity.generation) });
+    },
+  });
 }

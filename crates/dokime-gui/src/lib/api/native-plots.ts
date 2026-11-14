@@ -15,9 +15,23 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as protocolV1Plots from "@host/dokime/v1/plots_pb.js";
-import * as protocolClientV1PlotsSnapshots from "@host/dokime/client/v1/plots/snapshots_pb.js";
-import * as protocolV1Expressions from "@host/dokime/v1/expressions_pb.js";
+import {
+  AxisScale as HostAxisScale,
+  BarArrangement,
+  ContourRender,
+  Downsample,
+  FftDetrend,
+  FftWindow,
+  FrequencyLevelUnit,
+  LineStyle,
+  PlotKind,
+  type PlotRequest as HostPlotRequest,
+  PlotRequestSchema,
+  Reduction,
+  XyInterval,
+} from "@host/model";
+import { PlotCartesianMode as HostPlotCartesianMode, PlotStreamKind as HostPlotStreamKind, type SnapshotsWatchResponse } from "@host/model";
+import { Aggregate, FilterOperator as HostFilterOperator, type TransformExpression } from "@host/model";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -58,7 +72,7 @@ import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-valu
 
 /* === Canonical Types === */
 
-type PlotRequest = Wire<protocolV1Plots.PlotRequest>;
+type PlotRequest = Wire<HostPlotRequest>;
 type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["envelopes"][number];
 type DataExpression = NonNullable<PlotRequest["xExpression"]>;
 type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
@@ -76,8 +90,7 @@ type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotFrame["mode"]>;
 
-const PlotRequestSchema = protocolV1Plots.PlotRequestSchema;
-type PlotWatchPage = Wire<protocolClientV1PlotsSnapshots.SnapshotsWatchResponse>;
+type PlotWatchPage = Wire<SnapshotsWatchResponse>;
 type PlotStreamUpdate = PlotWatchPage["updates"][number];
 type PlotStreamKind = PlotStreamUpdate["kind"];
 type PlotTypes = ReadonlyMap<string, DocumentPlotType | null | undefined>;
@@ -172,18 +185,12 @@ export type NativePlotWatchOptions = NativePlotReadOptions;
 export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
-    arrangement: input.arrangement
-      ? input.arrangement === "grouped"
-        ? protocolV1Plots.BarArrangement.GROUPED
-        : protocolV1Plots.BarArrangement.STACKED
-      : undefined,
+    arrangement: input.arrangement ? (input.arrangement === "grouped" ? BarArrangement.GROUPED : BarArrangement.STACKED) : undefined,
     pareto: input.pareto ?? false,
     hole: input.hole ?? undefined,
-    xyInterval: input.xyInterval ? protocolV1Plots.XyInterval.SIGMA : undefined,
-    render: input.render === "bands" ? protocolV1Plots.ContourRender.BANDS : protocolV1Plots.ContourRender.CELLS,
-    reduction: input.reduction
-      ? { mean: protocolV1Plots.Reduction.MEAN, min: protocolV1Plots.Reduction.MIN, max: protocolV1Plots.Reduction.MAX }[input.reduction]
-      : undefined,
+    xyInterval: input.xyInterval ? XyInterval.SIGMA : undefined,
+    render: input.render === "bands" ? ContourRender.BANDS : ContourRender.CELLS,
+    reduction: input.reduction ? { mean: Reduction.MEAN, min: Reduction.MIN, max: Reduction.MAX }[input.reduction] : undefined,
     grid: input.grid
       ? {
           row: input.grid.row ? dataExpression(input.grid.row) : undefined,
@@ -214,10 +221,10 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
       : undefined,
     plotType: plotType(input.plotType),
     style: {
-      line: protocolV1Plots.LineStyle.LINE,
-      points: protocolV1Plots.LineStyle.POINTS,
-      line_points: protocolV1Plots.LineStyle.LINE_POINTS,
-      step: protocolV1Plots.LineStyle.STEP,
+      line: LineStyle.LINE,
+      points: LineStyle.POINTS,
+      line_points: LineStyle.LINE_POINTS,
+      step: LineStyle.STEP,
     }[input.style ?? "line"],
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
@@ -228,13 +235,13 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
           fft: {
             inputSamples: input.fft.input_samples ?? undefined,
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
-            window: input.fft.window === "rectangular" ? protocolV1Plots.FftWindow.RECTANGULAR : protocolV1Plots.FftWindow.HANN,
-            detrend: input.fft.detrend === "none" ? protocolV1Plots.FftDetrend.NONE : protocolV1Plots.FftDetrend.MEAN,
+            window: input.fft.window === "rectangular" ? FftWindow.RECTANGULAR : FftWindow.HANN,
+            detrend: input.fft.detrend === "none" ? FftDetrend.NONE : FftDetrend.MEAN,
             levelUnit: {
-              linear: protocolV1Plots.FrequencyLevelUnit.LINEAR,
-              dB: protocolV1Plots.FrequencyLevelUnit.DB,
-              dBu: protocolV1Plots.FrequencyLevelUnit.DBU,
-              dBm: protocolV1Plots.FrequencyLevelUnit.DBM,
+              linear: FrequencyLevelUnit.LINEAR,
+              dB: FrequencyLevelUnit.DB,
+              dBu: FrequencyLevelUnit.DBU,
+              dBm: FrequencyLevelUnit.DBM,
             }[input.fft.level_unit],
             includeDc: input.fft.include_dc,
             minFrequencyHz: input.fft.min_frequency_hz ?? undefined,
@@ -424,7 +431,7 @@ export function mapNativePlotWatchPage(frame: PlotWatchPage, plotTypes?: PlotTyp
 function mapNativePlotStreamUpdate(frame: PlotStreamUpdate, plotType?: DocumentPlotType | null): NativePlotStreamUpdate {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
-  if (frame.kind === protocolClientV1PlotsSnapshots.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
+  if (frame.kind === HostPlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
     return { kind: "pending", plot_id: frame.envelope.plotId };
   }
   const kind = plotStreamKind(frame.kind);
@@ -505,26 +512,26 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
     const type = requiredText(transform.type, "data transform type");
     if (type === "aggregate") {
       const name = requiredText(transform.aggregate, "aggregate");
-      const kinds: Record<string, protocolV1Expressions.Aggregate> = {
-        count: protocolV1Expressions.Aggregate.COUNT,
-        sum: protocolV1Expressions.Aggregate.SUM,
-        min: protocolV1Expressions.Aggregate.MIN,
-        max: protocolV1Expressions.Aggregate.MAX,
-        mean: protocolV1Expressions.Aggregate.MEAN,
-        std: protocolV1Expressions.Aggregate.STDDEV,
-        median: protocolV1Expressions.Aggregate.MEDIAN,
-        rms: protocolV1Expressions.Aggregate.RMS,
-        first: protocolV1Expressions.Aggregate.FIRST,
-        last: protocolV1Expressions.Aggregate.LAST,
+      const kinds: Record<string, Aggregate> = {
+        count: Aggregate.COUNT,
+        sum: Aggregate.SUM,
+        min: Aggregate.MIN,
+        max: Aggregate.MAX,
+        mean: Aggregate.MEAN,
+        std: Aggregate.STDDEV,
+        median: Aggregate.MEDIAN,
+        rms: Aggregate.RMS,
+        first: Aggregate.FIRST,
+        last: Aggregate.LAST,
       };
       const rank = /^p(\d{1,3})$/.exec(name)?.[1];
       const percentile = rank === undefined ? 0 : Number(rank);
-      const kind = rank !== undefined && percentile <= 100 ? protocolV1Expressions.Aggregate.PERCENTILE : kinds[name];
+      const kind = rank !== undefined && percentile <= 100 ? Aggregate.PERCENTILE : kinds[name];
       if (kind === undefined) throw new Error(`Unsupported aggregate: ${name}`);
       expression = { label: "", kind: { case: "aggregate", value: { input: expression, kind, percentile } } };
       continue;
     }
-    let kind: Wire<protocolV1Expressions.TransformExpression>["kind"];
+    let kind: Wire<TransformExpression>["kind"];
     switch (type) {
       case "scale":
       case "offset": {
@@ -559,50 +566,44 @@ function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): Pl
 }
 
 function plotType(value?: DocumentPlotType | null): PlotType {
-  const kinds: Record<DocumentPlotType, protocolV1Plots.PlotKind> = {
-    time_series: protocolV1Plots.PlotKind.TIME_SERIES,
-    bar: protocolV1Plots.PlotKind.BAR,
-    xy: protocolV1Plots.PlotKind.XY,
-    trajectory: protocolV1Plots.PlotKind.TRAJECTORY,
-    contour: protocolV1Plots.PlotKind.CONTOUR,
-    grid_chart: protocolV1Plots.PlotKind.GRID_CHART,
-    frequency_series: protocolV1Plots.PlotKind.FREQUENCY_SERIES,
-    histogram: protocolV1Plots.PlotKind.HISTOGRAM,
-    box_plot: protocolV1Plots.PlotKind.BOX_PLOT,
-    pie: protocolV1Plots.PlotKind.PIE,
+  const kinds: Record<DocumentPlotType, PlotKind> = {
+    time_series: PlotKind.TIME_SERIES,
+    bar: PlotKind.BAR,
+    xy: PlotKind.XY,
+    trajectory: PlotKind.TRAJECTORY,
+    contour: PlotKind.CONTOUR,
+    grid_chart: PlotKind.GRID_CHART,
+    frequency_series: PlotKind.FREQUENCY_SERIES,
+    histogram: PlotKind.HISTOGRAM,
+    box_plot: PlotKind.BOX_PLOT,
+    pie: PlotKind.PIE,
   };
-  if (value == null) return protocolV1Plots.PlotKind.UNSPECIFIED;
+  if (value == null) return PlotKind.UNSPECIFIED;
   const kind = kinds[value];
   if (kind === undefined) throw new Error(`Unsupported document plot type: ${String(value)}`);
   return kind;
 }
 
 function downsampleTechnique(value?: DocumentDownsampleTechnique | null): DownsampleTechnique {
-  return value === "raw"
-    ? protocolV1Plots.Downsample.RAW
-    : value === "min_max"
-      ? protocolV1Plots.Downsample.MIN_MAX
-      : value === "lttb"
-        ? protocolV1Plots.Downsample.LTTB
-        : protocolV1Plots.Downsample.AUTO;
+  return value === "raw" ? Downsample.RAW : value === "min_max" ? Downsample.MIN_MAX : value === "lttb" ? Downsample.LTTB : Downsample.AUTO;
 }
 
 function axisScale(value?: DocumentAxisScale | null): AxisScale {
-  if (value === "log") return protocolV1Plots.AxisScale.LOG;
-  if (value === "linear" || value == null) return protocolV1Plots.AxisScale.LINEAR;
+  if (value === "log") return HostAxisScale.LOG;
+  if (value === "linear" || value == null) return HostAxisScale.LINEAR;
   throw new Error(`Unsupported plot axis scale: ${String(value)}`);
 }
 
 function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
   const operator = {
-    eq: protocolV1Expressions.FilterOperator.EQ,
-    ne: protocolV1Expressions.FilterOperator.NE,
-    gt: protocolV1Expressions.FilterOperator.GT,
-    gte: protocolV1Expressions.FilterOperator.GE,
-    lt: protocolV1Expressions.FilterOperator.LT,
-    lte: protocolV1Expressions.FilterOperator.LE,
-    contains: protocolV1Expressions.FilterOperator.CONTAINS,
-    exists: protocolV1Expressions.FilterOperator.EXISTS,
+    eq: HostFilterOperator.EQ,
+    ne: HostFilterOperator.NE,
+    gt: HostFilterOperator.GT,
+    gte: HostFilterOperator.GE,
+    lt: HostFilterOperator.LT,
+    lte: HostFilterOperator.LE,
+    contains: HostFilterOperator.CONTAINS,
+    exists: HostFilterOperator.EXISTS,
   }[value];
   if (operator === undefined) throw new Error(`Unsupported plot filter operator: ${String(value)}`);
   return operator;
@@ -856,15 +857,15 @@ function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): Pl
 
 function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"] {
   switch (value) {
-    case protocolClientV1PlotsSnapshots.PlotStreamKind.SNAPSHOT:
+    case HostPlotStreamKind.SNAPSHOT:
       return "snapshot";
-    case protocolClientV1PlotsSnapshots.PlotStreamKind.REPLACE:
+    case HostPlotStreamKind.REPLACE:
       return "replace";
-    case protocolClientV1PlotsSnapshots.PlotStreamKind.DELTA:
+    case HostPlotStreamKind.DELTA:
       return "delta";
-    case protocolClientV1PlotsSnapshots.PlotStreamKind.STATISTICS:
+    case HostPlotStreamKind.STATISTICS:
       return "statistics";
-    case protocolClientV1PlotsSnapshots.PlotStreamKind.ERROR:
+    case HostPlotStreamKind.ERROR:
       return "error";
     default:
       throw new Error("Native plot stream returned an unspecified kind.");
@@ -873,9 +874,9 @@ function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"]
 
 function cartesianMode(value: PlotCartesianMode | undefined): PlotCartesianFrame["mode"] {
   switch (value) {
-    case protocolClientV1PlotsSnapshots.PlotCartesianMode.ALIGNED:
+    case HostPlotCartesianMode.ALIGNED:
       return "aligned";
-    case protocolClientV1PlotsSnapshots.PlotCartesianMode.FACETED:
+    case HostPlotCartesianMode.FACETED:
       return "faceted";
     default:
       throw new Error("Native Cartesian frame returned an unspecified mode.");

@@ -31,7 +31,8 @@ import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
-import type { PluginEntry } from "@/lib/types/view-contracts";
+import type { ManagedPlugin } from "@/lib/api/native-plugins";
+import { PluginState } from "@host/model";
 
 /* === Re-Exports === */
 
@@ -54,43 +55,14 @@ const fixture = vi.hoisted(() => ({
   rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
-const entry: PluginEntry = {
-  install_id: "installation",
-  sha256: "a".repeat(64),
-  installed_at: "2026-10-30T00:00:00Z",
-  state: "installed",
-  last_boot: {
-    state: "failed",
-    at: "2026-10-30T00:00:00Z",
-    failure: {
-      plugin_id: "equipment.main",
-      plugin_name: "Equipment",
-      message: "startup-refused",
-      code: "10001",
-      missing_secret: "token",
-      consequences: ["dependent workflow requires equipment"],
-    },
-  },
-  metadata: {
-    identity: { name: "equipment", version: "1.0.0", description: "" },
-    owners: ["equipment.main", "equipment.extra"],
-    size_bytes: 1,
-  },
-  active: false,
-  restart: "idle",
-  boot_failed: true,
-  error: null,
+const entry: ManagedPlugin = {
+  name: "equipment",
+  revision: new Uint8Array([1]),
+  activation: 1n,
+  state: PluginState.UNAVAILABLE,
+  value: { enabled: true },
+  failure: { message: "activation-refused" },
 };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 vi.mock("react", async (original) => {
   const react = await original<typeof import("react")>();
@@ -154,6 +126,7 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
   useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
+  useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn() }),
   usePluginRestartRefresh: vi.fn(),
 }));
 vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
@@ -181,63 +154,27 @@ beforeEach(() => {
   fixture.settings.mockResolvedValue({
     settings: { contributions: [] },
     values: { address: "corrected" },
-    discovered: {},
     secrets: [],
-    unapplied: [],
-    restart: "idle",
   });
 });
 
-test("Inactive Bundle Navigation", () => {
-  assert.equal(bundleSettingsPage(entry, [], null), entry.install_id);
-  assert.equal(bundleSettingsPage({ ...entry, state: "disabled" }, [], null), entry.install_id);
-  assert.equal(bundleSettingsPage({ ...entry, state: "removal_pending" }, [], null), null);
-  assert.equal(bundleSettingsPage({ ...entry, metadata: null }, [], null), null);
+test("Inactive Entry Keeps Its Settings Navigation", () => {
+  assert.equal(bundleSettingsPage(entry, [], null), entry.name);
+  assert.equal(bundleSettingsPage({ ...entry, value: { enabled: false } }, [], null), entry.name);
 });
 
-test("Failed Owner Settings", async () => {
-  assert.ok(entry.metadata);
-  for (const owner of entry.metadata.owners) {
-    const detail = await getInstalledPluginDetail(session, owner);
-    assert.equal(detail?.plugin_id, owner);
-    assert.equal(detail?.error, null);
-    assert.equal(detail?.status, "failed");
-    assert.deepEqual(detail?.values, { address: "corrected" });
-  }
-  assert.deepEqual(
-    fixture.settings.mock.calls,
-    entry.metadata.owners.map((owner) => [session, owner]),
-  );
-  assert.equal(await getInstalledPluginDetail(session, "unknown"), null);
-  fixture.installed.mockResolvedValue([{ ...entry, state: "removal_pending" }]);
-  assert.equal(await getInstalledPluginDetail(session, "equipment.main"), null);
-});
-
-test("Running Settings Preserved", async () => {
-  const plugin = { plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null };
+test("Entry Settings Remain Available After Activation Failure", async () => {
+  const plugin = { plugin_id: entry.name, label: entry.name, status: "failed", error: entry.failure?.message };
   fixture.admitted.mockResolvedValue([plugin]);
-  const detail = await getInstalledPluginDetail(session, plugin.plugin_id);
-  assert.equal(detail?.label, plugin.label);
-  assert.equal(detail?.status, "ready");
-  assert.equal(fixture.installed.mock.calls.length, 0);
-  const program = {
-    ...plugin,
-    owner: { kind: "bundle" as const, package: "equipment", path: null, installation: entry.install_id },
-    version: "1.0.0",
-    enabled: true,
-    runtime: "code",
-  };
-  const page = bundleSettingsPage({ ...entry, state: "removal_pending", active: true }, [program], {
-    bootstrap_paths: null,
-    cards: [],
-    sections: [
-      { section_id: "equipment.settings", label: "Equipment", owner: { kind: "installed_plugin", plugin_id: program.plugin_id }, order: 0 },
-    ],
-  });
-  assert.equal(page, "equipment.settings");
+  const detail = await getInstalledPluginDetail(session, entry.name);
+  assert.equal(detail?.plugin_id, entry.name);
+  assert.equal(detail?.error, entry.failure?.message);
+  assert.deepEqual(detail?.values, { address: "corrected" });
+  assert.deepEqual(fixture.settings.mock.calls, [[session, entry.name]]);
+  assert.equal(await getInstalledPluginDetail(session, "unknown"), null);
 });
 
-test("Failed Forms Editable", () => {
+test("Failed Forms Keep Their Controls Editable", () => {
   fixture.installations.mockReturnValue({ data: [entry] });
   fixture.detail.mockImplementation((pluginId: string) => ({
     data: {
@@ -247,50 +184,48 @@ test("Failed Forms Editable", () => {
       runtime: "code",
       status: "failed",
       error: null,
-      settings: {
-        contributions: [
-          { kind: "text_area", id: "address", title: "Address", default: "", required: false },
-          { kind: "secret", id: "token", title: "Token", required: true },
-        ],
-      },
+      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
       values: { address: "corrected" },
-      discovered: {},
-      secrets: [{ identifier: "token", available: false }],
+      secrets: [],
     },
   }));
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-  assert.equal(fixture.detail.mock.calls.length, 2);
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
   assert.deepEqual(
     fixture.detail.mock.calls.map(([id]) => id),
-    entry.metadata?.owners,
+    [entry.name],
   );
-  assert.ok(html.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
-  assert.ok(html.includes('href="/settings/secrets#add-secret=token"'));
-  assert.ok(html.includes("<details"));
-  assert.equal(html.includes("<details open"), false);
-  assert.ok(html.includes("dependent workflow requires equipment"));
-  assert.ok(html.includes('id="plugin-settings-equipment.main"'));
-  assert.equal((html.match(/<textarea/g) ?? []).length, 2);
-  assert.equal((html.match(/type="password"/g) ?? []).length, 0);
+  assert.equal((html.match(/<textarea/g) ?? []).length, 1);
   assert.equal(html.includes("disabled="), false);
-  assert.equal((html.match(/>corrected<\/textarea>/g) ?? []).length, 2);
-  assert.equal(entry.last_boot?.state, "failed");
-  if (entry.last_boot?.state !== "failed") throw new Error("fixture must have a boot failure");
-  for (const code of ["plugin_contract_unavailable", "plugin_contract_cycle"]) {
-    fixture.installations.mockReturnValue({
-      data: [
-        { ...entry, last_boot: { ...entry.last_boot, at: code, failure: { ...entry.last_boot.failure, code, missing_secret: null } } },
-      ],
-    });
-    const refused = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-    assert.ok(refused.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
-    assert.equal((refused.match(/type="password"/g) ?? []).length, 0);
-    assert.ok(refused.includes(code));
-    assert.equal(refused.includes('href="/settings/secrets#'), false);
-  }
-  fixture.installations.mockReturnValue({ data: [{ ...entry, state: "disabled", boot_failed: false }] });
-  const disabled = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-  assert.equal(disabled.includes("startup-refused"), false);
+});
+
+test("Entry States Follow Current Activation and Enablement", () => {
+  assert.equal(statusPresentation({ ...entry, failure: undefined, state: PluginState.READY }).variant, "success");
+  assert.equal(statusPresentation(entry).reason, entry.failure?.message);
+  assert.equal(statusPresentation({ ...entry, failure: undefined, value: { enabled: false } }).variant, "outline");
+  assert.equal(startNotification({ ...entry, failure: undefined }), null);
+  assert.notEqual(startNotification(entry), null);
+});
+
+test("Failed Entry Actions Address Its Persisted Name", () => {
+  const remove = vi.fn();
+  const enabled = vi.fn();
+  renderToStaticMarkup(
+    createElement(PluginList, {
+      entries: [entry],
+      onRemove: remove,
+      onOpenSettings: vi.fn(),
+      removingId: null,
+      onSetEnabled: enabled,
+      changingEnabled: false,
+      settingsSectionOf: () => entry.name,
+    }),
+  );
+  fixture.actions.get(`Delete ${entry.name}`)?.();
+  fixture.actions.get(`Reload ${entry.name}`)?.();
+  fixture.rows[0].enabled?.onChange(false);
+  assert.deepEqual(remove.mock.calls, [[entry]]);
+  assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
+  assert.deepEqual(enabled.mock.calls, [[entry, false]]);
 });
 
 test("Declared Secret Add", () => {
@@ -304,9 +239,6 @@ test("Declared Secret Add", () => {
     status: "failed",
     error: null,
     values: {},
-    discovered: {},
-    unapplied: [],
-    restart: "idle",
     settings: {
       contributions: [
         { kind: "secret", id: "api_token", title: "API Token", description: null, required: true },
@@ -320,61 +252,20 @@ test("Declared Secret Add", () => {
   };
   const render = () => {
     fixture.capturedAdding = false;
-    return renderToStaticMarkup(createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {} }));
+    return renderToStaticMarkup(
+      createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {}, onSaveBinding: async () => {} }),
+    );
   };
   fixture.captureAdding = true;
   const initial = render();
   assert.ok(initial.includes("api_token"));
-  assert.ok(initial.includes("Required · Missing"));
-  assert.ok(initial.includes("Optional · Available"));
-  assert.equal((initial.match(/Add in Secret Storage/g) ?? []).length, 1);
   assert.equal(initial.includes('type="password"'), false);
   assert.equal(fixture.buttons.length, 1);
   fixture.buttons[0]();
   const opened = render();
-  assert.ok(opened.includes("Add Secret"));
+  assert.ok(opened.includes('role="dialog"'));
   assert.ok(opened.includes('value="api_token"'));
   assert.ok(opened.includes('type="password"'));
-});
-
-test("Restart States", async () => {
-  const plugin = { plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null };
-  fixture.admitted.mockResolvedValue([plugin]);
-  const expected = { idle: "ready", restarting: "restarting", pending: "restart_pending" } as const;
-  for (const [restart, status] of Object.entries(expected)) {
-    fixture.settings.mockResolvedValueOnce({ settings: { contributions: [] }, values: {}, discovered: {}, secrets: [], restart });
-    const detail = await getInstalledPluginDetail(session, plugin.plugin_id);
-    assert.equal(detail?.restart, restart);
-    assert.equal(detail?.status, status);
-  }
-});
-
-test("Pending Restart Explained", () => {
-  const detail: PluginDetail = {
-    plugin_id: "equipment.main",
-    owner: null,
-    label: "Equipment",
-    version: "1.0.0",
-    enabled: true,
-    runtime: "code",
-    status: "restart_pending",
-    error: null,
-    values: {},
-    discovered: {},
-    unapplied: [],
-    restart: "pending",
-    settings: { contributions: [] },
-    secrets: [],
-  };
-  const statuses = (restart: PluginDetail["restart"]) =>
-    (
-      renderToStaticMarkup(createElement(InstalledPluginDetail, { detail: { ...detail, restart }, onSaveSettings: async () => {} })).match(
-        /role="status"/g,
-      ) ?? []
-    ).length;
-  assert.equal(statuses("pending"), 1);
-  assert.equal(statuses("restarting"), 0);
-  assert.equal(statuses("idle"), 0);
 });
 
 test("Missing Secret Action", () => {
@@ -386,145 +277,4 @@ test("Missing Secret Action", () => {
   fixture.hash = "";
   const ordinary = renderToStaticMarkup(createElement(SecretsSection));
   assert.equal(ordinary.includes('role="dialog"'), false);
-});
-
-test("Live Installation States", () => {
-  const presented = (changes: Partial<PluginEntry>) => statusPresentation({ ...entry, boot_failed: false, last_boot: null, ...changes });
-  const states = {
-    restarting: presented({ restart: "restarting" }),
-    pending: presented({ restart: "pending" }),
-    activePending: presented({ restart: "pending", active: true }),
-    active: presented({ active: true }),
-    refusedRestart: presented({ active: true, last_boot: entry.last_boot }),
-    refusedUpdate: presented({ state: "removal_pending", boot_failed: true, last_boot: entry.last_boot }),
-    removed: presented({ state: "removal_pending" }),
-    failed: presented({ boot_failed: true, last_boot: entry.last_boot }),
-    notRunning: presented({}),
-    disabled: presented({ state: "disabled" }),
-  };
-  assert.equal(new Set(Object.values(states).map((state) => state.label)).size, Object.keys(states).length);
-  assert.ok(states.pending.reason && states.activePending.reason);
-  assert.equal(states.active.variant, "success");
-  for (const refused of [states.refusedRestart, states.refusedUpdate, states.failed]) {
-    assert.equal(refused.reason, "startup-refused");
-  }
-  assert.equal(states.refusedRestart.variant, "warning");
-  assert.equal(states.refusedUpdate.variant, "destructive");
-  assert.equal(states.removed.reason, null);
-});
-
-test("Refused Restart Notifies", () => {
-  const failed = startNotification(entry);
-  const refused = startNotification({ ...entry, active: true, boot_failed: false });
-  assert.ok(failed && refused);
-  assert.notEqual(failed, refused);
-  assert.equal(startNotification({ ...entry, boot_failed: false }), null);
-  assert.equal(startNotification({ ...entry, last_boot: null }), null);
-});
-
-test("Failed and Refused Row Actions", () => {
-  const remove = vi.fn();
-  const enabled = vi.fn();
-  const render = (installation: PluginEntry, removingId: string | null = null) => {
-    fixture.actions.clear();
-    renderToStaticMarkup(
-      createElement(PluginList, {
-        entries: [installation],
-        onRemove: remove,
-        onOpenSettings: vi.fn(),
-        removingId,
-        onSetEnabled: enabled,
-        changingEnabled: false,
-        settingsSectionOf: () => null,
-      }),
-    );
-  };
-
-  // An Installed Failed Boot Can Be Removed, Retried Or Disabled.
-  render(entry);
-  fixture.actions.get("Delete equipment")?.();
-  assert.deepEqual(remove.mock.calls, [[entry]]);
-  fixture.actions.get("Reload equipment")?.();
-  assert.deepEqual(fixture.reload.mock.calls, [[{ installId: entry.install_id }]]);
-  fixture.rows[0].enabled?.onChange(false);
-  assert.deepEqual(enabled.mock.calls, [[entry, false]]);
-
-  // A Refused Replacement Can Be Deleted, But Cannot Replace The Kept Version Via A Row Toggle Or Reload.
-  const refused: PluginEntry = { ...entry, state: "removal_pending" };
-  remove.mockClear();
-  render(refused);
-  fixture.actions.get("Delete equipment")?.();
-  assert.deepEqual(remove.mock.calls, [[refused]]);
-  assert.equal(fixture.actions.has("Reload equipment"), false);
-  assert.equal(fixture.rows[0].enabled, undefined);
-
-  // Duplicate Removal Waits For The Current Request Or A Running Generation To Stop.
-  render(refused, refused.install_id);
-  assert.equal(fixture.actions.has("Delete equipment"), false);
-  render({ ...refused, active: true, boot_failed: false });
-  assert.equal(fixture.actions.has("Delete equipment"), false);
-});
-
-test("Reload Starts One Plugin", () => {
-  fixture.detail.mockReturnValue({ data: null });
-  for (const installation of [
-    entry,
-    { ...entry, active: true, boot_failed: false },
-    { ...entry, active: true, boot_failed: false, last_boot: null },
-  ]) {
-    fixture.buttons.length = 0;
-    fixture.reload.mockClear();
-    fixture.installations.mockReturnValue({ data: [installation] });
-    renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-    assert.ok(fixture.buttons.length);
-    fixture.buttons.at(-1)?.();
-    assert.deepEqual(fixture.reload.mock.calls, [[{ installId: entry.install_id }]]);
-  }
-  for (const installation of [
-    { ...entry, state: "disabled" as const },
-    { ...entry, restart: "pending" as const },
-  ]) {
-    fixture.buttons.length = 0;
-    fixture.installations.mockReturnValue({ data: [installation] });
-    renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-    assert.equal(fixture.buttons.length, 0);
-  }
-});
-
-test("Installed Program Applying", async () => {
-  for (const [restart, status] of [
-    ["restarting", "restarting"],
-    ["pending", "restart_pending"],
-  ] as const) {
-    fixture.installed.mockResolvedValueOnce([{ ...entry, boot_failed: false, restart }]);
-    const detail = await getInstalledPluginDetail(session, "equipment.main");
-    assert.equal(detail?.status, status);
-  }
-});
-
-test("Backend Field Marks Survive View Reads and Clear After Reload", async () => {
-  fixture.admitted.mockResolvedValue([{ plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null }]);
-  const settings = {
-    settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
-    values: { address: "saved" },
-    discovered: {},
-    secrets: [],
-    restart: "idle",
-    unapplied: ["address"],
-  };
-  fixture.settings.mockResolvedValue(settings);
-  for (let view = 0; view < 2; view++) {
-    const detail = await getInstalledPluginDetail(session, "equipment.main");
-    assert.deepEqual(detail?.unapplied, ["address"]);
-    const html = renderToStaticMarkup(
-      createElement(InstalledPluginDetail, { detail: detail as PluginDetail, onSaveSettings: async () => {} }),
-    );
-    assert.ok(html.includes('data-setting-unapplied="address"'));
-  }
-  fixture.settings.mockResolvedValue({ ...settings, unapplied: [] });
-  const detail = await getInstalledPluginDetail(session, "equipment.main");
-  const html = renderToStaticMarkup(
-    createElement(InstalledPluginDetail, { detail: detail as PluginDetail, onSaveSettings: async () => {} }),
-  );
-  assert.equal(html.includes("data-setting-unapplied="), false);
 });

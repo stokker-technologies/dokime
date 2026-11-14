@@ -23,10 +23,21 @@ use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
+use dokime_sdk::History;
+use dokime_sdk::Position;
+use dokime_sdk::ReadCut;
+
 use super::{Gate, HttpRequest, HttpResponse, Service};
-use dokime_protocol::client::{FilesGetRequest, FilesReadRequest};
-use dokime_protocol::{client, v1};
-use dokime_sdk::client::v1 as library;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::content::ArtifactsGetRequest;
+
+use dokime_sdk::ArtifactMetadata;
+use dokime_sdk::ArtifactState;
+use dokime_sdk::client::ContentArtifactsGetResponse;
+use dokime_sdk::client::FilesGetResponse;
+use dokime_sdk::client::FilesReadResponse;
+use harmos_protocol::host as library;
 use std::convert::Infallible;
 use std::task::Context;
 use std::task::Poll;
@@ -63,10 +74,10 @@ struct Download(Service);
 /* === Implementations === */
 
 impl NamedService for Content {
-    const NAME: &'static str = "dokime.client.v1.content.Artifacts";
+    const NAME: &'static str = "dokime.host.v1.content.Artifacts";
 }
 impl NamedService for Storage {
-    const NAME: &'static str = "dokime.client.v1.Files";
+    const NAME: &'static str = "dokime.host.v1.Files";
 }
 
 impl tonic::codegen::Service<HttpRequest> for Content {
@@ -80,7 +91,7 @@ impl tonic::codegen::Service<HttpRequest> for Content {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
-                "/dokime.client.v1.content.Artifacts/Get" => {
+                "/dokime.host.v1.content.Artifacts/Get" => {
                     Grpc::new(tonic_prost::ProstCodec::default()).unary(Metadata(service), request).await
                 }
                 _ => Status::unimplemented("Read Artifact: Fixture Route Is Unavailable").into_http(),
@@ -100,31 +111,31 @@ impl tonic::codegen::Service<HttpRequest> for Storage {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
-                "/dokime.client.v1.Files/Get" => Grpc::new(tonic_prost::ProstCodec::default()).unary(FileInformation, request).await,
-                "/dokime.client.v1.Files/Read" => Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await,
+                "/dokime.host.v1.Files/Get" => Grpc::new(tonic_prost::ProstCodec::default()).unary(FileInformation, request).await,
+                "/dokime.host.v1.Files/Read" => Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await,
                 _ => Status::unimplemented("Read File Bytes: Fixture Route Is Unavailable").into_http(),
             })
         })
     }
 }
 
-impl UnaryService<client::content::ArtifactsGetRequest> for Metadata {
-    type Response = client::content::ArtifactsGetResponse;
+impl UnaryService<ArtifactsGetRequest> for Metadata {
+    type Response = ContentArtifactsGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
-    fn call(&mut self, request: Request<client::content::ArtifactsGetRequest>) -> Self::Future {
+    fn call(&mut self, request: Request<ArtifactsGetRequest>) -> Self::Future {
         self.0.download.lock().unwrap().calls += 1;
         Box::pin(async move {
             let bytes = bytes();
             let digest = Sha256::digest(&bytes);
-            let metadata = v1::ArtifactMetadata {
+            let metadata = ArtifactMetadata {
                 artifact_id: request.into_inner().name,
                 filename: "evidence.bin".into(),
                 size_bytes: bytes.len() as u64,
                 sha256: digest.iter().map(|byte| format!("{byte:02x}")).collect(),
-                state: v1::ArtifactState::Complete as i32,
+                state: ArtifactState::Complete as i32,
                 ..Default::default()
             };
-            let mut reply = client::content::ArtifactsGetResponse {
+            let mut reply = ContentArtifactsGetResponse {
                 metadata: Some(metadata),
                 ..Default::default()
             };
@@ -139,18 +150,18 @@ impl UnaryService<client::content::ArtifactsGetRequest> for Metadata {
     }
 }
 
-impl UnaryService<client::FilesGetRequest> for FileInformation {
-    type Response = client::FilesGetResponse;
+impl UnaryService<FilesGetRequest> for FileInformation {
+    type Response = FilesGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<FilesGetRequest>) -> Self::Future {
         Box::pin(async move {
-            Ok(Response::new(client::FilesGetResponse {
+            Ok(Response::new(FilesGetResponse {
                 file: request.into_inner().file,
                 chunk_bytes: 4096,
                 message_bytes: 32768,
-                resolved_at: Some(library::ReadCut {
-                    positions: vec![library::Position {
-                        history: Some(library::History {
+                resolved_at: Some(ReadCut {
+                    positions: vec![Position {
+                        history: Some(History {
                             store: "fixture".into(),
                             epoch: "content".into(),
                         }),
@@ -163,8 +174,8 @@ impl UnaryService<client::FilesGetRequest> for FileInformation {
     }
 }
 
-impl UnaryService<client::FilesReadRequest> for Download {
-    type Response = client::FilesReadResponse;
+impl UnaryService<FilesReadRequest> for Download {
+    type Response = FilesReadResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<FilesReadRequest>) -> Self::Future {
         let settings = self.0.download.lock().unwrap().clone();
@@ -184,15 +195,15 @@ impl UnaryService<client::FilesReadRequest> for Download {
             if settings.corrupt && !data.is_empty() {
                 data[0] ^= 1;
             }
-            let mut reply = client::FilesReadResponse {
+            let mut reply = FilesReadResponse {
                 data,
                 total_length: original.len() as u64,
                 sha256: Sha256::digest(&original).to_vec(),
                 ..Default::default()
             };
             let position = reply.resolved_at.get_or_insert_default();
-            let entry = library::Position {
-                history: Some(library::History {
+            let entry = Position {
+                history: Some(History {
                     store: "fixture".into(),
                     epoch: "content".into(),
                 }),

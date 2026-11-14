@@ -21,24 +21,83 @@ use std::{error::Error as StdError, num::NonZeroUsize, path::PathBuf, sync::Arc,
 // Third Party Imports
 
 // Local Imports
+use dokime_sdk::PlotRequest;
+use dokime_sdk::client::DocumentScope;
+
+use dokime_protocol::host::CasesCreateRequest;
+use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::DocumentsGetRequest;
+use dokime_protocol::host::ExecutionsGetRequest;
+use dokime_protocol::host::ExecutionsListRequest;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::PromptsListRequest;
+use dokime_protocol::host::ReportsCreateRequest;
+use dokime_protocol::host::ReportsGetRequest;
+use dokime_protocol::host::ReportsPublishRequest;
+use dokime_protocol::host::SuitesGetRequest;
+use dokime_protocol::host::SuitesListRequest;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsWatchRequest;
+use dokime_protocol::host::prompts::AnswersCreateRequest;
+use dokime_sdk::Downsample;
+use dokime_sdk::EvidenceScope;
+use dokime_sdk::FieldReference;
+use dokime_sdk::Import;
+use dokime_sdk::Metadata;
+use dokime_sdk::Origin;
+use dokime_sdk::Termination;
+use dokime_sdk::client::BackendOverviewGetResponse;
+use dokime_sdk::client::CasesCreateResponse;
+use dokime_sdk::client::CyclesCreateResponse;
+use dokime_sdk::client::DocumentsGetResponse;
+use dokime_sdk::client::EvidenceCapturedRecordSelection;
+use dokime_sdk::client::EvidenceRecordsListResponse;
+use dokime_sdk::client::EvidenceSamplesListResponse;
+use dokime_sdk::client::ExecutionOutcome;
+use dokime_sdk::client::ExecutionState;
+use dokime_sdk::client::ExecutionsGetResponse;
+use dokime_sdk::client::ExecutionsListResponse;
+use dokime_sdk::client::ExecutionsProgressWatchResponse;
+use dokime_sdk::client::FilesGetResponse;
+use dokime_sdk::client::FilesReadResponse;
+use dokime_sdk::client::PlotsPlotRequest;
+use dokime_sdk::client::PlotsSnapshotsListResponse;
+use dokime_sdk::client::PlotsSnapshotsWatchResponse;
+use dokime_sdk::client::PromptsAnswersCreateResponse;
+use dokime_sdk::client::PromptsListResponse;
+use dokime_sdk::client::RegisteredSelection;
+use dokime_sdk::client::ReportSubject;
+use dokime_sdk::client::ReportsCreateResponse;
+use dokime_sdk::client::ReportsGetResponse;
+use dokime_sdk::client::ReportsPublishResponse;
+use dokime_sdk::client::SelectionPlan;
+use dokime_sdk::client::SuitesGetResponse;
+use dokime_sdk::client::SuitesListResponse;
+use dokime_sdk::client::document_frame_frame::Kind as DocumentFrameFrameKind;
+use dokime_sdk::client::report_subject::Kind as ReportSubjectKind;
+use dokime_sdk::origin::Kind as OriginKind;
+use dokime_sdk::value::Kind as ValueKind;
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
-use dokime_protocol::client::document_binding_result::Kind as BindingKind;
-use dokime_protocol::client::document_frame_frame::Kind as FrameKind;
-use dokime_protocol::client::plots::{
-    PlotDomain, SnapshotsListRequest, SnapshotsListResponse, SnapshotsWatchRequest, SnapshotsWatchResponse,
-};
-use dokime_protocol::client::{DocumentsGetRequest, DocumentsGetResponse, DocumentsWatchRequest, DocumentsWatchResponse};
-use dokime_protocol::v1::{Card, Document, DocumentScope, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
-use dokime_protocol::{client, v1};
+use dokime_protocol::host::plots::{PlotDomain, SnapshotsListResponse, SnapshotsWatchResponse};
+use dokime_protocol::host::{DocumentsGetResponse, DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
+use dokime_sdk as model;
+use dokime_sdk::client::document_binding_result::Kind as BindingKind;
+use dokime_sdk::client::document_frame_frame::Kind as FrameKind;
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache, StorageTransferSettings};
+use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
-use harmos_protocol::v1::{Catalog, Section as CatalogSection, StreamDeclaration};
+use harmos_protocol::model::{Catalog, Section as CatalogSection, StreamDeclaration};
 use prost_types::FileDescriptorSet;
 
 /* === Constants === */
@@ -102,20 +161,20 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
         let store = Store::open(root.path())?;
         let plots = (0..65)
             .map(|index| Plot {
-                metadata: Some(v1::Metadata {
+                metadata: Some(Metadata {
                     identifier: format!("plot-{index}"),
                     label: format!("Plot {index}"),
                     ..Default::default()
                 }),
                 kind: if index == 64 { PlotKind::FrequencySeries } else { PlotKind::TimeSeries } as i32,
-                y: vec![v1::FieldReference::new("wave").field("min")],
+                y: vec![FieldReference::new("wave").field("min")],
                 input_samples: (index == 64).then_some(16),
                 sample_rate_hz: (index == 64).then_some(1.0),
                 ..Default::default()
             })
             .collect::<Vec<_>>();
         let document = Document {
-            metadata: Some(v1::Metadata {
+            metadata: Some(Metadata {
                 identifier: "large".into(),
                 label: "Large Document".into(),
                 ..Default::default()
@@ -125,11 +184,11 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                     .into_iter()
                     .enumerate()
                     .map(|(index, plot)| Card {
-                        metadata: Some(v1::Metadata {
+                        metadata: Some(Metadata {
                             identifier: format!("card-{index}"),
                             ..Default::default()
                         }),
-                        body: Some(v1::card::Body::Plot(plot)),
+                        body: Some(model::card::Body::Plot(plot)),
                         ..Default::default()
                     })
                     .collect(),
@@ -141,11 +200,11 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![StreamDeclaration {
                 id: "wave".into(),
-                row: "dokime.client.v1.plots.PlotDomain".into(),
+                row: "dokime.host.v1.plots.PlotDomain".into(),
                 ..Default::default()
             }],
             sections: vec![CatalogSection {
-                r#type: "dokime.v1.Suites".into(),
+                r#type: "dokime.model.v1.Suites".into(),
                 payload: Suites {
                     suites: vec![Suite {
                         templates: vec![TestCaseTemplate {
@@ -163,8 +222,8 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             identifier: "long".into(),
             cycle: "cycle".into(),
             catalog: catalog.encode_to_vec(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            origin: Some(Origin {
+                kind: Some(OriginKind::Import(Import::default())),
             }),
             ..Default::default()
         })?;
@@ -184,7 +243,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             .collect::<Vec<_>>();
         store.sample_batch("long", &samples)?;
         store.close_streams("long")?;
-        store.close("long", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.close("long", Termination::Completed, ExecutionOutcome::default())?;
         store.seal("long")?;
         drop(store);
 
@@ -205,7 +264,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             let mut requests = Vec::new();
             let mut completed = false;
             loop {
-                let reply: DocumentsGetResponse = session.unary("/dokime.client.v1.Documents/Get", request.clone()).await?;
+                let reply: DocumentsGetResponse = session.unary("/dokime.host.v1.Documents/Get", request.clone()).await?;
                 for frame in reply.frames {
                     match frame.frame.and_then(|frame| frame.kind) {
                         Some(FrameKind::Binding(binding)) => {
@@ -230,7 +289,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             for group in requests.chunks(32) {
                 let mut watch = session
                     .watch_raw(
-                        "/dokime.client.v1.plots.Snapshots/Watch",
+                        "/dokime.host.v1.plots.Snapshots/Watch",
                         &SnapshotsWatchRequest {
                             requests: group.to_vec(),
                             ..Default::default()
@@ -260,7 +319,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             frequency.fft.as_mut().unwrap().window = FftWindow::Rectangular as i32;
             let response: SnapshotsListResponse = session
                 .unary(
-                    "/dokime.client.v1.plots.Snapshots/List",
+                    "/dokime.host.v1.plots.Snapshots/List",
                     SnapshotsListRequest {
                         requests: vec![frequency],
                         ..Default::default()
@@ -270,12 +329,12 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             assert_eq!(response.envelopes[0].diagnostics.as_ref().unwrap().examined_rows, 16);
             let column = &response.envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap().series[0];
             let peak = column.y.iter().enumerate().max_by(|(_, a), (_, b)| a.value.unwrap().total_cmp(&b.value.unwrap())).unwrap().0;
-            assert_eq!(column.x[peak].kind, Some(v1::value::Kind::Number(0.25)));
+            assert_eq!(column.x[peak].kind, Some(ValueKind::Number(0.25)));
 
             // A Saved Document Watch Completes With the Same Plot Definitions.
             let mut watch = session
                 .watch_raw(
-                    "/dokime.client.v1.Documents/Watch",
+                    "/dokime.host.v1.Documents/Watch",
                     &DocumentsWatchRequest {
                         scope: Some(scope),
                         document_id: "large".into(),
@@ -318,20 +377,34 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
         let result = async {
             // Admit the Prepared Plugin and Read Its Top-Level Suite Resource.
             let session = owner.start(root.path()).await?;
-            let overview: client::backend::OverviewGetResponse =
-                session.unary("/dokime.client.v1.backend.Overview/Get", client::backend::OverviewGetRequest::default()).await?;
+            let overview: BackendOverviewGetResponse =
+                session.unary("/dokime.host.v1.backend.Overview/Get", OverviewGetRequest::default()).await?;
             let process_epoch = overview.overview.ok_or("Read Backend: Missing Overview")?.session_id;
-            let admitted: client::Plugin =
-                session.unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() }).await?;
-            assert!(!admitted.entry.is_empty());
-            let suites: client::SuitesListResponse =
-                session.unary("/dokime.client.v1.Suites/List", client::SuitesListRequest::default()).await?;
+            let options = dokime_sdk::client::PluginsCreateOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let placement = dokime_sdk::client::PluginPlacement {
+                kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
+                    url: plugin.endpoint().into(),
+                })),
+            };
+            let admitted = session
+                .execute(session.client().plugins.create_with(
+                    "desktop.plot",
+                    placement,
+                    dokime_sdk::client::PluginValue { enabled: true },
+                    options,
+                ))
+                .await?;
+            assert!(!admitted.entry.unwrap().name.is_empty());
+            let suites: SuitesListResponse = session.unary("/dokime.host.v1.Suites/List", SuitesListRequest::default()).await?;
             let suite = suites.values.first().ok_or("Read Suite: Missing Prepared Fixture")?;
             let suite_id = suite.metadata.as_ref().ok_or("Read Suite: Missing Identity")?.identifier.clone();
-            let suite: client::SuitesGetResponse = session
+            let suite: SuitesGetResponse = session
                 .unary(
-                    "/dokime.client.v1.Suites/Get",
-                    client::SuitesGetRequest {
+                    "/dokime.host.v1.Suites/Get",
+                    SuitesGetRequest {
                         name: suite_id.clone(),
                         ..Default::default()
                     },
@@ -339,12 +412,12 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 .await?;
             let suite = suite.value.ok_or("Read Suite: Missing Definition")?;
             let template = suite.templates.first().and_then(|template| template.metadata.as_ref()).ok_or("Read Suite: Missing Template")?;
-            let plan: client::CasesCreateResponse = session
+            let plan: CasesCreateResponse = session
                 .unary(
-                    "/dokime.client.v1.Cases/Create",
-                    client::CasesCreateRequest {
-                        plan: Some(client::SelectionPlan {
-                            selections: vec![client::RegisteredSelection {
+                    "/dokime.host.v1.Cases/Create",
+                    CasesCreateRequest {
+                        plan: Some(SelectionPlan {
+                            selections: vec![RegisteredSelection {
                                 suite_id,
                                 template_id: template.identifier.clone(),
                                 ..Default::default()
@@ -358,10 +431,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 .await?;
             let origins =
                 plan.cases.into_iter().map(|case| case.origin.ok_or("Materialize Case: Missing Origin")).collect::<Result<Vec<_>, _>>()?;
-            let cycle: client::CyclesCreateResponse = session
+            let cycle: CyclesCreateResponse = session
                 .unary(
-                    "/dokime.client.v1.Cycles/Create",
-                    client::CyclesCreateRequest {
+                    "/dokime.host.v1.Cycles/Create",
+                    CyclesCreateRequest {
                         origins,
                         continue_automatically: true,
                         request_id: "desktop-cycle".into(),
@@ -370,10 +443,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 )
                 .await?;
             let cycle = cycle.cycle.ok_or("Create Cycle: Missing Value")?;
-            let executions: client::ExecutionsListResponse = session
+            let executions: ExecutionsListResponse = session
                 .unary(
-                    "/dokime.client.v1.Executions/List",
-                    client::ExecutionsListRequest {
+                    "/dokime.host.v1.Executions/List",
+                    ExecutionsListRequest {
                         parent: cycle.cycle_id.clone(),
                         ..Default::default()
                     },
@@ -388,20 +461,20 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 .clone();
 
             // Await the Operator Question Through the Owned Progress Watch.
-            let request = client::executions::ProgressWatchRequest { name: execution.clone(), at: None }.encode_to_vec();
-            let mut progress = session.watch_raw("/dokime.client.v1.executions.Progress/Watch", &request).await?;
+            let request = ProgressWatchRequest { name: execution.clone(), at: None }.encode_to_vec();
+            let mut progress = session.watch_raw("/dokime.host.v1.executions.Progress/Watch", &request).await?;
             loop {
                 let frame = progress.next().await.ok_or("Observe Execution: Closed Before Prompt")??;
-                let frame = client::executions::ProgressWatchResponse::decode(frame.as_slice())?;
+                let frame = ExecutionsProgressWatchResponse::decode(frame.as_slice())?;
                 assert!(!frame.finished);
                 if frame.phase == "prompt" {
                     break;
                 }
             }
-            let prompts: client::PromptsListResponse = session
+            let prompts: PromptsListResponse = session
                 .unary(
-                    "/dokime.client.v1.Prompts/List",
-                    client::PromptsListRequest {
+                    "/dokime.host.v1.Prompts/List",
+                    PromptsListRequest {
                         execution_id: Some(execution.clone()),
                         pending_only: true,
                         ..Default::default()
@@ -411,33 +484,33 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             let prompt = prompts.prompts.first().and_then(|view| view.prompt.as_ref()).ok_or("Answer Prompt: Missing Question")?;
 
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
-            let plot_request = v1::PlotRequest {
+            let plot_request = PlotsPlotRequest {
                 plot_id: Some("temperature".into()),
                 stream: "thermal.temperature".into(),
                 y_keys: vec!["celsius".into()],
-                scope: Some(v1::EvidenceScope {
+                scope: Some(EvidenceScope {
                     execution_id: Some(execution.clone()),
                     ..Default::default()
                 }),
-                technique: v1::Downsample::Raw as i32,
+                technique: Downsample::Raw as i32,
                 max_points: Some(128),
                 ..Default::default()
             };
-            let request = client::plots::SnapshotsWatchRequest {
+            let request = SnapshotsWatchRequest {
                 requests: vec![plot_request.clone()],
                 ..Default::default()
             }
             .encode_to_vec();
-            let mut plots = session.watch_raw("/dokime.client.v1.plots.Snapshots/Watch", &request).await?;
+            let mut plots = session.watch_raw("/dokime.host.v1.plots.Snapshots/Watch", &request).await?;
             let opening = plots.next().await.ok_or("Watch Plot: Missing Opening")??;
-            let opening = client::plots::SnapshotsWatchResponse::decode(opening.as_slice())?;
+            let opening = PlotsSnapshotsWatchResponse::decode(opening.as_slice())?;
             assert!(opening.opening);
             assert_eq!(opening.updates.len(), 1);
             // Open One Hundred Authored Cards From Two Independent Native Clients.
             let mut second_owner = Connection::new(settings())?;
             let second = second_owner.attach_local(session.endpoint()).await?;
-            let mut document_request = client::DocumentsGetRequest {
-                scope: Some(v1::DocumentScope {
+            let mut document_request = DocumentsGetRequest {
+                scope: Some(DocumentScope {
                     cycle_id: cycle.cycle_id.clone(),
                     execution_id: execution.clone(),
                 }),
@@ -447,9 +520,9 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             };
             let mut producing = Vec::new();
             loop {
-                let (first, other): (client::DocumentsGetResponse, client::DocumentsGetResponse) = tokio::try_join!(
-                    session.unary("/dokime.client.v1.Documents/Get", document_request.clone()),
-                    second.unary("/dokime.client.v1.Documents/Get", document_request.clone()),
+                let (first, other): (DocumentsGetResponse, DocumentsGetResponse) = tokio::try_join!(
+                    session.unary("/dokime.host.v1.Documents/Get", document_request.clone()),
+                    second.unary("/dokime.host.v1.Documents/Get", document_request.clone()),
                 )?;
                 assert_eq!(first.frames, other.frames);
                 for frame in first.frames {
@@ -478,7 +551,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                         let mut data = std::collections::BTreeSet::new();
                         let mut watch = viewer
                             .watch_raw(
-                                "/dokime.client.v1.plots.Snapshots/Watch",
+                                "/dokime.host.v1.plots.Snapshots/Watch",
                                 &SnapshotsWatchRequest { requests: group, ..Default::default() }.encode_to_vec(),
                             )
                             .await?;
@@ -502,10 +575,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                     });
                 }
             }
-            let _: client::prompts::AnswersCreateResponse = session
+            let _: PromptsAnswersCreateResponse = session
                 .unary(
-                    "/dokime.client.v1.prompts.Answers/Create",
-                    client::prompts::AnswersCreateRequest {
+                    "/dokime.host.v1.prompts.Answers/Create",
+                    AnswersCreateRequest {
                         parent: prompt.prompt_id.clone(),
                         action: "yes".into(),
                         accepted: true,
@@ -517,7 +590,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             let mut terminal = false;
             while let Some(frame) = progress.next().await {
                 assert!(!terminal);
-                terminal = client::executions::ProgressWatchResponse::decode(frame?.as_slice())?.finished;
+                terminal = ExecutionsProgressWatchResponse::decode(frame?.as_slice())?.finished;
             }
             assert!(terminal);
             let mut cards_with_data = 0;
@@ -529,27 +602,27 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             drop(plots);
 
             // Decode Sealed Evidence With the Digest-Cached Descriptor Set.
-            let detail: client::ExecutionsGetResponse = session
+            let detail: ExecutionsGetResponse = session
                 .unary(
-                    "/dokime.client.v1.Executions/Get",
-                    client::ExecutionsGetRequest {
+                    "/dokime.host.v1.Executions/Get",
+                    ExecutionsGetRequest {
                         name: execution.clone(),
                         ..Default::default()
                     },
                 )
                 .await?;
             let detail = detail.execution.ok_or("Get Execution: Missing Value")?;
-            assert_eq!(detail.summary.as_ref().unwrap().state, v1::ExecutionState::Sealed as i32);
+            assert_eq!(detail.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
             assert!(!detail.seal.is_empty());
             let mut cache = FrozenSchemaCache::default();
             let descriptors = cache.get(session.client(), &detail).await?;
             assert!(Arc::ptr_eq(&descriptors, &cache.get(session.client(), &detail).await?));
-            let records: client::evidence::RecordsListResponse = session
+            let records: EvidenceRecordsListResponse = session
                 .unary(
-                    "/dokime.client.v1.evidence.Records/List",
-                    client::evidence::RecordsListRequest {
-                        selection: Some(client::evidence::CapturedRecordSelection {
-                            scope: Some(v1::EvidenceScope {
+                    "/dokime.host.v1.evidence.Records/List",
+                    RecordsListRequest {
+                        selection: Some(EvidenceCapturedRecordSelection {
+                            scope: Some(EvidenceScope {
                                 execution_id: Some(execution.clone()),
                                 ..Default::default()
                             }),
@@ -560,11 +633,11 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 )
                 .await?;
             assert!(records.records.iter().any(|record| record.record_type == "thermal.door"));
-            let samples: client::evidence::SamplesListResponse = session
+            let samples: EvidenceSamplesListResponse = session
                 .unary(
-                    "/dokime.client.v1.evidence.Samples/List",
-                    client::evidence::SamplesListRequest {
-                        scope: Some(v1::EvidenceScope {
+                    "/dokime.host.v1.evidence.Samples/List",
+                    SamplesListRequest {
+                        scope: Some(EvidenceScope {
                             execution_id: Some(execution.clone()),
                             ..Default::default()
                         }),
@@ -573,10 +646,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 )
                 .await?;
             assert!(!samples.samples.is_empty());
-            let snapshots: client::plots::SnapshotsListResponse = session
+            let snapshots: PlotsSnapshotsListResponse = session
                 .unary(
-                    "/dokime.client.v1.plots.Snapshots/List",
-                    client::plots::SnapshotsListRequest {
+                    "/dokime.host.v1.plots.Snapshots/List",
+                    SnapshotsListRequest {
                         requests: vec![plot_request],
                         ..Default::default()
                     },
@@ -585,9 +658,9 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             assert_eq!(snapshots.envelopes.len(), 1);
 
             // Consume Every Ordered Document Page at the Returned Cut.
-            let mut request = client::DocumentsGetRequest {
+            let mut request = DocumentsGetRequest {
                 max_frames: 32,
-                scope: Some(v1::DocumentScope {
+                scope: Some(DocumentScope {
                     cycle_id: cycle.cycle_id.clone(),
                     execution_id: execution.clone(),
                 }),
@@ -596,16 +669,16 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             let mut header = false;
             let mut completed = false;
             loop {
-                let reply: client::DocumentsGetResponse = session.unary("/dokime.client.v1.Documents/Get", request.clone()).await?;
+                let reply: DocumentsGetResponse = session.unary("/dokime.host.v1.Documents/Get", request.clone()).await?;
                 for frame in reply.frames {
                     assert!(!completed);
                     match frame.frame.and_then(|frame| frame.kind) {
-                        Some(client::document_frame_frame::Kind::Header(value)) => {
+                        Some(DocumentFrameFrameKind::Header(value)) => {
                             assert!(!header);
                             assert_eq!(value.frontiers.unwrap().process_epoch, process_epoch);
                             header = true;
                         }
-                        Some(client::document_frame_frame::Kind::Completion(_)) => completed = true,
+                        Some(DocumentFrameFrameKind::Completion(_)) => completed = true,
                         _ => {}
                     }
                 }
@@ -619,13 +692,13 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             assert!(header && completed);
 
             // Deliver the Report Through Product File Ranges and the Native Verified Writer.
-            let subject = client::ReportSubject {
-                kind: Some(client::report_subject::Kind::Execution(execution.clone())),
+            let subject = ReportSubject {
+                kind: Some(ReportSubjectKind::Execution(execution.clone())),
             };
-            let prepared: client::ReportsCreateResponse = session
+            let prepared: ReportsCreateResponse = session
                 .unary(
-                    "/dokime.client.v1.Reports/Create",
-                    client::ReportsCreateRequest {
+                    "/dokime.host.v1.Reports/Create",
+                    ReportsCreateRequest {
                         subject: Some(subject.clone()),
                         request_id: "desktop-prepare-report".into(),
                         ..Default::default()
@@ -633,10 +706,10 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 )
                 .await?;
             let file = prepared.file.ok_or("Prepare Report: Missing File Reference")?;
-            let _: client::ReportsPublishResponse = session
+            let _: ReportsPublishResponse = session
                 .unary(
-                    "/dokime.client.v1.Reports/Publish",
-                    client::ReportsPublishRequest {
+                    "/dokime.host.v1.Reports/Publish",
+                    ReportsPublishRequest {
                         name: file.metadata.ok_or("Publish Report: Missing File Identity")?.id,
                         subject: Some(subject),
                         expected_revision: file.sha256,
@@ -644,27 +717,27 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                     },
                 )
                 .await?;
-            let report: client::ReportsGetResponse = session
+            let report: ReportsGetResponse = session
                 .unary(
-                    "/dokime.client.v1.Reports/Get",
-                    client::ReportsGetRequest {
-                        subject: Some(client::ReportSubject {
-                            kind: Some(client::report_subject::Kind::Execution(execution.clone())),
+                    "/dokime.host.v1.Reports/Get",
+                    ReportsGetRequest {
+                        subject: Some(ReportSubject {
+                            kind: Some(ReportSubjectKind::Execution(execution.clone())),
                         }),
                         ..Default::default()
                     },
                 )
                 .await?;
             let reference = report.file.ok_or("Read Report: Missing File Reference")?;
-            let selected: client::FilesGetResponse =
-                session.unary("/dokime.client.v1.Files/Get", client::FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
+            let selected: FilesGetResponse =
+                session.unary("/dokime.host.v1.Files/Get", FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
             let mut bytes = Vec::new();
             let mut at = selected.resolved_at;
             while bytes.len() < reference.length as usize {
-                let reply: client::FilesReadResponse = session
+                let reply: FilesReadResponse = session
                     .unary(
-                        "/dokime.client.v1.Files/Read",
-                        client::FilesReadRequest {
+                        "/dokime.host.v1.Files/Read",
+                        FilesReadRequest {
                             file: Some(reference.clone()),
                             offset: bytes.len() as u64,
                             max_bytes: selected.chunk_bytes,

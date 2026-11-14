@@ -13,8 +13,9 @@
 
 /* === Local Imports === */
 
-import * as protocolClientV1Settings from "@host/dokime/client/v1/settings_pb.js";
-import { jsonToNativeValue, nativeValuesToJson } from "@/lib/host/values";
+import { HostCardTone, SettingsCardState as HostSettingsCardState } from "@host/model";
+import type { SettingValue } from "@host/model";
+import { NativeIntegerValue } from "./native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -36,10 +37,9 @@ import { required } from "@/lib/rpc/canonical";
 type SettingsSection = SettingsFrame["sections"][number];
 type SettingsCard = SettingsFrame["cards"][number];
 type SettingsCardState = SettingsCard["state"];
-type HostCardTone = protocolClientV1Settings.HostCardTone;
 
-type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsGet>>>;
-type SettingContribution = NonNullable<PluginRuntimeSettings["schema"]>["settings"][number];
+type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>;
+type SettingContribution = PluginRuntimeSettings["declarations"][number];
 type SettingValues = PluginSettingsView["values"];
 
 /* === Settings frame === */
@@ -58,32 +58,147 @@ export async function fetchNativeSettingsFrame(session: SessionIdentity): Promis
 
 export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
-export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSettings): PluginSettingsView {
+export function mapNativePluginRuntimeSettings(
+  settings: NativePluginRuntimeSettings,
+  bindings: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
+): PluginSettingsView {
+  const secrets = bindings.bindings.map((binding) => {
+    const declaration = required(binding.declaration, "List Plugin Secret Declaration");
+    return {
+      identifier: required(declaration.metadata, "List Plugin Secret Metadata").identifier,
+      secret: binding.secret,
+      available: binding.available,
+    };
+  });
   return {
     settings: {
-      contributions: settings.schema?.settings.map(mapSettingContribution) ?? [],
+      contributions: [
+        ...settings.declarations.map(mapSettingContribution),
+        ...bindings.bindings.map((binding): SettingsEntry => {
+          const declaration = required(binding.declaration, "List Plugin Secret Declaration");
+          const metadata = required(declaration.metadata, "List Plugin Secret Metadata");
+          return {
+            kind: "secret",
+            id: metadata.identifier,
+            title: metadata.label,
+            description: metadata.description ?? null,
+            required: declaration.required,
+          };
+        }),
+      ],
     },
-    values: nativeValuesToJson(settings.value?.values) as SettingValues,
-    discovered: nativeValuesToJson(settings.discovered?.values) as SettingValues,
-    secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
-    restart: undefined,
-    unapplied: undefined,
+    values: Object.fromEntries(Object.entries(settings.value?.values ?? {}).map(([name, value]) => [name, settingValue(value)])),
+    secrets,
   };
 }
 
 export async function getNativePluginSettings(session: SessionIdentity, pluginId: string) {
-  return mapNativePluginRuntimeSettings(await rpc.pluginsSettingsGet(session, { name: pluginId }));
+  const [settings, bindings] = await Promise.all([
+    rpc.pluginsSettingsList(session, { name: pluginId }),
+    rpc.pluginsSecretsList(session, { name: pluginId }),
+  ]);
+  return mapNativePluginRuntimeSettings(settings, bindings);
 }
 
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
-  const current = await rpc.pluginsSettingsGet(session, { name: pluginId });
+  const current = await rpc.pluginsSettingsList(session, { name: pluginId });
+  const entries = current.declarations.map((declaration) => {
+    const defaultValue = required(declaration.default, "Set Plugin Setting Default");
+    const value = values[declaration.name];
+    return [declaration.name, writeSetting(defaultValue, value)] as const;
+  });
   await rpc.pluginsSettingsSet(session, {
     name: pluginId,
     expectedRevision: current.revision,
     requestId: crypto.randomUUID(),
-    value: { values: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, jsonToNativeValue(value)])) },
+    value: { values: Object.fromEntries(entries) },
   });
   return getNativePluginSettings(session, pluginId);
+}
+
+export async function setNativePluginSecret(session: SessionIdentity, name: string, identifier: string, secret: string): Promise<void> {
+  const current = await rpc.pluginsSecretsList(session, { name });
+  const declaration = current.bindings.find((binding) => binding.declaration?.metadata?.identifier === identifier);
+  if (!declaration) throw new Error("Set Plugin Secret: Declaration Is Unavailable; Refresh Its Settings");
+  if (!secret) {
+    await rpc.pluginsSecretsDelete(session, {
+      name,
+      identifiers: [identifier],
+      expectedRevision: current.revision,
+      requestId: crypto.randomUUID(),
+    });
+    return;
+  }
+  const bindings = current.bindings.map((binding) => {
+    const metadata = required(required(binding.declaration, "Set Plugin Secret Declaration").metadata, "Set Plugin Secret Metadata");
+    return { identifier: metadata.identifier, secret: metadata.identifier === identifier ? secret : binding.secret };
+  });
+  await rpc.pluginsSecretsSet(session, {
+    name,
+    bindings: bindings.filter((binding) => binding.secret.length > 0),
+    expectedRevision: current.revision,
+    requestId: crypto.randomUUID(),
+  });
+}
+
+function settingValue(setting: Wire<SettingValue>): SettingValues[string] {
+  const value = setting.value;
+  switch (value.case) {
+    case "integer":
+      return value.value.toString();
+    case "flag":
+    case "text":
+    case "number":
+      return value.value;
+    case "duration": {
+      const nanoseconds = value.value.seconds * 1_000_000_000n + BigInt(value.value.nanos);
+      const absolute = nanoseconds < 0n ? -nanoseconds : nanoseconds;
+      return `${nanoseconds < 0n ? "-" : ""}${absolute / 1_000_000_000n}.${String(absolute % 1_000_000_000n).padStart(9, "0")}`;
+    }
+    default:
+      throw new Error("Read Plugin Setting: Missing Typed Value");
+  }
+}
+
+function writeSetting(defaultValue: Wire<SettingValue>, value: unknown): Wire<SettingValue> {
+  switch (defaultValue.value.case) {
+    case "flag":
+      if (typeof value === "boolean") return { value: { case: "flag", value } };
+      break;
+    case "text":
+      if (typeof value === "string") return { value: { case: "text", value } };
+      break;
+    case "number":
+      if (typeof value === "number" && Number.isFinite(value)) return { value: { case: "number", value } };
+      break;
+    case "integer": {
+      const decimal =
+        value instanceof NativeIntegerValue
+          ? value.decimal
+          : typeof value === "number" && Number.isSafeInteger(value)
+            ? String(value)
+            : typeof value === "string"
+              ? value
+              : "";
+      if (/^-?\d+$/.test(decimal)) {
+        const integer = BigInt(decimal);
+        if (integer >= -(1n << 63n) && integer < 1n << 63n) return { value: { case: "integer", value: integer } };
+      }
+      break;
+    }
+    case "duration": {
+      if (typeof value !== "string") break;
+      const match = /^(-?)(\d+)(?:\.(\d{1,9}))?$/.exec(value);
+      if (!match) break;
+      const sign = match[1] ? -1n : 1n;
+      const seconds = sign * BigInt(match[2]);
+      const nanos = Number(sign * BigInt((match[3] ?? "").padEnd(9, "0")));
+      return { value: { case: "duration", value: { seconds, nanos } } };
+    }
+    default:
+      break;
+  }
+  throw new Error("Set Plugin Setting: Value Does Not Match Its Declared Type");
 }
 
 /* === Mapping === */
@@ -167,38 +282,21 @@ function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][num
 }
 
 function mapSettingContribution(contribution: SettingContribution): SettingsEntry {
-  const metadata = contribution.metadata;
-  if (!metadata?.identifier) throw new Error("Read Plugin Settings: Missing Setting Identity");
-  const common = { id: metadata.identifier, title: metadata.label, description: metadata.description ?? null };
-  const variant = contribution.kind;
-  switch (variant.case) {
-    case "boolean":
-      return { ...common, kind: "boolean", default: variant.value.defaultValue };
+  const common = { id: contribution.name, title: contribution.title, description: contribution.description || null };
+  const value = required(contribution.default, "Read Plugin Setting Default");
+  switch (value.value.case) {
+    case "flag":
+      return { ...common, kind: "boolean", default: value.value.value };
     case "text":
-      return { ...common, kind: "text_area", default: variant.value.defaultValue, required: variant.value.required };
-    case "path":
-      return { ...common, kind: "path", default: variant.value.defaultValue, required: variant.value.required };
+      return { ...common, kind: "text_area", default: value.value.value, required: false };
     case "number":
-      return {
-        ...common,
-        kind: "number",
-        default: variant.value.defaultValue,
-        min: variant.value.min ?? null,
-        max: variant.value.max ?? null,
-        step: variant.value.step ?? null,
-      };
-    case "choice":
-      return {
-        ...common,
-        kind: "multiple_choice",
-        default: variant.value.defaultValue,
-        choices: variant.value.choices.map((choice) => ({ value: choice.value, title: choice.label })),
-        provider: variant.value.provider ?? null,
-      };
-    case "secret":
-      return { ...common, kind: "secret", required: variant.value.required };
+      return { ...common, kind: "number", default: value.value.value, min: null, max: null, step: null };
+    case "integer":
+      return { ...common, kind: "text_area", default: value.value.value.toString(), required: true };
+    case "duration":
+      return { ...common, kind: "text_area", default: String(settingValue(value)), required: true };
     default:
-      throw new Error("Read Plugin Settings: Missing Setting Kind");
+      throw new Error("Read Plugin Setting: Missing Typed Default");
   }
 }
 
@@ -224,15 +322,15 @@ function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): Runtime
 
 function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "warning" | "danger" {
   switch (tone) {
-    case protocolClientV1Settings.HostCardTone.NEUTRAL:
+    case HostCardTone.NEUTRAL:
       return "neutral";
-    case protocolClientV1Settings.HostCardTone.INFO:
+    case HostCardTone.INFO:
       return "info";
-    case protocolClientV1Settings.HostCardTone.SUCCESS:
+    case HostCardTone.SUCCESS:
       return "success";
-    case protocolClientV1Settings.HostCardTone.WARNING:
+    case HostCardTone.WARNING:
       return "warning";
-    case protocolClientV1Settings.HostCardTone.DANGER:
+    case HostCardTone.DANGER:
       return "danger";
     default:
       return "neutral";
@@ -241,17 +339,17 @@ function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "
 
 function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["state"] {
   switch (state) {
-    case protocolClientV1Settings.SettingsCardState.READY:
+    case HostSettingsCardState.READY:
       return "ready";
-    case protocolClientV1Settings.SettingsCardState.DISABLED:
+    case HostSettingsCardState.DISABLED:
       return "disabled";
-    case protocolClientV1Settings.SettingsCardState.DISCONNECTED:
+    case HostSettingsCardState.DISCONNECTED:
       return "disconnected";
-    case protocolClientV1Settings.SettingsCardState.STALE:
+    case HostSettingsCardState.STALE:
       return "stale";
-    case protocolClientV1Settings.SettingsCardState.ERROR:
+    case HostSettingsCardState.ERROR:
       return "error";
-    case protocolClientV1Settings.SettingsCardState.PERMISSION_DENIED:
+    case HostSettingsCardState.PERMISSION_DENIED:
       return "permission_denied";
     default:
       throw new Error("Native settings returned an unknown card state.");

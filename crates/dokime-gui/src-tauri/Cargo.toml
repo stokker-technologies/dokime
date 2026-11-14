@@ -47,6 +47,7 @@ testing = []
 dokime-sdk = { package = "dokime", path = "../../../sdk/rust" }
 dokime-runtime = { workspace = true }
 dokime-protocol = { workspace = true }
+harmos-protocol = { workspace = true }
 
 # Git
 

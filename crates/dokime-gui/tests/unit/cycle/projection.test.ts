@@ -16,10 +16,10 @@ import assert from "node:assert/strict";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { ExecutionState, ExecutionOutcomeSchema } from "@host/dokime/v1/execution_pb.js";
-import { ExecutionSummarySchema } from "@host/dokime/client/v1/executions_pb.js";
-import { CycleSummarySchema } from "@host/dokime/v1/cycles_pb.js";
-import { Termination } from "@host/dokime/v1/execution_pb.js";
+import { ExecutionState, ExecutionOutcomeSchema } from "@host/model";
+import { ExecutionSummarySchema } from "@host/model";
+import { CycleSummarySchema } from "@host/model";
+import { Termination } from "@host/model";
 
 // Local Imports
 import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";

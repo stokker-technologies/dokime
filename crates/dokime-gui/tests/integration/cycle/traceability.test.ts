@@ -17,7 +17,7 @@ import { create } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { TraceabilityGetResponseSchema } from "@host/dokime/client/v1/evidence/traceability_pb.js";
+import { TraceabilityGetResponseSchema } from "@host/model";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { required, type Wire } from "@/lib/rpc/canonical";
 
@@ -74,7 +74,7 @@ test("Traceability Pages Retain Scope, Read Cut and Snapshot Order", async () =>
   const result = await fetchNativeTraceability(session, scope);
   assert.equal(boundary.unary.mock.calls.length, 2);
   for (const call of boundary.unary.mock.calls) {
-    assert.equal(call[0], "/dokime.client.v1.evidence.Traceability/Get");
+    assert.equal(call[0], "/dokime.host.v1.evidence.Traceability/Get");
     assert.equal(call[3], session);
     assert.equal(call[4].scope.cycleId, "cycle");
     assert.equal(call[4].scope.executionId, "execution");

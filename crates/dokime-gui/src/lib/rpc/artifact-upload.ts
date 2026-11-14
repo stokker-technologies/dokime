@@ -6,8 +6,8 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 
 /* === Local Imports === */
 
-import { type ArtifactMetadata, ArtifactMetadataSchema } from "@host/dokime/v1/evidence_pb.js";
-import { ArtifactsCreateRequestSchema } from "@host/dokime/client/v1/content/artifacts_pb.js";
+import { type ArtifactMetadata, ArtifactMetadataSchema } from "@host/model";
+import { ArtifactsCreateRequestSchema } from "@host/model";
 import type { RpcError } from "../desktop/rpc";
 import type { Wire } from "./canonical";
 import { normalizeRpcError } from "./errors";

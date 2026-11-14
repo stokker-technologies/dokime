@@ -18,21 +18,21 @@ import {
   type CaseDetail as HostCaseDetail,
   type CaseSummary as HostCaseSummary,
   type CaseActions as HostCaseActions,
-} from "@host/dokime/client/v1/cases_pb.js";
+} from "@host/model";
 import {
   CriterionStatus,
   LiveExecutionState,
   StepStatus,
   type ExecutionSummary as HostExecutionSummary,
   type ExecutionControls,
-} from "@host/dokime/client/v1/executions_pb.js";
-import { CyclePhase, CycleStatus, type CycleSummary as HostCycleSummary } from "@host/dokime/v1/cycles_pb.js";
-import { CycleOrderKey } from "@host/dokime/client/v1/cycles_pb.js";
-import { ExecutionState, ResultStatus, type ExecutionOutcome } from "@host/dokime/v1/execution_pb.js";
-import type { ReadCut } from "@host/harmos/v1/types_pb.js";
+} from "@host/model";
+import { CyclePhase, CycleStatus, type CycleSummary as HostCycleSummary } from "@host/model";
+import { CycleOrderKey } from "@host/model";
+import { ExecutionState, ResultStatus, type ExecutionOutcome } from "@host/model";
+import type { ReadCut } from "@host/model";
 import { required, cutKey } from "@/lib/rpc/canonical";
-import { Termination } from "@host/dokime/v1/execution_pb.js";
-import type { Value as HostValue } from "@host/dokime/v1/scalar_pb.js";
+import { Termination } from "@host/model";
+import type { Value as HostValue } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import { jsonToNativeValue, metadataJson, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";

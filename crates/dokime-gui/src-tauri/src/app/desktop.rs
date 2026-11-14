@@ -172,9 +172,8 @@ pub async fn desktop_pairing_create(
     let lease = state.lease(&status.generation)?;
     let client = lease.client();
     let listener = client
-        .execute(client.client().access.listener.get(client.request(dokime_sdk::client::v1::access::ListenerGetRequest {})?))
-        .await?
-        .into_inner();
+        .execute(client.client().access.listener.get_with(dokime_sdk::client::AccessListenerGetOptions { context: client.call_options()? }))
+        .await?;
     let settings = listener.value.ok_or_else(|| local("Listener settings unavailable".into()))?;
     let enable = listener.bound_endpoint.is_empty();
     let confirm_app = app.clone();
@@ -293,26 +292,28 @@ pub async fn desktop_pairing_create(
 pub async fn create_remote_access(
     client: &crate::connection::host::Session, label: String, enable: bool,
 ) -> Result<crate::connection::host::Pairing, crate::Error> {
-    use dokime_sdk::client::v1::access;
+    use dokime_sdk::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions};
     if enable {
         let current =
-            client.execute(client.client().access.listener.get(client.request(access::ListenerGetRequest {})?)).await?.into_inner();
+            client.execute(client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? })).await?;
         let mut value = current.value.ok_or_else(|| crate::connection::ConnectionError::Registry {
             message: "Listener settings unavailable".into(),
             cause: None,
         })?;
         value.enabled = true;
         client
-            .execute(client.client().access.listener.set(client.request(access::ListenerSetRequest {
-                value: Some(value),
-                expected_revision: current.revision,
-            })?))
+            .execute(client.client().access.listener.set_with(
+                value,
+                current.revision,
+                AccessListenerSetOptions { context: client.call_options()? },
+            ))
             .await?;
     }
     let created = client
-        .execute(client.client().access.pairings.create(client.request(access::PairingsCreateRequest { label: label.clone() })?))
-        .await?
-        .into_inner();
+        .execute(
+            client.client().access.pairings.create_with(label.clone(), AccessPairingsCreateOptions { context: client.call_options()? }),
+        )
+        .await?;
     Ok(crate::connection::host::Pairing {
         version: 1,
         backend_identifier: client

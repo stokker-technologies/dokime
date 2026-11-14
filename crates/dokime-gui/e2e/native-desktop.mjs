@@ -99,7 +99,7 @@ async function owned() {
   const status = await invoke(local, "desktop_session_status");
   assert.equal(status.ownership, "owned_local");
   assert.equal(status.connection.phase, "connected");
-  const identity = await call(local, "harmos.v1.Status", "Get");
+  const identity = await call(local, "harmos.host.v1.Status", "Get");
   assert.ok(identity.status.identity.hostId);
   const saved = await call(local, "Cycles", "Create", {
     requestId: crypto.randomUUID(),
@@ -161,8 +161,8 @@ async function execute() {
   assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
   assert.ok(detail.seal);
   await until("Passed Result in WebView", async () => (await desktop.text()).includes("Passed"));
-  const records = await call(desktop, "dokime.client.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
-  const samples = await call(desktop, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
+  const records = await call(desktop, "dokime.host.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
+  const samples = await call(desktop, "dokime.host.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(records.records.some((record) => record.payload));
   assert.ok(samples.samples.some((sample) => sample.raw?.payload));
   await until("Captured Record Rows in the Authored Document", () =>
@@ -277,14 +277,8 @@ async function settings() {
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
-  const installed = await call(desktop, "Plugins", "ListInstallations", { pageSize: 100 });
-  const admitted = await call(desktop, "Plugins", "ListAdmittedPlugins", { pageSize: 100 });
-  const rowIds = installed.installations.map((entry) => entry.installId);
-  for (const entry of admitted.plugins) {
-    const plugin = entry.plugin;
-    if (plugin.remote) rowIds.push(JSON.stringify(["remote", null, null, null, plugin.entry]));
-    else if (plugin.managed && !rowIds.includes(plugin.entry)) rowIds.push(`bundle:${plugin.managed.bundle}`);
-  }
+  const inventory = await call(desktop, "harmos.host.v1.Plugins", "List");
+  const rowIds = inventory.entries.map((entry) => entry.name);
   assert.ok(rowIds.length > 0);
   await until("Admitted and Installed Plugin Rows", () =>
     desktop.execute(
@@ -327,7 +321,7 @@ try {
       await desktop.connected();
       await sizeViewport(desktop, { width: 1600, height: 1000 });
       assert.equal((await invoke(desktop, "desktop_session_status")).ownership, "attached");
-      const identity = await call(desktop, "harmos.v1.Status", "Get");
+      const identity = await call(desktop, "harmos.host.v1.Status", "Get");
       assert.ok(identity.status.identity.hostId);
     });
     if (options.workflow === "execution") {

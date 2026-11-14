@@ -5,7 +5,7 @@
 
 import { create, createFileRegistry, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema, type FileDescriptorSet } from "@bufbuild/protobuf/wkt";
-import type { ExecutionDetail } from "@host/dokime/client/v1/executions_pb.js";
+import type { ExecutionDetail } from "@host/model";
 
 /* === Local Imports === */
 

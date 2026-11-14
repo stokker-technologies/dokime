@@ -13,8 +13,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { PluginInstallationState } from "@host/dokime/client/v1/plugins_pb.js";
-import { PluginState } from "@host/dokime/client/v1/plugins_pb.js";
+import { PluginState } from "@host/model";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
@@ -28,9 +27,9 @@ import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/
 
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
-  getInstallation: vi.fn(),
-  listInstallations: vi.fn(),
-  listAdmitted: vi.fn(),
+  getPlugin: vi.fn(),
+  listPlugins: vi.fn(),
+  listPluginsUnused: vi.fn(),
   getSettings: vi.fn(),
   channels: [] as { onmessage: (message: unknown) => void }[],
 }));
@@ -45,13 +44,14 @@ const session = { generation: "7", isCurrent: () => true };
 
 /* === Private Functions === */
 
-function installation(installId: string) {
+function managedPlugin(name: string) {
   return {
-    installId,
-    sha256: "a".repeat(64),
-    installedAt: { seconds: 1_760_000_000n, nanos: 0 },
-    state: PluginInstallationState.INSTALLED,
-    plugin: { entry: installId, state: PluginState.STARTING },
+    name,
+    revision: new Uint8Array([3]),
+    activation: 1n,
+    state: PluginState.CONNECTING,
+    value: { enabled: true },
+    placement: { kind: { case: "managed", value: {} } },
   };
 }
 
@@ -80,9 +80,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@/lib/host/client", () => ({
-  pluginsGetInstallation: fixture.getInstallation,
-  pluginsListInstallations: fixture.listInstallations,
-  pluginsListAdmittedPlugins: fixture.listAdmitted,
+  pluginsGet: fixture.getPlugin,
+  pluginsList: fixture.listPlugins,
 }));
 
 vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.getSettings }));
@@ -90,9 +89,7 @@ vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.g
 beforeEach(() => {
   vi.clearAllMocks();
   fixture.channels.length = 0;
-  fixture.getInstallation.mockImplementation((_session, request: { installId: string }) =>
-    Promise.resolve(installation(request.installId)),
-  );
+  fixture.getPlugin.mockImplementation((_session, request: { name: string }) => Promise.resolve({ entry: managedPlugin(request.name) }));
 });
 
 test("Picked Bundle Installs in One Native Invoke", async () => {
@@ -104,8 +101,8 @@ test("Picked Bundle Installs in One Native Invoke", async () => {
 
   const entry = await installNativePlugin(session, "pick", { onProgress: (value) => progress.push(value) });
 
-  assert.equal(entry?.install_id, "picked");
-  assert.equal(entry?.state, "installed");
+  assert.equal(entry?.name, "picked");
+  assert.equal(entry?.state, PluginState.CONNECTING);
   assert.equal(fixture.invoke.mock.calls.length, 1);
   const [command, args, options] = fixture.invoke.mock.calls[0];
   assert.equal(command, "desktop_plugin_install_file");
@@ -114,7 +111,7 @@ test("Picked Bundle Installs in One Native Invoke", async () => {
   assert.equal(args.drop, false);
   assert.equal(options, undefined);
   assert.deepEqual(progress, [{ phase: "reading" }, { phase: "uploading", sent: 52_500_000, total: 52_500_000 }, { phase: "installing" }]);
-  assert.deepEqual(fixture.getInstallation.mock.calls, [[session, { installId: "picked" }]]);
+  assert.deepEqual(fixture.getPlugin.mock.calls, [[session, { name: "picked" }]]);
 });
 
 test("Release Installs Natively", async () => {
@@ -131,19 +128,19 @@ test("Release Installs Natively", async () => {
   fixture.invoke.mockResolvedValue("release-install");
   const entry = await installNativePlugin(session, { release: releases[1].candidate });
 
-  assert.equal(entry?.install_id, "release-install");
+  assert.equal(entry?.name, "release-install");
   assert.equal(fixture.invoke.mock.calls.length, 1);
   const [command, arguments_] = fixture.invoke.mock.calls[0];
   assert.equal(command, "desktop_plugin_release_install");
   assert.equal(arguments_.candidate, "second-candidate");
   assert.equal(arguments_.generation, session.generation);
-  assert.equal(fixture.getInstallation.mock.calls.length, 1);
+  assert.equal(fixture.getPlugin.mock.calls.length, 1);
 });
 
 test("Cancelled Picker Installs Nothing", async () => {
   fixture.invoke.mockResolvedValue(null);
   assert.equal(await installNativePlugin(session, "pick"), null);
-  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+  assert.equal(fixture.getPlugin.mock.calls.length, 0);
 });
 
 test("Connection Change Discards the Installed Installation Reply", async () => {
@@ -151,7 +148,7 @@ test("Connection Change Discards the Installed Installation Reply", async () => 
   fixture.invoke.mockResolvedValue("old-host-installation");
 
   await assert.rejects(installNativePlugin(changed, "pick"), /connection changed/i);
-  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+  assert.equal(fixture.getPlugin.mock.calls.length, 0);
 });
 
 test("Native Installation Failure Preserves the Error Without Looking Up an Installation", async () => {
@@ -160,7 +157,7 @@ test("Native Installation Failure Preserves the Error Without Looking Up an Inst
 
   await assert.rejects(installNativePlugin(session, "drop"), (error) => error === failure);
   assert.equal(fixture.invoke.mock.calls.length, 1);
-  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+  assert.equal(fixture.getPlugin.mock.calls.length, 0);
 });
 
 test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
@@ -168,7 +165,7 @@ test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
 
   const entry = await installNativePlugin(session, "drop");
 
-  assert.equal(entry?.install_id, "dropped");
+  assert.equal(entry?.name, "dropped");
   assert.equal(fixture.invoke.mock.calls.length, 1);
   const [command, args, options] = fixture.invoke.mock.calls[0];
   assert.equal(command, "desktop_plugin_install_file");
@@ -176,28 +173,21 @@ test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
 });
 
-test("Failed Plugin Settings Retain Current Reason Owner and Secret", async () => {
-  const failed = {
-    ...installation("install-1"),
-    metadata: { identity: { name: "Example Plugin", version: "1.0.0", description: "" }, owners: ["example"], sizeBytes: 1n },
-    plugin: { entry: "install-1", state: PluginState.FAILED, reason: "Restore Its Required Secret" },
-  };
-  fixture.listAdmitted.mockResolvedValue({ plugins: [] });
-  fixture.listInstallations.mockResolvedValue({ installations: [failed] });
+test("Failed Entry Retains Its Identity and Secret Availability", async () => {
+  const failed = { ...managedPlugin("example"), failure: { message: "activation-refused" } };
+  fixture.listPlugins.mockResolvedValue({ entries: [failed] });
   fixture.getSettings.mockResolvedValue({
     settings: { contributions: [] },
     secrets: [{ identifier: "api_token", available: false }],
     values: {},
     discovered: {},
   });
-  fixture.getInstallation.mockResolvedValueOnce(failed);
-  const projected = await getNativePlugin(session, "install-1");
-  assert.equal(projected.boot_failed, true);
-  assert.equal(projected.error, "Restore Its Required Secret");
-  assert.equal(projected.last_boot, null);
+  fixture.getPlugin.mockResolvedValueOnce({ entry: failed });
+  assert.equal(await getNativePlugin(session, "example"), failed);
   const detail = await getInstalledPluginDetail(session, "example");
   assert.equal(detail?.status, "failed");
-  assert.equal(detail?.plugin_id, "example");
+  assert.equal(detail?.plugin_id, failed.name);
+  assert.equal(detail?.error, failed.failure.message);
   assert.equal(detail?.owner?.kind, "bundle");
   assert.deepEqual(detail?.secrets, [{ identifier: "api_token", available: false }]);
   assert.deepEqual(fixture.getSettings.mock.calls, [[session, "example"]]);

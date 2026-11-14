@@ -13,9 +13,9 @@
 
 import assert from "node:assert/strict";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { SecretImportAction, SecretSnapshotSchema } from "@host/dokime/client/v1/secrets_pb.js";
+import { SecretImportAction, SecretSnapshotSchema } from "@host/model";
 import { beforeEach, test, vi } from "vitest";
-import { SecretsImportRequestSchema } from "@host/dokime/client/v1/secrets_pb.js";
+import { SecretsImportRequestSchema } from "@host/model";
 import { readSecrets, putSecret, removeSecret, previewSecrets, importSecrets } from "@/lib/api/native-secrets";
 
 const fixture = vi.hoisted(() => ({ unary: vi.fn() }));
@@ -46,7 +46,7 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
     const value = fromBinary(input, toBinary(input, create(input, request)));
     requests.push({ path, value });
     const reply =
-      path === "/harmos.v1.Status/Get"
+      path === "/harmos.host.v1.Status/Get"
         ? { status: { identity: { hostId: "fixture-host", applicationName: "Fixture Host" } } }
         : path.endsWith("/Get")
           ? { revision, value: { metadata: { identifier: "token" } } }
@@ -94,7 +94,7 @@ test("Secret Transfer Sends Explicit Import Choices and Preserves Conflicts", as
   });
   const preview = await previewSecrets(session, data);
   fixture.unary.mockImplementationOnce(async (path, input, _output, _identity, request) => {
-    assert.equal(path, "/dokime.client.v1.Secrets/Import");
+    assert.equal(path, "/dokime.host.v1.Secrets/Import");
     const decoded = fromBinary(SecretsImportRequestSchema, toBinary(input, create(input, request)));
     assert.equal(decoded.generation, generation);
     assert.deepEqual(decoded.data, data);

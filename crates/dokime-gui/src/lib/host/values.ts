@@ -11,10 +11,10 @@
 
 /* === External Imports === */
 
-import { ElapsedUnit as HostElapsedUnit, type ValueFormat as HostValueFormat } from "@host/dokime/v1/formatting_pb.js";
-import type { EvidenceScope } from "@host/dokime/v1/evidence_pb.js";
-import { ValueType, type Value } from "@host/dokime/v1/scalar_pb.js";
-import type { Metadata } from "@host/dokime/v1/metadata_pb.js";
+import { ElapsedUnit as HostElapsedUnit, type ValueFormat as HostValueFormat } from "@host/model";
+import type { EvidenceScope, RecordScope as HostRecordScope } from "@host/model";
+import { ValueType, type Value } from "@host/model";
+import type { Metadata } from "@host/model";
 
 /* === Local Imports === */
 
@@ -183,6 +183,13 @@ export function nativeEvidenceScope(scope?: RecordScope | null): Wire<EvidenceSc
         }
       : undefined,
   };
+}
+
+export function nativeRecordScope(scope?: RecordScope | null): Wire<HostRecordScope> | undefined {
+  if (scope?.test_cycle_id)
+    return { kind: { case: "cycle", value: { cycleId: scope.test_cycle_id, executionId: scope.test_execution_id ?? undefined } } };
+  if (scope?.test_execution_id) return { kind: { case: "execution", value: scope.test_execution_id } };
+  return undefined;
 }
 
 export function recordScopeFromNative(scope?: Wire<EvidenceScope>): RecordScope | null {

@@ -17,8 +17,6 @@ pub mod delivery;
 
 /* === Imports === */
 
-use dokime_protocol::client;
-
 // Standard Library Imports
 use std::{
     convert::Infallible,
@@ -30,8 +28,15 @@ use std::{
 use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
+use dokime_sdk::DiscoveredContract;
+use dokime_sdk::DiscoveredOperation;
+use dokime_sdk::Grpc;
+
 use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
-use dokime_sdk::client::v1 as library;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_sdk::client::BackendOverviewGetResponse;
+use dokime_sdk::client::BackendRuntimeShellSnapshot;
+use harmos_protocol::host as library;
 
 /* === Constants === */
 
@@ -88,9 +93,9 @@ impl Service {
 
 impl<const KIND: u8> tonic::server::NamedService for Rpc<KIND> {
     const NAME: &'static str = match KIND {
-        0 => "harmos.v1.Status",
-        1 => "dokime.client.v1.backend.Overview",
-        _ => "harmos.v1.CatalogEntries",
+        0 => "harmos.host.v1.Status",
+        1 => "dokime.host.v1.backend.Overview",
+        _ => "harmos.host.v1.Operations",
     };
 }
 
@@ -107,7 +112,7 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                "/harmos.v1.Status/Get" => {
+                "/harmos.host.v1.Status/Get" => {
                     let mut reply = library::StatusGetResponse::default();
                     let status = reply.status.get_or_insert_default();
                     status.available = true;
@@ -119,25 +124,23 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                         .unary(Reply(reply), request)
                         .await
                 }
-                "/dokime.client.v1.backend.Overview/Get" => {
-                    let reply = client::backend::OverviewGetResponse {
-                        overview: Some(client::backend::RuntimeShellSnapshot {
+                "/dokime.host.v1.backend.Overview/Get" => {
+                    let reply = BackendOverviewGetResponse {
+                        overview: Some(BackendRuntimeShellSnapshot {
                             session_id: "product-history".into(),
                             ..Default::default()
                         }),
                         ..Default::default()
                     };
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, client::backend::OverviewGetRequest>::default())
-                        .unary(Reply(reply), request)
-                        .await
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, OverviewGetRequest>::default()).unary(Reply(reply), request).await
                 }
-                "/harmos.v1.CatalogEntries/List" => {
-                    let reply = library::CatalogEntriesListResponse {
-                        operations: vec![library::DiscoveredOperation {
+                "/harmos.host.v1.Operations/List" => {
+                    let reply = library::OperationsListResponse {
+                        operations: vec![DiscoveredOperation {
                             grpc_available: true,
-                            contract: Some(library::DiscoveredContract {
-                                grpc: Some(library::Grpc {
-                                    package: "harmos.v1".into(),
+                            contract: Some(DiscoveredContract {
+                                grpc: Some(Grpc {
+                                    package: "harmos.host.v1".into(),
                                     service: "Storage".into(),
                                     method: "GetFileBytes".into(),
                                     ..Default::default()
@@ -148,7 +151,7 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                         }],
                         ..Default::default()
                     };
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::CatalogEntriesListRequest>::default())
+                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::OperationsListRequest>::default())
                         .unary(Reply(reply), request)
                         .await
                 }

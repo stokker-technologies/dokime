@@ -385,8 +385,8 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     diagnostics: "fixture-backtrace\nfixture-frame",
   });
   for (const [typeUrl, value] of [
-    ["type.googleapis.com/harmos.v1.Failure", toBinary(FailureSchema, rejected)],
-    ["type.googleapis.com/dokime.client.v1.evidence.CapturedRecordError", toBinary(CapturedRecordErrorSchema, captured)],
+    ["type.googleapis.com/harmos.model.v1.Failure", toBinary(FailureSchema, rejected)],
+    ["type.googleapis.com/dokime.host.v1.evidence.CapturedRecordError", toBinary(CapturedRecordErrorSchema, captured)],
   ] as const) {
     const envelope = create(StatusSchema, { code: 3, message: "fixture-request-refused", details: [{ typeUrl, value }] });
     const error = normalizeRpcError({
@@ -416,7 +416,7 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     invocationId: "fixture-invocation-id",
   });
   await assert.rejects(
-    transport.unary("/dokime.client.v1.Executions/Start", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
+    transport.unary("/dokime.host.v1.Executions/Start", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
     (error: unknown) => {
       assert.equal(error, refusal);
       history.toast.error(failureOf(error, "fixture-admission"));

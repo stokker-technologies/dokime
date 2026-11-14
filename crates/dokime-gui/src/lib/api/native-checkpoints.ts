@@ -4,14 +4,14 @@
 /* === External Imports === */
 
 import { create, fromJson, toJson } from "@bufbuild/protobuf";
-import { ReadCutSchema, type ReadCut } from "@host/harmos/v1/types_pb.js";
-import type { ExecutionDetail } from "@host/dokime/client/v1/executions_pb.js";
-import type { CapturedRecord } from "@host/dokime/client/v1/evidence/records_pb.js";
-import * as protocolV1Execution from "@host/dokime/v1/execution_pb.js";
-import * as protocolV1Evidence from "@host/dokime/v1/evidence_pb.js";
-import * as protocolClientV1ContentExecutionFiles from "@host/dokime/client/v1/content/execution_files_pb.js";
-import { Severity as HostSeverity } from "@host/dokime/v1/evidence_pb.js";
-import { CyclePhase, type CycleSummary } from "@host/dokime/v1/cycles_pb.js";
+import { ReadCutSchema, type ReadCut } from "@host/model";
+import type { ExecutionDetail } from "@host/model";
+import type { CapturedRecord } from "@host/model";
+import { type ExecutionOutcome, ExecutionState, ResultStatus } from "@host/model";
+import { ArtifactState } from "@host/model";
+import { ExecutionFileKind, type ExecutionFileMetadata as HostExecutionFileMetadata, ExecutionFileState } from "@host/model";
+import { Severity as HostSeverity } from "@host/model";
+import { CyclePhase, type CycleSummary } from "@host/model";
 
 /* === Local Imports === */
 
@@ -39,13 +39,9 @@ export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
 
 /* === Types === */
 
-type ExecutionStatus = protocolV1Execution.ExecutionState;
-type ResultStatus = protocolV1Execution.ResultStatus;
+type ExecutionStatus = ExecutionState;
 type Severity = HostSeverity;
-type ExecutionFileMetadata = Wire<protocolClientV1ContentExecutionFiles.ExecutionFileMetadata>;
-type ExecutionFileKind = protocolClientV1ContentExecutionFiles.ExecutionFileKind;
-type ExecutionFileState = protocolClientV1ContentExecutionFiles.ExecutionFileState;
-type ArtifactState = protocolV1Evidence.ArtifactState;
+type ExecutionFileMetadata = Wire<HostExecutionFileMetadata>;
 export interface NativeCheckpointSession extends SessionIdentity {
   own(dispose: () => void): () => void;
 }
@@ -159,7 +155,7 @@ function mapBrowseEntry(execution: Wire<ExecutionDetail>): ExecutionBrowseEntry 
   const summary = required(execution.summary, "Read Execution Summary");
   const position = execution.resolvedAt;
   const checkpoint =
-    summary.state === protocolV1Execution.ExecutionState.SEALED && execution.seal.length && position?.history
+    summary.state === ExecutionState.SEALED && execution.seal.length && position?.history
       ? {
           executionIdentifier: summary.executionId,
           version: execution.seal,
@@ -183,8 +179,7 @@ function mapBrowseEntry(execution: Wire<ExecutionDetail>): ExecutionBrowseEntry 
       outcome: execution.outcome,
     },
     checkpoint,
-    availability:
-      summary.state === protocolV1Execution.ExecutionState.SEALED ? "stored" : execution.controls?.requestId ? "live" : "uncheckpointed",
+    availability: summary.state === ExecutionState.SEALED ? "stored" : execution.controls?.requestId ? "live" : "uncheckpointed",
     archived: summary.archived,
   };
 }
@@ -282,6 +277,7 @@ export async function fetchNativeCheckpointRecords(
   const execution = await executionAt(session, checkpoint, signal);
   const at = evidenceCut(checkpoint);
   const reply = await rpc.evidenceRecordsList(session, {
+    scope: { kind: { case: "execution", value: checkpoint.executionIdentifier } },
     selection: { scope: { executionId: checkpoint.executionIdentifier } },
     at,
     page: { pageSize: options.limit ?? NATIVE_PAGE_SIZE, pageToken: options.after ?? "" },
@@ -422,15 +418,12 @@ export async function downloadNativeCheckpointArtifact(
 
 export function executionStatusLabel(
   state: ExecutionStatus | undefined,
-  outcome?: Wire<protocolV1Execution.ExecutionOutcome>,
+  outcome?: Wire<ExecutionOutcome>,
   started = false,
 ): "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" | "skipped" {
-  if (state === protocolV1Execution.ExecutionState.OPEN) return started ? "running" : "pending";
+  if (state === ExecutionState.OPEN) return started ? "running" : "pending";
   const attribution = outcome?.attribution;
-  if (
-    (attribution?.case === "evaluated" || attribution?.case === "declared") &&
-    attribution.value.status === protocolV1Execution.ResultStatus.BLOCKED
-  )
+  if ((attribution?.case === "evaluated" || attribution?.case === "declared") && attribution.value.status === ResultStatus.BLOCKED)
     return "blocked";
   const status = projectExecutionStatus(state, outcome);
   if (status === "stopped") return "cancelled";
@@ -443,13 +436,13 @@ export function executionStatusLabel(
 
 function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
   switch (status) {
-    case protocolV1Execution.ResultStatus.PASSED:
+    case ResultStatus.PASSED:
       return "passed";
-    case protocolV1Execution.ResultStatus.FAILED:
+    case ResultStatus.FAILED:
       return "failed";
-    case protocolV1Execution.ResultStatus.BLOCKED:
+    case ResultStatus.BLOCKED:
       return "blocked";
-    case protocolV1Execution.ResultStatus.CANCELLED:
+    case ResultStatus.CANCELLED:
       return "cancelled";
     default:
       return "pending";
@@ -462,11 +455,11 @@ export function checkpointFileLabel(file: ExecutionFileMetadata): string {
 
 export function checkpointFileKind(kind: ExecutionFileKind | undefined): "text" | "binary" | "media" | "unknown" {
   switch (kind) {
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.TEXT:
+    case ExecutionFileKind.TEXT:
       return "text";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.BINARY:
+    case ExecutionFileKind.BINARY:
       return "binary";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileKind.MEDIA:
+    case ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -479,11 +472,11 @@ export function checkpointFileState(state: ExecutionFileState | undefined): stri
 
 function fileStateLabel(state: ExecutionFileState | undefined): string {
   switch (state) {
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.STREAMING:
+    case ExecutionFileState.STREAMING:
       return "streaming";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.FINALIZED:
+    case ExecutionFileState.FINALIZED:
       return "finalized";
-    case protocolClientV1ContentExecutionFiles.ExecutionFileState.INTERRUPTED:
+    case ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "unspecified";
@@ -492,13 +485,13 @@ function fileStateLabel(state: ExecutionFileState | undefined): string {
 
 export function artifactStateLabel(state: ArtifactState | undefined): string {
   switch (state) {
-    case protocolV1Evidence.ArtifactState.COMPLETE:
+    case ArtifactState.COMPLETE:
       return "complete";
-    case protocolV1Evidence.ArtifactState.CANCELLED:
+    case ArtifactState.CANCELLED:
       return "cancelled";
-    case protocolV1Evidence.ArtifactState.REJECTED:
+    case ArtifactState.REJECTED:
       return "rejected";
-    case protocolV1Evidence.ArtifactState.FAILED:
+    case ArtifactState.FAILED:
       return "failed";
     default:
       return "unspecified";

@@ -13,9 +13,9 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
-import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
-import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/plots_pb.js";
-import { LineStyle } from "@host/dokime/v1/plots_pb.js";
+import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/model";
+import { PlotKind, Reduction, XyInterval } from "@host/model";
+import { LineStyle } from "@host/model";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";

@@ -22,12 +22,12 @@ import {
   installNativePlugin,
   listNativePlugins,
   removeNativePlugin,
-  reloadNativePlugin,
+  restartNativePlugin,
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
 import { clearPluginNotifications, toast } from "@/lib/notifications";
-import type { PluginEntry } from "@/lib/types/view-contracts";
+import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Query Keys === */
 
@@ -48,33 +48,22 @@ export function PluginStartNotifications() {
     if (!query.data || !session.identity.isCurrent()) return;
     for (const entry of query.data) {
       const title = startNotification(entry);
-      if (!title || entry.last_boot?.state !== "failed") continue;
-      const key = `${session.identity.generation}:${entry.install_id}:${entry.last_boot.at}`;
+      if (!title || !entry.failure) continue;
+      const key = `${session.identity.generation}:${entry.name}:${entry.activation}:${entry.failure.message}`;
       if (seen.current.has(key)) continue;
       seen.current.add(key);
-      const failure = entry.last_boot.failure;
       toast.error(pluginStartFailure(entry, session.identity.generation), {
         context: "background",
-        description: failure.message,
-        source: failure.plugin_name,
-        pluginSettings: entry.install_id,
-        missingSecret: failure.missing_secret ?? undefined,
-        consequences: failure.consequences,
-        action:
-          failure.missing_secret || (entry.metadata?.owners.length && entry.state !== "removal_pending")
-            ? {
-                label: failure.missing_secret ? "Set Secret" : "Open Plugin Settings",
-                onClick: () =>
-                  void navigate(
-                    failure.missing_secret
-                      ? { to: "/settings/$section", params: { section: "secrets" }, hash: `add-secret=${failure.missing_secret}` }
-                      : { to: "/settings/plugins/$pluginId", params: { pluginId: entry.install_id } },
-                  ),
-              }
-            : undefined,
+        description: entry.failure.message,
+        source: entry.description?.id || entry.name,
+        pluginSettings: entry.name,
+        action: {
+          label: "Open Plugin Settings",
+          onClick: () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: entry.name } }),
+        },
       });
     }
-    const installations = new Set(query.data.map((entry) => entry.install_id));
+    const installations = new Set(query.data.map((entry) => entry.name));
     void clearPluginNotifications(session.identity.generation, installations).catch((error: unknown) =>
       toast.error(failureOf(error, "Notification History Unavailable"), { context: "background" }),
     );
@@ -82,23 +71,13 @@ export function PluginStartNotifications() {
   return null;
 }
 
-export function pluginStartFailure(entry: PluginEntry, generation: string) {
-  if (entry.last_boot?.state !== "failed") throw new Error("Plugin has no failed startup.");
-  return failureOf(
-    entry.last_boot.failure,
-    startNotification(entry) ?? "Plugin Startup Failed",
-    [generation, entry.install_id, entry.last_boot.at].join(":"),
-  );
+export function pluginStartFailure(entry: ManagedPlugin, generation: string) {
+  if (!entry.failure) throw new Error("Read Plugin Failure: Plugin Has No Reported Failure");
+  return failureOf(entry.failure, "Plugin Unavailable", [generation, entry.name, entry.activation, entry.failure.message].join(":"));
 }
 
-/**
- * A failed startup, and a refused restart that left the running generation in
- * place, notify once per recorded outcome.
- */
-export function startNotification(entry: PluginEntry): string | null {
-  if (entry.last_boot?.state !== "failed") return null;
-  if (entry.boot_failed) return "Plugin Could Not Start";
-  return entry.active ? "Plugin Restart Refused" : null;
+export function startNotification(entry: ManagedPlugin): string | null {
+  return entry.failure ? "Plugin Unavailable" : null;
 }
 
 export function usePluginsQuery() {
@@ -157,7 +136,7 @@ export function useReloadPluginMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (target: { installId: string } | { pluginId: string }) => reloadNativePlugin(session.identity, target),
+    mutationFn: (name: string) => restartNativePlugin(session.identity, name),
     onError: (error) => toast.error(failureOf(error, "Plugin Reload Failed")),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings"] });

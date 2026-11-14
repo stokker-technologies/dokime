@@ -27,13 +27,13 @@ type UnitMember = "Count" | "Sum" | "Mean" | "Median" | "Min" | "Max" | "Rms" | 
 
 /** The init shape of any generated Harmos aggregate message. */
 export type AggregateMessage = {
-  HarmosVariant: { case: UnitMember; value: Record<string, never> } | { case: "Percentile"; value: { rank: number } };
+  Variant: { case: UnitMember; value: Record<string, never> } | { case: "Percentile"; value: { rank: number } };
 };
 
 /** What a decoded generated aggregate message exposes. */
 type DecodedAggregate =
   | {
-      HarmosVariant: { case: string | undefined; value?: unknown };
+      Variant: { case: string | undefined; value?: unknown };
     }
   | undefined;
 
@@ -58,17 +58,17 @@ const MAX_RANK = 100;
 /** The wire message for one document aggregate; unknown names are refused. */
 export function aggregateMessage(name: string): AggregateMessage {
   const unit = UNIT_MEMBERS[name];
-  if (unit) return { HarmosVariant: { case: unit, value: {} } };
+  if (unit) return { Variant: { case: unit, value: {} } };
   const rank = PERCENTILE.exec(name)?.[1];
   if (rank !== undefined && Number(rank) <= MAX_RANK) {
-    return { HarmosVariant: { case: "Percentile", value: { rank: Number(rank) } } };
+    return { Variant: { case: "Percentile", value: { rank: Number(rank) } } };
   }
   throw new Error(`Unknown aggregate "${name}".`);
 }
 
 /** The document name of a decoded wire aggregate; an absent member is `count`. */
 export function aggregateName(message: DecodedAggregate): Aggregate {
-  const variant = message?.HarmosVariant;
+  const variant = message?.Variant;
   const member = variant?.case;
   if (member === undefined) return "count";
   if (member === "Percentile") {
