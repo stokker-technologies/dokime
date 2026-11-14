@@ -15,11 +15,13 @@
 
 /* === Imports === */
 
-use crate::Result;
+use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
-use dokime_protocol::host::files::UploadsCreateRequest;
-use dokime_protocol::host::files::UploadsCreateResponse;
+use crate::{Error, Result};
+use dokime_protocol::host::files::{UploadsCreateRequest, UploadsCreateResponse};
 use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{CreateFileProduction, CreateFileProductionRequest};
+use harmos_runtime::storage::FileMetadata as NativeFileMetadata;
 
 /* === Constants === */
 
@@ -44,11 +46,26 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<UploadsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        Ok(context.host.store().create_file_upload(
-            request,
-            crate::host::files::transfer::chunk_bytes(context) as u64,
-            context.settings.message_bytes as u64,
-        )?)
+        let mut metadata = request.metadata.ok_or_else(|| Error::Invalid(format!("{ID}: Supply File Metadata")))?;
+        if let Some(caller) = &context.caller {
+            let execution = caller.resolve_execution(metadata.scope.as_deref(), ID)?;
+            metadata.scope = Some(execution.to_owned());
+        }
+        let metadata = NativeFileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        let response = context
+            .storage::<CreateFileProduction>(CreateFileProductionRequest {
+                metadata: Some(metadata),
+                mutation: Some(mutation),
+            })
+            .await?;
+        let upload = response.production.map(transfer::upload);
+        Ok(UploadsCreateResponse {
+            upload,
+            receipt: response.receipt,
+            chunk_bytes: transfer::chunk_bytes(context).await? as u64,
+            message_bytes: context.settings.message_bytes as u64,
+        })
     })
     .await
 }

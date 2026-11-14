@@ -15,13 +15,24 @@
 
 /* === Imports === */
 
+use crate::host::Output;
+
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Result, host::Context};
+
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::backend::OverviewWatchRequest;
+use dokime_protocol::host::backend::OverviewWatchResponse;
+
+use harmos_protocol::model::OperationContract;
+
+use harmos_protocol::model::Failure;
 
 /* === Constants === */
 
@@ -41,19 +52,14 @@ pub const ID: &str = "dokime.host.v1.backend.Overview/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::backend::OverviewWatchRequest, dokime_protocol::host::backend::OverviewWatchResponse>(
-        ID,
-        settings.watch_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<OverviewWatchRequest, OverviewWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::backend::OverviewWatchRequest,
-) -> Result<crate::host::Output<dokime_protocol::host::backend::OverviewWatchResponse>> {
+pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<Output<OverviewWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::host::backend::OverviewGetRequest { at: request.at };
+        let mut selection = OverviewGetRequest { at: request.at };
         let first = crate::host::backend::overview::get::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
@@ -64,7 +70,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = String::new();
-                    let response = dokime_protocol::host::backend::OverviewWatchResponse {
+                    let response = OverviewWatchResponse {
                         overview: page.overview,
                         resolved_at: cut.clone(),
                         opening,
@@ -91,8 +97,8 @@ pub async fn handle(
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::host::backend::OverviewWatchResponse {
-                                    resync_required: Some(h::Failure {
+                                .send(Ok(OverviewWatchResponse {
+                                    resync_required: Some(Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),
                                         ..Default::default()

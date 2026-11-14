@@ -15,11 +15,13 @@
 
 /* === Imports === */
 
+use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
-use dokime_protocol::host::FilesGetRequest;
-use dokime_protocol::host::FilesGetResponse;
+use dokime_protocol::host::{FilesGetRequest, FilesGetResponse};
 use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage::FileReference as NativeFileReference;
 
 /* === Constants === */
 
@@ -44,20 +46,26 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: FilesGetRequest) -> Result<FilesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let selected = request.file.as_ref().ok_or_else(|| Error::Invalid("Get File: Supply Its Reference".into()))?;
-        let id = crate::host::files::transfer::identifier(Some(selected))?;
-        let (mut response, cut) = crate::host::views::read(context, &format!("file/{id}"), request.at.as_ref(), async {
-            let file = crate::host::files::transfer::reference(context, selected)?;
-            Ok(FilesGetResponse {
-                file: Some(file),
-                chunk_bytes: crate::host::files::transfer::chunk_bytes(context) as u64,
-                message_bytes: context.settings.message_bytes as u64,
-                resolved_at: None,
+        let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;
+        transfer::authorize(context, &file)?;
+        let selected = NativeFileReference::try_from(file.clone()).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let response = context
+            .storage::<GetFileBytes>(GetFileBytesRequest {
+                file: Some(selected),
+                offset: file.length,
+                max_bytes: 1,
+                at: request.at,
             })
-        })
-        .await?;
-        response.resolved_at = Some(cut);
-        crate::host::bounded_reply(context, response)
+            .await?;
+        crate::host::bounded_reply(
+            context,
+            FilesGetResponse {
+                file: Some(file),
+                chunk_bytes: transfer::chunk_bytes(context).await? as u64,
+                message_bytes: context.settings.message_bytes as u64,
+                resolved_at: response.resolved_at,
+            },
+        )
     })
     .await
 }

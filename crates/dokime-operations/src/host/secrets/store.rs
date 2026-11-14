@@ -27,6 +27,21 @@ use zeroize::Zeroizing;
 // Local Imports
 use crate::{Error, Result, host::Context};
 use dokime_protocol::model;
+use harmos_protocol::host::PluginEntry;
+
+use dokime_protocol::host::SecretArchive;
+use dokime_protocol::host::SecretImportAction;
+use dokime_protocol::host::SecretImportEntry;
+use dokime_protocol::host::SecretImportPreview;
+use dokime_protocol::host::SecretSnapshot;
+use dokime_protocol::host::SecretSummary;
+use dokime_protocol::host::SecretWritable;
+use dokime_protocol::host::SecretsDeleteRequest;
+use dokime_protocol::host::SecretsExportRequest;
+use dokime_protocol::host::SecretsImportRequest;
+use dokime_protocol::host::SecretsSetRequest;
+use dokime_protocol::model::Metadata as ProtocolMetadata;
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -56,7 +71,7 @@ struct Catalog {
 #[derive(Clone, PartialEq, Message)]
 struct Slot {
     #[prost(message, optional, tag = "1")]
-    metadata: Option<dokime_protocol::model::Metadata>,
+    metadata: Option<ProtocolMetadata>,
 
     #[prost(string, tag = "2")]
     slot: String,
@@ -97,17 +112,17 @@ struct Metadata {
 pub(crate) enum Action {
     List,
     Lookup(String),
-    Put(dokime_protocol::host::SecretsSetRequest),
-    Remove(dokime_protocol::host::SecretsDeleteRequest),
-    Export(dokime_protocol::host::SecretsExportRequest),
+    Put(SecretsSetRequest),
+    Remove(SecretsDeleteRequest),
+    Export(SecretsExportRequest),
     Preview(Vec<u8>),
-    Import(dokime_protocol::host::SecretsImportRequest),
+    Import(SecretsImportRequest),
 }
 pub(crate) enum Reply {
-    Snapshot(dokime_protocol::host::SecretSnapshot),
-    Lookup(dokime_protocol::host::SecretWritable),
-    Archive(dokime_protocol::host::SecretArchive),
-    Preview(dokime_protocol::host::SecretImportPreview),
+    Snapshot(SecretSnapshot),
+    Lookup(SecretWritable, u64),
+    Archive(SecretArchive),
+    Preview(SecretImportPreview),
 }
 
 /* === Traits === */
@@ -116,7 +131,7 @@ pub(crate) enum Reply {
 
 /* === Public Functions === */
 
-pub fn remove_root_secrets(store: &dokime_storage::Store) -> Result<()> {
+pub fn remove_root_secrets(store: &Store) -> Result<()> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     let journal: KeySlots = store.administration("secret-key-slots")?.unwrap_or_default();
     let accounts: BTreeSet<_> = catalog
@@ -148,26 +163,27 @@ pub fn register_redactions(context: &Context) -> Result<()> {
 }
 
 pub(crate) async fn perform(context: &Context, action: Action) -> Result<Reply> {
+    let plugins = context.host.plugins().await?;
     let context = context.clone();
     // Own Secure Publication Through Cancellation and Serialize Readers with Writers.
     tokio::spawn(async move {
         let guard = context.administration.clone().lock_owned().await;
         tokio::task::spawn_blocking(move || {
             let _guard = guard;
-            run(&context, action)
+            run(&context, action, &plugins)
         })
         .await
-        .map_err(|_| unavailable())?
+        .map_err(|cause| Error::Unavailable(format!("Operate Secret Storage: Join Its Protected Write: {cause}")))?
     })
     .await
-    .map_err(|_| unavailable())?
+    .map_err(|cause| Error::Unavailable(format!("Operate Secret Storage: Join Its Publication: {cause}")))?
 }
 
-pub(crate) fn availability(store: &dokime_storage::Store, identifier: &str) -> Result<bool> {
+pub(crate) fn availability(store: &Store, identifier: &str) -> Result<bool> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     Ok(catalog.entries.iter().any(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier)))
 }
-pub(crate) fn read_secret(store: &dokime_storage::Store, id: &str) -> Result<Vec<u8>> {
+pub(crate) fn read_secret(store: &Store, id: &str) -> Result<Vec<u8>> {
     identifier(id)?;
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     let slot = catalog
@@ -210,7 +226,7 @@ fn identifier(value: &str) -> Result<()> {
     }
     Ok(())
 }
-fn metadata(value: &dokime_protocol::model::Metadata) -> Result<()> {
+fn metadata(value: &ProtocolMetadata) -> Result<()> {
     identifier(&value.identifier)?;
     if value.label.trim().is_empty()
         || value.label.len() > 256
@@ -243,38 +259,37 @@ fn lookup(context: &Context, catalog: &Catalog, id: &str) -> Result<Zeroizing<St
     context.host.register_sensitive(&result)?;
     Ok(result)
 }
-fn snapshot(context: &Context, catalog: &Catalog, cleanup_pending: bool) -> Result<dokime_protocol::host::SecretSnapshot> {
+fn snapshot(context: &Context, catalog: &Catalog, cleanup_pending: bool, plugins: &[PluginEntry]) -> Result<SecretSnapshot> {
     let journal: KeySlots = context.host.store().administration("secret-key-slots")?.unwrap_or_default();
     let cleanup_pending = cleanup_pending || journal.slots.iter().any(|slot| !catalog.entries.iter().any(|entry| &entry.slot == slot));
-    let plugins = context.host.plugins()?;
     let mut uses: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for plugin in plugins {
-        let Some(description) = plugin.description else {
+        let Some(description) = &plugin.description else {
             continue;
         };
-        let Some(definition) = description.declarations else {
+        let Some(definition) = &description.declarations else {
             continue;
         };
-        for section in definition.sections {
+        for section in &definition.sections {
             if section.r#type != "dokime.model.v1.SecretsDeclarations" {
                 continue;
             }
             for setting in model::SecretsDeclarations::decode(section.payload.as_slice())?.secrets {
                 if let Some(metadata) = setting.metadata {
-                    uses.entry(metadata.identifier).or_default().insert(plugin.entry.clone());
+                    uses.entry(metadata.identifier).or_default().insert(plugin.name.clone());
                 }
             }
         }
     }
     let identity = context.host.identity();
-    Ok(dokime_protocol::host::SecretSnapshot {
+    Ok(SecretSnapshot {
         host_id: identity.backend_id,
         host_label: identity.display_name,
         generation: catalog.generation,
         entries: catalog
             .entries
             .iter()
-            .map(|slot| dokime_protocol::host::SecretSummary {
+            .map(|slot| SecretSummary {
                 metadata: slot.metadata.clone(),
                 known_uses: slot
                     .metadata
@@ -303,7 +318,7 @@ fn decode(data: &[u8]) -> Result<Document> {
     }
     let mut identifiers = BTreeSet::new();
     for item in &document.entries {
-        let converted = dokime_protocol::model::Metadata {
+        let converted = ProtocolMetadata {
             identifier: item.metadata.identifier.clone(),
             label: item.metadata.label.clone(),
             description: item.metadata.description.clone().unwrap_or_default(),
@@ -317,21 +332,24 @@ fn decode(data: &[u8]) -> Result<Document> {
     }
     Ok(document)
 }
-fn run(context: &Context, action: Action) -> Result<Reply> {
+fn run(context: &Context, action: Action, plugins: &[PluginEntry]) -> Result<Reply> {
     let store = context.host.store();
     let saved: Option<Catalog> = store.administration("secrets")?;
     let previous = saved.clone().unwrap_or_default();
     let (changes, removed, generation) = match action {
-        Action::List => return Ok(Reply::Snapshot(snapshot(context, &previous, false)?)),
+        Action::List => return Ok(Reply::Snapshot(snapshot(context, &previous, false, plugins)?)),
         Action::Lookup(id) => {
-            return Ok(Reply::Lookup(dokime_protocol::host::SecretWritable {
-                metadata: previous
-                    .entries
-                    .iter()
-                    .find(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == id))
-                    .and_then(|slot| slot.metadata.clone()),
-                value: Some(lookup(context, &previous, &id)?.to_string()),
-            }));
+            return Ok(Reply::Lookup(
+                SecretWritable {
+                    metadata: previous
+                        .entries
+                        .iter()
+                        .find(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == id))
+                        .and_then(|slot| slot.metadata.clone()),
+                    value: Some(lookup(context, &previous, &id)?.to_string()),
+                },
+                previous.generation,
+            ));
         }
         Action::Put(request) => {
             let generation = u64::from_be_bytes(
@@ -382,26 +400,26 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
             if bytes.len() > DOCUMENT_BYTES {
                 return Err(invalid("Reduce the Secret Selection to the Transfer Limit"));
             }
-            return Ok(Reply::Archive(dokime_protocol::host::SecretArchive {
+            return Ok(Reply::Archive(SecretArchive {
                 data: base64::engine::general_purpose::STANDARD.encode(&*bytes).into_bytes(),
             }));
         }
         Action::Preview(data) => {
             let document = decode(&data)?;
             let identity = context.host.identity();
-            return Ok(Reply::Preview(dokime_protocol::host::SecretImportPreview {
+            return Ok(Reply::Preview(SecretImportPreview {
                 host_id: identity.backend_id,
                 host_label: identity.display_name,
                 generation: previous.generation,
                 entries: document
                     .entries
                     .into_iter()
-                    .map(|item| dokime_protocol::host::SecretImportEntry {
+                    .map(|item| SecretImportEntry {
                         exists: previous
                             .entries
                             .iter()
                             .any(|slot| slot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == item.metadata.identifier)),
-                        metadata: Some(dokime_protocol::model::Metadata {
+                        metadata: Some(ProtocolMetadata {
                             identifier: item.metadata.identifier,
                             label: item.metadata.label,
                             description: item.metadata.description.unwrap_or_default(),
@@ -418,10 +436,8 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
             }
             let mut choices = BTreeMap::new();
             for choice in request.choices {
-                if !matches!(
-                    dokime_protocol::host::SecretImportAction::try_from(choice.action),
-                    Ok(dokime_protocol::host::SecretImportAction::Replace | dokime_protocol::host::SecretImportAction::Skip)
-                ) || choices.insert(choice.identifier, choice.action).is_some()
+                if !matches!(SecretImportAction::try_from(choice.action), Ok(SecretImportAction::Replace | SecretImportAction::Skip))
+                    || choices.insert(choice.identifier, choice.action).is_some()
                 {
                     return Err(invalid("Choose Replace or Skip Exactly Once per Identifier"));
                 }
@@ -429,11 +445,11 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
             let mut changes = Vec::new();
             for item in document.entries {
                 let action = choices.remove(&item.metadata.identifier).ok_or_else(|| invalid("Match Every Choice to the Imported File"))?;
-                if action == dokime_protocol::host::SecretImportAction::Skip as i32 {
+                if action == SecretImportAction::Skip as i32 {
                     continue;
                 }
                 changes.push((
-                    dokime_protocol::model::Metadata {
+                    ProtocolMetadata {
                         identifier: item.metadata.identifier,
                         label: item.metadata.label,
                         description: item.metadata.description.unwrap_or_default(),
@@ -490,7 +506,7 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
     }
     next.entries.sort_by(|left, right| left.metadata.as_ref().unwrap().identifier.cmp(&right.metadata.as_ref().unwrap().identifier));
     if next == previous {
-        return Ok(Reply::Snapshot(snapshot(context, &previous, false)?));
+        return Ok(Reply::Snapshot(snapshot(context, &previous, false, plugins)?));
     }
     next.generation =
         previous.generation.checked_add(1).ok_or_else(|| invalid("Back Up Secret Storage Before Resetting an Exhausted Generation"))?;
@@ -541,7 +557,7 @@ fn run(context: &Context, action: Action) -> Result<Reply> {
         cleanup_pending = true;
         tracing::warn!(%error, "Record Secret Credential Cleanup: Retained Its Earlier Write Intents");
     }
-    Ok(Reply::Snapshot(snapshot(context, &next, cleanup_pending)?))
+    Ok(Reply::Snapshot(snapshot(context, &next, cleanup_pending, plugins)?))
 }
 
 /* === Tests === */

@@ -15,14 +15,21 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+
+use dokime_protocol::host::ApplicationSettings;
+use dokime_protocol::host::SettingsSetRequest;
+use dokime_protocol::host::SettingsSetResponse;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -42,30 +49,25 @@ pub const ID: &str = "dokime.host.v1.Settings/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::SettingsSetRequest, dokime_protocol::host::SettingsSetResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SettingsSetRequest, SettingsSetResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::SettingsSetRequest,
-) -> Result<dokime_protocol::host::SettingsSetResponse> {
+pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<SettingsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Settings: Supply the Whole Writable Value".into()))?;
         crate::host::settings::preferences::validate(value)?;
-        let fingerprint = crate::host::views::hex(&crate::host::paging::bytes(&request));
-        let (payload, revision, receipt) = context.host.store().replace_administration_value(
+        let (snapshot, receipt) = crate::host::storage::administration::replace(
+            context,
             "preferences",
-            &request.expected_revision,
+            request.expected_revision,
             &request.request_id,
-            fingerprint.as_bytes(),
-            &value.encode_to_vec(),
-        )?;
+            value.encode_to_vec(),
+        )
+        .await?;
         context.host.signal_change();
-        Ok(dokime_protocol::host::SettingsSetResponse {
-            value: Some(dokime_protocol::host::ApplicationSettings::decode(payload.as_slice())?),
-            revision,
+        Ok(SettingsSetResponse {
+            value: Some(ApplicationSettings::decode(snapshot.payload.as_slice())?),
+            revision: snapshot.revision,
             receipt: Some(receipt),
         })
     })

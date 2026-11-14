@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+
+use dokime_protocol::host::SecretsImportRequest;
+use dokime_protocol::host::SecretsImportResponse;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +47,10 @@ pub const ID: &str = "dokime.host.v1.Secrets/Import";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::SecretsImportRequest, dokime_protocol::host::SecretsImportResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SecretsImportRequest, SecretsImportResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::SecretsImportRequest,
-) -> Result<dokime_protocol::host::SecretsImportResponse> {
+pub async fn handle(context: &Context, request: SecretsImportRequest) -> Result<SecretsImportResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if request.validate_only {
             let crate::host::secrets::store::Reply::Preview(preview) =
@@ -57,7 +58,7 @@ pub async fn handle(
             else {
                 return Err(Error::Invalid("Preview Secrets: Restart the Secret Store".into()));
             };
-            return Ok(dokime_protocol::host::SecretsImportResponse {
+            return Ok(SecretsImportResponse {
                 preview: Some(preview),
                 ..Default::default()
             });
@@ -69,7 +70,7 @@ pub async fn handle(
             return Err(Error::Invalid("Import Secrets: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(dokime_protocol::host::SecretsImportResponse {
+        Ok(SecretsImportResponse {
             snapshot: Some(snapshot),
             receipt: Some(receipt),
             ..Default::default()

@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Result, host::Context};
+
+use dokime_protocol::host::content::ExecutionFilesGetRequest;
+use dokime_protocol::host::content::ExecutionFilesGetResponse;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,20 +47,15 @@ pub const ID: &str = "dokime.host.v1.content.ExecutionFiles/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<
-        dokime_protocol::host::content::ExecutionFilesGetRequest,
-        dokime_protocol::host::content::ExecutionFilesGetResponse,
-    >(ID, settings.read_timeout)
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<ExecutionFilesGetRequest, ExecutionFilesGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::content::ExecutionFilesGetRequest,
-) -> Result<dokime_protocol::host::content::ExecutionFilesGetResponse> {
+pub async fn handle(context: &Context, request: ExecutionFilesGetRequest) -> Result<ExecutionFilesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
                 let entry = context.host.store().execution_file(&request.parent, &request.name)?;
-                Ok(dokime_protocol::host::content::ExecutionFilesGetResponse {
+                Ok(ExecutionFilesGetResponse {
                     metadata: Some(entry.file_metadata()?),
                     file: Some(crate::host::content::artifacts::get::reference(context, &entry)?),
                     ..Default::default()

@@ -15,13 +15,20 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+
+use dokime_protocol::host::SuitesGetRequest;
+use dokime_protocol::host::SuitesGetResponse;
+use dokime_protocol::host::SuitesListRequest;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,22 +48,18 @@ pub const ID: &str = "dokime.host.v1.Suites/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::SuitesGetRequest, dokime_protocol::host::SuitesGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SuitesGetRequest, SuitesGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::SuitesGetRequest,
-) -> Result<dokime_protocol::host::SuitesGetResponse> {
+pub async fn handle(context: &Context, request: SuitesGetRequest) -> Result<SuitesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let reply =
-            crate::host::suites::list::handle(context, dokime_protocol::host::SuitesListRequest { parent: request.parent, at: request.at })
-                .await?;
+        let reply = crate::host::suites::list::handle(context, SuitesListRequest { parent: request.parent, at: request.at }).await?;
         let value = reply
             .values
             .into_iter()
             .find(|value| value.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.name))
             .ok_or_else(|| Error::NotFound("Get Suites: Select a Declared Identifier".into()))?;
-        Ok(dokime_protocol::host::SuitesGetResponse {
+        Ok(SuitesGetResponse {
             value: Some(value),
             resolved_at: reply.resolved_at,
         })

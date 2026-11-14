@@ -15,11 +15,12 @@
 
 /* === Imports === */
 
-use crate::Result;
+use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
-use dokime_protocol::host::files::UploadsAppendRequest;
-use dokime_protocol::host::files::UploadsAppendResponse;
+use crate::{Error, Result};
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsAppendResponse};
 use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{AppendFileBytes, AppendFileBytesRequest};
 
 /* === Constants === */
 
@@ -44,7 +45,23 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<UploadsAppendResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        Ok(context.host.store().append_file_upload(request, crate::host::files::transfer::chunk_bytes(context))?)
+        if request.data.len() > transfer::chunk_bytes(context).await? {
+            return Err(Error::Bound(format!("{ID}: Respect the Returned Chunk Bound")));
+        }
+        let session = transfer::session(request.upload)?;
+        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        let response = context
+            .storage::<AppendFileBytes>(AppendFileBytesRequest {
+                session: Some(session),
+                offset: request.offset,
+                data: request.data,
+                mutation: Some(mutation),
+            })
+            .await?;
+        Ok(UploadsAppendResponse {
+            upload: response.production.map(transfer::upload),
+            receipt: response.receipt,
+        })
     })
     .await
 }

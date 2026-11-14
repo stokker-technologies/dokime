@@ -11,4 +11,5 @@
 
 /* === Modules === */
 
+pub mod administration;
 pub mod sources;

@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+
+use dokime_protocol::host::SecretsDeleteRequest;
+use dokime_protocol::host::SecretsDeleteResponse;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,15 +47,10 @@ pub const ID: &str = "dokime.host.v1.Secrets/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::SecretsDeleteRequest, dokime_protocol::host::SecretsDeleteResponse>(
-        ID,
-        settings.mutation_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SecretsDeleteRequest, SecretsDeleteResponse>(ID, settings.mutation_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::SecretsDeleteRequest,
-) -> Result<dokime_protocol::host::SecretsDeleteResponse> {
+pub async fn handle(context: &Context, request: SecretsDeleteRequest) -> Result<SecretsDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let receipt = crate::host::views::receipt(context, &request.request_id)?;
         let crate::host::secrets::store::Reply::Snapshot(snapshot) =
@@ -58,7 +59,7 @@ pub async fn handle(
             return Err(Error::Invalid("Delete Secret: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(dokime_protocol::host::SecretsDeleteResponse {
+        Ok(SecretsDeleteResponse {
             receipt: Some(receipt),
             cleanup_pending: snapshot.cleanup_pending,
         })

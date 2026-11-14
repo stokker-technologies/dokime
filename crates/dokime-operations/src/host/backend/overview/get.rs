@@ -15,14 +15,23 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+
+use dokime_protocol::host::backend::EvidenceCounts;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::backend::OverviewGetResponse;
+use dokime_protocol::host::backend::RuntimeShellSnapshot;
+use std::num::NonZeroUsize;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -42,15 +51,10 @@ pub const ID: &str = "dokime.host.v1.backend.Overview/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::backend::OverviewGetRequest, dokime_protocol::host::backend::OverviewGetResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<OverviewGetRequest, OverviewGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::backend::OverviewGetRequest,
-) -> Result<dokime_protocol::host::backend::OverviewGetResponse> {
+pub async fn handle(context: &Context, request: OverviewGetRequest) -> Result<OverviewGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (overview, cut) =
             crate::host::views::read(context, &format!("{ID}/{}", context.host.identity().epoch), request.at.as_ref(), async {
@@ -58,7 +62,7 @@ pub async fn handle(
                 let cycle_summaries = cycles;
                 let cursor = crate::host::execution_state::observed(context);
                 let next_after_cycle_id = None;
-                let mut counts = dokime_protocol::host::backend::EvidenceCounts::default();
+                let mut counts = EvidenceCounts::default();
                 for id in context.host.store().identifiers()? {
                     let cut = context.host.store().cut(&id)?;
                     let mut after = 0;
@@ -67,7 +71,7 @@ pub async fn handle(
                             &id,
                             after,
                             cut.frontier,
-                            std::num::NonZeroUsize::new(context.settings.page_items).unwrap(),
+                            NonZeroUsize::new(context.settings.page_items).unwrap(),
                         )?;
                         if page.is_empty() {
                             break;
@@ -90,7 +94,7 @@ pub async fn handle(
                     }
                 }
                 counts.telemetry = context.host.store().sample_count()?;
-                let reply = dokime_protocol::host::backend::RuntimeShellSnapshot {
+                let reply = RuntimeShellSnapshot {
                     session_id: context.host.identity().epoch,
                     revision: *context.host.changes().borrow(),
                     shutting_down: context.host.shutting_down(),
@@ -107,7 +111,7 @@ pub async fn handle(
                 Ok(reply)
             })
             .await?;
-        Ok(dokime_protocol::host::backend::OverviewGetResponse {
+        Ok(OverviewGetResponse {
             overview: Some(overview),
             resolved_at: Some(cut),
         })

@@ -15,10 +15,11 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
@@ -28,6 +29,10 @@ use dokime_protocol::host::BackendAppearanceRequest;
 use dokime_protocol::host::BackendAppearanceResponse;
 use dokime_protocol::host::ThemeModePolicy;
 use harmos_protocol::host::PluginState;
+
+use dokime_storage::Error as StorageError;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,7 +52,7 @@ pub const ID: &str = "dokime.host.v1.Backend/Appearance";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<BackendAppearanceRequest, BackendAppearanceResponse>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Result<BackendAppearanceResponse> {
@@ -56,7 +61,7 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
             context.host.refresh_plugin_states().await?;
 
             let mut appearance = None;
-            for plugin in context.host.plugins()?.into_iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
+            for plugin in context.host.plugins().await?.into_iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
                 let Some(catalog) = plugin.description.and_then(|description| description.declarations) else {
                     continue;
                 };
@@ -71,7 +76,7 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
                     if snapshot.app_name.trim().is_empty() {
                         return Err(Error::Invalid("Read Appearance: Give the Provider an Application Name".into()));
                     }
-                    snapshot.source_plugin_id = Some(plugin.entry.clone());
+                    snapshot.source_plugin_id = Some(plugin.name.clone());
                     for logo in &mut snapshot.logos {
                         let Some(asset) = logo.asset.as_mut() else {
                             continue;
@@ -80,7 +85,7 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
                             continue;
                         };
                         // A Provider May Reference Only Its Published, Digest-Matched File.
-                        if reference.plugin_id != plugin.entry {
+                        if reference.plugin_id != plugin.name {
                             return Err(Error::Invalid("Read Appearance: Keep Assets with Their Declaring Provider".into()));
                         }
                         match context.host.store().file_reference(&reference.asset_id) {
@@ -90,7 +95,7 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
                                 }
                                 asset.file = Some(file);
                             }
-                            Err(dokime_storage::Error::NotFound(_)) => {
+                            Err(StorageError::NotFound(_)) => {
                                 asset.file = None;
                             }
                             Err(error) => return Err(error.into()),

@@ -15,12 +15,13 @@
 
 /* === Imports === */
 
+use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
-use dokime_protocol::host::FilesGetRequest;
-use dokime_protocol::host::FilesReadRequest;
-use dokime_protocol::host::FilesReadResponse;
+use dokime_protocol::host::{FilesReadRequest, FilesReadResponse};
 use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage::FileReference as NativeFileReference;
 
 /* === Constants === */
 
@@ -45,25 +46,29 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: FilesReadRequest) -> Result<FilesReadResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let maximum = crate::host::files::transfer::chunk_bytes(context);
-        let maximum = if request.max_bytes == 0 {
-            maximum
-        } else {
-            usize::try_from(request.max_bytes).map_err(|_| Error::Bound("Read File: Respect Its Chunk Bound".into()))?
-        };
-        if maximum > crate::host::files::transfer::chunk_bytes(context) {
-            return Err(Error::Bound("Read File: Respect the Returned Chunk Bound".into()));
+        let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;
+        transfer::authorize(context, &file)?;
+        let maximum = transfer::chunk_bytes(context).await? as u64;
+        let max_bytes = if request.max_bytes == 0 { maximum } else { request.max_bytes };
+        if max_bytes > maximum {
+            return Err(Error::Bound(format!("{ID}: Respect the Returned Chunk Bound")));
         }
-        let selected = crate::host::files::get::handle(context, FilesGetRequest { file: request.file, at: request.at }).await?;
-        let file = selected.file.ok_or_else(|| Error::Invalid("Read File: Select Its Reference".into()))?;
-        let data = crate::host::files::transfer::read(context, &file, request.offset, maximum)?;
+        let file = NativeFileReference::try_from(file).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let response = context
+            .storage::<GetFileBytes>(GetFileBytesRequest {
+                file: Some(file),
+                offset: request.offset,
+                max_bytes,
+                at: request.at,
+            })
+            .await?;
         crate::host::bounded_reply(
             context,
             FilesReadResponse {
-                data,
-                total_length: file.length,
-                sha256: file.sha256,
-                resolved_at: selected.resolved_at,
+                data: response.data,
+                total_length: response.total_length,
+                sha256: response.sha256,
+                resolved_at: response.resolved_at,
             },
         )
     })

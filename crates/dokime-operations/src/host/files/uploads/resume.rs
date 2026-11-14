@@ -16,10 +16,11 @@
 /* === Imports === */
 
 use crate::Result;
+use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
-use dokime_protocol::host::files::UploadsResumeRequest;
-use dokime_protocol::host::files::UploadsResumeResponse;
+use dokime_protocol::host::files::{UploadsResumeRequest, UploadsResumeResponse};
 use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{CreateFileWriter, CreateFileWriterRequest};
 
 /* === Constants === */
 
@@ -44,11 +45,20 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: UploadsResumeRequest) -> Result<UploadsResumeResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        Ok(context.host.store().resume_file_upload(
-            request,
-            crate::host::files::transfer::chunk_bytes(context) as u64,
-            context.settings.message_bytes as u64,
-        )?)
+        let session = transfer::session(request.upload)?;
+        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        let response = context
+            .storage::<CreateFileWriter>(CreateFileWriterRequest {
+                session: Some(session),
+                mutation: Some(mutation),
+            })
+            .await?;
+        Ok(UploadsResumeResponse {
+            upload: response.production.map(transfer::upload),
+            receipt: response.receipt,
+            chunk_bytes: transfer::chunk_bytes(context).await? as u64,
+            message_bytes: context.settings.message_bytes as u64,
+        })
     })
     .await
 }

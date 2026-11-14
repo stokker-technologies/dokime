@@ -21,7 +21,20 @@
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
+use prost::Message;
+
+use dokime_protocol::host::ApplicationAppearance;
+use dokime_protocol::host::ApplicationSettings;
+use dokime_protocol::host::ClientPreferences;
+use dokime_protocol::host::Density;
+use dokime_protocol::host::PluginPreferences;
+use dokime_protocol::host::ReportDefaults;
+use dokime_protocol::host::SettingsGetResponse;
+use dokime_protocol::host::TelemetryPreferences;
+use dokime_protocol::host::ThemeMode;
+use dokime_protocol::model::Downsample;
+use harmos_protocol::model::ReadCut;
+use std::time::Duration;
 
 /* === Constants === */
 
@@ -40,29 +53,29 @@ use dokime_protocol::model;
 /* === Public Functions === */
 
 // Product Defaults Are Copied from the Old Application Preferences; Delete the Old Owner at Cutover.
-pub(crate) fn initial() -> dokime_protocol::host::SettingsGetResponse {
-    dokime_protocol::host::SettingsGetResponse {
-        revision: 0_u64.to_be_bytes().to_vec(),
-        value: Some(dokime_protocol::host::ApplicationSettings {
-            appearance: Some(dokime_protocol::host::ApplicationAppearance {
-                theme_mode: dokime_protocol::host::ThemeMode::System as i32,
-                density: dokime_protocol::host::Density::Comfortable as i32,
+pub(crate) fn initial() -> SettingsGetResponse {
+    SettingsGetResponse {
+        revision: Vec::new(),
+        value: Some(ApplicationSettings {
+            appearance: Some(ApplicationAppearance {
+                theme_mode: ThemeMode::System as i32,
+                density: Density::Comfortable as i32,
                 ..Default::default()
             }),
-            report: Some(dokime_protocol::host::ReportDefaults {
+            report: Some(ReportDefaults {
                 source_bytes: 64 * 1024 * 1024,
                 value_depth: 128,
                 table_rows: 32,
                 plot_points: 2000,
-                plot_downsample: dokime_protocol::model::Downsample::Auto as i32,
+                plot_downsample: Downsample::Auto as i32,
             }),
-            client: Some(dokime_protocol::host::ClientPreferences {
+            client: Some(ClientPreferences {
                 connect_timeout_ms: 10_000,
                 request_timeout_ms: 30_000,
             }),
-            telemetry: Some(dokime_protocol::host::TelemetryPreferences { interval_ms: 1000 }),
+            telemetry: Some(TelemetryPreferences { interval_ms: 1000 }),
             listener: None,
-            plugins: Some(dokime_protocol::host::PluginPreferences {
+            plugins: Some(PluginPreferences {
                 startup_timeout_s: 60,
                 stop_timeout_s: 10,
             }),
@@ -71,24 +84,24 @@ pub(crate) fn initial() -> dokime_protocol::host::SettingsGetResponse {
     }
 }
 
-pub(crate) fn read(context: &Context) -> Result<dokime_protocol::host::SettingsGetResponse> {
-    let (payload, revision) =
-        context.host.store().administration_value("preferences", &prost::Message::encode_to_vec(&initial().value.unwrap()))?;
-    Ok(dokime_protocol::host::SettingsGetResponse {
-        value: Some(<dokime_protocol::host::ApplicationSettings as prost::Message>::decode(payload.as_slice())?),
-        revision,
-        resolved_at: None,
+pub(crate) async fn read(context: &Context, at: Option<ReadCut>) -> Result<SettingsGetResponse> {
+    let initial = initial().value.unwrap().encode_to_vec();
+    let snapshot = crate::host::storage::administration::read(context, "preferences", &initial, at).await?;
+    Ok(SettingsGetResponse {
+        value: Some(ApplicationSettings::decode(snapshot.payload.as_slice())?),
+        revision: snapshot.revision,
+        resolved_at: snapshot.resolved_at,
     })
 }
 
-pub(crate) fn validate(settings: &dokime_protocol::host::ApplicationSettings) -> Result<()> {
+pub(crate) fn validate(settings: &ApplicationSettings) -> Result<()> {
     let appearance = settings.appearance.as_ref().ok_or_else(|| invalid("Supply Appearance Preferences"))?;
     if appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256) {
         return Err(invalid("Choose a Theme Family of 1 to 256 Bytes"));
     }
-    if dokime_protocol::host::ThemeMode::try_from(appearance.theme_mode).is_err()
+    if ThemeMode::try_from(appearance.theme_mode).is_err()
         || appearance.theme_mode == 0
-        || dokime_protocol::host::Density::try_from(appearance.density).is_err()
+        || Density::try_from(appearance.density).is_err()
         || appearance.density == 0
     {
         return Err(invalid("Choose a Valid Theme Mode and Density"));
@@ -99,7 +112,7 @@ pub(crate) fn validate(settings: &dokime_protocol::host::ApplicationSettings) ->
         || report.table_rows == 0
         || !(1..=100_000).contains(&report.plot_points)
         || report.plot_downsample == 0
-        || dokime_protocol::model::Downsample::try_from(report.plot_downsample).is_err()
+        || Downsample::try_from(report.plot_downsample).is_err()
     {
         return Err(invalid("Supply Positive Report Bounds, at Most 100000 Plot Points and a Downsample Strategy"));
     }
@@ -123,7 +136,7 @@ fn invalid(message: &str) -> Error {
 }
 
 fn duration(value: u64) -> Result<()> {
-    if value == 0 || value > (1_u64 << 53) - 1 || std::time::Duration::from_millis(value).as_nanos() > i64::MAX as u128 {
+    if value == 0 || value > (1_u64 << 53) - 1 || Duration::from_millis(value).as_nanos() > i64::MAX as u128 {
         return Err(invalid("Supply a Positive Exact Duration Within the Clock Range"));
     }
     Ok(())

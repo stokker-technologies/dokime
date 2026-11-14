@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
+use crate::host::ClientSettings;
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model as h;
 
 // Local Imports
 use crate::{Result, host::Context};
+
+use dokime_protocol::host::SettingsGetRequest;
+use dokime_protocol::host::SettingsGetResponse;
+
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -41,27 +47,17 @@ pub const ID: &str = "dokime.host.v1.Settings/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
-    crate::host::declaration::<dokime_protocol::host::SettingsGetRequest, dokime_protocol::host::SettingsGetResponse>(
-        ID,
-        settings.read_timeout,
-    )
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
+    crate::host::declaration::<SettingsGetRequest, SettingsGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::host::SettingsGetRequest,
-) -> Result<dokime_protocol::host::SettingsGetResponse> {
-    crate::host::complete(ID, context.settings.read_timeout, async {
-        let (mut reply, cut) =
-            crate::host::views::read(context, ID, request.at.as_ref(), async { crate::host::settings::preferences::read(context) }).await?;
-        reply.resolved_at = Some(cut);
-        Ok(reply)
-    })
-    .await
+pub async fn handle(context: &Context, request: SettingsGetRequest) -> Result<SettingsGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async { crate::host::settings::preferences::read(context, request.at).await })
+        .await
 }
 
 /* === Private Functions === */
 
-pub fn initial_preferences() -> dokime_protocol::host::SettingsGetResponse {
+pub fn initial_preferences() -> SettingsGetResponse {
     crate::host::settings::preferences::initial()
 }
 
