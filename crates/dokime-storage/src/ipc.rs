@@ -428,7 +428,7 @@ fn footer(file: &mut HashedFile, schema: &arrow_schema::Schema, blocks: &[Block]
     Ok(())
 }
 
-fn sync_parent(path: &Path) -> Result<()> {
+pub(crate) fn sync_parent(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         let parent = File::open(path.parent().ok_or(Error::Data("IPC file has no parent"))?)?;

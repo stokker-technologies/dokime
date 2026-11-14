@@ -93,11 +93,13 @@ pub(crate) fn collect_garbage(root: &Path, connection: &Connection) -> Result<()
     let mut query = connection.prepare("SELECT id FROM telemetry_garbage ORDER BY id")?;
     let files = query.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
     for id in files {
-        match std::fs::remove_file(path(root, &id)?) {
+        let file = path(root, &id)?;
+        match std::fs::remove_file(&file) {
             Ok(()) => (),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(error) => return Err(error.into()),
         }
+        crate::ipc::sync_parent(&file)?;
         connection.execute("DELETE FROM telemetry_garbage WHERE id=?1", params![id])?;
     }
     Ok(())
