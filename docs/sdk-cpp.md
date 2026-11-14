@@ -186,6 +186,9 @@ covers handwritten files in this SDK and its shared C++ fixtures. `check` config
 formatting and Python lint, format and types. `build` is the compiler owner;
 `test`, `package` and `consumer` refuse when Ninja reports pending producer work,
 so a failed build cannot silently reuse older executables or libraries.
+CMake lists protocol inputs explicitly, as the pinned library does; adding a
+protocol file also updates `sdk/cpp/cmake/Library.cmake`. This keeps the Ninja
+freshness check independent of forced glob regeneration.
 
 Presets are `development`, `tests` (default) and `release`. Native/generated
 outputs live under `target/cp/<preset>`; vcpkg dependencies use `target/cp/v`.

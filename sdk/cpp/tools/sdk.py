@@ -178,7 +178,7 @@ def main() -> None:
     elif options.action == "test":
         pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
         if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError("Test C++ SDK: Build This Preset Before Running Its Stories")
+            raise RuntimeError(f"Test C++ SDK: Build This Preset Before Running Its Stories\n{pending.strip()}")
         command = ["ctest", "--preset", options.preset, "--output-junit", str(directory / "junit.xml")]
         if options.exact:
             command += ["-R", "^" + re.escape(options.exact) + "$"]
@@ -189,7 +189,7 @@ def main() -> None:
     elif options.action == "consumer":
         pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
         if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError("Build Installed Consumer: Build This Preset Before Installing Its Package")
+            raise RuntimeError(f"Build Installed Consumer: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
         subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
         consumer = ROOT / "target/cp/consumer"
@@ -227,7 +227,7 @@ def main() -> None:
     else:
         pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
         if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError("Package C++ SDK: Build This Preset Before Installing Its Package")
+            raise RuntimeError(f"Package C++ SDK: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
         subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
         archive = tarfile.TarFile.gzopen(directory / "dokime-cpp.tar.gz", "w")

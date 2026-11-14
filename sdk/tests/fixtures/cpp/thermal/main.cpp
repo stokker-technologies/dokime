@@ -17,7 +17,6 @@ using dokime::plugin::Stream;
 using dokime::plugin::Template;
 using google::protobuf::Duration;
 using harmos::plugin::decode;
-using harmos::plugin::detail::encode;
 using std::exception;
 using std::invalid_argument;
 using std::make_shared;
@@ -60,7 +59,7 @@ int main(int argc, char **argv) {
                              const auto answer = host.prompts.create("door", "thermal.door", {});
                              Door door;
                              door.set_closed(answer.action() == "yes" && answer.accepted());
-                             host.evidence.records.append(ctx.execution(), "thermal.door", encode(door), host.time.get());
+                             host.evidence.records.append(ctx.execution(), "thermal.door", door.SerializeAsString(), host.time.get());
                              Duration duration;
                              duration.set_seconds(2);
                              duration.set_nanos(500000000);
